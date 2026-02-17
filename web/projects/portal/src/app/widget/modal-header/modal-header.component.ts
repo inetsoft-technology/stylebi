@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
-import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assistant.service";
+import { AiAssistantDialogService } from "../../common/services/ai-assistant-dialog.service";
 
 @Component({
    selector: "modal-header",
@@ -33,7 +33,7 @@ export class ModalHeaderComponent {
    @Output() onShowStyle = new EventEmitter<any>();
    @Output() onExportTable = new EventEmitter<any>();
 
-   constructor(public aiAssistantService: AiAssistantService) {
+   constructor(public aiAssistantDialogService: AiAssistantDialogService) {
    }
 
    get showHelpLink(): boolean {

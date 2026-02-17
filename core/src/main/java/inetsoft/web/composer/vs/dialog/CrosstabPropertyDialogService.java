@@ -157,6 +157,7 @@ public class CrosstabPropertyDialogService {
       String[] flyoverViews = crosstabAssemblyInfo.getFlyoverViewsValue();
       tipPaneModel.setFlyOverViews(flyoverViews == null ? new String[0] : flyoverViews);
       tipPaneModel.setFlyOnClick(Boolean.valueOf(crosstabAssemblyInfo.getFlyOnClickValue()));
+      tipPaneModel.setTipOnClick(Boolean.valueOf(crosstabAssemblyInfo.getTipOnClickValue()));
       tipPaneModel.setPopComponents(
          this.vsObjectPropertyService.getSupportedTablePopComponents(
             rvs, crosstabAssemblyInfo.getAbsoluteName(), false));
@@ -327,6 +328,7 @@ public class CrosstabPropertyDialogService {
                                                   viewsheet.getViewsheet());
       assemblyInfo.setFlyoverViewsValue(flyovers);
       assemblyInfo.setFlyOnClickValue(tipPaneModel.isFlyOnClick() + "");
+      assemblyInfo.setTipOnClickValue(tipPaneModel.isTipOnClick() + "");
       setCube(assemblyInfo, hierarchyPropertyPaneModel);
       assemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       assemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());

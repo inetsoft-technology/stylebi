@@ -256,6 +256,14 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
       return flyOnClick;
    }
 
+   public boolean isDataTipOnClick() {
+      return dataTipOnClick;
+   }
+
+   public void setDataTipOnClick(boolean dataTipOnClick) {
+      this.dataTipOnClick = dataTipOnClick;
+   }
+
    public void setHasFlyovers(boolean hasFlyovers) {
       this.hasFlyovers = hasFlyovers;
    }
@@ -530,6 +538,7 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
    private boolean zoomed = false;
    private boolean hasFlyovers = false;
    private boolean flyOnClick = false;
+   private boolean dataTipOnClick = false;
    private boolean plotHighlightEnabled = false;
    private boolean plotFilterEnabled = false;
    private boolean mapInfo = false;
@@ -614,6 +623,7 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
                VSUtil.getValidFlyovers(info.getFlyoverViews(), assembly.getViewsheet());
             model.hasFlyovers = flyovers != null && flyovers.length > 0;
             model.flyOnClick = info.isFlyOnClick();
+            model.dataTipOnClick = info.isTipOnClick();
             model.plotHighlightEnabled = !GraphTypes.isRadarN(cinfo);
             model.mapInfo = cinfo instanceof VSMapInfo;
             model.setInvalid(!GraphUtil.isValidChart(cinfo));

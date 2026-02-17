@@ -136,6 +136,7 @@ public class TableViewPropertyDialogService {
       String[] flyoverViews = tableAssemblyInfo.getFlyoverViewsValue();
       tipPaneModel.setFlyOverViews(flyoverViews == null ? new String[0] : flyoverViews);
       tipPaneModel.setFlyOnClick(Boolean.valueOf(tableAssemblyInfo.getFlyOnClickValue()));
+      tipPaneModel.setTipOnClick(Boolean.valueOf(tableAssemblyInfo.getTipOnClickValue()));
       tipPaneModel.setPopComponents(
          this.vsObjectPropertyService.getSupportedTablePopComponents(
             rvs, tableAssemblyInfo.getAbsoluteName(), false));
@@ -259,6 +260,7 @@ public class TableViewPropertyDialogService {
       }
 
       tableAssemblyInfo.setFlyOnClickValue(tipPaneModel.isFlyOnClick() + "");
+      tableAssemblyInfo.setTipOnClickValue(tipPaneModel.isTipOnClick() + "");
 
       if(vsAssemblyScriptPaneModel != null) {
          tableAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());

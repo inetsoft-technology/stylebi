@@ -72,6 +72,14 @@ public class TipPaneModel implements Serializable {
       this.flyOnClick = flyOnClick;
    }
 
+   public boolean isTipOnClick() {
+      return tipOnClick;
+   }
+
+   public void setTipOnClick(boolean tipOnClick) {
+      this.tipOnClick = tipOnClick;
+   }
+
    public String[] getPopComponents() {
       return popComponents;
    }
@@ -116,6 +124,7 @@ public class TipPaneModel implements Serializable {
    private String alpha;
    private String[] flyOverViews;
    private boolean flyOnClick;
+   private boolean tipOnClick;
    private String[] popComponents;
    private String[] flyoverComponents;
    private TipCustomizeDialogModel tipCustomizeDialogModel;

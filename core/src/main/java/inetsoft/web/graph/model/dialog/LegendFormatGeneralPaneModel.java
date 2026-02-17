@@ -17,6 +17,8 @@
  */
 package inetsoft.web.graph.model.dialog;
 
+import inetsoft.graph.guide.legend.LegendItem;
+
 import java.io.Serializable;
 
 public class LegendFormatGeneralPaneModel implements Serializable {
@@ -84,6 +86,14 @@ public class LegendFormatGeneralPaneModel implements Serializable {
       this.notShowNullVisible = notShowNullVisible;
    }
 
+   public int getSymbolSize() {
+      return symbolSize;
+   }
+
+   public void setSymbolSize(int symbolSize) {
+      this.symbolSize = symbolSize;
+   }
+
    // title dvalue
    private String title;
    // title rvalue
@@ -94,4 +104,5 @@ public class LegendFormatGeneralPaneModel implements Serializable {
    private boolean visible;
    private boolean notShowNull;
    private boolean notShowNullVisible;
+   private int symbolSize = LegendItem.DEFAULT_SYMBOL_SIZE;
 }

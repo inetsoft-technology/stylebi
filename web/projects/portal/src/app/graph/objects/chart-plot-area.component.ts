@@ -64,6 +64,7 @@ import { Point } from "../../common/data/point";
 })
 export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChanges {
    @Input() dataTip: string;
+   @Input() dataTipOnClick: boolean;
    @Input() flyover: boolean;
    @Input() flyOnClick: boolean;
    @Input() scrollbarWidth: number;
@@ -240,7 +241,7 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
             this.emitFlyover(chartSelection);
          }
 
-         if(this.dataTip) {
+         if(this.dataTip && !this.dataTipOnClick) {
             this.debounceService.debounce(this.debounceKey, () => {
                this.showDataTip.emit(chartSelection);
             }, 100, []);
@@ -382,6 +383,11 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
             this.sendFlyover.emit(flyoverPayload);
          }
 
+         if(this.dataTipOnClick && this.dataTip) {
+            this.emitClickDataTip(!!hyperlinkRegion, event, x1, y1,
+               s => this.showDataTip.emit(s));
+         }
+
          this.selectionWidth = 0;
          this.selectionHeight = 0;
       }
@@ -450,7 +456,7 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
       this.debounceService.cancel(this.debounceKey);
       this.showTooltip.emit(null);
 
-      if(this.dataTip && !this.mobile) {
+      if(this.dataTip && !this.mobile && !this.dataTipOnClick) {
          const cls = "current-datatip-" + this.dataTip.replace(/ /g, "_");
          const tipElement: HTMLElement = document.getElementsByClassName(cls)[0] as HTMLElement;
 

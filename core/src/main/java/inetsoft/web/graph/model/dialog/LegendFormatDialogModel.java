@@ -49,6 +49,7 @@ public class LegendFormatDialogModel implements Serializable {
       generalPaneModel.setStyle(legendsDesc.getBorder());
       generalPaneModel.setNotShowNull(legendDesc.isNotShowNull());
       generalPaneModel.setNotShowNullVisible(dimension && field != null);
+      generalPaneModel.setSymbolSize(legendDesc.getSymbolSize());
 
       if(legendsDesc.getBorderColor() != null) {
          generalPaneModel.setFillColor(
@@ -114,6 +115,7 @@ public class LegendFormatDialogModel implements Serializable {
       legendsDesc.setBorderColor(color, false);
       legendsDesc.setLayout(getIndexByName(LEGEND_POSITIONS, generalPaneModel.getPosition()) + 1);
       legendDesc.setNotShowNull(generalPaneModel.isNotShowNull());
+      legendDesc.setSymbolSize(generalPaneModel.getSymbolSize());
 
       legendDesc.setReversed(scalePaneModel.isReverse());
       legendDesc.setLogarithmicScale(scalePaneModel.isLogarithmic());

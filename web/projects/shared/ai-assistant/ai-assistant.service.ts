@@ -17,8 +17,7 @@
  */
 
 import { HttpClient } from "@angular/common/http";
-import { Injectable, Injector } from "@angular/core";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { Injectable } from "@angular/core";
 import { convertToKey } from "../../em/src/app/settings/security/users/identity-id";
 import { BindingModel } from "../../portal/src/app/binding/data/binding-model";
 import { ChartBindingModel } from "../../portal/src/app/binding/data/chart/chart-binding-model";
@@ -31,19 +30,9 @@ import {
 } from "../../portal/src/app/binding/services/assistant/calc-table-context-helper";
 import { getChartBindingContext } from "../../portal/src/app/binding/services/assistant/chart-context-helper";
 import { getCrosstabBindingContext } from "../../portal/src/app/binding/services/assistant/crosstab-context-helper";
-import { getViewsheetScriptContext } from "../../portal/src/app/binding/services/assistant/viewsheet-context-helper";
-import {
-   getWorksheetContext,
-   getWorksheetScriptContext
-} from "../../portal/src/app/binding/services/assistant/worksheet-context-helper";
 import { CalcTableLayout } from "../../portal/src/app/common/data/tablelayout/calc-table-layout";
-import { ComponentTool } from "../../portal/src/app/common/util/component-tool";
-import { Viewsheet } from "../../portal/src/app/composer/data/vs/viewsheet";
-import { Worksheet } from "../../portal/src/app/composer/data/ws/worksheet";
 import { CurrentUser } from "../../portal/src/app/portal/current-user";
 import { VSObjectModel } from "../../portal/src/app/vsobjects/model/vs-object-model";
-import { TreeNodeModel } from "../../portal/src/app/widget/tree/tree-node-model";
-import { AiAssistantDialogComponent } from "./ai-assistant-dialog.component";
 
 const PORTAL_CURRENT_USER_URI: string = "../api/portal/get-current-user";
 const EM_CURRENT_USER_URI: string = "../api/em/security/get-current-user";
@@ -77,9 +66,7 @@ export class AiAssistantService {
    calcTableAggregates: string[] = [];
    private contextMap: Record<string, string> = {};
 
-   constructor(private http: HttpClient,
-               private modalService: NgbModal)
-   {
+   constructor(private http: HttpClient) {
       this.http.get("../api/assistant/get-chat-app-server-url").subscribe((url: string) => {
          this.chatAppServerUrl = url || "";
       });
@@ -98,20 +85,6 @@ export class AiAssistantService {
       this.http.get(uri).subscribe((model: CurrentUser) => {
          this.userId = convertToKey(model.name);
          this.email = model.email?.length > 0 ? model.email[0] : null;
-      });
-   }
-
-   openAiAssistantDialog(): void {
-      const injector = Injector.create({
-         providers: [
-            { provide: AiAssistantService, useValue: this }
-         ],
-      });
-
-      ComponentTool.showDialog(this.modalService, AiAssistantDialogComponent, () => {}, {
-         backdrop: true,
-         windowClass: "ai-assistant-container",
-         injector: injector
       });
    }
 
@@ -256,31 +229,4 @@ export class AiAssistantService {
       this.setContextField("scriptContext", objectModel.script);
    }
 
-   setWorksheetContext(ws: Worksheet): void {
-      this.resetContextMap();
-      this.setContextTypeFieldValue(ContextType.WORKSHEET);
-      let context = getWorksheetContext(ws);
-      this.setContextField("tableSchemas", context);
-   }
-
-   setWorksheetScriptContext(fields: TreeNodeModel[]): void {
-      if(!fields || fields.length === 0) {
-         this.setContextTypeFieldValue(ContextType.WORKSHEET);
-         this.removeContextField("scriptContext");
-         return;
-      }
-
-      this.setContextTypeFieldValue(ContextType.WORKSHEET_SCRIPT);
-      this.setContextField("scriptContext", getWorksheetScriptContext(fields));
-   }
-
-   setViewsheetScriptContext(vs: Viewsheet): void {
-      if(!vs || !vs.vsObjects || vs.vsObjects.length === 0) {
-         return;
-      }
-
-      this.resetContextMap();
-      this.setContextTypeFieldValue(ContextType.VIEWSHEET);
-      this.setContextField("scriptContext", getViewsheetScriptContext(vs));
-   }
 }

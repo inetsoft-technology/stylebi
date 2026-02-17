@@ -307,6 +307,30 @@ export abstract class ChartObjectAreaBase<T extends ChartObject>
       subscriptions.forEach((sub) => this.subscriptions.add(sub));
    }
 
+   /**
+    * Handle click-to-show data tip logic. If the click target has no hyperlinks
+    * (or Ctrl/Meta is held), emit the data tip for the clicked region;
+    * otherwise emit an empty region list to hide any existing data tip.
+    */
+   protected emitClickDataTip(
+      hasHyperlinks: boolean, event: MouseEvent | TouchEvent,
+      x: number, y: number,
+      emitFn: (selection: ChartSelection) => void
+   ): void {
+      if(!hasHyperlinks || event.ctrlKey || event.metaKey) {
+         emitFn({
+            chartObject: this.chartObject,
+            regions: this.getTreeRegions(x, y)
+         });
+      }
+      else {
+         emitFn({
+            chartObject: this.chartObject,
+            regions: []
+         });
+      }
+   }
+
    trackByFn(index, item) {
       return index;
    }

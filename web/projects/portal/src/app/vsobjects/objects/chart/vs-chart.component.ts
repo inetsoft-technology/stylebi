@@ -724,13 +724,31 @@ export class VSChart extends AbstractVSObject<VSChartModel>
          let plotCondition = this.getSelectedString(tipData.payload);
          let tip = plotCondition ? this.model.dataTip : null;
 
-         if(tip != null && this.dataTipService.isFrozen()) {
+         if(this.model.dataTipOnClick) {
             this.dataTipService.unfreeze();
-         }
 
-         this.chartService.showDataTip(this.dataTipService, tipData.tooltipLeft,
-                                       tipData.tooltipTop, this.getAssemblyName(),
-                                       tip, plotCondition, this.model.dataTipAlpha);
+            this.chartService.showDataTip(this.dataTipService, tipData.tooltipLeft,
+                                          tipData.tooltipTop, this.getAssemblyName(),
+                                          tip, plotCondition, this.model.dataTipAlpha);
+
+            if(tip != null) {
+               // Defer freeze so the click event (which fires after mouseup/pointerup)
+               // finishes bubbling before we freeze. The outside click listener in
+               // vs-data-tip.directive only dismisses when isFrozen() is true, so
+               // deferring prevents the same click that triggered the data tip from
+               // immediately dismissing it.
+               setTimeout(() => this.dataTipService.freeze(), 0);
+            }
+         }
+         else {
+            if(tip != null && this.dataTipService.isFrozen()) {
+               this.dataTipService.unfreeze();
+            }
+
+            this.chartService.showDataTip(this.dataTipService, tipData.tooltipLeft,
+                                          tipData.tooltipTop, this.getAssemblyName(),
+                                          tip, plotCondition, this.model.dataTipAlpha);
+         }
       }
    }
 
@@ -776,7 +794,8 @@ export class VSChart extends AbstractVSObject<VSChartModel>
    }
 
    mouseLeave(event: MouseEvent) {
-      if(this.model.dataTip && this.dataTipService.isDataTipVisible(this.model.dataTip) &&
+      if(this.model.dataTip && !this.model.dataTipOnClick &&
+         this.dataTipService.isDataTipVisible(this.model.dataTip) &&
          !this.dataTipService.isFrozen())
       {
          this.debounceService.debounce(DataTipService.DEBOUNCE_KEY, () => {
@@ -816,7 +835,7 @@ export class VSChart extends AbstractVSObject<VSChartModel>
     * hide resizers and clear selected annotations when selecting part of the chart
     */
    selectRegion(selection: ChartSelection): void {
-      if(!this.isDataTip()) {
+      if(!this.isDataTip() && !this.model.dataTipOnClick) {
          if(selection && selection.regions.length) {
             this.dataTipService.freeze();
          }

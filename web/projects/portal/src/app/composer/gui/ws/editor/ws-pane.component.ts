@@ -36,6 +36,7 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { fromEvent, merge, Subscription } from "rxjs";
 import { filter, map } from "rxjs/operators";
 import { AiAssistantService } from "../../../../../../../shared/ai-assistant/ai-assistant.service";
+import { AiAssistantDialogService } from "../../../../common/services/ai-assistant-dialog.service";
 import { AssetEntry } from "../../../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../../../shared/data/asset-type";
 import { DownloadService } from "../../../../../../../shared/download/download.service";
@@ -167,7 +168,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
    /** The worksheet currently in view */
    @Input() set worksheet(worksheet: Worksheet) {
       this._worksheet = worksheet;
-      this.aiAssistantService.setWorksheetContext(worksheet);
+      this.aiAssistantDialogService.setWorksheetContext(worksheet);
    }
 
    get worksheet(): Worksheet {
@@ -255,6 +256,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
    }
 
    constructor(private aiAssistantService: AiAssistantService,
+               private aiAssistantDialogService: AiAssistantDialogService,
                private resizeHandlerService: ResizeHandlerService,
                private changeDetector: ChangeDetectorRef,
                private worksheetClient: ViewsheetClientService,

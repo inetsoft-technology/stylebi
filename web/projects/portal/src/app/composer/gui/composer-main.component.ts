@@ -39,6 +39,7 @@ import {
    AiAssistantService,
    ContextType
 } from "../../../../../shared/ai-assistant/ai-assistant.service";
+import { AiAssistantDialogService } from "../../common/services/ai-assistant-dialog.service";
 import { AssetEntry, createAssetEntry } from "../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../shared/data/asset-type";
 import { Tool } from "../../../../../shared/util/tool";
@@ -324,7 +325,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                private router: Router,
                private scriptService: ScriptService,
                private fontService: FontService,
-               private aiAssistantService: AiAssistantService)
+               private aiAssistantService: AiAssistantService,
+               private aiAssistantDialogService: AiAssistantDialogService)
    {
       this.aiAssistantService.loadCurrentUser();
       GuiTool.isTouchDevice().then((value: boolean) => {
@@ -3096,10 +3098,10 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       this.aiAssistantService.setContextTypeFieldValue(contextType || ContextType.VIEWSHEET);
 
       if(contextType === "worksheet") {
-         this.aiAssistantService.setWorksheetContext(this.focusedSheet as Worksheet);
+         this.aiAssistantDialogService.setWorksheetContext(this.focusedSheet as Worksheet);
       }
       else if(contextType === "viewsheet") {
-         this.aiAssistantService.setViewsheetScriptContext(this.focusedSheet as Viewsheet);
+         this.aiAssistantDialogService.setViewsheetScriptContext(this.focusedSheet as Viewsheet);
       }
    }
 }

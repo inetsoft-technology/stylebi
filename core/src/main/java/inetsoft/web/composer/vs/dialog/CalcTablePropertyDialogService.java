@@ -172,6 +172,8 @@ public class CalcTablePropertyDialogService {
       tipPaneModel.setFlyOverViews(flyoverViews == null ? new String[0] : flyoverViews);
       tipPaneModel.setFlyOnClick(
          Boolean.valueOf(calcTableAssemblyInfo.getFlyOnClickValue()));
+      tipPaneModel.setTipOnClick(
+         Boolean.valueOf(calcTableAssemblyInfo.getTipOnClickValue()));
       tipPaneModel.setPopComponents(
          this.vsObjectPropertyService.getSupportedTablePopComponents(
             rvs, calcTableAssemblyInfo.getAbsoluteName(), false));
@@ -401,6 +403,7 @@ public class CalcTablePropertyDialogService {
                                                   viewsheet.getViewsheet());
       calcTableAssemblyInfo.setFlyoverViewsValue(flyovers);
       calcTableAssemblyInfo.setFlyOnClickValue(tipPaneModel.isFlyOnClick() + "");
+      calcTableAssemblyInfo.setTipOnClickValue(tipPaneModel.isTipOnClick() + "");
 
       calcTableAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       calcTableAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
