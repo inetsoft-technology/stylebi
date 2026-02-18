@@ -20,7 +20,6 @@ package inetsoft.web.composer.vs.dialog;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.license.LicenseManager;
-import inetsoft.sree.SreeEnv;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
@@ -185,7 +184,6 @@ public class TableViewPropertyDialogController {
       vsAssemblyScriptPaneModel.scriptEnabled(tableAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(tableAssemblyInfo.getScript() == null ?
                                               "" : tableAssemblyInfo.getScript());
-      vsAssemblyScriptPaneModel.cursorTop(Boolean.parseBoolean(SreeEnv.getProperty("script.cursor.top")));
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
 
       return result;

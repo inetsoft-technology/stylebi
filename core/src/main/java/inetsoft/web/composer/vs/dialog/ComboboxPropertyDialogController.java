@@ -21,7 +21,6 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.InputVSAQuery;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.sree.SreeEnv;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.schema.XSchema;
@@ -226,7 +225,6 @@ public class ComboboxPropertyDialogController {
       vsAssemblyScriptPaneModel.scriptEnabled(comboBoxAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(comboBoxAssemblyInfo.getScript() == null ?
                                               "" : comboBoxAssemblyInfo.getScript());
-      vsAssemblyScriptPaneModel.cursorTop(Boolean.parseBoolean(SreeEnv.getProperty("script.cursor.top")));
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
 
       return result;

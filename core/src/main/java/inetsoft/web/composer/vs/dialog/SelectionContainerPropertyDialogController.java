@@ -20,7 +20,6 @@ package inetsoft.web.composer.vs.dialog;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.sree.SreeEnv;
 import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CurrentSelectionVSAssemblyInfo;
@@ -136,7 +135,6 @@ public class SelectionContainerPropertyDialogController {
       vsAssemblyScriptPaneModel.expression(
          selectionContainerAssemblyInfo.getScript() == null ?
             "" : selectionContainerAssemblyInfo.getScript());
-      vsAssemblyScriptPaneModel.cursorTop(Boolean.parseBoolean(SreeEnv.getProperty("script.cursor.top")));
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
 
       return result;

@@ -41,6 +41,7 @@ import { AnalysisResult } from "./analysis-result";
 import { CodemirrorHighlightTextInfo } from "../codemirror-highlight-text-info";
 import { TreeTool } from "../../../common/util/tree-tool";
 import { CodemirrorService } from "../../../../../../shared/util/codemirror/codemirror.service";
+import { ScriptSettingsService } from "./script-settings.service";
 
 const LINT_MARKERS = "CodeMirror-lint-markers";
 
@@ -65,7 +66,6 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
    @Input() disabled: boolean = false;
    @Input() showOriginalName: boolean = false;
    @Input() propertyDefinitions: any;
-   @Input() cursorTop: boolean = false;
    @Output() expressionChange: EventEmitter<any> = new EventEmitter<any>();
    @Output() analysisResultsChange = new EventEmitter<AnalysisResult[]>();
    @Output() onContextmenu = new EventEmitter<[MouseEvent | any, TreeNodeModel, TreeNodeModel[]]>();
@@ -86,6 +86,7 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
    private _functionTreeRoot: TreeNodeModel;
    private _operatorTreeRoot: TreeNodeModel;
    private _analysisResults: AnalysisResult[] = [];
+   private cursorTop: boolean = false;
    helpURL = "";
    needUseVirtualScroll: boolean = true;
 
@@ -199,12 +200,14 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
    constructor(private codemirrorService: CodemirrorService, private zone: NgZone,
                private analyzerService: FormulaFunctionAnalyzerService,
                private helpService: HelpUrlService,
+               private scriptSettingsService: ScriptSettingsService,
                private renderer: Renderer2, private host: ElementRef)
    {
    }
 
    ngOnInit(): void {
       this.helpService.getScriptHelpUrl().subscribe((url) => this.helpURL = url);
+      this.scriptSettingsService.isCursorTop().subscribe((val) => this.cursorTop = val);
    }
 
    ngOnChanges(changes: SimpleChanges): void {
@@ -329,10 +332,9 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
          } else {
             this.codemirrorInstance.setCursor({
                line: this.codemirrorInstance.lineCount(),
-               ch: this.codemirrorInstance.lastLine().length
+               ch: this.codemirrorInstance.getLine(this.codemirrorInstance.lastLine()).length
             });
          }
-
 
          this.renderAnalysisResults();
 

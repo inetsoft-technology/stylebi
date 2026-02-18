@@ -15,7 +15,28 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-export interface VSAssemblyScriptPaneModel {
-   expression?: string;
-   scriptEnabled?: boolean;
+import { Injectable } from "@angular/core";
+import { Observable, of as observableOf } from "rxjs";
+import { tap } from "rxjs/operators";
+import { ModelService } from "../../services/model.service";
+
+@Injectable({
+   providedIn: "root"
+})
+export class ScriptSettingsService {
+   private _cursorTop: boolean | undefined;
+
+   constructor(private modelService: ModelService) {
+   }
+
+   isCursorTop(): Observable<boolean> {
+      if(this._cursorTop !== undefined) {
+         return observableOf(this._cursorTop);
+      }
+
+      return this.modelService.getModel<boolean>(
+         "../api/composer/viewsheet/script-cursor-top").pipe(
+         tap((val) => this._cursorTop = val)
+      );
+   }
 }

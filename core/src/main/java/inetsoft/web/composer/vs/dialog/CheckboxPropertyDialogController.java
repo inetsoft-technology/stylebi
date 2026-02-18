@@ -19,7 +19,6 @@ package inetsoft.web.composer.vs.dialog;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.sree.SreeEnv;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CheckBoxVSAssemblyInfo;
@@ -221,7 +220,6 @@ public class CheckboxPropertyDialogController {
       vsAssemblyScriptPaneModel.scriptEnabled(checkBoxAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(checkBoxAssemblyInfo.getScript() == null ?
                                               "" : checkBoxAssemblyInfo.getScript());
-      vsAssemblyScriptPaneModel.cursorTop(Boolean.parseBoolean(SreeEnv.getProperty("script.cursor.top")));
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
 
       return result;

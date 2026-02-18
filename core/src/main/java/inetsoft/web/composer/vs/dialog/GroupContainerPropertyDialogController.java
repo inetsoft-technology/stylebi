@@ -20,7 +20,6 @@ package inetsoft.web.composer.vs.dialog;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.sree.SreeEnv;
 import inetsoft.uql.viewsheet.GroupContainerVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.*;
@@ -159,7 +158,6 @@ public class GroupContainerPropertyDialogController {
 
       vsAssemblyScriptPane.scriptEnabled(info.isScriptEnabled());
       vsAssemblyScriptPane.expression(info.getScript() == null ? "" : info.getScript());
-      vsAssemblyScriptPane.cursorTop(Boolean.parseBoolean(SreeEnv.getProperty("script.cursor.top")));
       groupContainerPropertyDialog.setVsAssemblyScriptPane(vsAssemblyScriptPane.build());
 
       return groupContainerPropertyDialog;
