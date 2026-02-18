@@ -15,14 +15,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
+import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angular/core";
 import { UntypedFormControl, UntypedFormGroup, Validators, AbstractControl, ValidationErrors, ValidatorFn } from "@angular/forms";
+import { Subject } from "rxjs";
+import { takeUntil } from "rxjs/operators";
 
 @Component({
    selector: "range-slider-edit-dialog",
    templateUrl: "range-slider-edit-dialog.component.html",
 })
-export class RangeSliderEditDialog implements OnInit {
+export class RangeSliderEditDialog implements OnInit, OnDestroy {
    @Input() currentMin: number | Date;
    @Input() currentMax: number | Date;
    @Input() rangeMin: number | Date;
@@ -35,21 +37,27 @@ export class RangeSliderEditDialog implements OnInit {
    rangeForm: UntypedFormGroup;
    isDateType: boolean;
    timeIncrement: string;
+   private destroy$ = new Subject<void>();
 
    ngOnInit() {
       this.initForm();
    }
 
+   ngOnDestroy() {
+      this.destroy$.next();
+      this.destroy$.complete();
+   }
+
    initForm(): void {
-      this.rangeForm = new UntypedFormGroup({});
+      this.rangeForm = new UntypedFormGroup({}, this.minMaxNotEqual());
       if(typeof this.rangeMin == "number" && typeof this.rangeMax == "number"){
          this.isDateType = false;
-         this.rangeForm.addControl("min", new UntypedFormControl({}, [
+         this.rangeForm.addControl("min", new UntypedFormControl(this.currentMin, [
             Validators.required,
             Validators.min(this.rangeMin),
             Validators.max(this.rangeMax)
          ]));
-         this.rangeForm.addControl("max", new UntypedFormControl({}, [
+         this.rangeForm.addControl("max", new UntypedFormControl(this.currentMax, [
             Validators.required,
             Validators.min(this.rangeMin),
             Validators.max(this.rangeMax)
@@ -67,16 +75,16 @@ export class RangeSliderEditDialog implements OnInit {
             this.dateRangeValidatorMin(this.rangeMin),
             this.dateRangeValidatorMax(this.rangeMax)
          ]));
-         this.rangeForm.get("min")?.valueChanges.subscribe(value => {
+         this.rangeForm.get("min")?.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(value => {
            this.currentMin = value;
          });
-         this.rangeForm.get("max")?.valueChanges.subscribe(value => {
+         this.rangeForm.get("max")?.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(value => {
            this.currentMax = value;
          });
       }
    }
 
-   formatDate(date): string {
+   formatDate(date: number | Date): string {
       const d = new Date(date);
       const year = d.getFullYear();
       const month = ("0" + (d.getMonth() + 1)).slice(-2);
@@ -143,12 +151,22 @@ export class RangeSliderEditDialog implements OnInit {
       };
    }
 
-   public getTimeIncrement(){
-      return this.timeIncrement;
-   }
+   private minMaxNotEqual(): ValidatorFn {
+      return (group: AbstractControl): ValidationErrors | null => {
+         const min = group.get("min")?.value;
+         const max = group.get("max")?.value;
 
-   public setTimeIncrement(t: string){
-      return this.timeIncrement = t;
+         if (min == null || max == null) {
+            return null;
+         }
+
+         // For numbers, compare numerically; for date strings, compare directly
+         if (this.isDateType ? min === max : +min === +max) {
+            return { minMaxEqual: true };
+         }
+
+         return null;
+      };
    }
 
    close(): void {

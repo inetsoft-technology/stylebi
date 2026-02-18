@@ -115,8 +115,10 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    private _leftHandlePosition: number;
    private _rightHandlePosition: number;
 
-   private timeHandleClicked: number;
+   private timeHandleClicked: number = 0;
    private clickTime: number = 200;
+   private startingSelectStart: number;
+   private startingSelectEnd: number;
 
    get mobilePadding(): number {
       return this.hasMobilePadding ? 10 : 0;
@@ -426,6 +428,8 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
       }
 
       this.timeHandleClicked = Date.now();
+      this.startingSelectStart = this.model.selectStart;
+      this.startingSelectEnd = this.model.selectEnd;
 
       if(GuiTool.isButton1(event)) {
          this.mouseHandle = handle;
@@ -494,7 +498,8 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    }
 
    mouseUp(event: MouseEvent|TouchEvent): void {
-      let moved: boolean = this.mouseHandle != Handle.None;
+      const handle = this.mouseHandle;
+      let moved: boolean = handle != Handle.None;
 
       if(this.isMouseDown) {
          this.mouseHandle = Handle.None;
@@ -505,8 +510,12 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
       }
 
       const timeHeld = Date.now() - this.timeHandleClicked;
+      const selectionChanged = this.model.selectStart !== this.startingSelectStart ||
+         this.model.selectEnd !== this.startingSelectEnd;
 
-      if (timeHeld < this.clickTime) {
+      if (timeHeld < this.clickTime && !selectionChanged &&
+            (handle === Handle.Left || handle === Handle.Right) &&
+            this.context && (this.context.viewer || this.context.preview)) {
          event.preventDefault();
          event.stopPropagation();
          this.showRangeSliderEditDialog();
@@ -665,7 +674,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
             let maxFound: boolean = false;
             const numLabels = this.model.labels.length;
             if (this.model.dataType && XSchema.isDateType(this.model.dataType)) {
-               const timeIncrement = editDialog.getTimeIncrement();
+               const timeIncrement = editDialog.timeIncrement;
 
                if (timeIncrement == "t") {
                   min = min instanceof Date ? min : new Date(min);
@@ -675,38 +684,21 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
                   max = max instanceof Date ? max : new Date(max + "T00:00");
                }
 
-               ({ min , max } = this.getLabelValues(timeIncrement, min, max));
+               const minTime = this.toIncrementTimestamp(timeIncrement, min);
+               const maxTime = this.toIncrementTimestamp(timeIncrement, max);
 
-               if (timeIncrement == "t"){
-                  for(let index: number = 0; index < numLabels && !maxFound; index++){
-                     const labelValue = this.model.values[index].replace(/[a-zA-Z'{}]/g, "");
-                     const labelTime = new Date(labelValue).getTime();
+               for(let index: number = 0; index < numLabels && !maxFound; index++){
+                  const labelTime = this.labelToTimestamp(timeIncrement, this.model.values[index]);
 
-                     if(min <= labelTime && !minFound) {
-                        this.model.selectStart = min === labelTime ? index : index - 1;
-                        minFound = true;
-                     }
-
-                     if(max <= labelTime && minFound) {
-                        this.model.selectEnd = Math.max(this.model.selectStart + 1,
-                                                        max === labelTime ? index : index - 1);
-                        maxFound = true;
-                     }
+                  if(minTime <= labelTime && !minFound) {
+                     this.model.selectStart = minTime === labelTime ? index : index - 1;
+                     minFound = true;
                   }
-               } else {
-                  for(let index: number = 0; index < numLabels && !maxFound; index++){
-                     const labelValue = this.model.values[index];
 
-                     if(min <= labelValue && !minFound) {
-                        this.model.selectStart = min === labelValue ? index : index - 1;
-                        minFound = true;
-                     }
-
-                     if(max <= labelValue && minFound) {
-                        this.model.selectEnd = Math.max(this.model.selectStart + 1,
-                                                        max === labelValue ? index : index - 1);
-                        maxFound = true;
-                     }
+                  if(maxTime <= labelTime && minFound) {
+                     this.model.selectEnd = Math.max(this.model.selectStart + 1,
+                                                     maxTime === labelTime ? index : index - 1);
+                     maxFound = true;
                   }
                }
             } else {
@@ -734,7 +726,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
       if (this.model.dataType && XSchema.isDateType(this.model.dataType)) {
 
          const timeIncrement = this.model.values[this.model.selectStart].replace(/[{'}`]/g, "").charAt(0);
-         editDialog.setTimeIncrement(timeIncrement);
+         editDialog.timeIncrement = timeIncrement;
 
          const { currMinStr, currMaxStr, rangeMinStr, rangeMaxStr } = this.getDateStrings(
                                           timeIncrement,
@@ -758,43 +750,54 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
       }
    }
 
-   private getLabelValues(timeIncrement: String, minDate: Date, maxDate: Date){
-
-      const minYear = minDate.getFullYear();
-      const maxYear = maxDate.getFullYear();
-      const minMonth = String(minDate.getMonth() + 1).padStart(2, "0");
-      const maxMonth = String(maxDate.getMonth() + 1).padStart(2, "0");
-      const minDay = String(minDate.getDate()).padStart(3, "0");
-      const maxDay = String(maxDate.getDate()).padStart(3, "0");
-
+   private toIncrementTimestamp(timeIncrement: string, date: Date): number {
       switch (timeIncrement) {
-         case "y": {
-            const min = `{y "${minYear}"}`;
-            const max = `{y "${maxYear}"}`;
-            return { min, max };
-         }
-         case "m": {
-            const min = `{m "${minYear}-${minMonth}"}`;
-            const max = `{m "${maxYear}-${maxMonth}"}`;
-            return { min, max };
-         }
-         case "d": {
-            const min = `{d "${minYear}-${minMonth}-${minDay}"}`;
-            const max = `{d "${maxYear}-${maxMonth}-${maxDay}"}`;
-            return { min, max };
-         }
-         case "t": {
-            const min = minDate.getTime();
-            const max = maxDate.getTime();
-            return { min, max };
-         }
-         default : {
-            return { min: null, max: null};
-         }
+         case "y":
+            return new Date(date.getFullYear(), 0, 1).getTime();
+         case "m":
+            return new Date(date.getFullYear(), date.getMonth(), 1).getTime();
+         case "d":
+            return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+         case "t":
+            return date.getTime();
+         default:
+            return date.getTime();
       }
    }
 
-   private getDateStrings(timeIncrement, selectStart, selectEnd, rangeMin, rangeMax){
+   private labelToTimestamp(timeIncrement: string, value: string): number {
+      const match = value.match(/\{[a-zA-Z]+\s+'(.+)'\s*}/);
+      const sanitized = match ? match[1] : value.replace(/[a-zA-Z'"{}]/g, "").trim();
+
+      if (timeIncrement === "t") {
+         return new Date(sanitized).getTime();
+      }
+
+      const parts = sanitized.split("-").map(p => parseInt(p, 10));
+
+      switch (timeIncrement) {
+         case "y":
+            return new Date(parts[0], 0, 1).getTime();
+         case "m":
+            return new Date(parts[0], parts[1] - 1, 1).getTime();
+         case "d":
+            return new Date(parts[0], parts[1] - 1, parts[2]).getTime();
+         default:
+            return NaN;
+      }
+   }
+
+   private getDateStrings(
+      timeIncrement: string,
+      selectStart: string,
+      selectEnd: string,
+      rangeMin: string,
+      rangeMax: string): {
+         currMinStr: string;
+         currMaxStr: string;
+         rangeMinStr: string;
+         rangeMaxStr: string;
+   } {
       switch (timeIncrement) {
          case "y": {
             let { currMinStr, currMaxStr, rangeMinStr, rangeMaxStr} = this.sanitizeDateLabels(
@@ -832,8 +835,20 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
       }
    }
 
-   private sanitizeDateLabels(selectStart, selectEnd, rangeMin, rangeMax) {
-      const sanitize = (val: string) => val.replace(/[a-zA-Z'{}]/g, "");
+   private sanitizeDateLabels(
+      selectStart: string,
+      selectEnd: string,
+      rangeMin: string,
+      rangeMax: string): {
+         currMinStr: string,
+         currMaxStr: string,
+         rangeMinStr: string,
+         rangeMaxStr: string
+      } {
+      const sanitize = (val: string) => {
+         const match = val.match(/\{[a-zA-Z]+\s+'(.+)'\s*}/);
+         return match ? match[1] : val.replace(/[a-zA-Z'{}]/g, "").trim();
+      };
       return {
          currMinStr: sanitize(selectStart),
          currMaxStr: sanitize(selectEnd),

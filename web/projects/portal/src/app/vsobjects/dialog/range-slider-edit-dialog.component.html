@@ -49,6 +49,7 @@
           <div *ngIf="rangeForm.get('max')?.errors?.['dateMaxError']" class="alert alert-danger">_#(viewer.dialog.greaterMaxDate)</div>
       </div>
     </div>
+    <div *ngIf="rangeForm.errors?.['minMaxEqual']" class="alert alert-danger">_#(viewer.dialog.minMaxEqual)</div>
   </form>
 </div>
 <div class="modal-footer">
