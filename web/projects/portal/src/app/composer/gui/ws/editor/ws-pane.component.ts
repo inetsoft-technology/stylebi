@@ -214,6 +214,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
    private renameTransformSubscription: Subscription;
    private transformSubscription: Subscription;
    private dragColumnsSubscription: Subscription;
+   private connectionErrorSubscription: Subscription;
    private loadingEventCount: number = 0;
    preparingData: boolean = false;
    private firstTime: boolean = true;
@@ -350,11 +351,19 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       this.heartbeatSubscription = this.worksheet.socketConnection.onHeartbeat.subscribe(() => {
          this.touchAsset();
       });
+      this.connectionErrorSubscription = this.worksheetClient.connectionError().pipe(
+         filter(err => !!err)
+      ).subscribe(() => {
+         if(this.worksheet.saving) {
+            this.worksheet.saving = false;
+         }
+      });
    }
 
    cleanup(): void {
       super.cleanup();
       this.heartbeatSubscription.unsubscribe();
+      this.connectionErrorSubscription.unsubscribe();
    }
 
    public getAssemblyName(): string {
@@ -970,7 +979,13 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
             this.notifications.info(command.message);
             break;
          case "WARNING":
+            this.processMessageCommand0(command, this.modalService, this.worksheetClient);
+            break;
          case "ERROR":
+            if(this.worksheet.saving) {
+               this.worksheet.saving = false;
+            }
+
             this.processMessageCommand0(command, this.modalService, this.worksheetClient);
             break;
          case "CONFIRM":

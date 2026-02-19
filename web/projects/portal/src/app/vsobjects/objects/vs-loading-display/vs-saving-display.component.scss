@@ -1,4 +1,4 @@
-/*
+/*!
  * This file is part of StyleBI.
  * Copyright (C) 2024  InetSoft Technology
  *
@@ -15,24 +15,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { CommonModule } from "@angular/common";
-import { NgModule } from "@angular/core";
-import { VSLoadingDisplay } from "./vs-loading-display.component";
-import { VSSavingDisplay } from "./vs-saving-display.component";
-
-@NgModule({
-   imports: [
-      CommonModule,
-   ],
-   declarations: [
-      VSLoadingDisplay,
-      VSSavingDisplay
-   ],
-   exports: [
-      VSLoadingDisplay,
-      VSSavingDisplay
-   ],
-   providers: [],
-})
-export class VSLoadingDisplayModule {
+.loading-container-fixed {
+  position: fixed;
 }

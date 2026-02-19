@@ -105,9 +105,5 @@
     (onSelectDependent)="selectDependent()">
   </grouping-thumbnail>
   <div class="balloon-element"></div>
-  <div *ngIf="worksheet.saving" class="loading-container viewsheet-loading-container flex-column"
-       [style.position]="'fixed'">
-    <i class="loading-icon--spin icon-size-xxlarge loading-icon icon-4x" aria-hidden="true"></i>
-    <div class="saving-text">_#(Saving)</div>
-  </div>
+  <vs-saving-display *ngIf="worksheet.saving" [fixed]="true"></vs-saving-display>
 </div>

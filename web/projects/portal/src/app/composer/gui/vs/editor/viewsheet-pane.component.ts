@@ -33,6 +33,7 @@ import {
 } from "@angular/core";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { Subject, Subscription } from "rxjs";
+import { filter } from "rxjs/operators";
 import { AssetEntry, createAssetEntry } from "../../../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../../../shared/data/asset-type";
 import { DownloadService } from "../../../../../../../shared/download/download.service";
@@ -490,6 +491,14 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.heartbeatSubscription = this.viewsheetClient.onHeartbeat.subscribe(() => {
          this.touchAsset();
       });
+
+      this.subscriptions.add(this.viewsheetClient.connectionError().pipe(
+         filter(err => !!err)
+      ).subscribe(() => {
+         if(this.vs.saving) {
+            this.vs.saving = false;
+         }
+      }));
 
       this.renameTransformSubscription = this.viewsheetClient.onRenameTransformFinished.subscribe(
          (message) => {
@@ -1285,6 +1294,10 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
          this.notifications.info(command.message);
       }
       else {
+         if(command.type === "ERROR" && this.vs.saving) {
+            this.vs.saving = false;
+         }
+
          this.processMessageCommand0(command, this.modalService, this.viewsheetClient);
       }
 
