@@ -198,7 +198,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       this.vs = vs;
       this.vs.addActionListener(this);
       this.vs.addActionListener(metarep);
-      updateRootSandboxMap(vs.getName(), vs);
+      updateRootSandboxMap(vs.getAbsoluteName(), vs);
 
       if(resetRuntime) {
          ViewsheetSandbox[] boxes = getSandboxes();
@@ -287,11 +287,29 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          return;
       }
 
-      Viewsheet parent = root.getViewsheet();
+      Viewsheet rootViewsheet = root.getViewsheet();
+      Viewsheet parentViewsheet = null;
+      String name = null;
+      int index = vname.lastIndexOf('.');
 
-      if(parent.containsAssembly(vname) && root.bmap.get(vname) == this) {
-         parent.removeAssembly(vname, false, true);
-         parent.addAssembly(vs, false, false, false);
+      if(index >= 0) {
+         ViewsheetSandbox parentBox = root.bmap.get(vname.substring(0, index));
+
+         if(parentBox != null) {
+            parentViewsheet = parentBox.getViewsheet();
+            name = vname.substring(index + 1);
+         }
+      }
+      else {
+         parentViewsheet = rootViewsheet;
+         name = vname;
+      }
+
+      if(parentViewsheet != null && parentViewsheet.containsAssembly(name) &&
+         root.bmap.get(vname) == this)
+      {
+         parentViewsheet.removeAssembly(name, false, true);
+         parentViewsheet.addAssembly(vs, false, false, false);
       }
    }
 
@@ -301,7 +319,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             continue;
          }
 
-         ViewsheetSandbox box = bmap.get(assembly.getName());
+         ViewsheetSandbox box = bmap.get(assembly.getAbsoluteName());
 
          if(box != null) {
             box.setViewsheet((Viewsheet) assembly, false);
@@ -1564,7 +1582,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
          if(entry.isVSAssembly()) {
             try {
-               VSAssemblyInfo info = (VSAssemblyInfo) vs.getAssembly(entry.getName()).getInfo();
+               VSAssemblyInfo info = (VSAssemblyInfo) vs.getAssembly(entry.getAbsoluteName()).getInfo();
 
                //  If the assembly script was executed earlier before the viewsheet's onInit
                //  do not execute it again
@@ -1884,7 +1902,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          ViewsheetSandbox box = getSandbox(name.substring(0, index));
          String embeddedName = name.substring(index + 1);
          box.processChange(embeddedName, hint, clist, type);
-         name = name.substring(0, index);
+
+         if(clist.hasProcessedSelections()) {
+            name = name.substring(0, index);
+         }
       }
 
       if((hint & VSAssembly.OUTPUT_DATA_CHANGED) == VSAssembly.OUTPUT_DATA_CHANGED) {
@@ -2572,11 +2593,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                lassembly.setValues(ldata.getValues());
                lassembly.setFormats(ldata.getFormats());
             }
-            else {
-               lassembly.setLabels(null);
-               lassembly.setValues(null);
-               lassembly.setFormats(null);
-            }
          }
       }
       catch(Exception ex) {
@@ -2638,7 +2654,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
          else if(assembly instanceof InputVSAssembly) {
             InputVSAssembly iassembly = (InputVSAssembly) assembly;
-            new InputVSAQuery(this, iassembly.getName()).resetEmbeddedData(initing);
+            new InputVSAQuery(this, iassembly.getAbsoluteName()).resetEmbeddedData(initing);
             updateAssembly(iassembly);
             outputDataChanged(
                entry, clist, rselection, initing, true, inputChangeMap, scriptDependencies);

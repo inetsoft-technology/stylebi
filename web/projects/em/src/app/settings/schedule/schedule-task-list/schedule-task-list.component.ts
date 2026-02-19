@@ -325,7 +325,7 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    }
 
    removeTasks(): void {
-      let body = (this.selection.selected.length == 1) ? `_#(js:em.schedule.delete.confirm)` : `_#(js:em.schedule.deleteMultiple.confirm)`;
+      let body = (this.selection.selected.length == 1) ? `_#(js:em.schedule.delete.task.confirm)` : `_#(js:em.schedule.deleteMultiple.task.confirm)`;
       const dialogRef = this.dialog.open(MessageDialog, this.setConfigs(`_#(js:Confirmation)`, body, MessageDialogType.DELETE));
       dialogRef.afterClosed().subscribe(result => {
          if(result) {

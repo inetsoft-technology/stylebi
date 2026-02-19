@@ -617,7 +617,6 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
                      tvs.parseState(element);
                      updateVSAssembly((VSAssembly) assemblies.get(i), tvs);
                      clearCache();
-                     tvs.setLastModified(System.currentTimeMillis());
                      in.close();
 
                      // clear cached absolute name since the base viewsheet doesn't
@@ -1575,13 +1574,11 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       }
 
       try {
-         Viewsheet rootVS = getRootViewsheet(this);
-
          for(Assembly assemblyItem : getAssemblies(false, false, true, false, true)) {
             VSAssembly assembly = (VSAssembly) assemblyItem;
             String assemblyName = assembly.getAbsoluteName();
-            boolean isFloat = VSUtil.isPopComponent(assemblyName, rootVS) ||
-               VSUtil.isTipView(assemblyName, rootVS);
+            boolean isFloat = VSUtil.isPopComponent(assemblyName, this) ||
+               VSUtil.isTipView(assemblyName, this);
 
             if(!includeAnnotation) {
                if(assembly instanceof AnnotationVSAssembly ||

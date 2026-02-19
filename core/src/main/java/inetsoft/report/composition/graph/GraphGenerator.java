@@ -2499,6 +2499,7 @@ public abstract class GraphGenerator {
       axis.setTextFrame(axisD.getTextFrame());
       axis.setTruncate(axisD.isTruncate());
       axis.setLabelGap(axisD.getLabelGap());
+      axis.setLabelOnSecondaryAxis(axisD.isLabelOnSecondaryAxis());
    }
 
    private void assignAxisCSS(AxisDescriptor axisDesc, String axis) {
@@ -6270,6 +6271,7 @@ public abstract class GraphGenerator {
       LegendSpec legend = frame.getLegendSpec();
       String fld = frame.getField();
       legend.setTitleVisible(desc.isTitleVisible());
+      legend.setSymbolSize(desc.getSymbolSize());
 
       if(desc.isNotShowNull()) {
          frame.setScaleOption(Scale.NO_NULL);

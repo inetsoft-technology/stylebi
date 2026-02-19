@@ -21,6 +21,7 @@ import { ChangeDetectorRef, Component, EventEmitter, HostListener, Injector, Inp
 } from "@angular/core";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { Subject, Subscription } from "rxjs";
+import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assistant.service";
 import { RefreshBindingTreeCommand } from "../../binding/command/refresh-binding-tree-command";
 import { SetGrayedOutFieldsCommand } from "../../binding/command/set-grayed-out-fields-command";
 import { VSBindingTrapCommand } from "../../binding/command/vs-binding-trap-command";
@@ -112,6 +113,7 @@ import { ConsoleMessage } from "../../widget/console-dialog/console-message";
    templateUrl: "vs-binding-pane.component.html",
    styleUrls: ["vs-binding-pane.component.scss"],
    providers: [
+      AiAssistantService,
       ViewsheetClientService,
       DataTipService,
       AdhocFilterService,
@@ -215,6 +217,7 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
    private closed: boolean = false;
    private committed: boolean = false;
    private textFormat: boolean = false; // true if editing format from text field
+   private resetFormat: boolean = false;
    @ViewChild("notifications") notifications: NotificationsComponent;
    @ViewChild("objectView") objectView: VSObjectView;
 
@@ -228,6 +231,7 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
                private bindingService: BindingService,
                private chartService: ChartEditorService,
                private dialogService: DialogService,
+               private aiAssistantService: AiAssistantService,
                actionFactory: AssemblyActionFactory,
                protected zone: NgZone)
    {
@@ -247,6 +251,8 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
 
          return false;
       };
+
+      this.aiAssistantService.loadCurrentUser();
    }
 
    ngOnInit() {
@@ -426,6 +432,9 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
    private processSetVSBindingModelCommand(command: SetVSBindingModelCommand): void {
       this.bindingModel = command.binding;
       this.treeService.changeLoadingState(true);
+      this.aiAssistantService.setBindingContext(this.bindingModel);
+      this.aiAssistantService.setDataContext(this.bindingModel);
+      this.aiAssistantService.setDateComparisonContext(this.objectModel);
 
       this.clientService.sendEvent("/events/vs/bindingtree/gettreemodel",
                                       new RefreshBindingTreeEvent(this.assemblyName));
@@ -533,6 +542,9 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
    private updateObjectModel(model: VSObjectModel): void {
       this.objectModel = model;
       this.blocking = false;
+      this.aiAssistantService.setContextType(model.objectType);
+      this.aiAssistantService.setDateComparisonContext(model);
+      this.aiAssistantService.setScriptContext(model);
    }
 
    private selectWholes(): void {
@@ -658,7 +670,13 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
 
    private processSetCurrentFormatCommand(command: SetCurrentFormatCommand): void {
       if(JSON.stringify(this.currentFormat) != JSON.stringify(command.model)) {
-         this.zone.run(() => this.currentFormat = command.model);
+         if(command.model != null) {
+            this.zone.run(() => this.currentFormat = command.model);
+         }
+         else if(this.resetFormat) {
+            this.resetFormat = false;
+            this.getCurrentFormat(false);
+         }
       }
 
       this.origFormat = Tool.clone(command.model);
@@ -744,6 +762,7 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
             this.updateFormat(this.currentFormat);
             break;
          case "reset":
+            this.resetFormat = true;
             this.updateFormat(null);
             break;
       }

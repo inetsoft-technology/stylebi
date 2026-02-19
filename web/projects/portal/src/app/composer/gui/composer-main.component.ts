@@ -35,6 +35,11 @@ import {
 import { Router } from "@angular/router";
 import { NgbModal, NgbModalOptions, NgbModalRef } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
+import {
+   AiAssistantService,
+   ContextType
+} from "../../../../../shared/ai-assistant/ai-assistant.service";
+import { AiAssistantDialogService } from "../../common/services/ai-assistant-dialog.service";
 import { AssetEntry, createAssetEntry } from "../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../shared/data/asset-type";
 import { Tool } from "../../../../../shared/util/tool";
@@ -200,6 +205,7 @@ const CONFIRM_MESSAGE = {
    templateUrl: "composer-main.component.html",
    styleUrls: ["composer-main.component.scss", "tab-selector/tab-selector-shared.scss"],
    providers: [
+      AiAssistantService,
       ComposerClientService,
       {
          provide: ScaleService,
@@ -302,25 +308,27 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    private propertyDialogModal: NgbModalRef;
 
    constructor(private composerObjectService: ComposerObjectService,
-      private resizeHandlerService: ResizeHandlerService,
-      private clipboardService: ClipboardService,
-      private modalService: NgbModal,
-      private modelService: ModelService,
-      private renderer: Renderer2,
-      private hyperLinkService: ShowHyperlinkService,
-      private assetTreeService: AssetTreeService,
-      private uiContextService: UIContextService,
-      private composerClient: ComposerClientService,
-      private composerRecentService: ComposerRecentService,
-      private changeDetectorRef: ChangeDetectorRef,
-      private http: HttpClient,
-      private zone: NgZone,
-      private gettingStartedService: GettingStartedService,
-      private router: Router,
-      private scriptService: ScriptService,
-      private fontService: FontService,
-      private vsPropertyDialogService:VSPropertyDialogService)
+               private resizeHandlerService: ResizeHandlerService,
+               private clipboardService: ClipboardService,
+               private modalService: NgbModal,
+               private modelService: ModelService,
+               private renderer: Renderer2,
+               private hyperLinkService: ShowHyperlinkService,
+               private assetTreeService: AssetTreeService,
+               private uiContextService: UIContextService,
+               private composerClient: ComposerClientService,
+               private composerRecentService: ComposerRecentService,
+               private changeDetectorRef: ChangeDetectorRef,
+               private http: HttpClient,
+               private zone: NgZone,
+               private gettingStartedService: GettingStartedService,
+               private router: Router,
+               private scriptService: ScriptService,
+               private fontService: FontService,
+               private aiAssistantService: AiAssistantService,
+               private aiAssistantDialogService: AiAssistantDialogService)
    {
+      this.aiAssistantService.loadCurrentUser();
       GuiTool.isTouchDevice().then((value: boolean) => {
          this.touchDevice = value;
       });
@@ -491,6 +499,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       if(updateFocusedSheet) {
          this.updateFocusedTab(sheet);
       }
+
+      this.refreshAiAssistantContext();
    }
 
    fixAutoSaveFiles(autoSaveFiles: string[]) {
@@ -3078,6 +3088,19 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       if((this.gettingStartedService.isUploadFile() || this.gettingStartedService.isCreateQuery() ||
          this.gettingStartedService.isStartFromScratch()) && this.worksheetPermission) {
          this.gettingStartedService.setWorksheetId(ws.id);
+      }
+   }
+
+   refreshAiAssistantContext(): void {
+      this.aiAssistantService.resetContextMap();
+      const contextType = this.focusedSheet ? this.focusedSheet.type : "";
+      this.aiAssistantService.setContextTypeFieldValue(contextType || ContextType.VIEWSHEET);
+
+      if(contextType === "worksheet") {
+         this.aiAssistantDialogService.setWorksheetContext(this.focusedSheet as Worksheet);
+      }
+      else if(contextType === "viewsheet") {
+         this.aiAssistantDialogService.setViewsheetScriptContext(this.focusedSheet as Viewsheet);
       }
    }
 }

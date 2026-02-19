@@ -33,6 +33,8 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
+import java.time.Duration;
+import java.time.Instant;
 
 @Controller
 public class WSLoadTableDataCountController extends WorksheetController {
@@ -54,6 +56,7 @@ public class WSLoadTableDataCountController extends WorksheetController {
          return;
       }
 
+      Instant start = Instant.now();
       int mode = WorksheetEventUtil.getMode(table);
       TableLens lens = box.getTableLens(name, mode);
       int count = 0;
@@ -77,10 +80,14 @@ public class WSLoadTableDataCountController extends WorksheetController {
          ex = e;
       }
 
+      Instant end = Instant.now();
+      Duration elapsed = Duration.between(start, end);
+
       WSLoadTableDataCountCommand.Builder commandBuilder = WSLoadTableDataCountCommand.builder()
          .name(name)
          .count(count)
-         .completed(!more);
+         .completed(!more)
+         .duration(elapsed.toMillis());
 
       // set exceeded information if completed
       if(!more) {

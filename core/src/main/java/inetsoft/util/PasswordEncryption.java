@@ -22,6 +22,7 @@ import inetsoft.util.config.*;
 
 import javax.crypto.SecretKey;
 import java.io.IOException;
+import java.security.KeyPair;
 import java.util.*;
 import java.util.function.Function;
 
@@ -135,6 +136,16 @@ public interface PasswordEncryption {
     * @throws IOException if the signing key could not be saved.
     */
    SecretKey getJwtSigningKey() throws IOException;
+
+   /**
+    * Gets the RSA key pair for SSO JWT signing.
+    * The key pair is generated on first use and stored encrypted.
+    *
+    * @return the RSA key pair.
+    *
+    * @throws IOException if the key pair could not be saved.
+    */
+   KeyPair getSSOKeyPair() throws IOException;
 
    /**
     * Creates a new instance of {@link JWSVerifier}.

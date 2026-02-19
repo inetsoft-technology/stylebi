@@ -118,8 +118,10 @@ public class CSSDictionaryTest {
       DataSpace space = DataSpace.getDataSpace();
 
       try {
-         space.withOutputStream("css", name, out ->
-            Tool.fileCopy(CSSDictionaryTest.class.getResourceAsStream(name), out));
+         if(!space.exists("css", name)) {
+            space.withOutputStream("css", name, out ->
+               Tool.fileCopy(CSSDictionaryTest.class.getResourceAsStream(name), out));
+         }
       }
       catch(IOException e) {
          throw new RuntimeException("Failed to copy the css file", e);

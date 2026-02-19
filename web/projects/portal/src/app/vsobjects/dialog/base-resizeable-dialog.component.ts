@@ -76,6 +76,7 @@ export class BaseResizeableDialogComponent implements AfterViewInit {
    }
 
    startResize(event: MouseEvent) {
+      event.preventDefault();
       this.resizeX = event.pageX;
       this.resizeY = event.pageY;
       let explicitWidth = this.element.nativeElement.getBoundingClientRect().width;

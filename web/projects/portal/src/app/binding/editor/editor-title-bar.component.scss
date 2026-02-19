@@ -21,7 +21,7 @@
   max-height: 52px;
 
   .btn-toolbar-pull-right {
-    right: 50px;
+    right: 120px;
   }
 }
 
@@ -86,7 +86,8 @@
     flex-grow: 0;
   }
 
-  button.btn.help-button {
+  button.btn.help-button,
+  button.btn.ai-assistant-icon {
     background-color: transparent;
     padding: 0;
     flex-grow: 0;

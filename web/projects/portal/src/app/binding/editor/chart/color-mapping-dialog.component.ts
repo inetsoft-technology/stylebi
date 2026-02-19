@@ -39,6 +39,8 @@ export class ColorMappingDialog implements OnInit {
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
    dimensionData: ValueLabelModel[] = [];
    _truncatedDimensionData: ValueLabelModel[];
+   private _currentColorMaps: ColorMap[] = [];
+   private initialColorMap: ColorMap[] = [];
 
    constructor(private modalService: NgbModal) {
    }
@@ -58,14 +60,18 @@ export class ColorMappingDialog implements OnInit {
    }
 
    get currentColorMaps(): ColorMap[] {
-      return (this.model.useGlobal ? this.model.globalModel : this.model).colorMaps;
+     return this._currentColorMaps;
    }
 
    set currentColorMaps(colorMaps: ColorMap[]) {
-      (this.model.useGlobal ? this.model.globalModel : this.model).colorMaps = colorMaps;
+     this._currentColorMaps = colorMaps;
    }
 
    ngOnInit(): void {
+      const sourceMaps = (this.model.useGlobal ? this.model.globalModel : this.model).colorMaps;
+      this._currentColorMaps = sourceMaps.map(m => ({ ...m }));
+      this.initialColorMap = sourceMaps.map(m => ({ ...m }));
+
       this.updateDimensionLabels();
 
       if(!!this.model.browseDataErrorMsg) {
@@ -73,31 +79,39 @@ export class ColorMappingDialog implements OnInit {
             {"ok": "_#(js:OK)"}, {backdrop: false })
           .then(() => {}, () => {});
       }
+
+      if(this.initialColorMap.length == 0) {
+         this.addRow();
+      }
    }
 
    close(): void {
+      this.onCommit.emit(this.initialColorMap);
       this.onCancel.emit("cancel");
    }
 
    ok() {
       let npalette: CategoricalColorModel = new CategoricalColorModel();
       npalette.dateFormat = this.field.dataInfo["dateLevel"];
-      npalette.colorMaps = this.model.colorMaps;
       let maps: ColorMap[] = new Array<ColorMap>();
       let optionIndexMap = {};
 
       this.currentColorMaps.forEach((map0: ColorMap) => {
          if(!!map0.color) {
-            if(optionIndexMap[map0.option] >= 0) {
-               maps[optionIndexMap[map0.option]] = map0;
+            const clonedMap = { ...map0 };
+
+            if(optionIndexMap[clonedMap.option] >= 0) {
+               maps[optionIndexMap[clonedMap.option]] = clonedMap;
             }
             else {
-               maps.push(map0);
-               optionIndexMap[map0.option] = maps.length - 1;
+               maps.push(clonedMap);
+               optionIndexMap[clonedMap.option] = maps.length - 1;
             }
          }
       });
-
+      npalette.colorMaps = maps;
+      const target = this.model.useGlobal ? this.model.globalModel : this.model;
+      target.colorMaps = maps;
       this.onCommit.emit(maps);
    }
 
@@ -150,10 +164,28 @@ export class ColorMappingDialog implements OnInit {
 
       // use text input to enter value if value list is not available
       if(this.model.dimensionData.length > 0) {
-         let colorOptions = this.currentColorMaps.map(map => map.option)
-            .filter(dim => this.model.dimensionData.find((valLabel) => valLabel.value == dim) == null);
-         this.dimensionData = [].concat(this.model.dimensionData)
-            .concat(colorOptions.map((option) => <ValueLabelModel>{value: option, label: option}));
+         const manualOptions: ValueLabelModel[] = [];
+
+         this.currentColorMaps.forEach(map => {
+            const exists = this.model.dimensionData.find(
+               valLabel => valLabel.value === map.option
+            );
+
+            if (exists) {
+               map.manualInput = false;
+            } else {
+               map.manualInput = true;
+               manualOptions.push({
+                  value: map.option,
+                  label: map.option
+               });
+            }
+         });
+
+         this.dimensionData = [
+            ...this.model.dimensionData,
+            ...manualOptions
+         ];
       }
       else {
          this.dimensionData = [];

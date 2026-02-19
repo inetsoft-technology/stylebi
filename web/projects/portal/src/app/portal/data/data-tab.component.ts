@@ -17,6 +17,10 @@
  */
 import { Component, OnDestroy, ViewChild } from "@angular/core";
 import { Subscription } from "rxjs";
+import {
+   AiAssistantService,
+   ContextType
+} from "../../../../../shared/ai-assistant/ai-assistant.service";
 import { RepositoryClientService } from "../../common/repository-client/repository-client.service";
 import { SplitPane } from "../../widget/split-pane/split-pane.component";
 import { DataPhysicalModelService } from "./services/data-physical-model.service";
@@ -36,7 +40,10 @@ export class DataTabComponent implements OnDestroy {
    private subscription: Subscription;
    public hiddenCollapsed: boolean = false;
 
-   constructor(private readonly physicalModelService: DataPhysicalModelService) {
+   constructor(private readonly physicalModelService: DataPhysicalModelService,
+               private aiAssistantSerivice: AiAssistantService)
+   {
+      this.aiAssistantSerivice.setContextTypeFieldValue(ContextType.PORTAL_DATA);
       this.subscription = this.physicalModelService.onFullScreen.subscribe((fullScreen: boolean) => {
          this.hiddenCollapsed = fullScreen;
          this.treePaneCollapsed = fullScreen;

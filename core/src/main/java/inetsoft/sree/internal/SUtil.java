@@ -3441,14 +3441,18 @@ public class SUtil {
    /**
     * In cases that hyperlink linked asset does not match current orgID, replace orgID to match
     */
-   public static String handleViewsheetLinkOrgMismatch(String link, boolean isSiteAdminImport) {
+   public static String handleViewsheetLinkOrgMismatch(String link) {
+      return handleViewsheetLinkOrgMismatch(link, false);
+   }
+
+   public static String handleViewsheetLinkOrgMismatch(String link, boolean forceUpdate) {
       String curOrgId = OrganizationManager.getInstance().getCurrentOrgID();
       int orgIdx = link.lastIndexOf("^");
 
       //handle import assets from older version without org identifier
       boolean hasOrgDelim = link.chars().filter(ch -> ch == '^').count() > 3;
 
-      if(orgIdx > 0 && hasOrgDelim && isSiteAdminImport) {
+      if(orgIdx > 0 && hasOrgDelim && forceUpdate) {
          String linkOrg = link.substring(orgIdx + 1);
 
          if(!Tool.equals(linkOrg, curOrgId)) {
@@ -3459,7 +3463,7 @@ public class SUtil {
          link = link + "^" + curOrgId;
       }
 
-      if(isSiteAdminImport && link.indexOf("^") > -1) {
+      if(forceUpdate && link.indexOf("^") > -1) {
          for(String pathSection : link.split("\\^")) {
             if(pathSection.contains(IdentityID.KEY_DELIMITER)) {
                IdentityID updatedUser = IdentityID.getIdentityIDFromKey(pathSection);
@@ -3507,6 +3511,35 @@ public class SUtil {
          .filter(id -> Tool.equals(id, lowcase_orgID, false))
          .findFirst()
          .orElse(lowcase_orgID);
+   }
+
+   /**
+    * Check if change password is allowed.
+    */
+   public static boolean canChangePWD(Principal principal) throws Exception {
+      boolean securityEnabled = SecurityEngine.getSecurity().isSecurityEnabled();
+
+      return securityEnabled &&
+         "true".equals(SreeEnv.getProperty("enable.changePassword")) &&
+         !"anonymous".equals(principal.getName()) &&
+         userExistsInEditableSecurityProvider(principal) && SUtil.isInternalUser(principal);
+   }
+
+   private static boolean userExistsInEditableSecurityProvider(Principal principal) {
+      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
+      SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+      AuthenticationProvider authc = securityProvider.getAuthenticationProvider();
+
+      if(authc instanceof AuthenticationChain) {
+         AuthenticationChain chain = (AuthenticationChain) authc;
+         authc = chain.stream()
+            .filter(p -> p instanceof EditableAuthenticationProvider)
+            .filter(p -> p.getUser(pId) != null)
+            .findFirst()
+            .orElse(null);
+      }
+
+      return authc != null;
    }
 
    private static final List<WeakReference<HttpSession>> userSessions = new ArrayList<>();

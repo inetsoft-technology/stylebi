@@ -199,6 +199,7 @@
    </div>
   <i *ngIf="pendingChange" class="submit-icon pending-alert"
      [class.left]="model.dropdownCalendar"
-     [style.right.px]="getPendingIconPosition(this.model)" [style.color]="iconColor"
-     title="_#(common.viewsheet.pending.submit)"></i>
+     [style.right.px]="getPendingIconPosition(this.model)" [style.color]="iconColor" [style.cursor]="'pointer'"
+     title="_#(common.viewsheet.pending.submit)"
+     (click)="this.applyCalendar0()"></i>
 </div>

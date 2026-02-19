@@ -122,6 +122,7 @@ public class VSBindingService {
       BindingModel model = factory.createModel(assembly);
       model.setSource(createSourceInfo(assembly));
       model.setAvailableFields(createAvailableFields(assembly));
+      model.setTables(createSourceTables(model, assembly));
 
       return model;
    }
@@ -164,6 +165,68 @@ public class VSBindingService {
       }
 
       return availableFields;
+   }
+
+   /**
+    * Create tables of vs source for ai to use it in script pane.
+    */
+   private List<BindingModel.SourceTable> createSourceTables(BindingModel model,
+                                                             VSAssembly assembly)
+   {
+      List<BindingModel.SourceTable> tables = new ArrayList<>();
+
+      // do not support cube to show its sources since cube tables is a lot.
+      if(VSUtil.getCubeSource(assembly) != null && !VSUtil.isWorksheetCube(assembly)) {
+         return tables;
+      }
+
+      Viewsheet vs = assembly == null ? null : assembly.getViewsheet();
+      Worksheet ws = vs == null ? null : vs.getBaseWorksheet();
+
+      if(ws == null) {
+         return tables;
+      }
+
+      Assembly[] assemblies = ws.getAssemblies();
+
+      for(int i = 0; i < assemblies.length; i++) {
+         Assembly ass = assemblies[i];
+
+         if(ass instanceof AbstractTableAssembly) {
+            BindingModel.SourceTable table = model.new SourceTable();
+            table.setName(ass.getAbsoluteName());
+            AbstractTableAssembly abstractTableAssembly = (AbstractTableAssembly) ass;
+            ColumnSelection cols = abstractTableAssembly.getColumnSelection(true);
+            table.setColumns(createTableColumns(model, cols));
+            tables.add(table);
+         }
+      }
+
+      return tables;
+   }
+
+   private List<BindingModel.SourceTableColumn> createTableColumns(BindingModel model,
+                                                                   ColumnSelection cols)
+   {
+      List<BindingModel.SourceTableColumn> columns = new ArrayList<>();
+
+      if(cols == null || cols.getAttributeCount() == 0) {
+         return columns;
+      }
+
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         DataRef ref = cols.getAttribute(i);
+         BindingModel.SourceTableColumn col =
+            model.new SourceTableColumn(ref.getName(), ref.getDataType());
+
+         if(ref instanceof ColumnRef) {
+            col.setDescription(((ColumnRef) ref).getDescription());
+         }
+
+         columns.add(col);
+      }
+
+      return columns;
    }
 
    public void insertChild(InsertSelectionChildEvent event, String linkUri,

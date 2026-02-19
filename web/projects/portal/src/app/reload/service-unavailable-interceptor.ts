@@ -19,8 +19,8 @@
 import { HttpEvent, HttpHandler, HttpInterceptor, HttpRequest, HttpErrorResponse } from "@angular/common/http";
 import { Injectable, NgZone } from "@angular/core";
 import { Router } from "@angular/router";
-import { Observable, throwError } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { Observable, throwError } from "rxjs";
+import { catchError } from "rxjs/operators";
 
 @Injectable()
 export class ServiceUnavailableInterceptor implements HttpInterceptor {
@@ -42,7 +42,7 @@ export class ServiceUnavailableInterceptor implements HttpInterceptor {
                this.redirected = true;
 
                this.zone.run(() => {
-                  this.router.navigate(['/reload'],
+                  this.router.navigate(["/reload"],
                      {queryParams: { redirectTo: this.router.url }, replaceUrl: true})
                });
             }

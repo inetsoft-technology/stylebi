@@ -92,8 +92,79 @@ public class BindingModel {
       this.type = type;
    }
 
+   public void setTables(List<SourceTable> tables) {
+      this.tables = tables;
+   }
+
+   public List<SourceTable> getTables() {
+      return tables;
+   }
+
+   public class SourceTable {
+      public SourceTable() {
+      }
+
+      public String getName() {
+         return name;
+      }
+
+      public void setName(String name) {
+         this.name = name;
+      }
+
+      public List<SourceTableColumn> getColumns() {
+         return columns;
+      }
+
+      /**
+       * Set type.
+       */
+      public void setColumns(List<SourceTableColumn> columns) {
+         this.columns = columns;
+      }
+
+      private String name;
+      private List<SourceTableColumn> columns;
+   }
+
+   public class SourceTableColumn {
+      public SourceTableColumn(String name, String type) {
+         this.name = name;
+         this.dataType = type;
+      }
+
+      public String getName() {
+         return name;
+      }
+
+      public void setName(String name) {
+         this.name = name;
+      }
+
+      public String getDescription() {
+         return description;
+      }
+
+      public void setDescription(String description) {
+         this.description = description;
+      }
+
+      public String getDataType() {
+         return dataType;
+      }
+
+      public void setDataType(String type) {
+         this.dataType = type;
+      }
+
+      private String name;
+      private String dataType;
+      private String description;
+   }
+
    private SourceInfo source;
    private List<DataRefModel> availableFields;
+   private List<SourceTable> tables;
    private boolean sqlMergeable = true;
    private String type;
 }

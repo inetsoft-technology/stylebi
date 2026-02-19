@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import javax.crypto.*;
 import javax.crypto.spec.*;
 import java.security.*;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Base64;
 
 /**
@@ -85,6 +86,38 @@ class JcePasswordEncryption extends LocalPasswordEncryption {
    protected SecretKey decryptJwtSigningKey(String encryptedKey, SecretKey masterKey) {
       byte[] encoded = Base64.getDecoder().decode(encryptedKey);
       return new SecretKeySpec(encoded, JWT_SIGNING_ALGORITHM);
+   }
+
+   @Override
+   protected KeyPair createSSOKeyPair() {
+      try {
+         SecureRandom random = Tool.getSecureRandom();
+         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+         keyPairGenerator.initialize(2048, random);
+         return keyPairGenerator.generateKeyPair();
+      }
+      catch(NoSuchAlgorithmException e) {
+         throw new RuntimeException("Failed to generate SSO RSA key pair", e);
+      }
+   }
+
+   @Override
+   protected byte[] encryptSSOPrivateKey(PrivateKey key, SecretKey masterKey) {
+      return encryptWithMaster(key.getEncoded(), masterKey);
+   }
+
+   @Override
+   protected PrivateKey decryptSSOPrivateKey(String encryptedKey, SecretKey masterKey) {
+      try {
+         byte[] data = Base64.getDecoder().decode(encryptedKey);
+         byte[] keyData = decryptWithMaster(data, masterKey);
+         PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyData);
+         KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+         return keyFactory.generatePrivate(keySpec);
+      }
+      catch(GeneralSecurityException e) {
+         throw new RuntimeException("Failed to decrypt SSO private key", e);
+      }
    }
 
    @Override
