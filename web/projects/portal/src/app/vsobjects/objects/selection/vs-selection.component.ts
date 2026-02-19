@@ -548,7 +548,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
                break;
             case "selection-list search":
             case "selection-tree search":
-               this.hideSearchDisplay();
+               this.toggleSearchDisplay();
                break;
             case "selection-list open-max-mode":
             case "selection-list close-max-mode":
@@ -623,8 +623,6 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
                   this.changeDetectorRef.detectChanges();
                }
             }));
-
-         this.model.searchDisplayed = true;
       }
    }
 
@@ -699,11 +697,12 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       const bottomMargin: number = Tool.getMarginSize(this._model.objectFormat.border.bottom);
       const topMargin: number = Tool.getMarginSize(this._model.objectFormat.border.top);
       const offset = Math.max(0, bottomMargin + topMargin + this.topMarginTitle);
+      const searchOffset = this.model.searchDisplayed ? this.model.titleFormat.height : 0;
       return this.inContainer ?
-         this.model.objectFormat.height - this.model.titleFormat.height :
+         this.model.objectFormat.height - this.model.titleFormat.height - searchOffset :
          this.model.dropdown && !this.model.maxMode ? this.cellHeight * this.model.listHeight
             : this.model.objectFormat.height -
-            (!this.viewer || this.model.titleVisible ? this.model.titleFormat.height : 0) - offset;
+            (!this.viewer || this.model.titleVisible ? this.model.titleFormat.height : 0) - offset - searchOffset;
    }
 
    getBodyWidth(): number {
@@ -842,8 +841,8 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       }, 200);
    }
 
-   hideSearchDisplay() {
-      this.model.searchDisplayed = this.model.searchDisplayed ? false : true;
+   toggleSearchDisplay() {
+      this.model.searchDisplayed = !this.model.searchDisplayed;
 
       if(this.model.searchDisplayed) {
          this.onSearch();
@@ -1900,7 +1899,8 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    }
 
    get verticalScrollbarTop(): number {
-      return this.model.titleVisible ? this.model.titleFormat.height : 0;
+      const searchOffset = this.model.searchDisplayed ? this.model.titleFormat.height : 0;
+      return (this.model.titleVisible ? this.model.titleFormat.height : 0) + searchOffset;
    }
 
    /**

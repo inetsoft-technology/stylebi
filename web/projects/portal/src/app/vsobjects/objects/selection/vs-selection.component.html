@@ -159,6 +159,27 @@
         </div>
       </div>
     </div>
+    <div class="selection-list-search-container"
+         [style.height.px]="model.titleFormat.height"
+         [hidden]="!model.searchDisplayed">
+      <input #selectionListSearchInput
+             type="text" role="searchbox"
+             aria-label="_#(Search)"
+             class="selection-list-search-input"
+             [safeFont]="model.titleFormat.font"
+             [class.bd-selected-cell]="lastCellSelectedIndex == FocusRegions.SEARCH_BAR"
+             (keydown)="preventPropagation($event)"
+             (keyup)="onSearchKeyUp()"
+             [(ngModel)]="model.searchString"
+             placeholder="_#(Search)">
+      <div #clearSearch
+           [style.top.px]="(model.titleFormat.height - 20) / 2"
+           class="selection-list-search-close close-icon"
+           role="button" aria-label="_#(Clear Search)" tabindex="-1"
+           [class.bd-selected-cell]="lastCellSelectedIndex == FocusRegions.CLEAR_SEARCH"
+           (mousedown)="onCloseSearch()">
+      </div>
+    </div>
     <div *ngIf="!isHidden"
          touchScroll (vScroll)="touchVScroll($event)"
          [touchScrollEnabled]="mobileDevice && inContainer ? true : selected"
@@ -169,27 +190,6 @@
          [style.height.px]="getBodyHeight()"
          [style.margin-left.px]="(model.containerType !== 'VSSelectionContainer') ? leftMargin : null"
          (wheel)="wheelScrollHandler($event)">
-      <div class="selection-list-search-container"
-           [style.height.px]="model.titleFormat.height"
-           [hidden]="!model.searchDisplayed">
-        <input #selectionListSearchInput
-               type="text" role="searchbox"
-               aria-label="_#(Search)"
-               class="selection-list-search-input"
-               [safeFont]="model.titleFormat.font"
-               [class.bd-selected-cell]="lastCellSelectedIndex == FocusRegions.SEARCH_BAR"
-               (keydown)="preventPropagation($event)"
-               (keyup)="onSearchKeyUp()"
-               [(ngModel)]="model.searchString"
-               placeholder="_#(Search)">
-        <div #clearSearch
-             [style.top.px]="(model.titleFormat.height - 16) / 2"
-             class="selection-list-search-close close-icon"
-             role="button" aria-label="_#(Clear Search)" tabindex="-1"
-             [class.bd-selected-cell]="lastCellSelectedIndex == FocusRegions.CLEAR_SEARCH"
-             (mousedown)="onCloseSearch()">
-        </div>
-      </div>
       <div #cellContent>
         <div *ngFor="let row of selectionValuesTable; let i = index; trackBy: trackByIdx"
              class="selection-list-cell-row"
