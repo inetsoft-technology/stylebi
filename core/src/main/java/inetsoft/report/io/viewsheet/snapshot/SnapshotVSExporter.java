@@ -87,7 +87,7 @@ public class SnapshotVSExporter {
          Timestamp exportTimestamp = new Timestamp(System.currentTimeMillis());
          ExportRecord exportRecord = new ExportRecord(userID.getName(), null,
             ExportRecord.OBJECT_TYPE_VIEWSHEET, null, exportTimestamp, Tool.getHost());
-         String objectName = entry.getDescription(false);
+         String objectName = entry.getDescription();
          exportRecord.setExportType("vso");
          exportRecord.setObjectName(objectName);
          Audit.getInstance().auditExport(exportRecord, box.get().getUser());
