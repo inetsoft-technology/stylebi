@@ -184,9 +184,17 @@ export class CalcDataPane {
    }
 
    get formulaValue(): string {
-      if(this.cellBinding == null ||
-         this.cellBinding.type != CellBindingInfo.BIND_FORMULA)
-      {
+      if(this.cellBinding == null) {
+         return null;
+      }
+
+      // For column-bound cells, show the computed script as a read-only preview
+      // in the (disabled) formula input so the user can see the generated expression.
+      if(this.cellBinding.type == CellBindingInfo.BIND_COLUMN) {
+         return this.editorService.cellScript;
+      }
+
+      if(this.cellBinding.type != CellBindingInfo.BIND_FORMULA) {
          return null;
       }
 
@@ -275,7 +283,7 @@ export class CalcDataPane {
       this.cellBinding.type = ntype;
 
       if(ntype == CellBindingInfo.BIND_FORMULA) {
-         this.editorService.getCellScript();
+         this.editorService.loadCellScript();
          this.cellBinding.name = cellName;
       }
       else if(ntype == CellBindingInfo.BIND_TEXT) {

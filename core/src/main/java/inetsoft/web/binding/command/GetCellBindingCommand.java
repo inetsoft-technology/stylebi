@@ -174,6 +174,14 @@ public class GetCellBindingCommand implements ViewsheetCommand {
       return this.cellCol;
    }
 
+   public String getCellScript() {
+      return cellScript;
+   }
+
+   public void setCellScript(String cellScript) {
+      this.cellScript = cellScript;
+   }
+
    private CellBindingInfo binding;
    private String cellname;
    private String[] cellnames;
@@ -183,4 +191,5 @@ public class GetCellBindingCommand implements ViewsheetCommand {
    private AggregateRefModel[] aggs;
    private int cellRow;
    private int cellCol;
+   private String cellScript;
 }
