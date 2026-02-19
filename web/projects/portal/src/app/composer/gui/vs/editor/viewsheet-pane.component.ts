@@ -118,6 +118,7 @@ import { DragService } from "../../../../widget/services/drag.service";
 import { FontService } from "../../../../widget/services/font.service";
 import { ModelService } from "../../../../widget/services/model.service";
 import { ScaleService } from "../../../../widget/services/scale/scale-service";
+import { ViewsheetNotificationsService } from "../../../../widget/services/viewsheet-notifications.service";
 import {
    ComposerDialogServiceFactory,
    DialogService
@@ -463,7 +464,8 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
                private resizeHandlerService: ResizeHandlerService,
                private composerVsSearchService: ComposerVsSearchService,
                private appInfoService: AppInfoService,
-               private fontService: FontService)
+               private fontService: FontService,
+               private vsNotificationsService: ViewsheetNotificationsService)
    {
       super(viewsheetClient, zone, true);
       actionFactory.stateProvider = {
@@ -473,6 +475,10 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
 
       this.subscriptions.add(this.appInfoService.getCurrentOrgInfo().subscribe((orgInfo) => {
          this.orgInfo = orgInfo;
+      }));
+
+      this.subscriptions.add(this.vsNotificationsService.hideNotifications$.subscribe((value) => {
+         this.hideNotifications = value;
       }));
    }
 
@@ -782,6 +788,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.vs.messageLevels = command.info["messageLevels"];
       this.vs.snapGrid = command.info["snapGrid"];
       this.hasScript = command.hasScript;
+      this.hideNotifications = !!command.hideNotifications;
       this.refreshStatus();
 
       if(command.linkUri) {
@@ -1318,8 +1325,8 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
             message: command.message,
             type: command.type
          });
+         this.newConsoleMessages = true;
       }
-      this.newConsoleMessages = true;
    }
 
    protected processProgress(command: MessageCommand): void {
@@ -2707,7 +2714,4 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       return !!this.maxModeAssembly && (<any> vsObject).adhocFilter;
    }
 
-   onHideNotificationsChange(value: boolean) {
-      this.hideNotifications = value;
-   }
 }

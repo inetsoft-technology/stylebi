@@ -15,12 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { ChangeDetectorRef, Component, Input, OnInit, OnChanges, SimpleChanges, OnDestroy, Output, EventEmitter } from "@angular/core";
-import { Subject } from "rxjs";
-import { takeUntil } from "rxjs/operators";
+import { ChangeDetectorRef, Component, Input, OnInit } from "@angular/core";
 import { Notification, NotificationType } from "../../common/data/notification";
 import { Tool } from "../../../../../shared/util/tool";
-import { VSPropertyDialogService } from "../services/viewsheet-property-dialog-model.service"
 
 /**
  * Component that displays notification messages to the user.
@@ -30,43 +27,22 @@ import { VSPropertyDialogService } from "../services/viewsheet-property-dialog-m
    templateUrl: "notifications.component.html",
    styleUrls: ["notifications.component.scss"]
 })
-export class NotificationsComponent implements OnInit, OnChanges, OnDestroy {
+export class NotificationsComponent implements OnInit {
    /* Optional timeout for notifications. */
    @Input() timeout: number = 0;
    @Input() message: string = "";
    @Input() fullWidth: boolean = true;
-   @Input() runtimeId: string;
+   @Input() hideNotifications: boolean = false;
    alerts: ({id: number} & Notification)[] = [];
    private counter: number = 0;
-   hideNotifications: boolean;
-   private destroy$ = new Subject<void>();
-   @Output() hideNotificationsChange = new EventEmitter<boolean>();
 
-   constructor(private changeDetectionRef: ChangeDetectorRef,
-               private vsPropertyDialogService: VSPropertyDialogService) {
+   constructor(private changeDetectionRef: ChangeDetectorRef) {
    }
 
    ngOnInit() {
       if(this.message) {
          this.info(this.message);
       }
-      this.vsPropertyDialogService.hideNotifications$
-         .pipe(takeUntil(this.destroy$))
-         .subscribe((value: boolean) => {
-            this.hideNotifications = value
-            this.hideNotificationsChange.emit(value);
-         });
-   }
-
-   ngOnChanges(changes: SimpleChanges) {
-      if(changes['runtimeId'] && this.runtimeId) {
-         this.vsPropertyDialogService.updateHideNotifications(this.runtimeId);
-      }
-   }
-
-   ngOnDestroy(): void {
-      this.destroy$.next();
-      this.destroy$.complete();
    }
 
    /**
@@ -111,8 +87,8 @@ export class NotificationsComponent implements OnInit, OnChanges, OnDestroy {
    }
 
    private addAlert(message: string, type: NotificationType): void {
-      // ignore duplicates
-      if(this.alertShowing(message)) {
+      // ignore duplicates or do not add if notifications are hidden and type is info
+      if(this.alertShowing(message) || (this.hideNotifications && type == "info")) {
          return;
       }
 

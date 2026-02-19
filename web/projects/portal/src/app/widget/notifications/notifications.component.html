@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <p *ngFor="let alert of alerts">
-  <ngb-alert *ngIf=!hideNotifications [type]="alert.type" (closed)="closeAlert(alert)" [class.full-width]="fullWidth">
+  <ngb-alert *ngIf="alert.type !== 'info' || !hideNotifications" [type]="alert.type" (closed)="closeAlert(alert)" [class.full-width]="fullWidth">
     <span class="message-text">{{ alert.message }}</span>
   </ngb-alert>
 </p>
