@@ -17,6 +17,10 @@
  */
 package inetsoft.report.composition;
 
+import com.davidehrmann.vcdiff.VCDiffDecoder;
+import com.davidehrmann.vcdiff.VCDiffDecoderBuilder;
+import com.davidehrmann.vcdiff.VCDiffEncoder;
+import com.davidehrmann.vcdiff.VCDiffEncoderBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.report.composition.execution.*;
 import inetsoft.uql.*;
@@ -30,8 +34,11 @@ import org.slf4j.LoggerFactory;
 
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
-import java.util.Arrays;
+import java.util.*;
 
 /**
  * RuntimeWorksheet represents a runtime worksheet in editing time.
@@ -131,6 +138,54 @@ public class RuntimeWorksheet extends RuntimeSheet
 
       if(state.getJoinWS() != null) {
          joinWS = new RuntimeWorksheet(state.getJoinWS(), mapper);
+      }
+
+      // Decode undo/redo checkpoints from VCDIFF deltas
+      decodePointDeltas(state);
+   }
+
+   /**
+    * Decode the undo/redo checkpoint points from VCDIFF binary deltas.
+    * Deltas are stored in reverse order (newest first), so we reconstruct from ws -> newest -> oldest,
+    * then reverse to restore original order (oldest first).
+    */
+   private void decodePointDeltas(RuntimeWorksheetState state) {
+      List<byte[]> deltas = state.getPointDeltas();
+
+      if(deltas == null || deltas.isEmpty() || state.getWs() == null) {
+         return;
+      }
+
+      // Reconstruct checkpoints in reverse order (newest to oldest)
+      List<Worksheet> checkpoints = new ArrayList<>();
+      byte[] previousBytes = state.getWs().getBytes(StandardCharsets.UTF_8);
+
+      for(int i = 0; i < deltas.size(); i++) {
+         byte[] delta = deltas.get(i);
+         byte[] currentBytes;
+
+         try {
+            currentBytes = applyVcdiffDelta(previousBytes, delta);
+         }
+         catch(IOException e) {
+            LOG.error("Failed to apply VCDIFF delta for checkpoint at index {}", i, e);
+            // Fall back: skip this checkpoint
+            continue;
+         }
+
+         String xml = new String(currentBytes, StandardCharsets.UTF_8);
+         previousBytes = currentBytes;
+         Worksheet checkpoint = loadXml(new Worksheet(), xml);
+         checkpoints.add(checkpoint);
+      }
+
+      // Reverse to restore original order (oldest first)
+      Collections.reverse(checkpoints);
+
+      points = new XSwappableSheetList(contextPrincipal);
+
+      for(Worksheet checkpoint : checkpoints) {
+         points.add(checkpoint);
       }
    }
 
@@ -471,12 +526,78 @@ public class RuntimeWorksheet extends RuntimeSheet
          if(joinWS != null) {
             state.setJoinWS(joinWS.saveState(mapper));
          }
+
+         // Encode undo/redo checkpoints as VCDIFF deltas
+         encodePointDeltas(state, state.getWs());
       }
       finally {
          Worksheet.setIsTEMP(false);
       }
 
       return state;
+   }
+
+   /**
+    * Encode the undo/redo checkpoint points as VCDIFF binary deltas.
+    * Checkpoints are stored as deltas in reverse order (newest first), using ws as the base.
+    * Since ws contains the latest state, the newest checkpoint (end of list) will have
+    * the smallest delta from ws.
+    */
+   private void encodePointDeltas(RuntimeWorksheetState state, String wsXml) {
+      List<String> points = state.getPoints();
+
+      if(points == null || points.isEmpty() || wsXml == null) {
+         return;
+      }
+
+      List<byte[]> deltas = new ArrayList<>();
+
+      // Points alternates: [className, xml, className, xml, ...]
+      // Newest checkpoint is at the end, which is closest to ws.
+      // Store deltas in reverse order: ws -> newest -> ... -> oldest
+      byte[] previousBytes = wsXml.getBytes(StandardCharsets.UTF_8);
+
+      for(int i = points.size() - 2; i >= 0; i -= 2) {
+         String xml = points.get(i + 1);
+         byte[] currentBytes = xml.getBytes(StandardCharsets.UTF_8);
+
+         try {
+            byte[] delta = createVcdiffDelta(previousBytes, currentBytes);
+            deltas.add(delta);
+         }
+         catch(IOException e) {
+            LOG.error("Failed to create VCDIFF delta for checkpoint", e);
+            // Store full content as fallback (empty delta marker + full content)
+            deltas.add(currentBytes);
+         }
+
+         previousBytes = currentBytes;
+      }
+
+      state.setPointDeltas(deltas);
+      state.setPoints(null);  // Clear original points, now stored as deltas
+   }
+
+   /**
+    * Create a VCDIFF binary delta between source and target.
+    */
+   private byte[] createVcdiffDelta(byte[] source, byte[] target) throws IOException {
+      ByteArrayOutputStream deltaOut = new ByteArrayOutputStream();
+      VCDiffEncoder encoder = VCDiffEncoderBuilder.builder()
+         .withDictionary(source)
+         .buildSimple();
+      encoder.encode(target, deltaOut);
+      return deltaOut.toByteArray();
+   }
+
+   /**
+    * Apply a VCDIFF binary delta to source to reconstruct target.
+    */
+   private byte[] applyVcdiffDelta(byte[] source, byte[] delta) throws IOException {
+      ByteArrayOutputStream targetOut = new ByteArrayOutputStream();
+      VCDiffDecoder decoder = VCDiffDecoderBuilder.builder().buildSimple();
+      decoder.decode(source, delta, targetOut);
+      return targetOut.toByteArray();
    }
 
    private Worksheet ws;          // worksheet

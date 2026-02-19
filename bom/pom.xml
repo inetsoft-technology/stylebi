@@ -855,6 +855,12 @@
       </dependency>
 
       <dependency>
+        <groupId>com.github.luben</groupId>
+        <artifactId>zstd-jni</artifactId>
+        <version>1.5.6-3</version>
+      </dependency>
+
+      <dependency>
         <groupId>org.jdbi</groupId>
         <artifactId>jdbi3-core</artifactId>
         <version>3.45.0</version>
@@ -1263,6 +1269,12 @@
         <groupId>io.github.jopenlibs</groupId>
         <artifactId>vault-java-driver</artifactId>
         <version>6.2.0</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.davidehrmann.vcdiff</groupId>
+        <artifactId>vcdiff-core</artifactId>
+        <version>0.1.1</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
