@@ -1769,6 +1769,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    saveWorksheet(sheet: Worksheet, close: boolean = false) {
+      sheet.saving = true;
       this.saveWorksheet0(sheet, close, false);
    }
 
@@ -1998,6 +1999,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    saveViewsheet(sheet: Viewsheet, close: boolean = false) {
+      sheet.saving = true;
       this.saveViewsheet0(sheet, close, false);
    }
 
@@ -2067,7 +2069,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          });
          return;
       }
-
+      worksheet.saving = true;
       this.finishSave(worksheet, close || this.closeOnComplete, dialogModel);
    }
 
@@ -2154,6 +2156,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                         SAVE_VIEWSHEET_DIALOG_SOCKET_URI, result);
                   }
 
+                  sheet.saving = true;
                   this.designSaved = true;
                }).
                catch(() => { });
