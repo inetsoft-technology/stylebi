@@ -2770,7 +2770,9 @@ public class RuntimeViewsheet extends RuntimeSheet {
    private void decodePointDeltas(RuntimeViewsheetState state) {
       List<byte[]> deltas = state.getPointDeltas();
 
+      // Always initialize points, even if empty
       if(deltas == null || deltas.isEmpty() || state.getVs() == null) {
+         points = new XSwappableSheetList(contextPrincipal);
          return;
       }
 

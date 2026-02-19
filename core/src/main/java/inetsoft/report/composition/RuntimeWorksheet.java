@@ -137,7 +137,21 @@ public class RuntimeWorksheet extends RuntimeSheet
       syncData = state.isSyncData();
 
       if(state.getJoinWS() != null) {
-         joinWS = new RuntimeWorksheet(state.getJoinWS(), mapper);
+         RuntimeWorksheetState joinState = state.getJoinWS();
+
+         // Decode joinWS.ws from delta if stored that way
+         if(joinState.getWsDelta() != null && state.getWs() != null) {
+            try {
+               byte[] parentBytes = state.getWs().getBytes(StandardCharsets.UTF_8);
+               byte[] joinWsBytes = applyVcdiffDelta(parentBytes, joinState.getWsDelta());
+               joinState.setWs(new String(joinWsBytes, StandardCharsets.UTF_8));
+            }
+            catch(IOException e) {
+               LOG.error("Failed to apply VCDIFF delta for joinWS", e);
+            }
+         }
+
+         joinWS = new RuntimeWorksheet(joinState, mapper);
       }
 
       // Decode undo/redo checkpoints from VCDIFF deltas
@@ -152,7 +166,9 @@ public class RuntimeWorksheet extends RuntimeSheet
    private void decodePointDeltas(RuntimeWorksheetState state) {
       List<byte[]> deltas = state.getPointDeltas();
 
+      // Always initialize points, even if empty
       if(deltas == null || deltas.isEmpty() || state.getWs() == null) {
+         points = new XSwappableSheetList(contextPrincipal);
          return;
       }
 
@@ -524,7 +540,26 @@ public class RuntimeWorksheet extends RuntimeSheet
          state.setSyncData(syncData);
 
          if(joinWS != null) {
-            state.setJoinWS(joinWS.saveState(mapper));
+            RuntimeWorksheetState joinState = joinWS.saveState(mapper);
+
+            // Encode joinWS.ws as delta relative to parent ws
+            String parentWsXml = state.getWs();
+            String joinWsXml = joinState.getWs();
+
+            if(parentWsXml != null && joinWsXml != null) {
+               try {
+                  byte[] parentBytes = parentWsXml.getBytes(StandardCharsets.UTF_8);
+                  byte[] joinBytes = joinWsXml.getBytes(StandardCharsets.UTF_8);
+                  byte[] delta = createVcdiffDelta(parentBytes, joinBytes);
+                  joinState.setWsDelta(delta);
+                  joinState.setWs(null);  // Clear full ws, now stored as delta
+               }
+               catch(IOException e) {
+                  LOG.error("Failed to create VCDIFF delta for joinWS, storing full ws", e);
+               }
+            }
+
+            state.setJoinWS(joinState);
          }
 
          // Encode undo/redo checkpoints as VCDIFF deltas
