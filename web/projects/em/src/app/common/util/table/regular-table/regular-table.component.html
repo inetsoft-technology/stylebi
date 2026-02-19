@@ -34,13 +34,13 @@
         </mat-checkbox>
       </td>
     </ng-container>
-    <ng-container *ngFor="let field of fields, let i = index;" [matColumnDef]=field>
+    <ng-container *ngFor="let col of columns, let i = index;" [matColumnDef]="col.field">
       <ng-container class="detail-cell">
-        <th mat-header-cell class="table-header-col table-col" *matHeaderCellDef mat-sort-header [title]="headers[i]"> {{headers[i]}}</th>
-        <td mat-cell class="table-col" [class.hyperlink]="hasLink(field)"
-            *matCellDef="let row" [title]="row[field]" (click)="clickTableCell(row, field)">
+        <th mat-header-cell class="table-header-col table-col" *matHeaderCellDef mat-sort-header [title]="col.header"> {{col.header}}</th>
+        <td mat-cell class="table-col" [class.hyperlink]="hasLink(col.field)"
+            *matCellDef="let row" [title]="col.render ? col.render(row[col.field]) : row[col.field]" (click)="clickTableCell(row, col.field)">
           <div class="table-child">
-            {{row[field]}}
+            {{col.render ? col.render(row[col.field]) : row[col.field]}}
           </div>
         </td>
       </ng-container>
