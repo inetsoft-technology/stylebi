@@ -18,6 +18,7 @@
 package inetsoft.web.composer.vs.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.util.*;
