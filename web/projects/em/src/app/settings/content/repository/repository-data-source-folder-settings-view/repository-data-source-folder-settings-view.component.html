@@ -57,7 +57,7 @@
     </mat-tab>
     <mat-tab *ngIf="model.permissions" label="_#(Security)">
       <ng-template matTabContent>
-        <em-resource-permission [model]="model.permissions"></em-resource-permission>
+        <em-resource-permission [model]="model.permissions" [showCopyPaste]="true"></em-resource-permission>
       </ng-template>
     </mat-tab>
   </mat-tab-group>

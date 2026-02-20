@@ -75,7 +75,7 @@
     </mat-tab>
     <mat-tab *ngIf="model.permissionTableModel" label="_#(Security)">
       <ng-template matTabContent>
-        <em-resource-permission [model]="model.permissionTableModel" (permissionChanged)="folderChanged = true">
+        <em-resource-permission [model]="model.permissionTableModel" [showCopyPaste]="true" (permissionChanged)="folderChanged = true">
         </em-resource-permission>
       </ng-template>
     </mat-tab>

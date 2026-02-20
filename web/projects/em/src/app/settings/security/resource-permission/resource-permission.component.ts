@@ -33,6 +33,7 @@ import { ResourcePermissionTableModel } from "./resource-permission-table-model"
 import { MatDialog } from "@angular/material/dialog";
 import { SecurityTreeDialogComponent } from "../security-tree-dialog/security-tree-dialog.component";
 import { SecurityTreeDialogData } from "../security-tree-dialog/security-tree-dialog-data";
+import { PermissionClipboardService } from "./permission-clipboard.service";
 
 @Component({
    selector: "em-resource-permission",
@@ -42,6 +43,7 @@ import { SecurityTreeDialogData } from "../security-tree-dialog/security-tree-di
 export class ResourcePermissionComponent implements OnInit, OnChanges {
    @Input() model: ResourcePermissionModel;
    @Input() showRadioButtons = true;
+   @Input() showCopyPaste = false;
    @Input() ignorePadding: boolean;
    @Input() isTimeRange: boolean = false;
    @Output() permissionChanged = new EventEmitter<ResourcePermissionTableModel[]>();
@@ -59,7 +61,13 @@ export class ResourcePermissionComponent implements OnInit, OnChanges {
       isTimeRange: false
    };
 
-   constructor(private dialog: MatDialog, private http: HttpClient, private snackBar: MatSnackBar) {
+   constructor(private dialog: MatDialog, private http: HttpClient,
+               private snackBar: MatSnackBar,
+               private clipboardService: PermissionClipboardService) {
+   }
+
+   get canPaste(): boolean {
+      return this.clipboardService.canPaste;
    }
 
    ngOnInit() {
@@ -129,5 +137,24 @@ export class ResourcePermissionComponent implements OnInit, OnChanges {
 
    onTableSelectionChange(selection: ResourcePermissionTableModel[]): void {
       this.tableSelected = selection.length > 0 && this.model.permissions.length > 0;
+   }
+
+   copyPermissions(): void {
+      this.clipboardService.copy(this.model.permissions, this.model.requiresBoth);
+      this.snackBar.open("_#(js:em.security.permissionsCopied)", null, {
+         duration: Tool.SNACKBAR_DURATION
+      });
+   }
+
+   pastePermissions(): void {
+      const result = this.clipboardService.paste(this.model.displayActions);
+
+      if(result) {
+         this.model.permissions = result.permissions;
+         this.model.requiresBoth = result.requiresBoth;
+         this.model.hasOrgEdited = true;
+         this.model.changed = true;
+         this.permissionChanged.emit(this.model.permissions);
+      }
    }
 }

@@ -26,6 +26,7 @@
     <mat-tab label="_#(Security)">
       <em-resource-permission
         [model]="model?.permissionModel"
+        [showCopyPaste]="true"
         (permissionChanged)="changed()">
       </em-resource-permission>
     </mat-tab>
