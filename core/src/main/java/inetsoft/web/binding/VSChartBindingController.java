@@ -192,7 +192,7 @@ public class VSChartBindingController {
          img = ((GShape.ImageShape) shape).getImage();
       }
       else if(shape instanceof SVGShape) {
-         img = ((SVGShape) shape).getImage(new Dimension(16, 16));
+         img = ((SVGShape) shape).getImage(new Dimension(32, 32));
       }
 
       if(img != null) {

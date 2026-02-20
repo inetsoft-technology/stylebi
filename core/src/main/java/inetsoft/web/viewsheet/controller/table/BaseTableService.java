@@ -28,6 +28,7 @@ import inetsoft.report.filter.CrossTabFilter;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.*;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
@@ -215,11 +216,21 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
 
          int ccount = lens.getColCount();
 
-         if(ccount > 500) {
+         String maxColProp = SreeEnv.getProperty("table.output.maxcol");
+         int maxCols = 500;
+
+         try {
+            maxCols = Math.min(Integer.parseInt(maxColProp), 500);
+            maxCols = Math.max(maxCols, 1);
+         }
+         catch(NumberFormatException ignored) {
+         }
+
+         if(ccount > maxCols) {
             Catalog catalog = Catalog.getCatalog();
-            String message = catalog.getString("common.colMaxCount", ccount, name);
+            String message = catalog.getString("common.colMaxCount", ccount, name, maxCols);
             CoreTool.addUserMessage(message);
-            lens.setMaxCols(500);
+            lens.setMaxCols(maxCols);
          }
 
          final int tableSize = vsassembly.getPixelSize().height;

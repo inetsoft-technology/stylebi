@@ -256,6 +256,12 @@ public class ComposerViewsheetController {
       return Encode.forUri(base + "#cshid=GeneralScriptFunctions");
    }
 
+   @GetMapping("/api/composer/viewsheet/script-cursor-top")
+   @ResponseBody
+   public boolean isScriptCursorTop() {
+      return Boolean.parseBoolean(SreeEnv.getProperty("script.cursor.top"));
+   }
+
    @GetMapping("/api/composer/viewsheet/checkDependChanged")
    @ResponseBody
    public boolean checkDependChanged(@RequestParam("rid") String rid) {
