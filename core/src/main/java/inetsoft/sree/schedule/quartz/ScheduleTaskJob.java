@@ -22,6 +22,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
@@ -58,6 +59,10 @@ public class ScheduleTaskJob implements InterruptableJob {
             executionLock.unlock();
          }
 
+         String previousOrgId = OrganizationContextHolder.getCurrentOrgId();
+         IdentityID owner = task.getOwner();
+         boolean orgChanged = owner != null && !Tool.isEmptyString(owner.getOrgID());
+
          try {
             Identity identity = task.getIdentity();
             String addr = Tool.getIP();
@@ -75,6 +80,10 @@ public class ScheduleTaskJob implements InterruptableJob {
 
             if(principal != null) {
                ThreadContext.setContextPrincipal(principal);
+            }
+
+            if(orgChanged) {
+               OrganizationContextHolder.setCurrentOrgId(owner.getOrgID());
             }
 
             if(principal == null) {
@@ -109,6 +118,10 @@ public class ScheduleTaskJob implements InterruptableJob {
             }
             finally {
                executionLock.unlock();
+            }
+
+            if(orgChanged) {
+               OrganizationContextHolder.setCurrentOrgId(previousOrgId);
             }
          }
       }
