@@ -395,6 +395,7 @@ public class VSTableLayoutController {
       cmd.setRowGroup(rowColGroupHandler.hasRowGroup(rvs, info, row, col));
       cmd.setColGroup(rowColGroupHandler.hasColGroup(rvs, info, row, col));
       cmd.setGroupNum(LayoutTool.getTableCellBindings(layout, TableCellBinding.GROUP).size());
+
       if(bind.getType() == CellBinding.BIND_COLUMN) {
          try {
             cmd.setCellScript(cellScriptHandler.get(rvs, info, row, col));
@@ -403,6 +404,7 @@ public class VSTableLayoutController {
             LOG.warn("Failed to compute cell script for row={}, col={}", row, col, e);
          }
       }
+
       return cmd;
    }
 
