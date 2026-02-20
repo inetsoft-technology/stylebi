@@ -19,6 +19,7 @@ package inetsoft.uql.asset;
 
 import inetsoft.uql.*;
 import inetsoft.uql.asset.internal.*;
+import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.SQLHelper;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.util.Tool;
@@ -450,6 +451,25 @@ public class BoundTableAssembly extends AbstractTableAssembly {
       writer.print("BT[");
       SourceInfo sinfo = getSourceInfo();
       writer.print(sinfo == null ? null : sinfo.toString());
+
+      // Include the datasource connection identity so that any connection change
+      // (e.g. switching catalog via ConnCatalog) automatically invalidates cached results.
+      // Use JDBCDataSource.getIdentity() (url+user+defaultDB) rather than lastModified to
+      // avoid spurious cache invalidation from non-connection events (status checks, renames, etc.).
+      if(sinfo != null && sinfo.getPrefix() != null) {
+         try {
+            XDataSource ds = XFactory.getRepository().getDataSource(sinfo.getPrefix());
+
+            if(ds instanceof JDBCDataSource) {
+               writer.print(",");
+               writer.print(((JDBCDataSource) ds).getIdentity());
+            }
+         }
+         catch(Exception ignore) {
+            // If the datasource cannot be looked up, omit the identity from the key.
+         }
+      }
+
       int count = getConditionAssemblyCount();
       writer.print(",");
       writer.print(count);
