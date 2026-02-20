@@ -181,11 +181,18 @@ public class ImageShapes {
          String folder = shapeInfo[0];
          String file = shapeInfo[1];
 
-         try(InputStream input = dataspace.getInputStream(folder, file)) {
-            if(input != null) {
-               GShape.ImageShape shape = new GShape.ImageShape(file);
-               shape.setImage(Tool.getImage(input));
-               shapes.put(file, shape);
+         try {
+            if(file.toLowerCase().endsWith(".svg")) {
+               shapes.put(file, new SVGShape(folder + "/" + file));
+            }
+            else {
+               try(InputStream input = dataspace.getInputStream(folder, file)) {
+                  if(input != null) {
+                     GShape.ImageShape shape = new GShape.ImageShape(file);
+                     shape.setImage(Tool.getImage(input));
+                     shapes.put(file, shape);
+                  }
+               }
             }
          }
          catch(IOException e) {
