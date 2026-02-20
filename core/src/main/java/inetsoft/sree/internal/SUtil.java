@@ -3113,7 +3113,8 @@ public class SUtil {
 
    public static IdentityID getOwnerForNewTask(IdentityID user) {
       OrganizationManager organizationManager = OrganizationManager.getInstance();
-      String currOrgId = organizationManager.getCurrentOrgID();
+      String currOrgId = user != null && !Tool.isEmptyString(user.getOrgID()) ?
+         user.getOrgID() : organizationManager.getCurrentOrgID();
 
       if(user != null && !Tool.equals(user.getOrgID(), currOrgId)) {
          SecurityEngine security = SecurityEngine.getSecurity();
