@@ -507,8 +507,9 @@ public class ServerMonitoringController {
 
    private ReverseProxyModel getReverseProxyModel(HttpServiceRequest srequest) {
       Set<String> reverseProxyHeaders =
-         Arrays.stream(new String[]{ "X-Forwarded-For", "X-Real-IP", "X-Forwarded-Host",
-                                     "X-Forwarded-Proto", "X-Inetsoft-Remote-Uri" })
+         Arrays.stream(new String[]{ "X-Original-Forwarded-For", "X-Forwarded-For", "X-Real-IP",
+                                     "X-Forwarded-Host", "X-Forwarded-Proto",
+                                     "X-Inetsoft-Remote-Uri" })
             .map(String::toLowerCase)
             .collect(Collectors.toSet());
 

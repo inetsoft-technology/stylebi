@@ -51,4 +51,8 @@ abstract class AbstractSessionService implements SessionLicenseManager, SessionL
    public void close() throws Exception {
       dispose();
    }
+
+   protected static String getRemoteAddress(SRPrincipal srPrincipal) {
+      return srPrincipal.getUser() != null ? srPrincipal.getUser().getIPAddress() : "unknown";
+   }
 }

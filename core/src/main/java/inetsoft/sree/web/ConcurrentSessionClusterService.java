@@ -63,8 +63,21 @@ public class ConcurrentSessionClusterService extends AbstractSessionService {
     */
    @Override
    public synchronized void newSession(SRPrincipal srPrincipal) {
+      if(LOG.isDebugEnabled()) {
+         LOG.debug(
+            "New session requested by '{}' from {}; active: {}, max: {}",
+            srPrincipal.getName(), getRemoteAddress(srPrincipal),
+            clusterLicenses.size(), getMaxSessions());
+      }
+
       if(!clusterLicenses.containsKey(srPrincipal)) {
          if(clusterLicenses.size() == getMaxSessions()) {
+            if(LOG.isDebugEnabled()) {
+               LOG.debug(
+                  "Session limit reached ({}) when '{}' from {}; active sessions: {}",
+                  getMaxSessions(), srPrincipal.getName(), getRemoteAddress(srPrincipal),
+                  clusterLicenses.keySet().stream().map(SRPrincipal::getName).toList());
+            }
             sessionError(srPrincipal);
          }
          else {
