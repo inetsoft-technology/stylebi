@@ -54,6 +54,8 @@ public class VSComboBoxModel extends ListInputModel<ComboBoxVSAssembly> {
       minDate = assemblyInfo.getMinDate();
       maxDate = assemblyInfo.getMaxDate();
       selectedObject = assemblyInfo.getSelectedObject();
+      queryDateFormat = assemblyInfo.isQueryDateFormat();
+      dateFormatPattern = assemblyInfo.getDateFormatPattern();
 
       VSCompositeFormat fmt = assemblyInfo.getFormat();
 
@@ -146,6 +148,14 @@ public class VSComboBoxModel extends ListInputModel<ComboBoxVSAssembly> {
       return dateFormat;
    }
 
+   public boolean isQueryDateFormat() {
+      return queryDateFormat;
+   }
+
+   public String getDateFormatPattern() {
+      return dateFormatPattern;
+   }
+
    private String selectedLabel;
    private Object selectedObject;
    private int rowCount;
@@ -157,6 +167,8 @@ public class VSComboBoxModel extends ListInputModel<ComboBoxVSAssembly> {
    private Timestamp minDate;
    private Timestamp maxDate;
    private String dateFormat;
+   private boolean queryDateFormat;
+   private String dateFormatPattern;
 
    @Component
    public static final class VSComboBoxModelFactory
