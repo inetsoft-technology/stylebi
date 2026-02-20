@@ -59,6 +59,7 @@
        [style.padding-right.px]="titleFormat?.padding?.right"
        [class.wrapped]="titleFormat.wrapping.whiteSpace != 'nowrap'"
        [class.floating]="floating" [innerHTML]="getHTMLText()"
+       [class.cursor-pointer]="cursorPointer"
        (dblclick)="editingTitle = (!viewer || binding) && !preview">
   </div>
   <div *ngIf="!editingTitle && !viewer && !preview && (selected || formatPainterMode)"
