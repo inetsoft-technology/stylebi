@@ -2774,22 +2774,26 @@ public class SUtil {
    /**
     * Get ip address.
     */
-   private static String getIpAddress(HttpServletRequest req) {
+   public static String getIpAddress(HttpServletRequest req) {
       String ip = req.getHeader("remote_ip");
 
-      if(ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip)) {
+      if(ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+         ip = req.getHeader("X-Original-Forwarded-For");
+      }
+
+      if(ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
          ip = req.getHeader("X-Forwarded-For");
       }
 
-      if(ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip)) {
+      if(ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
          ip = req.getHeader("Proxy-Client-IP");
       }
 
-      if(ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip)) {
+      if(ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
          ip = req.getHeader("WL-Proxy-Client-IP");
       }
 
-      if(ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip)) {
+      if(ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
          ip = req.getRemoteAddr();
       }
 

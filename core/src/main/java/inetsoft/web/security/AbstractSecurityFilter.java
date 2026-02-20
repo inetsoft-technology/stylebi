@@ -241,8 +241,8 @@ public abstract class AbstractSecurityFilter
       }
       catch(Exception thrown) {
          throw new AuthenticationFailureException(
-            AuthenticationFailureReason.SESSION_EXCEEDED,
-            Catalog.getCatalog(principal).getString("login.error.sessions.exceeded"), thrown);
+            AuthenticationFailureReason.GENERIC_ERROR,
+            Catalog.getCatalog(principal).getString("login.error.sessions.failed"), thrown);
       }
 
       if(isNonlocalClient(principal)) {
@@ -414,8 +414,16 @@ public abstract class AbstractSecurityFilter
    @SuppressWarnings("WeakerAccess")
    protected ClientInfo createClientInfo(IdentityID userID, ServletRequest request) {
       HttpServletRequest httpRequest = (HttpServletRequest) request;
-      String remoteAddress = httpRequest.getHeader("X-Forwarded-For");
-      remoteAddress = remoteAddress == null ? httpRequest.getRemoteAddr() : remoteAddress;
+      String remoteAddress = httpRequest.getHeader("X-Original-Forwarded-For");
+
+      if(!StringUtils.hasText(remoteAddress)) {
+         remoteAddress = httpRequest.getHeader("X-Forwarded-For");
+      }
+
+      if(!StringUtils.hasText(remoteAddress)) {
+         remoteAddress = httpRequest.getRemoteAddr();
+      }
+
       return new ClientInfo(userID, remoteAddress,
                             httpRequest.getSession(true).getId(), request.getLocale());
    }

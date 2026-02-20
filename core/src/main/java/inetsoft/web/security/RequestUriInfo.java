@@ -17,17 +17,14 @@
  */
 package inetsoft.web.security;
 
+import inetsoft.sree.internal.SUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletRequestWrapper;
 import org.springframework.util.StringUtils;
 
 public class RequestUriInfo {
    public RequestUriInfo(HttpServletRequest request) {
-      String ip = request.getHeader("remote_ip");
-
-      if(ip == null || ip.isEmpty()) {
-         ip = request.getRemoteAddr();
-      }
+      String ip = SUtil.getIpAddress(request);
 
       /**
        * For google cloud run, it will add header forwarded: for="0.0.0.0";proto=https,for="127.0.0.1";proto=https
@@ -40,9 +37,19 @@ public class RequestUriInfo {
          HttpServletRequest orequest = (HttpServletRequest) wrapper.getRequest();
 
          try {
-            ip = StringUtils.tokenizeToStringArray(orequest.getHeader("X-Forwarded-For"), ",")[0];
+            // try X-Original-Forwarded-For first, ingress-nginx with externalTrafficPolicy=Local
+            // will set this header to the original remote address
+            ip = StringUtils.tokenizeToStringArray(orequest.getHeader("X-Original-Forwarded-For"), ",")[0];
          }
          catch(Exception ignore) {
+         }
+
+         if(!StringUtils.hasText(ip) || "0.0.0.0".equals(ip)) {
+            try {
+               ip = StringUtils.tokenizeToStringArray(orequest.getHeader("X-Forwarded-For"), ",")[0];
+            }
+            catch(Exception ignore) {
+            }
          }
       }
 
