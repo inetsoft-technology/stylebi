@@ -313,6 +313,10 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
     * Deletes multiple blobs at the specified paths. This is more efficient than calling
     * {@link #delete(String)} in a loop as it performs the deletion in a single cluster operation.
     *
+    * <p><b>Note:</b> Unlike {@link #delete(String)}, this method does not acquire per-path write
+    * locks. Callers are responsible for ensuring that concurrent reads to the paths being deleted
+    * are safe or otherwise coordinated.</p>
+    *
     * @param paths the paths to the blobs to delete.
     *
     * @throws IOException if an I/O error occurs.

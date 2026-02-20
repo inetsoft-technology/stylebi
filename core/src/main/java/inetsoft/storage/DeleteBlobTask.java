@@ -59,7 +59,7 @@ public class DeleteBlobTask<T extends Serializable> extends BlobTask<T>
             boolean exists = refs.remove(key);
 
             if(refs.isEmpty()) {
-               refMap.remove(key);
+               refMap.remove(blob.getDigest());
 
                if(exists) {
                   BlobEngine.getInstance().delete(getId(), blob.getDigest());
