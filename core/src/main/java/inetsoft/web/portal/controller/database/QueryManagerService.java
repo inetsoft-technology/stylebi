@@ -2286,6 +2286,7 @@ public class QueryManagerService {
          String tableName = null;
          String tablePath = null;
          String pathArray = null;
+         String additional = null;
 
          if(name instanceof UniformSQL) {
             tableName = tablePath = selectTable.getAlias();
@@ -2293,6 +2294,23 @@ public class QueryManagerService {
          else {
             tableName = String.valueOf(selectTable.getName());
             XNode node = metaData.getTable(tableName, XUtil.OUTER_MOSE_LAYER_DATABASE);
+
+            if(node == null) {
+               // Table not found in base datasource, search linked (additional) datasources
+               String[] additionalNames = jdbcDataSource.getDataSourceNames();
+
+               if(additionalNames != null) {
+                  for(String additionalName : additionalNames) {
+                     XNode additionalNode = metaData.getTable(tableName, additionalName);
+
+                     if(additionalNode != null) {
+                        node = additionalNode;
+                        additional = additionalName;
+                        break;
+                     }
+                  }
+               }
+            }
 
             if(node != null) {
                tablePath = JDBCUtil.getTablePath(jdbcDataSource, node);
@@ -2315,6 +2333,10 @@ public class QueryManagerService {
          entry.setProperty(XSourceInfo.CATALOG, selectTable.getCatalog());
          entry.setProperty(XSourceInfo.SCHEMA, selectTable.getSchema());
          entry.setProperty("source_with_no_quote", tableName);
+
+         if(additional != null) {
+            entry.setProperty(XUtil.DATASOURCE_ADDITIONAL, additional);
+         }
 
          if(root != null) {
             entry.setProperty("hasSchema", Tool.toString(root.getAttribute("hasSchema")));

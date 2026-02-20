@@ -678,6 +678,12 @@ public class QueryGraphModelService {
          node.setAttribute("supportCatalog", entry.getProperty("supportCatalog"));
       }
 
+      String additional = entry.getProperty(XUtil.DATASOURCE_ADDITIONAL);
+
+      if(StringUtils.hasText(additional) && !XUtil.OUTER_MOSE_LAYER_DATABASE.equals(additional)) {
+         node.setAttribute(XUtil.DATASOURCE_ADDITIONAL, additional);
+      }
+
       DefaultMetaDataProvider metaDataProvider = getMetaDataProvider(database);
       TableNode tableNode = metaDataProvider.getTableMetaData(node);
 
