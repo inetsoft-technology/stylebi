@@ -27,6 +27,13 @@
     flex-wrap: nowrap;
     flex-direction: row;
 
+    &.sticky-search {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--inet-dialog-bg-color);
+    }
+
     .search-input-container {
       width: 100%;
       display: flex;

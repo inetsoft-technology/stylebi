@@ -91,6 +91,7 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    @Input() getRecentTreeFun: () => Observable<TreeNodeModel[]>;
    @Input() initSelectedNodesExpanded: boolean;
    @Input() manyNodesUseVirtualScroll: boolean;
+   @Input() stickySearch: boolean = false;
    @Output() nodesSelected = new EventEmitter<TreeNodeModel[]>();
    @Output() nodeSelected = new EventEmitter<TreeNodeModel>();
    @Output() pathSelected = new EventEmitter<TreeNodeModel[]>();
@@ -114,6 +115,9 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    datasourceLoadedAll: boolean = false;
    nodesLoading: number = 0;
    useVirtualScroll: boolean = false;
+   datasourceLoadingPlaceholder: boolean = false;
+   private datasourceLoadingPlaceholderNode: TreeNodeModel = null;
+   searchStr: string = "";
    searchEndNode: (node: TreeNodeModel) => boolean = node =>  {
       return node?.data?.type == AssetType.PHYSICAL_TABLE || node?.data?.type == AssetType.TABLE ||
          node?.data?.type == AssetType.QUERY;
@@ -669,6 +673,42 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
       return this.virtualScrollTree.tree.getNodeByData(compareType, data, parentNode);
    }
 
+   searchStrChange(searchStr: string): void {
+      this.searchStr = searchStr;
+
+      if (this.searchStr && !this.datasourceLoadingPlaceholder
+            && this.searchMode) {
+         this.checkDSPlaceholder();
+      }
+   }
+
+   checkDSPlaceholder(): void {
+      const match = this.dataSourcesTree?.label?.toLocaleLowerCase()
+         .includes(this.searchStr.toLocaleLowerCase());
+
+      if(this.searchEnabled && this.datasources && !match && this.dataSourcesTree?.loading){
+         this.datasourceLoadingPlaceholder = true;
+         this.datasourceLoadingPlaceholderNode = <TreeNodeModel>{
+            loading: true,
+            label: "_#(js:Data Sources Loading)",
+            icon: "search-icon"
+         };
+         this.root.children.push(this.datasourceLoadingPlaceholderNode);
+         this.refreshView();
+      }
+   }
+
+   private removeDSLoadingPlaceholder(): void {
+      const idx = this.root.children.indexOf(this.datasourceLoadingPlaceholderNode);
+
+      if(idx >= 0) {
+         this.root.children.splice(idx, 1);
+      }
+
+      this.datasourceLoadingPlaceholderNode = null;
+      this.datasourceLoadingPlaceholder = false;
+   }
+
    searchStart(start: boolean): void {
       if(start) {
          if(!this.hasLoadedAllNode()) {
@@ -695,6 +735,9 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
          }
       }
       else {
+         if (this.datasourceLoadingPlaceholder) {
+            this.removeDSLoadingPlaceholder();
+         }
          this.activeRoot = this.root;
       }
 
@@ -829,6 +872,9 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
 
       if(loading && !node.data.loadingDebounced) {
          // immediately apply loading if not already debounced for this node
+         if(node === this.dataSourcesTree && !this.datasourceLoadingPlaceholder) {
+            this.checkDSPlaceholder();
+         }
          node.loading = true;
       }
       else {
@@ -840,6 +886,15 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    }
 
    private updateLoadingIndicator(node: TreeNodeModel, loading: boolean, callBack?: () => any): void {
+
+      if(node === this.dataSourcesTree && !loading && this.datasourceLoadingPlaceholder) {
+         this.removeDSLoadingPlaceholder();
+      }
+
+      if(node === this.dataSourcesTree && loading && !this.datasourceLoadingPlaceholder) {
+         this.checkDSPlaceholder();
+      }
+
       this.zone.run(() => {
          node.loading = loading;
          node.data.loadingDebounced = false;
