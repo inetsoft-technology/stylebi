@@ -86,6 +86,17 @@ public final class LocalBlobStorage<T extends Serializable> extends BlobStorage<
    }
 
    @Override
+   protected void deleteByDigest(String digest) throws IOException {
+      String dir = digest.substring(0, 2);
+      String name = digest.substring(2);
+      Path path = base.resolve(dir).resolve(name);
+
+      if(path.toFile().exists()) {
+         Files.delete(path);
+      }
+   }
+
+   @Override
    protected Path copyToTemp(Blob<T> blob) throws IOException {
       Path path = getPath(blob, base);
       Path tempFile = createTempFile("blob", ".dat");
@@ -96,11 +107,6 @@ public final class LocalBlobStorage<T extends Serializable> extends BlobStorage<
    @Override
    protected Path createTempFile(String prefix, String suffix) throws IOException {
       return Files.createTempFile(tempDir, prefix, suffix);
-   }
-
-   @Override
-   protected boolean isLocal() {
-      return false;
    }
 
    @Override

@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.*;
+import java.util.Set;
 
 /**
  * {@code FilesystemBlobEngine} is an implementation of {@link BlobEngine} that stores blobs to a
@@ -80,6 +81,35 @@ public class FilesystemBlobEngine implements BlobEngine {
    @Override
    public void delete(String id, String digest) throws IOException {
       Files.delete(getPath(id, digest));
+   }
+
+   @Override
+   public void deleteAll(String id, Set<String> digests) throws IOException {
+      if(digests == null || digests.isEmpty()) {
+         return;
+      }
+
+      IOException lastError = null;
+      int failCount = 0;
+
+      for(String digest : digests) {
+         try {
+            Path path = getPath(id, digest);
+
+            if(Files.exists(path)) {
+               Files.delete(path);
+            }
+         }
+         catch(IOException e) {
+            lastError = e;
+            failCount++;
+         }
+      }
+
+      if(lastError != null) {
+         throw new IOException(
+            "Failed to delete " + failCount + " of " + digests.size() + " blobs", lastError);
+      }
    }
 
    public void deleteStore(String id) {
