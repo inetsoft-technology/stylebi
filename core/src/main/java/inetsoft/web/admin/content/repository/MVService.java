@@ -476,16 +476,15 @@ public class MVService {
    }
 
    private String getUsers(MVDef def) {
-      Catalog catalog = Catalog.getCatalog();
       StringBuilder usersBuilder = new StringBuilder();
 
       if(def.getUsers() != null) {
          for(int i = 0; i < def.getUsers().length; i++) {
             Identity identity = def.getUsers()[i];
             IdentityID identityID = IdentityID.getIdentityIDFromKey(identity.getName());
-            usersBuilder.append(catalog.getString(
+            usersBuilder.append(
                identity.getType() == Identity.GROUP ? "Group" :
-                  identity.getType() == Identity.ROLE ? "Role" : "User"))
+                  identity.getType() == Identity.ROLE ? "Role" : "User")
                .append(":").append(identityID.getName());
 
             if(i < def.getUsers().length - 1) {
