@@ -1649,7 +1649,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                {
                   executeView(entry.getName(), false, initing);
                }
-               else if(!(info instanceof ViewsheetVSAssemblyInfo)) {
+               else {
+                  // Bug #72320: embedded viewsheet (ViewsheetVSAssemblyInfo) scripts that use
+                  // thisParameter must also be executed and deferred, like non-embedded assemblies,
+                  // so parameter values propagate correctly from parent to embedded viewsheet.
                   executeView(entry.getName(), false, initing);
                   thisParameterScriptAssemblies.add(entry.getName());
                }
