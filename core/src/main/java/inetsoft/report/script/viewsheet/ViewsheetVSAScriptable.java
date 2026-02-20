@@ -251,7 +251,19 @@ public class ViewsheetVSAScriptable extends VSAScriptable {
 
       if(assembly instanceof InputVSAssembly) {
          InputVSAssemblyInfo info = (InputVSAssemblyInfo) assembly.getVSAssemblyInfo();
-         info.setSelectedObject(Tool.getData(info.getDataType(), value));
+         Object typedValue = Tool.getData(info.getDataType(), value);
+         info.setSelectedObject(typedValue);
+
+         // Bug #72320: also update the embedded viewsheet sandbox's variable table so that
+         // script references to parameter.<assemblyName> reflect the new value immediately,
+         // without requiring the embedded radio button's submit event to fire.
+         if(vsAssembly instanceof Viewsheet && this.assembly != null) {
+            ViewsheetSandbox embeddedBox = box.getSandbox(this.assembly);
+
+            if(embeddedBox != null) {
+               embeddedBox.getVariableTable().put(assemblyName, typedValue);
+            }
+         }
       }
    }
 
