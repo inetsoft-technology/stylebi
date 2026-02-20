@@ -92,6 +92,7 @@ export class TreeComponent implements OnInit, OnChanges, AfterViewChecked, After
    @Input() getRecentTreeFun: () => Observable<TreeNodeModel[]>;
    @Input() searchEndNode: (node: TreeNodeModel) => boolean;
    @Input() nodeEqualsFun: (node1: TreeNodeModel, node2: TreeNodeModel) => boolean;
+   @Input() stickySearch: boolean = false;
    @Output() nodeExpanded = new EventEmitter<TreeNodeModel>();
    @Output() nodeCollapsed = new EventEmitter<TreeNodeModel>();
    @Output() nodesSelected = new EventEmitter<TreeNodeModel[]>();

@@ -91,7 +91,7 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    @Input() getRecentTreeFun: () => Observable<TreeNodeModel[]>;
    @Input() initSelectedNodesExpanded: boolean;
    @Input() manyNodesUseVirtualScroll: boolean;
-   @Input() newVSDialog: boolean = false;
+   @Input() stickySearch: boolean = false;
    @Output() nodesSelected = new EventEmitter<TreeNodeModel[]>();
    @Output() nodeSelected = new EventEmitter<TreeNodeModel>();
    @Output() pathSelected = new EventEmitter<TreeNodeModel[]>();
@@ -116,6 +116,7 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    nodesLoading: number = 0;
    useVirtualScroll: boolean = false;
    datasourceLoadingPlaceholder: boolean = false;
+   private datasourceLoadingPlaceholderNode: TreeNodeModel = null;
    searchStr: string = "";
    searchEndNode: (node: TreeNodeModel) => boolean = node =>  {
       return node?.data?.type == AssetType.PHYSICAL_TABLE || node?.data?.type == AssetType.TABLE ||
@@ -682,17 +683,30 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    }
 
    checkDSPlaceholder(): void {
-      const match = "Data Source".toLocaleLowerCase().includes(this.searchStr.toLocaleLowerCase());
+      const match = this.dataSourcesTree?.label?.toLocaleLowerCase()
+         .includes(this.searchStr.toLocaleLowerCase());
 
-      if(this.newVSDialog && !match && this.dataSourcesTree.loading){
+      if(this.searchEnabled && this.datasources && !match && this.dataSourcesTree?.loading){
          this.datasourceLoadingPlaceholder = true;
-         this.root.children.push(<TreeNodeModel>{
+         this.datasourceLoadingPlaceholderNode = <TreeNodeModel>{
             loading: true,
-            label: "#_(js: Data Sources Loading)",
+            label: "_#(js:Data Sources Loading)",
             icon: "search-icon"
-         });
+         };
+         this.root.children.push(this.datasourceLoadingPlaceholderNode);
          this.refreshView();
       }
+   }
+
+   private removeDSLoadingPlaceholder(): void {
+      const idx = this.root.children.indexOf(this.datasourceLoadingPlaceholderNode);
+
+      if(idx >= 0) {
+         this.root.children.splice(idx, 1);
+      }
+
+      this.datasourceLoadingPlaceholderNode = null;
+      this.datasourceLoadingPlaceholder = false;
    }
 
    searchStart(start: boolean): void {
@@ -722,8 +736,7 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
       }
       else {
          if (this.datasourceLoadingPlaceholder) {
-            this.root.children.pop();
-            this.datasourceLoadingPlaceholder = false;
+            this.removeDSLoadingPlaceholder();
          }
          this.activeRoot = this.root;
       }
@@ -857,14 +870,9 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
          return;
       }
 
-      if(node.label === "Data Source" && !loading && this.datasourceLoadingPlaceholder) {
-         this.root.children.pop();
-         this.datasourceLoadingPlaceholder = false;
-      }
-
       if(loading && !node.data.loadingDebounced) {
          // immediately apply loading if not already debounced for this node
-         if(node.label === "Data Source" && !this.datasourceLoadingPlaceholder) {
+         if(node === this.dataSourcesTree && !this.datasourceLoadingPlaceholder) {
             this.checkDSPlaceholder();
          }
          node.loading = true;
@@ -879,12 +887,11 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
 
    private updateLoadingIndicator(node: TreeNodeModel, loading: boolean, callBack?: () => any): void {
 
-      if(node.label === "Data Source" && !loading && this.datasourceLoadingPlaceholder) {
-         this.root.children.pop();
-         this.datasourceLoadingPlaceholder = false;
+      if(node === this.dataSourcesTree && !loading && this.datasourceLoadingPlaceholder) {
+         this.removeDSLoadingPlaceholder();
       }
 
-      if(node.label === "Data Source" && loading && !this.datasourceLoadingPlaceholder) {
+      if(node === this.dataSourcesTree && loading && !this.datasourceLoadingPlaceholder) {
          this.checkDSPlaceholder();
       }
 

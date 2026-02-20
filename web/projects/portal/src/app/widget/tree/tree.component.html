@@ -20,7 +20,7 @@
      [style.min-width]="fillHeight || _searchEnabled ? '100%' : 'fit-content'"
      [style.height]="fillHeight || _searchEnabled ? '100%' : null"
      tabindex="0" role="tree" (keyup)="onKey($event)">
-  <div class="py-1 px-1 search-box" *ngIf="_searchEnabled">
+  <div class="py-1 px-1 search-box" [class.sticky-search]="stickySearch" *ngIf="_searchEnabled">
     <ng-container *ngIf="_searchEnabled">
       <div class="p-1 search-input-container">
         <input #searchInput class="form-control form-control-sm" type="text" placeholder="_#(Search)"

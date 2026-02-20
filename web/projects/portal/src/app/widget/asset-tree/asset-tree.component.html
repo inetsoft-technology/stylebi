@@ -29,9 +29,9 @@
   [isRejectFunction]="isRejectFunction"
   [recentEnabled]="recentEnabled"
   [getRecentTreeFun]="getRecentTreeFun" [searchEndNode]="searchEndNode"
-  [useVirtualScroll]="useVirtualScroll" [nodeEqualsFun]="getNodeEqualsFun()"
+  [useVirtualScroll]="useVirtualScroll" [nodeEqualsFun]="getNodeEqualsFun()" [stickySearch]="stickySearch"
   (searchStart)="searchStart($event)"
-  (searchStrChange) = "searchStrChange($event)"
+  (searchStrChange)="searchStrChange($event)"
   (nodeDrag)="nodeDrag.emit($event)"
   (nodeDrop)="nodeDrop.emit($event)">
 </virtual-scroll-tree>

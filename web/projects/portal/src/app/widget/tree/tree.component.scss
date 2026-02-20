@@ -28,6 +28,13 @@
     flex-direction: row;
     height: 30px;
 
+    &.sticky-search {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--inet-dialog-bg-color);
+    }
+
     .search-input-container {
       width: 100%;
       display: flex;
@@ -74,12 +81,4 @@
   &:hover {
     overflow: auto;
   }
-}
-
-:host-context(new-viewsheet-dialog) .search-box {
-  position: sticky !important;
-  padding-top: 0.50em !important;
-  top: 0;
-  z-index: 1;
-  background: var(--inet-dialog-bg-color);
 }

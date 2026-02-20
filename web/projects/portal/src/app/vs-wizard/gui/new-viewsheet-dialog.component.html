@@ -29,8 +29,7 @@
       <div class="bordered-box bd-gray tree-container">
          <asset-tree [datasources]="true"  [columns]="false"  [viewsheets]="false"
                      [readOnly]="true"  [dataSourcePath]="null"
-                     [searchEnabled]="true"
-                     [newVSDialog]="true"
+                     [searchEnabled]="true" [stickySearch]="true"
                      (nodeSelected)="changeSource($event)"
                      (dblclickNode)="doubleclickNode($event)">
          </asset-tree>
