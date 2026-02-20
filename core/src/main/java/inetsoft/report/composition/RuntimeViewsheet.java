@@ -17,10 +17,6 @@
  */
 package inetsoft.report.composition;
 
-import com.davidehrmann.vcdiff.VCDiffDecoder;
-import com.davidehrmann.vcdiff.VCDiffDecoderBuilder;
-import com.davidehrmann.vcdiff.VCDiffEncoder;
-import com.davidehrmann.vcdiff.VCDiffEncoderBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.analytic.AnalyticAssistant;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
@@ -159,10 +155,14 @@ public class RuntimeViewsheet extends RuntimeSheet {
          originalVs = loadXml(new Viewsheet(), state.getOriginalVs());
       }
 
+      // Track vsXml for decoding point deltas later
+      String vsXmlForDeltas = null;
+
       // Load vs: either directly, from delta, or use originalVs
       if(state.getVs() != null) {
          // Direct storage (backward compatibility or fallback)
-         vs = loadXml(new Viewsheet(), state.getVs());
+         vsXmlForDeltas = state.getVs();
+         vs = loadXml(new Viewsheet(), vsXmlForDeltas);
          vs.setMaxMode(state.isMaxMode());
       }
       else if(state.getVsDelta() != null && state.getOriginalVs() != null) {
@@ -171,20 +171,24 @@ public class RuntimeViewsheet extends RuntimeSheet {
 
          try {
             byte[] vsBytes = applyVcdiffDelta(originalBytes, state.getVsDelta());
-            String vsXml = new String(vsBytes, StandardCharsets.UTF_8);
-            vs = loadXml(new Viewsheet(), vsXml);
+            vsXmlForDeltas = new String(vsBytes, StandardCharsets.UTF_8);
+            vs = loadXml(new Viewsheet(), vsXmlForDeltas);
             vs.setMaxMode(state.isMaxMode());
          }
          catch(IOException e) {
             LOG.error("Failed to apply VCDIFF delta for vs, cloning originalVs", e);
             vs = (Viewsheet) originalVs.clone();
             vs.setMaxMode(state.isMaxMode());
+            // Use originalVs XML since vs is a clone of it
+            vsXmlForDeltas = state.getOriginalVs();
          }
       }
       else if(originalVs != null) {
          // vs was identical to originalVs, clone it
          vs = (Viewsheet) originalVs.clone();
          vs.setMaxMode(state.isMaxMode());
+         // vs equals originalVs, so use originalVs XML for delta decoding
+         vsXmlForDeltas = state.getOriginalVs();
       }
 
       if(state.getVars() != null) {
@@ -217,7 +221,8 @@ public class RuntimeViewsheet extends RuntimeSheet {
       tipviews = state.getTipviews();
       popcomponents = state.getPopcomponents();
 
-      // bookmarksMap is loaded lazily from repository on demand
+      // bookmarksMap is loaded lazily from repository on demand via getUserBookmark()
+      // which calls getVSBookmark(principalKey) -> rep.getVSBookmark() when key is missing
       bookmarksMap = new HashMap<>();
 
       // Recreate ibookmark from originalVs (the initial viewsheet state)
@@ -257,7 +262,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
       }
 
       // Decode undo/redo checkpoints from VCDIFF deltas
-      decodePointDeltas(state);
+      decodePointDeltas(state.getPointDeltas(), vsXmlForDeltas, xml -> loadXml(new Viewsheet(), xml));
 
       boolean isUpdate = state.isUpdate();
 
@@ -2719,116 +2724,6 @@ public class RuntimeViewsheet extends RuntimeSheet {
       encodePointDeltas(state, vsXml);
 
       return state;
-   }
-
-   /**
-    * Encode the undo/redo checkpoint points as VCDIFF binary deltas.
-    * Checkpoints are stored as deltas in reverse order (newest first), using vs as the base.
-    * Since vs contains the latest state, the newest checkpoint (end of list) will have
-    * the smallest delta from vs.
-    */
-   private void encodePointDeltas(RuntimeViewsheetState state, String vsXml) {
-      List<String> points = state.getPoints();
-
-      if(points == null || points.isEmpty() || vsXml == null) {
-         return;
-      }
-
-      List<byte[]> deltas = new ArrayList<>();
-
-      // Points alternates: [className, xml, className, xml, ...]
-      // Newest checkpoint is at the end, which is closest to vs.
-      // Store deltas in reverse order: vs -> newest -> ... -> oldest
-      byte[] previousBytes = vsXml.getBytes(StandardCharsets.UTF_8);
-
-      for(int i = points.size() - 2; i >= 0; i -= 2) {
-         String xml = points.get(i + 1);
-         byte[] currentBytes = xml.getBytes(StandardCharsets.UTF_8);
-
-         try {
-            byte[] delta = createVcdiffDelta(previousBytes, currentBytes);
-            deltas.add(delta);
-         }
-         catch(IOException e) {
-            LOG.error("Failed to create VCDIFF delta for checkpoint", e);
-            // Store full content as fallback
-            deltas.add(currentBytes);
-         }
-
-         previousBytes = currentBytes;
-      }
-
-      state.setPointDeltas(deltas);
-      state.setPoints(null);  // Clear original points, now stored as deltas
-   }
-
-   /**
-    * Decode the undo/redo checkpoint points from VCDIFF binary deltas.
-    * Deltas are stored in reverse order (newest first), so we reconstruct from vs -> newest -> oldest,
-    * then reverse to restore original order (oldest first).
-    */
-   private void decodePointDeltas(RuntimeViewsheetState state) {
-      List<byte[]> deltas = state.getPointDeltas();
-
-      // Always initialize points, even if empty
-      if(deltas == null || deltas.isEmpty() || state.getVs() == null) {
-         points = new XSwappableSheetList(contextPrincipal);
-         return;
-      }
-
-      // Reconstruct checkpoints in reverse order (newest to oldest)
-      List<Viewsheet> checkpoints = new ArrayList<>();
-      byte[] previousBytes = state.getVs().getBytes(StandardCharsets.UTF_8);
-
-      for(int i = 0; i < deltas.size(); i++) {
-         byte[] delta = deltas.get(i);
-         byte[] currentBytes;
-
-         try {
-            currentBytes = applyVcdiffDelta(previousBytes, delta);
-         }
-         catch(IOException e) {
-            LOG.error("Failed to apply VCDIFF delta for checkpoint at index {}", i, e);
-            // Fall back: skip this checkpoint
-            continue;
-         }
-
-         String xml = new String(currentBytes, StandardCharsets.UTF_8);
-         previousBytes = currentBytes;
-         Viewsheet checkpoint = loadXml(new Viewsheet(), xml);
-         checkpoints.add(checkpoint);
-      }
-
-      // Reverse to restore original order (oldest first)
-      Collections.reverse(checkpoints);
-
-      points = new XSwappableSheetList(contextPrincipal);
-
-      for(Viewsheet checkpoint : checkpoints) {
-         points.add(checkpoint);
-      }
-   }
-
-   /**
-    * Create a VCDIFF binary delta between source and target.
-    */
-   private byte[] createVcdiffDelta(byte[] source, byte[] target) throws IOException {
-      ByteArrayOutputStream deltaOut = new ByteArrayOutputStream();
-      VCDiffEncoder encoder = VCDiffEncoderBuilder.builder()
-         .withDictionary(source)
-         .buildSimple();
-      encoder.encode(target, deltaOut);
-      return deltaOut.toByteArray();
-   }
-
-   /**
-    * Apply a VCDIFF binary delta to source to reconstruct target.
-    */
-   private byte[] applyVcdiffDelta(byte[] source, byte[] delta) throws IOException {
-      ByteArrayOutputStream targetOut = new ByteArrayOutputStream();
-      VCDiffDecoder decoder = VCDiffDecoderBuilder.builder().buildSimple();
-      decoder.decode(source, delta, targetOut);
-      return targetOut.toByteArray();
    }
 
    private static AbstractLayout loadLayout(String xml) {

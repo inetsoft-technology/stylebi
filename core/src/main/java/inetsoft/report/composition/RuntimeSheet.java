@@ -17,6 +17,7 @@
  */
 package inetsoft.report.composition;
 
+import com.davidehrmann.vcdiff.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.OrganizationContextHolder;
@@ -32,10 +33,12 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 /**
  * RuntimeSheet represents a abstract runtime sheet in editing time.
@@ -612,6 +615,123 @@ public abstract class RuntimeSheet {
          LOG.error("Failed to load value", e);
          return null;
       }
+   }
+
+   /**
+    * Encode the undo/redo checkpoint points as VCDIFF binary deltas.
+    * Checkpoints are stored as deltas in reverse order (newest first), using the sheet XML as the base.
+    * Since the sheet contains the latest state, the newest checkpoint (end of list) will have
+    * the smallest delta from the sheet.
+    */
+   static void encodePointDeltas(RuntimeSheetState state, String sheetXml) {
+      List<String> points = state.getPoints();
+
+      if(points == null || points.isEmpty() || sheetXml == null) {
+         return;
+      }
+
+      List<byte[]> deltas = new ArrayList<>();
+
+      // Points alternates: [className, xml, className, xml, ...]
+      // Newest checkpoint is at the end, which is closest to the sheet.
+      // Store deltas in reverse order: sheet -> newest -> ... -> oldest
+      byte[] previousBytes = sheetXml.getBytes(StandardCharsets.UTF_8);
+
+      for(int i = points.size() - 2; i >= 0; i -= 2) {
+         String xml = points.get(i + 1);
+         byte[] currentBytes = xml.getBytes(StandardCharsets.UTF_8);
+
+         try {
+            byte[] delta = createVcdiffDelta(previousBytes, currentBytes);
+            deltas.add(delta);
+            previousBytes = currentBytes;
+         }
+         catch(IOException e) {
+            LOG.error("Failed to create VCDIFF delta for checkpoint, skipping", e);
+         }
+      }
+
+      state.setPointDeltas(deltas);
+      state.setPoints(null);  // Clear original points, now stored as deltas
+   }
+
+   /**
+    * Decode point deltas and populate the points list.
+    * Deltas are stored in reverse order (newest first), so we reconstruct from sheet -> newest -> oldest,
+    * then reverse to restore original order (oldest first).
+    * Each sheet is created immediately after decoding to minimize memory usage.
+    *
+    * @param deltas the delta-encoded checkpoint data
+    * @param sheetXml the base sheet XML to decode from
+    * @param sheetFactory function to create a sheet from XML
+    */
+   <T extends AbstractSheet> void decodePointDeltas(
+      List<byte[]> deltas, String sheetXml, Function<String, T> sheetFactory)
+   {
+      if(deltas == null || deltas.isEmpty() || sheetXml == null) {
+         if(points == null) {
+            points = new XSwappableSheetList(contextPrincipal);
+         }
+
+         return;
+      }
+
+      List<T> sheets = new ArrayList<>();
+      byte[] previousBytes = sheetXml.getBytes(StandardCharsets.UTF_8);
+
+      for(int i = 0; i < deltas.size(); i++) {
+         byte[] delta = deltas.get(i);
+         byte[] currentBytes;
+
+         try {
+            currentBytes = applyVcdiffDelta(previousBytes, delta);
+         }
+         catch(IOException e) {
+            LOG.error("Failed to apply VCDIFF delta for checkpoint at index {}", i, e);
+            continue;
+         }
+
+         String xml = new String(currentBytes, StandardCharsets.UTF_8);
+         previousBytes = currentBytes;
+
+         // Create sheet immediately so XML can be garbage collected
+         T sheet = sheetFactory.apply(xml);
+
+         if(sheet != null) {
+            sheets.add(sheet);
+         }
+      }
+
+      // Reverse to restore original order (oldest first)
+      Collections.reverse(sheets);
+
+      points = new XSwappableSheetList(contextPrincipal);
+
+      for(T sheet : sheets) {
+         points.add(sheet);
+      }
+   }
+
+   /**
+    * Create a VCDIFF binary delta between source and target.
+    */
+   static byte[] createVcdiffDelta(byte[] source, byte[] target) throws IOException {
+      ByteArrayOutputStream deltaOut = new ByteArrayOutputStream();
+      VCDiffEncoder encoder = VCDiffEncoderBuilder.builder()
+         .withDictionary(source)
+         .buildSimple();
+      encoder.encode(target, deltaOut);
+      return deltaOut.toByteArray();
+   }
+
+   /**
+    * Apply a VCDIFF binary delta to source to reconstruct target.
+    */
+   static byte[] applyVcdiffDelta(byte[] source, byte[] delta) throws IOException {
+      ByteArrayOutputStream targetOut = new ByteArrayOutputStream();
+      VCDiffDecoder decoder = VCDiffDecoderBuilder.builder().buildSimple();
+      decoder.decode(source, delta, targetOut);
+      return targetOut.toByteArray();
    }
 
    static final class XSwappableSheetList {
