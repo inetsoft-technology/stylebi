@@ -133,6 +133,8 @@ export class TaskActionPane implements OnInit {
    bookmarkList: string[] = [];
    selectedBookmark: VSBookmarkInfoModel;
 
+   private readonly COPY_OF_PREFIX = "_#(js:Copy of) ";
+
    get selectSheetError(): boolean {
       return (!!this.form.controls["dashboard"] && !!this.form.controls["dashboard"].errors);
    }
@@ -388,9 +390,17 @@ export class TaskActionPane implements OnInit {
       }
 
       const copy: ScheduleActionModel = Tool.clone(source);
-      copy.label = "_#(js:Copy of) " + (copy.label || "_#(js:New Action)");
+      let baseLabel = copy.label || "_#(js:New Action)";
+
+      while(baseLabel.startsWith(this.COPY_OF_PREFIX)) {
+         baseLabel = baseLabel.slice(this.COPY_OF_PREFIX.length);
+      }
+
+      copy.label = this.COPY_OF_PREFIX + baseLabel;
       this.model.actions.push(copy);
-      this.selectedActions = [this.model.actions.length - 1];
+      this.actionIndex = this.model.actions.length - 1;
+      this.selectedActions = [this.actionIndex];
+      this.listView = true;
    }
 
    public deleteAction(): void {

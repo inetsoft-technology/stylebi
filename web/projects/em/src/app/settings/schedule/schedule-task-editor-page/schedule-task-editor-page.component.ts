@@ -80,6 +80,8 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
    form: UntypedFormGroup;
    returnPath = "/";
 
+   private readonly COPY_OF_PREFIX = "_#(js:Copy of) ";
+
    get canDeleteActions(): boolean {
       return this.selectedActionIndex >= 0 && this.actionItems.length > 1;
    }
@@ -236,7 +238,13 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
       }
 
       const copy: ScheduleConditionModel = Tool.clone(this.condition);
-      copy.label = "_#(js:Copy of) " + (copy.label || "_#(js:New Condition)");
+      let baseLabel = copy.label || "_#(js:New Condition)";
+
+      while(baseLabel.startsWith(this.COPY_OF_PREFIX)) {
+         baseLabel = baseLabel.slice(this.COPY_OF_PREFIX.length);
+      }
+
+      copy.label = this.COPY_OF_PREFIX + baseLabel;
       this.model.taskConditionPaneModel.conditions.push(copy);
       const item = new TaskItem(`condition-${this.nextConditionId++}`, copy.label);
       this.conditionItems.push(item);
@@ -281,7 +289,13 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
       }
 
       const copy: ScheduleActionModel = Tool.clone(this.action);
-      copy.label = "_#(js:Copy of) " + (copy.label || "_#(js:New Action)");
+      let baseLabel = copy.label || "_#(js:New Action)";
+
+      while(baseLabel.startsWith(this.COPY_OF_PREFIX)) {
+         baseLabel = baseLabel.slice(this.COPY_OF_PREFIX.length);
+      }
+
+      copy.label = this.COPY_OF_PREFIX + baseLabel;
       this.model.taskActionPaneModel.actions.push(copy);
       const item = new TaskItem(`action-${this.nextActionId++}`, copy.label);
       this.actionItems.push(item);
