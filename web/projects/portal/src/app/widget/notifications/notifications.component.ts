@@ -32,6 +32,7 @@ export class NotificationsComponent implements OnInit {
    @Input() timeout: number = 0;
    @Input() message: string = "";
    @Input() fullWidth: boolean = true;
+   @Input() hideNotifications: boolean = false;
    alerts: ({id: number} & Notification)[] = [];
    private counter: number = 0;
 
@@ -86,8 +87,8 @@ export class NotificationsComponent implements OnInit {
    }
 
    private addAlert(message: string, type: NotificationType): void {
-      // ignore duplicates
-      if(this.alertShowing(message)) {
+      // ignore duplicates or do not add if notifications are hidden and type is info
+      if(this.alertShowing(message) || (this.hideNotifications && type == "info")) {
          return;
       }
 

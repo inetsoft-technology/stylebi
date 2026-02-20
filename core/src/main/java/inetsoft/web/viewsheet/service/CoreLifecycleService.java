@@ -501,6 +501,7 @@ public class CoreLifecycleService {
 
          command.setAnnotated(AnnotationVSUtil.isAnnotated(vs));
          command.setFormTable(FormUtil.containsForm(vs, true));
+         command.setHideNotifications(vsInfo.isHideNotifications());
          command.setHasScript(vsInfo.isScriptEnabled() &&
                                  (!StringUtils.isEmpty(vsInfo.getOnInit()) ||
                                     !StringUtils.isEmpty(vsInfo.getOnLoad())));
