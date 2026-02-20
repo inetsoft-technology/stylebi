@@ -73,8 +73,20 @@ public class SliderPropertyDialogModel {
       this.sliderAdvancedPaneModel = sliderAdvancedPaneModel;
    }
 
+   public void setInputLabelPaneModel(InputLabelPaneModel inputLabelPaneModel) {
+      this.inputLabelPaneModel = inputLabelPaneModel;
+   }
+
+   public InputLabelPaneModel getInputLabelPaneModel() {
+      if (inputLabelPaneModel == null) {
+         inputLabelPaneModel = new InputLabelPaneModel();
+      }
+      return inputLabelPaneModel;
+   }
+
    private SliderGeneralPaneModel sliderGeneralPaneModel;
    private DataInputPaneModel dataInputPaneModel;
    private SliderAdvancedPaneModel sliderAdvancedPaneModel;
    private VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel;
+   private InputLabelPaneModel inputLabelPaneModel;
 }

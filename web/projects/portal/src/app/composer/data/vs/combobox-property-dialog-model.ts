@@ -18,9 +18,11 @@
 import { ComboboxGeneralPaneModel } from "./combobox-general-pane-model";
 import { DataInputPaneModel } from "./data-input-pane-model";
 import { VSAssemblyScriptPaneModel } from "../../../widget/dialog/vsassembly-script-pane/vsassembly-script-pane-model";
+import { InputLabelPaneModel } from "./input-label-pane-model";
 
 export interface ComboboxPropertyDialogModel {
    comboboxGeneralPaneModel: ComboboxGeneralPaneModel;
    dataInputPaneModel: DataInputPaneModel;
    vsAssemblyScriptPaneModel: VSAssemblyScriptPaneModel;
+   inputLabelPaneModel: InputLabelPaneModel;
 }

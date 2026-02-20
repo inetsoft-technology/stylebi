@@ -38,6 +38,14 @@
       <a ngbNavLink>_#(Data)</a>
       <ng-template ngbNavContent><data-input-pane [model]="model.dataInputPaneModel" [runtimeId]="runtimeId" [variableValues]="variableValues"></data-input-pane></ng-template>
     </ng-container>
+    <ng-container ngbNavItem="labelTab">
+      <a ngbNavLink>_#(Label)</a>
+      <ng-template ngbNavContent>
+        <input-label-pane [model]="model.inputLabelPaneModel"
+                          [variableValues]="variableValues"
+                          [vsId]="runtimeId"></input-label-pane>
+      </ng-template>
+    </ng-container>
     <ng-container [ngbNavItem]="scriptTab">
       <a ngbNavLink>_#(Script)</a>
       <ng-template ngbNavContent><vsassembly-script-pane [model]="model.vsAssemblyScriptPaneModel" [scriptTreeModel]="scriptTreeModel"></vsassembly-script-pane></ng-template>
