@@ -30,8 +30,11 @@ import org.slf4j.LoggerFactory;
 
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
-import java.util.Arrays;
+import java.util.*;
 
 /**
  * RuntimeWorksheet represents a runtime worksheet in editing time.
@@ -102,8 +105,11 @@ public class RuntimeWorksheet extends RuntimeSheet
    RuntimeWorksheet(RuntimeWorksheetState state, ObjectMapper mapper) {
       super(state, mapper);
 
-      if(state.getWs() != null) {
-         ws = loadXml(new Worksheet(), state.getWs());
+      // Track wsXml for decoding point deltas later
+      String wsXmlForDeltas = state.getWs();
+
+      if(wsXmlForDeltas != null) {
+         ws = loadXml(new Worksheet(), wsXmlForDeltas);
       }
 
       VariableTable vars;
@@ -130,8 +136,25 @@ public class RuntimeWorksheet extends RuntimeSheet
       syncData = state.isSyncData();
 
       if(state.getJoinWS() != null) {
-         joinWS = new RuntimeWorksheet(state.getJoinWS(), mapper);
+         RuntimeWorksheetState joinState = state.getJoinWS();
+
+         // Decode joinWS.ws from delta if stored that way
+         if(joinState.getWsDelta() != null && wsXmlForDeltas != null) {
+            try {
+               byte[] parentBytes = wsXmlForDeltas.getBytes(StandardCharsets.UTF_8);
+               byte[] joinWsBytes = applyVcdiffDelta(parentBytes, joinState.getWsDelta());
+               joinState.setWs(new String(joinWsBytes, StandardCharsets.UTF_8));
+            }
+            catch(IOException e) {
+               LOG.error("Failed to apply VCDIFF delta for joinWS", e);
+            }
+         }
+
+         joinWS = new RuntimeWorksheet(joinState, mapper);
       }
+
+      // Decode undo/redo checkpoints from VCDIFF deltas
+      decodePointDeltas(state.getPointDeltas(), wsXmlForDeltas, xml -> loadXml(new Worksheet(), xml));
    }
 
    /**
@@ -469,8 +492,30 @@ public class RuntimeWorksheet extends RuntimeSheet
          state.setSyncData(syncData);
 
          if(joinWS != null) {
-            state.setJoinWS(joinWS.saveState(mapper));
+            RuntimeWorksheetState joinState = joinWS.saveState(mapper);
+
+            // Encode joinWS.ws as delta relative to parent ws
+            String parentWsXml = state.getWs();
+            String joinWsXml = joinState.getWs();
+
+            if(parentWsXml != null && joinWsXml != null) {
+               try {
+                  byte[] parentBytes = parentWsXml.getBytes(StandardCharsets.UTF_8);
+                  byte[] joinBytes = joinWsXml.getBytes(StandardCharsets.UTF_8);
+                  byte[] delta = createVcdiffDelta(parentBytes, joinBytes);
+                  joinState.setWsDelta(delta);
+                  joinState.setWs(null);  // Clear full ws, now stored as delta
+               }
+               catch(IOException e) {
+                  LOG.error("Failed to create VCDIFF delta for joinWS, storing full ws", e);
+               }
+            }
+
+            state.setJoinWS(joinState);
          }
+
+         // Encode undo/redo checkpoints as VCDIFF deltas
+         encodePointDeltas(state, state.getWs());
       }
       finally {
          Worksheet.setIsTEMP(false);

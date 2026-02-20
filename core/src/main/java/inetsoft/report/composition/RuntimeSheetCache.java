@@ -46,8 +46,8 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
+import com.github.luben.zstd.Zstd;
+import com.github.luben.zstd.ZstdInputStream;
 
 public class RuntimeSheetCache
    implements Map<String, RuntimeSheet>, Closeable
@@ -282,30 +282,35 @@ public class RuntimeSheetCache
       }
    }
 
-   private static byte[] compress(byte[] data) throws IOException {
-      ByteArrayOutputStream baos = new ByteArrayOutputStream();
-
-      try(GZIPOutputStream gzip = new GZIPOutputStream(baos)) {
-         gzip.write(data);
-      }
-
-      return baos.toByteArray();
+   private static byte[] compress(byte[] data) {
+      return Zstd.compress(data);
    }
 
-   private static byte[] decompress(byte[] compressed) throws IOException {
-      ByteArrayInputStream bais = new ByteArrayInputStream(compressed);
-      ByteArrayOutputStream baos = new ByteArrayOutputStream();
+   private static byte[] decompress(byte[] compressed) {
+      long decompressedSize = Zstd.decompressedSize(compressed);
 
-      try(GZIPInputStream gzip = new GZIPInputStream(bais)) {
-         byte[] buffer = new byte[8192];
-         int len;
+      if(decompressedSize > 0) {
+         return Zstd.decompress(compressed, (int) decompressedSize);
+      }
+      else {
+         // Fallback for data without size in frame header - use streaming decompressor
+         try(ByteArrayInputStream bais = new ByteArrayInputStream(compressed);
+             ZstdInputStream zis = new ZstdInputStream(bais);
+             ByteArrayOutputStream baos = new ByteArrayOutputStream())
+         {
+            byte[] buffer = new byte[8192];
+            int bytesRead;
 
-         while((len = gzip.read(buffer)) > 0) {
-            baos.write(buffer, 0, len);
+            while((bytesRead = zis.read(buffer)) != -1) {
+               baos.write(buffer, 0, bytesRead);
+            }
+
+            return baos.toByteArray();
+         }
+         catch(IOException e) {
+            throw new RuntimeException("Failed to decompress data", e);
          }
       }
-
-      return baos.toByteArray();
    }
 
    @Override

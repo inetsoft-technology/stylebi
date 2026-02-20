@@ -18,6 +18,7 @@
 
 package inetsoft.report.composition;
 
+import java.util.Arrays;
 import java.util.*;
 
 class RuntimeViewsheetState extends RuntimeSheetState {
@@ -59,6 +60,14 @@ class RuntimeViewsheetState extends RuntimeSheetState {
 
    public void setOriginalVs(String originalVs) {
       this.originalVs = originalVs;
+   }
+
+   public byte[] getVsDelta() {
+      return vsDelta;
+   }
+
+   public void setVsDelta(byte[] vsDelta) {
+      this.vsDelta = vsDelta;
    }
 
    public String getVars() {
@@ -139,22 +148,6 @@ class RuntimeViewsheetState extends RuntimeSheetState {
 
    public void setPopcomponents(Set<String> popcomponents) {
       this.popcomponents = popcomponents == null ? null : new HashSet<>(popcomponents);
-   }
-
-   public Map<String, String> getBookmarksMap() {
-      return bookmarksMap;
-   }
-
-   public void setBookmarksMap(Map<String, String> bookmarksMap) {
-      this.bookmarksMap = bookmarksMap;
-   }
-
-   public String getIbookmark() {
-      return ibookmark;
-   }
-
-   public void setIbookmark(String ibookmark) {
-      this.ibookmark = ibookmark;
    }
 
    public String getOpenedBookmark() {
@@ -252,14 +245,12 @@ class RuntimeViewsheetState extends RuntimeSheetState {
          needsRefresh == that.needsRefresh && maxMode == that.maxMode && mode == that.mode &&
          touchts == that.touchts && lastReset == that.lastReset && dateCreated == that.dateCreated &&
          layoutPoint == that.layoutPoint && wizardViewsheet == that.wizardViewsheet &&
-         layoutPoint == that.layoutPoint && wizardViewsheet == that.wizardViewsheet &&
          Objects.equals(bindingId, that.bindingId) && Objects.equals(vs, that.vs) &&
-         Objects.equals(originalVs, that.originalVs) && Objects.equals(vars, that.vars) &&
+         Objects.equals(originalVs, that.originalVs) && Arrays.equals(vsDelta, that.vsDelta) &&
+         Objects.equals(vars, that.vars) &&
          Objects.equals(execSessionId, that.execSessionId) &&
          Objects.equals(tipviews, that.tipviews) &&
          Objects.equals(popcomponents, that.popcomponents) &&
-         Objects.equals(bookmarksMap, that.bookmarksMap) &&
-         Objects.equals(ibookmark, that.ibookmark) &&
          Objects.equals(openedBookmark, that.openedBookmark) &&
          Objects.equals(rvsLayout, that.rvsLayout) &&
          Objects.equals(layoutPoints, that.layoutPoints) &&
@@ -271,11 +262,13 @@ class RuntimeViewsheetState extends RuntimeSheetState {
 
    @Override
    public int hashCode() {
-      return Objects.hash(
+      int result = Objects.hash(
          super.hashCode(), bindingId, vs, originalVs, vars, viewer, preview, needsRefresh, maxMode,
-         mode, execSessionId, touchts, tipviews, popcomponents, bookmarksMap, ibookmark, 
-         openedBookmark, lastReset, dateCreated, rvsLayout, layoutPoints, layoutPoint, 
+         mode, execSessionId, touchts, tipviews, popcomponents,
+         openedBookmark, lastReset, dateCreated, rvsLayout, layoutPoints, layoutPoint,
          wizardViewsheet, embedAssemblyInfo, temporaryInfo, hashImage, originalId);
+      result = 31 * result + Arrays.hashCode(vsDelta);
+      return result;
    }
 
    @Override
@@ -284,6 +277,7 @@ class RuntimeViewsheetState extends RuntimeSheetState {
          "bindingId='" + bindingId + '\'' +
          ", vs='" + vs + '\'' +
          ", originalVs='" + originalVs + '\'' +
+         ", vsDelta=" + (vsDelta != null ? vsDelta.length + " bytes" : "null") +
          ", vars='" + vars + '\'' +
          ", viewer=" + viewer +
          ", preview=" + preview +
@@ -294,8 +288,6 @@ class RuntimeViewsheetState extends RuntimeSheetState {
          ", touchts=" + touchts +
          ", tipviews='" + tipviews + '\'' +
          ", popcomponents='" + popcomponents + '\'' +
-         ", bookmarksMap='" + bookmarksMap + '\'' +
-         ", ibookmark='" + ibookmark + '\'' +
          ", openedBookmark='" + openedBookmark + '\'' +
          ", lastReset=" + lastReset +
          ", dateCreated=" + dateCreated +
@@ -306,7 +298,7 @@ class RuntimeViewsheetState extends RuntimeSheetState {
          ", originalId=" + originalId +
          ", embedAssemblyInfo='" + embedAssemblyInfo + '\'' +
          ", temporaryInfo='" + temporaryInfo + '\'' +
-         ", temporaryInfo='" + hashImage + '\'' +
+         ", hashImage='" + hashImage + '\'' +
          '}';
    }
 
@@ -316,6 +308,7 @@ class RuntimeViewsheetState extends RuntimeSheetState {
    private String originalId;
    private String vs;
    private String originalVs;
+   private byte[] vsDelta;  // VCDIFF delta-encoded vs using originalVs as dictionary
    private String vars;
    private boolean viewer;
    private boolean preview;
@@ -326,8 +319,6 @@ class RuntimeViewsheetState extends RuntimeSheetState {
    private long touchts;
    private Map<String, String> tipviews;
    private Set<String> popcomponents;
-   private Map<String, String> bookmarksMap;
-   private String ibookmark;
    private String openedBookmark;
    private long lastReset;
    private long dateCreated;

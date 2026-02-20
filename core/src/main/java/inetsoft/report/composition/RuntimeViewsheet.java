@@ -45,8 +45,12 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
+
 import java.awt.event.ActionListener;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
@@ -146,13 +150,45 @@ public class RuntimeViewsheet extends RuntimeSheet {
       super(state, mapper);
       bindingID = state.getBindingId();
 
-      if(state.getVs() != null) {
-         vs = loadXml(new Viewsheet(), state.getVs());
-         vs.setMaxMode(state.isMaxMode());
-      }
-
+      // Load originalVs first (it's the base for delta decoding)
       if(state.getOriginalVs() != null) {
          originalVs = loadXml(new Viewsheet(), state.getOriginalVs());
+      }
+
+      // Track vsXml for decoding point deltas later
+      String vsXmlForDeltas = null;
+
+      // Load vs: either directly, from delta, or use originalVs
+      if(state.getVs() != null) {
+         // Direct storage (backward compatibility or fallback)
+         vsXmlForDeltas = state.getVs();
+         vs = loadXml(new Viewsheet(), vsXmlForDeltas);
+         vs.setMaxMode(state.isMaxMode());
+      }
+      else if(state.getVsDelta() != null && state.getOriginalVs() != null) {
+         // VCDIFF delta decoding: decode vs using originalVs as dictionary
+         byte[] originalBytes = state.getOriginalVs().getBytes(StandardCharsets.UTF_8);
+
+         try {
+            byte[] vsBytes = applyVcdiffDelta(originalBytes, state.getVsDelta());
+            vsXmlForDeltas = new String(vsBytes, StandardCharsets.UTF_8);
+            vs = loadXml(new Viewsheet(), vsXmlForDeltas);
+            vs.setMaxMode(state.isMaxMode());
+         }
+         catch(IOException e) {
+            LOG.error("Failed to apply VCDIFF delta for vs, cloning originalVs", e);
+            vs = (Viewsheet) originalVs.clone();
+            vs.setMaxMode(state.isMaxMode());
+            // Use originalVs XML since vs is a clone of it
+            vsXmlForDeltas = state.getOriginalVs();
+         }
+      }
+      else if(originalVs != null) {
+         // vs was identical to originalVs, clone it
+         vs = (Viewsheet) originalVs.clone();
+         vs.setMaxMode(state.isMaxMode());
+         // vs equals originalVs, so use originalVs XML for delta decoding
+         vsXmlForDeltas = state.getOriginalVs();
       }
 
       if(state.getVars() != null) {
@@ -185,21 +221,15 @@ public class RuntimeViewsheet extends RuntimeSheet {
       tipviews = state.getTipviews();
       popcomponents = state.getPopcomponents();
 
-      if(state.getBookmarksMap() != null) {
-         bookmarksMap = new HashMap<>();
+      // bookmarksMap is loaded lazily from repository on demand via getUserBookmark()
+      // which calls getVSBookmark(principalKey) -> rep.getVSBookmark() when key is missing
+      bookmarksMap = new HashMap<>();
 
-         for(Map.Entry<String, String> e : state.getBookmarksMap().entrySet()) {
-            VSBookmark bk = loadXml(new VSBookmark(), e.getValue());
-
-            if(bk != null) {
-               bk.setUser(IdentityID.getIdentityIDFromKey(e.getKey()));
-               bookmarksMap.put(e.getKey(), bk);
-            }
-         }
-      }
-
-      if(state.getIbookmark() != null) {
-         ibookmark = loadXml(new VSBookmark(), state.getIbookmark());
+      // Recreate ibookmark from originalVs (the initial viewsheet state)
+      if(originalVs != null && isRuntime()) {
+         ibookmark = new VSBookmark();
+         ibookmark.addBookmark(VSBookmark.INITIAL_STATE, originalVs,
+            VSBookmarkInfo.PRIVATE, false, true);
       }
 
       if(state.getOpenedBookmark() != null) {
@@ -230,6 +260,9 @@ public class RuntimeViewsheet extends RuntimeSheet {
       if(state.getEmbedAssemblyInfo() != null) {
          embedAssemblyInfo = loadJson(EmbedAssemblyInfo.class, state.getEmbedAssemblyInfo(), mapper);
       }
+
+      // Decode undo/redo checkpoints from VCDIFF deltas
+      decodePointDeltas(state.getPointDeltas(), vsXmlForDeltas, xml -> loadXml(new Viewsheet(), xml));
 
       boolean isUpdate = state.isUpdate();
 
@@ -2611,8 +2644,38 @@ public class RuntimeViewsheet extends RuntimeSheet {
       state.setHashImage(saveXml(imageHashService));
       state.setBoxRid(this.box == null ? null : this.box.getID());
 
-      state.setVs(saveXml(vs));
-      state.setOriginalVs(saveXml(originalVs));
+      String originalVsXml = saveXml(originalVs);
+      String vsXml = saveXml(vs);
+      state.setOriginalVs(originalVsXml);
+
+      // Use VCDIFF delta encoding: store vs as a delta from originalVs
+      if(Objects.equals(vsXml, originalVsXml)) {
+         // vs is identical to originalVs, no need to store it
+         state.setVs(null);
+         state.setVsDelta(null);
+      }
+      else if(originalVsXml != null && vsXml != null) {
+         // Encode vs as VCDIFF delta from originalVs
+         byte[] originalBytes = originalVsXml.getBytes(StandardCharsets.UTF_8);
+         byte[] vsBytes = vsXml.getBytes(StandardCharsets.UTF_8);
+
+         try {
+            byte[] delta = createVcdiffDelta(originalBytes, vsBytes);
+            state.setVs(null);
+            state.setVsDelta(delta);
+         }
+         catch(IOException e) {
+            LOG.error("Failed to create VCDIFF delta for vs, storing full XML", e);
+            state.setVs(vsXml);
+            state.setVsDelta(null);
+         }
+      }
+      else {
+         // Fallback: store vs directly
+         state.setVs(vsXml);
+         state.setVsDelta(null);
+      }
+
       state.setVars(saveJson(vars, mapper));
       state.setViewer(viewer);
       state.setPreview(preview);
@@ -2628,21 +2691,6 @@ public class RuntimeViewsheet extends RuntimeSheet {
       state.setTipviews(tipviews);
       state.setPopcomponents(popcomponents);
       state.setOriginalId(getOriginalID());
-
-      if(bookmarksMap == null) {
-         state.setBookmarksMap(null);
-      }
-      else {
-         Map<String, String> map = new HashMap<>();
-
-         for(Map.Entry<String, VSBookmark> e : bookmarksMap.entrySet()) {
-            map.put(e.getKey(), saveXml(e.getValue()));
-         }
-
-         state.setBookmarksMap(map);
-      }
-
-      state.setIbookmark(saveXml(ibookmark));
       state.setOpenedBookmark(saveXml(openedBookmark));
       state.setLastReset(lastReset);
       state.setDateCreated(dateCreated);
@@ -2671,6 +2719,9 @@ public class RuntimeViewsheet extends RuntimeSheet {
       if(temporaryInfo != null) {
          state.setTemporaryInfo(saveXml(temporaryInfo));
       }
+
+      // Encode undo/redo checkpoints as VCDIFF deltas
+      encodePointDeltas(state, vsXml);
 
       return state;
    }

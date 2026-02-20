@@ -18,6 +18,7 @@
 
 package inetsoft.report.composition;
 
+import java.util.Arrays;
 import java.util.Objects;
 
 class RuntimeWorksheetState extends RuntimeSheetState {
@@ -27,6 +28,14 @@ class RuntimeWorksheetState extends RuntimeSheetState {
 
    public void setWs(String ws) {
       this.ws = ws;
+   }
+
+   public byte[] getWsDelta() {
+      return wsDelta;
+   }
+
+   public void setWsDelta(byte[] wsDelta) {
+      this.wsDelta = wsDelta;
    }
 
    public String getVars() {
@@ -90,20 +99,24 @@ class RuntimeWorksheetState extends RuntimeSheetState {
       RuntimeWorksheetState that = (RuntimeWorksheetState) o;
       return preview == that.preview && gettingStarted == that.gettingStarted &&
          syncData == that.syncData && Objects.equals(ws, that.ws) &&
+         Arrays.equals(wsDelta, that.wsDelta) &&
          Objects.equals(vars, that.vars) && Objects.equals(pid, that.pid) &&
          Objects.equals(joinWS, that.joinWS);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(
+      int result = Objects.hash(
          super.hashCode(), ws, vars, preview, gettingStarted, pid, syncData, joinWS);
+      result = 31 * result + Arrays.hashCode(wsDelta);
+      return result;
    }
 
    @Override
    public String toString() {
       return "RuntimeWorksheetState{" +
          "ws='" + ws + '\'' +
+         ", wsDelta=" + (wsDelta != null ? wsDelta.length + " bytes" : "null") +
          ", vars=" + vars +
          ", preview=" + preview +
          ", gettingStarted=" + gettingStarted +
@@ -114,6 +127,7 @@ class RuntimeWorksheetState extends RuntimeSheetState {
    }
 
    private String ws;
+   private byte[] wsDelta;  // VCDIFF delta-encoded ws for joinWS (relative to parent ws)
    private String vars;
    private boolean preview;
    private boolean gettingStarted;

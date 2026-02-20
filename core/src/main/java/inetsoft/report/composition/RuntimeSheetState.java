@@ -18,8 +18,7 @@
 
 package inetsoft.report.composition;
 
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 class RuntimeSheetState {
    public String getEntry() {
@@ -68,6 +67,14 @@ class RuntimeSheetState {
 
    public void setPoints(List<String> points) {
       this.points = points;
+   }
+
+   public List<byte[]> getPointDeltas() {
+      return pointDeltas;
+   }
+
+   public void setPointDeltas(List<byte[]> pointDeltas) {
+      this.pointDeltas = pointDeltas;
    }
 
    public int getPoint() {
@@ -195,19 +202,55 @@ class RuntimeSheetState {
          heartbeat == that.heartbeat && Objects.equals(entry, that.entry) &&
          Objects.equals(user, that.user) &&
          Objects.equals(contextPrincipal, that.contextPrincipal) &&
-         Objects.equals(points, that.points) && Objects.equals(eid, that.eid) &&
+         Objects.equals(points, that.points) &&
+         pointDeltasEqual(that.pointDeltas) &&
+         Objects.equals(eid, that.eid) &&
          Objects.equals(id, that.id) && Objects.equals(socketSessionId, that.socketSessionId) &&
          Objects.equals(socketUserName, that.socketUserName) &&
          Objects.equals(lowner, that.lowner) && Objects.equals(prop, that.prop) &&
          Objects.equals(previousURL, that.previousURL);
    }
 
+   private boolean pointDeltasEqual(List<byte[]> other) {
+      if(pointDeltas == other) {
+         return true;
+      }
+
+      if(pointDeltas == null || other == null || pointDeltas.size() != other.size()) {
+         return pointDeltas == null && other == null;
+      }
+
+      for(int i = 0; i < pointDeltas.size(); i++) {
+         if(!Arrays.equals(pointDeltas.get(i), other.get(i))) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
    @Override
    public int hashCode() {
-      return Objects.hash(
-         entry, accessed, user, contextPrincipal, editable, points, point, max, savePoint, eid, id,
-         socketSessionId, socketUserName, lowner, isLockProcessed, disposed, heartbeat, prop,
-         previousURL);
+      int result = Objects.hash(
+         entry, accessed, user, contextPrincipal, editable, points,
+         point, max, savePoint, eid, id, socketSessionId, socketUserName, lowner,
+         isLockProcessed, disposed, heartbeat, prop, previousURL);
+      result = 31 * result + pointDeltasHashCode();
+      return result;
+   }
+
+   private int pointDeltasHashCode() {
+      if(pointDeltas == null) {
+         return 0;
+      }
+
+      int hash = 1;
+
+      for(byte[] bytes : pointDeltas) {
+         hash = 31 * hash + Arrays.hashCode(bytes);
+      }
+
+      return hash;
    }
 
    @Override
@@ -241,6 +284,7 @@ class RuntimeSheetState {
    private String contextPrincipal;
    private boolean editable;
    private List<String> points;
+   private List<byte[]> pointDeltas;  // VCDIFF delta-encoded checkpoints
    private int point;
    private int max;
    private int savePoint;
