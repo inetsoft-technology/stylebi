@@ -267,8 +267,10 @@ export class ContentRepositoryService implements OnDestroy {
       }
 
       if(data.type === RepositoryEntryType.RECYCLEBIN_FOLDER) {
+         const recycleBinParams: HttpParams = new HttpParams()
+            .set("timeZone", Intl.DateTimeFormat().resolvedOptions().timeZone);
          return this.http.get<RepositoryFolderRecycleBinSettingsModel>(
-            "../api/em/content/repository/folder/recycleBin")
+            "../api/em/content/repository/folder/recycleBin", {params: recycleBinParams})
             .pipe(map(model => {
                return <RepositoryFolderRecycleBinModel>{
                   path: data.path,
