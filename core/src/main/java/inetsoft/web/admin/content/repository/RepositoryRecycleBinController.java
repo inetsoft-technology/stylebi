@@ -54,12 +54,14 @@ public class RepositoryRecycleBinController {
    }
 
    @GetMapping("/api/em/content/repository/folder/recycleBin")
-   public RepositoryFolderRecycleBinSettingsModel getRecycleBinFolderSettings(Principal principal)
+   public RepositoryFolderRecycleBinSettingsModel getRecycleBinFolderSettings(
+      Principal principal,
+      @RequestParam("timeZone") String timeZone)
       throws Exception
    {
       RecycleBin recycleBin = RecycleBin.getRecycleBin();
       List<RepositoryFolderRecycleBinTableModel> table = new ArrayList<>();
-      addRecycleSheets(table, principal, recycleBin);
+      addRecycleSheets(table, principal, recycleBin, timeZone);
 
       return RepositoryFolderRecycleBinSettingsModel.builder().table(table).build();
    }
@@ -123,24 +125,25 @@ public class RepositoryRecycleBinController {
    }
 
    private void addRecycleSheets(List<RepositoryFolderRecycleBinTableModel> table,
-      Principal principal, RecycleBin recycleBin) throws Exception
+      Principal principal, RecycleBin recycleBin, String timeZone) throws Exception
    {
       //get vs entries
       AssetEntry.Selector vsSelector = new AssetEntry.Selector(AssetEntry.Type.VIEWSHEET_SNAPSHOT,
             AssetEntry.Type.REPOSITORY_FOLDER);
       AssetEntry.Type vsEntryType = AssetEntry.Type.REPOSITORY_FOLDER;
-      getRecycleNodeFromAssets(table, principal, recycleBin, vsSelector, vsEntryType);
+      getRecycleNodeFromAssets(table, principal, recycleBin, vsSelector, vsEntryType, timeZone);
 
       //get ws entries
       AssetEntry.Selector wsSelector = new AssetEntry.Selector(AssetEntry.Type.WORKSHEET,
             AssetEntry.Type.FOLDER);
       AssetEntry.Type wsEntryType = AssetEntry.Type.FOLDER;
-      getRecycleNodeFromAssets(table, principal, recycleBin, wsSelector, wsEntryType);
+      getRecycleNodeFromAssets(table, principal, recycleBin, wsSelector, wsEntryType, timeZone);
    }
 
    private void getRecycleNodeFromAssets(List<RepositoryFolderRecycleBinTableModel> table,
                                          Principal principal, RecycleBin recycleBin,
-                                         AssetEntry.Selector selector, AssetEntry.Type entryType)
+                                         AssetEntry.Selector selector, AssetEntry.Type entryType,
+                                         String timeZone)
       throws Exception
    {
       AssetRepository repository = AssetUtil.getAssetRepository(false);
@@ -154,7 +157,7 @@ public class RepositoryRecycleBinController {
 
          entries = repository.getEntries(pentry, principal,
                  ResourceAction.READ, selector);
-         getRecycleNodeFromAssetEntries(table, entries, recycleBin, principal);
+         getRecycleNodeFromAssetEntries(table, entries, recycleBin, principal, timeZone);
 
          for(IdentityID user : users) {
             pentry = new AssetEntry(AssetRepository.USER_SCOPE,
@@ -162,7 +165,7 @@ public class RepositoryRecycleBinController {
 
             entries = repository.getEntries(pentry, principal,
                                             ResourceAction.READ, selector);
-            getRecycleNodeFromAssetEntries(table, entries, recycleBin, principal);
+            getRecycleNodeFromAssetEntries(table, entries, recycleBin, principal, timeZone);
          }
 
          if(Arrays.stream(users)
@@ -173,15 +176,18 @@ public class RepositoryRecycleBinController {
 
             entries = repository.getEntries(pentry, principal,
                                             ResourceAction.READ, selector);
-            getRecycleNodeFromAssetEntries(table, entries, recycleBin, principal);
+            getRecycleNodeFromAssetEntries(table, entries, recycleBin, principal, timeZone);
          }
       }
    }
 
    private void getRecycleNodeFromAssetEntries(List<RepositoryFolderRecycleBinTableModel> table,
                                                AssetEntry[] entries, RecycleBin recycleBin,
-                                               Principal principal)
+                                               Principal principal, String timeZone)
    {
+      SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
+      format.setTimeZone(TimeZone.getTimeZone(timeZone));
+
       for(AssetEntry entry : entries) {
          RecycleBin.Entry binEntry = recycleBin.getEntry(entry.getPath());
 
@@ -201,7 +207,7 @@ public class RepositoryRecycleBinController {
                         binEntry.getOriginalUser() == null ?
                            Catalog.getCatalog().getString("GLOBAL") :
                            binEntry.getOriginalUser().name)
-                  .dateDeleted(Tool.getDateTimeFormat().format(binEntry.getTimestamp()))
+                  .dateDeleted(format.format(binEntry.getTimestamp()))
                   .build();
 
             table.add(report);
