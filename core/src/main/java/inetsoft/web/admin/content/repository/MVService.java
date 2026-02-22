@@ -53,6 +53,7 @@ public class MVService {
       this.treeService = treeService;
       this.support = support;
       createMVMap = Cluster.getInstance().getMap(CREATE_MV_STATUS_MAP);
+      updateMVMap = Cluster.getInstance().getMap(UPDATE_MV_STATUS_MAP);
    }
 
    public CreateMVResponse create(String createId, String analysisId,
@@ -160,6 +161,73 @@ public class MVService {
             actionRecord.setObjectUser(XPrincipal.SYSTEM);
             Audit.getInstance().auditAction(actionRecord, principal);
          }
+      }
+   }
+
+   public CreateMVResponse update(String updateId, String[] mvNames,
+                                  boolean runInBackground, Principal principal)
+      throws Throwable
+   {
+      if(updateId != null) {
+         CreateMVResponse cached = updateMVMap.get(updateId);
+
+         if(cached != null) {
+            if(cached.complete()) {
+               updateMVMap.remove(updateId);
+            }
+
+            if(cached.failed()) {
+               throw new RuntimeException(cached.error());
+            }
+
+            return cached;
+         }
+      }
+
+      if(updateId == null) {
+         update0(mvNames, runInBackground, principal);
+         return CreateMVResponse.builder().complete(true).build();
+      }
+      else if(updateMVMap.get(updateId) == null) {
+         updateMVMap.put(updateId, CreateMVResponse.builder().complete(false).build());
+         ThreadPool.addOnDemand(() -> {
+            Principal oPrincipal = ThreadContext.getPrincipal();
+            ThreadContext.setPrincipal(principal);
+
+            try {
+               update0(mvNames, runInBackground, principal);
+               updateMVMap.put(updateId, CreateMVResponse.builder().complete(true).build());
+            }
+            catch(Throwable e) {
+               updateMVMap.put(updateId, CreateMVResponse.builder()
+                  .complete(true)
+                  .failed(true)
+                  .error(e.getMessage())
+                  .build());
+            }
+            finally {
+               ThreadContext.setPrincipal(oPrincipal);
+
+               try {
+                  Thread.sleep(20_000);
+                  updateMVMap.remove(updateId);
+               }
+               catch(InterruptedException ignore) {
+               }
+            }
+         });
+      }
+
+      return CreateMVResponse.builder().complete(false).build();
+   }
+
+   private void update0(String[] mvNames, boolean runInBackground, Principal principal)
+      throws Throwable
+   {
+      String msg = support.recreateMV(mvNames, runInBackground, principal);
+
+      if(msg != null) {
+         throw new RuntimeException(msg);
       }
    }
 
@@ -628,5 +696,7 @@ public class MVService {
    private final MVSupportService support;
    private final ContentRepositoryTreeService treeService;
    private final Map<String, CreateMVResponse> createMVMap;
-   private final static String CREATE_MV_STATUS_MAP = "CREATE_MV_STATUS_MAP";
+   private final Map<String, CreateMVResponse> updateMVMap;
+   private static final String CREATE_MV_STATUS_MAP = "CREATE_MV_STATUS_MAP";
+   private static final String UPDATE_MV_STATUS_MAP = "UPDATE_MV_STATUS_MAP";
 }

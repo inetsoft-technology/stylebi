@@ -24,7 +24,6 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.*;
 import inetsoft.web.admin.content.repository.model.*;
-import inetsoft.web.admin.security.ConnectionStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -184,25 +183,16 @@ public class MVController {
    }
 
    @PostMapping("/api/em/content/materialized-view/update")
-   public ConnectionStatus updateMaterializedViews(@RequestBody MVManagementModel model,
-                                                   Principal principal) throws Throwable
+   public CreateMVResponse updateMaterializedViews(
+      @RequestParam(name = "updateId", required = false) String updateId,
+      @RequestBody MVManagementModel model,
+      Principal principal) throws Throwable
    {
-      Catalog catalog = Catalog.getCatalog();
-      String msg = support.recreateMV(
-         model.mvs()
-            .stream()
-            .map(MaterializedModel::name)
-            .toArray(String[]::new),
+      return mvService.update(
+         updateId,
+         model.mvs().stream().map(MaterializedModel::name).toArray(String[]::new),
          model.runInBackground(),
-         principal
-      );
-
-      if(msg == null) {
-         msg = model.runInBackground() ? catalog.getString("em.alert.createMV0") :
-            catalog.getString("em.alert.createMV");
-      }
-
-      return new ConnectionStatus(msg);
+         principal);
    }
 
    @GetMapping("/api/em/content/repository/mv/ws-mv-enabled")
