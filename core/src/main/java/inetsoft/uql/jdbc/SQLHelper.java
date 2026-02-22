@@ -964,12 +964,108 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
-    * Get the SQL string for a subquery. Subclasses can override to transform the inner SQL
-    * (e.g. to add column aliases for database-specific syntax that cannot be backtick-quoted
-    * as a column reference in the outer query).
+    * Get the SQL string for a subquery. When the database supports map key access syntax
+    * (e.g. m['key']), any such expressions in the SELECT clause that do not already have an
+    * alias are given a safe alias (e.g. __col_0__) so that the outer query can reference them
+    * by that alias instead of a backtick-quoted expression the database would misinterpret.
     */
    protected String getSubQueryString(SelectTable table, UniformSQL sub) {
-      return sub.toString().trim();
+      if(!supportsMapKeySubqueryAliasing()) {
+         return sub.toString().trim();
+      }
+
+      String sql = sub.toString().trim();
+      Matcher matcher = MAP_KEY_ACCESS.matcher(sql);
+
+      if(!matcher.find()) {
+         return sql;
+      }
+
+      int fromIdx = findFromIndex(sql);
+      String selectPart = fromIdx >= 0 ? sql.substring(0, fromIdx) : sql;
+      String tail = fromIdx >= 0 ? sql.substring(fromIdx) : "";
+
+      matcher = MAP_KEY_ACCESS.matcher(selectPart);
+      StringBuilder result = new StringBuilder();
+      String tableAlias = table.getAlias();
+      int colIndex = 0;
+      boolean modified = false;
+
+      while(matcher.find()) {
+         String expr = matcher.group();
+         String afterExpr = selectPart.substring(matcher.end()).stripLeading();
+         boolean hasAlias = afterExpr.length() >= 3
+            && afterExpr.substring(0, 2).equalsIgnoreCase("AS")
+            && Character.isWhitespace(afterExpr.charAt(2));
+
+         if(hasAlias) {
+            matcher.appendReplacement(result, Matcher.quoteReplacement(expr));
+         }
+         else {
+            String safeAlias = "__col_" + colIndex++ + "__";
+            subQueryMapKeyAliases.put(tableAlias + "." + expr, safeAlias);
+            matcher.appendReplacement(result,
+               Matcher.quoteReplacement(expr + " AS " + safeAlias));
+            modified = true;
+         }
+      }
+
+      if(!modified) {
+         return sql;
+      }
+
+      matcher.appendTail(result);
+      return result + tail;
+   }
+
+   /**
+    * Returns true if this database uses map key access syntax (e.g. m['key']) that cannot be
+    * safely backtick-quoted as a column reference in an outer subquery SELECT. When true,
+    * getSubQueryString() adds safe aliases and getValidSubAlias() returns them.
+    */
+   protected boolean supportsMapKeySubqueryAliasing() {
+      return false;
+   }
+
+   /**
+    * Find the index of the first FROM keyword that is not inside parentheses or quotes.
+    */
+   private static int findFromIndex(String sql) {
+      int depth = 0;
+      boolean inString = false;
+      char stringChar = 0;
+
+      for(int i = 0; i < sql.length(); i++) {
+         char c = sql.charAt(i);
+
+         if(inString) {
+            if(c == stringChar) {
+               inString = false;
+            }
+         }
+         else if(c == '\'' || c == '"' || c == '`') {
+            inString = true;
+            stringChar = c;
+         }
+         else if(c == '(') {
+            depth++;
+         }
+         else if(c == ')') {
+            depth--;
+         }
+         else if(depth == 0 && i + 4 <= sql.length()) {
+            String word = sql.substring(i, i + 4);
+
+            if(word.equalsIgnoreCase("FROM")
+               && (i == 0 || Character.isWhitespace(sql.charAt(i - 1)))
+               && (i + 4 >= sql.length() || Character.isWhitespace(sql.charAt(i + 4))))
+            {
+               return i;
+            }
+         }
+      }
+
+      return -1;
    }
 
    protected void fixTableName(String namestr, StringBuilder sb, String quote, boolean selectClause) {
@@ -1159,6 +1255,14 @@ public class SQLHelper implements KeywordProvider {
    public String getValidSubAlias(String table, String c) {
       if(table == null) {
          return null;
+      }
+
+      if(!subQueryMapKeyAliases.isEmpty()) {
+         String safeAlias = subQueryMapKeyAliases.get(table + "." + c);
+
+         if(safeAlias != null) {
+            return safeAlias;
+         }
       }
 
       SelectTable[] tables = uniformSql.getSelectTable();
@@ -4568,6 +4672,12 @@ public class SQLHelper implements KeywordProvider {
    private String version = "";
    private boolean isFormatSQL; //for test auto case. Test will not format sql.
    private boolean caseSensitive;
+
+   // Matches map key access expressions like m['key2'] (ClickHouse/Databricks)
+   private static final Pattern MAP_KEY_ACCESS =
+      Pattern.compile("([^\\s\\[\\]]+)\\[\\s*'([^\\s']+)'\\s*\\]");
+   // Maps "tableAlias.originalColExpr" -> safe alias used in the inner query
+   private final Map<String, String> subQueryMapKeyAliases = new HashMap<>();
 
    private static final Logger LOG =
       LoggerFactory.getLogger(SQLHelper.class);
