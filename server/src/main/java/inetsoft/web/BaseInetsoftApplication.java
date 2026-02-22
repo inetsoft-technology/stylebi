@@ -36,6 +36,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.boot.*;
 import org.springframework.boot.actuate.endpoint.web.EndpointMediaTypes;
+import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
+import org.springframework.boot.web.server.WebServerFactoryCustomizer;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Lazy;
@@ -108,6 +110,15 @@ public abstract class BaseInetsoftApplication {
       container.setMaxTextMessageBufferSize(2097152);
       container.setMaxBinaryMessageBufferSize(2097152);
       return container;
+   }
+
+   @Bean
+   public WebServerFactoryCustomizer<TomcatServletWebServerFactory> tomcatRelaxedCharsCustomizer() {
+      // Allow '^' in query strings. Angular encodes it as %5E, but browsers display '%5E' as '^'
+      // in the URL bar and Firefox sends the literal '^' on page refresh, causing Tomcat 10.1+
+      // to reject the request with HTTP 400 (RFC 7230/3986 violation).
+      return factory -> factory.addConnectorCustomizers(
+         connector -> connector.setProperty("relaxedQueryChars", "^"));
    }
 
    @Bean
