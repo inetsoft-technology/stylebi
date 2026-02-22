@@ -141,7 +141,9 @@ public class JDBCQueryCacheNormalizer {
       int columnCount = selection.getColumnCount();
 
       // don't clear sqlstring for sql query.
-      if(columnCount > 0 && (XUtil.isParsedSQL(usql) || !usql.isParseSQL())) {
+      // also don't clear for lossy queries (e.g. ClickHouse map key access m['key']) because
+      // the raw SQL cannot be accurately regenerated from the column definitions. (Bug #72243)
+      if(columnCount > 0 && (XUtil.isParsedSQL(usql) || !usql.isParseSQL()) && !usql.isLossy()) {
          usql.sqlstring = null;
          usql.setHint(UniformSQL.HINT_CLEARED_SQL_STRING, true);
       }
