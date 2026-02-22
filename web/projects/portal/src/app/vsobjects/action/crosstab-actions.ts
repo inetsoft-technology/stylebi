@@ -745,8 +745,8 @@ export class CrosstabActions extends BaseTableActions<VSCrosstabModel> {
          return false;
       }
 
-      if(this.model.cubeType != null && (cellType === TableDataPathTypes.SUMMARY
-         || cellType === TableDataPathTypes.GRAND_TOTAL))
+      if(this.model.cubeType != null && !this.model.worksheetCube &&
+         (cellType === TableDataPathTypes.SUMMARY || cellType === TableDataPathTypes.GRAND_TOTAL))
       {
          return false;
       }
