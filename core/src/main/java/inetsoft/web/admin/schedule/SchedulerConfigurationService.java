@@ -114,6 +114,14 @@ public class SchedulerConfigurationService {
    public void setConfiguration(ScheduleConfigurationModel model, Principal principal)
       throws Exception
    {
+      // if the RMI port is changing, stop the scheduler before updating the port so that
+      // the stop command can reach the scheduler on the old port
+      int currentPort = ScheduleClient.getSchedulerPort();
+
+      if(currentPort != model.rmiPort() && scheduleClient.isReady()) {
+         SUtil.stopScheduler(true, false);
+      }
+
       SreeEnv.setProperty("schedule.concurrency", Integer.toString(model.concurrency()));
       SreeEnv.setProperty("scheduler.rmi.port", Integer.toString(model.rmiPort()));
       SreeEnv.setProperty("scheduler.classpath", model.classpath());
