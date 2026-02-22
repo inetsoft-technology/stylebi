@@ -624,11 +624,11 @@ public class VSCalendar extends VSFloatable {
          g.fillRect(x, y, w, h);
       }
 
+      FontMetrics fm = g.getFontMetrics();
+
       if(format0.getFont() != null) {
          g.setFont(format0.getFont());
       }
-
-      FontMetrics fm = g.getFontMetrics();
 
       if(format0.getForeground() != null) {
          g.setColor(format0.getForeground());
