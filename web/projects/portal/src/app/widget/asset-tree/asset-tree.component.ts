@@ -676,17 +676,18 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    searchStrChange(searchStr: string): void {
       this.searchStr = searchStr;
 
-      if (this.searchStr && !this.datasourceLoadingPlaceholder
+      if(this.searchStr && !this.datasourceLoadingPlaceholder
             && this.searchMode) {
          this.checkDSPlaceholder();
       }
    }
 
-   checkDSPlaceholder(): void {
+   private checkDSPlaceholder(): void {
       const match = this.dataSourcesTree?.label?.toLocaleLowerCase()
          .includes(this.searchStr.toLocaleLowerCase());
 
-      if(this.searchEnabled && this.datasources && !match && this.dataSourcesTree?.loading){
+      if(this.searchEnabled && this.datasources && this.searchMode && !match
+         && this.dataSourcesTree?.loading) {
          this.datasourceLoadingPlaceholder = true;
          this.datasourceLoadingPlaceholderNode = <TreeNodeModel>{
             loading: true,
@@ -707,6 +708,7 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
 
       this.datasourceLoadingPlaceholderNode = null;
       this.datasourceLoadingPlaceholder = false;
+      this.refreshView();
    }
 
    searchStart(start: boolean): void {
@@ -735,7 +737,8 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
          }
       }
       else {
-         if (this.datasourceLoadingPlaceholder) {
+         this.searchStr = "";
+         if(this.datasourceLoadingPlaceholder) {
             this.removeDSLoadingPlaceholder();
          }
          this.activeRoot = this.root;
@@ -872,10 +875,10 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
 
       if(loading && !node.data.loadingDebounced) {
          // immediately apply loading if not already debounced for this node
+         node.loading = true;
          if(node === this.dataSourcesTree && !this.datasourceLoadingPlaceholder) {
             this.checkDSPlaceholder();
          }
-         node.loading = true;
       }
       else {
          node.data.loadingDebounced = true;
@@ -891,13 +894,13 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
          this.removeDSLoadingPlaceholder();
       }
 
-      if(node === this.dataSourcesTree && loading && !this.datasourceLoadingPlaceholder) {
-         this.checkDSPlaceholder();
-      }
-
       this.zone.run(() => {
          node.loading = loading;
          node.data.loadingDebounced = false;
+
+         if(node === this.dataSourcesTree && loading && !this.datasourceLoadingPlaceholder) {
+            this.checkDSPlaceholder();
+         }
 
          if(callBack) {
             callBack();
