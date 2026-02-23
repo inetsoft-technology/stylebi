@@ -1097,6 +1097,7 @@ public class ScheduleManager {
     */
    public synchronized void identityRenamed(IdentityID oname, Identity identity) {
       Set<ScheduleTask> changedTasks = new HashSet<>();
+      List<String> removedTaskIds = new ArrayList<>();
       int type = identity.getType();
       String name = identity.getName();
       IdentityID id = identity.getIdentityID();
@@ -1110,9 +1111,11 @@ public class ScheduleManager {
          }
 
          if(type == Identity.USER && oname.equals(task.getOwner())) {
-            this.getOrgTaskMap(orgID).remove(getTaskIdentifier(task.getTaskId(), orgID));
+            String oldTaskId = task.getTaskId();
+            this.getOrgTaskMap(orgID).remove(getTaskIdentifier(oldTaskId, orgID));
             task.setOwner(id);
             changedTasks.add(task);
+            removedTaskIds.add(oldTaskId);
          }
 
          Identity iden = task.getIdentity();
@@ -1168,6 +1171,28 @@ public class ScheduleManager {
       catch(Exception ex) {
          LOG.error("Failed to save schedule task file after " +
                "identity was renamed: " + oname + " to " + name, ex);
+      }
+
+      // Notify subscribers that the old task IDs have been removed (owner rename changes task ID).
+      // The save() above sends ADDED for new task IDs; we must also send REMOVED for old ones so
+      // that portal UI removes stale entries without requiring a page refresh.
+      for(String oldTaskId : removedTaskIds) {
+         try {
+            ScheduleClient.getScheduleClient().taskRemoved(oldTaskId);
+         }
+         catch(Exception e) {
+            LOG.error("Failed to notify scheduler of removed task after user rename: {}", oldTaskId, e);
+         }
+
+         try {
+            ScheduleTaskMessage removeMessage = new ScheduleTaskMessage();
+            removeMessage.setTaskName(oldTaskId);
+            removeMessage.setAction(ScheduleTaskMessage.Action.REMOVED);
+            Cluster.getInstance().sendMessage(removeMessage);
+         }
+         catch(Exception e) {
+            LOG.error("Failed to send task removed message after user rename: {}", oldTaskId, e);
+         }
       }
 
       for(ScheduleExt ext : extensions) {

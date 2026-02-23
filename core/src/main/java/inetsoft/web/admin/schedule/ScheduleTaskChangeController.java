@@ -160,7 +160,7 @@ public class ScheduleTaskChangeController {
 
    private void dispatchPortalScheduleTask(ScheduleTaskMessage message) {
       ScheduleTask task = message.getTask();
-      String taskId = task == null ? null : task.getTaskId();
+      String taskId = task == null ? message.getTaskName() : task.getTaskId();
 
       if(taskId == null) {
          return;
@@ -168,10 +168,17 @@ public class ScheduleTaskChangeController {
 
       for(Principal subscriber : portalSubscribers.values()) {
          if(ScheduleManager.isInternalTask(taskId) ||
-            !checkPortalPermission(subscriber, taskId) ||
             !shouldHandleReceivedMessage(taskId, subscriber))
          {
-            return;
+            continue;
+         }
+
+         // For REMOVED action, the task no longer exists in storage so permission cannot be
+         // re-checked; the subscriber already had permission when they first loaded the task.
+         if(message.getAction() != ScheduleTaskMessage.Action.REMOVED &&
+            !checkPortalPermission(subscriber, taskId))
+         {
+            continue;
          }
 
          ScheduleTaskChange.Type type;
