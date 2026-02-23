@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,24 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { CommonModule } from "@angular/common";
-import { NgModule } from "@angular/core";
-import { VSLoadingDisplay } from "./vs-loading-display.component";
-import { VSSavingDisplay } from "./vs-saving-display.component";
+import { Component, Input } from "@angular/core";
 
-@NgModule({
-   imports: [
-      CommonModule,
-   ],
-   declarations: [
-      VSLoadingDisplay,
-      VSSavingDisplay
-   ],
-   exports: [
-      VSLoadingDisplay,
-      VSSavingDisplay
-   ],
-   providers: [],
+@Component({
+   selector: "vs-saving-display",
+   templateUrl: "vs-saving-display.component.html",
+   styleUrls: ["vs-saving-display.component.scss"]
 })
-export class VSLoadingDisplayModule {
+export class VSSavingDisplay {
+   @Input() fixed: boolean = false;
 }
