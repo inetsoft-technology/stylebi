@@ -126,6 +126,17 @@ public class ServerMonitoringController {
                   schedulerUpTimeMap.put(node, formatAge(schedule.getUpTime()));
                }
             }
+
+            for(String scheduleServer : getScheduleServers()) {
+               if(ScheduleClient.getScheduleClient().isReady(scheduleServer)) {
+                  Date startDate = ScheduleClient.getScheduleStartDate(scheduleServer);
+
+                  if(startDate != null) {
+                     schedulerUpTimeMap.put(scheduleServer,
+                        formatAge(timestamp - startDate.getTime()));
+                  }
+               }
+            }
          }
          else {
             serverUpTimeMap.put("local", formatAge(serverService.getUpTime()));
@@ -1128,17 +1139,20 @@ public class ServerMonitoringController {
    }
 
    private String[] getScheduleServers() {
-      String[] scheduleServers = null;
+      String[] allScheduleServers = ScheduleClient.getScheduleClient().getScheduleServers();
 
-      if(!scheduleCluster) {
-         scheduleServers = ScheduleClient.getScheduleClient().getScheduleServers();
+      if(scheduleCluster) {
+         // In enterprise embedded mode, scheduler IPs overlap with server cluster node IPs,
+         // so filter those out to avoid duplication. In community Docker setups where the
+         // scheduler is a separate container, its IP differs from the server nodes and passes
+         // through correctly.
+         Set<String> serverNodes = getServerClusterNodes();
+         return Arrays.stream(allScheduleServers)
+            .filter(s -> !serverNodes.contains(s))
+            .toArray(String[]::new);
       }
 
-      if(scheduleServers == null) {
-         scheduleServers = new String[0];
-      }
-
-      return scheduleServers;
+      return allScheduleServers;
    }
 
    private final ServerService serverService;
