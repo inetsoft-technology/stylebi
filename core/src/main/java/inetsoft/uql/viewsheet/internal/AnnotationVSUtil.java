@@ -124,8 +124,7 @@ public final class AnnotationVSUtil {
                CrosstabVSAssemblyInfo info = (CrosstabVSAssemblyInfo) base.getInfo();
                TableLens clens = lens;
                VSCrosstabInfo cinfo = info.getVSCrosstabInfo();
-               int rcnt = DateComparisonUtil.appliedDateComparison(base.getVSAssemblyInfo()) ?
-                  cinfo.getRuntimeHeaderColCountWithPeriod() : cinfo.getHeaderColCountWithPeriod();
+               int rcnt = cinfo.getRuntimeHeaderColCountWithPeriod();
                int ccnt = cinfo.getHeaderRowCount();
 
                boolean isColHeader = row + 1 <= ccnt;
@@ -641,8 +640,7 @@ public final class AnnotationVSUtil {
                CrosstabVSAssemblyInfo info =
                   (CrosstabVSAssemblyInfo) base.getInfo();
                VSCrosstabInfo cinfo = info.getVSCrosstabInfo();
-               int rhcnt = DateComparisonUtil.appliedDateComparison(info) ?
-                  cinfo.getRuntimeHeaderColCountWithPeriod() : cinfo.getHeaderColCountWithPeriod();
+               int rhcnt = cinfo.getRuntimeHeaderColCountWithPeriod();
                int chcnt = cinfo.getHeaderRowCount();
 
                boolean isRowHeaderCell =

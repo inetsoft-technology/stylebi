@@ -3626,6 +3626,21 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     */
    public boolean isLossy() {
       if(parseIt && lossy == null && sqlstring != null) {
+         // For databases with map key access syntax (e.g. ClickHouse m['key']), if the SQL
+         // contains such patterns, the column definitions will not fully capture the subscript
+         // access and the raw SQL cannot be accurately regenerated. Mark as lossy to preserve
+         // the original SQL string. (Bug #72243)
+         if(dataSource != null && (dataSource.getDatabaseType() == JDBCDataSource.JDBC_CLICKHOUSE ||
+            "databricks".equals(SQLHelper.getProductName(dataSource))))
+         {
+            String quoted = JDBCUtil.quoteMapKeyAccessForParsing(sqlstring);
+
+            if(!quoted.equals(sqlstring)) {
+               setLossy(true);
+               return true;
+            }
+         }
+
          SQLLexer lexer = new SQLLexer(new StringReader(getQuotedSqlString(sqlstring)));
          SQLParser parser = new SQLParser(lexer);
          UniformSQL sql = new UniformSQL();

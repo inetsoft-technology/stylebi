@@ -152,6 +152,10 @@ export class ColorMappingDialog implements OnInit {
       // where Sun would be set as option instead of 1
       if(dateLevel != 0) {
          this.currentColorMaps = this.currentColorMaps.map((map) => {
+            if(map.manualInput) {
+               return map;
+            }
+
             let found = this.model.dimensionData.find((valLabel) => valLabel.label == map.option);
 
             if(found) {

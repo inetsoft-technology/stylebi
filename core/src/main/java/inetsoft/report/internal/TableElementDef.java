@@ -2432,7 +2432,7 @@ public class TableElementDef extends BaseElement
          h -= getSpacing();
       }
 
-      return Math.max(h, Common.getHeight(font));
+      return (float) Math.ceil(Math.max(h, Common.getHeight(font)));
    }
 
    /**

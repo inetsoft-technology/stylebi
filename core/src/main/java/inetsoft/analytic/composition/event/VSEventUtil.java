@@ -350,6 +350,12 @@ public final class VSEventUtil {
       info.setScaledPosition(null);
       info.setScaledSize(null);
 
+      // Clear runtime column widths set by applyAssemblyScale so that export
+      // uses design-time column widths consistently (bookmark vs current view).
+      if(info instanceof TableDataVSAssemblyInfo tableDataInfo) {
+         tableDataInfo.resetRColumnWidths();
+      }
+
       if(assembly instanceof Viewsheet) {
          for(Assembly child : ((Viewsheet) assembly).getAssemblies()) {
             clearScale((VSAssembly) child);
