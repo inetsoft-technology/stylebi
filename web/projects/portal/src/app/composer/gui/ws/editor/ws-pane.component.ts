@@ -221,11 +221,11 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
    private focusSubscription: Subscription;
    private keyEventsSubscription: Subscription | null;
    private confirmExpiredDisplayed: boolean = false;
-   private heartbeatSubscription: Subscription;
+   private heartbeatSubscription: Subscription = Subscription.EMPTY;
    private renameTransformSubscription: Subscription;
    private transformSubscription: Subscription;
    private dragColumnsSubscription: Subscription;
-   private connectionErrorSubscription: Subscription;
+   private connectionErrorSubscription: Subscription = Subscription.EMPTY;
    private loadingEventCount: number = 0;
    preparingData: boolean = false;
    private firstTime: boolean = true;
@@ -371,9 +371,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       this.connectionErrorSubscription = this.worksheetClient.connectionError().pipe(
          filter(err => !!err)
       ).subscribe(() => {
-         if(this.worksheet.saving) {
-            this.worksheet.saving = false;
-         }
+         this.worksheet.saving = false;
       });
    }
 
@@ -1000,10 +998,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
             this.processMessageCommand0(command, this.modalService, this.worksheetClient);
             break;
          case "ERROR":
-            if(this.worksheet.saving) {
-               this.worksheet.saving = false;
-            }
-
+            this.worksheet.saving = false;
             this.processMessageCommand0(command, this.modalService, this.worksheetClient);
             break;
          case "CONFIRM":

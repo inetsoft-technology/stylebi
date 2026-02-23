@@ -33,12 +33,9 @@ import {
 } from "@angular/core";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { Subject, Subscription } from "rxjs";
-<<<<<<< feature-73053
 import { filter } from "rxjs/operators";
-=======
 import { AiAssistantService } from "../../../../../../../shared/ai-assistant/ai-assistant.service";
 import { AiAssistantDialogService } from "../../../../common/services/ai-assistant-dialog.service";
->>>>>>> main
 import { AssetEntry, createAssetEntry } from "../../../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../../../shared/data/asset-type";
 import { DownloadService } from "../../../../../../../shared/download/download.service";
@@ -361,11 +358,11 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       return draggableRestrictionRect;
    };
 
-   private focusedObjectsSubject: Subscription;
+   private focusedObjectsSubject: Subscription = Subscription.EMPTY;
    private click: boolean = false;
    private confirmExpiredDisplayed: boolean = false;
-   private heartbeatSubscription: Subscription;
-   private renameTransformSubscription: Subscription;
+   private heartbeatSubscription: Subscription = Subscription.EMPTY;
+   private renameTransformSubscription: Subscription = Subscription.EMPTY;
    private transformSubscription: Subscription;
    private loadingEventCount: number = 0;
    private resizeTimeout: any = null;
@@ -511,9 +508,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.subscriptions.add(this.viewsheetClient.connectionError().pipe(
          filter(err => !!err)
       ).subscribe(() => {
-         if(this.vs.saving) {
-            this.vs.saving = false;
-         }
+         this.vs.saving = false;
       }));
 
       this.renameTransformSubscription = this.viewsheetClient.onRenameTransformFinished.subscribe(
@@ -1315,7 +1310,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
          this.notifications.info(command.message);
       }
       else {
-         if(command.type === "ERROR" && this.vs.saving) {
+         if(command.type === "ERROR") {
             this.vs.saving = false;
          }
 
