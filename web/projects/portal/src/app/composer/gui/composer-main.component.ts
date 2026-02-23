@@ -1769,6 +1769,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    saveWorksheet(sheet: Worksheet, close: boolean = false) {
+      sheet.saving = true;
       this.saveWorksheet0(sheet, close, false);
    }
 
@@ -1822,8 +1823,14 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                            worksheet.socketConnection.sendEvent(SAVE_WORKSHEET_SOCKET_URI, event);
                         }
                      }
+                     else {
+                        worksheet.saving = false;
+                     }
                   });
                });
+         }
+         else {
+            worksheet.saving = false;
          }
       });
    }
@@ -1998,6 +2005,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    saveViewsheet(sheet: Viewsheet, close: boolean = false) {
+      sheet.saving = true;
       this.saveViewsheet0(sheet, close, false);
    }
 
@@ -2067,7 +2075,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          });
          return;
       }
-
+      worksheet.saving = true;
       this.finishSave(worksheet, close || this.closeOnComplete, dialogModel);
    }
 
@@ -2145,6 +2153,9 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                      this.gettingStartedService.finish();
                   }
 
+                  sheet.saving = true;
+                  this.designSaved = true;
+
                   if(close) {
                      sheet.socketConnection.sendEvent(
                         SAVE_VIEWSHEET_DIALOG_AND_CLOSE_SOCKET_URI, result);
@@ -2153,8 +2164,6 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                      sheet.socketConnection.sendEvent(
                         SAVE_VIEWSHEET_DIALOG_SOCKET_URI, result);
                   }
-
-                  this.designSaved = true;
                }).
                catch(() => { });
          },
