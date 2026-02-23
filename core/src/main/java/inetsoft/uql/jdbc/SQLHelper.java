@@ -901,7 +901,7 @@ public class SQLHelper implements KeywordProvider {
    /**
     * Generate table clause.
     */
-   private String generateTableClause(SelectTable table) {
+   protected String generateTableClause(SelectTable table) {
       Object tobj = table.getName();
       Object tname = getFromTable(tobj);
       String namestr = tname.toString().trim();
@@ -915,7 +915,7 @@ public class SQLHelper implements KeywordProvider {
          sub.setDataSource(uniformSql.getDataSource());
          sub.setParent(uniformSql);
          sb.append(BRACKET);
-         sb.append(sub.toString().trim());
+         sb.append(getSubQueryString(table, sub));
          sb.append(")");
       }
       // name is a string?
@@ -961,6 +961,15 @@ public class SQLHelper implements KeywordProvider {
       }
 
       return formatSubquery(sb);
+   }
+
+   /**
+    * Get the SQL string for a subquery. Subclasses can override to transform the inner SQL
+    * (e.g. to add column aliases for database-specific syntax that cannot be backtick-quoted
+    * as a column reference in the outer query).
+    */
+   protected String getSubQueryString(SelectTable table, UniformSQL sub) {
+      return sub.toString().trim();
    }
 
    protected void fixTableName(String namestr, StringBuilder sb, String quote, boolean selectClause) {
