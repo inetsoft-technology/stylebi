@@ -22,7 +22,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.sree.web.HttpServiceRequest;
-import inetsoft.storage.*;
+import inetsoft.storage.ExternalStorageService;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.util.*;
 import inetsoft.util.graphics.SVGSupport;
@@ -37,26 +37,6 @@ import inetsoft.web.admin.viewsheet.ViewsheetService;
 import inetsoft.web.cluster.ServerClusterClient;
 import inetsoft.web.reportviewer.service.HttpServletRequestWrapper;
 import inetsoft.web.security.DeniedMultiTenancyOrgUser;
-
-import java.awt.*;
-import java.io.*;
-import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryMXBean;
-import java.nio.charset.StandardCharsets;
-import java.rmi.RemoteException;
-import java.security.Principal;
-import java.sql.Time;
-import java.text.SimpleDateFormat;
-import java.time.*;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.*;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import java.util.stream.*;
-import java.util.zip.GZIPOutputStream;
-
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -68,6 +48,24 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.web.bind.annotation.*;
+
+import java.awt.*;
+import java.io.*;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.nio.charset.StandardCharsets;
+import java.security.Principal;
+import java.sql.Time;
+import java.text.SimpleDateFormat;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.*;
+import java.util.zip.GZIPOutputStream;
 
 @RestController
 public class ServerMonitoringController {
@@ -733,13 +731,7 @@ public class ServerMonitoringController {
                   schedulerMonitoringService.getMemoryHistory(scheduleServer),
                   h -> new Object[]{ new Time(h.timestamp()), h.usedMemory() });
                data = MonitorUtil.mergeGridData(data, grid);
-
-               try {
-                  max = Math.max(max, schedulerMonitoringService.getMaxHeapSize(scheduleServer));
-               }
-               catch(RemoteException e) {
-                  LOG.warn("Failed to get max heap size: " + e, e);
-               }
+               max = Math.max(max, schedulerMonitoringService.getMaxHeapSize(scheduleServer));
             }
          }
 
@@ -902,13 +894,7 @@ public class ServerMonitoringController {
                   schedulerMonitoringService.getOffHeapHistory(scheduleServer),
                   h -> new Object[]{ new Time(h.timestamp()), h.usedOffHeap() });
                data = MonitorUtil.mergeGridData(data, grid);
-
-               try {
-                  max = Math.max(max, schedulerMonitoringService.getMaxOffHeapSize(scheduleServer));
-               }
-               catch(RemoteException e) {
-                  LOG.warn("Failed to get max off-heap size: " + e, e);
-               }
+               max = Math.max(max, schedulerMonitoringService.getMaxOffHeapSize(scheduleServer));
             }
          }
 
