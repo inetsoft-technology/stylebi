@@ -425,7 +425,7 @@ export class WSDetailsPaneComponent implements OnChanges, OnDestroy, OnInit {
          }
       }
       else if(this.table.info.runtime) {
-         status += " <FULL PREVIEW>";
+         status += ` <_#(js:composer.ws.preview.fullPreview)>`;
       }
       else if(this.table.info.live && !this.table.isEmbeddedTable() &&
          !(this.table instanceof TabularTableAssembly))
