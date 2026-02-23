@@ -19,43 +19,78 @@ import { Injectable } from "@angular/core";
 import { ResourcePermissionTableModel } from "./resource-permission-table-model";
 import { ResourceAction } from "../../../../../../shared/util/security/resource-permission/resource-action.enum";
 import { Tool } from "../../../../../../shared/util/tool";
+import { OrganizationDropdownService } from "../../../navbar/organization-dropdown.service";
 
 @Injectable({
    providedIn: "root"
 })
 export class PermissionClipboardService {
    private copiedPermissions: { permissions: ResourcePermissionTableModel[], requiresBoth: boolean } | null = null;
+   private providerAtCopy: string | null = null;
+   private contextAtCopy: string | null = null;
 
-   get canPaste(): boolean {
-      return this.copiedPermissions != null;
+   constructor(orgDropdownService: OrganizationDropdownService) {
+      // This service is a root singleton that lives for the full app lifetime.
+      // The subscription intentionally runs forever — no teardown is needed.
+      orgDropdownService.onRefresh.subscribe(({ provider }) => {
+         if(this.providerAtCopy !== null && this.providerAtCopy !== provider) {
+            this.copiedPermissions = null;
+            this.providerAtCopy = null;
+            this.contextAtCopy = null;
+         }
+      });
    }
 
-   copy(permissions: ResourcePermissionTableModel[], requiresBoth: boolean): void {
+   canPaste(context: string | null = null): boolean {
+      return this.copiedPermissions != null && this.contextsMatch(context, this.contextAtCopy);
+   }
+
+   copiedCount(context: string | null = null, displayActions: ResourceAction[] | null = null): number {
+      if(!this.canPaste(context)) {
+         return 0;
+      }
+
+      if(displayActions == null) {
+         return this.copiedPermissions?.permissions?.length ?? 0;
+      }
+
+      return this.copiedPermissions.permissions
+         .filter(row => row.actions.some(a => displayActions.includes(a)))
+         .length;
+   }
+
+   copy(permissions: ResourcePermissionTableModel[], requiresBoth: boolean, provider: string,
+        context: string | null = null): void {
       this.copiedPermissions = {
          permissions: Tool.clone(permissions),
          requiresBoth
       };
+      this.providerAtCopy = provider;
+      this.contextAtCopy = context;
    }
 
-   paste(displayActions: ResourceAction[]): { permissions: ResourcePermissionTableModel[], requiresBoth: boolean } | null {
-      if(!this.copiedPermissions) {
+   paste(displayActions: ResourceAction[], context: string | null = null):
+      { permissions: ResourcePermissionTableModel[], requiresBoth: boolean } | null
+   {
+      if(!this.copiedPermissions || !this.contextsMatch(context, this.contextAtCopy)) {
          return null;
       }
 
       const pastedPermissions: ResourcePermissionTableModel[] =
-         Tool.clone(this.copiedPermissions.permissions).map(row => {
-            row.actions = row.actions.filter(a => displayActions.includes(a));
-
-            if(row.actions.length === 0) {
-               row.actions = displayActions.slice(0);
-            }
-
-            return row;
-         });
+         Tool.clone(this.copiedPermissions.permissions)
+            .map(row => {
+               row.actions = row.actions.filter(a => displayActions.includes(a));
+               return row;
+            })
+            .filter(row => row.actions.length > 0);
 
       return {
          permissions: pastedPermissions,
          requiresBoth: this.copiedPermissions.requiresBoth
       };
+   }
+
+   private contextsMatch(a: string | null, b: string | null): boolean {
+      return a === b;
    }
 }

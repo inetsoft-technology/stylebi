@@ -22,8 +22,11 @@ import {
    Output,
    OnInit,
    OnChanges,
+   OnDestroy,
    SimpleChanges
 } from "@angular/core";
+import { Subject } from "rxjs";
+import { takeUntil } from "rxjs/operators";
 import { HttpClient } from "@angular/common/http";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { Tool } from "../../../../../../shared/util/tool";
@@ -34,19 +37,23 @@ import { MatDialog } from "@angular/material/dialog";
 import { SecurityTreeDialogComponent } from "../security-tree-dialog/security-tree-dialog.component";
 import { SecurityTreeDialogData } from "../security-tree-dialog/security-tree-dialog-data";
 import { PermissionClipboardService } from "./permission-clipboard.service";
+import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
+import { OrganizationDropdownService } from "../../../navbar/organization-dropdown.service";
 
 @Component({
    selector: "em-resource-permission",
    templateUrl: "./resource-permission.component.html",
    styleUrls: ["./resource-permission.component.scss"]
 })
-export class ResourcePermissionComponent implements OnInit, OnChanges {
+export class ResourcePermissionComponent implements OnInit, OnChanges, OnDestroy {
    @Input() model: ResourcePermissionModel;
    @Input() showRadioButtons = true;
    @Input() showCopyPaste = false;
+   @Input() copyPasteContext: string | null = null;
    @Input() ignorePadding: boolean;
    @Input() isTimeRange: boolean = false;
    @Output() permissionChanged = new EventEmitter<ResourcePermissionTableModel[]>();
+   private destroy$ = new Subject<void>();
    tableSelected: boolean = false;
    isOrgAdminOnly = true;
    siteAdmin: boolean = true;
@@ -63,11 +70,21 @@ export class ResourcePermissionComponent implements OnInit, OnChanges {
 
    constructor(private dialog: MatDialog, private http: HttpClient,
                private snackBar: MatSnackBar,
-               private clipboardService: PermissionClipboardService) {
+               private clipboardService: PermissionClipboardService,
+               private orgDropdownService: OrganizationDropdownService) {
    }
 
    get canPaste(): boolean {
-      return this.clipboardService.canPaste;
+      return this.clipboardService.canPaste(this.copyPasteContext);
+   }
+
+   get pasteCount(): number {
+      return this.clipboardService.copiedCount(this.copyPasteContext, this.model?.displayActions);
+   }
+
+   ngOnDestroy(): void {
+      this.destroy$.next();
+      this.destroy$.complete();
    }
 
    ngOnInit() {
@@ -94,7 +111,7 @@ export class ResourcePermissionComponent implements OnInit, OnChanges {
          maxHeight: "100%",
          data: this.dialogData,
       })
-         .afterClosed().subscribe(result => {
+         .afterClosed().pipe(takeUntil(this.destroy$)).subscribe(result => {
          if(result) {
             table.receiveSelection(result.map(s =>
                <ResourcePermissionTableModel> {
@@ -140,21 +157,35 @@ export class ResourcePermissionComponent implements OnInit, OnChanges {
    }
 
    copyPermissions(): void {
-      this.clipboardService.copy(this.model.permissions, this.model.requiresBoth);
+      this.clipboardService.copy(this.model.permissions, this.model.requiresBoth,
+         this.orgDropdownService.getProvider(), this.copyPasteContext);
       this.snackBar.open("_#(js:em.security.permissionsCopied)", null, {
          duration: Tool.SNACKBAR_DURATION
       });
    }
 
    pastePermissions(): void {
-      const result = this.clipboardService.paste(this.model.displayActions);
+      this.dialog.open(MessageDialog, {
+         width: "350px",
+         data: {
+            title: "_#(js:Paste Permissions)",
+            content: "_#(js:em.security.pastePermissions.confirm)",
+            type: MessageDialogType.CONFIRMATION
+         }
+      }).afterClosed().pipe(takeUntil(this.destroy$)).subscribe(confirmed => {
+         if(!confirmed) {
+            return;
+         }
 
-      if(result) {
-         this.model.permissions = result.permissions;
-         this.model.requiresBoth = result.requiresBoth;
-         this.model.hasOrgEdited = true;
-         this.model.changed = true;
-         this.permissionChanged.emit(this.model.permissions);
-      }
+         const result = this.clipboardService.paste(this.model.displayActions, this.copyPasteContext);
+
+         if(result) {
+            this.model.permissions = result.permissions;
+            this.model.requiresBoth = result.requiresBoth;
+            this.model.hasOrgEdited = true;
+            this.model.changed = true;
+            this.permissionChanged.emit(this.model.permissions);
+         }
+      });
    }
 }

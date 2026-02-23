@@ -64,12 +64,12 @@
         <button mat-stroked-button (click)="addPermission(table)">_#(Add)</button>
         <button mat-stroked-button (click)="removePermission(table)" [disabled]="!tableSelected">_#(Remove)</button>
         <button mat-stroked-button *ngIf="showCopyPaste" (click)="copyPermissions()"
-                [disabled]="!model?.permissions">
+                [disabled]="!model?.permissions?.length">
           _#(Copy Permissions)
         </button>
         <button mat-stroked-button *ngIf="showCopyPaste" (click)="pastePermissions()"
-                [disabled]="!canPaste">
-          _#(Paste Permissions)
+                [disabled]="!canPaste || pasteCount === 0">
+          _#(Paste Permissions){{pasteCount > 0 ? ' (' + pasteCount + ')' : ''}}
         </button>
       </mat-card-actions>
     </mat-card>

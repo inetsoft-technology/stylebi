@@ -79,7 +79,7 @@
       </mat-card>
     </mat-tab>
     <mat-tab *ngIf="model.permissions" label="_#(Security)">
-      <em-resource-permission [model]="model.permissions" [showCopyPaste]="true" (permissionChanged)="dashboardChanged = true">
+      <em-resource-permission [model]="model.permissions" [showCopyPaste]="true" copyPasteContext="repository" (permissionChanged)="dashboardChanged = true">
       </em-resource-permission>
     </mat-tab>
   </mat-tab-group>
