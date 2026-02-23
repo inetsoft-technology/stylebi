@@ -676,22 +676,14 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
             if (this.model.dataType && XSchema.isDateType(this.model.dataType)) {
                const timeIncrement = editDialog.timeIncrement;
 
-               if (timeIncrement == "t") {
-                  min = min instanceof Date ? min : new Date(min);
-                  max = max instanceof Date ? max : new Date(max);
-               } else {
-                  min = min instanceof Date ? min : new Date(min + "T00:00");
-                  max = max instanceof Date ? max : new Date(max + "T00:00");
-               }
-
-               const minTime = this.toIncrementTimestamp(timeIncrement, min);
-               const maxTime = this.toIncrementTimestamp(timeIncrement, max);
+               const minTime = this.toIncrementTimestamp(timeIncrement, min as Date);
+               const maxTime = this.toIncrementTimestamp(timeIncrement, max as Date);
 
                for(let index: number = 0; index < numLabels && !maxFound; index++){
                   const labelTime = this.labelToTimestamp(timeIncrement, this.model.values[index]);
 
                   if(minTime <= labelTime && !minFound) {
-                     this.model.selectStart = minTime === labelTime ? index : index - 1;
+                     this.model.selectStart = minTime === labelTime ? index : Math.max(0, index - 1);
                      minFound = true;
                   }
 
@@ -709,7 +701,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
                   const labelValue = parseFloat(this.model.values[index]);
 
                   if(min <= labelValue && !minFound) {
-                     this.model.selectStart = min === labelValue ? index : index - 1;
+                     this.model.selectStart = min === labelValue ? index : Math.max(0, index - 1);
                      minFound = true;
                   }
 
@@ -725,7 +717,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
          }, options);
       if (this.model.dataType && XSchema.isDateType(this.model.dataType)) {
 
-         const timeIncrement = this.model.values[this.model.selectStart].replace(/[{'}`]/g, "").charAt(0);
+         const timeIncrement = this.extractTimeIncrement(this.model.values[this.model.selectStart]);
          editDialog.timeIncrement = timeIncrement;
 
          const { currMinStr, currMaxStr, rangeMinStr, rangeMaxStr } = this.getDateStrings(
@@ -735,10 +727,12 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
                                           this.model.values[0],
                                           this.model.values[this.model.labels.length - 1]);
 
-         editDialog.currentMin = new Date(currMinStr);
-         editDialog.currentMax = new Date(currMaxStr);
-         editDialog.rangeMin = new Date(rangeMinStr);
-         editDialog.rangeMax = new Date(rangeMaxStr);
+         const dateSuffix = timeIncrement === "t" ? "" : "T00:00";
+         editDialog.currentMin = new Date(currMinStr + dateSuffix);
+         editDialog.currentMax = new Date(currMaxStr + dateSuffix);
+         editDialog.rangeMin = new Date(rangeMinStr + dateSuffix);
+         editDialog.rangeMax = new Date(rangeMaxStr + dateSuffix);
+         editDialog.initForm();
       } else {
          editDialog.currentMin = parseFloat(
             this.model.values[this.model.selectStart]?.replace(/,/g, ""));
@@ -748,6 +742,17 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
          editDialog.rangeMax = parseFloat(
             this.model.values[this.model.labels.length - 1]?.replace(/,/g, ""));
       }
+   }
+
+   private extractTimeIncrement(value: string): string {
+      const typeMatch = value.match(/^\{([a-zA-Z]+)\s+'/);
+      if(typeMatch) {
+         return typeMatch[1].charAt(0);
+      }
+      const sanitized = value.replace(/[a-zA-Z'"{}]/g, "").trim();
+      if(sanitized.includes(":")) { return "t"; }
+      const dashCount = (sanitized.match(/-/g) || []).length;
+      return dashCount === 0 ? "y" : dashCount === 1 ? "m" : "d";
    }
 
    private toIncrementTimestamp(timeIncrement: string, date: Date): number {
@@ -761,7 +766,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
          case "t":
             return date.getTime();
          default:
-            return date.getTime();
+            throw new Error(`Unrecognised timeIncrement value: "${timeIncrement}"`);
       }
    }
 
@@ -770,7 +775,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
       const sanitized = match ? match[1] : value.replace(/[a-zA-Z'"{}]/g, "").trim();
 
       if (timeIncrement === "t") {
-         return new Date(sanitized).getTime();
+         return new Date(sanitized.replace(" ", "T")).getTime();
       }
 
       const parts = sanitized.split("-").map(p => parseInt(p, 10));
@@ -783,7 +788,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
          case "d":
             return new Date(parts[0], parts[1] - 1, parts[2]).getTime();
          default:
-            return NaN;
+            throw new Error(`Unrecognised timeIncrement value: "${timeIncrement}"`);
       }
    }
 
@@ -813,13 +818,13 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
                                                         selectStart, selectEnd, rangeMin, rangeMax);
             currMinStr += "-01";
             currMaxStr += "-01";
-            const currMaxDate = new Date(currMaxStr);
+            const currMaxDate = new Date(currMaxStr + "T00:00");
             const currMaxMonthDays =  new Date(currMaxDate.getFullYear(),
                                                 currMaxDate.getMonth() + 1, 0).getDate();
             currMaxStr = currMaxStr.slice(0, -2) + currMaxMonthDays;
             rangeMinStr += "-01";
             rangeMaxStr += "-01";
-            const rangeMaxDate = new Date(rangeMaxStr);
+            const rangeMaxDate = new Date(rangeMaxStr + "T00:00");
             const rangeMaxMonthDays = new Date(rangeMaxDate.getFullYear(),
                                                    rangeMaxDate.getMonth() + 1, 0).getDate();
             rangeMaxStr = rangeMaxStr.slice(0, -2) + rangeMaxMonthDays;
@@ -830,7 +835,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
             return this.sanitizeDateLabels(selectStart, selectEnd, rangeMin, rangeMax);
          }
          default : {
-            return { currMinStr: null, currMaxStr: null, rangeMinStr: null, rangeMaxStr: null };
+            throw new Error(`Unrecognised timeIncrement value: "${timeIncrement}"`);
          }
       }
    }
@@ -847,7 +852,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
       } {
       const sanitize = (val: string) => {
          const match = val.match(/\{[a-zA-Z]+\s+'(.+)'\s*}/);
-         return match ? match[1] : val.replace(/[a-zA-Z'{}]/g, "").trim();
+         return match ? match[1] : val.replace(/[a-zA-Z'"{}]/g, "").trim();
       };
       return {
          currMinStr: sanitize(selectStart),

@@ -49,7 +49,7 @@ export class RangeSliderEditDialog implements OnInit, OnDestroy {
    }
 
    initForm(): void {
-      this.rangeForm = new UntypedFormGroup({}, this.minMaxNotEqual());
+      this.rangeForm = new UntypedFormGroup({}, [this.minMaxNotEqual(), this.minBeforeMax()]);
       if(typeof this.rangeMin == "number" && typeof this.rangeMax == "number"){
          this.isDateType = false;
          this.rangeForm.addControl("min", new UntypedFormControl(this.currentMin, [
@@ -76,10 +76,14 @@ export class RangeSliderEditDialog implements OnInit, OnDestroy {
             this.dateRangeValidatorMax(this.rangeMax)
          ]));
          this.rangeForm.get("min")?.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(value => {
-           this.currentMin = value;
+            if(value) {
+               this.currentMin = new Date(value + (this.timeIncrement !== "t" ? "T00:00" : ""));
+            }
          });
          this.rangeForm.get("max")?.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(value => {
-           this.currentMax = value;
+            if(value) {
+               this.currentMax = new Date(value + (this.timeIncrement !== "t" ? "T00:00" : ""));
+            }
          });
       }
    }
@@ -148,6 +152,20 @@ export class RangeSliderEditDialog implements OnInit, OnDestroy {
          }
 
          return null;
+      };
+   }
+
+   private minBeforeMax(): ValidatorFn {
+      return (group: AbstractControl): ValidationErrors | null => {
+         const min = group.get("min")?.value;
+         const max = group.get("max")?.value;
+
+         if(min == null || max == null) {
+            return null;
+         }
+
+         const minGreaterThanMax = this.isDateType ? min > max : +min > +max;
+         return minGreaterThanMax ? { minAfterMax: true } : null;
       };
    }
 
