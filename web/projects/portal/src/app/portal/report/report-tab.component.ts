@@ -23,6 +23,10 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
 import { withLatestFrom } from "rxjs/operators";
 import { convertToKey } from "../../../../../em/src/app/settings/security/users/identity-id";
+import {
+   AiAssistantService,
+   ContextType
+} from "../../../../../shared/ai-assistant/ai-assistant.service";
 import { RepositoryEntry } from "../../../../../shared/data/repository-entry";
 import { RepositoryEntryType } from "../../../../../shared/data/repository-entry-type.enum";
 import { AssetLoadingService } from "../../common/services/asset-loading.service";
@@ -96,7 +100,8 @@ export class ReportTabComponent extends CommandProcessor implements OnInit, OnDe
                private viewsheetClient: ViewsheetClientService,
                zone: NgZone, private composerService: OpenComposerService,
                private collapseTreeService: CollapseRepositoryTreeService,
-               private assetLoadingService: AssetLoadingService)
+               private assetLoadingService: AssetLoadingService,
+               private aiAssistantService: AiAssistantService)
    {
       super(viewsheetClient, zone, true);
       this.subscriptions.add(currentRouteService.repositoryUrl.pipe(
@@ -149,6 +154,7 @@ export class ReportTabComponent extends CommandProcessor implements OnInit, OnDe
 
       this.currentRouteService = currentRouteService;
       this.viewsheetClient.connect();
+      this.aiAssistantService.setContextTypeFieldValue(ContextType.VIEWSHEET);
    }
 
    ngOnInit() {

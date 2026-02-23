@@ -33,6 +33,8 @@ import {
 } from "@angular/core";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { map } from "rxjs/operators";
+import { AiAssistantService } from "../../../../../../../shared/ai-assistant/ai-assistant.service";
+import { AiAssistantDialogService } from "../../../../common/services/ai-assistant-dialog.service";
 import { DownloadService } from "../../../../../../../shared/download/download.service";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { Range } from "../../../../common/data/range";
@@ -115,6 +117,7 @@ export class WSDetailsPaneComponent implements OnChanges, OnDestroy, OnInit {
    @Input() selectingColumnSource: boolean;
    @Input() consoleMessages: ConsoleMessage[];
    @Input() freeFormSqlEnabled = true;
+   @Input() expressionColumnEnabled = false;
    @Output() onInsertColumns = new EventEmitter<WSInsertColumnsEvent>();
    @Output() onReplaceColumns = new EventEmitter<WSReplaceColumnsEvent>();
    @Output() onOpenAssemblyConditionDialog = new EventEmitter<string>();
@@ -170,7 +173,9 @@ export class WSDetailsPaneComponent implements OnChanges, OnDestroy, OnInit {
       }
    }
 
-   constructor(private modalService: DialogService,
+   constructor(private aiAssistantService: AiAssistantService,
+               private aiAssistantDialogService: AiAssistantDialogService,
+               private modalService: DialogService,
                private ngbModal: NgbModal,
                private worksheetClient: ViewsheetClientService,
                private modelService: ModelService,
@@ -408,6 +413,10 @@ export class WSDetailsPaneComponent implements OnChanges, OnDestroy, OnInit {
          status += `, ${this.table.totalRows} _#(js:records)`;
       }
 
+      if(this.table.duration) {
+         status += ` _#(js:in) ${this.table.duration}ms`;
+      }
+
       if(this.table.exceededMaximum) {
          status += `, ${this.table.exceededMaximum}`;
 
@@ -461,6 +470,8 @@ export class WSDetailsPaneComponent implements OnChanges, OnDestroy, OnInit {
 
       this.modelService.getModel(EXPRESSION_REST_URI + Tool.byteEncode(this.worksheet.runtimeId), params)
          .subscribe((model: ExpressionDialogModel) => {
+            this.aiAssistantDialogService.setWorksheetScriptContext(model.columnTree?.children[0]?.children);
+
             const onCommit = (result: any) => {
                const newModel: ExpressionDialogModel = {
                   tableName: model.tableName,
@@ -472,13 +483,16 @@ export class WSDetailsPaneComponent implements OnChanges, OnDestroy, OnInit {
                };
 
                this.worksheetClient.sendEvent(EXPRESSION_SOCKET_URI, newModel);
+               this.aiAssistantDialogService.setWorksheetScriptContext(null);
             };
+
+            const onCancel = () => this.aiAssistantDialogService.setWorksheetScriptContext(null);
 
             const dialog = ComponentTool.showDialog(this.modalService, FormulaEditorDialog, onCommit, {
                objectId: this.table.name,
                windowClass: "formula-dialog",
                limitResize: false
-            } as SlideOutOptions);
+            } as SlideOutOptions, onCancel);
             dialog.formulaName = model.oldName;
             dialog.dataType = model.dataType;
             dialog.formulaType = model.formulaType;
@@ -902,6 +916,7 @@ export class WSDetailsPaneComponent implements OnChanges, OnDestroy, OnInit {
          !(button.id === "ws-table-edit-query" &&
             this.table.tableClassType === "SQLBoundTableAssembly" &&
             !this.freeFormSqlEnabled && (this.table as SQLBoundTableAssembly).sqlEdited) &&
+         !(!this.expressionColumnEnabled && button.id === "ws-table-expression") &&
          (button.label != "visible" || this.table.mode != "edit");
    }
 

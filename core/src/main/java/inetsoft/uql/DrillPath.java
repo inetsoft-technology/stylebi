@@ -17,6 +17,8 @@
  */
 package inetsoft.uql;
 
+import inetsoft.report.Hyperlink;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.*;
 import org.slf4j.Logger;
@@ -543,15 +545,33 @@ public class DrillPath implements XMLSerializable, Serializable, Cloneable {
     */
    @Override
    public void parseXML(Element tag) throws Exception {
+      parseXML(tag, false);
+   }
+
+   @Override
+   public void parseXML(Element tag, boolean isSiteAdminImport) throws Exception {
       String attr;
 
       if((attr = Tool.getAttribute(tag, "name")) != null) {
          setName(attr);
       }
 
+      if((attr = Tool.getAttribute(tag, "linkType")) != null) {
+         setLinkType(Integer.parseInt(attr));
+      }
+
       if((attr = Tool.getAttribute(tag, "link")) != null) {
-         attr = handleDrillLinkOrgMismatch(attr);
+         if(linkType == VIEWSHEET_LINK) {
+            attr = SUtil.handleViewsheetLinkOrgMismatch(attr, true);
+         }
+
          setLink(attr);
+      }
+
+      if(isSiteAdminImport && linkType == Hyperlink.VIEWSHEET_LINK) {
+         String linkPath = this.getLink();
+         linkPath = linkPath.substring(0, linkPath.lastIndexOf("^") + 1) + OrganizationManager.getInstance().getCurrentOrgID();
+         setLink(linkPath);
       }
 
       if((attr = Tool.getAttribute(tag, "targetFrame")) != null) {
@@ -560,10 +580,6 @@ public class DrillPath implements XMLSerializable, Serializable, Cloneable {
 
       if((attr = Tool.getAttribute(tag, "toolTip")) != null) {
          setToolTip(attr);
-      }
-
-      if((attr = Tool.getAttribute(tag, "linkType")) != null) {
-         setLinkType(Integer.parseInt(attr));
       }
 
       Element qnode = Tool.getChildNodeByTagName(tag, "subquery");
@@ -619,26 +635,6 @@ public class DrillPath implements XMLSerializable, Serializable, Cloneable {
          // create dummy parameter field for backward compatibility
          setParameterField("Parameter[0]", "Column[0]");
       }
-   }
-
-   public String handleDrillLinkOrgMismatch(String link) {
-      String curOrgId = OrganizationManager.getInstance().getCurrentOrgID();
-
-      if(oldPattern.matcher(link).matches()) {
-         return String.join("^", link, curOrgId);
-      }
-
-      int orgIdx = link.lastIndexOf("^");
-
-      if(orgIdx > 0) {
-         String linkOrg = link.substring(orgIdx + 1);
-
-         if(!Tool.equals(linkOrg, curOrgId)) {
-            return link.substring(0,orgIdx + 1) + curOrgId;
-         }
-      }
-
-      return link;
    }
 
    private String name = "";

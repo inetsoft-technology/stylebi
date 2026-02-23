@@ -21,6 +21,10 @@ import { ActivatedRoute, NavigationExtras, Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable ,  Subscription } from "rxjs";
 import { tap } from "rxjs/operators";
+import {
+   AiAssistantService,
+   ContextType
+} from "../../../../../shared/ai-assistant/ai-assistant.service";
 import { DashboardModel } from "../../common/data/dashboard-model";
 import { AssetLoadingService } from "../../common/services/asset-loading.service";
 import { GuiTool } from "../../common/util/gui-tool";
@@ -58,8 +62,11 @@ export class DashboardTabComponent implements OnInit, OnDestroy {
                private hideNavService: HideNavService,
                dashboardService: DashboardService,
                currentRouteService: CurrentRouteService,
-               private assetLoadingService: AssetLoadingService)
+               private assetLoadingService: AssetLoadingService,
+               private aiAssistantService: AiAssistantService)
    {
+      this.aiAssistantService.setContextTypeFieldValue(ContextType.DASHBOARD_PORTAL);
+
       this.subscriptions.add(dashboardService.newDashboard.subscribe(
          () => this.newDashboard()
       ));
@@ -68,28 +75,38 @@ export class DashboardTabComponent implements OnInit, OnDestroy {
          (dashboardName) => {
             this.selectedDashboardName = dashboardName;
 
-            if(this.model) {
-               this.selectedDashboardIndex = this.model.dashboards.findIndex(
-                  (db) => db.name === dashboardName);
-
-               if(this.selectedDashboardIndex < 0) {
-                  this.selectedDashboardIndex = this.model.dashboards.findIndex(
-                     (db) => db.identifier === dashboardName);
-                  this.selectedDashboardName = this.selectedDashboardIndex < 0 ?
-                     null : this.model.dashboards[this.selectedDashboardIndex].name;
-               }
-
-               this.selectedDashboard = this.selectedDashboardIndex < 0 ?
-                  null : this.model.dashboards[this.selectedDashboardIndex];
+            if(!!dashboardName && dashboardName.indexOf(";hasBaseEntry=") != -1) {
+               this.selectedDashboardName =
+                  dashboardName.substring(0, dashboardName.indexOf(";hasBaseEntry="));
             }
+
+            this.updateSelectedDashboard();
          }
       ));
 
       this.subscriptions.add(route.data.subscribe(
          (data) => {
             this.model = data.dashboardTabModel;
+            this.updateSelectedDashboard();
          }
       ));
+   }
+
+   private updateSelectedDashboard() {
+      if(this.model && !!this.selectedDashboardName) {
+         this.selectedDashboardIndex = this.model.dashboards.findIndex(
+            (db) => db.name === this.selectedDashboardName);
+
+         if(this.selectedDashboardIndex < 0) {
+            this.selectedDashboardIndex = this.model.dashboards.findIndex(
+               (db) => db.identifier === this.selectedDashboardName);
+            this.selectedDashboardName = this.selectedDashboardIndex < 0 ?
+               null : this.model.dashboards[this.selectedDashboardIndex].name;
+         }
+
+         this.selectedDashboard = this.selectedDashboardIndex < 0 ?
+            null : this.model.dashboards[this.selectedDashboardIndex];
+      }
    }
 
    ngOnInit() {

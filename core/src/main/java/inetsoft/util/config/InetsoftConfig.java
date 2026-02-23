@@ -366,6 +366,22 @@ public class InetsoftConfig implements Serializable {
       }
    }
 
+   public static File getConfigFile() {
+      String home = ConfigurationContext.getContext().getHome();
+      File file = new File(home, "inetsoft.yaml");
+
+      if(!file.exists()) {
+         file = new File(home, "inetsoft.yml");
+
+         if(!file.exists()) {
+            // neither exists, use default
+            file = new File(home, "inetsoft.yaml");
+         }
+      }
+
+      return file;
+   }
+
    private String version;
    private ClusterConfig cluster;
    private String pluginDirectory;
@@ -384,18 +400,7 @@ public class InetsoftConfig implements Serializable {
       @Override
       public InetsoftConfig get(Object... parameters) {
          if(config == null) {
-            String home = ConfigurationContext.getContext().getHome();
-            File file = new File(home, "inetsoft.yaml");
-
-            if(!file.exists()) {
-               file = new File(home, "inetsoft.yml");
-
-               if(!file.exists()) {
-                  // neither exists, use default
-                  file = new File(home, "inetsoft.yaml");
-               }
-            }
-
+            File file = getConfigFile();
             boolean save = !file.exists();
             config = load(file.toPath());
 

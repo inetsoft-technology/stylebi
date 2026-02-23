@@ -21,7 +21,7 @@ import { Component, OnDestroy, OnInit } from "@angular/core";
 import { MatDialog, MatDialogConfig } from "@angular/material/dialog";
 import {MatSnackBar} from "@angular/material/snack-bar";
 import { Observable, of, Subject } from "rxjs";
-import {catchError, map, tap} from "rxjs/operators";
+import {catchError, finalize, map, tap} from "rxjs/operators";
 import {IdentityType} from "../../../../../../../shared/data/identity-type";
 import {Tool} from "../../../../../../../shared/util/tool";
 import {ErrorHandlerService} from "../../../../common/util/error/error-handler.service";
@@ -44,6 +44,7 @@ import {
    EditRolePaneModel,
    EditUserPaneModel
 } from "../edit-identity-pane/edit-identity-pane.model";
+import {SecurityBusyService } from "../security-busy.service";
 import {SecurityTreeService} from "../security-tree.service";
 import {SecurityTreeNodeModel} from "../users-settings-view/security-tree-node-model";
 import {SecurityTreeRootModel} from "../users-settings-view/security-tree-root-model";
@@ -92,7 +93,8 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
                private dialog: MatDialog,
                private snackBar: MatSnackBar,
                private usersService: ScheduleUsersService,
-               private orgDropDownService: OrganizationDropdownService)
+               private orgDropDownService: OrganizationDropdownService,
+               private orgBusy: SecurityBusyService)
    {
       orgDropdownService.onRefresh.subscribe(res => {
          this.selectedProvider = res.provider;
@@ -233,11 +235,14 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
          }).afterClosed().subscribe(val => {
             if(val) {
                let provider = Tool.byteEncodeURLComponent(this.selectedProvider);
+               this.orgBusy.beginOrgSave();
                this.http.post("../api/em/security/users/edit-organization/" + provider, model).pipe(
                   catchError((error: HttpErrorResponse) => {
                      this.identityEditable.next(true);
                      return this.errorService.showSnackBar(error);
-                  })).subscribe((msg) => {
+                  }),
+                  finalize(() => this.orgBusy.endOrgSave())
+               ).subscribe((msg) => {
                   if(msg) {
                      this.dialog.open(MessageDialog, {
                         data: {
@@ -256,13 +261,15 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
       else {
          this.loading = true;
          let provider = Tool.byteEncodeURLComponent(this.selectedProvider);
+         this.orgBusy.beginOrgSave();
          this.http.post("../api/em/security/users/edit-organization/" + provider, model).pipe(
             catchError((error: HttpErrorResponse) => {
                this.loading = false;
                this.identityEditable.next(true);
                return this.errorService.showSnackBar(error);
             }),
-            tap(() => this.refreshTree({name: model.name, orgID: (model as EditOrganizationPaneModel).id}, IdentityType.ORGANIZATION))
+            tap(() => this.refreshTree({name: model.name, orgID: (model as EditOrganizationPaneModel).id}, IdentityType.ORGANIZATION)),
+            finalize(() => this.orgBusy.endOrgSave())
          ).subscribe((msg) => {
             if(msg) {
                this.dialog.open(MessageDialog, {

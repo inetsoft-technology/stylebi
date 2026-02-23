@@ -261,7 +261,7 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
          this.jsp.deleteEveryEndpoint();
       }
 
-      if(changes['selectedGraphModels'] && this.selectedGraphModels) {
+      if(changes["selectedGraphModels"] && this.selectedGraphModels) {
          this.dragNodes = [...this.selectedGraphModels];
       }
    }

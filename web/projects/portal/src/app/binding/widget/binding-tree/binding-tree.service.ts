@@ -492,6 +492,10 @@ export abstract class BindingTreeService {
       }
    }
 
+   public isCalculatedFieldEnabled(): boolean {
+      return this._bindingTreeModel.calculatedFieldPermission;
+   }
+
    abstract getBindingTreeActions(selectedNode: TreeNodeModel, selectedNodes: TreeNodeModel[],
                                   dialogService: NgbModal, modelService: ModelService, service: any,
                                   bindingInfo?: any): ContextMenuActions;

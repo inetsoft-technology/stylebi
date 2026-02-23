@@ -19,6 +19,7 @@ package inetsoft.sree;
 
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.*;
 import org.w3c.dom.Element;
@@ -424,6 +425,12 @@ public class RepositoryEntry implements Serializable, Comparable, Cloneable, XML
       parseContents(tag);
    }
 
+   @Override
+   public void parseXML(Element tag, boolean isSiteAdminImport) throws Exception {
+      parseAttributes(tag, isSiteAdminImport);
+      parseContents(tag, isSiteAdminImport);
+   }
+
    /**
     * Write attributes.
     * @param writer the destination print writer.
@@ -437,6 +444,10 @@ public class RepositoryEntry implements Serializable, Comparable, Cloneable, XML
     * Method to parse attributes.
     */
    public void parseAttributes(Element tag) throws Exception {
+      parseAttributes(tag, false);
+   }
+
+   public void parseAttributes(Element tag, boolean isSiteAdminImport) throws Exception {
       type = Integer.parseInt(Tool.getAttribute(tag, "type"));
    }
 
@@ -457,11 +468,29 @@ public class RepositoryEntry implements Serializable, Comparable, Cloneable, XML
     * Method to parse contents.
     */
    public void parseContents(Element tag) throws Exception {
+      parseContents(tag, false);
+   }
+
+   public void parseContents(Element tag, boolean isSiteAdminImport) throws Exception {
       Element elem = Tool.getChildNodeByTagName(tag, "path");
       path = Tool.byteDecode(Tool.getValue(elem));
 
+      if(isSiteAdminImport) {
+         for(String pathSection : path.split("\\^")) {
+            if(pathSection.contains(IdentityID.KEY_DELIMITER)) {
+               IdentityID updatedUser = IdentityID.getIdentityIDFromKey(pathSection);
+               updatedUser.orgID = OrganizationManager.getInstance().getCurrentOrgID();
+               path = path.replace(pathSection, updatedUser.convertToKey());
+            }
+         }
+      }
+
       elem = Tool.getChildNodeByTagName(tag, "owner");
       owner = IdentityID.getIdentityIDFromKey(Tool.byteDecode(Tool.getValue(elem)));
+
+      if(owner != null) {
+         owner.orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      }
    }
 
    /**

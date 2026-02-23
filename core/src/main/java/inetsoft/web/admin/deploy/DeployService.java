@@ -100,6 +100,15 @@ public class DeployService {
       DeployHelper helper = new DeployHelper(info, targetFolderInfo);
       final Map<AssetObject, AssetObject> changedMap = new HashMap<>();
 
+      if(OrganizationManager.getInstance().isSiteAdmin(principal)) {
+         try {
+            DeployManagerService.handleImportAsSiteAdmin(jarInfo, OrganizationManager.getInstance().getCurrentOrgID());
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to update import to current organization");
+         }
+      }
+
       List<SelectedAssetModel> selectedEntityModels = info.getSelectedEntries().stream()
          .map(entry -> {
             SelectedAssetModel.Builder builder = SelectedAssetModel.builder()

@@ -57,6 +57,7 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
       tipOptionValue = new DynamicValue2(TOOLTIP_OPTION + "", XSchema.INTEGER);
       flyoverValue = new ClazzHolder<>();
       flyClickValue = new DynamicValue("false", XSchema.BOOLEAN);
+      tipClickValue = new DynamicValue("false", XSchema.BOOLEAN);
       enableAdhocValue = new DynamicValue2("false", XSchema.BOOLEAN);
       explicitTableWidth = new DynamicValue2("false", XSchema.BOOLEAN);
       sinfo = new SortInfo();
@@ -434,6 +435,34 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
     */
    public void setFlyOnClick(boolean val) {
       flyClickValue.setRValue(val);
+   }
+
+   /**
+    * Check if only show data tip when clicked.
+    */
+   public String getTipOnClickValue() {
+      return tipClickValue.getDValue();
+   }
+
+   /**
+    * Set if only show data tip when clicked.
+    */
+   public void setTipOnClickValue(String val) {
+      tipClickValue.setDValue(val);
+   }
+
+   /**
+    * Check if only show data tip when clicked.
+    */
+   public boolean isTipOnClick() {
+      return (Boolean) tipClickValue.getRuntimeValue(true);
+   }
+
+   /**
+    * Set if only show data tip when clicked.
+    */
+   public void setTipOnClick(boolean val) {
+      tipClickValue.setRValue(val);
    }
 
    /**
@@ -900,6 +929,8 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
       writer.print(" tipOptionValue=\"" + getTipOptionValue() + "\"");
       writer.print(" flyClick=\"" + isFlyOnClick() + "\"");
       writer.print(" flyClickValue=\"" + getFlyOnClickValue() + "\"");
+      writer.print(" tipClick=\"" + isTipOnClick() + "\"");
+      writer.print(" tipClickValue=\"" + getTipOnClickValue() + "\"");
       writer.print(" enableAdhoc=\"" + isEnableAdhoc() + "\"");
       writer.print(" enableAdhocValue=\"" + getEnableAdhocValue() + "\"");
       writer.print(" explicitTableWidth=\"" + isExplicitTableWidth() + "\"");
@@ -929,6 +960,7 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
       }
 
       setFlyOnClickValue(Tool.getAttribute(elem, "flyClickValue"));
+      setTipOnClickValue(Tool.getAttribute(elem, "tipClickValue"));
 
       if((prop = getAttributeStr(elem, "enableAdhoc", "false")) != null) {
          setEnableAdhocValue(prop.equalsIgnoreCase("true"));
@@ -1090,10 +1122,11 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
    /**
     * Parse contents.
     * @param elem the specified xml element.
+    * @param isSiteAdminImport flag to force into current organization if site admin.
     */
    @Override
-   protected void parseContents(Element elem) throws Exception {
-      super.parseContents(elem);
+   protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
+      super.parseContents(elem, isSiteAdminImport);
 
       styleValue.setDValue(getContentsStr(elem, "style", null));
       titleInfo.parseXML(elem);
@@ -1101,14 +1134,14 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
 
       if(node != null) {
          hyperlinkAttr = new TableHyperlinkAttr();
-         hyperlinkAttr.parseXML((Element) node.getFirstChild());
+         hyperlinkAttr.parseXML((Element) node.getFirstChild(), isSiteAdminImport);
       }
 
       node = Tool.getChildNodeByTagName(elem, "highlightAttr");
 
       if(node != null) {
          highlightAttr = new TableHighlightAttr();
-         highlightAttr.parseXML((Element) node.getFirstChild());
+         highlightAttr.parseXML((Element) node.getFirstChild(), isSiteAdminImport);
       }
 
       node = Tool.getChildNodeByTagName(elem, "tipViewValue");
@@ -1277,6 +1310,10 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
             info.flyClickValue = (DynamicValue) flyClickValue.clone();
          }
 
+         if(tipClickValue != null) {
+            info.tipClickValue = (DynamicValue) tipClickValue.clone();
+         }
+
          if(flyoverValue != null) {
             info.flyoverValue = flyoverValue.clone();
          }
@@ -1358,6 +1395,13 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
          !Tool.equals(isFlyOnClick(), cinfo.isFlyOnClick()))
       {
          flyClickValue = cinfo.flyClickValue;
+         result = true;
+      }
+
+      if(!Tool.equals(getTipOnClickValue(), cinfo.getTipOnClickValue()) ||
+         !Tool.equals(isTipOnClick(), cinfo.isTipOnClick()))
+      {
+         tipClickValue = cinfo.tipClickValue;
          result = true;
       }
 
@@ -1477,6 +1521,8 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
       titleInfo.resetRuntimeValues();
       shrinkValue.setRValue(null);
       flyoverValue.setRValue(null);
+      flyClickValue.setRValue(null);
+      tipClickValue.setRValue(null);
       enableAdhocValue.setRValue(null);
       explicitTableWidth.setRValue(null);
       resetSizeInfo();
@@ -1590,6 +1636,7 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
    private DynamicValue alphaValue = new DynamicValue();
    private ClazzHolder<String[]> flyoverValue;
    private DynamicValue flyClickValue;
+   private DynamicValue tipClickValue;
    private Dimension maxSize = null;
    private TableHyperlinkAttr hyperlinkAttr;
    private TableHighlightAttr highlightAttr;

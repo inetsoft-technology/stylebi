@@ -48,6 +48,8 @@ export class StatPanel implements OnInit {
             }
          }
       }
+
+      this.model.labelFormats = this.model.label ? this.model.label : "";
    }
 
    onLabelChange(label: any) {

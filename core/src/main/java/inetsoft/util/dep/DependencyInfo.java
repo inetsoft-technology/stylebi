@@ -121,8 +121,12 @@ public class DependencyInfo {
          }
       }
       else if(dependency.getDependingXAsset().isVisible()) {
-         requiredBy += ", " + SUtil.getTaskNameWithoutOrg(dependency.getDependingXAsset().getPath());
-         description += " " + dependency.toString();
+         String assetPath = SUtil.getTaskNameWithoutOrg(dependency.getDependingXAsset().getPath());
+
+         if(!requiredBy.contains(assetPath)) {
+            requiredBy += ", " + assetPath;
+            description += " " + dependency;
+         }
       }
    }
 

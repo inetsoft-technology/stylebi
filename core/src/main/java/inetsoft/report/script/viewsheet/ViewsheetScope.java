@@ -1061,7 +1061,7 @@ public class ViewsheetScope extends ScriptableObject implements Cloneable, Dynam
 
    private WeakHashMap<Object, WorksheetEngine.ExceptionKey> exceptionMap = new WeakHashMap<>();
    public static final ThreadLocal<Boolean> IGNORE_EXCEPTION = new ThreadLocal<>();
-   private static final ScriptCache scriptCache = new ScriptCache(50, 60000);
+   private static final ScriptCache scriptCache = new ScriptCache(100, 60000);
    private ScriptEnv senv;
    private int mode;
    private ViewsheetSandbox box;

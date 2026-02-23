@@ -939,7 +939,7 @@ public class IdentityService {
       removeBlobStorage("__mvBlock", orgID, BlockFileStorage.Metadata.class);
       removeBlobStorage("__pdata", orgID, EmbeddedTableStorage.Metadata.class);
       removeBlobStorage("__library", orgID, LibManager.Metadata.class);
-      removeBlobStorage("__autoSave", orgID, LibManager.Metadata.class);
+      removeBlobStorage("__autoSave", orgID, AutoSaveUtils.Metadata.class);
       EmbeddedDataCacheHandler.clearOrgCache(orgID);
    }
 
@@ -952,9 +952,9 @@ public class IdentityService {
          IndexedStorage.getIndexedStorage().copyStorageData(oOrg, nOrg, rename);
 
          //FSService.copyServerNode(oOrg.getId(), nOrg.getId(), true);
-         updateBlobStorageName("__mvws", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
-         updateBlobStorageName("__pdata", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
-         updateBlobStorageName("__autoSave", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
+         updateBlobStorageName("__mvws", oOrg.getId(), nOrg.getId(), MVWorksheetStorage.Metadata.class, true);
+         updateBlobStorageName("__pdata", oOrg.getId(), nOrg.getId(), EmbeddedTableStorage.Metadata.class, true);
+         updateBlobStorageName("__autoSave", oOrg.getId(), nOrg.getId(), AutoSaveUtils.Metadata.class, true);
          updateBlobStorageName("__mvBlock", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
          MVManager.getManager().migrateStorageData(oOrg, nOrg, !rename);
 
@@ -2365,6 +2365,13 @@ public class IdentityService {
             if(!Tool.equals(oldOrgId, newOrgId)) {
                permission.removeGrantAllByOrg(oldOrgId);
             }
+         }
+         else if(permission.getOrgEditedGrantAll().containsKey(oldOrgId) &&
+            permission.getOrgEditedGrantAll().get(oldOrgId) &&
+            !Tool.equals(oldOrgId, newOrgId))
+         {
+            permission.updateGrantAllByOrg(newOrgId, true);
+            permission.removeGrantAllByOrg(oldOrgId);
          }
       }
    }

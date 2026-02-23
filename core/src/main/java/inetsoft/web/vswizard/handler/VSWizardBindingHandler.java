@@ -2379,7 +2379,6 @@ public class VSWizardBindingHandler {
             // font is set on text and should not be carried to other components (e.g. table)
             if(format.getUserDefinedFormat().isFontValueDefined()) {
                formatObj = (VSFormat) formatObj.clone();
-               formatObj.setFontValue(format.getFontValue());
             }
          }
 

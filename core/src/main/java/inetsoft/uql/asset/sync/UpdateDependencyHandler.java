@@ -412,12 +412,31 @@ public final class UpdateDependencyHandler {
             continue;
          }
 
-         if(entry != null) {
+         if(entry != null && !entry.isWorksheet()) {
             addDependencyToFile(source, entry);
          }
          else if(dependencies != null) {
             dependencies.add(AssetEntry.createAssetEntry(source));
          }
+      }
+
+      NodeList drillList = getChildNodes(doc, ".//XDrillInfo/drillPath");
+
+      for(int i = 0; i < drillList.getLength(); i++) {
+         Element drill = (Element) drillList.item(i);
+
+         if(drill == null || !String.valueOf(Hyperlink.VIEWSHEET_LINK).equals(Tool.getAttribute(drill, "linkType"))) {
+            continue;
+         }
+
+         String target = Tool.getAttribute(drill, "link");
+
+         if(Tool.isEmptyString(target)) {
+            continue;
+         }
+
+         target = SUtil.handleViewsheetLinkOrgMismatch(target, true);
+         addSourceDependency(XSourceInfo.ASSET, null, target, entry, dependencies);
       }
    }
 
@@ -469,8 +488,9 @@ public final class UpdateDependencyHandler {
          return;
       }
 
-      final boolean isCube = SourceAttr.CUBE == (type & SourceAttr.CUBE) ||
-            SourceAttr.ASSET == type && source.startsWith(Assembly.CUBE_VS);
+      final boolean isCube = (SourceAttr.CUBE == (type & SourceAttr.CUBE) ||
+            SourceAttr.ASSET == type && source.startsWith(Assembly.CUBE_VS)) &&
+            !AssetEntry.createAssetEntry(id).isViewsheet();
 
       updateDependency(id, entry, dependencies, (AssetEntry e) -> {
          if(e == null) {
@@ -897,7 +917,7 @@ public final class UpdateDependencyHandler {
          }
 
          if(linkType == Hyperlink.VIEWSHEET_LINK) {
-            dependencies.add(AssetEntry.createAssetEntry(Hyperlink.handleAssetLinkOrgMismatch(linkName, linkType)));
+            dependencies.add(AssetEntry.createAssetEntry(SUtil.handleViewsheetLinkOrgMismatch(linkName, true)));
          }
       }
    }

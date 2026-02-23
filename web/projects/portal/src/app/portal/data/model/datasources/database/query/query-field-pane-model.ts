@@ -19,4 +19,5 @@ import { QueryFieldModel } from "./query-field-model";
 
 export class QueryFieldPaneModel {
    fields: QueryFieldModel[];
+   expressionAllowed: boolean;
 }

@@ -291,6 +291,16 @@ public class ExpandableDataSet extends AbstractDataSetFilter {
       return data;
    }
 
+   /**
+    * Create a new ExpandableDataSet with the same additional dimensions and measure.s
+    */
+   public ExpandableDataSet create(DataSet base) {
+      ExpandableDataSet data = new ExpandableDataSet(base);
+      data.map = new OrderedMap<>(this.map);
+      data.measures = new HashMap<>(this.measures);
+      return data;
+   }
+
    private int bcol;
    private int brow;
    private OrderedMap<String, Object> map;

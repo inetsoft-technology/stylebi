@@ -23,9 +23,10 @@ import inetsoft.report.internal.MetaImage;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.script.LibScriptable;
 import inetsoft.report.script.formula.FormulaFunctions;
+import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.sree.SreeEnv;
-import inetsoft.uql.viewsheet.TimeInfo;
-import inetsoft.uql.viewsheet.VSFormat;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.util.*;
 import inetsoft.util.graphics.SVGSupport;
@@ -528,7 +529,18 @@ public class JavaScriptEngine {
             linemsg.append(" " + elines.elementAt(i));
          }
 
-         throw new ScriptException("(" + ex.getMessage() + ") " + linemsg);
+         ViewsheetScope vsScope = (ViewsheetScope) rscope;
+         ScriptEnv scriptEnv = vsScope.getScriptEnv();
+
+         Viewsheet viewsheet = (Viewsheet) scriptEnv.get("_viewsheet");
+         AssetEntry runtimeEntry = viewsheet.getRuntimeEntry();
+
+         String entryPath = runtimeEntry.getPath();
+         String orgId = runtimeEntry.getOrgID();
+         String viewsheetId = entryPath + "^" + orgId;
+
+         throw new ScriptException("(" + ex.getMessage() + ") " + linemsg +
+                                      " in viewsheet: " + viewsheetId);
       }
       finally {
          stack.pop();

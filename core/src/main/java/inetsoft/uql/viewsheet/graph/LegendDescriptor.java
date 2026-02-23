@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet.graph;
 
 import inetsoft.graph.aesthetic.DefaultTextFrame;
 import inetsoft.graph.aesthetic.TextFrame;
+import inetsoft.graph.guide.legend.LegendItem;
 import inetsoft.graph.internal.DimensionD;
 import inetsoft.graph.internal.GDefaults;
 import inetsoft.uql.XFormatInfo;
@@ -163,6 +164,20 @@ public class LegendDescriptor implements AssetObject, ContentObject {
 
    public void setIncludeZero(boolean includeZero) {
       this.includeZero = includeZero;
+   }
+
+   /**
+    * Get the symbol size for legend items.
+    */
+   public int getSymbolSize() {
+      return symbolSize;
+   }
+
+   /**
+    * Set the symbol size for legend items.
+    */
+   public void setSymbolSize(int symbolSize) {
+      this.symbolSize = Math.max(6, Math.min(50, symbolSize));
    }
 
    /**
@@ -443,7 +458,8 @@ public class LegendDescriptor implements AssetObject, ContentObject {
 
       return logScale == des.logScale && reversed == des.reversed &&
          visible == des.visible && notShowNull == des.notShowNull &&
-         titleVisible == des.titleVisible && maxModeVisible == des.maxModeVisible;
+         titleVisible == des.titleVisible && maxModeVisible == des.maxModeVisible &&
+         symbolSize == des.symbolSize;
    }
 
    /**
@@ -485,6 +501,7 @@ public class LegendDescriptor implements AssetObject, ContentObject {
       writer.print(" titleVisible=\"" + titleVisible + "\" ");
       writer.print(" notShowNull=\"" + notShowNull + "\" ");
       writer.print(" includeZero=\"" + includeZero + "\" ");
+      writer.print(" symbolSize=\"" + symbolSize + "\" ");
    }
 
    /**
@@ -618,6 +635,17 @@ public class LegendDescriptor implements AssetObject, ContentObject {
 
       if(val != null) {
          includeZero = "true".equals(val);
+      }
+
+      val = Tool.getAttribute(tag, "symbolSize");
+
+      if(val != null) {
+         try {
+            symbolSize = Integer.parseInt(val);
+         }
+         catch(NumberFormatException ex) {
+            LOG.error("Failed to parse symbolSize: " + val, ex);
+         }
       }
    }
 
@@ -857,6 +885,18 @@ public class LegendDescriptor implements AssetObject, ContentObject {
          return legends[legends.length - 1].getTextFrame();
       }
 
+      @Override
+      public int getSymbolSize() {
+         return legends[legends.length - 1].getSymbolSize();
+      }
+
+      @Override
+      public void setSymbolSize(int symbolSize) {
+         for(LegendDescriptor legend : legends) {
+            legend.setSymbolSize(symbolSize);
+         }
+      }
+
       private LegendDescriptor[] legends;
    }
 
@@ -882,6 +922,7 @@ public class LegendDescriptor implements AssetObject, ContentObject {
    private boolean titleVisible = true;
    private boolean notShowNull = false;
    private boolean includeZero = false;
+   private int symbolSize = LegendItem.DEFAULT_SYMBOL_SIZE;
 
    private static final Logger LOG = LoggerFactory.getLogger(LegendDescriptor.class);
 }

@@ -50,6 +50,15 @@ public class GDataRuntime extends TabularRuntime {
       GDataQuery gdataQuery = (GDataQuery) query;
       GDataDataSource ds = (GDataDataSource) query.getDataSource();
 
+      if(gdataQuery.getSpreadsheet().getSelectedFile() == null) {
+         table.complete();
+         table.dispose();
+         String msg = ResourceBundle.getBundle("inetsoft.uql.gdata.Bundle")
+            .getString("error.nullSheet");
+         Tool.addUserMessage(msg);
+         return new XTableTableNode(table);
+      }
+
       try {
          Sheets service = getSheets(ds, true);
          Spreadsheet spreadsheet = service.spreadsheets()
@@ -196,12 +205,6 @@ public class GDataRuntime extends TabularRuntime {
          LOG.error("Failed to execute Google query: {}", ds.getName(), ex);
          String msg = "Failed to execute Google query: " + ds.getName() +
             " (" + ex.getMessage() + ")";
-
-         if(gdataQuery.getSpreadsheet().getSelectedFile() == null) {
-            msg = ResourceBundle.getBundle("inetsoft.uql.gdata.Bundle")
-               .getString("error.nullSheet");
-         }
-
          Tool.addUserMessage(msg);
          handleError(params, ex, () -> null);
       }

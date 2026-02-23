@@ -22,6 +22,7 @@ import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { BehaviorSubject, Subject } from "rxjs";
+import { ScheduleTaskNamesService } from "../../../../../../shared/schedule/schedule-task-names.service";
 import { TestUtils } from "../../../common/test/test-utils";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
 import { ReplaceAllPipe } from "../../../widget/pipe/replace-all.pipe";
@@ -63,6 +64,10 @@ describe("Schedule Task Dialog Unit Test", () => {
    httpService.get.mockImplementation(() => responseObservable);
    httpService.post.mockImplementation(() => responseObservable);
 
+   let scheduleTaskNamesService: any = { getAllTasks: jest.fn() };
+   let allTasksObservable = new BehaviorSubject([]);
+   scheduleTaskNamesService.getAllTasks.mockImplementation(() => allTasksObservable);
+
    beforeEach(async(() => {
       TestBed.configureTestingModule({
          imports: [
@@ -73,7 +78,10 @@ describe("Schedule Task Dialog Unit Test", () => {
             TaskOptionsPane, EnterSubmitDirective, ParameterTable, EditableTableComponent,
             AddParameterDialog
          ],
-         providers: [{ provide: HttpClient, useValue: httpService }],
+         providers: [
+            { provide: HttpClient, useValue: httpService },
+            { provide: ScheduleTaskNamesService, useValue: scheduleTaskNamesService }
+         ],
          schemas: [ NO_ERRORS_SCHEMA ]
       });
       TestBed.compileComponents();

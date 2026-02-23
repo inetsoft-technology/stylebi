@@ -281,7 +281,9 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             type == ResourceType.SCHEDULE_OPTION ||
             type == ResourceType.PORTAL_REPOSITORY_TREE_DRAG_AND_DROP ||
             type == ResourceType.MATERIALIZATION ||
-            type == ResourceType.CHART_TYPE_FOLDER)
+            type == ResourceType.CHART_TYPE_FOLDER ||
+            type == ResourceType.WORKSHEET_EXPRESSION_COLUMN ||
+            type == ResourceType.VIEWSHEET_CALCULATED_FIELD)
          {
             return true;
          }

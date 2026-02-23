@@ -23,4 +23,16 @@ export class BindingModel {
    sqlMergeable: boolean;
    availableFields: Array<DataRef>;
    type: string;
+   tables: Array<SourceTable>;
+}
+
+export class SourceTable {
+   name: string;
+   columns: Array<SourceTableColumn>;
+}
+
+export class SourceTableColumn {
+   name: string;
+   dataType: string;
+   description: string;
 }

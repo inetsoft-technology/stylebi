@@ -325,7 +325,7 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    }
 
    removeTasks(): void {
-      let body = (this.selection.selected.length == 1) ? `_#(js:em.schedule.delete.confirm)` : `_#(js:em.schedule.deleteMultiple.confirm)`;
+      let body = (this.selection.selected.length == 1) ? `_#(js:em.schedule.delete.task.confirm)` : `_#(js:em.schedule.deleteMultiple.task.confirm)`;
       const dialogRef = this.dialog.open(MessageDialog, this.setConfigs(`_#(js:Confirmation)`, body, MessageDialogType.DELETE));
       dialogRef.afterClosed().subscribe(result => {
          if(result) {
@@ -1094,7 +1094,16 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    }
 
    public getDateLabel(dateNumber: number): string {
-      return DateTypeFormatter.getLocalTime(dateNumber,  this.dateTimeFormat);
+      const formatted = DateTypeFormatter.getLocalTime(dateNumber, this.dateTimeFormat);
+
+      if(formatted) {
+         const tz = new Intl.DateTimeFormat("en", {timeZoneName: "short"})
+            .formatToParts(new Date())
+            .find(p => p.type === "timeZoneName")?.value;
+         return tz ? `${formatted} (${tz})` : formatted;
+      }
+
+      return formatted;
    }
 
    public getLabel(fieldName: string, fieldValue: number): string {

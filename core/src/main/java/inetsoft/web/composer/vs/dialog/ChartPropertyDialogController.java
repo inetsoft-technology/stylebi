@@ -21,6 +21,8 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.graph.GraphTarget;
 import inetsoft.report.composition.graph.GraphUtil;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AbstractDataRef;
@@ -108,7 +110,13 @@ public class ChartPropertyDialogController {
                                                                Principal principal)
       throws Exception
    {
-      runtimeId = Tool.byteDecode(runtimeId);
+      String decodedRuntimeId = Tool.byteDecode(runtimeId);
+
+      return VSUtil.globalShareVsRunInHostScope(decodedRuntimeId, principal,
+                                                () -> getChartPropertyDialogModel0(objectId, decodedRuntimeId, principal));
+   }
+
+   public ChartPropertyDialogModel getChartPropertyDialogModel0(String objectId, String runtimeId, Principal principal) throws Exception {
       RuntimeViewsheet rvs;
       Viewsheet vs;
       ChartVSAssembly chartAssembly;
@@ -188,6 +196,7 @@ public class ChartPropertyDialogController {
       String[] flyoverViews = chartAssemblyInfo.getFlyoverViewsValue();
       tipPaneModel.setFlyOverViews(flyoverViews == null ? new String[0] : flyoverViews);
       tipPaneModel.setFlyOnClick(Boolean.valueOf(chartAssemblyInfo.getFlyOnClickValue()));
+      tipPaneModel.setTipOnClick(Boolean.valueOf(chartAssemblyInfo.getTipOnClickValue()));
       tipPaneModel.setPopComponents(
          this.vsObjectPropertyService.getSupportedTablePopComponents(
             rvs, chartAssemblyInfo.getAbsoluteName(), false));
@@ -243,14 +252,14 @@ public class ChartPropertyDialogController {
 
       tipCustomizeDialogModel.setLineChart(!vsChartInfo.isMultiStyles() &&
                                               (chartStyle == GraphTypes.CHART_LINE ||
-                                              chartStyle == GraphTypes.CHART_LINE_STACK ||
-                                              chartStyle == GraphTypes.CHART_STEP ||
-                                              chartStyle == GraphTypes.CHART_STEP_STACK ||
-                                              chartStyle == GraphTypes.CHART_JUMP ||
-                                              chartStyle == GraphTypes.CHART_STEP_AREA ||
-                                              chartStyle == GraphTypes.CHART_STEP_AREA_STACK ||
-                                              chartStyle == GraphTypes.CHART_AREA ||
-                                              chartStyle == GraphTypes.CHART_AREA_STACK));
+                                                 chartStyle == GraphTypes.CHART_LINE_STACK ||
+                                                 chartStyle == GraphTypes.CHART_STEP ||
+                                                 chartStyle == GraphTypes.CHART_STEP_STACK ||
+                                                 chartStyle == GraphTypes.CHART_JUMP ||
+                                                 chartStyle == GraphTypes.CHART_STEP_AREA ||
+                                                 chartStyle == GraphTypes.CHART_STEP_AREA_STACK ||
+                                                 chartStyle == GraphTypes.CHART_AREA ||
+                                                 chartStyle == GraphTypes.CHART_AREA_STACK));
 
       ChartAdvancedPaneModel chartAdvancedPaneModel = result.getChartAdvancedPaneModel();
 
@@ -266,14 +275,14 @@ public class ChartPropertyDialogController {
       ChartTargetLinesPaneModel linesModel = new ChartTargetLinesPaneModel();
       linesModel.setMapInfo(chartAssemblyInfo.getVSChartInfo() instanceof MapInfo);
       linesModel.setSupportsTarget(this.chartPropertyService.
-         supportsTarget(vsChartInfo, ChartPropertyService.NO_TARGET_STYLES));
+                                      supportsTarget(vsChartInfo, ChartPropertyService.NO_TARGET_STYLES));
       boolean appliedDateComparison = DateComparisonUtil.appliedDateComparison(chartAssemblyInfo);
       linesModel.setChartTargets(this.chartPropertyService.
-         getTargetInfoList(chartDescriptor, vsChartInfo, appliedDateComparison || hasDynamic(vsChartInfo)));
+                                    getTargetInfoList(chartDescriptor, vsChartInfo, appliedDateComparison || hasDynamic(vsChartInfo)));
       linesModel.setNewTargetInfo(this.chartPropertyService.
-         getTargetInfo(vsChartInfo, new GraphTarget(), appliedDateComparison || hasDynamic(vsChartInfo)));
+                                     getTargetInfo(vsChartInfo, new GraphTarget(), appliedDateComparison || hasDynamic(vsChartInfo)));
       linesModel.setAvailableFields(this.chartPropertyService.getMeasures(vsChartInfo,
-         appliedDateComparison || hasDynamic(vsChartInfo)));
+                                                                          appliedDateComparison || hasDynamic(vsChartInfo)));
       chartAdvancedPaneModel.setChartTargetLinesPaneModel(linesModel);
       result.setChartAdvancedPaneModel(chartAdvancedPaneModel);
 
@@ -452,6 +461,7 @@ public class ChartPropertyDialogController {
                                                   viewsheet.getViewsheet());
       assemblyInfo.setFlyoverViewsValue(flyovers);
       assemblyInfo.setFlyOnClickValue(tipPaneModel.isFlyOnClick() + "");
+      assemblyInfo.setTipOnClickValue(tipPaneModel.isTipOnClick() + "");
       vsChartInfo.setTooltipVisible(true);
 
       if(tipModel.getCustomRB() == TipCustomizeDialogModel.TipFormat.NONE) {

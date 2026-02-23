@@ -617,7 +617,6 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
                      tvs.parseState(element);
                      updateVSAssembly((VSAssembly) assemblies.get(i), tvs);
                      clearCache();
-                     tvs.setLastModified(System.currentTimeMillis());
                      in.close();
 
                      // clear cached absolute name since the base viewsheet doesn't
@@ -1575,13 +1574,11 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       }
 
       try {
-         Viewsheet rootVS = getRootViewsheet(this);
-
          for(Assembly assemblyItem : getAssemblies(false, false, true, false, true)) {
             VSAssembly assembly = (VSAssembly) assemblyItem;
             String assemblyName = assembly.getAbsoluteName();
-            boolean isFloat = VSUtil.isPopComponent(assemblyName, rootVS) ||
-               VSUtil.isTipView(assemblyName, rootVS);
+            boolean isFloat = VSUtil.isPopComponent(assemblyName, this) ||
+               VSUtil.isTipView(assemblyName, this);
 
             if(!includeAnnotation) {
                if(assembly instanceof AnnotationVSAssembly ||
@@ -4140,6 +4137,11 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
     */
    @Override
    public void parseXML(Element elem) throws Exception {
+      parseXML(elem, false);
+   }
+
+   @Override
+   public void parseXML(Element elem, boolean isSiteAdminImport) throws Exception {
       // form 10.3 ViewsheetAsset begin to write "viewsheet" for root, so
       // VS10_2Transformer need to append "viewsheet" node, but when open
       // an old version viewsheet directly, we should not contain the viewsheet
@@ -4162,7 +4164,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          }
 
          VSAssembly assembly =
-            AbstractVSAssembly.createVSAssembly(anode, this);
+            AbstractVSAssembly.createVSAssembly(anode, this, isSiteAdminImport);
 
          if(assembly == null) {
             continue;

@@ -17,6 +17,8 @@
  */
 package inetsoft.web.portal.controller.database;
 
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.XFormatInfo;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.jdbc.JDBCDataSource;
@@ -53,8 +55,8 @@ public class QueryController extends WorksheetController {
    }
 
    @GetMapping("/api/data/datasource/query/query-model")
-   public AdvancedSQLQueryModel getQueryModel(@RequestParam("runtimeId") String runtimeId) {
-      return queryManager.getQueryModel(runtimeId);
+   public AdvancedSQLQueryModel getQueryModel(@RequestParam("runtimeId") String runtimeId, Principal principal) {
+      return queryManager.getQueryModel(runtimeId, principal);
    }
 
    @PostMapping("/api/data/datasource/query/update")
@@ -141,8 +143,14 @@ public class QueryController extends WorksheetController {
                            @RequestParam("expression") String expression,
                            @RequestParam(value = "columnName", required = false) String columnName,
                            @RequestParam(value = "columnAlias", required = false) String columnAlias,
-                           @RequestParam("add") boolean add, Principal principal)
+                           @RequestParam("add") boolean add, Principal principal) throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(
+         principal, ResourceType.WORKSHEET_EXPRESSION_COLUMN, "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("You do not have permission to modify expression columns.");
+      }
+
       return queryManager.saveExpression(runtimeId, expression, columnName, columnAlias, add,
          principal);
    }
@@ -226,7 +234,7 @@ public class QueryController extends WorksheetController {
          runtimeQueryService.getRuntimeQuery(event.getRuntimeId());
       UpdateFreeFormSQLPaneResult result = new UpdateFreeFormSQLPaneResult();
       result.setErrorMsg(errorMsg);
-      result.setModel(queryManager.getAdvancedQueryModel(runtimeQuery));
+      result.setModel(queryManager.getAdvancedQueryModel(runtimeQuery, principal));
       return result;
    }
 

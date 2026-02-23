@@ -71,6 +71,11 @@ public class JobCompletionListener extends JobListenerSupport {
          TaskActivity activity = new TaskActivity(taskName);
          Scheduler scheduler = Scheduler.getScheduler();
          Catalog catalog = Catalog.getCatalog();
+
+         boolean runNow = context.getMergedJobDataMap().getBoolean("runNow");
+         ScheduleStatusDao dao = ScheduleStatusDao.getInstance();
+         dao.setStatus(taskName, Scheduler.Status.STARTED, context.getFireTime().getTime(),
+                       0L, null, runNow);
          scheduler.updateRunning(jobKey, activity, null, context, catalog);
          scheduler.updateNextRun(jobKey, activity, true, catalog);
          TaskActivityMessage message = new TaskActivityMessage();

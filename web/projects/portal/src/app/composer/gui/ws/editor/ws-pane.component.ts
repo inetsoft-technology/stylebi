@@ -35,6 +35,8 @@ import {
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { fromEvent, merge, Subscription } from "rxjs";
 import { filter, map } from "rxjs/operators";
+import { AiAssistantService } from "../../../../../../../shared/ai-assistant/ai-assistant.service";
+import { AiAssistantDialogService } from "../../../../common/services/ai-assistant-dialog.service";
 import { AssetEntry } from "../../../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../../../shared/data/asset-type";
 import { DownloadService } from "../../../../../../../shared/download/download.service";
@@ -162,8 +164,17 @@ const TABLE_DATA_COUNT_MILLISECOND_DELAY = 500;
    ]
 })
 export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnInit, OnChanges {
+   _worksheet: Worksheet;
    /** The worksheet currently in view */
-   @Input() worksheet: Worksheet;
+   @Input() set worksheet(worksheet: Worksheet) {
+      this._worksheet = worksheet;
+      this.aiAssistantDialogService.setWorksheetContext(worksheet);
+   }
+
+   get worksheet(): Worksheet {
+      return this._worksheet;
+   }
+
    @Input() pasteEnabled: boolean;
    @Input() set active(active: boolean) {
       if(active) {
@@ -241,7 +252,13 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       this.gettingStartedService.showGettingStartedMessage = show;
    }
 
-   constructor(private resizeHandlerService: ResizeHandlerService,
+   get expressionColumnEnabled(): boolean {
+      return this.composerToolbarService.expressionColumnEnabled;
+   }
+
+   constructor(private aiAssistantService: AiAssistantService,
+               private aiAssistantDialogService: AiAssistantDialogService,
+               private resizeHandlerService: ResizeHandlerService,
                private changeDetector: ChangeDetectorRef,
                private worksheetClient: ViewsheetClientService,
                private modalService: NgbModal,
@@ -870,6 +887,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       this.composerToolbarService.sqlEnabled = command.sqlEnabled;
       this.composerToolbarService.freeFormSqlEnabled = command.freeFormSqlEnabled;
       this.composerToolbarService.crossJoinEnabled = command.crossJoinEnabled;
+      this.composerToolbarService.expressionColumnEnabled = command.expressionColumnEnabled;
    }
 
    private processRefreshWorksheetCommand(command: RefreshWorksheetCommand): void {
@@ -1166,6 +1184,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       const table = tables[index];
 
       if(table) {
+         table.duration = command.duration;
          table.rowsCompleted = command.completed;
          table.totalRows = command.count;
          table.exceededMaximum = command.exceededMsg;

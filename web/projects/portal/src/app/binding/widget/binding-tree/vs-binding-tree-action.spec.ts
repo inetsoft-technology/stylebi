@@ -38,11 +38,13 @@ describe("vs binding tree action unit case", () => {
       dialogService = { open: jest.fn() };
       treeService = {
          getTableName: jest.fn(),
-         getParent: jest.fn()
+         getParent: jest.fn(),
+         isCalculatedFieldEnabled: jest.fn()
       };
       modelService = { getModel: jest.fn() };
 
       treeService.getTableName.mockImplementation(() => null);
+      treeService.isCalculatedFieldEnabled.mockImplementation(() => true);
    });
 
    //Bug #18653 should pop up confirm dialog when remove calc field.

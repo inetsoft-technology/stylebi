@@ -60,6 +60,19 @@
       </div>
     </div>
   </fieldset>
+  <fieldset>
+    <legend>_#(Symbol)</legend>
+    <div class="form-row-float-label row">
+      <div class="col-6 form-floating">
+        <input type="number" class="form-control" id="symbolSize"
+               [ngModelOptions]="{standalone: true}"
+               [(ngModel)]="model.symbolSize"
+               [min]="6" [max]="50"
+               placeholder="_#(Symbol Size)">
+        <label for="symbolSize">_#(Symbol Size)</label>
+      </div>
+    </div>
+  </fieldset>
   <fieldset *ngIf="model.notShowNullVisible">
     <legend>_#(Options)</legend>
     <div class="form-row-float-label row">

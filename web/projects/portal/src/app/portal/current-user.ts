@@ -23,6 +23,7 @@ export interface CurrentUser {
    isSysAdmin: boolean;
    org?: string;
    alias: string;
+   email?: string[];
    localeLanguage: string;
    localeCountry: string;
 }

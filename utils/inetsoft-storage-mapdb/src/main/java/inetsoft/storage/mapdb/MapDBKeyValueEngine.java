@@ -161,11 +161,19 @@ public class MapDBKeyValueEngine implements KeyValueEngine {
 
    @Override
    public <T> void putAll(String id, Map<String, T> keyValueMap) {
+      if(keyValueMap.isEmpty()) {
+         return;
+      }
+
       updateAll(id, keyValueMap, null);
    }
 
    @Override
    public void removeAll(String id, Set<String> keys) {
+      if(keys.isEmpty()) {
+         return;
+      }
+
       updateAll(id, null, keys);
    }
 
