@@ -118,7 +118,6 @@ import { DragService } from "../../../../widget/services/drag.service";
 import { FontService } from "../../../../widget/services/font.service";
 import { ModelService } from "../../../../widget/services/model.service";
 import { ScaleService } from "../../../../widget/services/scale/scale-service";
-import { ViewsheetNotificationsService } from "../../../../widget/services/viewsheet-notifications.service";
 import {
    ComposerDialogServiceFactory,
    DialogService
@@ -293,7 +292,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
    selectionBorderOffset: number = 2;
    snapOffset = 0;
    consoleMessages: ConsoleMessage[] = [];
-   newConsoleMessages: boolean = false;
+   newInfoConsoleMessages: boolean = false;
    hideNotifications: boolean = false;
    guideLineColor: string;
    autoFocusSearchTimeout: any;
@@ -464,8 +463,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
                private resizeHandlerService: ResizeHandlerService,
                private composerVsSearchService: ComposerVsSearchService,
                private appInfoService: AppInfoService,
-               private fontService: FontService,
-               private vsNotificationsService: ViewsheetNotificationsService)
+               private fontService: FontService)
    {
       super(viewsheetClient, zone, true);
       actionFactory.stateProvider = {
@@ -477,9 +475,6 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
          this.orgInfo = orgInfo;
       }));
 
-      this.subscriptions.add(this.vsNotificationsService.hideNotifications$.subscribe((value) => {
-         this.hideNotifications = value;
-      }));
    }
 
    getAssemblyName(): string {
@@ -789,6 +784,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.vs.snapGrid = command.info["snapGrid"];
       this.hasScript = command.hasScript;
       this.hideNotifications = !!command.hideNotifications;
+      this.newInfoConsoleMessages = false;
       this.refreshStatus();
 
       if(command.linkUri) {
@@ -1325,7 +1321,9 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
             message: command.message,
             type: command.type
          });
-         this.newConsoleMessages = true;
+         if(command.type == "INFO") {
+            this.newInfoConsoleMessages = true;
+         }
       }
    }
 
@@ -2475,7 +2473,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
          .then((messageLevels: string[]) => {
             this.vs.messageLevels = messageLevels;
          }, () => {});
-      this.newConsoleMessages = false;
+      this.newInfoConsoleMessages = false;
    }
 
    getTemplateWidth(): number {

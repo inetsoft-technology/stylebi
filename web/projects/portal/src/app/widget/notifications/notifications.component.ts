@@ -88,7 +88,7 @@ export class NotificationsComponent implements OnInit {
 
    private addAlert(message: string, type: NotificationType): void {
       // ignore duplicates or do not add if notifications are hidden and type is info
-      if(this.alertShowing(message) || (this.hideNotifications && type == "info")) {
+      if(this.alertShowing(message) || (this.hideNotifications && type === "info")) {
          return;
       }
 
