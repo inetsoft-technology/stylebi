@@ -114,6 +114,16 @@ public class SchedulerConfigurationService {
    public void setConfiguration(ScheduleConfigurationModel model, Principal principal)
       throws Exception
    {
+      // if the RMI port is changing and the scheduler is managed as a local subprocess
+      // (running off source), stop it before updating the port so the stop command can
+      // reach the scheduler on the old port. In Docker/cloud deployments the scheduler
+      // runs in a separate container and cannot be stopped from here.
+      int currentPort = ScheduleClient.getSchedulerPort();
+
+      if(currentPort != model.rmiPort() && scheduleClient.isAutoStart() && scheduleClient.isReady()) {
+         SUtil.stopScheduler(true, false);
+      }
+
       SreeEnv.setProperty("schedule.concurrency", Integer.toString(model.concurrency()));
       SreeEnv.setProperty("scheduler.rmi.port", Integer.toString(model.rmiPort()));
       SreeEnv.setProperty("scheduler.classpath", model.classpath());
