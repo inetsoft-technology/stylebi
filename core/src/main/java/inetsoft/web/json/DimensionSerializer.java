@@ -17,8 +17,9 @@
  */
 package inetsoft.web.json;
 
-import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.*;
 import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.jsontype.TypeSerializer;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 
 import java.awt.*;
@@ -45,5 +46,16 @@ public class DimensionSerializer extends StdSerializer<Dimension> {
       jsonGenerator.writeNumberField("width", dimension.width);
       jsonGenerator.writeNumberField("height", dimension.height);
       jsonGenerator.writeEndObject();
+   }
+
+   @Override
+   public void serializeWithType(Dimension value, JsonGenerator generator,
+                                 SerializerProvider provider, TypeSerializer typeSer)
+      throws IOException
+   {
+      typeSer.writeTypePrefix(generator, typeSer.typeId(value, JsonToken.START_OBJECT));
+      generator.writeNumberField("width", value.width);
+      generator.writeNumberField("height", value.height);
+      typeSer.writeTypeSuffix(generator, typeSer.typeId(value, JsonToken.START_OBJECT));
    }
 }

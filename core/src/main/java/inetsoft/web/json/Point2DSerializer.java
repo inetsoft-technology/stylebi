@@ -18,40 +18,42 @@
 package inetsoft.web.json;
 
 import com.fasterxml.jackson.core.*;
-import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.jsontype.TypeSerializer;
+import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 
+import java.awt.geom.Point2D;
 import java.io.IOException;
-import java.util.EnumSet;
 
-public class EnumSetSerializer extends JsonSerializer<EnumSet> {
-   @Override
-   public void serialize(EnumSet value, JsonGenerator gen, SerializerProvider serializers)
-      throws IOException
-   {
-      gen.writeStartArray();
-
-      for(Object item : value) {
-         Enum<?> e = (Enum) item;
-         gen.writeString(e.name());
-      }
-
-      gen.writeEndArray();
+/**
+ * Class that handles serializing {@link Point2D} objects as JSON.
+ */
+public class Point2DSerializer extends StdSerializer<Point2D> {
+   /**
+    * Creates a new instance of <tt>Point2DSerializer</tt>.
+    */
+   public Point2DSerializer() {
+      super(Point2D.class);
    }
 
    @Override
-   public void serializeWithType(EnumSet value, JsonGenerator gen,
+   public void serialize(Point2D value, JsonGenerator generator,
+                         SerializerProvider provider) throws IOException
+   {
+      generator.writeStartObject();
+      generator.writeNumberField("x", value.getX());
+      generator.writeNumberField("y", value.getY());
+      generator.writeEndObject();
+   }
+
+   @Override
+   public void serializeWithType(Point2D value, JsonGenerator generator,
                                  SerializerProvider provider, TypeSerializer typeSer)
       throws IOException
    {
-      typeSer.writeTypePrefix(gen, typeSer.typeId(value, JsonToken.START_ARRAY));
-
-      for(Object item : value) {
-         Enum<?> e = (Enum) item;
-         gen.writeString(e.name());
-      }
-
-      typeSer.writeTypeSuffix(gen, typeSer.typeId(value, JsonToken.START_ARRAY));
+      typeSer.writeTypePrefix(generator, typeSer.typeId(value, JsonToken.START_OBJECT));
+      generator.writeNumberField("x", value.getX());
+      generator.writeNumberField("y", value.getY());
+      typeSer.writeTypeSuffix(generator, typeSer.typeId(value, JsonToken.START_OBJECT));
    }
 }

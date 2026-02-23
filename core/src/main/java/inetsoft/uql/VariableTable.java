@@ -955,8 +955,8 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
             if(e.getValue().isNull()) {
                table.vartable.put(e.getKey(), null);
             }
-            else if(object.get("type") != null) {
-               String type = object.get("type").asText();
+            else if(e.getValue().get("type") != null) {
+               String type = e.getValue().get("type").asText();
                Class<?> valueClass;
 
                try {
@@ -966,7 +966,7 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
                   throw new JsonMappingException(parser, "Failed to create class " + type, ex);
                }
 
-               JsonNode valueNode = object.get("value");
+               JsonNode valueNode = e.getValue().get("value");
                Object value = ((ObjectMapper) parser.getCodec()).convertValue(valueNode, valueClass);
                table.vartable.put(e.getKey(), value);
             }

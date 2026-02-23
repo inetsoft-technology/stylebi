@@ -17,8 +17,9 @@
  */
  package inetsoft.web.json;
 
-import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.*;
 import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.jsontype.TypeSerializer;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 
 import java.awt.geom.RectangularShape;
@@ -47,5 +48,18 @@ public class RectangularShapeSerializer extends StdSerializer<RectangularShape> 
       generator.writeNumberField("width", value.getWidth());
       generator.writeNumberField("height", value.getHeight());
       generator.writeEndObject();
+   }
+
+   @Override
+   public void serializeWithType(RectangularShape value, JsonGenerator generator,
+                                 SerializerProvider provider, TypeSerializer typeSer)
+      throws IOException
+   {
+      typeSer.writeTypePrefix(generator, typeSer.typeId(value, JsonToken.START_OBJECT));
+      generator.writeNumberField("x", value.getX());
+      generator.writeNumberField("y", value.getY());
+      generator.writeNumberField("width", value.getWidth());
+      generator.writeNumberField("height", value.getHeight());
+      typeSer.writeTypeSuffix(generator, typeSer.typeId(value, JsonToken.START_OBJECT));
    }
 }

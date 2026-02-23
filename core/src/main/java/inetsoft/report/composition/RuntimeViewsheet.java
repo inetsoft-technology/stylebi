@@ -19,6 +19,7 @@ package inetsoft.report.composition;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.analytic.AnalyticAssistant;
+import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.SreeEnv;
@@ -46,8 +47,9 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
 
+import java.awt.Dimension;
 import java.awt.event.ActionListener;
-import java.io.ByteArrayOutputStream;
+import java.awt.geom.Point2D;
 import java.io.IOException;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
@@ -278,6 +280,36 @@ public class RuntimeViewsheet extends RuntimeSheet {
 
       // load base worksheet and create asset query sandbox
       resetRuntime(true);
+
+      // Re-apply scale if it was previously applied before the state was saved.
+      // The scaledPosition/scaledSize on assemblies are not persisted to XML,
+      // so we need to re-apply them from the saved scale properties.
+      // This is done after resetRuntime to ensure any resets are done first.
+      reapplyScaleFromState();
+   }
+
+   /**
+    * Re-apply scale to screen from saved state properties.
+    */
+   private void reapplyScaleFromState() {
+      Object appliedScale = getProperty("viewsheet.appliedScale");
+      Object scaleRatioObj = getProperty("viewsheet.scaleRatio");
+
+      if(appliedScale instanceof Dimension && scaleRatioObj instanceof Point2D.Double &&
+         vs != null && vs.getViewsheetInfo() != null && vs.getViewsheetInfo().isScaleToScreen())
+      {
+         Dimension size = (Dimension) appliedScale;
+         Point2D.Double scaleRatio = (Point2D.Double) scaleRatioObj;
+
+         if(size.width > 0 && size.height > 0 && scaleRatio.x > 0 && scaleRatio.y > 0) {
+            try {
+               VSEventUtil.applyScale(vs, scaleRatio, false, null, size.width, size.height, box);
+            }
+            catch(Exception e) {
+               LOG.warn("Failed to re-apply scale after restoration", e);
+            }
+         }
+      }
    }
 
    /**
