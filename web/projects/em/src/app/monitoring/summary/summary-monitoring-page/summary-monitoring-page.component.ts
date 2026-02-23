@@ -402,7 +402,7 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
             : this.serverModel.serverUpTimeMap["local"];
       }
 
-      return upTime ? upTime : "00:00:00";
+      return upTime || "";
    }
 
    get serverTime(): string {
