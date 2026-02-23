@@ -700,7 +700,8 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       const searchOffset = this.model.searchDisplayed ? this.model.titleFormat.height : 0;
       return this.inContainer ?
          this.model.objectFormat.height - this.model.titleFormat.height - searchOffset :
-         this.model.dropdown && !this.model.maxMode ? this.cellHeight * this.model.listHeight
+         this.model.dropdown && !this.model.maxMode
+            ? this.cellHeight * this.model.listHeight - searchOffset
             : this.model.objectFormat.height -
             (!this.viewer || this.model.titleVisible ? this.model.titleFormat.height : 0) - offset - searchOffset;
    }
@@ -832,7 +833,6 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       this.clearNavSelection();
       this.lastCellSelectedIndex = FocusRegions.SEARCH_BAR;
       this.updateMiniToolbarFocus(false);
-      this.model.searchDisplayed = true;
       this.changeDetectorRef.detectChanges();
       let elementRef = this.selectionListSearchInputElementRef;
 
@@ -847,8 +847,9 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       if(this.model.searchDisplayed) {
          this.onSearch();
       }
-
-      this.changeDetectorRef.detectChanges();
+      else {
+         this.changeDetectorRef.detectChanges();
+      }
    }
 
    onSearchKeyUp() {

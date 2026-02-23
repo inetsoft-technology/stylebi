@@ -104,7 +104,7 @@ export class SelectionTreeActions extends AbstractVSActions<VSSelectionTreeModel
          {
             id: () => "selection-tree search",
             label: () => this.model.searchDisplayed ? "_#(js:Hide Search)" : "_#(js:Show Search)",
-            icon: () => this.model.searchDisplayed ? "search-disable-icon" : "search-icon",
+            icon: () => this.model.searchDisplayed ? "search-disable-icon" : (this.model.searchString ? "search-result-icon" : "search-icon"),
             enabled: () => true,
             visible: () => !this.model.hidden && this.isActionVisibleInViewer("Search")
          },
