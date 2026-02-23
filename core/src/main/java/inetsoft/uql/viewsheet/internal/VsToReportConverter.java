@@ -2059,7 +2059,6 @@ public class VsToReportConverter {
       VSImage obj = new VSImage(vs);
       ImageVSAssemblyInfo imgInfo = (ImageVSAssemblyInfo) assembly.getInfo();
 
-
       if(imgInfo.getImage() != null) {
          obj.setAssemblyInfo(imgInfo);
          String path = imgInfo.getImage();
@@ -2105,6 +2104,65 @@ public class VsToReportConverter {
 
                Document doc = SVGSupport.getInstance().createSVGDocument(new ByteArrayInputStream(svg));
                Element root = doc.getDocumentElement();
+               Color svgBg = obj.getBackground();
+
+               // Center the SVG content within the layout element bounds.
+               //
+               // The SVG may be smaller than the element area (e.g. a 256x139 chart
+               // inside a 328x240 element).  We expand the SVG viewport to the layout
+               // dimensions and shift the viewBox origin so the original content sits
+               // centered, leaving transparent margins around it.  The element's
+               // configured background color (from paintBg()) then shows through those
+               // margins.  We also insert an explicit background rect that covers the
+               // full viewport so the background color is visible even inside the SVG
+               // rendering when no other fill is present.
+               String svgWStr = root.getAttribute("width");
+               String svgHStr = root.getAttribute("height");
+
+               if(!svgWStr.isEmpty() && !svgHStr.isEmpty() && root.getAttribute("viewBox").isEmpty()) {
+                  try {
+                     int svgW = Integer.parseInt(svgWStr);
+                     int svgH = Integer.parseInt(svgHStr);
+                     Dimension layoutDim = imgInfo.getLayoutSize();
+                     int lw = layoutDim != null ? layoutDim.width  : svgW;
+                     int lh = layoutDim != null ? layoutDim.height : svgH;
+
+                     // Centering offsets (may be negative if SVG is larger than layout)
+                     int ox = Math.round((lw - svgW) / 2.0f);
+                     int oy = Math.round((lh - svgH) / 2.0f);
+
+                     // viewBox origin is the negative of the offset: the SVG content
+                     // starts at (ox,oy) in the rendered output.
+                     root.setAttribute("viewBox", (-ox) + " " + (-oy) + " " + lw + " " + lh);
+                     root.setAttribute("width",  String.valueOf(lw));
+                     root.setAttribute("height", String.valueOf(lh));
+                     // "none" = no additional scaling/centering; we have done it via viewBox
+                     root.setAttribute("preserveAspectRatio", "none");
+
+                     // Background rect covering the full new viewport so the element
+                     // background color is visible in the margins around the chart.
+                     if(svgBg != null) {
+                        Element bgRect = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
+                        bgRect.setAttribute("x",      String.valueOf(-ox));
+                        bgRect.setAttribute("y",      String.valueOf(-oy));
+                        bgRect.setAttribute("width",  String.valueOf(lw));
+                        bgRect.setAttribute("height", String.valueOf(lh));
+                        bgRect.setAttribute("fill", "rgb(" + svgBg.getRed() + "," +
+                                            svgBg.getGreen() + "," + svgBg.getBlue() + ")");
+
+                        if(svgBg.getAlpha() < 255) {
+                           bgRect.setAttribute("fill-opacity",
+                                               String.valueOf(svgBg.getAlpha() / 255.0));
+                        }
+
+                        root.insertBefore(bgRect, root.getFirstChild());
+                     }
+                  }
+                  catch(NumberFormatException ignored) {
+                     // Non-integer SVG dimensions — leave SVG as-is
+                  }
+               }
+
                String alphaStr = imgInfo.getImageAlpha();
 
                if(alphaStr != null && !alphaStr.equals("100")) {
