@@ -101,6 +101,7 @@ public class HomePageController {
 
       addAdditionalStyles(model, linkUri);
       addAdditionalScripts(model, linkUri);
+      addChatAppScript(model);
       addDataSpaceTags(model, linkUri);
       addOpenGraphTags(model, linkUri, request.getRequestURI(), request.getHeader("User-Agent"));
 
@@ -232,6 +233,31 @@ public class HomePageController {
    private void addAdditionalScripts(ModelAndView model, String linkUri) {
       addAdditionalTags(
          model, "additionalScripts", SreeEnv.getProperty("portal.additional.scripts"), linkUri);
+   }
+
+   /**
+    * When {@code chat.app.server.url} is configured, injects the AI assistant web component
+    * script so that the {@code <ai-assistant>} custom element is available in the portal.
+    * The script is served by the assistant-client at
+    * {@code {chatAppServerUrl}/web-component/ai-assistant.umd.js}.
+    */
+   @SuppressWarnings({ "unchecked", "rawtypes" })
+   private void addChatAppScript(ModelAndView model) {
+      String chatAppUrl = SreeEnv.getProperty(inetsoft.web.assistant.AIAssistantController.CHAT_APP_SERVER_URL);
+
+      if(chatAppUrl == null || chatAppUrl.trim().isEmpty()) {
+         return;
+      }
+
+      chatAppUrl = chatAppUrl.trim();
+
+      if(chatAppUrl.endsWith("/")) {
+         chatAppUrl = chatAppUrl.substring(0, chatAppUrl.length() - 1);
+      }
+
+      List scripts = (List) model.getModel()
+         .computeIfAbsent("additionalScripts", k -> new ArrayList<>());
+      scripts.add(chatAppUrl + "/web-component/ai-assistant.umd.js");
    }
 
    private void addDataSpaceTags(ModelAndView model, String linkUrl) {
