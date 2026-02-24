@@ -19,7 +19,7 @@ package inetsoft.sree.web;
 
 import inetsoft.report.internal.LicenseException;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.SRPrincipal;
+import inetsoft.sree.security.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.DataSpace;
 import org.slf4j.Logger;
@@ -129,6 +129,11 @@ public class ConcurrentSessionClusterService extends AbstractSessionService {
    }
 
    private void sessionError(SRPrincipal srPrincipal) {
+      if(OrganizationManager.getInstance().isSiteAdmin(srPrincipal)) {
+         throw new SessionsExceededException(
+            "Session limit reached", buildActiveSessionInfoList());
+      }
+
       if(logoutAfterFail) {
          SUtil.logout(srPrincipal);
       }
@@ -138,6 +143,55 @@ public class ConcurrentSessionClusterService extends AbstractSessionService {
                                        catalog.getString("common.sessionsExceed"),
                                        catalog.getString("common.contactAdmin"));
       throw new LicenseException(msg);
+   }
+
+   /**
+    * {@inheritDoc}
+    */
+   @Override
+   public synchronized void newSession(SRPrincipal srPrincipal, String sessionIdToReplace) {
+      if(sessionIdToReplace != null && !sessionIdToReplace.isEmpty()) {
+         SRPrincipal toTerminate = null;
+
+         for(SRPrincipal p : clusterLicenses.keySet()) {
+            if(sessionIdToReplace.equals(p.getSessionID())) {
+               toTerminate = p;
+               break;
+            }
+         }
+
+         if(toTerminate != null) {
+            // SUtil.logout() will fire SessionListeners, which will call releaseSession()
+            // on this manager via AbstractSessionService.loggedOut(). Java synchronized is
+            // reentrant so this is safe on the same thread.
+            SUtil.logout(toTerminate);
+         }
+      }
+
+      newSession(srPrincipal);
+   }
+
+   private List<ActiveSessionInfo> buildActiveSessionInfoList() {
+      List<ActiveSessionInfo> list = new ArrayList<>();
+
+      for(SRPrincipal p : clusterLicenses.keySet()) {
+         String sessionId = p.getSessionID();
+         String username = IdentityID.getIdentityIDFromKey(p.getName()).getName();
+         long loginTime = 0;
+         String loginTimeStr = p.getProperty(SUtil.LONGON_TIME);
+
+         if(loginTimeStr != null && !loginTimeStr.isEmpty()) {
+            try {
+               loginTime = Long.parseLong(loginTimeStr);
+            }
+            catch(NumberFormatException ignore) {
+            }
+         }
+
+         list.add(new ActiveSessionInfo(sessionId, username, loginTime));
+      }
+
+      return list;
    }
 
    private int getMaxSessions() {

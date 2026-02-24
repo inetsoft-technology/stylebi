@@ -108,6 +108,11 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
             if(principals.size() > getMaxSessions()) {
                principals.remove(srPrincipal);
 
+               if(OrganizationManager.getInstance().isSiteAdmin(srPrincipal)) {
+                  throw new SessionsExceededException(
+                     "Session limit reached", buildActiveSessionInfoList());
+               }
+
                if(logoutAfterFailure) {
                   SUtil.logout(srPrincipal);
                }
@@ -121,6 +126,55 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
                throw new LicenseException(msg);
             }
          }
+      }
+
+      /**
+       * {@inheritDoc}
+       */
+      @Override
+      public synchronized void newSession(SRPrincipal srPrincipal, String sessionIdToReplace) {
+         if(sessionIdToReplace != null && !sessionIdToReplace.isEmpty()) {
+            SRPrincipal toTerminate = null;
+
+            for(SRPrincipal p : principals) {
+               if(sessionIdToReplace.equals(p.getSessionID())) {
+                  toTerminate = p;
+                  break;
+               }
+            }
+
+            if(toTerminate != null) {
+               // SUtil.logout() will fire SessionListeners, which will call releaseSession()
+               // on this manager via AbstractSessionService.loggedOut(). Java synchronized is
+               // reentrant so this is safe on the same thread.
+               SUtil.logout(toTerminate);
+            }
+         }
+
+         newSession(srPrincipal);
+      }
+
+      private List<ActiveSessionInfo> buildActiveSessionInfoList() {
+         List<ActiveSessionInfo> list = new ArrayList<>();
+
+         for(SRPrincipal p : principals) {
+            String sessionId = p.getSessionID();
+            String username = IdentityID.getIdentityIDFromKey(p.getName()).getName();
+            long loginTime = 0;
+            String loginTimeStr = p.getProperty(SUtil.LONGON_TIME);
+
+            if(loginTimeStr != null && !loginTimeStr.isEmpty()) {
+               try {
+                  loginTime = Long.parseLong(loginTimeStr);
+               }
+               catch(NumberFormatException ignore) {
+               }
+            }
+
+            list.add(new ActiveSessionInfo(sessionId, username, loginTime));
+         }
+
+         return list;
       }
 
       /**
@@ -242,10 +296,48 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
          try {
             sessionService.newSession(srPrincipal);
          }
+         catch(SessionsExceededException se) {
+            throw se;
+         }
          catch(LicenseException le) {
             sessionError(srPrincipal, le);
          }
 
+      }
+
+      /**
+       * {@inheritDoc}
+       */
+      @Override
+      public void newSession(SRPrincipal srPrincipal, String sessionIdToReplace) {
+         Set<IdentityID> namedUsers = LicenseManager.getInstance().getNamedUsers();
+         ClientInfo info = srPrincipal.getUser();
+         IdentityID loginUser = info.getLoginUserID();
+
+         if(loginUser.equalsIgnoreCase(info.getUserIdentity())) {
+            loginUser = info.getUserIdentity();
+         }
+
+         if(namedUsers != null && !namedUsers.contains(loginUser)) {
+            if(logoutAfterFailure) {
+               SUtil.logout(srPrincipal);
+            }
+
+            LicenseManager.getInstance().addKeyViolation(
+               "Named user exception - " + loginUser, null);
+            throw new UnlicensedUserNameException(Catalog.getCatalog(srPrincipal).
+               getString("Named User Not Allowed", loginUser.getName()));
+         }
+
+         try {
+            sessionService.newSession(srPrincipal, sessionIdToReplace);
+         }
+         catch(SessionsExceededException se) {
+            throw se;
+         }
+         catch(LicenseException le) {
+            sessionError(srPrincipal, le);
+         }
       }
 
       /**

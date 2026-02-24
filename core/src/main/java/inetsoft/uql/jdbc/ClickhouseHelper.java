@@ -68,4 +68,14 @@ public class ClickhouseHelper extends SQLHelper {
 
       return super.isKeyword(word);
    }
+
+   /**
+    * ClickHouse uses map key access syntax (e.g. m['key']) that cannot be backtick-quoted
+    * as a column reference in an outer subquery SELECT. Enable the safe-alias workaround
+    * in SQLHelper so the outer query references __col_N__ aliases instead.
+    */
+   @Override
+   protected boolean supportsMapKeySubqueryAliasing() {
+      return true;
+   }
 }

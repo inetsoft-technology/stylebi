@@ -172,8 +172,8 @@ public class ComposerViewsheetService {
             .savePoint(rvs.getSavePoint())
             .id(entry.toIdentifier())
             .build();
-         dispatcher.sendCommand(command);
          coreLifecycleService.setViewsheetInfo(rvs, linkUri, dispatcher);
+         dispatcher.sendCommand(command);
          return true;
       }
       catch(Exception ex) {

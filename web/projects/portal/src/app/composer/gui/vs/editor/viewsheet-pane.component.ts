@@ -33,6 +33,7 @@ import {
 } from "@angular/core";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { Subject, Subscription } from "rxjs";
+import { filter } from "rxjs/operators";
 import { AiAssistantService } from "../../../../../../../shared/ai-assistant/ai-assistant.service";
 import { AiAssistantDialogService } from "../../../../common/services/ai-assistant-dialog.service";
 import { AssetEntry, createAssetEntry } from "../../../../../../../shared/data/asset-entry";
@@ -357,11 +358,11 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       return draggableRestrictionRect;
    };
 
-   private focusedObjectsSubject: Subscription;
+   private focusedObjectsSubject: Subscription = Subscription.EMPTY;
    private click: boolean = false;
    private confirmExpiredDisplayed: boolean = false;
-   private heartbeatSubscription: Subscription;
-   private renameTransformSubscription: Subscription;
+   private heartbeatSubscription: Subscription = Subscription.EMPTY;
+   private renameTransformSubscription: Subscription = Subscription.EMPTY;
    private transformSubscription: Subscription;
    private loadingEventCount: number = 0;
    private resizeTimeout: any = null;
@@ -503,6 +504,12 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.heartbeatSubscription = this.viewsheetClient.onHeartbeat.subscribe(() => {
          this.touchAsset();
       });
+
+      this.subscriptions.add(this.viewsheetClient.connectionError().pipe(
+         filter(err => !!err)
+      ).subscribe(() => {
+         this.vs.saving = false;
+      }));
 
       this.renameTransformSubscription = this.viewsheetClient.onRenameTransformFinished.subscribe(
          (message) => {
@@ -955,6 +962,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.vs.savePoint = command.savePoint;
       this.vs.id = command.id;
       this.notifications.success("_#(js:common.viewsheet.saveSuccess)");
+      this.vs.saving = false;
 
       if(this.vs.gettingStarted) {
          this.onOpenVSOnPortal.emit(this.vs.id);
@@ -1302,6 +1310,10 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
          this.notifications.info(command.message);
       }
       else {
+         if(command.type === "ERROR") {
+            this.vs.saving = false;
+         }
+
          this.processMessageCommand0(command, this.modalService, this.viewsheetClient);
       }
 

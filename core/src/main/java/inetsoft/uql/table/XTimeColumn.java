@@ -130,7 +130,7 @@ public final class XTimeColumn extends AbstractTableColumn {
          if(!str.isEmpty()) {
             try {
                SimpleDateFormat format = new SimpleDateFormat("HH:mm:ss");
-               obj = format.parseObject((String) obj);
+               obj = format.parseObject(str);
             }
             catch(Exception ex) {
                LOG.error("Parse {0} failed", obj, ex);

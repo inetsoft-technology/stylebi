@@ -187,6 +187,7 @@
                       [runtimeId]="vs.runtimeId"
                       (cancelLoading)="cancelViewsheetLoading()">
   </vs-loading-display>
+  <vs-saving-display *ngIf="vs.saving"></vs-saving-display>
 </div>
 
 <notifications #notifications class="notifications-viewsheet-pane" [timeout]="5000"></notifications>

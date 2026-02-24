@@ -98,22 +98,44 @@ services:
       retries: 10
       start_period: 20s
       timeout: 10s
+  scheduler:
+    image: "${inetsoft.docker.repository}/stylebi-community:latest"
+    restart: unless-stopped
+    volumes:
+      - "inetsoft_kv:/var/lib/inetsoft/kv"
+      - "inetsoft_blob:/var/lib/inetsoft/blob"
+      - "inetsoft_files:/var/lib/inetsoft/files"
+    environment:
+      # Java command line options, overridden to set min and max heap memory
+      JAVA_MEMORY_OPTS: "-Xms2g -Xmx2g"
+      <<: *sharedenv
+    command:
+      - "scheduler"
+    depends_on:
+      server:
+        condition: service_healthy
+    healthcheck:
+      test: "/usr/local/inetsoft/bin/probe-scheduler.sh readiness"
+      interval: 20s
+      retries: 10
+      start_period: 20s
+      timeout: 10s
 volumes:
   inetsoft_kv:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: "${inetsoft.docker.directory}/docker-test/local/kv"
+      device: "${inetsoft.docker.directory}/docker-test/kv"
   inetsoft_blob:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: "${inetsoft.docker.directory}/docker-test/local/blob"
+      device: "${inetsoft.docker.directory}/docker-test/blob"
   inetsoft_files:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: "${inetsoft.docker.directory}/docker-test/local/files"
+      device: "${inetsoft.docker.directory}/docker-test/files"

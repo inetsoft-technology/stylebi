@@ -402,18 +402,15 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
             : this.serverModel.serverUpTimeMap["local"];
       }
 
-      return upTime ? upTime : "00:00:00";
+      return upTime || "";
    }
 
    get serverTime(): string {
-      let serverTime = "";
-
-      if(this.serverModel) {
-         const node = this.clusterEnabled ? this.selectedClusterNode : "local";
-         serverTime = this.serverModel.serverDateTimeMap[node];
+      if(this.serverModel && this.serverModel.timestamp) {
+         return new Date(this.serverModel.timestamp).toLocaleString();
       }
 
-      return serverTime;
+      return "";
    }
 
    get schedulerUpTime(): string {

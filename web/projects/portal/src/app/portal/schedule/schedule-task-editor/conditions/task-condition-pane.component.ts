@@ -210,6 +210,8 @@ export class TaskConditionPane implements OnInit, OnChanges {
    localTimeZoneId: string;
    localTimeZoneLabel: string;
 
+   private readonly COPY_OF_PREFIX = "_#(js:Copy of) ";
+
    get startTime(): NgbTimeStruct {
       return this._startTime;
    }
@@ -638,6 +640,32 @@ export class TaskConditionPane implements OnInit, OnChanges {
       this.model.taskDefaultTime = this.taskDefaultTimeProperty;
       this.updateValues();
       this.listView = false;
+   }
+
+   public copyCondition(): void {
+      if(this.selectedConditions.length !== 1) {
+         return;
+      }
+
+      const sourceIndex = this.selectedConditions[0];
+      const source = this.model.conditions[sourceIndex];
+
+      if(!source) {
+         return;
+      }
+
+      const copy: ScheduleConditionModel = Tool.clone(source);
+      let baseLabel = copy.label || "_#(js:New Condition)";
+
+      while(baseLabel.startsWith(this.COPY_OF_PREFIX)) {
+         baseLabel = baseLabel.slice(this.COPY_OF_PREFIX.length);
+      }
+
+      copy.label = this.COPY_OF_PREFIX + baseLabel;
+      this.model.conditions.push(copy);
+      this.conditionIndex = this.model.conditions.length - 1;
+      this.selectedConditions = [this.conditionIndex];
+      this.listView = true;
    }
 
    public deleteCondition(): void {
