@@ -17,7 +17,7 @@
  */
 package inetsoft.web.security;
 
-import inetsoft.sree.SreeEnv;
+import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
@@ -25,6 +25,8 @@ import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URLEncoder;
@@ -128,7 +130,46 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
             }
          }
 
-         chain.doFilter(request, response);
+         // Only wrap response for potential anonymous sessions (no authenticated principal yet)
+         // This avoids overhead for authenticated users
+         boolean mayHaveAnonymousSession = principal == null ||
+            (principal.getName() != null && principal.getName().startsWith(ClientInfo.ANONYMOUS));
+
+         if(mayHaveAnonymousSession) {
+            StatusCapturingResponseWrapper responseWrapper =
+               new StatusCapturingResponseWrapper((HttpServletResponse) response);
+
+            chain.doFilter(request, responseWrapper);
+
+            // Handle fresh anonymous sessions based on response status
+            int status = responseWrapper.getStatus();
+
+            if(status >= 400) {
+               // Error response - invalidate fresh anonymous sessions to prevent
+               // bots probing invalid URLs from consuming session resources
+               invalidateFreshAnonymousSession(httpRequest);
+            }
+            else {
+               // Successful or redirect response - clear the fresh flag so session becomes established
+               clearFreshSessionFlag(httpRequest);
+            }
+         }
+         else {
+            // Authenticated user - no need to track response status
+            chain.doFilter(request, response);
+         }
+      }
+   }
+
+   /**
+    * Clears the fresh session flag after a successful response,
+    * marking the session as established.
+    */
+   private void clearFreshSessionFlag(HttpServletRequest request) {
+      HttpSession session = request.getSession(false);
+
+      if(session != null) {
+         session.removeAttribute(FRESH_ANONYMOUS_SESSION_ATTR);
       }
    }
 
@@ -144,6 +185,82 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
       return cookie;
    }
 
-   public static final String LOGIN_PAGE = "login.html";
+   /**
+    * Invalidates a fresh anonymous session after an error response (4xx/5xx).
+    * This prevents bots probing invalid URLs from consuming session resources.
+    * Only sessions marked as "fresh" (just created this request) are invalidated.
+    */
+   private void invalidateFreshAnonymousSession(HttpServletRequest request) {
+      try {
+         HttpSession session = request.getSession(false);
 
+         if(session == null) {
+            return;
+         }
+
+         // Only invalidate sessions marked as fresh anonymous sessions
+         Boolean isFresh = (Boolean) session.getAttribute(FRESH_ANONYMOUS_SESSION_ATTR);
+
+         if(!Boolean.TRUE.equals(isFresh)) {
+            return;
+         }
+
+         SRPrincipal principal = (SRPrincipal) session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+
+         if(principal != null) {
+            AuthenticationService.getInstance().logout(principal, request.getRemoteAddr(), "");
+            session.removeAttribute(RepletRepository.PRINCIPAL_COOKIE);
+            session.removeAttribute(FRESH_ANONYMOUS_SESSION_ATTR);
+
+            LOG.debug("Invalidated fresh anonymous session after error response for: {}",
+                      request.getRequestURI());
+         }
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to invalidate fresh anonymous session", e);
+      }
+   }
+
+   public static final String LOGIN_PAGE = "login.html";
+   private static final Logger LOG = LoggerFactory.getLogger(DefaultAuthorizationFilter.class);
+
+   /**
+    * Response wrapper that captures the HTTP status code.
+    */
+   private static class StatusCapturingResponseWrapper extends HttpServletResponseWrapper {
+      StatusCapturingResponseWrapper(HttpServletResponse response) {
+         super(response);
+      }
+
+      @Override
+      public void setStatus(int sc) {
+         this.status = sc;
+         super.setStatus(sc);
+      }
+
+      @Override
+      public void sendError(int sc) throws IOException {
+         this.status = sc;
+         super.sendError(sc);
+      }
+
+      @Override
+      public void sendError(int sc, String msg) throws IOException {
+         this.status = sc;
+         super.sendError(sc, msg);
+      }
+
+      @Override
+      public void sendRedirect(String location) throws IOException {
+         this.status = HttpServletResponse.SC_FOUND;
+         super.sendRedirect(location);
+      }
+
+      @Override
+      public int getStatus() {
+         return status;
+      }
+
+      private int status = HttpServletResponse.SC_OK;
+   }
 }

@@ -62,6 +62,9 @@ public class SecurityHeaderFilter extends AbstractSecurityFilter {
          httpResponse.setHeader("X-Content-Type-Options", "nosniff");
       }
 
+      // Tell search engines not to index this application
+      httpResponse.setHeader("X-Robots-Tag", "noindex, nofollow");
+
       chain.doFilter(request, response);
    }
 
