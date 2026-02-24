@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -691,12 +692,12 @@ public final class XSwapper {
                   max = Math.min(max, swaplist.size);
 
                   swapCnt = 0;
-                  swapIdx = -1;
+                  swapIdx.set(-1);
                   swapMax = max;
 
                   swapRemaining();
 
-                  swapIdx = -1;
+                  swapIdx.set(-1);
                   swaplist.clear();
 
                   if(swapCnt == 0 && state == CRITICAL_MEM) {
@@ -749,8 +750,8 @@ public final class XSwapper {
       public void swapRemaining() {
          List<XSwappable> swapped = new ArrayList<>();
 
-         for(swapIdx++; swapIdx < swaplist.size; swapIdx++) {
-            XSwappable swappable = (XSwappable) swaplist.arr[swapIdx];
+         for(int idx = swapIdx.incrementAndGet(); idx < swaplist.size; idx = swapIdx.incrementAndGet()) {
+            XSwappable swappable = (XSwappable) swaplist.arr[idx];
 
             if(isCancelled()) {
                break;
@@ -816,7 +817,7 @@ public final class XSwapper {
       private Principal principal;
       private final XWeakList list = new XWeakList();
       private XObjectList swaplist = new XObjectList();
-      private int swapIdx; // the current swappable being swapped
+      private final AtomicInteger swapIdx = new AtomicInteger(-1); // the current swappable being swapped
       private int swapMax; // max items to swap
       private int swapCnt; // swapped out count
    }
