@@ -87,7 +87,8 @@ export class SummaryMonitoringChartViewComponent implements OnChanges {
       let bounds = this.chart.nativeElement.getBoundingClientRect();
 
       let url = "../em/getSummaryImage/" + this.info.name + "/" + bounds.width + "/" +
-         bounds.height + "?timestamp=" + this.timestamp;
+         bounds.height + "?timestamp=" + this.timestamp +
+         "&timezoneOffset=" + new Date().getTimezoneOffset();
 
       if(this.clusterEnabled && this.selectedClusterNode) {
          url += "&clusterNode=" + encodeURIComponent(this.selectedClusterNode);

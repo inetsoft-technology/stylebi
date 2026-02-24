@@ -166,10 +166,11 @@ public class ServerMonitoringController {
                                    @PathVariable("width") double width,
                                    @PathVariable("height") double height,
                                    @RequestParam(value = "clusterNode", required = false) String clusterNode,
+                                   @RequestParam(value = "timezoneOffset", required = false) Integer timezoneOffset,
                                    HttpServletRequest request,
                                    HttpServletResponse response) throws Exception
    {
-      Graphics2D image = generateImage(id, clusterNode, (int) width, (int) height);
+      Graphics2D image = generateImage(id, clusterNode, (int) width, (int) height, timezoneOffset);
 
       if(image != null) {
          response.setContentType("image/svg+xml");
@@ -688,7 +689,9 @@ public class ServerMonitoringController {
    /**
     * Generate the an image.
     */
-   private Graphics2D generateImage(String imageId, String clusterNode, int width, int height) {
+   private Graphics2D generateImage(String imageId, String clusterNode, int width, int height,
+                                    Integer timezoneOffset)
+   {
       Object[][] data = null;
       String format = null;
       String title = null;
@@ -698,6 +701,16 @@ public class ServerMonitoringController {
       String[] scheduleServers = getScheduleServers();
       MemoryMXBean memoryBean = ManagementFactory.getMemoryMXBean();
       long max = 0L;
+      long tzAdjustMs;
+
+      if(timezoneOffset == null) {
+         tzAdjustMs = 0L;
+      }
+      else {
+         long serverOffsetMs = ZoneId.systemDefault().getRules().getOffset(Instant.now()).getTotalSeconds() * 1000L;
+         long clientOffsetMs = -(long) timezoneOffset * 60_000L;
+         tzAdjustMs = clientOffsetMs - serverOffsetMs;
+      }
 
       if("memUsage".equals(imageId)) {
          max = memoryBean.getHeapMemoryUsage().getMax();
@@ -706,7 +719,7 @@ public class ServerMonitoringController {
             for(String node : clusterNodes) {
                Object[][] grid = createHistoryGrid(
                   node, serverService.getMemoryHistory(node),
-                  h -> new Object[] { new Time(h.timestamp()), h.usedMemory() });
+                  h -> new Object[] { new Time(h.timestamp() + tzAdjustMs), h.usedMemory() });
 
                if(data == null) {
                   data = grid;
@@ -721,7 +734,7 @@ public class ServerMonitoringController {
          else {
             data = createHistoryGrid(
                null, serverService.getMemoryHistory(null),
-               h -> new Object[] { new Time(h.timestamp()), h.usedMemory() });
+               h -> new Object[] { new Time(h.timestamp() + tzAdjustMs), h.usedMemory() });
          }
 
          for(String scheduleServer : scheduleServers) {
@@ -729,7 +742,7 @@ public class ServerMonitoringController {
                Object[][] grid = createHistoryGrid(
                   "Scheduler(" + scheduleServer + ")",
                   schedulerMonitoringService.getMemoryHistory(scheduleServer),
-                  h -> new Object[]{ new Time(h.timestamp()), h.usedMemory() });
+                  h -> new Object[]{ new Time(h.timestamp() + tzAdjustMs), h.usedMemory() });
                data = MonitorUtil.mergeGridData(data, grid);
                max = Math.max(max, schedulerMonitoringService.getMaxHeapSize(scheduleServer));
             }
@@ -743,7 +756,7 @@ public class ServerMonitoringController {
             for(String node : clusterNodes) {
                Object[][] grid = createHistoryGrid(
                   node, serverService.getCpuHistory(node),
-                  h -> new Object[] { new Time(h.timestamp()), h.cpuPercent() });
+                  h -> new Object[] { new Time(h.timestamp() + tzAdjustMs), h.cpuPercent() });
 
                if(data == null) {
                   data = grid;
@@ -756,7 +769,7 @@ public class ServerMonitoringController {
          else {
             data = createHistoryGrid(
                null, serverService.getCpuHistory(null),
-               h -> new Object[] { new Time(h.timestamp()), h.cpuPercent() });
+               h -> new Object[] { new Time(h.timestamp() + tzAdjustMs), h.cpuPercent() });
          }
 
          for(String scheduleServer : scheduleServers) {
@@ -764,7 +777,7 @@ public class ServerMonitoringController {
                Object[][] grid = createHistoryGrid(
                   "Scheduler(" + scheduleServer + ")",
                   schedulerMonitoringService.getCpuHistory(scheduleServer),
-                  h -> new Object[]{ new Time(h.timestamp()), h.cpuPercent() });
+                  h -> new Object[]{ new Time(h.timestamp() + tzAdjustMs), h.cpuPercent() });
                data = MonitorUtil.mergeGridData(data, grid);
             }
          }
@@ -778,7 +791,7 @@ public class ServerMonitoringController {
             for(String node : clusterNodes) {
                Object[][] grid = createHistoryGrid(
                   node, serverService.getGcHistory(node),
-                  h -> new Object[] { new Time(h.timestamp()), h.collectionCount() });
+                  h -> new Object[] { new Time(h.timestamp() + tzAdjustMs), h.collectionCount() });
 
                if(data == null) {
                   data = grid;
@@ -791,7 +804,7 @@ public class ServerMonitoringController {
          else {
             data = createHistoryGrid(
                null, serverService.getGcHistory(null),
-               h -> new Object[] { new Time(h.timestamp()), h.collectionCount() });
+               h -> new Object[] { new Time(h.timestamp() + tzAdjustMs), h.collectionCount() });
          }
 
          for(String scheduleServer : scheduleServers) {
@@ -799,7 +812,7 @@ public class ServerMonitoringController {
                Object[][] grid = createHistoryGrid(
                   "Scheduler(" + scheduleServer + ")",
                   schedulerMonitoringService.getGcHistory(scheduleServer),
-                  h -> new Object[]{new Time(h.timestamp()), h.collectionCount()});
+                  h -> new Object[]{new Time(h.timestamp() + tzAdjustMs), h.collectionCount()});
                data = MonitorUtil.mergeGridData(data, grid);
             }
          }
@@ -824,7 +837,7 @@ public class ServerMonitoringController {
             for(String node : clusterNodes) {
                Object[][] grid = createHistoryGrid(
                   node, serverService.getGcHistory(node),
-                  h -> new Object[] { new Time(h.timestamp()), h.collectionTime() });
+                  h -> new Object[] { new Time(h.timestamp() + tzAdjustMs), h.collectionTime() });
 
                if(data == null) {
                   data = grid;
@@ -837,7 +850,7 @@ public class ServerMonitoringController {
          else {
             data = createHistoryGrid(
                null, serverService.getGcHistory(null),
-               h -> new Object[] { new Time(h.timestamp()), h.collectionTime() });
+               h -> new Object[] { new Time(h.timestamp() + tzAdjustMs), h.collectionTime() });
          }
 
          for(String scheduleServer : scheduleServers) {
@@ -845,7 +858,7 @@ public class ServerMonitoringController {
                Object[][] grid = createHistoryGrid(
                   "Scheduler(" + scheduleServer + ")",
                   schedulerMonitoringService.getGcHistory(scheduleServer),
-                  h -> new Object[]{new Time(h.timestamp()), h.collectionTime()});
+                  h -> new Object[]{new Time(h.timestamp() + tzAdjustMs), h.collectionTime()});
                data = MonitorUtil.mergeGridData(data, grid);
             }
          }
@@ -868,7 +881,7 @@ public class ServerMonitoringController {
             for(String node : clusterNodes) {
                Object[][] grid = createHistoryGrid(
                   node, serverService.getOffHeapHistory(node),
-                  h -> new Object[] { new Time(h.timestamp()), h.usedOffHeap() });
+                  h -> new Object[] { new Time(h.timestamp() + tzAdjustMs), h.usedOffHeap() });
 
                if(data == null) {
                   data = grid;
@@ -883,7 +896,7 @@ public class ServerMonitoringController {
          else {
             data = createHistoryGrid(
                null, serverService.getOffHeapHistory(null),
-               h -> new Object[] { new Time(h.timestamp()), h.usedOffHeap() });
+               h -> new Object[] { new Time(h.timestamp() + tzAdjustMs), h.usedOffHeap() });
             max = serverService.getMaxOffHeapSize(null);
          }
 
@@ -892,7 +905,7 @@ public class ServerMonitoringController {
                Object[][] grid = createHistoryGrid(
                   "Scheduler(" + scheduleServer + ")",
                   schedulerMonitoringService.getOffHeapHistory(scheduleServer),
-                  h -> new Object[]{ new Time(h.timestamp()), h.usedOffHeap() });
+                  h -> new Object[]{ new Time(h.timestamp() + tzAdjustMs), h.usedOffHeap() });
                data = MonitorUtil.mergeGridData(data, grid);
                max = Math.max(max, schedulerMonitoringService.getMaxOffHeapSize(scheduleServer));
             }
@@ -903,7 +916,7 @@ public class ServerMonitoringController {
       }
       else if("memCache".equals(imageId)) {
          data = cacheService.getCacheHistory(clusterNode).stream()
-            .map(s -> new Object[] { new Time(s.time()).toString(),
+            .map(s -> new Object[] { new Time(s.time() + tzAdjustMs).toString(),
                                      s.reportMemoryCount(),
                                      s.dataMemoryCount() })
             .toArray(Object[][]::new);
@@ -917,7 +930,7 @@ public class ServerMonitoringController {
       }
       else if("diskCache".equals(imageId)) {
          data = cacheService.getCacheHistory(clusterNode).stream()
-            .map(s -> new Object[] { new Time(s.time()).toString(),
+            .map(s -> new Object[] { new Time(s.time() + tzAdjustMs).toString(),
                                      s.reportDiskCount(),
                                      s.dataDiskCount() })
             .toArray(Object[][]::new);
@@ -932,7 +945,7 @@ public class ServerMonitoringController {
       else if("swapping".equals(imageId)) {
          data = cacheService.getCacheHistory(clusterNode).stream()
             .map(s -> new Object[] {
-               new Time(s.time()).toString(),
+               new Time(s.time() + tzAdjustMs).toString(),
                s.reportBytesRead() + s.dataBytesRead(),
                s.reportBytesWritten(),
                s.dataBytesWritten()
@@ -948,7 +961,7 @@ public class ServerMonitoringController {
             .orElse(1L);
       }
       else if("execution".equals(imageId)) {
-         return generateExecutionImage(clusterNode, width, height);
+         return generateExecutionImage(clusterNode, width, height, tzAdjustMs);
       }
 
       if(isShowImage(data)) {
@@ -1007,7 +1020,9 @@ public class ServerMonitoringController {
    /**
     * Generate execution images.
     */
-   private Graphics2D generateExecutionImage(String clusterNode, int width, int height) {
+   private Graphics2D generateExecutionImage(String clusterNode, int width, int height,
+                                              long tzAdjustMs)
+   {
       Catalog catalog = Catalog.getCatalog();
 
       List<QueryHistory> queryExe = queryService.getHistory(clusterNode);
@@ -1025,7 +1040,7 @@ public class ServerMonitoringController {
          headers.add("Viewsheets");
 
          for(ViewsheetHistory vs : vsExe) {
-            Time time = new Time(vs.timestamp());
+            Time time = new Time(vs.timestamp() + tzAdjustMs);
             timeline.add(time);
             map.put(time, vs.executingViewsheets());
          }
@@ -1037,7 +1052,7 @@ public class ServerMonitoringController {
          headers.add("Queries");
 
          for(QueryHistory query : queryExe) {
-            Time time = new Time(query.timestamp());
+            Time time = new Time(query.timestamp() + tzAdjustMs);
             timeline.add(time);
             map.put(time, query.queryCount());
          }

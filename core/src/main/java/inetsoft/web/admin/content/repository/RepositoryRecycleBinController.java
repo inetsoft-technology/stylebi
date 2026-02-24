@@ -56,7 +56,7 @@ public class RepositoryRecycleBinController {
    @GetMapping("/api/em/content/repository/folder/recycleBin")
    public RepositoryFolderRecycleBinSettingsModel getRecycleBinFolderSettings(
       Principal principal,
-      @RequestParam("timeZone") String timeZone)
+      @RequestParam(value = "timeZone", required = false, defaultValue = "") String timeZone)
       throws Exception
    {
       RecycleBin recycleBin = RecycleBin.getRecycleBin();
@@ -186,7 +186,7 @@ public class RepositoryRecycleBinController {
                                                Principal principal, String timeZone)
    {
       SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
-      format.setTimeZone(TimeZone.getTimeZone(timeZone));
+      format.setTimeZone(timeZone.isEmpty() ? TimeZone.getDefault() : TimeZone.getTimeZone(timeZone));
 
       for(AssetEntry entry : entries) {
          RecycleBin.Entry binEntry = recycleBin.getEntry(entry.getPath());
@@ -218,12 +218,12 @@ public class RepositoryRecycleBinController {
    @GetMapping("/api/em/content/repository/recycle/node")
    public RepositoryRecycleBinEntryModel getRepositoryRecycleBinEntryModel(
       @RequestParam("path") String path,
-      @RequestParam("timeZone") String timeZone)
+      @RequestParam(value = "timeZone", required = false, defaultValue = "") String timeZone)
    {
       RecycleBin recycleBin = RecycleBin.getRecycleBin();
       RecycleBin.Entry entry = recycleBin.getEntry(path);
       SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
-      format.setTimeZone(TimeZone.getTimeZone(timeZone));
+      format.setTimeZone(timeZone.isEmpty() ? TimeZone.getDefault() : TimeZone.getTimeZone(timeZone));
 
       return RepositoryRecycleBinEntryModel.builder()
          .path(entry.getPath())
