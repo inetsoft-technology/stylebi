@@ -24,7 +24,7 @@ import inetsoft.uql.XMetaInfo;
 import inetsoft.uql.XTable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.table.*;
-import inetsoft.util.*;
+import inetsoft.util.Tool;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
 import org.apache.avro.file.*;
@@ -36,32 +36,20 @@ import org.w3c.dom.Document;
 import java.io.*;
 import java.util.Arrays;
 import java.util.List;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 public class AvroXTableSerializer {
    public static void writeTable(ObjectOutput out, XTable table) throws IOException {
-      FileSystemService fileSystemService = FileSystemService.getInstance();
-      File file = fileSystemService.getCacheTempFile(
-         "AvroXTable" + System.identityHashCode(table), "avro");
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
 
-      // write the table data with avro to a file
-      try(FileOutputStream fos = new FileOutputStream(file)) {
-         writeAvro(fos, table);
+      try(GZIPOutputStream gzipOut = new GZIPOutputStream(baos)) {
+         writeAvro(gzipOut, table);
       }
 
-      try(InputStream fin = new FileInputStream(file)) {
-         byte[] buffer = new byte[4096];
-         int bytesRead;
-
-         // write out the length of the file so we know how much to read later
-         out.writeLong(file.length());
-
-         while((bytesRead = fin.read(buffer)) != -1) {
-            out.write(buffer, 0, bytesRead); // Write chunk data
-         }
-      }
-
-      // delete avro file
-      file.delete();
+      byte[] bytes = baos.toByteArray();
+      out.writeLong(bytes.length);
+      out.write(bytes);
    }
 
    /**
@@ -94,39 +82,36 @@ public class AvroXTableSerializer {
    }
 
    public static XSwappableTable readTable(ObjectInput in, XSwappableTable table) throws IOException {
-      FileSystemService fileSystemService = FileSystemService.getInstance();
-      File file = fileSystemService.getCacheTempFile(
-         "AvroXTable" + System.identityHashCode(in), "avro");
-      long fileSize = in.readLong();
+      int size = (int) in.readLong();
+      byte[] compressed = new byte[size];
+      int offset = 0;
 
-      // save the avro data to a file
-      try(OutputStream fout = new FileOutputStream(file)) {
+      while(offset < size) {
+         int read = in.read(compressed, offset, size - offset);
+
+         if(read == -1) {
+            break;
+         }
+
+         offset += read;
+      }
+
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+      try(GZIPInputStream gzipIn = new GZIPInputStream(new ByteArrayInputStream(compressed))) {
          byte[] buffer = new byte[4096];
-         long remaining = fileSize;
+         int bytesRead;
 
-         while(remaining > 0) {
-            int bytesToRead = (int) Math.min(buffer.length, remaining);
-            int bytesRead = in.read(buffer, 0, bytesToRead);
-
-            if(bytesRead == -1) {
-               break; // Stop if EOF (shouldn't happen if size is correct)
-            }
-
-            fout.write(buffer, 0, bytesRead);
-            remaining -= bytesRead;
+         while((bytesRead = gzipIn.read(buffer)) != -1) {
+            baos.write(buffer, 0, bytesRead);
          }
       }
 
-      // read the avro file into XSwappableTable
       try {
-         return readAvro(new SeekableFileInput(file), table);
+         return readAvro(new SeekableByteArrayInput(baos.toByteArray()), table);
       }
       catch(Exception e) {
          throw new RuntimeException(e);
-      }
-      finally {
-         // delete avro file
-         file.delete();
       }
    }
 
