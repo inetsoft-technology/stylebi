@@ -23,10 +23,9 @@
   <form [formGroup]="rangeForm" class="container-fluid">
     <div class="form-row-float-label row">
       <div class="col form-floating">
-          <input *ngIf="!isDateType" type="number" step="any" class="form-control" formControlName="min"
-                 [(ngModel)]="currentMin">
-          <input *ngIf="isDateType && timeIncrement != 't'" type="date" class="form-control" formControlName="min">
-          <input *ngIf="isDateType && timeIncrement == 't'" type="datetime-local" class="form-control" formControlName="min">
+          <input *ngIf="!isDateType" type="number" step="any" class="form-control" formControlName="min">
+          <input *ngIf="isDateType && timeIncrement !== 't'" type="date" class="form-control" formControlName="min">
+          <input *ngIf="isDateType && timeIncrement === 't'" type="datetime-local" class="form-control" formControlName="min">
           <label>_#(From)</label>
           <div *ngIf="rangeForm.get('min')?.errors?.['required']" class="alert alert-danger">_#(composer.bandPanel.fromCheck)</div>
           <div *ngIf="rangeForm.get('min')?.errors?.['min']" class="alert alert-danger">_#(viewer.dialog.lessMin)</div>
@@ -37,10 +36,9 @@
     </div>
     <div class="form-row-float-label row">
       <div class="col form-floating">
-          <input *ngIf="!isDateType" type="number" step="any" class="form-control" formControlName="max"
-                 [(ngModel)]="currentMax">
-          <input *ngIf="isDateType && timeIncrement != 't'" type="date" class="form-control" formControlName="max">
-          <input *ngIf="isDateType && timeIncrement == 't'" type="datetime-local" class="form-control" formControlName="max">
+          <input *ngIf="!isDateType" type="number" step="any" class="form-control" formControlName="max">
+          <input *ngIf="isDateType && timeIncrement !== 't'" type="date" class="form-control" formControlName="max">
+          <input *ngIf="isDateType && timeIncrement === 't'" type="datetime-local" class="form-control" formControlName="max">
           <label>_#(To)</label>
           <div *ngIf="rangeForm.get('max')?.errors?.['required']" class="alert alert-danger">_#(composer.bandPanel.toCheck)</div>
           <div *ngIf="rangeForm.get('max')?.errors?.['min']" class="alert alert-danger">_#(viewer.dialog.lessMin)</div>

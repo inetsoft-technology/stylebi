@@ -500,18 +500,23 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    mouseUp(event: MouseEvent|TouchEvent): void {
       const handle = this.mouseHandle;
       let moved: boolean = handle != Handle.None;
+      const selectionChanged = this.model.selectStart !== this.startingSelectStart ||
+         this.model.selectEnd !== this.startingSelectEnd;
 
       if(this.isMouseDown) {
          this.mouseHandle = Handle.None;
 
          if(moved) {
+            this._leftHandlePosition = this.model.selectStart * this.widthBetweenTicks;
+            this._rightHandlePosition = this.model.selectEnd * this.widthBetweenTicks;
+         }
+
+         if(moved && selectionChanged) {
             this.updateSelections(this.model.selectStart, this.model.selectEnd);
          }
       }
 
       const timeHeld = Date.now() - this.timeHandleClicked;
-      const selectionChanged = this.model.selectStart !== this.startingSelectStart ||
-         this.model.selectEnd !== this.startingSelectEnd;
 
       if (timeHeld < this.clickTime && !selectionChanged &&
             (handle === Handle.Left || handle === Handle.Right) &&
@@ -727,11 +732,13 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
                                           this.model.values[0],
                                           this.model.values[this.model.labels.length - 1]);
 
-         const dateSuffix = timeIncrement === "t" ? "" : "T00:00";
-         editDialog.currentMin = new Date(currMinStr + dateSuffix);
-         editDialog.currentMax = new Date(currMaxStr + dateSuffix);
-         editDialog.rangeMin = new Date(rangeMinStr + dateSuffix);
-         editDialog.rangeMax = new Date(rangeMaxStr + dateSuffix);
+         const normalizeStr = (s: string) =>
+            timeIncrement === "t" ? s.replace(" ", "T") : s + "T00:00";
+
+         editDialog.currentMin = new Date(normalizeStr(currMinStr));
+         editDialog.currentMax = new Date(normalizeStr(currMaxStr));
+         editDialog.rangeMin = new Date(normalizeStr(rangeMinStr));
+         editDialog.rangeMax = new Date(normalizeStr(rangeMaxStr));
          editDialog.initForm();
       } else {
          editDialog.currentMin = parseFloat(
@@ -741,6 +748,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
          editDialog.rangeMin = parseFloat(this.model.values[0]?.replace(/,/g, ""));
          editDialog.rangeMax = parseFloat(
             this.model.values[this.model.labels.length - 1]?.replace(/,/g, ""));
+         editDialog.initForm();
       }
    }
 

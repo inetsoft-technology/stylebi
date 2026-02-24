@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angular/core";
+import { Component, EventEmitter, Input, OnDestroy, Output } from "@angular/core";
 import { UntypedFormControl, UntypedFormGroup, Validators, AbstractControl, ValidationErrors, ValidatorFn } from "@angular/forms";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
@@ -24,7 +24,7 @@ import { takeUntil } from "rxjs/operators";
    selector: "range-slider-edit-dialog",
    templateUrl: "range-slider-edit-dialog.component.html",
 })
-export class RangeSliderEditDialog implements OnInit, OnDestroy {
+export class RangeSliderEditDialog implements OnDestroy {
    @Input() currentMin: number | Date;
    @Input() currentMax: number | Date;
    @Input() rangeMin: number | Date;
@@ -34,14 +34,10 @@ export class RangeSliderEditDialog implements OnInit, OnDestroy {
       new EventEmitter<{min: number | Date, max: number | Date}>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
 
-   rangeForm: UntypedFormGroup;
+   rangeForm: UntypedFormGroup = new UntypedFormGroup({});
    isDateType: boolean;
    timeIncrement: string;
    private destroy$ = new Subject<void>();
-
-   ngOnInit() {
-      this.initForm();
-   }
 
    ngOnDestroy() {
       this.destroy$.next();
@@ -192,9 +188,13 @@ export class RangeSliderEditDialog implements OnInit, OnDestroy {
    }
 
    ok(): void {
-      this.onCommit.emit({
-         min: this.currentMin,
-         max: this.currentMax
-      });
+      if(this.isDateType) {
+         this.onCommit.emit({min: this.currentMin, max: this.currentMax});
+      } else {
+         this.onCommit.emit({
+            min: +this.rangeForm.get("min")!.value,
+            max: +this.rangeForm.get("max")!.value
+         });
+      }
    }
 }
