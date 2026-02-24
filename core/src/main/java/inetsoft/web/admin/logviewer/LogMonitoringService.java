@@ -44,10 +44,17 @@ import java.util.zip.ZipOutputStream;
 @Service
 public class LogMonitoringService implements MessageListener {
    /**
-    * Timeout for fetching logs from cluster nodes. This is longer than the default 30 seconds
-    * to accommodate clusters under heavy load (e.g., multiple users executing viewsheets).
+    * Timeout for fetching log content from cluster nodes. This is longer than the default 30
+    * seconds to accommodate clusters under heavy load (e.g., multiple users executing viewsheets).
     */
    private static final long LOG_FETCH_TIMEOUT_SECONDS = 60L;
+
+   /**
+    * Timeout for listing log files from cluster nodes. Listing is a lightweight operation so a
+    * short timeout prevents the UI from blocking for N×60 seconds when nodes are joining or
+    * unresponsive during autoscaling events.
+    */
+   private static final long LOG_LIST_TIMEOUT_SECONDS = 10L;
 
    public LogMonitoringService() {
       this.logManager = LogManager.getInstance();
@@ -138,7 +145,7 @@ public class LogMonitoringService implements MessageListener {
                try {
                   GetLogFilesResponse response = cluster.exchangeMessages(
                      clusterNode, new GetLogFilesRequest(), GetLogFilesResponse.class,
-                     LOG_FETCH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                     LOG_LIST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
                   if(LicenseManager.getInstance().isEnterprise()) {
                      return response.getLogFiles();
@@ -153,11 +160,22 @@ public class LogMonitoringService implements MessageListener {
          }
       }
 
-      // wait for all tasks to complete, merge results on main thread
+      // Wait for all tasks with a single absolute deadline so that N unresponsive nodes do not
+      // cause N×timeout delay. Each future already uses LOG_LIST_TIMEOUT_SECONDS internally, so
+      // the deadline here is a safety net to bound the entire loop.
+      long deadline = System.currentTimeMillis() + LOG_LIST_TIMEOUT_SECONDS * 1000;
+
       for(Future<List<LogFileModel>> future : futures) {
+         long remaining = deadline - System.currentTimeMillis();
+
+         if(remaining <= 0) {
+            future.cancel(true);
+            LOG.warn("Overall timeout reached waiting for log file lists, skipping remaining nodes");
+            continue;
+         }
+
          try {
-            List<LogFileModel> remoteLogFiles =
-               future.get(LOG_FETCH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            List<LogFileModel> remoteLogFiles = future.get(remaining, TimeUnit.MILLISECONDS);
 
             for(LogFileModel logfile : remoteLogFiles) {
                boolean exists = logFiles.stream()
