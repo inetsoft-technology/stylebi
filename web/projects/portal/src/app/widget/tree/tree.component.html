@@ -24,7 +24,7 @@
     <ng-container *ngIf="_searchEnabled">
       <div class="p-1 search-input-container">
         <input #searchInput class="form-control form-control-sm" type="text" placeholder="_#(Search)"
-               [ngModel]="searchStr" (ngModelChange)="search($event)"  [disabled]="disabled"/>
+               [ngModel]="searchStr" (ngModelChange)="search($event)" (keydown.escape)="onSearchEscape($event)" [disabled]="disabled"/>
       </div>
       <div class="p-1 search-icon-container">
         <i class="close-icon icon-size-medium" aria-hidden="true" (click)="clearSearchContent()"

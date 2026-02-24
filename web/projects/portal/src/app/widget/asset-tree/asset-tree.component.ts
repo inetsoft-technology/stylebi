@@ -115,9 +115,9 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    datasourceLoadedAll: boolean = false;
    nodesLoading: number = 0;
    useVirtualScroll: boolean = false;
-   datasourceLoadingPlaceholder: boolean = false;
+   private datasourceLoadingPlaceholder: boolean = false;
    private datasourceLoadingPlaceholderNode: TreeNodeModel = null;
-   searchStr: string = "";
+   private searchStr: string = "";
    searchEndNode: (node: TreeNodeModel) => boolean = node =>  {
       return node?.data?.type == AssetType.PHYSICAL_TABLE || node?.data?.type == AssetType.TABLE ||
          node?.data?.type == AssetType.QUERY;
@@ -676,9 +676,16 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    searchStrChange(searchStr: string): void {
       this.searchStr = searchStr;
 
-      if(this.searchStr && !this.datasourceLoadingPlaceholder
-            && this.searchMode) {
-         this.checkDSPlaceholder();
+      if(this.searchStr && this.searchMode) {
+         const match = this.dataSourcesTree?.label?.toLocaleLowerCase()
+            .includes(this.searchStr.toLocaleLowerCase());
+
+         if(match && this.datasourceLoadingPlaceholder) {
+            this.removeDSLoadingPlaceholder();
+         }
+         else if(!match && !this.datasourceLoadingPlaceholder) {
+            this.checkDSPlaceholder();
+         }
       }
    }
 
@@ -890,11 +897,11 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
 
    private updateLoadingIndicator(node: TreeNodeModel, loading: boolean, callBack?: () => any): void {
 
-      if(node === this.dataSourcesTree && !loading && this.datasourceLoadingPlaceholder) {
-         this.removeDSLoadingPlaceholder();
-      }
-
       this.zone.run(() => {
+         if(node === this.dataSourcesTree && !loading && this.datasourceLoadingPlaceholder) {
+            this.removeDSLoadingPlaceholder();
+         }
+
          node.loading = loading;
          node.data.loadingDebounced = false;
 

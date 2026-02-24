@@ -926,6 +926,13 @@ export class TreeComponent implements OnInit, OnChanges, AfterViewChecked, After
       this.search("");
    }
 
+   onSearchEscape(event: KeyboardEvent): void {
+      if(this.searchStr) {
+         event.stopPropagation();
+         this.clearSearchContent();
+      }
+   }
+
    openHelp() {
       window.open(this.helpURL);
    }
