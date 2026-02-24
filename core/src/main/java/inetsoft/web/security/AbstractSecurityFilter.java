@@ -20,6 +20,7 @@ package inetsoft.web.security;
 import inetsoft.report.internal.LicenseException;
 import inetsoft.report.internal.UnlicensedUserNameException;
 import inetsoft.sree.*;
+import inetsoft.sree.web.SessionsExceededException;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.SessionLicenseManager;
@@ -197,6 +198,24 @@ public abstract class AbstractSecurityFilter
    protected void createSession(ServletRequest request, SRPrincipal principal)
       throws AuthenticationFailureException
    {
+      createSession(request, principal, null);
+   }
+
+   /**
+    * Creates a session for the specified user and request, optionally terminating an existing
+    * session first if the session limit is reached.
+    *
+    * @param request            the HTTP request object.
+    * @param principal          a principal that identifies the remote user.
+    * @param sessionIdToReplace the HTTP session ID of an existing session to terminate when
+    *                           the limit is reached, or {@code null} for standard behaviour.
+    *
+    * @throws AuthenticationFailureException if a session could not be created.
+    */
+   protected void createSession(ServletRequest request, SRPrincipal principal,
+                                String sessionIdToReplace)
+      throws AuthenticationFailureException
+   {
       HttpServletRequest httpRequest = (HttpServletRequest) request;
       HttpSession session = httpRequest.getSession(true);
       AuthenticationService authentication = AuthenticationService.getInstance();
@@ -224,8 +243,20 @@ public abstract class AbstractSecurityFilter
             }
          }
 
-         authentication.addSession(principal);
+         if(sessionIdToReplace != null) {
+            authentication.addSession(principal, sessionIdToReplace);
+         }
+         else {
+            authentication.addSession(principal);
+         }
+
          session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
+      }
+      catch(SessionsExceededException e) {
+         throw new AuthenticationFailureException(
+            AuthenticationFailureReason.SESSION_EXCEEDED_ADMIN,
+            "Session limit reached",
+            e.getActiveSessions());
       }
       catch(UnlicensedUserNameException e) {
          throw new AuthenticationFailureException(
