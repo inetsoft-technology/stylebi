@@ -25,17 +25,15 @@ import { AiAssistantService } from "./ai-assistant.service";
   styleUrls: ["./ai-assistant-dialog.component.scss"]
 })
 export class AiAssistantDialogComponent {
-   userId: string = "";
    userEmail: string = "";
    context: string = "";
-   chatAppServerUrl: string = "";
-   styleBIUrl: string = "";
+
+   get userId(): string { return this.aiAssistantService.userId; }
+   get chatAppServerUrl(): string { return this.aiAssistantService.chatAppServerUrl; }
+   get styleBIUrl(): string { return this.aiAssistantService.styleBIUrl; }
 
    constructor(private aiAssistantService: AiAssistantService) {
-      this.userId = this.aiAssistantService.userId;
       this.userEmail = this.aiAssistantService.email;
       this.context = this.aiAssistantService.getFullContext();
-      this.chatAppServerUrl = this.aiAssistantService.chatAppServerUrl;
-      this.styleBIUrl = this.aiAssistantService.styleBIUrl;
    }
 }
