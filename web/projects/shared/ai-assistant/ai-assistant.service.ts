@@ -76,6 +76,9 @@ export class AiAssistantService {
    calcTableCellBindings: { [key: string]: CellBindingInfo } = {};
    calcTableAggregates: string[] = [];
    private contextMap: Record<string, string> = {};
+   private _lastOpenUrl: string;
+   private _lastBindingObject: string;
+   private _createNewChat: boolean = false;
 
    constructor(private http: HttpClient,
                private modalService: NgbModal)
@@ -87,6 +90,20 @@ export class AiAssistantService {
       this.http.get("../api/assistant/get-stylebi-url").subscribe((url: string) => {
          this.styleBIUrl = url || "";
       });
+   }
+
+   set lastOpenUrl(value: string) {
+      this._createNewChat = value !== this._lastOpenUrl;
+      this._lastOpenUrl = value;
+   }
+
+   set lastBindingObject(value: any) {
+      this._createNewChat = value == this._lastBindingObject;
+      this._lastBindingObject = value;
+   }
+
+   get createNewChat(): boolean {
+      return this._createNewChat;
    }
 
    resetContextMap(): void {
@@ -253,6 +270,30 @@ export class AiAssistantService {
          return;
       }
 
+      let contextType = "";
+
+      switch(objectModel.objectType) {
+         case "VSChart":
+            // contextType = ContextType.CHART_SCRIPT;
+            break;
+         case "VSCrosstab":
+            // contextType = ContextType.CROSSTAB_SCRIPT;
+            break;
+         case "VSCalcTable":
+            contextType = ContextType.FREEHAND;
+            break;
+         case "VSTable":
+            contextType = ContextType.TABLE;
+            break;
+         default:
+            //contextType = ContextType.VIEWSHEET_SCRIPT;
+      }
+
+      if(contextType) {
+
+      }
+
+      this.setContextTypeFieldValue(contextType);
       this.setContextField("scriptContext", objectModel.script);
    }
 

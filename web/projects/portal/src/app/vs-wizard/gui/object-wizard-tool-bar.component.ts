@@ -143,4 +143,9 @@ export class ObjectWizardToolBarComponent {
             action: () => this.cancel()
          }
       ];
+
+   openAiAssistantDialog(): void {
+      this.aiAssistantService.lastBindingObject = this.vsObject.objectType + "^^" + this.vsObject.absoluteName;
+      this.aiAssistantService.openAiAssistantDialog();
+   }
 }

@@ -17,6 +17,7 @@
  */
 
 import { Component } from "@angular/core";
+import { Router } from "@angular/router";
 import { AiAssistantService } from "./ai-assistant.service";
 
 @Component({
@@ -31,11 +32,16 @@ export class AiAssistantDialogComponent {
    chatAppServerUrl: string = "";
    styleBIUrl: string = "";
 
-   constructor(private aiAssistantService: AiAssistantService) {
+   constructor(private aiAssistantService: AiAssistantService, private router: Router) {
       this.userId = this.aiAssistantService.userId;
       this.userEmail = this.aiAssistantService.email;
       this.context = this.aiAssistantService.getFullContext();
       this.chatAppServerUrl = this.aiAssistantService.chatAppServerUrl;
       this.styleBIUrl = this.aiAssistantService.styleBIUrl;
+      this.aiAssistantService.lastOpenUrl = router.url;
+   }
+
+   get newChat(): boolean {
+      return this.aiAssistantService.createNewChat;
    }
 }

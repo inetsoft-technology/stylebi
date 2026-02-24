@@ -152,4 +152,9 @@ export class EditorTitleBar {
             action: () => this.cancel()
          }
       ];
+
+   openAiAssistantDialog(): void {
+      this.aiAssistantService.lastBindingObject = this.objectType + "^^" + this.elementName;
+      this.aiAssistantService.openAiAssistantDialog();
+   }
 }
