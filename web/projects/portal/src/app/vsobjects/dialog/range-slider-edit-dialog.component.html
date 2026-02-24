@@ -23,24 +23,32 @@
   <form [formGroup]="rangeForm" class="container-fluid">
     <div class="form-row-float-label row">
       <div class="col form-floating">
-          <input type="number" step="any" class="form-control" formControlName="min"
-                 [(ngModel)]="currentMin">
+          <input *ngIf="!isDateType" type="number" step="any" class="form-control" formControlName="min">
+          <input *ngIf="isDateType && timeIncrement !== 't'" type="date" class="form-control" formControlName="min">
+          <input *ngIf="isDateType && timeIncrement === 't'" type="datetime-local" class="form-control" formControlName="min">
           <label>_#(From)</label>
-          <div *ngIf="rangeForm.controls['min'].errors && rangeForm.controls['min'].errors['required']" class="alert alert-danger">_#(composer.bandPanel.fromCheck)</div>
-          <div *ngIf="rangeForm.controls['min'].errors && rangeForm.controls['min'].errors['min']" class="alert alert-danger">_#(viewer.dialog.lessMin)</div>
-          <div *ngIf="rangeForm.controls['min'].errors && rangeForm.controls['min'].errors['max']" class="alert alert-danger">_#(viewer.dialog.greaterMax)</div>
+          <div *ngIf="rangeForm.get('min')?.errors?.['required']" class="alert alert-danger">_#(composer.bandPanel.fromCheck)</div>
+          <div *ngIf="rangeForm.get('min')?.errors?.['min']" class="alert alert-danger">_#(viewer.dialog.lessMin)</div>
+          <div *ngIf="rangeForm.get('min')?.errors?.['max']" class="alert alert-danger">_#(viewer.dialog.greaterMax)</div>
+          <div *ngIf="rangeForm.get('min')?.errors?.['dateMinError']" class="alert alert-danger">_#(viewer.dialog.lessMinDate)</div>
+          <div *ngIf="rangeForm.get('min')?.errors?.['dateMaxError']" class="alert alert-danger">_#(viewer.dialog.greaterMaxDate)</div>
       </div>
     </div>
     <div class="form-row-float-label row">
       <div class="col form-floating">
-          <input type="number" step="any" class="form-control" formControlName="max"
-                 [(ngModel)]="currentMax">
+          <input *ngIf="!isDateType" type="number" step="any" class="form-control" formControlName="max">
+          <input *ngIf="isDateType && timeIncrement !== 't'" type="date" class="form-control" formControlName="max">
+          <input *ngIf="isDateType && timeIncrement === 't'" type="datetime-local" class="form-control" formControlName="max">
           <label>_#(To)</label>
-          <div *ngIf="rangeForm.controls['max'].errors && rangeForm.controls['max'].errors['required']" class="alert alert-danger">_#(composer.bandPanel.toCheck)</div>
-          <div *ngIf="rangeForm.controls['max'].errors && rangeForm.controls['max'].errors['min']" class="alert alert-danger">_#(viewer.dialog.lessMin)</div>
-          <div *ngIf="rangeForm.controls['max'].errors && rangeForm.controls['max'].errors['max']" class="alert alert-danger">_#(viewer.dialog.greaterMax)</div>
+          <div *ngIf="rangeForm.get('max')?.errors?.['required']" class="alert alert-danger">_#(composer.bandPanel.toCheck)</div>
+          <div *ngIf="rangeForm.get('max')?.errors?.['min']" class="alert alert-danger">_#(viewer.dialog.lessMin)</div>
+          <div *ngIf="rangeForm.get('max')?.errors?.['max']" class="alert alert-danger">_#(viewer.dialog.greaterMax)</div>
+          <div *ngIf="rangeForm.get('max')?.errors?.['dateMinError']" class="alert alert-danger">_#(viewer.dialog.lessMinDate)</div>
+          <div *ngIf="rangeForm.get('max')?.errors?.['dateMaxError']" class="alert alert-danger">_#(viewer.dialog.greaterMaxDate)</div>
       </div>
     </div>
+    <div *ngIf="rangeForm.errors?.['minMaxEqual']" class="alert alert-danger">_#(viewer.dialog.minMaxEqual)</div>
+    <div *ngIf="rangeForm.errors?.['minAfterMax']" class="alert alert-danger">_#(viewer.dialog.minAfterMax)</div>
   </form>
 </div>
 <div class="modal-footer">
