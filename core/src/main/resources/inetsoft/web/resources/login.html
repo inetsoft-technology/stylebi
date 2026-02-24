@@ -198,10 +198,8 @@
        var gatewayErrorMessage = /*[[#{login.error.gateway}]]*/ "Server not available";
        var currentUser = /*[[${currentUser}]]*/ "";
        var onloadError = /*[[${onloadError}]]*/ "";
-       var sessionLimitColumnUser = /*[[#{login.sessions.exceeded.admin.column.user}]]*/ "User";
-       var sessionLimitColumnAge = /*[[#{login.sessions.exceeded.admin.column.age}]]*/ "Session Age";
        initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewayErrorMessage,
-           currentUser, onloadError, sessionLimitColumnUser, sessionLimitColumnAge);
+           currentUser, onloadError);
     });
     /*]]>*/
   </script>

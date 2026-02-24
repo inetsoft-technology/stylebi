@@ -207,8 +207,10 @@ public abstract class AbstractSecurityFilter
     *
     * @param request            the HTTP request object.
     * @param principal          a principal that identifies the remote user.
-    * @param sessionIdToReplace the HTTP session ID of an existing session to terminate when
-    *                           the limit is reached, or {@code null} for standard behaviour.
+    * @param sessionIdToReplace the session ID (as returned by
+    *                           {@link inetsoft.uql.XPrincipal#getSessionID()}) of an existing
+    *                           session to terminate when the limit is reached, or {@code null}
+    *                           for standard behaviour.
     *
     * @throws AuthenticationFailureException if a session could not be created.
     */

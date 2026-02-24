@@ -247,14 +247,21 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
                      }
 
                      if(principal != null) {
-                        String token = principal.getProperty(SUtil.TICKET);
-                        principal.setProperty(SUtil.TICKET, null);
-                        principal.setProperty(SUtil.LONGON_TIME, System.currentTimeMillis() + "");
-                        request.setAttribute(SUtil.TICKET, DefaultTicket.parse(token));
-                        principal.setProperty("showGettingStated", "true");
-                        principal.setProperty("curr_provider_name", providerName);
-                        createSession(request, (SRPrincipal) principal, sessionToReplace);
-                        authorized = true;
+                        if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
+                           // Only site administrators are allowed to terminate existing sessions.
+                           // Reject the request to prevent unauthorized session termination.
+                           message = catalog.getString("viewer.securityexception");
+                        }
+                        else {
+                           String token = principal.getProperty(SUtil.TICKET);
+                           principal.setProperty(SUtil.TICKET, null);
+                           principal.setProperty(SUtil.LONGON_TIME, System.currentTimeMillis() + "");
+                           request.setAttribute(SUtil.TICKET, DefaultTicket.parse(token));
+                           principal.setProperty("showGettingStated", "true");
+                           principal.setProperty("curr_provider_name", providerName);
+                           createSession(request, (SRPrincipal) principal, sessionToReplace);
+                           authorized = true;
+                        }
                      }
                      else {
                         message = catalog.getString("Invalid user name / password pair");

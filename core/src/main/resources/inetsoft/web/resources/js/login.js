@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewayErrorMessage,
-                       currentUser, onloadError, sessionLimitColumnUser, sessionLimitColumnAge)
+                       currentUser, onloadError)
 {
    var $userNameField = $("#loginUserName");
    var $userNameError = $("#userNameError");
