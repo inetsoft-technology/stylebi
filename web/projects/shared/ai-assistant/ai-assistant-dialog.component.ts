@@ -25,17 +25,16 @@ import { AiAssistantService } from "./ai-assistant.service";
   styleUrls: ["./ai-assistant-dialog.component.scss"]
 })
 export class AiAssistantDialogComponent {
-   userEmail: string = "";
    context: string = "";
 
    // Use getters so Angular re-evaluates on each change-detection cycle.
    get chatAppServerUrl(): string { return this.aiAssistantService.chatAppServerUrl; }
    get styleBIUrl(): string { return this.aiAssistantService.styleBIUrl; }
    get userId(): string { return this.aiAssistantService.userId; }
+   get userEmail(): string { return this.aiAssistantService.email; }
 
 
    constructor(private aiAssistantService: AiAssistantService) {
-      this.userEmail = this.aiAssistantService.email;
       this.context = this.aiAssistantService.getFullContext();
    }
 }
