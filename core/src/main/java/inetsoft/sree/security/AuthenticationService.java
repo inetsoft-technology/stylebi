@@ -20,6 +20,7 @@ package inetsoft.sree.security;
 import inetsoft.mv.MVManager;
 import inetsoft.report.internal.LicenseException;
 import inetsoft.sree.*;
+import inetsoft.sree.web.SessionsExceededException;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.web.SessionLicenseManager;
 import inetsoft.sree.web.SessionLicenseService;
@@ -314,6 +315,56 @@ public class AuthenticationService {
          if(sessionLicenseManager != null) {
             sessionLicenseManager.newSession((SRPrincipal) principal);
          }
+      }
+      catch(LicenseException e) {
+         boolean failed = true;
+
+         if(SUtil.checkUserSessionTimeout()) {
+            try {
+               sessionLicenseManager.newSession((SRPrincipal) principal);
+               failed = false;
+
+               SessionEvent event = null;
+
+               for(SessionListener listener : listeners) {
+                  if(event == null) {
+                     event = new SessionEvent(this, principal);
+                  }
+
+                  listener.loggedIn(event);
+               }
+            }
+            catch(LicenseException ignore) {
+            }
+         }
+
+         if(failed) {
+            throw e;
+         }
+      }
+   }
+
+   /**
+    * Adds a session for the specified user, terminating the session with the given ID first if
+    * the session limit has been reached.
+    *
+    * @param principal          the principal that identifies the user.
+    * @param sessionIdToReplace the ID of an existing session to terminate if the limit is
+    *                           reached, or {@code null} to use the standard behaviour.
+    *
+    * @throws LicenseException if the session could not be added due to licensing restrictions.
+    */
+   public void addSession(Principal principal, String sessionIdToReplace) throws LicenseException {
+      SessionLicenseManager sessionLicenseManager =
+         SessionLicenseService.getSessionLicenseService();
+
+      try {
+         if(sessionLicenseManager != null) {
+            sessionLicenseManager.newSession((SRPrincipal) principal, sessionIdToReplace);
+         }
+      }
+      catch(SessionsExceededException e) {
+         throw e;
       }
       catch(LicenseException e) {
          boolean failed = true;

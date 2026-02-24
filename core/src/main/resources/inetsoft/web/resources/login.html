@@ -142,6 +142,36 @@
     </div>
   </div>
   </div>
+  <!-- Session Limit Dialog (for site administrators) -->
+  <div class="modal fade" id="sessionLimitDialog" tabindex="-1" aria-labelledby="sessionLimitTitle" aria-hidden="true" style="display: none">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="sessionLimitTitle" data-th-text="#{login.sessions.exceeded.admin.title}">Session Limit Reached</h5>
+        <button type="button" class="btn-close close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p data-th-text="#{login.sessions.exceeded.admin.message}">The maximum number of licensed sessions has been reached. Select a session below to terminate so you can sign in.</p>
+        <table class="table table-hover table-sm" id="sessionLimitTable">
+          <thead>
+            <tr>
+              <th style="width: 1em"></th>
+              <th data-th-text="#{login.sessions.exceeded.admin.column.user}">User</th>
+              <th data-th-text="#{login.sessions.exceeded.admin.column.age}">Session Age</th>
+            </tr>
+          </thead>
+          <tbody id="sessionLimitTableBody">
+          </tbody>
+        </table>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="terminateSessionButton" class="btn btn-danger" disabled
+                data-th-text="#{login.sessions.exceeded.admin.terminate}">Sign In and Terminate Selected Session</button>
+        <button type="button" class="btn btn-default" data-bs-dismiss="modal" data-th-text="#{Cancel}">Cancel</button>
+      </div>
+    </div>
+  </div>
+  </div>
   <div id="g_id_onload" data-th-if="${gClientId != null}"
        data-th-attr="data-client_id=${gClientId}, data-login_uri=${gLoginUri}, data-scope=${gScopes}"
        data-context="signin"
@@ -168,7 +198,8 @@
        var gatewayErrorMessage = /*[[#{login.error.gateway}]]*/ "Server not available";
        var currentUser = /*[[${currentUser}]]*/ "";
        var onloadError = /*[[${onloadError}]]*/ "";
-       initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewayErrorMessage, currentUser, onloadError);
+       initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewayErrorMessage,
+           currentUser, onloadError);
     });
     /*]]>*/
   </script>

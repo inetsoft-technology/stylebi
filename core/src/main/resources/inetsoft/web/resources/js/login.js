@@ -15,7 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewayErrorMessage, currentUser, onloadError) {
+function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewayErrorMessage,
+                       currentUser, onloadError)
+{
    var $userNameField = $("#loginUserName");
    var $userNameError = $("#userNameError");
 
@@ -27,6 +29,8 @@ function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewa
 
    var $loginButton = $("#loginButton");
    var $confirmLogin = $("#confirmLogin");
+   var $terminateSessionButton = $("#terminateSessionButton");
+   var $sessionLimitTableBody = $("#sessionLimitTableBody");
 
    var $loadingIndicator = $(".loading-indicator");
    var $notifications = $("#notifications");
@@ -35,6 +39,7 @@ function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewa
    var userName = null;
    var password = null;
    var loginAsName = null;
+   var selectedSessionId = null;
 
    var userNameInvalid = false;
    var userNamePristine = true;
@@ -107,7 +112,10 @@ function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewa
 
          authenticateUser(userName, password, loginAsName, requestedUrl, firstLogin,
              (data) => {
-                if(data && data.logInAs) {
+                if(data && data.sessionsExceeded) {
+                   showSessionLimitDialog(data.activeSessions);
+                }
+                else if(data && data.logInAs) {
                    firstLogin = "false";
                    $loginAsGroup.css("display", "block");
                    $loginAsNameField.empty();
@@ -187,6 +195,132 @@ function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewa
       authenticate(true);
    });
 
+   $terminateSessionButton.click(function() {
+      if(!selectedSessionId) {
+         return;
+      }
+
+      $("#sessionLimitDialog").modal("hide");
+      $loadingIndicator.addClass("loading");
+
+      try {
+         let headers = {};
+
+         $("#loginLocale").each(function() {
+            headers["Inetsoft-Locale"] = $(this).val();
+         });
+
+         authenticateUserWithSessionReplacement(
+            userName, password, requestedUrl, selectedSessionId,
+            () => {
+               if(requestedUrl != null) {
+                  window.location.href = requestedUrl;
+               }
+               else {
+                  window.location.href = "index.html";
+               }
+            },
+            (jqXHR, textStatus, errorThrown) => {
+               var message;
+               var responseText;
+
+               try {
+                  responseText = JSON.parse(jqXHR.responseText).message;
+               }
+               catch(ignore) {
+               }
+
+               if(!responseText) {
+                  responseText = jqXHR.responseText;
+               }
+
+               if(jqXHR && (jqXHR.status === 502 || jqXHR.status === 503)) {
+                  message = gatewayErrorMessage;
+               }
+               else if(errorThrown && responseText) {
+                  message = errorThrown + " - " + responseText;
+               }
+               else if(errorThrown) {
+                  message = errorThrown;
+               }
+               else if(responseText) {
+                  message = responseText;
+               }
+               else {
+                  message = defaultErrorMessage;
+               }
+
+               $notifications.html(message);
+               $notifications.show();
+            },
+            () => {
+               $loadingIndicator.removeClass("loading");
+            },
+            headers);
+      }
+      catch(ignore) {
+         $loadingIndicator.removeClass("loading");
+      }
+   });
+
+   function showSessionLimitDialog(sessions) {
+      selectedSessionId = null;
+      $terminateSessionButton.prop("disabled", true);
+      $sessionLimitTableBody.empty();
+
+      if(sessions && sessions.length > 0) {
+         var now = Date.now();
+
+         for(var i = 0; i < sessions.length; i++) {
+            var session = sessions[i];
+            var ageMs = now - (session.loginTime || 0);
+            var ageStr = formatSessionAge(ageMs);
+
+            var $row = $("<tr/>").attr("data-session-id", session.sessionId);
+            var $radioCell = $("<td/>");
+            var $radio = $("<input/>").attr({
+               type: "radio",
+               name: "sessionToTerminate",
+               value: session.sessionId
+            });
+            $radioCell.append($radio);
+            $row.append($radioCell);
+            $row.append($("<td/>").text(session.username || ""));
+            $row.append($("<td/>").text(ageStr));
+
+            $row.click(function() {
+               var sessionId = $(this).attr("data-session-id");
+               $(this).find("input[type=radio]").prop("checked", true);
+               selectedSessionId = sessionId;
+               $terminateSessionButton.prop("disabled", false);
+               $sessionLimitTableBody.find("tr").removeClass("table-active");
+               $(this).addClass("table-active");
+            });
+
+            $sessionLimitTableBody.append($row);
+         }
+      }
+
+      $("#sessionLimitDialog").modal("show");
+   }
+
+   function formatSessionAge(ageMs) {
+      var totalSeconds = Math.floor(ageMs / 1000);
+      var hours = Math.floor(totalSeconds / 3600);
+      var minutes = Math.floor((totalSeconds % 3600) / 60);
+      var seconds = totalSeconds % 60;
+
+      if(hours > 0) {
+         return hours + "h " + minutes + "m";
+      }
+      else if(minutes > 0) {
+         return minutes + "m " + seconds + "s";
+      }
+      else {
+         return seconds + "s";
+      }
+   }
+
    $userNameField.keyup(function(event) {
       validateForm();
 
@@ -255,6 +389,46 @@ function authenticateUser(userName, password, loginAsName, requestedUrl, firstLo
       cache: false,
       success: function(data) {
          if(callBack) {
+            callBack(data);
+         }
+      },
+      error: function(jqXHR, textStatus, errorThrown) {
+         if(errorCallBack) {
+            errorCallBack(jqXHR, textStatus, errorThrown);
+         }
+      },
+      complete: function() {
+         if(completeCallBack) {
+            completeCallBack();
+         }
+      }
+   })
+}
+
+function authenticateUserWithSessionReplacement(userName, password, requestedUrl, sessionIdToReplace,
+                                                 callBack, errorCallBack, completeCallBack, headers)
+{
+   if(!headers) {
+      headers = {};
+   }
+
+   headers["X-Requested-With"] = "XMLHttpRequest";
+   headers["Authorization"] = "Basic " + btoa(encodeURIComponent(userName) + ":" + encodeURIComponent(password));
+   headers["SessionToReplace"] = sessionIdToReplace;
+
+   $.ajax({
+      url: requestedUrl,
+      type: "get",
+      headers: headers,
+      cache: false,
+      success: function(data) {
+         if(data && (data.sessionsExceeded || data.logInAs)) {
+            // Should not happen in normal flow, treat as an error
+            if(errorCallBack) {
+               errorCallBack({ status: 0 }, "error", "Unexpected response");
+            }
+         }
+         else if(callBack) {
             callBack(data);
          }
       },

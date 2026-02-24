@@ -23,6 +23,7 @@ import inetsoft.sree.RepletRepository;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.sree.web.ActiveSessionInfo;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
@@ -101,6 +102,8 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
       String message = null;
       int status = HttpServletResponse.SC_UNAUTHORIZED;
       List<NameLabelTuple> loginAsUsers = null;
+      List<ActiveSessionInfo> activeSessions = null;
+      boolean sessionsExceeded = false;
       boolean authenticationFailure = false;
       IdentityID loginUser = null;
       boolean login = false;
@@ -133,6 +136,7 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
             catch(Exception ignore) {
             }
 
+            String sessionToReplace = httpRequest.getHeader("SessionToReplace");
             boolean firstLogin = "true".equals(httpRequest.getHeader("FirstLogin"));
 
             HttpSession session = httpRequest.getSession(false);
@@ -223,79 +227,127 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
 
                   XPrincipal principal = null;
 
-                  //check if user belongs to self org if not provided an organization via redirect
-                  if(SecurityEngine.getSecurity().isSelfSignupEnabled() &&
-                     recordedOrgID.equalsIgnoreCase(Organization.getDefaultOrganizationID()))
-                  {
-                     IdentityID selfUser = SUtil.isMultiTenant() ?
-                        new IdentityID(userKey, Organization.getSelfOrganizationID()) :
-                        new IdentityID(userKey, Organization.getDefaultOrganizationID());
-                     loginUser = selfUser;
-
-                     principal =
-                        authenticate(request, selfUser, password, null, locale, true);
-                  }
-
-                  if(principal == null) {
-                     principal =
-                        authenticate(request, properUserID, password, null, locale, true);
-                     loginUser = properUserID;
-                  }
-
-                  IdentityID loginAsUser = IdentityID.getIdentityIDFromKey(loginAsUserKey);
-                  boolean isSelfUser = loginAsUser != null &&
-                     Tool.equals(loginAsUser.orgID, Organization.getSelfOrganizationID());
-                  boolean selfLogin = isSelfUser && SecurityEngine.getSecurity().isSelfSignupEnabled();
-
-                  if(principal != null && (!isSelfUser || selfLogin)) {
-                     authorized = true;
-                     principal.setProperty("curr_provider_name", providerName);
-
-
-                     if(provider.checkPermission(
-                        principal, ResourceType.LOGIN_AS, "*", ResourceAction.ACCESS) &&
-                        loginAs)
+                  if(sessionToReplace != null && !sessionToReplace.isEmpty()) {
+                     // Site admin is replacing an existing session: authenticate without
+                     // creating a session, then create the session with the replacement.
+                     //check if user belongs to self org if not provided an organization via redirect
+                     if(SecurityEngine.getSecurity().isSelfSignupEnabled() &&
+                        recordedOrgID.equalsIgnoreCase(Organization.getDefaultOrganizationID()))
                      {
-                        if(firstLogin) {
-                           message = "showLoginAs";
-                           status = HttpServletResponse.SC_OK;
-                           authorized = false;
-                           loginAsUsers = getLoginAsUsers(principal, provider, recordedOrgID);
-
-                        }
-                        else if(loginAsUserKey != null && !loginAsUserKey.trim().isEmpty() &&
-                           provider.getUser(loginAsUser) == null)
-                        {
-                           message = catalog.getString("Invalid login name");
-                           authorized = false;
-                        }
-                        else {
-                           if(checkLoginAs(principal, provider, loginAsUser)) {
-                              authenticate(
-                                 request, new IdentityID(userKey, recordedOrgID), password,
-                                 loginAsUser, locale, true);
-                           }
-                           else {
-                              message = catalog.getString("viewer.securityexception");
-                              authorized = false;
-                           }
-                        }
+                        IdentityID selfUser = SUtil.isMultiTenant() ?
+                           new IdentityID(userKey, Organization.getSelfOrganizationID()) :
+                           new IdentityID(userKey, Organization.getDefaultOrganizationID());
+                        loginUser = selfUser;
+                        principal = authenticate(request, selfUser, password, null, locale, false);
                      }
 
-                     if(userCountExceed(principal)) {
-                        logout(request);
-                        authorized = false;
-                        message = catalog.getString("common.limited.user",
-                           getOrganizationMaxUser());
+                     if(principal == null) {
+                        principal = authenticate(request, properUserID, password, null, locale, false);
+                        loginUser = properUserID;
+                     }
+
+                     if(principal != null) {
+                        if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
+                           // Only site administrators are allowed to terminate existing sessions.
+                           // Reject the request to prevent unauthorized session termination.
+                           message = catalog.getString("viewer.securityexception");
+                        }
+                        else {
+                           String token = principal.getProperty(SUtil.TICKET);
+                           principal.setProperty(SUtil.TICKET, null);
+                           principal.setProperty(SUtil.LONGON_TIME, System.currentTimeMillis() + "");
+                           request.setAttribute(SUtil.TICKET, DefaultTicket.parse(token));
+                           principal.setProperty("showGettingStated", "true");
+                           principal.setProperty("curr_provider_name", providerName);
+                           createSession(request, (SRPrincipal) principal, sessionToReplace);
+                           authorized = true;
+                        }
+                     }
+                     else {
+                        message = catalog.getString("Invalid user name / password pair");
                      }
                   }
                   else {
-                     message = catalog.getString("Invalid user name / password pair");
+                     //check if user belongs to self org if not provided an organization via redirect
+                     if(SecurityEngine.getSecurity().isSelfSignupEnabled() &&
+                        recordedOrgID.equalsIgnoreCase(Organization.getDefaultOrganizationID()))
+                     {
+                        IdentityID selfUser = SUtil.isMultiTenant() ?
+                           new IdentityID(userKey, Organization.getSelfOrganizationID()) :
+                           new IdentityID(userKey, Organization.getDefaultOrganizationID());
+                        loginUser = selfUser;
+
+                        principal =
+                           authenticate(request, selfUser, password, null, locale, true);
+                     }
+
+                     if(principal == null) {
+                        principal =
+                           authenticate(request, properUserID, password, null, locale, true);
+                        loginUser = properUserID;
+                     }
+
+                     IdentityID loginAsUser = IdentityID.getIdentityIDFromKey(loginAsUserKey);
+                     boolean isSelfUser = loginAsUser != null &&
+                        Tool.equals(loginAsUser.orgID, Organization.getSelfOrganizationID());
+                     boolean selfLogin = isSelfUser && SecurityEngine.getSecurity().isSelfSignupEnabled();
+
+                     if(principal != null && (!isSelfUser || selfLogin)) {
+                        authorized = true;
+                        principal.setProperty("curr_provider_name", providerName);
+
+
+                        if(provider.checkPermission(
+                           principal, ResourceType.LOGIN_AS, "*", ResourceAction.ACCESS) &&
+                           loginAs)
+                        {
+                           if(firstLogin) {
+                              message = "showLoginAs";
+                              status = HttpServletResponse.SC_OK;
+                              authorized = false;
+                              loginAsUsers = getLoginAsUsers(principal, provider, recordedOrgID);
+
+                           }
+                           else if(loginAsUserKey != null && !loginAsUserKey.trim().isEmpty() &&
+                              provider.getUser(loginAsUser) == null)
+                           {
+                              message = catalog.getString("Invalid login name");
+                              authorized = false;
+                           }
+                           else {
+                              if(checkLoginAs(principal, provider, loginAsUser)) {
+                                 authenticate(
+                                    request, new IdentityID(userKey, recordedOrgID), password,
+                                    loginAsUser, locale, true);
+                              }
+                              else {
+                                 message = catalog.getString("viewer.securityexception");
+                                 authorized = false;
+                              }
+                           }
+                        }
+
+                        if(userCountExceed(principal)) {
+                           logout(request);
+                           authorized = false;
+                           message = catalog.getString("common.limited.user",
+                              getOrganizationMaxUser());
+                        }
+                     }
+                     else {
+                        message = catalog.getString("Invalid user name / password pair");
+                     }
                   }
                }
                catch(AuthenticationFailureException e) {
-                  message = Encode.forHtml(e.getMessage());
-                  authenticationFailure = true;
+                  if(e.getReason() == AuthenticationFailureReason.SESSION_EXCEEDED_ADMIN) {
+                     sessionsExceeded = true;
+                     activeSessions = e.getActiveSessions();
+                  }
+                  else {
+                     message = Encode.forHtml(e.getMessage());
+                     authenticationFailure = true;
+                  }
                   // don't log, audited
                }
             }
@@ -312,7 +364,20 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
       else {
          HttpServletResponse httpResponse = (HttpServletResponse) response;
          LOG.debug("user {} Authentication failed: message\"{}\", code: {}", loginUser == null ? "" : loginUser.getLabel(), message, status);
-         if(loginAsUsers != null) {
+         if(sessionsExceeded) {
+            httpResponse.setStatus(HttpServletResponse.SC_OK);
+            httpResponse.setContentType("application/json");
+            httpResponse.setCharacterEncoding("utf-8");
+
+            try(PrintWriter writer = httpResponse.getWriter()) {
+               AuthenticationResponse body = AuthenticationResponse.builder()
+                  .sessionsExceeded(true)
+                  .activeSessions(activeSessions)
+                  .build();
+               new ObjectMapper().writeValue(writer, body);
+            }
+         }
+         else if(loginAsUsers != null) {
             httpResponse.setStatus(HttpServletResponse.SC_OK);
             httpResponse.setContentType("application/json");
 
