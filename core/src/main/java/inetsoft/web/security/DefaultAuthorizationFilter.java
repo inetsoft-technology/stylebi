@@ -257,6 +257,12 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
       }
 
       @Override
+      public void reset() {
+         this.status = HttpServletResponse.SC_OK;
+         super.reset();
+      }
+
+      @Override
       public int getStatus() {
          return status;
       }
