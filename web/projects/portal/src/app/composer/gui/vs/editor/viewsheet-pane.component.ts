@@ -784,7 +784,6 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.vs.snapGrid = command.info["snapGrid"];
       this.hasScript = command.hasScript;
       this.hideNotifications = !!command.hideNotifications;
-      this.newInfoConsoleMessages = false;
       this.refreshStatus();
 
       if(command.linkUri) {

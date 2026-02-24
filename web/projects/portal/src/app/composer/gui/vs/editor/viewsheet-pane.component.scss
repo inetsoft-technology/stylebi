@@ -172,10 +172,16 @@ div.vs-pane .bl-selected {
 }
 
 .console-blink {
-  animation: slow-blink 2.5s infinite;
+  animation: vs-pane-slow-blink 2.5s infinite;
 }
 
-@keyframes slow-blink {
+@keyframes vs-pane-slow-blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .console-blink {
+    animation: none;
+  }
 }

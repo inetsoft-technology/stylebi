@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { ChangeDetectorRef, Component, Input, OnInit } from "@angular/core";
+import { ChangeDetectorRef, Component, Input, OnChanges, OnInit, SimpleChanges } from "@angular/core";
 import { Notification, NotificationType } from "../../common/data/notification";
 import { Tool } from "../../../../../shared/util/tool";
 
@@ -27,7 +27,7 @@ import { Tool } from "../../../../../shared/util/tool";
    templateUrl: "notifications.component.html",
    styleUrls: ["notifications.component.scss"]
 })
-export class NotificationsComponent implements OnInit {
+export class NotificationsComponent implements OnInit, OnChanges {
    /* Optional timeout for notifications. */
    @Input() timeout: number = 0;
    @Input() message: string = "";
@@ -42,6 +42,12 @@ export class NotificationsComponent implements OnInit {
    ngOnInit() {
       if(this.message) {
          this.info(this.message);
+      }
+   }
+
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes["hideNotifications"]?.currentValue === true) {
+         this.alerts = this.alerts.filter(a => a.type !== "info");
       }
    }
 
