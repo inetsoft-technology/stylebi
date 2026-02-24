@@ -21,7 +21,7 @@
   <ng-container *ngIf="!uploaded" [formGroup]="uploadForm">
     <div class="property-card">
       <div>
-        <mat-form-field appearance="outline" color="accent">
+        <mat-form-field appearance="outline" color="accent" subscriptSizing="dynamic">
           <mat-label>_#(Select file)</mat-label>
           <em-file-chooser formControlName="file" placeholder="_#(Select file)" accept=".jar,.zip,.vso"></em-file-chooser>
           <mat-icon matSuffix fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
