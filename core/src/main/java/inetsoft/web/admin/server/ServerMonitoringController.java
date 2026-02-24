@@ -157,7 +157,7 @@ public class ServerMonitoringController {
                                    @PathVariable("width") double width,
                                    @PathVariable("height") double height,
                                    @RequestParam(value = "clusterNode", required = false) String clusterNode,
-                                   @RequestParam(value = "timezoneOffset", required = false, defaultValue = "0") int timezoneOffset,
+                                   @RequestParam(value = "timezoneOffset", required = false) Integer timezoneOffset,
                                    HttpServletRequest request,
                                    HttpServletResponse response) throws Exception
    {
@@ -681,7 +681,7 @@ public class ServerMonitoringController {
     * Generate the an image.
     */
    private Graphics2D generateImage(String imageId, String clusterNode, int width, int height,
-                                    int timezoneOffset)
+                                    Integer timezoneOffset)
    {
       Object[][] data = null;
       String format = null;
@@ -692,9 +692,16 @@ public class ServerMonitoringController {
       String[] scheduleServers = getScheduleServers();
       MemoryMXBean memoryBean = ManagementFactory.getMemoryMXBean();
       long max = 0L;
-      long serverOffsetMs = ZoneId.systemDefault().getRules().getOffset(Instant.now()).getTotalSeconds() * 1000L;
-      long clientOffsetMs = -(long) timezoneOffset * 60_000L;
-      long tzAdjustMs = clientOffsetMs - serverOffsetMs;
+      long tzAdjustMs;
+
+      if(timezoneOffset == null) {
+         tzAdjustMs = 0L;
+      }
+      else {
+         long serverOffsetMs = ZoneId.systemDefault().getRules().getOffset(Instant.now()).getTotalSeconds() * 1000L;
+         long clientOffsetMs = -(long) timezoneOffset * 60_000L;
+         tzAdjustMs = clientOffsetMs - serverOffsetMs;
+      }
 
       if("memUsage".equals(imageId)) {
          max = memoryBean.getHeapMemoryUsage().getMax();
