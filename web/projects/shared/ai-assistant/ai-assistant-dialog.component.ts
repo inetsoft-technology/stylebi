@@ -33,6 +33,7 @@ export class AiAssistantDialogComponent {
    get styleBIUrl(): string { return this.aiAssistantService.styleBIUrl; }
    get userId(): string { return this.aiAssistantService.userId; }
 
+
    constructor(private aiAssistantService: AiAssistantService) {
       this.userEmail = this.aiAssistantService.email;
       this.context = this.aiAssistantService.getFullContext();
