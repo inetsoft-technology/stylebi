@@ -57,8 +57,6 @@ npm run verify         # Lint + tests
 ```bash
 cd web
 npx jest path/to/spec.ts
-# Or with Angular CLI:
-npx ng test --include='**/my-component.spec.ts'
 ```
 
 ## Maven Module Structure
@@ -71,7 +69,7 @@ npx ng test --include='**/my-component.spec.ts'
 | `core/` | BI engine, REST controllers, data pipeline, graph rendering |
 | `server/` | Spring Boot entry point, health/metrics endpoints |
 | `connectors/` | 25+ data source connectors (JDBC, REST, cloud, NoSQL) |
-| `web/` | Angular frontend (compiled into `core` resources) |
+| `web/` | Angular frontend (runtime dependency of `server`) |
 | `docker/` | Docker image and Docker Compose configuration |
 
 ## Backend Architecture (core/)
