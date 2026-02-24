@@ -1163,6 +1163,10 @@ public class SubMV implements Cloneable {
     * Clean up any data structure and temporary files.
     */
    public void dispose() {
+      if(file != null) {
+         map.remove(file.getName());
+      }
+
       table.dispose();
       dims = null;
       rtdims = null;
