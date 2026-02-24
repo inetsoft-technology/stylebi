@@ -253,6 +253,13 @@ public abstract class AbstractSecurityFilter
          }
 
          session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
+
+         // Mark anonymous sessions as fresh so they can be invalidated on error responses
+         if(principal != null && principal.getName() != null &&
+            principal.getName().startsWith(ClientInfo.ANONYMOUS))
+         {
+            session.setAttribute(FRESH_ANONYMOUS_SESSION_ATTR, Boolean.TRUE);
+         }
       }
       catch(SessionsExceededException e) {
          throw new AuthenticationFailureException(
@@ -744,7 +751,14 @@ public abstract class AbstractSecurityFilter
       "/js/**",
       "/webjars/**",
       "/sso/jwks",
+      "/robots.txt",
    };
    protected static final String ORG_COOKIE = "X-INETSOFT-ORGID";
+   /**
+    * Session attribute to mark fresh anonymous sessions that can be invalidated on error responses.
+    * Set by {@link AbstractSecurityFilter} during anonymous session creation, read and cleared by
+    * {@link DefaultAuthorizationFilter} after processing the request.
+    */
+   protected static final String FRESH_ANONYMOUS_SESSION_ATTR = "inetsoft.fresh.anonymous.session";
    private static final Logger LOG = LoggerFactory.getLogger(AbstractSecurityFilter.class);
 }
