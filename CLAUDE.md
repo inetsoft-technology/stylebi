@@ -4,104 +4,157 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-StyleBI is a cloud-native business intelligence web application. It is a multi-module Maven monorepo with a Java backend (Spring Boot) and Angular frontend.
+StyleBI Community is a cloud-native business intelligence web application. This is the open-source community edition used as a Git submodule inside the enterprise repository at `../` (parent directory).
+
+**Requirements**: Java 21 (`JAVA_HOME` must be set), Maven 3.9+ (use `./mvnw` wrapper), Node.js 18+, Docker
 
 ## Build Commands
 
-### Prerequisites
-- Java 21 SDK with `JAVA_HOME` set
-- Docker (running)
-- GitHub classic personal access token with `read:packages` scope configured in `~/.m2/settings.xml` (see README.md)
-
-### Java / Full Build
 ```bash
-./mvnw clean install              # Full build with tests
-./mvnw clean install -DskipTests  # Skip tests for faster builds
-./mvnw clean install -PdockerImage  # Build + Docker image in one step
-./mvnw clean package jib:dockerBuild -pl docker  # Build Docker image only
+# Build all Java modules
+./mvnw clean install -DskipTests
+
+# Build single module
+./mvnw clean install -pl core -DskipTests
+
+# Build Docker image (requires Java libraries already built)
+./mvnw clean package jib:dockerBuild -pl docker
+
+# Build Java + Docker image together
+./mvnw clean install -PdockerImage
 ```
 
-### Frontend (Angular)
+## Running Locally
+
+Start the server via Docker Compose after building:
+```bash
+cd docker/target/docker-test
+docker compose up -d
+docker compose logs -f server
+# Stop: docker compose down --rmi local -v
+```
+
+Access at http://localhost:8080 (admin/admin).
+
+## Frontend (web/)
+
 ```bash
 cd web
-npm run build         # Development build
-npm run build:prod    # Production build
-npm run start         # Dev server
-npm run test          # Run Jest tests
-npm run test:watch    # Watch mode
-npm run test:em       # Enterprise Manager tests only
-npm run lint          # ESLint
-npm run lint:prod     # Lint with checkstyle output
-npm run verify        # lint + test
+npm install
+
+npm run build          # Dev build: portal, em, elements, viewer-element
+npm run build:prod     # Production build
+npm run build:watch    # Watch mode (portal + em only)
+npm run test           # Jest tests (portal project)
+npm run test:em        # Jest tests (em project)
+npm run test:watch     # Jest watch mode
+npm run lint           # ESLint
+npm run verify         # Lint + tests
 ```
 
-### Running Locally
-After building, start the server from `docker/target/docker-test`:
+### Running a single test file
+
 ```bash
-docker compose up -d
-# Access at http://localhost:8080, admin/admin credentials
-docker compose down --rmi local -v  # Tear down
+cd web
+npx jest path/to/spec.ts
 ```
 
-## Module Structure
+## Maven Module Structure
 
+| Module | Purpose |
+|--------|---------|
+| `bom/` | Bill of materials (dependency versions) |
+| `build-tools/` | Maven build plugins and configurations |
+| `utils/` | Shared utilities |
+| `core/` | BI engine, REST controllers, data pipeline, graph rendering |
+| `server/` | Spring Boot entry point, health/metrics endpoints |
+| `connectors/` | 25+ data source connectors (JDBC, REST, cloud, NoSQL) |
+| `web/` | Angular frontend (runtime dependency of `server`) |
+| `docker/` | Docker image and Docker Compose configuration |
+
+## Backend Architecture (core/)
+
+All Java source lives under `core/src/main/java/inetsoft/`:
+
+| Package | Purpose |
+|---------|---------|
+| `analytic/` | Analytic engine, composition pipeline |
+| `graph/` | Chart/graph rendering engine (EGraph, GGraph, visual elements) |
+| `mv/` | Materialized views for query caching and acceleration |
+| `report/` | Report engine, layouts, cell bindings |
+| `setup/` | Server initialization and configuration |
+| `sree/` | Repository engine — asset storage, security (AuthenticationProvider, AuthorizationProvider), scheduling |
+| `staging/` | Cloud staging providers |
+| `storage/` | Blob storage abstraction (BlobEngine, BlobStorage) |
+| `uql/` | Universal Query Language — data source definitions, conditions, query model |
+| `util/` | Core utilities |
+| `web/` | REST controllers, WebSocket messaging, Spring configuration |
+
+### Key web sub-packages (core/src/main/java/inetsoft/web/)
+
+| Package | Purpose |
+|---------|---------|
+| `adhoc/` | Ad-hoc query controllers |
+| `admin/` | Admin API endpoints |
+| `binding/` | Data binding controllers |
+| `composer/` | Viewsheet/worksheet composer controllers |
+| `messaging/` | WebSocket message handling (STOMP) |
+| `portal/` | Portal page controllers |
+| `security/` | Spring Security integration, SSO |
+| `viewsheet/` | Viewsheet runtime controllers |
+| `vswizard/` | Visualization wizard controllers |
+
+### Security Model
+
+Security providers implement `AuthenticationProvider` and `AuthorizationProvider` in `inetsoft.sree.security`. The `RepletEngine` / `AnalyticRepository` in `inetsoft.sree` manage asset repository operations.
+
+## Frontend Architecture (web/)
+
+Four Angular projects built independently:
+
+| Project | Entry point | Purpose |
+|---------|------------|---------|
+| `portal` | `projects/portal/` | Main end-user portal (dashboards, reports, data) |
+| `em` | `projects/em/` | Enterprise Manager admin UI |
+| `elements` | (Angular Elements) | Embeddable web components |
+| `viewer-element` | (Angular Elements) | Embeddable viewsheet viewer |
+
+### Portal app structure (`projects/portal/src/app/`)
+
+| Directory | Purpose |
+|-----------|---------|
+| `portal/` | Top-level portal routes (dashboard, report, data, schedule) |
+| `composer/` | Viewsheet/worksheet design canvas |
+| `vsobjects/` | Viewsheet visual object components (charts, tables, gauges, etc.) |
+| `vsview/` | Viewsheet viewer runtime |
+| `binding/` | Data binding UI |
+| `widget/` | Reusable UI components (tree, dialogs, color-picker, formula-editor, etc.) |
+| `graph/` | Chart configuration UI |
+| `format/` | Format/style editors |
+| `common/` | Shared services and models |
+
+### EM app structure (`projects/em/src/app/`)
+
+Admin features: auditing, authorization, monitoring, scheduling, security configuration.
+
+### Shared library (`projects/shared/`)
+
+Reusable Angular modules: `ai-assistant`, `codemirror`, `data`, `schedule`, `stomp`, `util`.
+
+### WebSocket / Real-time
+
+The frontend communicates with the backend via STOMP over SockJS for real-time viewsheet updates. The `stomp` shared module and `messaging/` backend package handle this.
+
+## Data Connectors (connectors/)
+
+JDBC connectors (MySQL, PostgreSQL, Oracle, SQL Server, Snowflake, etc.) and non-JDBC connectors (MongoDB, Elasticsearch, REST, OData, Google Docs, OneDrive, SharePoint, Cassandra, etc.). Each connector is a separate Maven module.
+
+## Testing
+
+**Java**: JUnit tests alongside source. Run with Maven:
+```bash
+./mvnw test -pl core          # Run core tests
+./mvnw test -pl server        # Run server tests
 ```
-inetsoft-stylebi (root)
-├── bom/           – Dependency version management
-├── build-tools/   – Custom Maven plugins (ANTLR, node, runner, etc.)
-├── core/          – Core Java library (inetsoft-core.jar)
-├── server/        – Spring Boot application (inetsoft-server.jar)
-├── web/           – Angular frontend (compiled into inetsoft-web.jar)
-├── connectors/    – 28 pluggable data source adapters (ZIP artifacts)
-├── utils/         – Utility modules (SSL, MapDB storage, XML formats)
-└── docker/        – Docker image assembly via JiBit
-```
 
-## Architecture
-
-### Request Flow
-```
-Angular UI (Portal / Enterprise Manager)
-    ↓ REST + WebSocket (SockJS)
-Spring Boot Server (server/)
-    ↓
-Core Libraries (core/)
-    ├── UQL query engine
-    ├── Graph / chart rendering
-    ├── Report generation
-    └── Connector framework → connectors/
-```
-
-### Frontend Projects (`web/projects/`)
-- **portal** – Main user-facing dashboard and visualization UI
-- **em** – Enterprise Manager (admin interface)
-- **shared** – Reusable Angular components and services shared between portal and em
-- **elements** – Web components
-
-### Backend Key Packages
-- `inetsoft.uql.*` – Universal Query Language engine
-- `inetsoft.graph.*` – Chart and graph rendering
-- `inetsoft.report.*` – Report generation
-- `inetsoft.web.*` – Spring MVC controllers, WebSocket handlers
-- `inetsoft.sree.*` – Server-side report execution environment
-
-### Storage Backends
-The server supports multiple storage backends selected via Maven profiles:
-- `mapdb` (default) – Embedded MapDB
-- `awsStorage` – AWS S3
-- `googleStorage` – Google Cloud Storage
-- `mongoStorage` – MongoDB
-- `azureStorage` – Azure Blob Storage
-
-### Key Technology Versions
-- Java 21, Spring Boot 3.5.8, Spring Framework 6.2.15
-- Angular 15.2.x, TypeScript 4.9.4, RxJS 6.6.7
-- Angular Material 15.2.9, Bootstrap 5.2.3
-- Jest 28.1.3 (frontend testing)
-
-## Development Notes
-
-- The trunk uses trunk-based development; some tests on `main` may be unstable. Use `-DskipTests` when needed or check out a release tag for stable builds.
-- Frontend tests use Jest (not Karma/Jasmine). Run them from the `web/` directory.
-- The `web/` module is built by Maven via a custom `node-maven-plugin` that runs npm automatically during `./mvnw` builds — you only need to run npm commands directly for frontend-only iteration.
-- The `connectors/` modules produce ZIP artifacts, not JARs; they are loaded at runtime by the connector framework.
+**TypeScript**: Jest via Angular CLI. Test files are `*.spec.ts` colocated with source.
