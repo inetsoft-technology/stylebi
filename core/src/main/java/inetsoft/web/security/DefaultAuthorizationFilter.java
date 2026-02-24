@@ -209,8 +209,7 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
 
          if(principal != null) {
             AuthenticationService.getInstance().logout(principal, request.getRemoteAddr(), "");
-            session.removeAttribute(RepletRepository.PRINCIPAL_COOKIE);
-            session.removeAttribute(FRESH_ANONYMOUS_SESSION_ATTR);
+            session.invalidate();
 
             LOG.debug("Invalidated fresh anonymous session after error response for: {}",
                       request.getRequestURI());

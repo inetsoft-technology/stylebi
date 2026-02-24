@@ -756,6 +756,8 @@ public abstract class AbstractSecurityFilter
    protected static final String ORG_COOKIE = "X-INETSOFT-ORGID";
    /**
     * Session attribute to mark fresh anonymous sessions that can be invalidated on error responses.
+    * Set by {@link AbstractSecurityFilter} during anonymous session creation, read and cleared by
+    * {@link DefaultAuthorizationFilter} after processing the request.
     */
    protected static final String FRESH_ANONYMOUS_SESSION_ATTR = "inetsoft.fresh.anonymous.session";
    private static final Logger LOG = LoggerFactory.getLogger(AbstractSecurityFilter.class);
