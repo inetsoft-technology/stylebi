@@ -1632,7 +1632,9 @@ public class JDBCHandler extends XHandler {
          }
       }
       finally {
-         metaLock.unlock();
+         if(metaLock.isHeldByCurrentThread()) {
+            metaLock.unlock();
+         }
       }
    }
 
