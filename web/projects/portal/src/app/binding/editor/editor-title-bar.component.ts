@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
+import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assistant.service";
 import { AiAssistantDialogService } from "../../common/services/ai-assistant-dialog.service";
 import { VSWizardConstants } from "../../vs-wizard/model/vs-wizard-constants";
 import { VSWizardUtil } from "../../vs-wizard/util/vs-wizard-util";
@@ -50,7 +51,7 @@ export class EditorTitleBar {
    @Output() onOpenReportWizard = new EventEmitter<any>();
    @Output() onChangeReportMode = new EventEmitter<number>();
 
-   constructor(public aiAssistantDialogService: AiAssistantDialogService) {
+   constructor(public aiAssistantDialogService: AiAssistantDialogService, private aiAssistantService: AiAssistantService) {
    }
 
    done() {
@@ -155,6 +156,6 @@ export class EditorTitleBar {
 
    openAiAssistantDialog(): void {
       this.aiAssistantService.lastBindingObject = this.objectType + "^^" + this.elementName;
-      this.aiAssistantService.openAiAssistantDialog();
+      this.aiAssistantDialogService.openAiAssistantDialog();
    }
 }
