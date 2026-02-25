@@ -124,13 +124,14 @@ describe("PermissionClipboardService", () => {
          expect(service.copiedCount(null, [ResourceAction.READ, ResourceAction.WRITE])).toBe(0);
       });
 
-      it("should return full count when displayActions is null", () => {
+      it("should return 0 when displayActions is null or undefined (model not yet loaded)", () => {
          service.copy([
             createPermission("admin", [ResourceAction.READ]),
             createPermission("editors", [ResourceAction.ACCESS], IdentityType.GROUP)
          ], false, "provider");
 
-         expect(service.copiedCount(null, null)).toBe(2);
+         expect(service.copiedCount(null, null)).toBe(0);
+         expect(service.copiedCount(null, undefined)).toBe(0);
       });
    });
 
@@ -151,6 +152,13 @@ describe("PermissionClipboardService", () => {
    describe("paste", () => {
       it("should return null when clipboard is empty", () => {
          expect(service.paste([ResourceAction.READ])).toBeNull();
+      });
+
+      it("should return null when displayActions is null or undefined (model not yet loaded)", () => {
+         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider");
+
+         expect(service.paste(null)).toBeNull();
+         expect(service.paste(undefined)).toBeNull();
       });
 
       it("should return null when context does not match", () => {

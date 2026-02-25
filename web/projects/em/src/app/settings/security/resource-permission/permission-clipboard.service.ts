@@ -46,12 +46,8 @@ export class PermissionClipboardService {
    }
 
    copiedCount(context: string | null = null, displayActions: ResourceAction[] | null = null): number {
-      if(!this.canPaste(context)) {
+      if(!this.canPaste(context) || displayActions == null) {
          return 0;
-      }
-
-      if(displayActions == null) {
-         return this.copiedPermissions?.permissions?.length ?? 0;
       }
 
       return this.copiedPermissions.permissions
@@ -69,10 +65,10 @@ export class PermissionClipboardService {
       this.contextAtCopy = context;
    }
 
-   paste(displayActions: ResourceAction[], context: string | null = null):
+   paste(displayActions: ResourceAction[] | null, context: string | null = null):
       { permissions: ResourcePermissionTableModel[], requiresBoth: boolean } | null
    {
-      if(!this.copiedPermissions || !this.contextsMatch(context, this.contextAtCopy)) {
+      if(!this.copiedPermissions || !this.contextsMatch(context, this.contextAtCopy) || displayActions == null) {
          return null;
       }
 
