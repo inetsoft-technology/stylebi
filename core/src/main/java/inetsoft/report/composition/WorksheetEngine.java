@@ -475,7 +475,13 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       }
 
       rs.setID(sheetId);
-      amap.put(sheetId, rs);
+
+      try {
+         amap.putSheet(sheetId, rs).get(10, TimeUnit.SECONDS);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to persist sheet {} to distributed cache", sheetId, e);
+      }
 
       if(LOG.isDebugEnabled()) {
          LOG.debug("Opened runtime sheet {} on {}", sheetId, Cluster.getInstance().getLocalMember());
