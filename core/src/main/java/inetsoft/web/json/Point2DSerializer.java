@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,37 +15,33 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- package inetsoft.web.json;
+package inetsoft.web.json;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 
-import java.awt.geom.RectangularShape;
+import java.awt.geom.Point2D;
 import java.io.IOException;
 
 /**
- * Class that handles serializing {@link RectangularShape} objects as JSON.
- *
- * @since 12.3
+ * Class that handles serializing {@link Point2D} objects as JSON.
  */
-public class RectangularShapeSerializer extends StdSerializer<RectangularShape> {
+public class Point2DSerializer extends StdSerializer<Point2D> {
    /**
-    * Creates a new instance of <tt>RectangularShapeSerializer</tt>.
+    * Creates a new instance of <tt>Point2DSerializer</tt>.
     */
-   public RectangularShapeSerializer() {
-      super(RectangularShape.class);
+   public Point2DSerializer() {
+      super(Point2D.class);
    }
 
    @Override
-   public void serialize(RectangularShape value, JsonGenerator generator,
+   public void serialize(Point2D value, JsonGenerator generator,
                          SerializerProvider provider) throws IOException
    {
       generator.writeStartObject();
       generator.writeNumberField("x", value.getX());
       generator.writeNumberField("y", value.getY());
-      generator.writeNumberField("width", value.getWidth());
-      generator.writeNumberField("height", value.getHeight());
       generator.writeEndObject();
    }
 }

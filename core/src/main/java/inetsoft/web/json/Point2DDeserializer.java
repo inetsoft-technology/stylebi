@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -22,28 +22,28 @@ import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 
-import java.awt.*;
+import java.awt.geom.Point2D;
 import java.io.IOException;
 
 /**
- * Class that handles deserializing {@link Point} objects from JSON.
- *
- * @since 12.3
+ * Class that handles deserializing {@link Point2D.Double} objects from JSON.
  */
-public class PointDeserializer extends StdDeserializer<Point> {
+public class Point2DDeserializer extends StdDeserializer<Point2D.Double> {
    /**
-    * Creates a new instance of <tt>PointDeserializer</tt>.
+    * Creates a new instance of <tt>Point2DDeserializer</tt>.
     */
-   public PointDeserializer() {
-      super(Point.class);
+   public Point2DDeserializer() {
+      super(Point2D.Double.class);
    }
 
    @Override
-   public Point deserialize(JsonParser parser, DeserializationContext context)
-      throws IOException {
-      JsonNode node = parser.getCodec().readTree(parser);
-      int x = node.path("x").intValue();
-      int y = node.path("y").intValue();
-      return new Point(x, y);
+   public Point2D.Double deserialize(JsonParser jsonParser,
+                                     DeserializationContext deserializationContext)
+      throws IOException
+   {
+      JsonNode node = jsonParser.getCodec().readTree(jsonParser);
+      double x = node.path("x").doubleValue();
+      double y = node.path("y").doubleValue();
+      return new Point2D.Double(x, y);
    }
 }
