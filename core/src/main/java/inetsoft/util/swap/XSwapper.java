@@ -348,12 +348,25 @@ public final class XSwapper {
    }
 
    /**
+    * Gets the number of threads currently blocked waiting for memory because the memory
+    * state is critical (free ratio below 15%). Unlike {@link #getWaitingThreadCount()},
+    * this excludes threads that entered {@code waitForMemory()} but returned immediately
+    * because memory was sufficient.
+    *
+    * @return the count of threads blocked in critical memory state.
+    */
+   public static long getCriticalWaitingThreadCount() {
+      return XSwapper.getSwapper().criticalWaitCount.get();
+   }
+
+   /**
     * Wait for swapper to swap out objects if memory is low. This should
     * be called when there is a surge of memory request to avoid running
     * out of memory before swapping could be performed.
     */
    public void waitForMemory() {
       waitingThreadCount.incrementAndGet();
+      boolean criticalWait = false;
 
       try {
          final boolean isThreadSwapping = swapping.get();
@@ -371,6 +384,9 @@ public final class XSwapper {
          if(getMemoryState() > CRITICAL_MEM) {
             return;
          }
+
+         criticalWait = true;
+         criticalWaitCount.incrementAndGet();
 
          final Thread curr = Thread.currentThread();
          // waiting for memory in swapper thread, could deadlock
@@ -444,6 +460,10 @@ public final class XSwapper {
       }
       finally {
          waitingThreadCount.decrementAndGet();
+
+         if(criticalWait) {
+            criticalWaitCount.decrementAndGet();
+         }
       }
    }
 
@@ -877,6 +897,7 @@ public final class XSwapper {
    private final long seed = Math.abs(System.currentTimeMillis());
    private final MonitorMulticaster monitor = new MonitorMulticaster();
    private final AtomicLong waitingThreadCount = new AtomicLong(0L);
+   private final AtomicLong criticalWaitCount = new AtomicLong(0L);
 
    private final Lock waitLock = new ReentrantLock();
    private final Object swapLock = "swapLock";
