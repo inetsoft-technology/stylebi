@@ -20,6 +20,7 @@ import { ResourcePermissionTableModel } from "./resource-permission-table-model"
 import { ResourceAction } from "../../../../../../shared/util/security/resource-permission/resource-action.enum";
 import { Tool } from "../../../../../../shared/util/tool";
 import { OrganizationDropdownService } from "../../../navbar/organization-dropdown.service";
+import { CopyPasteContext } from "./copy-paste-context";
 
 @Injectable({
    providedIn: "root"
@@ -27,7 +28,7 @@ import { OrganizationDropdownService } from "../../../navbar/organization-dropdo
 export class PermissionClipboardService {
    private copiedPermissions: { permissions: ResourcePermissionTableModel[], requiresBoth: boolean } | null = null;
    private providerAtCopy: string | null = null;
-   private contextAtCopy: string | null = null;
+   private contextAtCopy: CopyPasteContext | null = null;
 
    constructor(orgDropdownService: OrganizationDropdownService) {
       // This service is a root singleton that lives for the full app lifetime.
@@ -41,11 +42,20 @@ export class PermissionClipboardService {
       });
    }
 
-   canPaste(context: string | null = null): boolean {
+   canPaste(context: CopyPasteContext | null = null): boolean {
       return this.copiedPermissions != null && this.contextsMatch(context, this.contextAtCopy);
    }
 
-   copiedCount(context: string | null = null, displayActions: ResourceAction[] | null = null): number {
+   /**
+    * Returns the number of copied rows that would survive a paste into the current target.
+    *
+    * @param context - The paste target's context key; must match the context at copy-time.
+    * @param displayActions - The actions supported by the target resource. Pass the model's
+    *   `displayActions` array once it has loaded. Passing `null` (or omitting the argument)
+    *   means the model is not yet loaded and the count is always 0 — this is intentional so
+    *   that "Paste (N)" badges stay hidden until the target model is ready.
+    */
+   copiedCount(context: CopyPasteContext | null = null, displayActions: ResourceAction[] | null = null): number {
       if(!this.canPaste(context) || displayActions == null) {
          return 0;
       }
@@ -56,7 +66,7 @@ export class PermissionClipboardService {
    }
 
    copy(permissions: ResourcePermissionTableModel[], requiresBoth: boolean, provider: string,
-        context: string | null = null): void {
+        context: CopyPasteContext | null = null): void {
       this.copiedPermissions = {
          permissions: Tool.clone(permissions),
          requiresBoth
@@ -65,7 +75,7 @@ export class PermissionClipboardService {
       this.contextAtCopy = context;
    }
 
-   paste(displayActions: ResourceAction[] | null, context: string | null = null):
+   paste(displayActions: ResourceAction[] | null, context: CopyPasteContext | null = null):
       { permissions: ResourcePermissionTableModel[], requiresBoth: boolean } | null
    {
       if(!this.copiedPermissions || !this.contextsMatch(context, this.contextAtCopy) || displayActions == null) {
@@ -86,7 +96,7 @@ export class PermissionClipboardService {
       };
    }
 
-   private contextsMatch(a: string | null, b: string | null): boolean {
+   private contextsMatch(a: CopyPasteContext | null, b: CopyPasteContext | null): boolean {
       return a === b;
    }
 }

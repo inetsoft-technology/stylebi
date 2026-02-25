@@ -20,6 +20,10 @@ import { IdentityType } from "../../../../../../shared/data/identity-type";
 import { ResourceAction } from "../../../../../../shared/util/security/resource-permission/resource-action.enum";
 import { ResourcePermissionTableModel } from "./resource-permission-table-model";
 import { PermissionClipboardService } from "./permission-clipboard.service";
+import {
+   COPY_PASTE_CONTEXT_REPOSITORY,
+   COPY_PASTE_CONTEXT_SECURITY_ACTIONS
+} from "./copy-paste-context";
 
 describe("PermissionClipboardService", () => {
    let service: PermissionClipboardService;
@@ -50,13 +54,13 @@ describe("PermissionClipboardService", () => {
       });
 
       it("should be true when paste context matches copy context", () => {
-         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider", "repository");
-         expect(service.canPaste("repository")).toBe(true);
+         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
+         expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(true);
       });
 
       it("should be false when paste context differs from copy context", () => {
-         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider", "security-actions");
-         expect(service.canPaste("repository")).toBe(false);
+         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider", COPY_PASTE_CONTEXT_SECURITY_ACTIONS);
+         expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(false);
       });
 
       it("should be true when no context is set on either side", () => {
@@ -65,13 +69,13 @@ describe("PermissionClipboardService", () => {
       });
 
       it("should be false when paste has no context but copy does", () => {
-         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider", "repository");
+         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
          expect(service.canPaste()).toBe(false);
       });
 
       it("should be false when copy has no context but paste does", () => {
          service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider");
-         expect(service.canPaste("repository")).toBe(false);
+         expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(false);
       });
    });
 
@@ -85,25 +89,25 @@ describe("PermissionClipboardService", () => {
             createPermission("admin", [ResourceAction.READ]),
             createPermission("editors", [ResourceAction.READ], IdentityType.GROUP)
          ], false, "provider");
-         expect(service.copiedCount()).toBe(2);
+         expect(service.copiedCount(null, [ResourceAction.READ])).toBe(2);
       });
 
       it("should be 0 after copying an empty array", () => {
          service.copy([], false, "provider");
-         expect(service.copiedCount()).toBe(0);
+         expect(service.copiedCount(null, [ResourceAction.READ])).toBe(0);
       });
 
       it("should be 0 when context does not match", () => {
-         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider", "security-actions");
-         expect(service.copiedCount("repository")).toBe(0);
+         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider", COPY_PASTE_CONTEXT_SECURITY_ACTIONS);
+         expect(service.copiedCount(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.READ])).toBe(0);
       });
 
       it("should return count when context matches", () => {
          service.copy([
             createPermission("admin", [ResourceAction.READ]),
             createPermission("editors", [ResourceAction.READ], IdentityType.GROUP)
-         ], false, "provider", "repository");
-         expect(service.copiedCount("repository")).toBe(2);
+         ], false, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
+         expect(service.copiedCount(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.READ])).toBe(2);
       });
 
       it("should return post-filter count when displayActions provided", () => {
@@ -162,8 +166,8 @@ describe("PermissionClipboardService", () => {
       });
 
       it("should return null when context does not match", () => {
-         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider", "security-actions");
-         expect(service.paste([ResourceAction.READ], "repository")).toBeNull();
+         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider", COPY_PASTE_CONTEXT_SECURITY_ACTIONS);
+         expect(service.paste([ResourceAction.READ], COPY_PASTE_CONTEXT_REPOSITORY)).toBeNull();
       });
 
       it("should replace target permissions with copied ones", () => {
@@ -236,7 +240,7 @@ describe("PermissionClipboardService", () => {
          // canPaste is true because the wrapper object is non-null,
          // even though there is nothing in the clipboard.
          expect(service.canPaste()).toBe(true);
-         expect(service.copiedCount()).toBe(0);
+         expect(service.copiedCount(null, [ResourceAction.READ])).toBe(0);
 
          const result = service.paste([ResourceAction.READ]);
 

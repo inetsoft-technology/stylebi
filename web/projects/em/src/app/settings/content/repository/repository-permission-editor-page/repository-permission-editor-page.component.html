@@ -27,7 +27,7 @@
       <em-resource-permission
         [model]="model?.permissionModel"
         [showCopyPaste]="true"
-        copyPasteContext="repository"
+        [copyPasteContext]="copyPasteContext"
         (permissionChanged)="changed()">
       </em-resource-permission>
     </mat-tab>

@@ -37,6 +37,7 @@ import { MatDialog } from "@angular/material/dialog";
 import { SecurityTreeDialogComponent } from "../security-tree-dialog/security-tree-dialog.component";
 import { SecurityTreeDialogData } from "../security-tree-dialog/security-tree-dialog-data";
 import { PermissionClipboardService } from "./permission-clipboard.service";
+import { CopyPasteContext } from "./copy-paste-context";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 import { OrganizationDropdownService } from "../../../navbar/organization-dropdown.service";
 
@@ -49,7 +50,7 @@ export class ResourcePermissionComponent implements OnInit, OnChanges, OnDestroy
    @Input() model: ResourcePermissionModel;
    @Input() showRadioButtons = true;
    @Input() showCopyPaste = false;
-   @Input() copyPasteContext: string | null = null;
+   @Input() copyPasteContext: CopyPasteContext | null = null;
    @Input() ignorePadding: boolean;
    @Input() isTimeRange: boolean = false;
    @Output() permissionChanged = new EventEmitter<ResourcePermissionTableModel[]>();

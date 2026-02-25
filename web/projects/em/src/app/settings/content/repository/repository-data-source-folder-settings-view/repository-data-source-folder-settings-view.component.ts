@@ -31,6 +31,7 @@ import { takeUntil } from "rxjs/operators";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { DataSourceFolderSettingsModel } from "../repository-data-source-folder-settings-page/data-source-folder-settings-model";
+import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../security/resource-permission/copy-paste-context";
 
 @Component({
    selector: "em-repository-data-source-folder-settings-view",
@@ -45,6 +46,7 @@ export class RepositoryDataSourceFolderSettingsViewComponent implements OnInit, 
    @Output() selectedTabChanged = new EventEmitter<number>();
    @Output() folderSettingsChanged = new EventEmitter<DataSourceFolderSettingsModel>();
    @Output() unsavedChanges = new EventEmitter<boolean>();
+   protected readonly copyPasteContext = COPY_PASTE_CONTEXT_REPOSITORY;
    form: UntypedFormGroup;
 
    get disabled(): boolean {

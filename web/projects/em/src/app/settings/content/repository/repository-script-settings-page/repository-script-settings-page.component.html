@@ -56,7 +56,7 @@
          <ng-template matTabContent>
             <em-resource-permission [model]="model.scriptSettings.permissions"
                                     [showCopyPaste]="true"
-                                    copyPasteContext="repository"
+                                    [copyPasteContext]="copyPasteContext"
                                     (permissionChanged)="_scriptChanged = true">
             </em-resource-permission>
          </ng-template>

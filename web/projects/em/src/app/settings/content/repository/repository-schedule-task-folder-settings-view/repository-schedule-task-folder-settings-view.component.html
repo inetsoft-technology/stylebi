@@ -23,5 +23,5 @@
   (unsavedChanges)="unsavedChanges.emit($event)"
   (resetClicked)="reset()"
 >
-  <em-resource-permission [model]="model.permissions" [showCopyPaste]="true" copyPasteContext="repository"></em-resource-permission>
+  <em-resource-permission [model]="model.permissions" [showCopyPaste]="true" [copyPasteContext]="copyPasteContext"></em-resource-permission>
 </em-editor-panel>

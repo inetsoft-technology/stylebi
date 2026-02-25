@@ -22,6 +22,7 @@ import { RepositorySheetSettingsModel } from "../repository-worksheet-settings-p
 import { Tool } from "../../../../../../../shared/util/tool";
 import { RepositoryTreeNode } from "../repository-tree-node";
 import { MatTab, MatTabChangeEvent } from "@angular/material/tabs";
+import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../security/resource-permission/copy-paste-context";
 
 @Component({
    selector: "em-repository-viewsheet-settings-view",
@@ -40,6 +41,7 @@ export class RepositoryViewsheetSettingsViewComponent {
    @Output() unsavedChanges = new EventEmitter<boolean>();
    @ViewChild("mvTab") mvTab: MatTab;
    @ViewChild("mvPage") mvPage: AnalyzeMvPageComponent;
+   protected readonly copyPasteContext = COPY_PASTE_CONTEXT_REPOSITORY;
    origSheetModel: RepositorySheetSettingsModel;
    _sheetModel: RepositorySheetSettingsModel;
    _infoValid: boolean = true;

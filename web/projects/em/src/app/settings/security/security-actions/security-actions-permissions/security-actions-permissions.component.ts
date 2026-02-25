@@ -24,6 +24,7 @@ import { ResourcePermissionModel } from "../../resource-permission/resource-perm
 import { Tool } from "../../../../../../../shared/util/tool";
 import { ActionTreeNode } from "../action-tree-node";
 import { SecurityActionService } from "../security-action.service";
+import { COPY_PASTE_CONTEXT_SECURITY_ACTIONS } from "../../resource-permission/copy-paste-context";
 
 @Component({
    selector: "em-security-actions-permissions",
@@ -51,6 +52,7 @@ export class SecurityActionsPermissionsComponent {
       }
    }
 
+   protected readonly copyPasteContext = COPY_PASTE_CONTEXT_SECURITY_ACTIONS;
    tableModel: ResourcePermissionModel;
    readonly actionsStyle = { "margin-bottom": "12px" };
    private originalModel: ResourcePermissionModel;
