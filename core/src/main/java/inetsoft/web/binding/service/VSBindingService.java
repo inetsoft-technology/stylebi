@@ -1205,7 +1205,7 @@ public class VSBindingService {
     *
     * @return the DTO model.
     */
-   @SuppressWarnings("unchecked")
+   @SuppressWarnings({ "unchecked", "rawtypes" })
    public BindingModel createModel(VSAssembly assembly) {
       VSBindingFactory factory = vsFactories.get(assembly.getClass());
 
@@ -1218,7 +1218,7 @@ public class VSBindingService {
       BindingModel model = factory.createModel(assembly);
       model.setSource(createSourceInfo(assembly));
       model.setAvailableFields(createAvailableFields(assembly));
-      model.setTables(createSourceTables(model, assembly));
+      model.setTables(createSourceTables(assembly));
 
       return model;
    }
@@ -1266,9 +1266,7 @@ public class VSBindingService {
    /**
     * Create tables of vs source for ai to use it in script pane.
     */
-   private List<BindingModel.SourceTable> createSourceTables(BindingModel model,
-                                                             VSAssembly assembly)
-   {
+   private List<BindingModel.SourceTable> createSourceTables(VSAssembly assembly) {
       List<BindingModel.SourceTable> tables = new ArrayList<>();
 
       // do not support cube to show its sources since cube tables is a lot.
@@ -1289,11 +1287,11 @@ public class VSBindingService {
          Assembly ass = assemblies[i];
 
          if(ass instanceof AbstractTableAssembly) {
-            BindingModel.SourceTable table = model.new SourceTable();
+            BindingModel.SourceTable table = new BindingModel.SourceTable();
             table.setName(ass.getAbsoluteName());
             AbstractTableAssembly abstractTableAssembly = (AbstractTableAssembly) ass;
             ColumnSelection cols = abstractTableAssembly.getColumnSelection(true);
-            table.setColumns(createTableColumns(model, cols));
+            table.setColumns(createTableColumns(cols));
             tables.add(table);
          }
       }
@@ -1301,9 +1299,7 @@ public class VSBindingService {
       return tables;
    }
 
-   private List<BindingModel.SourceTableColumn> createTableColumns(BindingModel model,
-                                                                   ColumnSelection cols)
-   {
+   private List<BindingModel.SourceTableColumn> createTableColumns(ColumnSelection cols) {
       List<BindingModel.SourceTableColumn> columns = new ArrayList<>();
 
       if(cols == null || cols.getAttributeCount() == 0) {
@@ -1313,7 +1309,7 @@ public class VSBindingService {
       for(int i = 0; i < cols.getAttributeCount(); i++) {
          DataRef ref = cols.getAttribute(i);
          BindingModel.SourceTableColumn col =
-            model.new SourceTableColumn(ref.getName(), ref.getDataType());
+            new BindingModel.SourceTableColumn(ref.getName(), ref.getDataType());
 
          if(ref instanceof ColumnRef) {
             col.setDescription(((ColumnRef) ref).getDescription());
