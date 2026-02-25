@@ -34,6 +34,7 @@ import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.util.Tool;
 import inetsoft.web.binding.command.*;
 import inetsoft.web.binding.drm.AggregateRefModel;
 import inetsoft.web.binding.event.*;
@@ -60,7 +61,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.awt.*;
 import java.security.Principal;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.List;
 
 @Controller
@@ -394,7 +395,38 @@ public class VSTableLayoutController {
       cmd.setRowGroup(rowColGroupHandler.hasRowGroup(rvs, info, row, col));
       cmd.setColGroup(rowColGroupHandler.hasColGroup(rvs, info, row, col));
       cmd.setGroupNum(LayoutTool.getTableCellBindings(layout, TableCellBinding.GROUP).size());
+
+      if(bind.getType() == CellBinding.BIND_COLUMN) {
+         try {
+            cmd.setCellScript(cellScriptHandler.get(rvs, info, row, col));
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to compute cell script for row={}, col={}", row, col, e);
+         }
+      }
+
       return cmd;
+   }
+
+   public Map<String, CellBindingInfo> getCellBindingInfos(CalcTableVSAssembly assembly) {
+      Map<String, CellBindingInfo> cells = new HashMap<>();
+      CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) assembly.getInfo();
+      TableLayout layout = info.getTableLayout();
+      int rows = layout.getRowCount();
+      int cols = layout.getColCount();
+
+      for(int r = 0; r < rows; r++) {
+         for(int c = 0; c < cols; c++) {
+            TableCellBinding bind = getBindingFromLayout(layout, r, c);
+            CellBindingInfo cinfo = createCellBinding(bind);
+            String cellName = layout.getRuntimeCellName(bind);
+            cinfo.setRuntimeName(cellName);
+            String cellKey = Tool.buildString("Cell [", r, ",", c, "]");
+            cells.put(cellKey, cinfo);
+         }
+      }
+
+      return cells;
    }
 
    public CellBindingInfo getCellBindingInfo(CalcTableVSAssembly assembly, int row, int col) {
@@ -425,6 +457,7 @@ public class VSTableLayoutController {
       FormatInfo formatInfo = assembly.getFormatInfo();
       CalcTableLayout model = new CalcTableLayout(info, formatInfo, lens);
       GetTableLayoutCommand command = new GetTableLayoutCommand(model);
+      command.setCellBindings(getCellBindingInfos(assembly));
       return command;
    }
 

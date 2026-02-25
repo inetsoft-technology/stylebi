@@ -73,9 +73,11 @@ public class EmNavBarController {
          }
       }
 
+      String homeLink = SreeEnv.getProperty("em.home.link", "..");
+
       return new EmNavBarModel(logoutUri,
                                manager.hasCustomLogo(OrganizationManager.getInstance().getCurrentOrgID()),
-                               enterprise, ssoUser, elasticLicenseExhausted);
+                               enterprise, ssoUser, elasticLicenseExhausted, homeLink);
    }
 
    @GetMapping("/api/em/navbar/organization")

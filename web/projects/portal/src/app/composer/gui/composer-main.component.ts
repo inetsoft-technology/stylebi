@@ -35,6 +35,11 @@ import {
 import { Router } from "@angular/router";
 import { NgbModal, NgbModalOptions, NgbModalRef } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
+import {
+   AiAssistantService,
+   ContextType
+} from "../../../../../shared/ai-assistant/ai-assistant.service";
+import { AiAssistantDialogService } from "../../common/services/ai-assistant-dialog.service";
 import { AssetEntry, createAssetEntry } from "../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../shared/data/asset-type";
 import { Tool } from "../../../../../shared/util/tool";
@@ -301,24 +306,27 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    private propertyDialogModal: NgbModalRef;
 
    constructor(private composerObjectService: ComposerObjectService,
-      private resizeHandlerService: ResizeHandlerService,
-      private clipboardService: ClipboardService,
-      private modalService: NgbModal,
-      private modelService: ModelService,
-      private renderer: Renderer2,
-      private hyperLinkService: ShowHyperlinkService,
-      private assetTreeService: AssetTreeService,
-      private uiContextService: UIContextService,
-      private composerClient: ComposerClientService,
-      private composerRecentService: ComposerRecentService,
-      private changeDetectorRef: ChangeDetectorRef,
-      private http: HttpClient,
-      private zone: NgZone,
-      private gettingStartedService: GettingStartedService,
-      private router: Router,
-      private scriptService: ScriptService,
-      private fontService: FontService)
+               private resizeHandlerService: ResizeHandlerService,
+               private clipboardService: ClipboardService,
+               private modalService: NgbModal,
+               private modelService: ModelService,
+               private renderer: Renderer2,
+               private hyperLinkService: ShowHyperlinkService,
+               private assetTreeService: AssetTreeService,
+               private uiContextService: UIContextService,
+               private composerClient: ComposerClientService,
+               private composerRecentService: ComposerRecentService,
+               private changeDetectorRef: ChangeDetectorRef,
+               private http: HttpClient,
+               private zone: NgZone,
+               private gettingStartedService: GettingStartedService,
+               private router: Router,
+               private scriptService: ScriptService,
+               private fontService: FontService,
+               private aiAssistantService: AiAssistantService,
+               private aiAssistantDialogService: AiAssistantDialogService)
    {
+      this.aiAssistantService.loadCurrentUser();
       GuiTool.isTouchDevice().then((value: boolean) => {
          this.touchDevice = value;
       });
@@ -489,6 +497,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       if(updateFocusedSheet) {
          this.updateFocusedTab(sheet);
       }
+
+      this.refreshAiAssistantContext();
    }
 
    fixAutoSaveFiles(autoSaveFiles: string[]) {
@@ -1758,6 +1768,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    saveWorksheet(sheet: Worksheet, close: boolean = false) {
+      sheet.saving = true;
       this.saveWorksheet0(sheet, close, false);
    }
 
@@ -1811,8 +1822,14 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                            worksheet.socketConnection.sendEvent(SAVE_WORKSHEET_SOCKET_URI, event);
                         }
                      }
+                     else {
+                        worksheet.saving = false;
+                     }
                   });
                });
+         }
+         else {
+            worksheet.saving = false;
          }
       });
    }
@@ -1987,6 +2004,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    saveViewsheet(sheet: Viewsheet, close: boolean = false) {
+      sheet.saving = true;
       this.saveViewsheet0(sheet, close, false);
    }
 
@@ -2056,7 +2074,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          });
          return;
       }
-
+      worksheet.saving = true;
       this.finishSave(worksheet, close || this.closeOnComplete, dialogModel);
    }
 
@@ -2134,6 +2152,9 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                      this.gettingStartedService.finish();
                   }
 
+                  sheet.saving = true;
+                  this.designSaved = true;
+
                   if(close) {
                      sheet.socketConnection.sendEvent(
                         SAVE_VIEWSHEET_DIALOG_AND_CLOSE_SOCKET_URI, result);
@@ -2142,8 +2163,6 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                      sheet.socketConnection.sendEvent(
                         SAVE_VIEWSHEET_DIALOG_SOCKET_URI, result);
                   }
-
-                  this.designSaved = true;
                }).
                catch(() => { });
          },
@@ -3075,6 +3094,19 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       if((this.gettingStartedService.isUploadFile() || this.gettingStartedService.isCreateQuery() ||
          this.gettingStartedService.isStartFromScratch()) && this.worksheetPermission) {
          this.gettingStartedService.setWorksheetId(ws.id);
+      }
+   }
+
+   refreshAiAssistantContext(): void {
+      this.aiAssistantService.resetContextMap();
+      const contextType = this.focusedSheet ? this.focusedSheet.type : "";
+      this.aiAssistantService.setContextTypeFieldValue(contextType || ContextType.VIEWSHEET);
+
+      if(contextType === "worksheet") {
+         this.aiAssistantDialogService.setWorksheetContext(this.focusedSheet as Worksheet);
+      }
+      else if(contextType === "viewsheet") {
+         this.aiAssistantDialogService.setViewsheetScriptContext(this.focusedSheet as Viewsheet);
       }
    }
 }

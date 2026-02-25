@@ -15,42 +15,172 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { Component, EventEmitter, Input, OnDestroy, Output } from "@angular/core";
+import { UntypedFormControl, UntypedFormGroup, Validators, AbstractControl, ValidationErrors, ValidatorFn } from "@angular/forms";
+import { Subject } from "rxjs";
+import { takeUntil } from "rxjs/operators";
 
 @Component({
    selector: "range-slider-edit-dialog",
    templateUrl: "range-slider-edit-dialog.component.html",
 })
-export class RangeSliderEditDialog implements OnInit {
-   @Input() currentMin: number;
-   @Input() currentMax: number;
-   @Input() rangeMin: number;
-   @Input() rangeMax: number;
+export class RangeSliderEditDialog implements OnDestroy {
+   @Input() currentMin: number | Date;
+   @Input() currentMax: number | Date;
+   @Input() rangeMin: number | Date;
+   @Input() rangeMax: number | Date;
 
-   @Output() onCommit: EventEmitter<{min: number, max: number}> =
-      new EventEmitter<{min: number, max: number}>();
+   @Output() onCommit: EventEmitter<{min: number | Date, max: number | Date}> =
+      new EventEmitter<{min: number | Date, max: number | Date}>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
 
-   rangeForm: UntypedFormGroup;
+   rangeForm: UntypedFormGroup = new UntypedFormGroup({});
+   isDateType: boolean;
+   timeIncrement: string;
+   private destroy$ = new Subject<void>();
 
-   ngOnInit() {
-      this.initForm();
+   ngOnDestroy() {
+      this.destroy$.next();
+      this.destroy$.complete();
    }
 
    initForm(): void {
-      this.rangeForm = new UntypedFormGroup({});
+      this.rangeForm = new UntypedFormGroup({}, [this.minMaxNotEqual(), this.minBeforeMax()]);
+      if(typeof this.rangeMin == "number" && typeof this.rangeMax == "number"){
+         this.isDateType = false;
+         this.rangeForm.addControl("min", new UntypedFormControl(this.currentMin, [
+            Validators.required,
+            Validators.min(this.rangeMin),
+            Validators.max(this.rangeMax)
+         ]));
+         this.rangeForm.addControl("max", new UntypedFormControl(this.currentMax, [
+            Validators.required,
+            Validators.min(this.rangeMin),
+            Validators.max(this.rangeMax)
+         ]));
+      }
+      else if (this.rangeMin instanceof Date && this.rangeMax instanceof Date){
+         this.isDateType = true;
+         this.rangeForm.addControl("min", new UntypedFormControl(this.formatDate(this.currentMin), [
+            Validators.required,
+            this.dateRangeValidatorMin(this.rangeMin),
+            this.dateRangeValidatorMax(this.rangeMax)
+         ]));
+         this.rangeForm.addControl("max", new UntypedFormControl(this.formatDate(this.currentMax), [
+            Validators.required,
+            this.dateRangeValidatorMin(this.rangeMin),
+            this.dateRangeValidatorMax(this.rangeMax)
+         ]));
+         this.rangeForm.get("min")?.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(value => {
+            if(value) {
+               this.currentMin = new Date(value + (this.timeIncrement !== "t" ? "T00:00" : ""));
+            }
+         });
+         this.rangeForm.get("max")?.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(value => {
+            if(value) {
+               this.currentMax = new Date(value + (this.timeIncrement !== "t" ? "T00:00" : ""));
+            }
+         });
+      }
+   }
 
-      this.rangeForm.addControl("min", new UntypedFormControl({}, [
-         Validators.required,
-         Validators.min(this.rangeMin),
-         Validators.max(this.rangeMax)
-      ]));
-      this.rangeForm.addControl("max", new UntypedFormControl({}, [
-         Validators.required,
-         Validators.min(this.rangeMin),
-         Validators.max(this.rangeMax)
-      ]));
+   formatDate(date: number | Date): string {
+      const d = new Date(date);
+      const year = d.getFullYear();
+      const month = ("0" + (d.getMonth() + 1)).slice(-2);
+      const day = ("0" + d.getDate()).slice(-2);
+
+      if (this.timeIncrement != "t") {
+         return `${year}-${month}-${day}`;
+      } else {
+         const hours = d.getHours().toString().padStart(2, "0");
+         const minutes = d.getMinutes().toString().padStart(2, "0");
+         return `${year}-${month}-${day}T${hours}:${minutes}`;
+      }
+   }
+
+   dateRangeValidatorMin(min: Date): ValidatorFn {
+      const minTime = min.getTime();
+
+      return (control: AbstractControl): ValidationErrors | null => {
+         const value = control.value;
+
+         if (!value) {
+            return null;
+         }
+
+         const valueTime = this.timeIncrement !== "t" ? new Date(value + "T00:00").getTime() :
+                                                         new Date(value).getTime();
+
+         if (valueTime < minTime){
+            return {
+               dateMinError: {
+                  requiredMin: min,
+                  actual: valueTime
+               }
+            };
+         }
+
+         return null;
+      };
+   }
+
+   dateRangeValidatorMax(max: Date): ValidatorFn {
+      const maxTime = max.getTime();
+
+      return (control: AbstractControl): ValidationErrors | null => {
+         const value = control.value;
+
+         if (!value) {
+            return null;
+         }
+
+         const valueTime = this.timeIncrement !== "t" ? new Date(value + "T00:00").getTime() :
+                                                                  new Date(value).getTime();
+
+         if (valueTime > maxTime) {
+            return {
+               dateMaxError: {
+                  requiredMax: max,
+                  actual: valueTime
+               }
+            };
+         }
+
+         return null;
+      };
+   }
+
+   private minBeforeMax(): ValidatorFn {
+      return (group: AbstractControl): ValidationErrors | null => {
+         const min = group.get("min")?.value;
+         const max = group.get("max")?.value;
+
+         if(min == null || max == null) {
+            return null;
+         }
+
+         const minGreaterThanMax = this.isDateType ? min > max : +min > +max;
+         return minGreaterThanMax ? { minAfterMax: true } : null;
+      };
+   }
+
+   private minMaxNotEqual(): ValidatorFn {
+      return (group: AbstractControl): ValidationErrors | null => {
+         const min = group.get("min")?.value;
+         const max = group.get("max")?.value;
+
+         if (min == null || max == null) {
+            return null;
+         }
+
+         // For numbers, compare numerically; for date strings, compare directly
+         if (this.isDateType ? min === max : +min === +max) {
+            return { minMaxEqual: true };
+         }
+
+         return null;
+      };
    }
 
    close(): void {
@@ -58,9 +188,13 @@ export class RangeSliderEditDialog implements OnInit {
    }
 
    ok(): void {
-      this.onCommit.emit({
-         min: this.currentMin,
-         max: this.currentMax
-      });
+      if(this.isDateType) {
+         this.onCommit.emit({min: this.currentMin, max: this.currentMax});
+      } else {
+         this.onCommit.emit({
+            min: +this.rangeForm.get("min")!.value,
+            max: +this.rangeForm.get("max")!.value
+         });
+      }
    }
 }

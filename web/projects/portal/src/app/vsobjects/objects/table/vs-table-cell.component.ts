@@ -88,6 +88,7 @@ export class VSTableCell implements OnInit, OnChanges, OnDestroy {
    @Input() columnEditorEnabled: boolean = false;
    @Input() isWrapped: boolean = false;
    @Input() dataTip: string = null;
+   @Input() dataTipOnClick: boolean = false;
    @Input() isFlyOnClick: boolean = false;
    @Input() width: number = 0;
    @Input() height: number = 0;
@@ -380,10 +381,10 @@ export class VSTableCell implements OnInit, OnChanges, OnDestroy {
       }
 
       if(this.viewer || this.preview) {
-         if(this.dataTip) {
+         if(this.dataTip && !this.dataTipOnClick) {
             this.showDataTip(event);
          }
-         else if(this.table.dataTip) {
+         else if(this.table.dataTip && !this.dataTipOnClick) {
             this.debounceService.debounce(DataTipService.DEBOUNCE_KEY, () => {
                this.zone.run(() => this.dataTipService.hideDataTip());
             }, 100, []);
@@ -407,6 +408,28 @@ export class VSTableCell implements OnInit, OnChanges, OnDestroy {
          this.zone.run(() => {
             this.onSelectCell.emit(event);
          });
+      }
+
+      if(this.dataTipOnClick && this.dataTip && (this.viewer || this.preview) &&
+         event instanceof MouseEvent)
+      {
+         const hasLinks = this.numLinks > 0;
+
+         if(!hasLinks || event.ctrlKey || event.metaKey) {
+            this.dataTipService.unfreeze();
+
+            if(this.cell.bindingType != CellBindingInfo.BIND_TEXT &&
+               this.cell.dataPath?.type != TableDataPathTypes.HEADER &&
+               !this.cell.grandTotalHeaderCell)
+            {
+               this.dataTipService.showDataTip(
+                  this.tableName, this.dataTip, event.clientX, event.clientY,
+                  this.cell.row + "X" + this.cell.col, this.table.dataTipAlpha);
+               this.changeDetectionRef.detectChanges();
+            }
+
+            setTimeout(() => this.dataTipService.freeze(), 0);
+         }
       }
    }
 
