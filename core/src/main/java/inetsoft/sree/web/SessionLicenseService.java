@@ -538,7 +538,8 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
 
                if(SUtil.isCluster()) {
                   manager = new ConcurrentSessionClusterService(
-                     ViewerReference::getAllowedVCInstances, false, "viewer_licenses.dat");
+                     ViewerReference::getAllowedVCInstances, false,
+                     ViewerSessionService.class.getName() + ".licenseMap");
                }
                else {
                   manager = new ConcurrentSessionService(

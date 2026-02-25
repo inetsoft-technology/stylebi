@@ -18,16 +18,18 @@
 package inetsoft.sree.web;
 
 import inetsoft.report.internal.LicenseException;
+import inetsoft.sree.ClientInfo;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.util.Catalog;
-import inetsoft.util.DataSpace;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.locks.Lock;
 import java.util.function.Supplier;
 
 /**
@@ -35,26 +37,26 @@ import java.util.function.Supplier;
  */
 public class ConcurrentSessionClusterService extends AbstractSessionService {
    ConcurrentSessionClusterService(Supplier<Integer> maxSessions) {
-      this(maxSessions, true, "cluster_file.dat");
+      this(maxSessions, true, ConcurrentSessionClusterService.class.getName() + ".licenseMap");
    }
 
    /**
     * Constructs a session license manager specific for a cluster server.
     * @param maxSessions Maximum # of concurrent sessions.
     * @param logoutAfterFail Whether to log the user out after a failure.
-    * @param filename Filename used to store licenses.
+    * @param clusterMapName name of the distributed map that contains the licenses.
     */
    ConcurrentSessionClusterService(Supplier<Integer> maxSessions, boolean logoutAfterFail,
-                                   String filename)
+                                   String clusterMapName)
    {
-      this.clusterLicenses = new HashMap<>();
+      this.clusterLicenses = Cluster.getInstance().getReplicatedMap(clusterMapName);
       this.maxSessions = maxSessions;
       this.logoutAfterFail = logoutAfterFail;
-      this.updater = new LicenseUpdater(filename);
+      LicenseUpdater updater = new LicenseUpdater();
       this.runner = Executors.newSingleThreadScheduledExecutor();
 
-      // Background thread which updates the cluster file. Will automatically
-      // run every minute, but can also be invoked manually to force an update.
+      // Background thread which refreshes heartbeat timestamps in the distributed
+      // map and removes entries from nodes that have stopped heartbeating.
       runner.scheduleAtFixedRate(updater, 1, 60, TimeUnit.SECONDS);
    }
 
@@ -63,38 +65,38 @@ public class ConcurrentSessionClusterService extends AbstractSessionService {
     */
    @Override
    public synchronized void newSession(SRPrincipal srPrincipal) {
-      if(LOG.isDebugEnabled()) {
-         LOG.debug(
-            "New session requested by '{}' from {}; active: {}, max: {}",
-            srPrincipal.getName(), getRemoteAddress(srPrincipal),
-            clusterLicenses.size(), getMaxSessions());
-      }
+      Lock lock = Cluster.getInstance().getLock(LICENSE_LOCK_NAME);
+      lock.lock();
 
-      if(!clusterLicenses.containsKey(srPrincipal)) {
-         if(clusterLicenses.size() == getMaxSessions()) {
-            if(LOG.isDebugEnabled()) {
-               LOG.debug(
-                  "Session limit reached ({}) when '{}' from {}; active sessions: {}",
-                  getMaxSessions(), srPrincipal.getName(), getRemoteAddress(srPrincipal),
-                  clusterLicenses.keySet().stream().map(SRPrincipal::getName).toList());
+      try {
+         if(LOG.isDebugEnabled()) {
+            LOG.debug(
+               "New session requested by '{}' from {}; active: {}, max: {}",
+               srPrincipal.getName(), getRemoteAddress(srPrincipal),
+               clusterLicenses.size(), getMaxSessions());
+         }
+
+         if(!clusterLicenses.containsKey(srPrincipal.getUser().getCacheKey())) {
+            if(clusterLicenses.size() == getMaxSessions()) {
+               if(LOG.isDebugEnabled()) {
+                  LOG.debug(
+                     "Session limit reached ({}) when '{}' from {}; active sessions: {}",
+                     getMaxSessions(), srPrincipal.getName(), getRemoteAddress(srPrincipal),
+                     clusterLicenses.values().stream()
+                        .map(l -> l.getPrincipal().getName()).toList());
+               }
+
+               sessionError(srPrincipal);
             }
-            sessionError(srPrincipal);
-         }
-         else {
-            ClusterLicense license = new ClusterLicense(srPrincipal,
-               uuid, System.currentTimeMillis());
-
-            clusterLicenses.put(srPrincipal, license);
-            updateClusterFile();
+            else {
+               ClusterLicense license =
+                  new ClusterLicense(srPrincipal, uuid, System.currentTimeMillis());
+               clusterLicenses.put(srPrincipal.getUser().getCacheKey(), license);
+            }
          }
       }
-
-      // 2nd check needed because other nodes may be modifying cluster file
-      if(clusterLicenses.size() > getMaxSessions()) {
-         if(clusterLicenses.remove(srPrincipal) != null) {
-            updateClusterFile();
-            sessionError(srPrincipal);
-         }
+      finally {
+         lock.unlock();
       }
    }
 
@@ -103,13 +105,22 @@ public class ConcurrentSessionClusterService extends AbstractSessionService {
     */
    @Override
    public synchronized void releaseSession(SRPrincipal srPrincipal) {
-      clusterLicenses.remove(srPrincipal);
-      updateClusterFile();
+      Lock lock = Cluster.getInstance().getLock(LICENSE_LOCK_NAME);
+      lock.lock();
+
+      try {
+         clusterLicenses.remove(srPrincipal.getUser().getCacheKey());
+      }
+      finally {
+         lock.unlock();
+      }
    }
 
    @Override
    public synchronized Set<SRPrincipal> getActiveSessions() {
-      return Collections.unmodifiableSet(new HashSet<>(clusterLicenses.keySet()));
+      Set<SRPrincipal> result = new HashSet<>();
+      clusterLicenses.values().forEach(l -> result.add(l.getPrincipal()));
+      return Collections.unmodifiableSet(result);
    }
 
    /**
@@ -119,13 +130,6 @@ public class ConcurrentSessionClusterService extends AbstractSessionService {
    public synchronized void dispose() {
       super.dispose();
       runner.shutdownNow();
-      clusterLicenses.clear();
-      DataSpace dataSpace = DataSpace.getDataSpace();
-      dataSpace.delete(null, updater.getClusterFilename());
-   }
-
-   private void updateClusterFile() {
-      runner.execute(updater);
    }
 
    private void sessionError(SRPrincipal srPrincipal) {
@@ -150,31 +154,42 @@ public class ConcurrentSessionClusterService extends AbstractSessionService {
     */
    @Override
    public synchronized void newSession(SRPrincipal srPrincipal, String sessionIdToReplace) {
-      if(sessionIdToReplace != null && !sessionIdToReplace.isEmpty()) {
-         SRPrincipal toTerminate = null;
+      Lock lock = Cluster.getInstance().getLock(LICENSE_LOCK_NAME);
+      lock.lock();
 
-         for(SRPrincipal p : clusterLicenses.keySet()) {
-            if(sessionIdToReplace.equals(p.getSessionID())) {
-               toTerminate = p;
-               break;
+      try {
+         if(sessionIdToReplace != null && !sessionIdToReplace.isEmpty()) {
+            SRPrincipal toTerminate = null;
+
+            for(ClusterLicense license : clusterLicenses.values()) {
+               SRPrincipal p = license.getPrincipal();
+
+               if(sessionIdToReplace.equals(p.getSessionID())) {
+                  toTerminate = p;
+                  break;
+               }
+            }
+
+            if(toTerminate != null) {
+               // SUtil.logout() will fire SessionListeners, which will call releaseSession()
+               // on this manager via AbstractSessionService.loggedOut(). Java synchronized is
+               // reentrant so this is safe on the same thread.
+               SUtil.logout(toTerminate);
             }
          }
 
-         if(toTerminate != null) {
-            // SUtil.logout() will fire SessionListeners, which will call releaseSession()
-            // on this manager via AbstractSessionService.loggedOut(). Java synchronized is
-            // reentrant so this is safe on the same thread.
-            SUtil.logout(toTerminate);
-         }
+         newSession(srPrincipal);
       }
-
-      newSession(srPrincipal);
+      finally {
+         lock.unlock();
+      }
    }
 
    private List<ActiveSessionInfo> buildActiveSessionInfoList() {
       List<ActiveSessionInfo> list = new ArrayList<>();
 
-      for(SRPrincipal p : clusterLicenses.keySet()) {
+      for(ClusterLicense license : clusterLicenses.values()) {
+         SRPrincipal p = license.getPrincipal();
          String sessionId = p.getSessionID();
          String username = IdentityID.getIdentityIDFromKey(p.getName()).getName();
          long loginTime = 0;
@@ -198,135 +213,60 @@ public class ConcurrentSessionClusterService extends AbstractSessionService {
       return maxSessions.get();
    }
 
-   private static Map<SRPrincipal, ClusterLicense> readFromFile(InputStream is)
-      throws IOException {
-      BufferedReader br = new BufferedReader(new InputStreamReader(is));
-      Map<SRPrincipal, ClusterLicense> set = new HashMap<>();
-
-      String line;
-      while((line = br.readLine()) != null) {
-         ClusterLicense license = ClusterLicense.fromString(line);
-         set.put(license.getPrincipal(), license);
-      }
-
-      return set;
-   }
-
-   private static void writeToFile(OutputStream os,
-                                   Map<SRPrincipal, ClusterLicense> licenses)
-      throws IOException {
-      PrintWriter pw = new PrintWriter(os);
-
-      for(ClusterLicense license : licenses.values()) {
-         pw.println(license.toString());
-      }
-
-      pw.flush();
-   }
-
    private static final Logger LOG =
       LoggerFactory.getLogger(ConcurrentSessionClusterService.class);
 
    private static final long HEARTBEAT_TIMEOUT = 180000L;
 
-   private final Map<SRPrincipal, ClusterLicense> clusterLicenses;
-   private final LicenseUpdater updater;
+   private final Map<ClientInfo, ClusterLicense> clusterLicenses;
    private final ScheduledExecutorService runner;
    private final UUID uuid = UUID.randomUUID();
    private final Supplier<Integer> maxSessions;
    private final boolean logoutAfterFail;
+   private static final String LICENSE_LOCK_NAME =
+      ConcurrentSessionClusterService.class.getName() + ".lock";
 
    /**
-    * Runnable which keeps track of a file in the dataspace storing all used
-    * ClusterLicenses by all nodes in a cluster. Every 60 seconds, this class
-    * should update the timestamps of active sessions in this file, and clean
-    * up any licenses where a timestamp is older than 60 seconds. This allows
-    * licenses to be reused in the event of a node shutdown.
+    * Runnable which maintains heartbeat timestamps in the distributed license map.
+    * Every 60 seconds, this updates the timestamp of each license owned by this node
+    * and removes any licenses whose timestamp has not been updated within
+    * {@link #HEARTBEAT_TIMEOUT}, which indicates the owning node has crashed.
     */
    private class LicenseUpdater implements Runnable {
-
-      public LicenseUpdater(String clusterFilename) {
-        this.clusterFilename = clusterFilename;
-      }
-
-      public String getClusterFilename() {
-         return clusterFilename;
-      }
-
       /**
        * Updates the license file in the dataspace.
        */
       @Override
       public void run() {
-         DataSpace dataSpace = DataSpace.getDataSpace();
-
-         try(InputStream is = dataSpace.getInputStream(null, clusterFilename)) {
-            if(is != null) {
-               Map<SRPrincipal, ClusterLicense> fileMap = readFromFile(is);
-               syncClusterState(fileMap);
-            }
-         }
-         catch(IOException e) {
-            LOG.error("Failed to read cluster file: " + clusterFilename, e);
-         }
+         Lock lock = Cluster.getInstance().getLock(LICENSE_LOCK_NAME);
+         lock.lock();
 
          try {
-            HashMap<SRPrincipal, ClusterLicense> copy;
+            List<ClientInfo> toRemove = new ArrayList<>();
 
-            // defensive copy
-            synchronized(ConcurrentSessionClusterService.this) {
-               copy = new HashMap<>(clusterLicenses);
-            }
-
-            dataSpace.withOutputStream(null, clusterFilename, os -> writeToFile(os, copy));
-         }
-         catch(Throwable e) {
-            LOG.error("Failed to write cluster file: " + clusterFilename, e);
-         }
-      }
-
-      /**
-       * Updates in-memory representation of cluster state.
-       * @param clusterMap The set of session licenses known to the cluster
-       */
-      private void syncClusterState(Map<SRPrincipal, ClusterLicense> clusterMap) {
-         synchronized(ConcurrentSessionClusterService.this) {
-            // Update timestamps for licenses not used by this node
-            for(Map.Entry<SRPrincipal, ClusterLicense> entry : clusterMap.entrySet()) {
-               ClusterLicense clusterLicense = entry.getValue();
-
-               if(!clusterLicense.getNodeId().equals(uuid)) {
-                  clusterLicenses.put(entry.getKey(), clusterLicense);
-               }
-            }
-
-            Iterator<Map.Entry<SRPrincipal, ClusterLicense>> iterator =
-               clusterLicenses.entrySet().iterator();
-
-            while(iterator.hasNext()) {
-               final ClusterLicense license = iterator.next().getValue();
+            for(Map.Entry<ClientInfo, ClusterLicense> entry : clusterLicenses.entrySet()) {
+               final ClusterLicense license = entry.getValue();
                final long currentTime = System.currentTimeMillis();
 
-               // Remove licenses that have been discarded by other nodes.
-               if(!license.getNodeId().equals(uuid) &&
-                  !clusterMap.containsValue(license)) {
-                  iterator.remove();
-               }
-               // Update timestamps for this node's licenses
-               else if(license.getNodeId().equals(uuid)) {
+               // Refresh the heartbeat timestamp for sessions owned by this node.
+               if(license.getNodeId().equals(uuid)) {
                   license.setTimestamp(currentTime);
+                  clusterLicenses.put(entry.getKey(), license);
                }
 
                // If no heartbeat received in over 3 minutes, assume the node died
                // and free the license for other nodes to use.
                if((currentTime - license.getTimestamp()) > HEARTBEAT_TIMEOUT) {
-                  iterator.remove();
+                  toRemove.add(entry.getKey());
                }
             }
+
+            toRemove.forEach(clusterLicenses::remove);
+         }
+         finally {
+            lock.unlock();
          }
       }
-
-      private final String clusterFilename;
    }
 
    /**
@@ -334,11 +274,7 @@ public class ConcurrentSessionClusterService extends AbstractSessionService {
     * license is uniquely identified together by the cluster node id (UUID) and
     * the principal object.
     */
-   private static class ClusterLicense {
-      public ClusterLicense(SRPrincipal srPrincipal) {
-         this(srPrincipal, UUID.randomUUID(), System.currentTimeMillis());
-      }
-
+   private static class ClusterLicense implements Serializable {
       public ClusterLicense(SRPrincipal srPrincipal, UUID uuid, long timestamp) {
          this.srPrincipal = srPrincipal;
          this.nodeId = uuid;
@@ -374,24 +310,9 @@ public class ConcurrentSessionClusterService extends AbstractSessionService {
          return nodeId;
       }
 
-      /**
-       * Constructs a ClusterLicense from its string representation.
-       * @param val The string representation.
-       * @return A ClusterLicense object.
-       */
-      public static ClusterLicense fromString(String val) {
-         String[] parts = val.split(",");
-
-         return new ClusterLicense(SRPrincipal.createFromID(parts[0]),
-            UUID.fromString(parts[1]),
-            Long.parseLong(parts[2]));
-      }
-
       @Override
       public boolean equals(Object o) {
-         if(o instanceof ClusterLicense) {
-            ClusterLicense license = (ClusterLicense) o;
-
+         if(o instanceof ClusterLicense license) {
             return license.getNodeId().equals(nodeId) &&
                license.getPrincipal().equals(srPrincipal);
          }
@@ -408,7 +329,7 @@ public class ConcurrentSessionClusterService extends AbstractSessionService {
       public String toString() {
          String ret;
          boolean internal =
-            Boolean.valueOf(srPrincipal.getProperty("__internal__"));
+            Boolean.parseBoolean(srPrincipal.getProperty("__internal__"));
 
          if(internal) {
             // Set the __internal__ property to false to get toIdentifier() to
