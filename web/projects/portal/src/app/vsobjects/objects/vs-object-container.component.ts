@@ -43,6 +43,7 @@ import { ViewsheetInfo } from "../data/viewsheet-info";
 import { BaseTableModel } from "../model/base-table-model";
 import { FocusObjectEventModel } from "../model/focus-object-event-model";
 import { GuideBounds } from "../model/layout/guide-bounds";
+import { VSAnnotationModel } from "../model/annotation/vs-annotation-model";
 import { VSChartModel } from "../model/vs-chart-model";
 import { VSObjectModel } from "../model/vs-object-model";
 import { VSSelectionBaseModel } from "../model/vs-selection-base-model";
@@ -485,6 +486,19 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          }
       }
 
+      // Assemblies with visible assembly annotations must appear above all regular objects.
+      // Without this, another assembly's stacking context (position:relative + z-index) can
+      // trap the annotation inside, making it invisible behind the overlapping assembly.
+      const hasAnnotations = (vsObject.assemblyAnnotationModels?.length > 0) ||
+                             (vsObject.dataAnnotationModels?.length > 0);
+      if(hasAnnotations) {
+         console.log("[zIndex debug] boosting z-index for", vsObject.absoluteName,
+                     "assembly:", vsObject.assemblyAnnotationModels?.length,
+                     "data:", vsObject.dataAnnotationModels?.length,
+                     "(was", zIndex + ")");
+         zIndex += 5000;
+      }
+
       return zIndex;
    }
 
@@ -637,6 +651,15 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    onMouseEnter(vsObject: VSObjectModel, event: any): void {
       this.miniToolbarService.handleMouseEnter(vsObject?.absoluteName, event);
    }
+
+   getChartDataAnnotations(vsObject: VSObjectModel): VSAnnotationModel[] {
+      return (vsObject as VSChartModel).dataAnnotationModels || [];
+   }
+
+   annotationMouseSelect(event: [VSAnnotationModel, MouseEvent], index: number): void {
+      this.select(index, event[1]);
+   }
+
    isObjectRendered(vsObject: VSObjectModel) {
       return !this.virtualScrolling || this.renderedObjects.get(vsObject.absoluteName) === true;
    }

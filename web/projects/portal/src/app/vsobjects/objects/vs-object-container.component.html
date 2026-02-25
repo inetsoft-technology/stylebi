@@ -343,6 +343,25 @@
     </div>
   </ng-template>
 </ng-container>
+<!-- Chart data annotations rendered outside all VS object stacking contexts -->
+<div class="chart-annotation-overlay">
+  <ng-container *ngFor="let vsObject of vsInfo.vsObjects; let i = index">
+    <ng-container *ngIf="vsObject.objectType === 'VSChart'">
+      <div [style.top.px]="getVsObjectPosition(vsObject, i, true)"
+           [style.left.px]="getVsObjectPosition(vsObject, i, false)"
+           style="position: absolute;">
+        <vs-annotation *ngFor="let ann of getChartDataAnnotations(vsObject)"
+                       [model]="ann"
+                       [vsInfo]="vsInfo"
+                       [actions]="vsObjectActions[i]"
+                       [selected]="false"
+                       (remove)="removeAnnotations.emit()"
+                       (mouseSelect)="annotationMouseSelect($event, i)">
+        </vs-annotation>
+      </div>
+    </ng-container>
+  </ng-container>
+</div>
 <placeholder-drag-element [model]="placeholderDragElementModel" #placeholderDragElement></placeholder-drag-element>
 <ng-container *ngIf="showingPopUpOrDataTip() && (containerBounds || embeddedVSBounds)">
   <canvas #popUpDim class="pop-component-bg" [style.z-index]="getPopDimZIndex()" [attr.height]="getPopDimHeight()"
