@@ -152,7 +152,7 @@
           </label>
         </div>
       </div>
-      <div class="col-auto" [hidden]="this.treeModel">
+      <div class="col-auto" *ngIf="!treeModel">
         <div class="form-check" [title]="'_#(vs.select.quickswitch.tooltip)'">
           <input id="quickSwitchAllowed" type="checkbox" class="form-check-input"
                  [ngModelOptions]="{standalone: true}" [(ngModel)]="model.quickSwitchAllowed"/>

@@ -154,6 +154,12 @@
 
 .switch-mode-btn {
   display: none;
-  font-weight:bold;
   margin-left: auto;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  font-weight: bold;
+  color: inherit;
 }

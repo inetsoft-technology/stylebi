@@ -69,7 +69,9 @@
              [style.color]="cellFormat.foreground"
              (click)="click($event)"
              (touchstart)="onTouchStart($event)"
-             (touchend)="onTouchEnd()">
+             (touchend)="onTouchEnd()"
+             (touchmove)="onTouchMove()"
+             (touchcancel)="onTouchCancel()">
         </div>
         <div class="selection-list-cell-label" tooltipIf
              [style.justify-content]="cellFormat.justifyContent"
@@ -93,13 +95,13 @@
                [style.wordWrap]="cellFormat.wrapping.wordWrap">
             {{selectionValue.label}}
           </div>
-          <div *ngIf="quickSwitchAllowed"
-               class="switch-mode-btn"
-               type="button"
-               (click)="click($event, true)"
-               [title]="singleSelection ? '_#(multi.switchTip)' : '_#(single.switchTip)'">
+          <button *ngIf="quickSwitchAllowed"
+                  class="switch-mode-btn"
+                  type="button"
+                  (click)="click($event, true)"
+                  [title]="singleSelection ? '_#(multi.switchTip)' : '_#(single.switchTip)'">
             {{ singleSelection ? '_#(multi.switch)' : '_#(single.switch)' }}
-          </div>
+          </button>
         </div>
       </div>
     </div>

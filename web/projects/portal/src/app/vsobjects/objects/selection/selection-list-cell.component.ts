@@ -106,8 +106,8 @@ export class SelectionListCell implements OnInit, OnChanges {
    htmlLabel: SafeHtml;
    mobile: boolean = GuiTool.isMobileDevice();
 
-   touchTimeout: any;
-   longPressDuration = 500;
+   private touchTimeout: any;
+   private longPressDuration = 500;
 
    constructor(public vsSelectionComponent: VSSelection,
                private sanitization: DomSanitizer,
@@ -261,6 +261,15 @@ export class SelectionListCell implements OnInit, OnChanges {
       }
    }
 
+   /**
+    * Handles a click on the selection cell icon or the quick-switch button.
+    *
+    * @param event    The originating mouse event.
+    * @param switching When `true`, the click comes from the quick-switch button (or a mobile
+    *   long-press). The selection mode is toggled (single ↔ multi) and the clicked cell's label
+    *   is selected as the new anchor — identical to alt-click — but {@link selectRegion} is not
+    *   called so keyboard-navigation focus is not shifted to this cell.
+    */
    click(event: MouseEvent, switching?: boolean) {
       if(event.button != 0 || this.contextProvider.vsWizard) {
          return;
@@ -269,21 +278,30 @@ export class SelectionListCell implements OnInit, OnChanges {
       let toggleAll = false;
       let toggle = false;
 
-      if(this.toggleEnabled){
-         if (switching) {
+      if(this.toggleEnabled) {
+         if(switching) {
+            // Prevents the button click from bubbling up to clickLabel. No-op for the
+            // synthetic MouseEvent produced by the long-press path, which is harmless.
             event.stopPropagation();
-            if(this.isParentIDTree){
+            if(this.isParentIDTree) {
                toggleAll = true;
-            } else {
-               toggle=true;
             }
-         } else if (event.altKey) {
-           if(event.shiftKey || this.isParentIDTree) {
-              toggleAll = true;
-           }
-           else {
-              toggle = true;
-           }
+            else {
+               toggle = true;
+            }
+
+            // Emit the mode-switch (also selects the clicked label as the anchor).
+            // Return early so selectRegion is not called and keyboard focus does not shift.
+            this.selectionStateChanged.emit({ toggle, toggleAll });
+            return;
+         }
+         else if(event.altKey) {
+            if(event.shiftKey || this.isParentIDTree) {
+               toggleAll = true;
+            }
+            else {
+               toggle = true;
+            }
          }
       }
 
@@ -291,30 +309,33 @@ export class SelectionListCell implements OnInit, OnChanges {
       this.selectRegion(event, CellRegion.LABEL);
    }
 
-   private onTouchStart(event: TouchEvent): void {
+   onTouchStart(event: TouchEvent): void {
+      if(!event.touches.length) {
+         return;
+      }
+
       this.touchTimeout = setTimeout(() => {
-         this.triggerAltClick(event.target as HTMLElement, event);
+         // Route through the switching path so behavior matches the quick-switch button:
+         // the mode is toggled and the label is selected, but region focus does not shift.
+         this.click(new MouseEvent("click"), true);
       }, this.longPressDuration);
    }
 
-   private onTouchEnd(): void {
-      clearTimeout(this.touchTimeout);
-      this.touchTimeout = null;
+   onTouchEnd(): void {
+      this.cancelLongPress();
    }
 
-   private triggerAltClick(target: HTMLElement, touchEvent: TouchEvent): void {
+   onTouchMove(): void {
+      this.cancelLongPress();
+   }
 
-      const touch = touchEvent.changedTouches[0];
+   onTouchCancel(): void {
+      this.cancelLongPress();
+   }
 
-      const simulatedClick = new MouseEvent("click", {
-         bubbles: true,
-         cancelable: true,
-         view: window,
-         clientX: touch.clientX,
-         clientY: touch.clientY,
-         altKey: true
-      });
-      this.click(simulatedClick);
+   private cancelLongPress(): void {
+      clearTimeout(this.touchTimeout);
+      this.touchTimeout = null;
    }
 
    // toggle tree node expanded status
