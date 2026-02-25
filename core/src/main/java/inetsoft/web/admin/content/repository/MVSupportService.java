@@ -1108,6 +1108,16 @@ public class MVSupportService {
       }
 
       private void updateStatus(List<MVStatus> results, Exception error) {
+         // Persist worksheets to storage and clear from memory before distributing
+         // across the cluster. Each MVDef.container.ws (Worksheet) can be tens of MBs,
+         // causing severe GC pressure and node failure on the scheduler node.
+         // The worksheet is reloaded from storage by the scheduler node when needed.
+         if(results != null) {
+            for(MVStatus s : results) {
+               s.getDefinition().persistAndClearWorksheet();
+            }
+         }
+
          Map<String, AnalysisStatus> map = Cluster.getInstance().getMap(ANALYSIS_STATUS_MAP);
          AnalysisStatus status = new AnalysisStatus(candidates, exceptions, plans, results, error);
          map.put(id, status);
