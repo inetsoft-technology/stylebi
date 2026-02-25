@@ -2398,6 +2398,25 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
    }
 
    /**
+    * Persist the worksheet to storage and clear it from the container in memory.
+    * This reduces the serialized size of the MVDef when distributed across the cluster.
+    * The worksheet can be reloaded from storage on demand via parseWorksheet().
+    */
+   public void persistAndClearWorksheet() {
+      MVContainer c = this.container;
+
+      if(c != null && c.ws != null) {
+         try {
+            writeWorksheet(c.ws);
+            c.ws = null;
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to persist MV worksheet for {}", mvname, e);
+         }
+      }
+   }
+
+   /**
     * Write the worksheet xml as compressed cdata.
     */
    private void writeWorksheet(Worksheet ws) throws IOException {
