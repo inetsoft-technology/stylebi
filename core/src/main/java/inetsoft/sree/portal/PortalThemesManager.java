@@ -19,6 +19,7 @@ package inetsoft.sree.portal;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.*;
 import inetsoft.util.gui.GuiTool;
 import org.slf4j.Logger;
@@ -32,6 +33,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Lock;
 import java.util.stream.Collectors;
 
 /**
@@ -503,6 +505,25 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
     * Save portal themes to a .xml file.
     */
    public void save() {
+      // Hazelcast ILock is reentrant per thread, so nested calls from the same
+      // thread (e.g. changeListener -> loadThemes -> save) acquire safely.
+      Lock lock = Cluster.getInstance().getLock(DISTRIBUTED_LOCK_NAME);
+      lock.lock();
+
+      try {
+         saveUnderLock();
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
+   /**
+    * Performs the actual write without acquiring the distributed lock.
+    * Called by save() (which holds the lock) and by loadThemes() when invoked
+    * from the changeListener (which already holds the lock).
+    */
+   private void saveUnderLock() {
       String name = SreeEnv.getPath("portal.themes.file", "portalthemes.xml");
       DataSpace space = DataSpace.getDataSpace();
 
@@ -922,7 +943,14 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
             parseXML(node);
          }
 
-         dmgr.addChangeListener(space, null, name, changeListener);
+         if(!saveFile) {
+            // Only register listener here when no save is needed. When saveFile
+            // is true, saveUnderLock() handles listener registration itself
+            // (removes before write, re-adds after), so registering here first
+            // would open a race window where a remote change notification could
+            // fire reset() between this line and the save call below.
+            dmgr.addChangeListener(space, null, name, changeListener);
+         }
       }
       catch(Exception ex) {
          LOG.error("Failed to load portal themes file: " + name, ex);
@@ -932,7 +960,9 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
       }
 
       if(saveFile) {
-         save();
+         // If the caller already holds the distributed lock (e.g. changeListener),
+         // the lock's per-thread reentrancy means this nested call is safe.
+         saveUnderLock();
       }
    }
 
@@ -951,13 +981,23 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
     */
    private final DataChangeListener changeListener = e -> {
       LOG.debug(e.toString());
-      reset();
+
+      // Hold the same distributed lock used by save() so that a concurrent save
+      // on any pod cannot interleave with reset() + loadThemes() on this pod,
+      // and vice versa. The lock's per-thread reentrancy means the nested
+      // saveUnderLock() call inside loadThemes() acquires safely.
+      Lock lock = Cluster.getInstance().getLock(DISTRIBUTED_LOCK_NAME);
+      lock.lock();
 
       try {
+         reset();
          loadThemes();
       }
       catch(Exception ex) {
          LOG.error("Failed to load portal themes", ex);
+      }
+      finally {
+         lock.unlock();
       }
    };
 
@@ -1005,6 +1045,10 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    private final DataChangeListenerManager dmgr = new DataChangeListenerManager();
 
    private static final Logger LOG = LoggerFactory.getLogger(PortalThemesManager.class);
+
+   /** Distributed lock name shared across all cluster nodes. */
+   private static final String DISTRIBUTED_LOCK_NAME =
+      PortalThemesManager.class.getName() + ".save";
 
    @SingletonManager.ShutdownOrder()
    public static final class Reference extends SingletonManager.Reference<PortalThemesManager> {
