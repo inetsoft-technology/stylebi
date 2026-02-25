@@ -464,6 +464,26 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       }
    }
 
+   isCurrentPopComponent(vsObject: VSObjectModel): boolean {
+      return this.popService.isPopComponent(vsObject.absoluteName) &&
+         this.popService.getPopComponent() === vsObject.absoluteName;
+   }
+
+   isShowingDataTip(vsObject: VSObjectModel): boolean {
+      if(!this.dataTipService.dataTipName) {
+         return false;
+      }
+
+      if(this.dataTipService.isCurrentDataTip(vsObject.absoluteName, vsObject.container)) {
+         return true;
+      }
+
+      // Boost the z-index of any embedded viewsheet that contains the active datatip so
+      // the popup and its overflow content render above the dim canvas
+      return vsObject.objectType === "VSViewsheet" &&
+         this.dataTipService.dataTipName.startsWith(vsObject.absoluteName + ".");
+   }
+
    zIndex(vsObject: VSObjectModel): number {
       if(this.popService.isPopSource(vsObject.absoluteName) ||
          this.dataTipService.isDataTipSource(vsObject.absoluteName))
@@ -587,6 +607,12 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    }
 
    showingPopUpOrDataTip(): boolean {
+      // Only the top-level container renders the dim canvas; embedded viewsheet containers
+      // rely on z-index ordering relative to the top-level canvas instead
+      if(this.embeddedVS) {
+         return false;
+      }
+
       let showingPop = this.popService.hasPopUpComponentShowing() || this.dataTipService.hasDataTipShowing();
 
       if(showingPop && !this.popDimDrew) {
@@ -611,13 +637,6 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          context.clearRect(0, 0, this.popUpDim.nativeElement.width, this.popUpDim.nativeElement.height);
          context.fillStyle = DateTipHelper.popDimColor;
          context.fillRect(0, 0, this.getPopDimWidth(), this.getPopDimHeight());
-
-         for(let vsObject of this.vsInfo.vsObjects) {
-            if(vsObject.objectType == "VSViewsheet") {
-               context.clearRect(vsObject.objectFormat.left, vsObject.objectFormat.top,
-                  vsObject.objectFormat.width, vsObject.objectFormat.height);
-            }
-         }
       }
    }
 
