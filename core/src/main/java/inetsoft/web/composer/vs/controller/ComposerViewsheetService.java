@@ -370,64 +370,66 @@ public class ComposerViewsheetService {
       throws Exception
    {
       try {
-         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-         RuntimeViewsheet parentRvs = rvs.getOriginalID() == null ? rvs :
-            viewsheetService.getViewsheet(rvs.getOriginalID(), principal);
-         Viewsheet viewsheet = rvs.getViewsheet();
-         AbstractLayout vsLayout;
+         return VSUtil.globalShareVsRunInHostScope(runtimeId, principal, () -> {
+            RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+            RuntimeViewsheet parentRvs = rvs.getOriginalID() == null ? rvs :
+               viewsheetService.getViewsheet(rvs.getOriginalID(), principal);
+            Viewsheet viewsheet = rvs.getViewsheet();
+            AbstractLayout vsLayout;
 
-         vsLayout = parentRvs.getViewsheet().getLayoutInfo().getViewsheetLayouts()
-            .stream()
-            .filter(layout -> layout.getName().equals(event.getLayoutName()))
-            .findFirst()
-            .orElse(null);
+            vsLayout = parentRvs.getViewsheet().getLayoutInfo().getViewsheetLayouts()
+               .stream()
+               .filter(layout -> layout.getName().equals(event.getLayoutName()))
+               .findFirst()
+               .orElse(null);
 
-         if(!isAfterOpenRefresh && viewsheetService.refreshPreviewViewsheet(runtimeId, principal, vsLayout)) {
-            rvs = viewsheetService.getViewsheet(runtimeId, principal);
-            rvs.setSocketSessionId(commandDispatcher.getSessionId());
-            rvs.setSocketUserName(commandDispatcher.getUserName());
+            if(!isAfterOpenRefresh && viewsheetService.refreshPreviewViewsheet(runtimeId, principal, vsLayout)) {
+               RuntimeViewsheet refreshedRvs = viewsheetService.getViewsheet(runtimeId, principal);
+               refreshedRvs.setSocketSessionId(commandDispatcher.getSessionId());
+               refreshedRvs.setSocketUserName(commandDispatcher.getUserName());
 
-            final Viewsheet newPreviewVS = rvs.getViewsheet();
+               final Viewsheet newPreviewVS = refreshedRvs.getViewsheet();
 
-            if(newPreviewVS != null) {
-               // remove old annotations
-               AnnotationVSUtil.removeUselessAssemblies(viewsheet.getAssemblies(),
-                                                        newPreviewVS.getAssemblies(),
-                                                        commandDispatcher);
-               ChangedAssemblyList clist = coreLifecycleService.createList(
-                  true, event, commandDispatcher, rvs, linkUri);
-               coreLifecycleService.refreshViewsheet(rvs, runtimeId, linkUri, event.getWidth(),
-                                                     event.getHeight(), event.isMobile(),
-                                                     event.getUserAgent(), commandDispatcher, false,
-                                                     false, true, clist);
+               if(newPreviewVS != null) {
+                  // remove old annotations
+                  AnnotationVSUtil.removeUselessAssemblies(viewsheet.getAssemblies(),
+                                                           newPreviewVS.getAssemblies(),
+                                                           commandDispatcher);
+                  ChangedAssemblyList clist = coreLifecycleService.createList(
+                     true, event, commandDispatcher, refreshedRvs, linkUri);
+                  coreLifecycleService.refreshViewsheet(refreshedRvs, runtimeId, linkUri,
+                                                        event.getWidth(), event.getHeight(),
+                                                        event.isMobile(), event.getUserAgent(),
+                                                        commandDispatcher, false, false, true, clist);
+               }
+
+               return true;
+            }
+            else if(isAfterOpenRefresh) {
+               RuntimeViewsheet refreshedRvs = viewsheetService.getViewsheet(runtimeId, principal);
+               refreshedRvs.setSocketSessionId(commandDispatcher.getSessionId());
+               refreshedRvs.setSocketUserName(commandDispatcher.getUserName());
+
+               final Viewsheet newPreviewVS = refreshedRvs.getViewsheet();
+
+               if(newPreviewVS != null) {
+                  // remove old annotations
+                  AnnotationVSUtil.removeUselessAssemblies(viewsheet.getAssemblies(),
+                                                           newPreviewVS.getAssemblies(),
+                                                           commandDispatcher);
+                  ChangedAssemblyList clist = coreLifecycleService.createList(
+                     true, event, commandDispatcher, refreshedRvs, linkUri);
+                  coreLifecycleService.refreshViewsheet(refreshedRvs, runtimeId, linkUri,
+                                                        event.getWidth(), event.getHeight(),
+                                                        event.isMobile(), event.getUserAgent(),
+                                                        commandDispatcher, false, false, true, clist);
+               }
+
+               return true;
             }
 
-            return true;
-         }
-         else if(isAfterOpenRefresh) {
-            rvs = viewsheetService.getViewsheet(runtimeId, principal);
-            rvs.setSocketSessionId(commandDispatcher.getSessionId());
-            rvs.setSocketUserName(commandDispatcher.getUserName());
-
-            final Viewsheet newPreviewVS = rvs.getViewsheet();
-
-            if(newPreviewVS != null) {
-               // remove old annotations
-               AnnotationVSUtil.removeUselessAssemblies(viewsheet.getAssemblies(),
-                                                        newPreviewVS.getAssemblies(),
-                                                        commandDispatcher);
-               ChangedAssemblyList clist = coreLifecycleService.createList(
-                  true, event, commandDispatcher, rvs, linkUri);
-               coreLifecycleService.refreshViewsheet(rvs, runtimeId, linkUri, event.getWidth(),
-                                                     event.getHeight(), event.isMobile(),
-                                                     event.getUserAgent(), commandDispatcher, false,
-                                                     false, true, clist);
-            }
-
-            return true;
-         }
-
-         return false;
+            return false;
+         });
       }
       catch(NullPointerException | ExpiredSheetException npe) {
          LOG.warn(Catalog.getCatalog().getString("portal.viewsheetClosedAfterOpening", runtimeId),
