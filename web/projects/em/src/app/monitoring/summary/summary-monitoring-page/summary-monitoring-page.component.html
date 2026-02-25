@@ -108,8 +108,6 @@
                                           [selectedClusterNode]="selectedClusterNode">
         </em-summary-monitoring-chart-view>
       </mat-grid-tile>
-    </mat-grid-list>
-    <mat-grid-list [cols]="cols" rowHeight="2:1" gutterSize="5" class="margin-top">
       <mat-grid-tile *ngIf="memoryCacheVisible">
         <em-summary-monitoring-chart-view *ngIf="serverModel" id="memoryCache"
                                           #memoryCacheChartContainer
