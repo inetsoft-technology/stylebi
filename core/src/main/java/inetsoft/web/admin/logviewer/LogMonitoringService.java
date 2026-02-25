@@ -36,7 +36,9 @@ import java.io.File;
 import java.io.IOException;
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipOutputStream;
@@ -44,10 +46,17 @@ import java.util.zip.ZipOutputStream;
 @Service
 public class LogMonitoringService implements MessageListener {
    /**
-    * Timeout for fetching logs from cluster nodes. This is longer than the default 30 seconds
-    * to accommodate clusters under heavy load (e.g., multiple users executing viewsheets).
+    * Timeout for fetching log content from cluster nodes. This is longer than the default 30
+    * seconds to accommodate clusters under heavy load (e.g., multiple users executing viewsheets).
     */
    private static final long LOG_FETCH_TIMEOUT_SECONDS = 60L;
+
+   /**
+    * Timeout for listing log files from cluster nodes. Listing is a lightweight operation so a
+    * short timeout prevents the UI from blocking for N×60 seconds when nodes are joining or
+    * unresponsive during autoscaling events.
+    */
+   private static final long LOG_LIST_TIMEOUT_SECONDS = 10L;
 
    public LogMonitoringService() {
       this.logManager = LogManager.getInstance();
@@ -130,15 +139,20 @@ public class LogMonitoringService implements MessageListener {
          selectedLog = logFiles.isEmpty() ? null : logFiles.getFirst();
       }
 
-      List<Future<List<LogFileModel>>> futures = new ArrayList<>();
+      // Set deadline before submitting futures so that any time elapsed during
+      // the submission loop is counted against the overall budget.
+      long deadline = System.currentTimeMillis() + LOG_LIST_TIMEOUT_SECONDS * 1000;
+
+      // Keyed by future so the wait loop can include the node name in log messages.
+      Map<Future<List<LogFileModel>>, String> futures = new LinkedHashMap<>();
 
       for(String clusterNode : cluster.getClusterNodes(false)) {
          if(!clusterNode.equals(cluster.getLocalMember())) {
-            futures.add(executor.submit(() -> {
+            futures.put(executor.submit(() -> {
                try {
                   GetLogFilesResponse response = cluster.exchangeMessages(
                      clusterNode, new GetLogFilesRequest(), GetLogFilesResponse.class,
-                     LOG_FETCH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                     LOG_LIST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
                   if(LicenseManager.getInstance().isEnterprise()) {
                      return response.getLogFiles();
@@ -149,15 +163,25 @@ public class LogMonitoringService implements MessageListener {
                }
 
                return List.<LogFileModel>of();
-            }));
+            }), clusterNode);
          }
       }
 
-      // wait for all tasks to complete, merge results on main thread
-      for(Future<List<LogFileModel>> future : futures) {
+      int skipped = 0;
+
+      for(Map.Entry<Future<List<LogFileModel>>, String> entry : futures.entrySet()) {
+         Future<List<LogFileModel>> future = entry.getKey();
+         String clusterNode = entry.getValue();
+         long remaining = deadline - System.currentTimeMillis();
+
+         if(remaining <= 0) {
+            future.cancel(true);
+            skipped++;
+            continue;
+         }
+
          try {
-            List<LogFileModel> remoteLogFiles =
-               future.get(LOG_FETCH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            List<LogFileModel> remoteLogFiles = future.get(remaining, TimeUnit.MILLISECONDS);
 
             for(LogFileModel logfile : remoteLogFiles) {
                boolean exists = logFiles.stream()
@@ -170,11 +194,16 @@ public class LogMonitoringService implements MessageListener {
          }
          catch(TimeoutException e) {
             future.cancel(true);
-            LOG.warn("Timed out waiting for log file list from remote node, skipping");
+            LOG.warn("Timed out waiting for log file list from node {}, skipping", clusterNode);
          }
          catch(Exception e) {
-            LOG.error("Error while waiting for a log file", e);
+            LOG.error("Error while waiting for log file list from node {}", clusterNode, e);
          }
+      }
+
+      if(skipped > 0) {
+         LOG.warn("Overall timeout reached; skipped {} remote node(s) waiting for log file lists",
+                  skipped);
       }
 
       return new LogMonitoringModel(selectedLog, logFiles, true, true, 500);
@@ -338,6 +367,9 @@ public class LogMonitoringService implements MessageListener {
 
    private final LogManager logManager;
    private final Cluster cluster;
-   private final ExecutorService executor = Executors.newFixedThreadPool(4);
+   // CachedThreadPool allows all cluster nodes to be queried concurrently regardless of cluster
+   // size. The thread count is bounded by the number of cluster nodes per request (a small,
+   // operator-controlled value), so there is no unbounded thread growth risk.
+   private final ExecutorService executor = Executors.newCachedThreadPool();
    private static final Logger LOG = LoggerFactory.getLogger(LogMonitoringService.class);
 }
