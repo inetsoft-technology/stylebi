@@ -92,6 +92,7 @@ export class TreeComponent implements OnInit, OnChanges, AfterViewChecked, After
    @Input() getRecentTreeFun: () => Observable<TreeNodeModel[]>;
    @Input() searchEndNode: (node: TreeNodeModel) => boolean;
    @Input() nodeEqualsFun: (node1: TreeNodeModel, node2: TreeNodeModel) => boolean;
+   @Input() stickySearch: boolean = false;
    @Output() nodeExpanded = new EventEmitter<TreeNodeModel>();
    @Output() nodeCollapsed = new EventEmitter<TreeNodeModel>();
    @Output() nodesSelected = new EventEmitter<TreeNodeModel[]>();
@@ -101,6 +102,7 @@ export class TreeComponent implements OnInit, OnChanges, AfterViewChecked, After
    @Output() nodeClicked = new EventEmitter<TreeNodeModel>();
    @Output() onContextmenu = new EventEmitter<[MouseEvent | any, TreeNodeModel, TreeNodeModel[]]>();
    @Output() searchStart = new EventEmitter<boolean>();
+   @Output() searchStrChange = new EventEmitter<string>();
    _searchEnabled: boolean = false;
    @ViewChild(forwardRef(() => TreeNodeComponent)) rootNode: TreeNodeComponent;
    @ViewChild("treeContainer") treeContainer: ElementRef;
@@ -312,6 +314,7 @@ export class TreeComponent implements OnInit, OnChanges, AfterViewChecked, After
             this.searchStart.emit(true);
          }
 
+         this.searchStrChange.emit(this.searchStr.trim());
          setTimeout(() => {
             this.expandAll(this.root);
 
@@ -921,6 +924,13 @@ export class TreeComponent implements OnInit, OnChanges, AfterViewChecked, After
 
    clearSearchContent(): void {
       this.search("");
+   }
+
+   onSearchEscape(event: KeyboardEvent): void {
+      if(this.searchStr) {
+         event.stopPropagation();
+         this.clearSearchContent();
+      }
    }
 
    openHelp() {

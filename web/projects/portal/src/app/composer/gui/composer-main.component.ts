@@ -205,7 +205,6 @@ const CONFIRM_MESSAGE = {
    templateUrl: "composer-main.component.html",
    styleUrls: ["composer-main.component.scss", "tab-selector/tab-selector-shared.scss"],
    providers: [
-      AiAssistantService,
       ComposerClientService,
       {
          provide: ScaleService,

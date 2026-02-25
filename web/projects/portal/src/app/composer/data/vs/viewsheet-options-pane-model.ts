@@ -36,4 +36,5 @@ export interface ViewsheetOptionsPaneModel {
    worksheet: boolean;
    autoRefreshEnabled?: boolean;
    maxRowsWarning?: boolean;
+   hideNotifications?: boolean;
 }
