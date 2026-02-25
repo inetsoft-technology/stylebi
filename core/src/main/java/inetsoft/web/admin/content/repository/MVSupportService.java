@@ -471,8 +471,21 @@ public class MVSupportService {
       TimeCondition condition = TimeCondition.at(new Date(time));
       ScheduleTask task = new ScheduleTask(MV_TASK_PREFIX + UUID.randomUUID(), ScheduleTask.Type.MV_TASK);
       IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
+      String currentOrgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
+
+      // When a site admin manages another org's resources, principal.getName() encodes the
+      // admin's own org (e.g. host-org) rather than the org being managed (e.g. org-sara).
+      // setScheduleTask() stores the task under getCurrentOrgID(principal) = the managed org,
+      // but the task name would embed the admin's own org as the owner prefix.
+      // The CloudRunner later extracts the org from the task name to look up the task, causing
+      // a mismatch (looks in host-org, task is stored in org-sara) → "Running Schedule Task: null".
+      // Fix: ensure the owner's orgID matches the org under which the task will be stored.
+      if(!Tool.equals(user.getOrgID(), currentOrgId)) {
+         user = new IdentityID(user.name, currentOrgId);
+      }
+
       IdentityID owner = SUtil.getOwnerForNewTask(user);
-      task.setOwner(SUtil.getOwnerForNewTask(user));
+      task.setOwner(owner);
       ScheduleTask task2 = new ScheduleTask(MV_TASK_STAGE_PREFIX + UUID.randomUUID(), ScheduleTask.Type.MV_TASK);
       task2.setOwner(owner);
       task.setDeleteIfNoMoreRun(true);
