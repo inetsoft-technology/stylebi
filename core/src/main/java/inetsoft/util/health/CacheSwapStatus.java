@@ -34,9 +34,9 @@ public final class CacheSwapStatus implements Serializable {
          SreeEnv.getProperty("health.cacheSwap.excessiveWaitingThreads", "20"));
       long excessiveWaitingTime = Long.parseLong(SreeEnv.getProperty(
          "health.cacheSwap.excessiveWaitingTime",
-         Long.toString(TimeUnit.MINUTES.convert(30L, TimeUnit.MILLISECONDS))));
+         Long.toString(TimeUnit.MILLISECONDS.convert(5L, TimeUnit.MINUTES))));
 
-      if(XSwapper.getWaitingThreadCount() > excessiveWaitingThreads) {
+      if(XSwapper.getCriticalWaitingThreadCount() > excessiveWaitingThreads) {
          if(previous.excessiveWaitingStart == 0L) {
             excessiveWaiting = false;
             excessiveWaitingStart = System.currentTimeMillis();
