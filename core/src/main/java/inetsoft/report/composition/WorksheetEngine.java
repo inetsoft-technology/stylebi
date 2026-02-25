@@ -476,6 +476,16 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
 
       rs.setID(sheetId);
 
+      // Use putSheet() and await the future rather than put() so the Ignite distributed
+      // cache write completes before this method returns. Under concurrent load, Ignite
+      // topology changes can cause an AffinityCallRequestTask to execute on a node that
+      // no longer owns the affinity partition for this sheet (the routing decision and
+      // the isPrimary check on the receiving node observe different topology versions).
+      // When that happens the sheet lands in the wrong node's local map. By awaiting the
+      // cache write, we guarantee the entry exists in the distributed cache before the
+      // caller receives the sheet ID, so the correct partition-owning node can always
+      // find the sheet via the cache on subsequent affinity-routed requests instead of
+      // throwing ExpiredSheetException.
       try {
          amap.putSheet(sheetId, rs).get(10, TimeUnit.SECONDS);
       }
