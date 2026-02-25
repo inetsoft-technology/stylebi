@@ -42,8 +42,8 @@ public class PointDeserializer extends StdDeserializer<Point> {
    public Point deserialize(JsonParser parser, DeserializationContext context)
       throws IOException {
       JsonNode node = parser.getCodec().readTree(parser);
-      int x = node.get("x").intValue();
-      int y = node.get("y").intValue();
+      int x = node.path("x").intValue();
+      int y = node.path("y").intValue();
       return new Point(x, y);
    }
 }

@@ -26,6 +26,7 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.util.*;
 import inetsoft.util.swap.*;
+import inetsoft.web.json.TypedPropertyMapWrapper;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -125,7 +126,7 @@ public abstract class RuntimeSheet {
       isLockProcessed = state.isLockProcessed();
       disposed = state.isDisposed();
       heartbeat = state.getHeartbeat();
-      prop = loadJson(HashMap.class, state.getProp(), mapper);
+      prop = loadPropMap(state.getProp(), mapper);
       previousURL = state.getPreviousURL();
    }
 
@@ -522,7 +523,7 @@ public abstract class RuntimeSheet {
       state.setLockProcessed(isLockProcessed);
       state.setDisposed(disposed);
       state.setHeartbeat(heartbeat);
-      state.setProp(saveJson(prop, mapper));
+      state.setProp(savePropMap(prop, mapper));
       state.setPreviousURL(previousURL);
    }
 
@@ -614,6 +615,41 @@ public abstract class RuntimeSheet {
       catch(Exception e) {
          LOG.error("Failed to load value", e);
          return null;
+      }
+   }
+
+   /**
+    * Serializes the prop map with embedded type information for polymorphic values.
+    */
+   private String savePropMap(Map<String, Object> propMap, ObjectMapper mapper) {
+      if(propMap == null) {
+         return null;
+      }
+
+      try {
+         return mapper.writeValueAsString(new TypedPropertyMapWrapper(propMap));
+      }
+      catch(Exception e) {
+         LOG.error("Failed to save prop map", e);
+         return null;
+      }
+   }
+
+   /**
+    * Deserializes the prop map, restoring type information for polymorphic values.
+    */
+   private Map<String, Object> loadPropMap(String json, ObjectMapper mapper) {
+      if(json == null) {
+         return new HashMap<>();
+      }
+
+      try {
+         TypedPropertyMapWrapper wrapper = mapper.readValue(json, TypedPropertyMapWrapper.class);
+         return wrapper.getValues();
+      }
+      catch(Exception e) {
+         LOG.error("Failed to load prop map", e);
+         return new HashMap<>();
       }
    }
 

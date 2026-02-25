@@ -18,11 +18,9 @@
 
 package inetsoft.report.composition;
 
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.databind.*;
-import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
 import com.fasterxml.jackson.datatype.guava.GuavaModule;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -104,13 +102,6 @@ public class RuntimeSheetCache
       mapper.registerModule(new ThirdPartySupportModule());
       mapper.registerModule(new GuavaModule());
       mapper.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
-      // Enable default typing to preserve type information for objects in the prop map
-      // (e.g., Dimension, Point2D.Double used for scale properties). Using JAVA_LANG_OBJECT
-      // so type info is only added when the declared type is Object.class.
-      mapper.activateDefaultTyping(
-         LaissezFaireSubTypeValidator.instance,
-         ObjectMapper.DefaultTyping.JAVA_LANG_OBJECT,
-         JsonTypeInfo.As.PROPERTY);
       return mapper;
    }
 

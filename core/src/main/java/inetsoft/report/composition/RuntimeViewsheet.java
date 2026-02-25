@@ -306,7 +306,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
                VSEventUtil.applyScale(vs, scaleRatio, false, null, size.width, size.height, box);
             }
             catch(Exception e) {
-               LOG.warn("Failed to re-apply scale after restoration", e);
+               LOG.error("Failed to re-apply scale after restoration", e);
             }
          }
       }

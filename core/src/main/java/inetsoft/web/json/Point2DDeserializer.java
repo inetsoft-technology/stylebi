@@ -42,8 +42,8 @@ public class Point2DDeserializer extends StdDeserializer<Point2D.Double> {
       throws IOException
    {
       JsonNode node = jsonParser.getCodec().readTree(jsonParser);
-      double x = node.get("x").doubleValue();
-      double y = node.get("y").doubleValue();
+      double x = node.path("x").doubleValue();
+      double y = node.path("y").doubleValue();
       return new Point2D.Double(x, y);
    }
 }

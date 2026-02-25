@@ -17,9 +17,8 @@
  */
 package inetsoft.web.json;
 
-import com.fasterxml.jackson.core.*;
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.jsontype.TypeSerializer;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 
 import java.awt.geom.Point2D;
@@ -44,16 +43,5 @@ public class Point2DSerializer extends StdSerializer<Point2D> {
       generator.writeNumberField("x", value.getX());
       generator.writeNumberField("y", value.getY());
       generator.writeEndObject();
-   }
-
-   @Override
-   public void serializeWithType(Point2D value, JsonGenerator generator,
-                                 SerializerProvider provider, TypeSerializer typeSer)
-      throws IOException
-   {
-      typeSer.writeTypePrefix(generator, typeSer.typeId(value, JsonToken.START_OBJECT));
-      generator.writeNumberField("x", value.getX());
-      generator.writeNumberField("y", value.getY());
-      typeSer.writeTypeSuffix(generator, typeSer.typeId(value, JsonToken.START_OBJECT));
    }
 }

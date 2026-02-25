@@ -43,10 +43,10 @@ public class InsetsDeserializer extends StdDeserializer<Insets> {
       throws IOException
    {
       JsonNode node = parser.getCodec().readTree(parser);
-      int top = node.get("top").intValue();
-      int left = node.get("left").intValue();
-      int bottom = node.get("bottom").intValue();
-      int right = node.get("right").intValue();
+      int top = node.path("top").intValue();
+      int left = node.path("left").intValue();
+      int bottom = node.path("bottom").intValue();
+      int right = node.path("right").intValue();
       return new Insets(top, left, bottom, right);
    }
 }

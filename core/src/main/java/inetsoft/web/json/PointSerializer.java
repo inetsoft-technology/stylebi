@@ -17,9 +17,8 @@
  */
 package inetsoft.web.json;
 
-import com.fasterxml.jackson.core.*;
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.jsontype.TypeSerializer;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 
 import java.awt.*;
@@ -46,16 +45,5 @@ public class PointSerializer extends StdSerializer<Point> {
       generator.writeNumberField("x", value.x);
       generator.writeNumberField("y", value.y);
       generator.writeEndObject();
-   }
-
-   @Override
-   public void serializeWithType(Point value, JsonGenerator generator,
-                                 SerializerProvider provider, TypeSerializer typeSer)
-      throws IOException
-   {
-      typeSer.writeTypePrefix(generator, typeSer.typeId(value, JsonToken.START_OBJECT));
-      generator.writeNumberField("x", value.x);
-      generator.writeNumberField("y", value.y);
-      typeSer.writeTypeSuffix(generator, typeSer.typeId(value, JsonToken.START_OBJECT));
    }
 }

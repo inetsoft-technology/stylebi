@@ -17,9 +17,8 @@
  */
 package inetsoft.web.json;
 
-import com.fasterxml.jackson.core.*;
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.jsontype.TypeSerializer;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 
 import java.awt.*;
@@ -48,18 +47,5 @@ public class InsetsSerializer extends StdSerializer<Insets> {
       generator.writeNumberField("bottom", value.bottom);
       generator.writeNumberField("right", value.right);
       generator.writeEndObject();
-   }
-
-   @Override
-   public void serializeWithType(Insets value, JsonGenerator generator,
-                                 SerializerProvider provider, TypeSerializer typeSer)
-      throws IOException
-   {
-      typeSer.writeTypePrefix(generator, typeSer.typeId(value, JsonToken.START_OBJECT));
-      generator.writeNumberField("top", value.top);
-      generator.writeNumberField("left", value.left);
-      generator.writeNumberField("bottom", value.bottom);
-      generator.writeNumberField("right", value.right);
-      typeSer.writeTypeSuffix(generator, typeSer.typeId(value, JsonToken.START_OBJECT));
    }
 }
