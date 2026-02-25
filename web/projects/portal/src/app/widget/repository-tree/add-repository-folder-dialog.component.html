@@ -24,7 +24,7 @@
       <form ngNoForm class="container-fluid">
         <div class="form-row-float-label form-row">
           <div class="form-floating col">
-            <input class="form-control" type="text" [(ngModel)]="name" [formControl]="nameControl"
+            <input class="form-control" type="text" [formControl]="nameControl"
                    placeholder="_#(Folder Name)"
                    [class.is-invalid]="!nameControl.valid && nameControl.dirty"/>
             <label>_#(Folder Name)</label>

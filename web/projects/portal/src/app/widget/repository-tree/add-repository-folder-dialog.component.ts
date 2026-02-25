@@ -16,15 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { ModelService } from "../services/model.service";
-import { RepositoryEntry } from "../../../../../shared/data/repository-entry";
-import { AddRepositoryFolderEvent } from "./add-repository-folder-event";
-import { MessageCommand } from "../../common/viewsheet-client/message-command";
-import { Tool } from "../../../../../shared/util/tool";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { UntypedFormControl, ValidationErrors, Validators } from "@angular/forms";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { RepositoryEntry } from "../../../../../shared/data/repository-entry";
 import { FormValidators } from "../../../../../shared/util/form-validators";
 import { ComponentTool } from "../../common/util/component-tool";
+import { MessageCommand } from "../../common/viewsheet-client/message-command";
+import { ModelService } from "../services/model.service";
+import { AddRepositoryFolderEvent } from "./add-repository-folder-event";
 
 const ADD_FOLDER_URI = "../api/portal/tree/add-folder";
 
@@ -38,7 +37,6 @@ export class AddRepositoryFolderDialog implements OnInit {
    @Input() entry: RepositoryEntry;
    @Input() edit: boolean = false;
    nameControl: UntypedFormControl;
-   name: string;
    alias: string;
    description: string;
 
@@ -47,12 +45,11 @@ export class AddRepositoryFolderDialog implements OnInit {
 
    ngOnInit(): void {
       if(this.edit && this.entry) {
-         this.name = this.entry.name;
          this.alias = this.entry.alias;
          this.description = this.entry.description;
       }
 
-      this.nameControl = new UntypedFormControl(null, [Validators.required, this.endsWithPeriod,
+      this.nameControl = new UntypedFormControl(this.edit ? this.entry?.name ?? null : null, [Validators.required, this.endsWithPeriod,
          FormValidators.assetEntryBannedCharacters, FormValidators.assetNameStartWithCharDigit]);
    }
 
@@ -65,7 +62,7 @@ export class AddRepositoryFolderDialog implements OnInit {
    }
 
    private dispatchAddRepositoryFolderEvent(confirmed: boolean = false) {
-      let event = new AddRepositoryFolderEvent(this.entry, this.name, this.alias,
+      let event = new AddRepositoryFolderEvent(this.entry, this.nameControl.value, this.alias,
          this.description, this.edit);
 
       this.modelService.sendModel<MessageCommand>(ADD_FOLDER_URI, event)
