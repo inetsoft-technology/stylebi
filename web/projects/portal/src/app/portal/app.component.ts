@@ -24,6 +24,7 @@ import { NgbDatepickerConfig, NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subject, Subscription } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { AiAssistantService } from "../../../../shared/ai-assistant/ai-assistant.service";
+import { AiAssistantDialogService } from "../common/services/ai-assistant-dialog.service";
 import { LogoutService } from "../../../../shared/util/logout.service";
 import { AssetEntry, createAssetEntry } from "../../../../shared/data/asset-entry";
 import { LicenseInfo } from "../common/data/license-info";
@@ -78,6 +79,7 @@ export class PortalAppComponent implements OnInit, OnDestroy {
    }
 
    constructor(public aiAssistantService: AiAssistantService,
+               public aiAssistantDialogService: AiAssistantDialogService,
                private modalService: NgbModal,
                private http: HttpClient,
                private portalTabsService: PortalTabsService,

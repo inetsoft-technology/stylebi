@@ -174,6 +174,7 @@ public class VSChartDrillHandler extends BaseDrillHandler<ChartVSAssembly, Chart
       boolean replaceLevel = !drillFilterAction && ((VSDimensionRef) ref).isDateTime() &&
          cube == null && (currLevel & XConstants.PART_DATE_GROUP) == 0 &&
          (newLevel & XConstants.PART_DATE_GROUP) == 0;
+      VSDimensionRef newDimRef = null;
 
       if(replaceLevel) {
          ChartRef ref2 = chartInfo.getFieldByName(ref.getFullName(), false);
@@ -211,16 +212,32 @@ public class VSChartDrillHandler extends BaseDrillHandler<ChartVSAssembly, Chart
 
             newValue = chartRef.getDateLevel() + "";
             chartInfo.replaceField(oldRef2, ref2);
+            newDimRef = chartRef;
          }
       }
       else if(!drillUp) {
          newValue = drillDown(chartAssembly, ref, cube, axisType, viewer, drillFilterAction);
+
+         if(newValue instanceof VSDimensionRef) {
+            newDimRef = (VSDimensionRef) newValue;
+         }
       }
       else if(drillFilterAction) {
          newValue = drillUpSelection(chartAssembly, ref, cube, axisType);
+
+         if(newValue instanceof VSDimensionRef) {
+            newDimRef = (VSDimensionRef) newValue;
+         }
       }
       else {
          drillUp(chartInfo, ref, cube, axisType, viewer);
+      }
+
+      // update calculator column references when drilling changes the dimension
+      if(ref instanceof VSDimensionRef && newDimRef != null
+         && !ref.getFullName().equals(newDimRef.getFullName()))
+      {
+         updateCalcRefs(chartInfo, (VSDimensionRef) ref, newDimRef);
       }
 
       if(drillFilterAction) {
@@ -291,6 +308,39 @@ public class VSChartDrillHandler extends BaseDrillHandler<ChartVSAssembly, Chart
 
       newDimension.setOrder(oldDimension.getOrder());
       newDimension.setSortByCol(oldDimension.getSortByCol());
+   }
+
+   /**
+    * Update calculator column references (e.g. PercentCalc) when a dimension is replaced
+    * during drill, so the calculator tracks the new dimension name.
+    */
+   private void updateCalcRefs(VSChartInfo chartInfo, VSDimensionRef oldRef,
+                               VSDimensionRef newRef)
+   {
+      List<VSDimensionRef> oldRefs = Collections.singletonList(oldRef);
+      List<VSDimensionRef> newRefs = Collections.singletonList(newRef);
+
+      for(ChartRef ref : chartInfo.getBindingRefs(false)) {
+         if(ref instanceof VSAggregateRef) {
+            Calculator calc = ((VSAggregateRef) ref).getCalculator();
+
+            if(calc != null) {
+               calc.updateRefs(oldRefs, newRefs);
+            }
+         }
+      }
+
+      for(AestheticRef aRef : chartInfo.getAestheticRefs(false)) {
+         DataRef dataRef = aRef.getDataRef();
+
+         if(dataRef instanceof VSAggregateRef) {
+            Calculator calc = ((VSAggregateRef) dataRef).getCalculator();
+
+            if(calc != null) {
+               calc.updateRefs(oldRefs, newRefs);
+            }
+         }
+      }
    }
 
    private String getDrillDirectionType(VSChartInfo chartInfo, ChartRef ref) {
@@ -657,12 +707,15 @@ public class VSChartDrillHandler extends BaseDrillHandler<ChartVSAssembly, Chart
       ChartRef[] refs = isX ? info.getXFields() : info.getYFields();
       int rank = VSUtil.getDimRanking((VSDimensionRef) ref, cube, null);
       int dLevel = -1;
+      List<VSDimensionRef> removedRefs = new ArrayList<>();
 
       for(int i = refs.length - 1; i >= 0; i--) {
          if(refs[i] instanceof VSDimensionRef) {
             int rank2 = VSUtil.getDimRanking((VSDimensionRef) refs[i], cube, (VSDimensionRef) ref);
 
             if(rank2 > rank) {
+               removedRefs.add((VSDimensionRef) refs[i]);
+
                if(isX) {
                   if(viewer) {
                      // @by stephenwebster, For Bug #17247
@@ -700,6 +753,13 @@ public class VSChartDrillHandler extends BaseDrillHandler<ChartVSAssembly, Chart
       // @by ChrisSpagnoli bug1429507986738 bug1429496186187 2015-4-24
       // set to the correct value, don't just decrement
       info.setDrillLevel(dLevel);
+
+      // update calcs that referenced removed children to point at the parent
+      VSDimensionRef parentRef = (VSDimensionRef) ref;
+
+      for(VSDimensionRef removed : removedRefs) {
+         updateCalcRefs(info, removed, parentRef);
+      }
    }
 
    public VSSelection getVSSelection(RuntimeViewsheet rvs, ChartVSAssembly assembly,

@@ -78,6 +78,9 @@ $ineticons-map: map-merge($ineticons-base-map, (
   font-size: 30px !important;
 }
 
+.icon-size-xxlarge {
+  font-size: 40px !important;
+}
 
 .icon-color-default {
   color: var(--inet-icon-color) !important;

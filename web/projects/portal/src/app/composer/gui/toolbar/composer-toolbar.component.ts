@@ -36,7 +36,7 @@ import {
 import { NgbDropdown, NgbModal, NgbTooltipConfig } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, of as observableOf, Subject, Subscription } from "rxjs";
 import { takeUntil } from "rxjs/operators";
-import { AiAssistantService } from "../../../../../../shared/ai-assistant/ai-assistant.service";
+import { AiAssistantDialogService } from "../../../common/services/ai-assistant-dialog.service";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
 import {
    DatabaseDataSource,
@@ -269,7 +269,7 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
          total + (!object.container && object.locked !== true ? 1 : 0), 0) >= 2;
    }
 
-   constructor(public aiAssistantService: AiAssistantService,
+   constructor(public aiAssistantDialogService: AiAssistantDialogService,
                private hostElement: ElementRef,
                private renderer: Renderer2,
                private modalService: NgbModal,

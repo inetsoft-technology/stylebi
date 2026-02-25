@@ -166,7 +166,8 @@
                     [style.color]="_cell.vsFormatModel.foreground"
                     [style.background]="_cell.vsFormatModel.background"
                     [safeFont]="_cell.vsFormatModel.font"
-                    [dataTip]="model.dataTip">
+                    [dataTip]="model.dataTip"
+                    [dataTipOnClick]="model.isTipOnClick">
                   <i sortButton *ngIf="sortEnable(_cell) && model.sortOnHeader && !vsWizard"
                      title="_#(Sort Column)"
                      class="sort-button vs-header-cell-button-sort hover-bg-secondary"
@@ -230,6 +231,7 @@
                     [style.height.px]="getCellHeightStyle(_cell.row, _cell)"
                     [displayColSpan]="getCellColSpan(_cell, j)"
                     [dataTip]="model.dataTip"
+                    [dataTipOnClick]="model.isTipOnClick"
                     [isRendered]="i >= model.headerRowCount && j >= model.headerColCount"
                     [draggable]="isDraggable(false)"
                     (dragstart)="dragStart($event, _cell)"
@@ -353,6 +355,7 @@
                     [style.background]="_cell.vsFormatModel.background"
                     [safeFont]="_cell.vsFormatModel.font"
                     [dataTip]="model.dataTip"
+                    [dataTipOnClick]="model.isTipOnClick"
                     [class.visible-cell]="getCellHeight(_cell.row, _cell) > 0">
                   <i sortButton *ngIf="sortEnable(_cell) && !model.sortOnHeader && !isAggregate(_cell.field) && model.sortDimension && !vsWizard"
                      title="_#(Sort Column)"
@@ -444,7 +447,8 @@
                     [style.color]="_cell.vsFormatModel.foreground"
                     [style.background]="_cell.vsFormatModel.background"
                     [safeFont]="_cell.vsFormatModel.font"
-                    [dataTip]="model.dataTip">
+                    [dataTip]="model.dataTip"
+                    [dataTipOnClick]="model.isTipOnClick">
                   <i sortButton *ngIf="sortDimensionEnable(_cell) && !vsWizard"
                      title="_#(Sort Column)"
                      class="sort-button vs-header-cell-button-sort hover-bg-secondary"

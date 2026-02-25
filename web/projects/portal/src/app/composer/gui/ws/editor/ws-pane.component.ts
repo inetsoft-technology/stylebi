@@ -36,6 +36,7 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { fromEvent, merge, Subscription } from "rxjs";
 import { filter, map } from "rxjs/operators";
 import { AiAssistantService } from "../../../../../../../shared/ai-assistant/ai-assistant.service";
+import { AiAssistantDialogService } from "../../../../common/services/ai-assistant-dialog.service";
 import { AssetEntry } from "../../../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../../../shared/data/asset-type";
 import { DownloadService } from "../../../../../../../shared/download/download.service";
@@ -167,7 +168,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
    /** The worksheet currently in view */
    @Input() set worksheet(worksheet: Worksheet) {
       this._worksheet = worksheet;
-      this.aiAssistantService.setWorksheetContext(worksheet);
+      this.aiAssistantDialogService.setWorksheetContext(worksheet);
    }
 
    get worksheet(): Worksheet {
@@ -220,10 +221,11 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
    private focusSubscription: Subscription;
    private keyEventsSubscription: Subscription | null;
    private confirmExpiredDisplayed: boolean = false;
-   private heartbeatSubscription: Subscription;
+   private heartbeatSubscription: Subscription = Subscription.EMPTY;
    private renameTransformSubscription: Subscription;
    private transformSubscription: Subscription;
    private dragColumnsSubscription: Subscription;
+   private connectionErrorSubscription: Subscription = Subscription.EMPTY;
    private loadingEventCount: number = 0;
    preparingData: boolean = false;
    private firstTime: boolean = true;
@@ -255,6 +257,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
    }
 
    constructor(private aiAssistantService: AiAssistantService,
+               private aiAssistantDialogService: AiAssistantDialogService,
                private resizeHandlerService: ResizeHandlerService,
                private changeDetector: ChangeDetectorRef,
                private worksheetClient: ViewsheetClientService,
@@ -365,11 +368,17 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       this.heartbeatSubscription = this.worksheet.socketConnection.onHeartbeat.subscribe(() => {
          this.touchAsset();
       });
+      this.connectionErrorSubscription = this.worksheetClient.connectionError().pipe(
+         filter(err => !!err)
+      ).subscribe(() => {
+         this.worksheet.saving = false;
+      });
    }
 
    cleanup(): void {
       super.cleanup();
       this.heartbeatSubscription.unsubscribe();
+      this.connectionErrorSubscription.unsubscribe();
    }
 
    public getAssemblyName(): string {
@@ -986,7 +995,10 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
             this.notifications.info(command.message);
             break;
          case "WARNING":
+            this.processMessageCommand0(command, this.modalService, this.worksheetClient);
+            break;
          case "ERROR":
+            this.worksheet.saving = false;
             this.processMessageCommand0(command, this.modalService, this.worksheetClient);
             break;
          case "CONFIRM":
@@ -1145,6 +1157,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       this.worksheet.savePoint = command.savePoint;
       this.worksheet.id = command.id;
       this.notifications.success("_#(js:common.worksheet.saveSuccess)");
+      this.worksheet.saving = false;
       this.onSaveWorksheetFinish.emit(this.worksheet);
    }
 

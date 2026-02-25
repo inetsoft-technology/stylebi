@@ -33,7 +33,9 @@ import {
 } from "@angular/core";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { Subject, Subscription } from "rxjs";
+import { filter } from "rxjs/operators";
 import { AiAssistantService } from "../../../../../../../shared/ai-assistant/ai-assistant.service";
+import { AiAssistantDialogService } from "../../../../common/services/ai-assistant-dialog.service";
 import { AssetEntry, createAssetEntry } from "../../../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../../../shared/data/asset-type";
 import { DownloadService } from "../../../../../../../shared/download/download.service";
@@ -188,7 +190,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
    _vs: Viewsheet;
    @Input() set vs(vs: Viewsheet) {
       this._vs = vs;
-      this.aiAssistantService.setViewsheetScriptContext(vs);
+      this.aiAssistantDialogService.setViewsheetScriptContext(vs);
    }
 
    get vs(): Viewsheet {
@@ -356,11 +358,11 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       return draggableRestrictionRect;
    };
 
-   private focusedObjectsSubject: Subscription;
+   private focusedObjectsSubject: Subscription = Subscription.EMPTY;
    private click: boolean = false;
    private confirmExpiredDisplayed: boolean = false;
-   private heartbeatSubscription: Subscription;
-   private renameTransformSubscription: Subscription;
+   private heartbeatSubscription: Subscription = Subscription.EMPTY;
+   private renameTransformSubscription: Subscription = Subscription.EMPTY;
    private transformSubscription: Subscription;
    private loadingEventCount: number = 0;
    private resizeTimeout: any = null;
@@ -437,6 +439,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
    ];
 
    constructor(private aiAssistantService: AiAssistantService,
+               private aiAssistantDialogService: AiAssistantDialogService,
                private element: ElementRef,
                private composerObjectService: ComposerObjectService,
                private viewsheetClient: ViewsheetClientService,
@@ -501,6 +504,12 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.heartbeatSubscription = this.viewsheetClient.onHeartbeat.subscribe(() => {
          this.touchAsset();
       });
+
+      this.subscriptions.add(this.viewsheetClient.connectionError().pipe(
+         filter(err => !!err)
+      ).subscribe(() => {
+         this.vs.saving = false;
+      }));
 
       this.renameTransformSubscription = this.viewsheetClient.onRenameTransformFinished.subscribe(
          (message) => {
@@ -953,6 +962,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.vs.savePoint = command.savePoint;
       this.vs.id = command.id;
       this.notifications.success("_#(js:common.viewsheet.saveSuccess)");
+      this.vs.saving = false;
 
       if(this.vs.gettingStarted) {
          this.onOpenVSOnPortal.emit(this.vs.id);
@@ -1056,7 +1066,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
             }
          });
 
-         this.aiAssistantService.setViewsheetScriptContext(this.vs);
+         this.aiAssistantDialogService.setViewsheetScriptContext(this.vs);
       }
 
       // Update z-indexes
@@ -1134,7 +1144,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.dialogService.objectDelete(absoulateName);
       this.dataTipService.clearDataTips(absoulateName);
       this.viewsheetClient.sendEvent("/events/vs/bindingtree/gettreemodel", new RefreshBindingTreeEvent(null));
-      this.aiAssistantService.setViewsheetScriptContext(this.vs);
+      this.aiAssistantDialogService.setViewsheetScriptContext(this.vs);
 
       // Update z-indexes
       for(let object of this.vs.vsObjects) {
@@ -1180,7 +1190,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       if(!updated) {
          this.vs.vsObjects.push(command.info);
          this.vs.variableNames = VSUtil.getVariableList(this.vs.vsObjects, null);
-         this.aiAssistantService.setViewsheetScriptContext(this.vs);
+         this.aiAssistantDialogService.setViewsheetScriptContext(this.vs);
       }
 
       if(command.info.objectType == "VSGroupContainer") {
@@ -1231,7 +1241,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       for(let i = 0; i < this.vs.vsObjects.length; i++) {
          if(this.vs.vsObjects[i].absoluteName === command.oldName) {
             this.vs.vsObjects[i].absoluteName = command.newName;
-            this.aiAssistantService.setViewsheetScriptContext(this.vs);
+            this.aiAssistantDialogService.setViewsheetScriptContext(this.vs);
             break;
          }
       }
@@ -1300,6 +1310,10 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
          this.notifications.info(command.message);
       }
       else {
+         if(command.type === "ERROR") {
+            this.vs.saving = false;
+         }
+
          this.processMessageCommand0(command, this.modalService, this.viewsheetClient);
       }
 

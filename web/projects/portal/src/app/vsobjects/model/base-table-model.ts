@@ -54,6 +54,7 @@ export interface BaseTableModel extends VSObjectModel {
    // Flyover Information
    hasFlyover: boolean;
    isFlyOnClick: boolean;
+   isTipOnClick: boolean;
 
    // Cell selection (map row -> col[])
    selectedData?: Map<number, number[]>;

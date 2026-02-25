@@ -73,6 +73,7 @@ public abstract class BaseTableModel<T extends TableDataVSAssembly> extends VSOb
       String[] flyovers = VSUtil.getValidFlyovers(tinfo.getFlyoverViews(), assembly.getViewsheet());
       hasFlyover = flyovers != null && flyovers.length > 0;
       isFlyOnClick = tinfo.isFlyOnClick();
+      isTipOnClick = tinfo.isTipOnClick();
 
       int titleHeight = tinfo.getTitleHeight();
       titleFormat.setPositions(new Point(0, 0),
@@ -115,6 +116,10 @@ public abstract class BaseTableModel<T extends TableDataVSAssembly> extends VSOb
 
    public boolean getIsFlyOnClick() {
       return isFlyOnClick;
+   }
+
+   public boolean getIsTipOnClick() {
+      return isTipOnClick;
    }
 
    public boolean isShrink() {
@@ -234,6 +239,7 @@ public abstract class BaseTableModel<T extends TableDataVSAssembly> extends VSOb
    private boolean titleVisible;
    private boolean hasFlyover;
    private boolean isFlyOnClick;
+   private boolean isTipOnClick;
    private boolean shrink;
    private boolean explicitTableWidth;
    private boolean enableAdhoc;
