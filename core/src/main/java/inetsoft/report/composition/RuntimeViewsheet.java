@@ -296,7 +296,8 @@ public class RuntimeViewsheet extends RuntimeSheet {
       Object scaleRatioObj = getProperty("viewsheet.scaleRatio");
 
       if(appliedScale instanceof Dimension && scaleRatioObj instanceof Point2D.Double &&
-         vs != null && vs.getViewsheetInfo() != null && vs.getViewsheetInfo().isScaleToScreen())
+         vs != null && vs.getViewsheetInfo() != null && vs.getViewsheetInfo().isScaleToScreen() &&
+         box != null)
       {
          Dimension size = (Dimension) appliedScale;
          Point2D.Double scaleRatio = (Point2D.Double) scaleRatioObj;

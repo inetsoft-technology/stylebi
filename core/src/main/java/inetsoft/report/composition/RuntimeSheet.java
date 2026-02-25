@@ -622,7 +622,7 @@ public abstract class RuntimeSheet {
     * Serializes the prop map with embedded type information for polymorphic values.
     */
    private String savePropMap(Map<String, Object> propMap, ObjectMapper mapper) {
-      if(propMap == null) {
+      if(propMap == null || propMap.isEmpty()) {
          return null;
       }
 
@@ -630,7 +630,8 @@ public abstract class RuntimeSheet {
          return mapper.writeValueAsString(new TypedPropertyMapWrapper(propMap));
       }
       catch(Exception e) {
-         LOG.error("Failed to save prop map", e);
+         LOG.error("Failed to save prop map ({} entries, keys: {}): {}",
+            propMap.size(), propMap.keySet(), e.toString(), e);
          return null;
       }
    }
@@ -639,7 +640,7 @@ public abstract class RuntimeSheet {
     * Deserializes the prop map, restoring type information for polymorphic values.
     */
    private Map<String, Object> loadPropMap(String json, ObjectMapper mapper) {
-      if(json == null) {
+      if(json == null || json.isEmpty()) {
          return new HashMap<>();
       }
 
@@ -648,7 +649,8 @@ public abstract class RuntimeSheet {
          return wrapper.getValues();
       }
       catch(Exception e) {
-         LOG.error("Failed to load prop map", e);
+         LOG.error("Failed to load prop map (json length: {}): {}",
+            json.length(), e.toString(), e);
          return new HashMap<>();
       }
    }

@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2025  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -21,10 +21,11 @@ package inetsoft.web.json;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Deserializer for the RuntimeSheet prop map that reads embedded type information for each value.
@@ -33,15 +34,10 @@ import java.util.Map;
  *
  * <p>Expects each entry in format: {@code "key": {"@class": "fully.qualified.ClassName", "value": ...}}</p>
  *
- * <p><b>SECURITY NOTE:</b> This deserializer instantiates arbitrary classes based on the embedded
- * type information, which could be exploited for deserialization attacks (CVE-2017-7525 and
- * descendants) if used with untrusted data. This is acceptable here because:</p>
- * <ol>
- *    <li>The prop map stores internal application state only - it never contains user-supplied input.</li>
- *    <li>The serialized data is only exchanged between trusted Ignite cluster nodes
- *        over authenticated/encrypted channels.</li>
- * </ol>
- * <p><b>DO NOT</b> use this deserializer for untrusted external data.</p>
+ * <p><b>SECURITY NOTE:</b> This deserializer uses a class allowlist to restrict which types can be
+ * instantiated, providing defense-in-depth against deserialization attacks (CVE-2017-7525 and
+ * descendants). Only classes in {@link #ALLOWED_CLASSES} can be deserialized; others are logged
+ * and skipped. If new types are added to the prop map, they must be added to the allowlist.</p>
  */
 public class TypedPropertyMapDeserializer extends JsonDeserializer<TypedPropertyMapWrapper> {
    @Override
@@ -77,8 +73,9 @@ public class TypedPropertyMapDeserializer extends JsonDeserializer<TypedProperty
    private Object deserializeTypedValue(JsonParser parser, DeserializationContext context)
       throws IOException
    {
+      // Buffer fields first since JSON field ordering is not guaranteed (RFC 8259)
       String className = null;
-      Object value = null;
+      JsonNode valueNode = null;
 
       while(parser.nextToken() != JsonToken.END_OBJECT) {
          String fieldName = parser.currentName();
@@ -88,24 +85,47 @@ public class TypedPropertyMapDeserializer extends JsonDeserializer<TypedProperty
             className = parser.getValueAsString();
          }
          else if("value".equals(fieldName)) {
-            if(className == null) {
-               throw context.instantiationException(Object.class,
-                  "@class field must appear before value field");
-            }
-
-            try {
-               Class<?> clazz = Class.forName(className);
-               JavaType javaType = context.constructType(clazz);
-               JsonDeserializer<Object> deserializer = context.findRootValueDeserializer(javaType);
-               value = deserializer.deserialize(parser, context);
-            }
-            catch(ClassNotFoundException e) {
-               throw context.instantiationException(Object.class,
-                  "Unknown class: " + className);
-            }
+            valueNode = parser.readValueAsTree();
          }
       }
 
-      return value;
+      if(className == null || valueNode == null) {
+         return null;
+      }
+
+      if(!ALLOWED_CLASSES.contains(className)) {
+         LOG.warn("Ignoring prop map value with disallowed class: {}", className);
+         return null;
+      }
+
+      try {
+         Class<?> clazz = Class.forName(className);
+         ObjectMapper mapper = (ObjectMapper) parser.getCodec();
+         return mapper.convertValue(valueNode, clazz);
+      }
+      catch(ClassNotFoundException e) {
+         LOG.warn("Ignoring prop map value with unknown class: {}", className);
+         return null;
+      }
    }
+
+   private static final Logger LOG = LoggerFactory.getLogger(TypedPropertyMapDeserializer.class);
+
+   /**
+    * Allowlist of classes that can be deserialized from the prop map.
+    * Add new types here if they are legitimately stored in RuntimeSheet properties.
+    */
+   private static final Set<String> ALLOWED_CLASSES = Set.of(
+      "java.awt.Dimension",
+      "java.awt.Point",
+      "java.awt.geom.Point2D$Double",
+      "java.awt.Insets",
+      "java.awt.Rectangle",
+      "java.lang.Boolean",
+      "java.lang.Double",
+      "java.lang.Float",
+      "java.lang.Integer",
+      "java.lang.Long",
+      "java.lang.String"
+   );
 }

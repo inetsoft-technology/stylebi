@@ -17,10 +17,9 @@
  */
 package inetsoft.web.json;
 
-import com.fasterxml.jackson.core.*;
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.jsontype.TypeSerializer;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -38,20 +37,5 @@ public class EnumSetSerializer extends JsonSerializer<EnumSet> {
       }
 
       gen.writeEndArray();
-   }
-
-   @Override
-   public void serializeWithType(EnumSet value, JsonGenerator gen,
-                                 SerializerProvider provider, TypeSerializer typeSer)
-      throws IOException
-   {
-      typeSer.writeTypePrefix(gen, typeSer.typeId(value, JsonToken.START_ARRAY));
-
-      for(Object item : value) {
-         Enum<?> e = (Enum) item;
-         gen.writeString(e.name());
-      }
-
-      typeSer.writeTypeSuffix(gen, typeSer.typeId(value, JsonToken.START_ARRAY));
    }
 }
