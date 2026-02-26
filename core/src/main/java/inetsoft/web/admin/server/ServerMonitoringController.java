@@ -917,7 +917,7 @@ public class ServerMonitoringController {
       else if("memCache".equals(imageId)) {
          data = cacheService.getCacheHistory(clusterNode).stream()
             .map(s -> new Object[] { new Time(s.time() + tzAdjustMs).toString(),
-                                     s.reportMemoryCount(),
+                                     s.sheetMemoryCount(),
                                      s.dataMemoryCount() })
             .toArray(Object[][]::new);
          data = addTitleToChartData("cache", data);
@@ -931,7 +931,7 @@ public class ServerMonitoringController {
       else if("diskCache".equals(imageId)) {
          data = cacheService.getCacheHistory(clusterNode).stream()
             .map(s -> new Object[] { new Time(s.time() + tzAdjustMs).toString(),
-                                     s.reportDiskCount(),
+                                     s.sheetDiskCount(),
                                      s.dataDiskCount() })
             .toArray(Object[][]::new);
          data = addTitleToChartData("cache", data);
@@ -946,8 +946,8 @@ public class ServerMonitoringController {
          data = cacheService.getCacheHistory(clusterNode).stream()
             .map(s -> new Object[] {
                new Time(s.time() + tzAdjustMs).toString(),
-               s.reportBytesRead() + s.dataBytesRead(),
-               s.reportBytesWritten(),
+               s.sheetBytesRead() + s.dataBytesRead(),
+               s.sheetBytesWritten(),
                s.dataBytesWritten()
             })
             .toArray(Object[][]::new);
@@ -994,7 +994,7 @@ public class ServerMonitoringController {
       if("cache".equals(chartId)) {
          String time = catalog.getString("Time");
          String data = catalog.getString("Data");
-         String pages = catalog.getString("Reports");
+         String pages = catalog.getString("Runtime Assets");
          result[0] = new String[] { time, pages, data };
       }
       else if("swapping".equals(chartId)){

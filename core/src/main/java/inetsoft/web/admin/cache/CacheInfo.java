@@ -16,18 +16,20 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package inetsoft.web.admin.cache;
+
 import java.io.Serializable;
+
 /**
  * CacheInfo stores the information of the CacheMonitorService.
  *
  * @version 10.2
  * @author InetSoft Technology Corp
  */
-public class CacheInfo implements Cloneable,Serializable {
+public class CacheInfo implements Cloneable, Serializable {
    /**
-    * The report type.
+    * The sheet type.
     */
-   public static final int REPORT = 0;
+   public static final int SHEET = 0;
    /**
     * The data type.
     */
@@ -97,6 +99,16 @@ public class CacheInfo implements Cloneable,Serializable {
     */
    public void addCount(int count) {
       this.count += count;
+   }
+
+   @Override
+   public CacheInfo clone() {
+      try {
+         return (CacheInfo) super.clone();
+      }
+      catch(CloneNotSupportedException e) {
+         throw new AssertionError();
+      }
    }
 
    private int type;

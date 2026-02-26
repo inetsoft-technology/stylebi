@@ -25,7 +25,7 @@ public interface XSwappableMonitor {
    /**
     * The report type.
     */
-   int REPORT = 0;
+   int SHEET = 0;
    /**
     * The data type.
     */

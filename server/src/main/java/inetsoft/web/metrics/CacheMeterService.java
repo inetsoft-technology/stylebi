@@ -17,6 +17,7 @@
  */
 package inetsoft.web.metrics;
 
+import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.internal.paging.PageGroup;
 import inetsoft.uql.table.XTableColumn;
 import inetsoft.uql.table.XTableFragment;
@@ -33,47 +34,47 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
 public class CacheMeterService implements XSwappableMonitor, MeterBinder {
-   private Counter reportHits;
-   private Counter reportMisses;
-   private Counter reportRead;
-   private Counter reportWritten;
+   private Counter sheetHits;
+   private Counter sheetMisses;
+   private Counter sheetRead;
+   private Counter sheetWritten;
    private Counter dataHits;
    private Counter dataMisses;
    private Counter dataRead;
    private Counter dataWritten;
 
-   private final AtomicInteger reportMemory = new AtomicInteger(0);
-   private final AtomicInteger reportDisk = new AtomicInteger(0);
+   private final AtomicInteger sheetMemory = new AtomicInteger(0);
+   private final AtomicInteger sheetDisk = new AtomicInteger(0);
    private final AtomicInteger dataMemory = new AtomicInteger(0);
    private final AtomicInteger dataDisk = new AtomicInteger(0);
 
    @Override
    public void bindTo(MeterRegistry registry) {
-      reportHits = Counter
+      sheetHits = Counter
          .builder("inetsoft.cache.requests")
          .description("The number of cache requests")
          .tag("result", "hit")
-         .tag("cache", "report")
+         .tag("cache", "sheet")
          .register(registry);
-      reportMisses = Counter
+      sheetMisses = Counter
          .builder("inetsoft.cache.requests")
          .description("The number of cache requests")
          .tag("result", "miss")
-         .tag("cache", "report")
+         .tag("cache", "sheet")
          .register(registry);
-      reportRead = Counter
+      sheetRead = Counter
          .builder("inetsoft.cache.transfer")
          .description("The number of bytes transferred to and from disk cache")
          .baseUnit(BaseUnits.BYTES)
          .tag("direction", "read")
-         .tag("cache", "report")
+         .tag("cache", "sheet")
          .register(registry);
-      reportWritten = Counter
+      sheetWritten = Counter
          .builder("inetsoft.cache.transfer")
          .description("The number of bytes transferred to and from disk cache")
          .baseUnit(BaseUnits.BYTES)
          .tag("direction", "write")
-         .tag("cache", "report")
+         .tag("cache", "sheet")
          .register(registry);
       dataHits = Counter
          .builder("inetsoft.cache.requests")
@@ -102,14 +103,14 @@ public class CacheMeterService implements XSwappableMonitor, MeterBinder {
          .tag("cache", "data")
          .register(registry);
 
-      Gauge.builder("inetsoft.cache.size", reportMemory, AtomicInteger::doubleValue)
+      Gauge.builder("inetsoft.cache.size", sheetMemory, AtomicInteger::doubleValue)
          .description("The number of items in the cache")
-         .tag("cache", "report")
+         .tag("cache", "sheet")
          .tag("location", "memory")
          .register(registry);
-      Gauge.builder("inetsoft.cache.size", reportDisk, AtomicInteger::doubleValue)
+      Gauge.builder("inetsoft.cache.size", sheetDisk, AtomicInteger::doubleValue)
          .description("The number of items in the cache")
-         .tag("cache", "report")
+         .tag("cache", "sheet")
          .tag("location", "disk")
          .register(registry);
       Gauge.builder("inetsoft.cache.size", dataMemory, AtomicInteger::doubleValue)
@@ -136,21 +137,29 @@ public class CacheMeterService implements XSwappableMonitor, MeterBinder {
 
    @Scheduled(fixedRate = 5000L, initialDelay = 0L)
    public void updateGauges() {
-      int reportMemoryCount = 0;
-      int reportDiskCount = 0;
+      int sheetMemoryCount = 0;
+      int sheetDiskCount = 0;
       int dataMemoryCount = 0;
       int dataDiskCount = 0;
 
       for(XSwappable swap : XSwapper.getAllSwappables()) {
-         if(swap instanceof PageGroup) {
-            PageGroup group = (PageGroup) swap;
-
+         if(swap instanceof PageGroup group) {
             if(group.isSwappable()) {
                if(group.isValid()) {
-                  ++reportMemoryCount;
+                  ++sheetMemoryCount;
                }
                else {
-                  ++reportDiskCount;
+                  ++sheetDiskCount;
+               }
+            }
+         }
+         else if(swap instanceof RuntimeSheet.XSwappableSheet sheet) {
+            if(sheet.isSwappable()) {
+               if(sheet.isValid()) {
+                  ++sheetMemoryCount;
+               }
+               else {
+                  ++sheetDiskCount;
                }
             }
          }
@@ -164,9 +173,7 @@ public class CacheMeterService implements XSwappableMonitor, MeterBinder {
                }
             }
          }
-         else if(swap instanceof XTableFragment) {
-            XTableFragment table = (XTableFragment) swap;
-
+         else if(swap instanceof XTableFragment table) {
             if(!table.isDisposed()) {
                if(table.isValid()) {
                   dataMemoryCount += table.getColumns().length;
@@ -185,16 +192,16 @@ public class CacheMeterService implements XSwappableMonitor, MeterBinder {
          }
       }
 
-      reportMemory.set(reportMemoryCount);
-      reportDisk.set(reportDiskCount);
+      sheetMemory.set(sheetMemoryCount);
+      sheetDisk.set(sheetDiskCount);
       dataMemory.set(dataMemoryCount);
       dataDisk.set(dataDiskCount);
    }
 
    @Override
    public void countHits(int type, int hits) {
-      if(type == XSwappableMonitor.REPORT) {
-         reportHits.increment(hits);
+      if(type == XSwappableMonitor.SHEET) {
+         sheetHits.increment(hits);
       }
       else {
          dataHits.increment(hits);
@@ -203,8 +210,8 @@ public class CacheMeterService implements XSwappableMonitor, MeterBinder {
 
    @Override
    public void countMisses(int type, int misses) {
-      if(type == XSwappableMonitor.REPORT) {
-         reportMisses.increment(misses);
+      if(type == XSwappableMonitor.SHEET) {
+         sheetMisses.increment(misses);
       }
       else {
          dataMisses.increment(misses);
@@ -213,8 +220,8 @@ public class CacheMeterService implements XSwappableMonitor, MeterBinder {
 
    @Override
    public void countRead(long num, int type) {
-      if(type == XSwappableMonitor.REPORT) {
-         reportRead.increment(num);
+      if(type == XSwappableMonitor.SHEET) {
+         sheetRead.increment(num);
       }
       else {
          dataRead.increment(num);
@@ -223,8 +230,8 @@ public class CacheMeterService implements XSwappableMonitor, MeterBinder {
 
    @Override
    public void countWrite(long num, int type) {
-      if(type == XSwappableMonitor.REPORT) {
-         reportWritten.increment(num);
+      if(type == XSwappableMonitor.SHEET) {
+         sheetWritten.increment(num);
       }
       else {
          dataWritten.increment(num);

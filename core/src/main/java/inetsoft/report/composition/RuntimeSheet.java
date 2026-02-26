@@ -97,7 +97,6 @@ public abstract class RuntimeSheet {
       access(true);
    }
 
-   @SuppressWarnings("unchecked")
    RuntimeSheet(RuntimeSheetState state, ObjectMapper mapper) {
       entry = loadXml(new AssetEntry(), state.getEntry());
       accessed = state.getAccessed();
@@ -167,7 +166,6 @@ public abstract class RuntimeSheet {
    }
 
    /**
-    * @expire
     */
    protected long getMaxIdleTime0() {
       return getMaxIdleTime();
@@ -256,7 +254,7 @@ public abstract class RuntimeSheet {
 
    /**
     * Get the container viewsheet id.
-    * @returnt he container viewsheet id.
+    * @return the container viewsheet id.
     */
    public String getEmbeddedID() {
       return eid;
@@ -631,7 +629,7 @@ public abstract class RuntimeSheet {
       }
       catch(Exception e) {
          LOG.error("Failed to save prop map ({} entries, keys: {}): {}",
-            propMap.size(), propMap.keySet(), e.toString(), e);
+                   propMap.size(), propMap.keySet(), e, e);
          return null;
       }
    }
@@ -650,7 +648,7 @@ public abstract class RuntimeSheet {
       }
       catch(Exception e) {
          LOG.error("Failed to load prop map (json length: {}): {}",
-            json.length(), e.toString(), e);
+                   json.length(), e, e);
          return new HashMap<>();
       }
    }
@@ -755,7 +753,7 @@ public abstract class RuntimeSheet {
     */
    static byte[] createVcdiffDelta(byte[] source, byte[] target) throws IOException {
       ByteArrayOutputStream deltaOut = new ByteArrayOutputStream();
-      VCDiffEncoder encoder = VCDiffEncoderBuilder.builder()
+      VCDiffEncoder<OutputStream> encoder = VCDiffEncoderBuilder.builder()
          .withDictionary(source)
          .buildSimple();
       encoder.encode(target, deltaOut);
@@ -788,7 +786,7 @@ public abstract class RuntimeSheet {
       }
 
       public AbstractSheet get(int index) {
-         AbstractSheet sheet = null;
+         AbstractSheet sheet;
          XSwappableSheet swappable = values.get(index);
 
          synchronized(swappable) {
@@ -839,6 +837,7 @@ public abstract class RuntimeSheet {
          }
       }
 
+      @SuppressWarnings("removal")
       @Override
       protected void finalize() throws Throwable {
          dispose();
@@ -846,11 +845,11 @@ public abstract class RuntimeSheet {
       }
 
       private final List<XSwappableSheet> values;
-      private XPrincipal contextPrincipal;
+      private final XPrincipal contextPrincipal;
       private boolean disposed;
    }
 
-   private static final class XSwappableSheet extends XSwappable {
+   public static final class XSwappableSheet extends XSwappable {
       public XSwappableSheet(AbstractSheet sheet, XPrincipal contextPrincipal) {
          this.sheet = sheet;
          this.contextPrincipal = contextPrincipal;
@@ -867,17 +866,17 @@ public abstract class RuntimeSheet {
       public void access() {
          if(isCountHM) {
             if(valid && !lastValid) {
-               monitor.countHits(XSwappableMonitor.REPORT, 1);
+               monitor.countHits(XSwappableMonitor.SHEET, 1);
                lastValid = true;
             }
             else if(!valid) {
-               monitor.countMisses(XSwappableMonitor.REPORT, 1);
+               monitor.countMisses(XSwappableMonitor.SHEET, 1);
                lastValid = false;
             }
          }
 
          if(!valid) {
-            DEBUG_LOG.debug("Validate swapped data: %s", this);
+            DEBUG_LOG.debug("Validate swapped data: {}", this);
             validate(false);
          }
       }
@@ -928,12 +927,12 @@ public abstract class RuntimeSheet {
             Document document = Tool.parseXML(input);
 
             if(isCountRW) {
-               monitor.countRead(file.length(), XSwappableMonitor.DATA);
+               monitor.countRead(file.length(), XSwappableMonitor.SHEET);
             }
 
             Element element = document.getDocumentElement();
             Class<?> clazz = Class.forName(Tool.getAttribute(element, "class"));
-            AbstractSheet sheet = (AbstractSheet) clazz.newInstance();
+            AbstractSheet sheet = (AbstractSheet) clazz.getConstructor().newInstance();
             sheet.parseXML(element);
             this.sheet = sheet;
          }
@@ -1000,7 +999,7 @@ public abstract class RuntimeSheet {
             }
 
             if(output != null) {
-               PrintWriter writer = new PrintWriter(new OutputStreamWriter(output, "UTF-8"));
+               PrintWriter writer = new PrintWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8));
                writer.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
                Worksheet.setIsTEMP(true);
                sheet.writeXML(writer);
@@ -1010,7 +1009,7 @@ public abstract class RuntimeSheet {
             sheet = null;
 
             if(isCountRW && output != null) {
-               monitor.countWrite(file.length(), XSwappableMonitor.DATA);
+               monitor.countWrite(file.length(), XSwappableMonitor.SHEET);
             }
 
             output = null;
@@ -1049,14 +1048,14 @@ public abstract class RuntimeSheet {
          return sheet;
       }
 
-      private AbstractSheet sheet = null;
-      private XPrincipal contextPrincipal;
-      private String contextOrgId;
-      private boolean valid = false;
+      private AbstractSheet sheet;
+      private final XPrincipal contextPrincipal;
+      private final String contextOrgId;
+      private boolean valid;
       private boolean lastValid = false;
       private boolean completed = false;
       private boolean disposed = false;
-      private transient XSwappableMonitor monitor;
+      private final transient XSwappableMonitor monitor;
       private transient boolean isCountHM = false;
       private transient boolean isCountRW = false;
    }
