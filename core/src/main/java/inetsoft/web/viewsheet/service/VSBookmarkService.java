@@ -237,11 +237,11 @@ public class VSBookmarkService {
       executionRecord = new ExecutionRecord(
          execSessionID, userSessionID, objectName, objectType, ExecutionRecord.EXEC_TYPE_FINISH,
          execTimestamp, ExecutionRecord.EXEC_STATUS_SUCCESS, null);
-      HashMap<String, SelectionList> rangeList = getRangeStateLists(rvs);
 
       try {
          removeAssemblyAndRefreshViewSheet(
             dispatcher, rvs, url, oldArr, vsId, width, height, mobile, userAgent, clist);
+         HashMap<String, SelectionList> rangeList = getRangeStateLists(rvs);
          refreshRangeStateList(rvs, rangeList, dispatcher);
 
          if(annotationChanged) {
