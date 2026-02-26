@@ -505,7 +505,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
     * Save portal themes to a .xml file.
     */
    public void save() {
-      // Hazelcast ILock is reentrant per thread, so nested calls from the same
+      // Ignite reentrant lock is reentrant per thread, so nested calls from the same
       // thread (e.g. changeListener -> loadThemes -> save) acquire safely.
       Lock lock = Cluster.getInstance().getLock(DISTRIBUTED_LOCK_NAME);
       lock.lock();
@@ -960,9 +960,11 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
       }
 
       if(saveFile) {
-         // If the caller already holds the distributed lock (e.g. changeListener),
-         // the lock's per-thread reentrancy means this nested call is safe.
-         saveUnderLock();
+         // save() acquires the distributed lock. If the caller already holds it
+         // (e.g. changeListener), Ignite's per-thread reentrancy means the nested
+         // lock() call is safe. For non-changeListener callers (e.g. setModel()),
+         // save() ensures the lock is always held before writing.
+         save();
       }
    }
 
@@ -1046,9 +1048,10 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
 
    private static final Logger LOG = LoggerFactory.getLogger(PortalThemesManager.class);
 
-   /** Distributed lock name shared across all cluster nodes. */
+   /** Distributed lock name shared across all cluster nodes. Use a literal so it
+    *  remains stable if the class is ever renamed or moved to a different package. */
    private static final String DISTRIBUTED_LOCK_NAME =
-      PortalThemesManager.class.getName() + ".save";
+      "inetsoft.sree.portal.PortalThemesManager.save";
 
    @SingletonManager.ShutdownOrder()
    public static final class Reference extends SingletonManager.Reference<PortalThemesManager> {
