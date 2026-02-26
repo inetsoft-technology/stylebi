@@ -203,13 +203,6 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
             tcpCommunicationSpi.setLocalPort(clusterConfig.getOutboundPortNumber());
          }
 
-         // Remove the default message queue cap (512) so that bursts of PutBlobTask
-         // submissions under high concurrency apply backpressure rather than dropping
-         // messages. Also set an explicit socket write timeout so that a stalled
-         // connection to an overloaded peer fails fast instead of hanging indefinitely.
-         tcpCommunicationSpi.setMessageQueueLimit(0);
-         tcpCommunicationSpi.setSocketWriteTimeout(10_000L);
-
          config.setCommunicationSpi(tcpCommunicationSpi);
 
          if(clusterConfig.getK8s() != null &&
