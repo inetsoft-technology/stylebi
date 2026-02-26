@@ -322,7 +322,10 @@ public class ViewsheetService
             threads = getThreads(rvs.getID(), engine);
          }
          catch(IllegalArgumentException e) {
-            // viewsheet expired between getRuntimeViewsheets() and getThreads() — skip it
+            // Viewsheet expired between getRuntimeViewsheets() and getThreads() (TOCTOU
+            // race); skip this entry. Logged at debug so the skip is visible if needed.
+            LOG.debug("Viewsheet {} expired before threads could be fetched; skipping.",
+                      rvs.getID(), e);
             continue;
          }
 

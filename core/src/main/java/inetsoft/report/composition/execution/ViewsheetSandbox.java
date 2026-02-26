@@ -7036,8 +7036,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             for(TableMetaDataKey key : keys) {
                // Remove entries for tables that no longer exist in the worksheet.
                // Stale entries for tables that still exist (column/aggregate changes)
-               // are self-healing: getTableMetaDataFromTable() re-creates them on next
-               // access via its own createKey() call, so proactive eviction here is
+               // are self-healing: getTableMetaDataFromTable() calls createKey(), detects
+               // any key mismatch, disposes the old TableMetaData entry (releasing its
+               // resources), and inserts a fresh entry — so proactive eviction here is
                // unnecessary. The createKey() call also invokes appendCalcField() as a
                // side effect, which modifies shared table assembly state and causes
                // IndexOutOfBoundsException under concurrent load.
