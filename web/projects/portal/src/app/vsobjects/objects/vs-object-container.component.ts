@@ -464,24 +464,41 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       }
    }
 
-   isCurrentPopComponent(vsObject: VSObjectModel): boolean {
+   isActivePopComponent(vsObject: VSObjectModel): boolean {
       return this.popService.isPopComponent(vsObject.absoluteName) &&
          this.popService.getPopComponent() === vsObject.absoluteName;
    }
 
-   isShowingDataTip(vsObject: VSObjectModel): boolean {
-      if(!this.dataTipService.dataTipName) {
-         return false;
+   needsZIndexBoost(vsObject: VSObjectModel): boolean {
+      if(this.dataTipService.dataTipName) {
+         if(this.dataTipService.isCurrentDataTip(vsObject.absoluteName, vsObject.container)) {
+            return true;
+         }
+
+         // Boost the z-index of any embedded viewsheet that contains the active datatip so
+         // the popup and its overflow content render above the dim canvas
+         if(vsObject.objectType === "VSViewsheet" &&
+            this.dataTipService.dataTipName.startsWith(vsObject.absoluteName + "."))
+         {
+            return true;
+         }
       }
 
-      if(this.dataTipService.isCurrentDataTip(vsObject.absoluteName, vsObject.container)) {
-         return true;
+      // Boost the z-index of any embedded viewsheet that contains the active pop component
+      // so it renders above the dim canvas (mirrors the datatip case above).
+      // Guard with hasPopUpComponentShowing() to avoid using stale getPopComponent() state
+      // when no pop component is actually visible (which could incorrectly boost an embedded
+      // VS with a higher natural z-index than the datatip, covering the datatip).
+      if(vsObject.objectType === "VSViewsheet" && this.popService.hasPopUpComponentShowing()) {
+         const popComponent = this.popService.getPopComponent();
+         return !!popComponent && popComponent.startsWith(vsObject.absoluteName + ".");
       }
 
-      // Boost the z-index of any embedded viewsheet that contains the active datatip so
-      // the popup and its overflow content render above the dim canvas
-      return vsObject.objectType === "VSViewsheet" &&
-         this.dataTipService.dataTipName.startsWith(vsObject.absoluteName + ".");
+      return false;
+   }
+
+   getPopUpContentBoostZIndex(): number {
+      return DateTipHelper.getPopUpContentBoostZIndex();
    }
 
    zIndex(vsObject: VSObjectModel): number {
