@@ -36,7 +36,7 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-import java.io.PrintWriter;
+import java.io.*;
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -860,6 +860,12 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
       this.modifiedBy = modifiedBy;
    }
 
+   @Serial
+   private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
+      in.defaultReadObject();
+      propmap = new HashMap<>();
+   }
+
    /**
     * Create a clone of this object.
     */
@@ -927,7 +933,7 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
    private int timeout = 0; // query timeout
    private boolean visible = true; // visible in composer
    private String partition = null; // associated partition
-   private HashMap<String, Object> propmap = new HashMap<>(); // properties
+   private transient HashMap<String, Object> propmap = new HashMap<>(); // properties
    private HashSet<AssetObject> dependencies = new HashSet<>(); // outer dependencies
 
    private long created;
