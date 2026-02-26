@@ -27,6 +27,7 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.util.Catalog;
 import inetsoft.web.admin.monitoring.*;
 import inetsoft.web.admin.server.*;
+import inetsoft.web.admin.viewsheet.ViewsheetHistory;
 import inetsoft.web.cluster.ServerClusterClient;
 import inetsoft.web.cluster.ServerClusterStatus;
 import jakarta.annotation.PostConstruct;
@@ -101,6 +102,7 @@ public class SchedulerMonitoringService
                if(metrics != null) {
                   client.setMetrics(StatusMetricsType.SCHEDULE_METRICS, metrics);
                   metricsMap.put(server, metrics);
+                  trackViewsheetHistory(metrics, timestamp, address);
                }
             }
          }
@@ -562,6 +564,30 @@ public class SchedulerMonitoringService
       return getHistory(ServerMetricsCalculator.HistoryType.OFF_HEAP, server);
    }
 
+   public List<ViewsheetHistory> getViewsheetHistory(String server) {
+      ServerClusterStatus status = getServerClusterStatus(server);
+
+      if(status == null) {
+         return Collections.emptyList();
+      }
+
+      String address = Objects.toString(status.getAddress(), server);
+      Queue<ViewsheetHistory> history = client
+         .getStatusHistory(StatusMetricsType.SCHEDULE_METRICS, address, VIEWSHEET_HISTORY);
+      return history == null ? Collections.emptyList() : new ArrayList<>(history);
+   }
+
+   private void trackViewsheetHistory(ScheduleMetrics metrics, long timestamp, String address) {
+      ScheduleViewsheetsStatus viewsheetsStatus = metrics.getViewsheets();
+      int executingCount = viewsheetsStatus != null
+         ? viewsheetsStatus.getExecutingViewsheets().size() : 0;
+      ViewsheetHistory vsHistory = ViewsheetHistory.builder()
+         .timestamp(timestamp)
+         .executingViewsheets(executingCount)
+         .build();
+      client.addStatusHistory(StatusMetricsType.SCHEDULE_METRICS, address, VIEWSHEET_HISTORY, vsHistory);
+   }
+
    public long getMaxHeapSize(String server) {
       ScheduleMetrics metrics = metricsMap.get(server);
       ServerMetrics serverMetrics = metrics == null ? null : metrics.getServerMetrics();
@@ -623,6 +649,7 @@ public class SchedulerMonitoringService
    private Cluster cluster;
    private final Map<String, ScheduleMetrics> metricsMap = new ConcurrentHashMap<>();
 
+   private static final String VIEWSHEET_HISTORY = "VIEWSHEETHISTORY";
    private static final String[] lowAttrs = {"taskInfo", "taskCount", "cycleCount", "cycleInfo", "startDate"};
    private static final Logger LOG =
       LoggerFactory.getLogger(SchedulerMonitoringService.class);
