@@ -336,7 +336,7 @@ export class SelectionListCell implements OnInit, OnChanges, OnDestroy {
     * in max mode on mobile — in non-max mode the component header tap opens max mode first.
     */
    onTouchStart(event: TouchEvent): void {
-      if(!event.touches.length) {
+      if(!event.touches.length || !this.toggleEnabled) {
          return;
       }
 

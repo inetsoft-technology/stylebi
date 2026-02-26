@@ -819,7 +819,7 @@ public abstract class SelectionVSAssemblyInfo extends VSAssemblyInfo {
    private DynamicValue singleValue = new DynamicValue("false", XSchema.BOOLEAN);
    private DynamicValue selectFirstItem = new DynamicValue("false", XSchema.BOOLEAN);
 
-   private DynamicValue quickSwitchAllowed = new DynamicValue("true", XSchema.BOOLEAN);
+   private DynamicValue quickSwitchAllowed = new DynamicValue("false", XSchema.BOOLEAN);
    private List<Integer> singleSelectionLevels;
    private boolean mixedSingleSelection = false;
    // input data
