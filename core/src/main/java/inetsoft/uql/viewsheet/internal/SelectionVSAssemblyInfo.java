@@ -171,6 +171,7 @@ public abstract class SelectionVSAssemblyInfo extends VSAssemblyInfo {
       writer.print(" sourceType=\"" + sourceType + "\"");
       writer.print(" mixedSingleSelection=\"" + mixedSingleSelection + "\"");
       writer.print(" selectFirstItem=\"" + selectFirstItem.getDValue() + "\"");
+      writer.print(" quickSwitchAllowed=\"" + quickSwitchAllowed.getDValue() + "\"");
    }
 
    /**
@@ -184,6 +185,7 @@ public abstract class SelectionVSAssemblyInfo extends VSAssemblyInfo {
       createdAdhoc = "true".equals(Tool.getAttribute(elem, "adhoc"));
       submitValue.setDValue(getAttributeStr(elem, "submitOnChange", "true"));
       selectFirstItem.setDValue(getAttributeStr(elem, "selectFirstItem", "false"));
+      quickSwitchAllowed.setDValue(getAttributeStr(elem, "quickSwitchAllowed", "false"));
       String prop = Tool.getAttribute(elem, "singleSelection");
 
       if(prop != null) {
@@ -590,6 +592,22 @@ public abstract class SelectionVSAssemblyInfo extends VSAssemblyInfo {
       return Boolean.parseBoolean(selectFirstItem.getDValue());
    }
 
+   public void setQuickSwitchAllowed(boolean value) {
+      this.quickSwitchAllowed.setRValue(value);
+   }
+
+   public boolean isQuickSwitchAllowed() {
+      return Boolean.parseBoolean(quickSwitchAllowed.getRuntimeValue(true) + "");
+   }
+
+   public void setQuickSwitchAllowedValue(boolean value) {
+      quickSwitchAllowed.setDValue(value + "");
+   }
+
+   public boolean getQuickSwitchAllowedValue() {
+      return Boolean.parseBoolean(quickSwitchAllowed.getDValue());
+   }
+
    public boolean removeSingleSelectionLevel(Integer level) {
       mixedSingleSelection = true;
       List<Integer> levels = singleSelectionLevels;
@@ -801,6 +819,8 @@ public abstract class SelectionVSAssemblyInfo extends VSAssemblyInfo {
    // view
    private DynamicValue singleValue = new DynamicValue("false", XSchema.BOOLEAN);
    private DynamicValue selectFirstItem = new DynamicValue("false", XSchema.BOOLEAN);
+
+   private DynamicValue quickSwitchAllowed = new DynamicValue("false", XSchema.BOOLEAN);
    private List<Integer> singleSelectionLevels;
    private boolean mixedSingleSelection = false;
    // input data
