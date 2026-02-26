@@ -46,14 +46,18 @@ import java.util.zip.ZipOutputStream;
 @Service
 public class LogMonitoringService implements MessageListener {
    /**
-    * Timeout for fetching log content from cluster nodes. This is longer than the default 30
-    * seconds to accommodate clusters under heavy load (e.g., multiple users executing viewsheets).
+    * Timeout for fetching log content from cluster nodes. Kept short so that a node under heavy
+    * load does not block the monitoring subscription thread (and the lock in
+    * BaseSubscribeChangeHandler) for an extended period. If the node cannot respond within this
+    * window the log viewer returns empty for that refresh cycle and retries on the next one.
+    * A GC pause or transient overload is typically resolved within a few seconds; 20s provides
+    * a reasonable buffer without risking thread starvation under sustained concurrent load.
     */
-   private static final long LOG_FETCH_TIMEOUT_SECONDS = 60L;
+   private static final long LOG_FETCH_TIMEOUT_SECONDS = 20L;
 
    /**
     * Timeout for listing log files from cluster nodes. Listing is a lightweight operation so a
-    * short timeout prevents the UI from blocking for N×60 seconds when nodes are joining or
+    * short timeout prevents the UI from blocking for N×20 seconds when nodes are joining or
     * unresponsive during autoscaling events.
     */
    private static final long LOG_LIST_TIMEOUT_SECONDS = 10L;
