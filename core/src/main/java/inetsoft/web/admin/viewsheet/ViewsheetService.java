@@ -316,7 +316,15 @@ public class ViewsheetService
       ArrayList<ViewsheetModel> results = new ArrayList<>();
 
       for(RuntimeViewsheet rvs : viewsheets) {
-         List<ViewsheetThreadModel> threads = getThreads(rvs.getID(), engine);
+         List<ViewsheetThreadModel> threads;
+
+         try {
+            threads = getThreads(rvs.getID(), engine);
+         }
+         catch(IllegalArgumentException e) {
+            // viewsheet expired between getRuntimeViewsheets() and getThreads() — skip it
+            continue;
+         }
 
          if(state == ViewsheetModel.State.OPEN ||
             !threads.isEmpty() && state == ViewsheetModel.State.EXECUTING)
