@@ -56,4 +56,7 @@ export interface VSChartModel extends VSObjectModel, ChartModel {
    summarySortCol?: number;
    summarySortVal?: number;
    sendingFlyover?: boolean;
+   // transient scroll/pan state updated by the chart component for annotation overlay positioning
+   annotationScrollLeft?: number;
+   annotationScrollTop?: number;
 }

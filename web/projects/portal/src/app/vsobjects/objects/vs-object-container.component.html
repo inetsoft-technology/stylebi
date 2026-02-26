@@ -346,7 +346,8 @@
 <!-- Chart data annotations rendered outside all VS object stacking contexts -->
 <div class="chart-annotation-overlay">
   <ng-container *ngFor="let vsObject of vsInfo.vsObjects; let i = index">
-    <ng-container *ngIf="vsObject.objectType === 'VSChart'">
+    <ng-container *ngIf="vsObject.objectType === 'VSChart' && viewer && !context.binding &&
+                         !$any(vsObject).maxMode && !!$any(vsObject).plot">
       <div [style.top.px]="getVsObjectPosition(vsObject, i, true)"
            [style.left.px]="getVsObjectPosition(vsObject, i, false)"
            style="position: absolute;">
@@ -354,9 +355,13 @@
                        [model]="ann"
                        [vsInfo]="vsInfo"
                        [actions]="vsObjectActions[i]"
-                       [selected]="false"
-                       (remove)="removeAnnotations.emit()"
-                       (mouseSelect)="annotationMouseSelect($event, i)">
+                       [tetherTo]="getChartAnnotationTetherTo(vsObject)"
+                       [restrictTo]="getChartAnnotationRestrictTo(vsObject)"
+                       [offsetX]="-($any(vsObject).annotationScrollLeft || 0)"
+                       [offsetY]="-($any(vsObject).annotationScrollTop || 0)"
+                       [selected]="isChartAnnotationSelected(ann, vsObject)"
+                       (remove)="removeAnnotationFromOverlay(ann, vsObject)"
+                       (mouseSelect)="annotationMouseSelect($event, vsObject)">
         </vs-annotation>
       </div>
     </ng-container>
