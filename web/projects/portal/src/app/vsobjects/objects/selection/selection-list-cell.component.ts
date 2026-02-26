@@ -108,6 +108,18 @@ export class SelectionListCell implements OnInit, OnChanges, OnDestroy {
    htmlLabel: SafeHtml;
    mobile: boolean = GuiTool.isMobileDevice();
 
+   // Long-press state machine (mobile only).
+   // A touch that lasts longer than longPressDuration (ms) is treated as an alt-click:
+   // it toggles single/multi-select mode and selects the label, matching the quick-switch
+   // button behavior.  touchTimeout holds the pending timer handle so it can be cancelled
+   // on touchend/touchcancel before the threshold is reached.
+   //
+   // After the timer fires (longPressFired = true) the browser synthesizes a real click
+   // event when the finger lifts.  suppressNextClick is set at that point so the
+   // synthesized click is discarded by click(), toggleFolder(), or selectRegion() —
+   // whichever handler the event reaches first — rather than triggering an unintended
+   // selection.  Both flags are reset once the synthesized click is consumed or the
+   // touch sequence is cancelled by the OS.
    private touchTimeout: any = null;
    private longPressDuration = 500;
    private suppressNextClick = false;
