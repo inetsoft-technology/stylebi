@@ -28,6 +28,7 @@ import { AiAssistantService } from "./ai-assistant.service";
 export class AiAssistantDialogComponent {
    userEmail: string = "";
    context: string = "";
+   newChat: boolean = false;
 
    get userId(): string { return this.aiAssistantService.userId; }
    get chatAppServerUrl(): string { return this.aiAssistantService.chatAppServerUrl; }
@@ -37,10 +38,7 @@ export class AiAssistantDialogComponent {
       this.userEmail = this.aiAssistantService.email;
       this.context = this.aiAssistantService.getFullContext();
       this.aiAssistantService.lastOpenUrl = router.url;
-   }
-
-
-   get newChat(): boolean {
-      return this.aiAssistantService.createNewChat;
+      this.newChat = this.aiAssistantService.createNewChat;
+      this.aiAssistantService.resetNewChat();
    }
 }

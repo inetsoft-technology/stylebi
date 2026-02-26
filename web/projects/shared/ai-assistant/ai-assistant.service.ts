@@ -67,7 +67,8 @@ export class AiAssistantService {
    private contextMap: Record<string, string> = {};
    private _lastOpenUrl: string;
    private _lastBindingObject: string;
-   private _createNewChat: boolean = false;
+   private _newChatFromUrl : boolean = false;
+   private _newChatFromBinding : boolean = false;
 
    constructor(private http: HttpClient) {
       this.http.get("../api/assistant/get-chat-app-server-url").subscribe((url: string) => {
@@ -80,17 +81,22 @@ export class AiAssistantService {
    }
 
    set lastOpenUrl(value: string) {
-      this._createNewChat = value !== this._lastOpenUrl;
+      this._newChatFromUrl = value !== this._lastOpenUrl;
       this._lastOpenUrl = value;
    }
 
-   set lastBindingObject(value: any) {
-      this._createNewChat = value == this._lastBindingObject;
+   set lastBindingObject(value: string) {
+      this._newChatFromBinding = value !== this._lastBindingObject;
       this._lastBindingObject = value;
    }
 
    get createNewChat(): boolean {
-      return this._createNewChat;
+      return this._newChatFromUrl || this._newChatFromBinding;
+   }
+
+   resetNewChat(): void {
+      this._newChatFromUrl = false;
+      this._newChatFromBinding = false;
    }
 
    resetContextMap(): void {

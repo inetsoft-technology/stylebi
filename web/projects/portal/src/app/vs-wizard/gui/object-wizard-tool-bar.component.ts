@@ -147,7 +147,8 @@ export class ObjectWizardToolBarComponent {
       ];
 
    openAiAssistantDialog(): void {
-      this.aiAssistantService.lastBindingObject = this.vsObject.objectType + "^^" + this.vsObject.absoluteName;
+      this.aiAssistantService.lastBindingObject =
+         !!this.vsObject ? this.vsObject.objectType + "^^" + this.vsObject.absoluteName : "";
       this.aiAssistantDialogService.openAiAssistantDialog();
    }
 }
