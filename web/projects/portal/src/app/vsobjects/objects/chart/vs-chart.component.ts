@@ -791,6 +791,8 @@ export class VSChart extends AbstractVSObject<VSChartModel>
    onScroll(point: Point) {
       this.scrollLeft = point.x;
       this.scrollTop = point.y;
+      this.model.annotationScrollLeft = point.x;
+      this.model.annotationScrollTop = point.y;
    }
 
    mouseLeave(event: MouseEvent) {

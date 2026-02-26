@@ -43,6 +43,7 @@ import { ViewsheetInfo } from "../data/viewsheet-info";
 import { BaseTableModel } from "../model/base-table-model";
 import { FocusObjectEventModel } from "../model/focus-object-event-model";
 import { GuideBounds } from "../model/layout/guide-bounds";
+import { VSAnnotationModel } from "../model/annotation/vs-annotation-model";
 import { VSChartModel } from "../model/vs-chart-model";
 import { VSObjectModel } from "../model/vs-object-model";
 import { VSSelectionBaseModel } from "../model/vs-selection-base-model";
@@ -485,6 +486,14 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          }
       }
 
+      // Assemblies with visible assembly annotations must appear above all regular objects.
+      // Without this, another assembly's stacking context (position:relative + z-index) can
+      // trap the annotation inside, making it invisible behind the overlapping assembly.
+      // Data annotations are rendered in the chart-annotation-overlay so they don't need this boost.
+      if(vsObject.assemblyAnnotationModels?.length > 0) {
+         zIndex += 5000;
+      }
+
       return zIndex;
    }
 
@@ -496,7 +505,7 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
             top ? obj?.objectFormat?.top : obj?.objectFormat?.left : null;
       }
       else if(obj.objectType === "VSChart") {
-         (<any> obj).maxMode ? 0 : (this.viewer || obj.inEmbeddedViewsheet && !this.context.binding
+         return (<any> obj).maxMode ? 0 : (this.viewer || obj.inEmbeddedViewsheet && !this.context.binding
             ? top ? obj?.objectFormat?.top : obj?.objectFormat?.left : 0);
       }
       else if(obj.objectType === "VSRangeSlider") {
@@ -637,6 +646,55 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    onMouseEnter(vsObject: VSObjectModel, event: any): void {
       this.miniToolbarService.handleMouseEnter(vsObject?.absoluteName, event);
    }
+
+   getChartDataAnnotations(vsObject: VSObjectModel): VSAnnotationModel[] {
+      return (vsObject as VSChartModel).dataAnnotationModels || [];
+   }
+
+   annotationMouseSelect(event: [VSAnnotationModel, MouseEvent], vsObject: VSObjectModel): void {
+      const [ann, mouseEvent] = event;
+
+      if((mouseEvent.ctrlKey || mouseEvent.button === 2) && vsObject.selectedAnnotations) {
+         const currentIndex = vsObject.selectedAnnotations.indexOf(ann.absoluteName);
+
+         if(currentIndex === -1) {
+            vsObject.selectedAnnotations.push(ann.absoluteName);
+         }
+      }
+      else {
+         vsObject.selectedAnnotations = [ann.absoluteName];
+      }
+   }
+
+   isChartAnnotationSelected(ann: VSAnnotationModel, vsObject: VSObjectModel): boolean {
+      return ann && vsObject.selectedAnnotations &&
+         vsObject.selectedAnnotations.indexOf(ann.absoluteName) > -1;
+   }
+
+   removeAnnotationFromOverlay(ann: VSAnnotationModel, vsObject: VSObjectModel): void {
+      this.removeAnnotations.emit();
+      vsObject.selectedAnnotations = (vsObject.selectedAnnotations || [])
+         .filter(name => name !== ann.absoluteName);
+   }
+
+   getChartAnnotationTetherTo(vsObject: VSObjectModel): Rectangular {
+      const fmt = vsObject.objectFormat;
+      return { x: fmt.left, y: fmt.top, width: fmt.width, height: fmt.height };
+   }
+
+   getChartAnnotationRestrictTo(vsObject: VSObjectModel): Rectangular {
+      const chart = vsObject as VSChartModel;
+      const contentBounds = chart.plot.layoutBounds;
+      const fmt = vsObject.objectFormat;
+      const titleHeight = chart.titleVisible ? chart.titleFormat.height : 0;
+      return {
+         x: fmt.left + contentBounds.x + (chart.paddingLeft || 0),
+         y: fmt.top + contentBounds.y + (chart.paddingTop || 0) + titleHeight,
+         width: contentBounds.width,
+         height: contentBounds.height
+      };
+   }
+
    isObjectRendered(vsObject: VSObjectModel) {
       return !this.virtualScrolling || this.renderedObjects.get(vsObject.absoluteName) === true;
    }
