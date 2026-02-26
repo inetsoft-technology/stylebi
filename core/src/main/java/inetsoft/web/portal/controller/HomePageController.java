@@ -25,6 +25,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.DataSpace;
 import inetsoft.util.Tool;
+import inetsoft.web.assistant.AIAssistantController;
 import inetsoft.web.viewsheet.service.LinkUri;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -243,7 +244,7 @@ public class HomePageController {
     */
    @SuppressWarnings({ "unchecked", "rawtypes" })
    private void addChatAppScript(ModelAndView model) {
-      String chatAppUrl = SreeEnv.getProperty(inetsoft.web.assistant.AIAssistantController.CHAT_APP_SERVER_URL);
+      String chatAppUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_SERVER_URL);
 
       if(chatAppUrl == null || chatAppUrl.trim().isEmpty()) {
          return;
