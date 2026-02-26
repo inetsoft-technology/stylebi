@@ -17,8 +17,8 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
-import { Observable } from "rxjs";
-import { shareReplay } from "rxjs/operators";
+import { Observable, throwError } from "rxjs";
+import { shareReplay, catchError } from "rxjs/operators";
 import { DashboardTabModel } from "../dashboard/dashboard-tab-model";
 
 @Injectable({ providedIn: "root" })
@@ -32,7 +32,13 @@ export class DashboardTabService {
       if(!this.dashboardTabModel$) {
          this.dashboardTabModel$ = this.http
             .get<DashboardTabModel>("../api/portal/dashboard-tab-model")
-            .pipe(shareReplay(1));
+            .pipe(
+               shareReplay(1),
+               catchError(err => {
+                  this.dashboardTabModel$ = null;
+                  return throwError(() => err);
+               })
+            );
       }
 
       return this.dashboardTabModel$;

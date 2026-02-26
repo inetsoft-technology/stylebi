@@ -92,6 +92,7 @@ import { EmbedErrorCommand } from "../embed/embed-error-command";
 import { ChartTool } from "../graph/model/chart-tool";
 import { ChartService } from "../graph/services/chart.service";
 import { PageTabService } from "../viewer/services/page-tab.service";
+import { ViewConstants } from "../viewer/view-constants";
 import { ViewDataService } from "../viewer/services/view-data.service";
 import { VariableInputDialogModel } from "../widget/dialog/variable-input-dialog/variable-input-dialog-model";
 import { VariableInputDialog } from "../widget/dialog/variable-input-dialog/variable-input-dialog.component";
@@ -501,8 +502,6 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    selectedDataTipView: string = null;
    isDefaultOrgAsset: boolean = false;
    private intersectionObserver: IntersectionObserver;
-   private static readonly TOOLBAR_HEIGHT_PX = 33;
-   private static readonly TOOLBAR_HEIGHT_MOBILE_PX = 66;
    private _tabsHeight: number = 0;
    private _dashboardTabModel: DashboardTabModel;
 
@@ -4254,8 +4253,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       if(this.dashboardTabModel?.drillTabsTop) {
          if(this.toolbarVisible) {
             const offset = this.mobileDevice
-               ? ViewerAppComponent.TOOLBAR_HEIGHT_MOBILE_PX
-               : ViewerAppComponent.TOOLBAR_HEIGHT_PX;
+               ? ViewConstants.TOOLBAR_HEIGHT_MOBILE_PX
+               : ViewConstants.TOOLBAR_HEIGHT_PX;
             this.topPx = this.tabsHeight + offset + 'px';
          } else {
             this.topPx = this.tabsHeight + 'px';

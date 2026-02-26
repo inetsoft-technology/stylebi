@@ -32,6 +32,7 @@ import { ActivatedRoute, NavigationExtras, Params, Router } from "@angular/route
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { from, Observable, of, Subscription } from "rxjs";
 import { CanComponentDeactivate } from "../../../../../shared/util/guard/can-component-deactivate";
+import { ViewConstants } from "../view-constants";
 import { ComponentTool } from "../../common/util/component-tool";
 import { GuiTool } from "../../common/util/gui-tool";
 import { HideNavService } from "../../portal/services/hide-nav.service";
@@ -81,12 +82,10 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
    tabBarHeight: number = 0;
    hasBaseEntry: boolean = false;
    dashboardTabModel: DashboardTabModel = null;
-   drillTabsTopPx: number = null;
+   drillTabsTopPx: number | null = null;
    toolbarVisible: boolean = true;
    public modified: boolean = false;
    private subscriptions: Subscription = new Subscription();
-   private static readonly TOOLBAR_HEIGHT_PX = 33;
-   private static readonly TOOLBAR_HEIGHT_MOBILE_PX = 66;
    private readonly isMobile: boolean = GuiTool.isMobileDevice();
 
    constructor(private route: ActivatedRoute,
@@ -328,8 +327,8 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
       if(this.dashboardTabModel?.drillTabsTop) {
          if(this.toolbarVisible) {
             this.drillTabsTopPx = this.isMobile
-               ? ViewerViewComponent.TOOLBAR_HEIGHT_MOBILE_PX
-               : ViewerViewComponent.TOOLBAR_HEIGHT_PX;
+               ? ViewConstants.TOOLBAR_HEIGHT_MOBILE_PX
+               : ViewConstants.TOOLBAR_HEIGHT_PX;
          } else {
             this.drillTabsTopPx = 0;
          }

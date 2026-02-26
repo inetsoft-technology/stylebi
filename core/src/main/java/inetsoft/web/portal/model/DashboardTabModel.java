@@ -40,7 +40,7 @@ public class DashboardTabModel {
       this.drillTabsTop = drillTabsTop;
    }
 
-   public boolean isDrillTabsTop(){
+   public boolean isDrillTabsTop() {
       return drillTabsTop;
    }
 
