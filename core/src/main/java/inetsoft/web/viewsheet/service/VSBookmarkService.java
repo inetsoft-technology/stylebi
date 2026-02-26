@@ -32,7 +32,6 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.sync.ViewsheetBookmarkChangedEvent;
 import inetsoft.uql.util.XSessionService;
-import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.AnnotationVSUtil;
 import inetsoft.uql.viewsheet.internal.VSUtil;
@@ -771,12 +770,10 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       executionRecord = new ExecutionRecord(
          execSessionID, userSessionID, objectName, objectType, ExecutionRecord.EXEC_TYPE_FINISH,
          execTimestamp, ExecutionRecord.EXEC_STATUS_SUCCESS, null);
-      HashMap<String, SelectionList> rangeList = getRangeStateLists(rvs);
 
       try {
          removeAssemblyAndRefreshViewSheet(
             dispatcher, rvs, url, oldArr, vsId, width, height, mobile, userAgent, clist);
-         refreshRangeStateList(rvs, rangeList, dispatcher);
 
          if(annotationChanged) {
             dispatcher.sendCommand(AnnotationChangedCommand.of(false));
@@ -802,39 +799,6 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
          if(executionRecord != null && executionRecord.getExecTimestamp() != null) {
             logEntry.setFinishTime(executionRecord.getExecTimestamp().getTime());
             LogUtil.logPerformance(logEntry);
-         }
-      }
-   }
-
-   private HashMap<String, SelectionList> getRangeStateLists(RuntimeViewsheet rvs) {
-      Assembly[] assemblies = rvs.getViewsheet().getAssemblies();
-      HashMap<String, SelectionList> rangeList = new HashMap<>();
-
-      for(int i = 0; i < assemblies.length; i++) {
-         if(assemblies[i] instanceof TimeSliderVSAssembly &&
-            ((TimeSliderVSAssembly) assemblies[i]).getSourceType() == XSourceInfo.VS_ASSEMBLY)
-         {
-            TimeSliderVSAssembly range = (TimeSliderVSAssembly) assemblies[i];
-            rangeList.put(assemblies[i].getAbsoluteName(), range.getStateSelectionList());
-         }
-      }
-
-      return rangeList;
-   }
-
-   private void refreshRangeStateList(RuntimeViewsheet rvs,
-                                      HashMap<String, SelectionList> rangeList,
-                                      CommandDispatcher dispatcher) throws Exception
-   {
-      Viewsheet vs = rvs.getViewsheet();
-
-      for(String rangeName : rangeList.keySet()) {
-         Assembly assembly = vs.getAssembly(rangeName);
-
-         if(assembly instanceof TimeSliderVSAssembly) {
-            SelectionList value = rangeList.get(rangeName);
-            ((TimeSliderVSAssembly) assembly).setStateSelectionList(value);
-            coreLifecycleService.refreshVSAssembly(rvs, rangeName, dispatcher);
          }
       }
    }
