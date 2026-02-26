@@ -45,12 +45,7 @@ describe("PermissionClipboardService", () => {
 
    describe("canPaste", () => {
       it("should be false initially", () => {
-         expect(service.canPaste()).toBe(false);
-      });
-
-      it("should be true after copying permissions", () => {
-         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider");
-         expect(service.canPaste()).toBe(true);
+         expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(false);
       });
 
       it("should be true when paste context matches copy context", () => {
@@ -63,9 +58,10 @@ describe("PermissionClipboardService", () => {
          expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(false);
       });
 
-      it("should be true when no context is set on either side", () => {
+      it("should be false when no context is set on either side", () => {
          service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider");
-         expect(service.canPaste()).toBe(true);
+         // null context is not a valid clipboard slot; an explicit context is required
+         expect(service.canPaste()).toBe(false);
       });
 
       it("should be false when paste has no context but copy does", () => {
@@ -81,20 +77,20 @@ describe("PermissionClipboardService", () => {
 
    describe("copiedCount", () => {
       it("should be 0 initially", () => {
-         expect(service.copiedCount()).toBe(0);
+         expect(service.copiedCount(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.READ])).toBe(0);
       });
 
       it("should reflect the number of copied entries", () => {
          service.copy([
             createPermission("admin", [ResourceAction.READ]),
             createPermission("editors", [ResourceAction.READ], IdentityType.GROUP)
-         ], false, "provider");
-         expect(service.copiedCount(null, [ResourceAction.READ])).toBe(2);
+         ], false, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
+         expect(service.copiedCount(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.READ])).toBe(2);
       });
 
       it("should be 0 after copying an empty array", () => {
-         service.copy([], false, "provider");
-         expect(service.copiedCount(null, [ResourceAction.READ])).toBe(0);
+         service.copy([], false, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
+         expect(service.copiedCount(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.READ])).toBe(0);
       });
 
       it("should be 0 when context does not match", () => {
@@ -114,40 +110,86 @@ describe("PermissionClipboardService", () => {
          service.copy([
             createPermission("admin", [ResourceAction.READ, ResourceAction.WRITE]),
             createPermission("editors", [ResourceAction.ACCESS], IdentityType.GROUP)
-         ], false, "provider");
+         ], false, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
 
          // Only one row has actions that overlap with [READ, WRITE]
-         expect(service.copiedCount(null, [ResourceAction.READ, ResourceAction.WRITE])).toBe(1);
+         expect(service.copiedCount(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.READ, ResourceAction.WRITE])).toBe(1);
       });
 
       it("should return 0 when no rows survive the displayActions filter", () => {
          service.copy([
             createPermission("admin", [ResourceAction.ACCESS, ResourceAction.ADMIN])
-         ], false, "provider");
+         ], false, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
 
-         expect(service.copiedCount(null, [ResourceAction.READ, ResourceAction.WRITE])).toBe(0);
+         expect(service.copiedCount(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.READ, ResourceAction.WRITE])).toBe(0);
       });
 
-      it("should return 0 when displayActions is null or undefined (model not yet loaded)", () => {
+      it("should return 0 when displayActions is null (model not yet loaded)", () => {
          service.copy([
             createPermission("admin", [ResourceAction.READ]),
             createPermission("editors", [ResourceAction.ACCESS], IdentityType.GROUP)
-         ], false, "provider");
+         ], false, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
 
-         expect(service.copiedCount(null, null)).toBe(0);
-         expect(service.copiedCount(null, undefined)).toBe(0);
+         expect(service.copiedCount(COPY_PASTE_CONTEXT_REPOSITORY, null)).toBe(0);
+      });
+   });
+
+   describe("copiedTotal", () => {
+      it("should be 0 initially", () => {
+         expect(service.copiedTotal(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(0);
+      });
+
+      it("should return the raw row count regardless of displayActions", () => {
+         service.copy([
+            createPermission("admin", [ResourceAction.READ, ResourceAction.WRITE]),
+            createPermission("editors", [ResourceAction.ACCESS], IdentityType.GROUP),
+            createPermission("viewers", [ResourceAction.READ])
+         ], false, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
+
+         expect(service.copiedTotal(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(3);
+      });
+
+      it("should differ from copiedCount when action filtering removes rows", () => {
+         service.copy([
+            createPermission("admin", [ResourceAction.READ, ResourceAction.WRITE]),
+            createPermission("editors", [ResourceAction.ACCESS], IdentityType.GROUP)
+         ], false, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
+
+         // Only one row overlaps with [READ, WRITE], but total is always 2
+         expect(service.copiedCount(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.READ, ResourceAction.WRITE])).toBe(1);
+         expect(service.copiedTotal(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(2);
+      });
+
+      it("should equal copiedCount when no rows are filtered out", () => {
+         service.copy([
+            createPermission("admin", [ResourceAction.READ]),
+            createPermission("editors", [ResourceAction.READ], IdentityType.GROUP)
+         ], false, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
+
+         expect(service.copiedCount(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.READ])).toBe(2);
+         expect(service.copiedTotal(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(2);
+      });
+
+      it("should be 0 when context does not match", () => {
+         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider", COPY_PASTE_CONTEXT_SECURITY_ACTIONS);
+         expect(service.copiedTotal(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(0);
+      });
+
+      it("should be 0 when context is null", () => {
+         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
+         expect(service.copiedTotal(null)).toBe(0);
       });
    });
 
    describe("copy", () => {
       it("should deep-clone permissions into clipboard", () => {
          const perm = createPermission("admin", [ResourceAction.READ, ResourceAction.WRITE]);
-         service.copy([perm], true, "provider");
+         service.copy([perm], true, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
 
          // Modify the original to verify the copy is independent
          perm.actions.push(ResourceAction.DELETE);
 
-         const result = service.paste([ResourceAction.READ, ResourceAction.WRITE, ResourceAction.DELETE]);
+         const result = service.paste(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.READ, ResourceAction.WRITE, ResourceAction.DELETE]);
          expect(result.permissions[0].actions).toEqual([ResourceAction.READ, ResourceAction.WRITE]);
          expect(result.requiresBoth).toBe(true);
       });
@@ -155,28 +197,27 @@ describe("PermissionClipboardService", () => {
 
    describe("paste", () => {
       it("should return null when clipboard is empty", () => {
-         expect(service.paste([ResourceAction.READ])).toBeNull();
+         expect(service.paste(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.READ])).toBeNull();
       });
 
-      it("should return null when displayActions is null or undefined (model not yet loaded)", () => {
-         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider");
+      it("should return null when displayActions is null (model not yet loaded)", () => {
+         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
 
-         expect(service.paste(null)).toBeNull();
-         expect(service.paste(undefined)).toBeNull();
+         expect(service.paste(COPY_PASTE_CONTEXT_REPOSITORY, null)).toBeNull();
       });
 
       it("should return null when context does not match", () => {
          service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider", COPY_PASTE_CONTEXT_SECURITY_ACTIONS);
-         expect(service.paste([ResourceAction.READ], COPY_PASTE_CONTEXT_REPOSITORY)).toBeNull();
+         expect(service.paste(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.READ])).toBeNull();
       });
 
       it("should replace target permissions with copied ones", () => {
          service.copy([
             createPermission("admin", [ResourceAction.READ, ResourceAction.WRITE]),
             createPermission("editors", [ResourceAction.READ], IdentityType.GROUP)
-         ], true, "provider");
+         ], true, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
 
-         const result = service.paste([ResourceAction.READ, ResourceAction.WRITE, ResourceAction.DELETE]);
+         const result = service.paste(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.READ, ResourceAction.WRITE, ResourceAction.DELETE]);
 
          expect(result.permissions.length).toBe(2);
          expect(result.permissions[0].identityID.name).toBe("admin");
@@ -187,10 +228,10 @@ describe("PermissionClipboardService", () => {
       it("should remove rows whose actions have no overlap with target displayActions", () => {
          service.copy([
             createPermission("admin", [ResourceAction.READ, ResourceAction.WRITE, ResourceAction.DELETE])
-         ], false, "provider");
+         ], false, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
 
          // Target only supports ACCESS — no overlap, so the row is dropped entirely
-         const result = service.paste([ResourceAction.ACCESS]);
+         const result = service.paste(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.ACCESS]);
 
          expect(result.permissions).toEqual([]);
       });
@@ -198,51 +239,89 @@ describe("PermissionClipboardService", () => {
       it("should keep only matching actions when there is partial overlap", () => {
          service.copy([
             createPermission("admin", [ResourceAction.READ, ResourceAction.DELETE])
-         ], false, "provider");
+         ], false, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
 
          // Target supports READ and ADMIN (not DELETE)
-         const result = service.paste([ResourceAction.READ, ResourceAction.ADMIN]);
+         const result = service.paste(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.READ, ResourceAction.ADMIN]);
 
          expect(result.permissions[0].actions).toEqual([ResourceAction.READ]);
       });
 
-      it("should preserve requiresBoth from the copied source", () => {
-         service.copy([createPermission("admin", [ResourceAction.READ])], true, "provider");
+      it("should expand ADMIN row to all target displayActions when ADMIN is present", () => {
+         // Copying from a viewsheet (READ, WRITE, DELETE, SHARE, ADMIN — no ACCESS)
+         service.copy([
+            createPermission("alice", [ResourceAction.READ, ResourceAction.WRITE, ResourceAction.DELETE, ResourceAction.SHARE, ResourceAction.ADMIN])
+         ], false, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
 
-         const result = service.paste([ResourceAction.READ]);
+         // Pasting onto a portal dashboard whose displayActions are [ACCESS, ADMIN]
+         const result = service.paste(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.ACCESS, ResourceAction.ADMIN]);
+
+         // ADMIN implies full access, so the result should include ACCESS even though
+         // the copied row had no ACCESS action
+         expect(result.permissions[0].actions).toEqual([ResourceAction.ACCESS, ResourceAction.ADMIN]);
+      });
+
+      it("should not expand non-ADMIN rows to all target displayActions", () => {
+         service.copy([
+            createPermission("alice", [ResourceAction.READ, ResourceAction.WRITE])
+         ], false, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
+
+         // Target supports ACCESS and ADMIN — no READ/WRITE
+         const result = service.paste(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.ACCESS, ResourceAction.ADMIN]);
+
+         // No overlap and no ADMIN in source row, so the row is dropped entirely
+         expect(result.permissions).toEqual([]);
+      });
+
+      it("should drop an ADMIN-only row when the target does not support ADMIN", () => {
+         service.copy([
+            createPermission("alice", [ResourceAction.ADMIN])
+         ], false, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
+
+         // Target has no ADMIN — expansion guard fails, intersection filter removes ADMIN,
+         // leaving the row empty so it is dropped entirely
+         const result = service.paste(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.READ, ResourceAction.WRITE]);
+
+         expect(result.permissions).toEqual([]);
+      });
+
+      it("should preserve requiresBoth from the copied source", () => {
+         service.copy([createPermission("admin", [ResourceAction.READ])], true, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
+
+         const result = service.paste(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.READ]);
          expect(result.requiresBoth).toBe(true);
       });
 
       it("should allow pasting multiple times from the same clipboard", () => {
-         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider");
+         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
 
-         const result1 = service.paste([ResourceAction.READ]);
+         const result1 = service.paste(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.READ]);
          expect(result1.permissions.length).toBe(1);
 
-         const result2 = service.paste([ResourceAction.READ]);
+         const result2 = service.paste(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.READ]);
          expect(result2.permissions.length).toBe(1);
          expect(result2.permissions[0].identityID.name).toBe("admin");
       });
 
       it("should deep-clone on each paste so results are independent", () => {
-         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider");
+         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
 
-         const result1 = service.paste([ResourceAction.READ]);
+         const result1 = service.paste(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.READ]);
          result1.permissions[0].actions.push(ResourceAction.WRITE);
 
-         const result2 = service.paste([ResourceAction.READ]);
+         const result2 = service.paste(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.READ]);
          expect(result2.permissions[0].actions).toEqual([ResourceAction.READ]);
       });
 
       it("should return non-null with empty permissions when an empty array was copied", () => {
-         service.copy([], false, "provider");
+         service.copy([], false, "provider", COPY_PASTE_CONTEXT_REPOSITORY);
 
          // canPaste is true because the wrapper object is non-null,
          // even though there is nothing in the clipboard.
-         expect(service.canPaste()).toBe(true);
-         expect(service.copiedCount(null, [ResourceAction.READ])).toBe(0);
+         expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(true);
+         expect(service.copiedCount(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.READ])).toBe(0);
 
-         const result = service.paste([ResourceAction.READ]);
+         const result = service.paste(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.READ]);
 
          // paste() returns a result object (not null) with an empty permissions array.
          expect(result).not.toBeNull();
@@ -253,26 +332,26 @@ describe("PermissionClipboardService", () => {
 
    describe("org change", () => {
       it("should clear clipboard when the provider changes", () => {
-         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider-a");
-         expect(service.canPaste()).toBe(true);
+         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider-a", COPY_PASTE_CONTEXT_REPOSITORY);
+         expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(true);
 
          refreshSubject.next({ provider: "provider-b", providerChanged: true });
 
-         expect(service.canPaste()).toBe(false);
+         expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(false);
       });
 
       it("should not clear clipboard when the provider stays the same", () => {
-         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider-a");
+         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider-a", COPY_PASTE_CONTEXT_REPOSITORY);
 
          refreshSubject.next({ provider: "provider-a", providerChanged: false });
 
-         expect(service.canPaste()).toBe(true);
+         expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(true);
       });
 
       it("should not clear clipboard when nothing has been copied yet", () => {
          refreshSubject.next({ provider: "provider-b", providerChanged: true });
 
-         expect(service.canPaste()).toBe(false);
+         expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(false);
       });
    });
 });

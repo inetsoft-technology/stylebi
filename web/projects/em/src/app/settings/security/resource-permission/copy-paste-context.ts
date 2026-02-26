@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2026  InetSoft Technology
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -26,8 +26,10 @@
  *
  *   <em-resource-permission [copyPasteContext]="copyPasteContext" ...>
  *
- * This file is the single source of truth. Changing a constant here is
- * sufficient — all component fields and template bindings update automatically.
+ * To add a new context: declare a new constant below AND add a corresponding
+ * `| typeof NEW_CONSTANT` member to the `CopyPasteContext` union type. Both
+ * steps are required — the union is what gives the component's `@Input()` its
+ * type safety, and omitting it will cause a compile error at the binding site.
  */
 export const COPY_PASTE_CONTEXT_REPOSITORY = "repository";
 export const COPY_PASTE_CONTEXT_SECURITY_ACTIONS = "security-actions";

@@ -63,13 +63,13 @@
       <mat-card-actions>
         <button mat-stroked-button (click)="addPermission(table)">_#(Add)</button>
         <button mat-stroked-button (click)="removePermission(table)" [disabled]="!tableSelected">_#(Remove)</button>
-        <button mat-stroked-button *ngIf="showCopyPaste" (click)="copyPermissions()"
+        <button mat-stroked-button *ngIf="showCopyPaste && copyPasteContext" (click)="copyPermissions()"
                 [disabled]="!model?.permissions?.length">
           _#(Copy Permissions)
         </button>
-        <button mat-stroked-button *ngIf="showCopyPaste" (click)="pastePermissions()"
+        <button mat-stroked-button *ngIf="showCopyPaste && copyPasteContext" (click)="pastePermissions()"
                 [disabled]="!canPaste || pasteCount === 0">
-          _#(Paste Permissions){{pasteCount > 0 ? ' (' + pasteCount + ')' : ''}}
+          _#(Paste Permissions){{pasteBadgeLabel}}
         </button>
       </mat-card-actions>
     </mat-card>

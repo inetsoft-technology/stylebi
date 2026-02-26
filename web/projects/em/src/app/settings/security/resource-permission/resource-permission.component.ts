@@ -83,6 +83,21 @@ export class ResourcePermissionComponent implements OnInit, OnChanges, OnDestroy
       return this.clipboardService.copiedCount(this.copyPasteContext, this.model?.displayActions);
    }
 
+   get pasteTotal(): number {
+      return this.clipboardService.copiedTotal(this.copyPasteContext);
+   }
+
+   get pasteBadgeLabel(): string {
+      const count = this.pasteCount;
+
+      if(count === 0) {
+         return "";
+      }
+
+      const total = this.pasteTotal;
+      return ` (${count}${total > count ? ` of ${total}` : ""})`;
+   }
+
    ngOnDestroy(): void {
       this.destroy$.next();
       this.destroy$.complete();
@@ -178,7 +193,7 @@ export class ResourcePermissionComponent implements OnInit, OnChanges, OnDestroy
             return;
          }
 
-         const result = this.clipboardService.paste(this.model.displayActions, this.copyPasteContext);
+         const result = this.clipboardService.paste(this.copyPasteContext, this.model.displayActions);
 
          if(result) {
             this.model.permissions = result.permissions;

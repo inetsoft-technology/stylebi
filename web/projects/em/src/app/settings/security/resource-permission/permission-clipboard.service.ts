@@ -15,7 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Injectable } from "@angular/core";
+import { Injectable, OnDestroy } from "@angular/core";
+import { Subject } from "rxjs";
+import { takeUntil } from "rxjs/operators";
 import { ResourcePermissionTableModel } from "./resource-permission-table-model";
 import { ResourceAction } from "../../../../../../shared/util/security/resource-permission/resource-action.enum";
 import { Tool } from "../../../../../../shared/util/tool";
@@ -25,15 +27,14 @@ import { CopyPasteContext } from "./copy-paste-context";
 @Injectable({
    providedIn: "root"
 })
-export class PermissionClipboardService {
+export class PermissionClipboardService implements OnDestroy {
    private copiedPermissions: { permissions: ResourcePermissionTableModel[], requiresBoth: boolean } | null = null;
    private providerAtCopy: string | null = null;
    private contextAtCopy: CopyPasteContext | null = null;
+   private destroy$ = new Subject<void>();
 
    constructor(orgDropdownService: OrganizationDropdownService) {
-      // This service is a root singleton that lives for the full app lifetime.
-      // The subscription intentionally runs forever — no teardown is needed.
-      orgDropdownService.onRefresh.subscribe(({ provider }) => {
+      orgDropdownService.onRefresh.pipe(takeUntil(this.destroy$)).subscribe(({ provider }) => {
          if(this.providerAtCopy !== null && this.providerAtCopy !== provider) {
             this.copiedPermissions = null;
             this.providerAtCopy = null;
@@ -42,12 +43,23 @@ export class PermissionClipboardService {
       });
    }
 
+   ngOnDestroy(): void {
+      this.destroy$.next();
+      this.destroy$.complete();
+   }
+
    canPaste(context: CopyPasteContext | null = null): boolean {
       return this.copiedPermissions != null && this.contextsMatch(context, this.contextAtCopy);
    }
 
    /**
     * Returns the number of copied rows that would survive a paste into the current target.
+    *
+    * A row survives if at least one of its actions is present in {@code displayActions}.
+    * This is consistent with {@link paste}: a row that has ADMIN will always be counted
+    * when ADMIN is in displayActions (because ADMIN itself overlaps), and those rows are
+    * also the ones that get expanded to the full displayActions set by paste(). Rows whose
+    * actions have no overlap with displayActions are dropped by both methods.
     *
     * @param context - The paste target's context key; must match the context at copy-time.
     * @param displayActions - The actions supported by the target resource. Pass the model's
@@ -65,6 +77,19 @@ export class PermissionClipboardService {
          .length;
    }
 
+   /**
+    * Returns the total number of copied rows, regardless of the target resource's supported actions.
+    * Use alongside {@link copiedCount} to detect when action filtering reduces the paste result,
+    * so the UI can show a "N of M" badge instead of just "N".
+    */
+   copiedTotal(context: CopyPasteContext | null = null): number {
+      if(!this.canPaste(context)) {
+         return 0;
+      }
+
+      return this.copiedPermissions.permissions.length;
+   }
+
    copy(permissions: ResourcePermissionTableModel[], requiresBoth: boolean, provider: string,
         context: CopyPasteContext | null = null): void {
       this.copiedPermissions = {
@@ -75,7 +100,7 @@ export class PermissionClipboardService {
       this.contextAtCopy = context;
    }
 
-   paste(displayActions: ResourceAction[] | null, context: CopyPasteContext | null = null):
+   paste(context: CopyPasteContext | null = null, displayActions: ResourceAction[] | null = null):
       { permissions: ResourcePermissionTableModel[], requiresBoth: boolean } | null
    {
       if(!this.copiedPermissions || !this.contextsMatch(context, this.contextAtCopy) || displayActions == null) {
@@ -85,7 +110,17 @@ export class PermissionClipboardService {
       const pastedPermissions: ResourcePermissionTableModel[] =
          Tool.clone(this.copiedPermissions.permissions)
             .map(row => {
-               row.actions = row.actions.filter(a => displayActions.includes(a));
+               // ADMIN grants all permissions. If the copied row has ADMIN and the target
+               // also supports ADMIN, expand to the full set of target actions so that
+               // actions absent from the source (e.g. ACCESS on a portal dashboard) are
+               // still granted, matching the semantics of holding the ADMIN permission.
+               if(row.actions.includes(ResourceAction.ADMIN) && displayActions.includes(ResourceAction.ADMIN)) {
+                  row.actions = [...displayActions];
+               }
+               else {
+                  row.actions = row.actions.filter(a => displayActions.includes(a));
+               }
+
                return row;
             })
             .filter(row => row.actions.length > 0);
@@ -97,6 +132,6 @@ export class PermissionClipboardService {
    }
 
    private contextsMatch(a: CopyPasteContext | null, b: CopyPasteContext | null): boolean {
-      return a === b;
+      return a !== null && b !== null && a === b;
    }
 }
