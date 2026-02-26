@@ -18,8 +18,7 @@
 package inetsoft.web.security;
 
 import jakarta.servlet.*;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.*;
 
 import java.io.IOException;
 
@@ -34,6 +33,7 @@ public class LogoutFilter extends AbstractLogoutFilter {
       HttpServletRequest httpRequest = (HttpServletRequest) request;
 
       if(isPageRequested(LOGOUT_URI, httpRequest)) {
+         clearSSOCookie((HttpServletResponse) response);
          logout(httpRequest, (HttpServletResponse) response);
       }
       else if(isPageRequested(EXPIRED_URI, httpRequest)) {
@@ -42,6 +42,13 @@ public class LogoutFilter extends AbstractLogoutFilter {
       else {
          chain.doFilter(request, response);
       }
+   }
+
+   private void clearSSOCookie(HttpServletResponse response) {
+      Cookie cookie = new Cookie("sso_token", "");
+      cookie.setPath("/");
+      cookie.setMaxAge(0);
+      response.addCookie(cookie);
    }
 
    private void handleSessionExpired(HttpServletRequest request, HttpServletResponse response)
