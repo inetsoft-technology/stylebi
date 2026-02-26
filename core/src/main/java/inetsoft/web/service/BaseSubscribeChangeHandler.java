@@ -77,12 +77,12 @@ public abstract class BaseSubscribeChangeHandler {
                "destination already subscribed on this socket, overwriting";
             subscribers.add(subscriber);
          }
-
-         return getData(subscriber);
       }
       finally {
          lock.unlock();
       }
+
+      return getData(subscriber);
    }
 
    public abstract Object getData(BaseSubscriber subscriber);
