@@ -202,7 +202,7 @@ public class PageGroup extends XSwappable {
             out.close();
 
             if(isCountRW) {
-               monitor.countWrite(swapfile.length(), XSwappableMonitor.REPORT);
+               monitor.countWrite(swapfile.length(), XSwappableMonitor.SHEET);
             }
          }
       }
@@ -224,11 +224,11 @@ public class PageGroup extends XSwappable {
 
       if(isCountHM) {
          if(valid && !lastValid) {
-            monitor.countHits(XSwappableMonitor.REPORT, 1);
+            monitor.countHits(XSwappableMonitor.SHEET, 1);
             lastValid = true;
          }
          else if(!valid) {
-            monitor.countMisses(XSwappableMonitor.REPORT, 1);
+            monitor.countMisses(XSwappableMonitor.SHEET, 1);
             lastValid = false;
          }
       }
@@ -253,7 +253,7 @@ public class PageGroup extends XSwappable {
          in.close();
 
          if(isCountRW) {
-            monitor.countRead(swapfile.length(), XSwappableMonitor.REPORT);
+            monitor.countRead(swapfile.length(), XSwappableMonitor.SHEET);
          }
       }
       catch(OptionalDataException ex) {

@@ -917,7 +917,7 @@ public class ServerMonitoringController {
       else if("memCache".equals(imageId)) {
          data = cacheService.getCacheHistory(clusterNode).stream()
             .map(s -> new Object[] { new Time(s.time() + tzAdjustMs).toString(),
-                                     s.reportMemoryCount(),
+                                     s.sheetMemoryCount(),
                                      s.dataMemoryCount() })
             .toArray(Object[][]::new);
          data = addTitleToChartData("cache", data);
@@ -931,7 +931,7 @@ public class ServerMonitoringController {
       else if("diskCache".equals(imageId)) {
          data = cacheService.getCacheHistory(clusterNode).stream()
             .map(s -> new Object[] { new Time(s.time() + tzAdjustMs).toString(),
-                                     s.reportDiskCount(),
+                                     s.sheetDiskCount(),
                                      s.dataDiskCount() })
             .toArray(Object[][]::new);
          data = addTitleToChartData("cache", data);
@@ -946,9 +946,8 @@ public class ServerMonitoringController {
          data = cacheService.getCacheHistory(clusterNode).stream()
             .map(s -> new Object[] {
                new Time(s.time() + tzAdjustMs).toString(),
-               s.reportBytesRead() + s.dataBytesRead(),
-               s.reportBytesWritten(),
-               s.dataBytesWritten()
+               s.sheetBytesRead() + s.dataBytesRead(),
+               s.sheetBytesWritten() + s.dataBytesWritten()
             })
             .toArray(Object[][]::new);
          format = "million";
@@ -956,7 +955,7 @@ public class ServerMonitoringController {
          title = catalog.getString("Swapping Size");
          max = Arrays.stream(data)
             .skip(1L)
-            .flatMapToLong(r -> LongStream.of(safeMapToLong(r[1]), safeMapToLong(r[2]), safeMapToLong(r[3])))
+            .flatMapToLong(r -> LongStream.of(safeMapToLong(r[1]), safeMapToLong(r[2])))
             .max()
             .orElse(1L);
       }
@@ -994,7 +993,7 @@ public class ServerMonitoringController {
       if("cache".equals(chartId)) {
          String time = catalog.getString("Time");
          String data = catalog.getString("Data");
-         String pages = catalog.getString("Reports");
+         String pages = catalog.getString("Runtime Assets");
          result[0] = new String[] { time, pages, data };
       }
       else if("swapping".equals(chartId)){
