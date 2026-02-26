@@ -24,7 +24,6 @@ import { NavigationEnd, Router } from "@angular/router";
 import { Observable, Subject, Subscription, throwError } from "rxjs";
 import { catchError, concatMap, filter, map, takeUntil, tap } from "rxjs/operators";
 import { AiAssistantDialogComponent } from "../../../../shared/ai-assistant/ai-assistant-dialog.component";
-import { AiAssistantService } from "../../../../shared/ai-assistant/ai-assistant.service";
 import { AppInfoService } from "../../../../shared/util/app-info.service";
 import { LogoutService } from "../../../../shared/util/logout.service";
 import { Tool } from "../../../../shared/util/tool";
@@ -144,10 +143,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
       ["sharing", "_#(js:Social Sharing)"]
    ]);
 
-   get aiAssistantEnabled(): boolean {
-      return !!this.aiAssistantService.chatAppServerUrl;
-   }
-
    constructor(private favoritesService: FavoritesService,
                private helpService: HelpService,
                private pageTitleService: PageHeaderService,
@@ -155,8 +150,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
                private router: Router, private http: HttpClient,
                private snackBar: MatSnackBar, private dialog: MatDialog,
                private logoutService: LogoutService,
-               private appInfoService: AppInfoService,
-               private aiAssistantService: AiAssistantService)
+               private appInfoService: AppInfoService)
    {
       logoutService.setFromEm(true);
       appInfoService.isEnterprise().subscribe(info => this.enterprise = info);

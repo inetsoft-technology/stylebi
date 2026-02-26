@@ -29,7 +29,7 @@
     <toolbar-group class="btn-toolbar-pull-right" [showTooltips]="true"
                    [actionGroup]="actionGroup" [asMenu]="false"></toolbar-group>
     <div>
-      <button *ngIf="aiAssistantDialogService.isEnabled" type="button" class="btn-toolbar btn composer-btn ai-assistant-icon"
+      <button type="button" class="btn-toolbar btn composer-btn ai-assistant-icon"
               (click)="aiAssistantDialogService.openAiAssistantDialog()">
       </button>
       <button type="button" class="btn-toolbar btn composer-btn help-button"
