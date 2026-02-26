@@ -91,8 +91,16 @@ public class DistributedTableCacheStore {
          LOG.debug("Loaded lens {} from distributed table cache store", key);
       }
       catch(ZipException ex) {
-         // Uncompressed entry written before this change; treat as cache miss
-         LOG.debug("Cached lens {} is not compressed, treating as cache miss", key);
+         // Uncompressed entry written before this change; delete it so subsequent
+         // get() calls don't repeatedly open and fail the GZIP check.
+         LOG.debug("Cached lens {} is not compressed, treating as cache miss and deleting stale entry", key);
+
+         try {
+            storage.delete(key);
+         }
+         catch(IOException deleteEx) {
+            LOG.debug("Failed to delete stale uncompressed entry {}", key, deleteEx);
+         }
       }
 
       return lens;

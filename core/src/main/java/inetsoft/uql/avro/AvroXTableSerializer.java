@@ -56,9 +56,6 @@ public class AvroXTableSerializer {
             dataFileWriter.append(tableRecord);
          }
       }
-      catch(IOException e) {
-         throw new RuntimeException(e);
-      }
    }
 
    public static XSwappableTable readTable(ObjectInput in) throws IOException {
@@ -69,8 +66,11 @@ public class AvroXTableSerializer {
       try {
          return readAvro((InputStream) in, table);
       }
+      catch(IOException e) {
+         throw e;
+      }
       catch(Exception e) {
-         throw new RuntimeException(e);
+         throw new IOException("Failed to deserialize Avro table", e);
       }
    }
 
