@@ -386,7 +386,7 @@
   <toolbar-group *ngIf="mergeMenuCollapsed" [actionGroup]="moreOperations" [showTooltips]="true"
     [mergeActionGroup]="mergeMenuOperations" [asMenu]="true" [placeOnRight]="true"
     [snapToObjects]="snapToObjects" [snapToGrid]="snapToGrid"></toolbar-group>
-  <button *ngIf="aiAssistantDialogService.isEnabled" type="button" class="btn-toolbar btn composer-btn ai-assistant-icon" [ngbTooltip]="Assistant"
+  <button *ngIf="aiAssistantDialogService.aiAssistantVisible" type="button" class="btn-toolbar btn composer-btn ai-assistant-icon" [ngbTooltip]="Assistant"
           (click)="aiAssistantDialogService.openAiAssistantDialog()">
   </button>
 </div>

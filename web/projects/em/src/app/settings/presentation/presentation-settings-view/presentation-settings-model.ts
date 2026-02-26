@@ -30,6 +30,7 @@ import { PresentationDashboardSettingsModel } from "../presentation-dashboard-se
 import { PresentationExportMenuSettingsModel } from "../presentation-export-menu-settings-view/presentation-export-menu-settings-model";
 import { PresentationFontMappingSettingsModel } from "../presentation-font-mapping-settings-view/presentation-font-mapping-settings-model";
 import { PresentationComposerMessageSettingsModel } from "../presentation-composer-message-settings-view/presentation-composer-message-settings-model";
+import { PresentationAISettingsModel } from "../presentation-ai-settings-view/presentation-ai-settings-model";
 
 export interface PresentationSettingsModel {
    formatsSettingsModel?: PresentationFormatsSettingsModel;
@@ -47,6 +48,7 @@ export interface PresentationSettingsModel {
    timeSettingsModel?: PresentationTimeSettingsModel;
    dataSourceVisibilitySettingsModel?: PresentationDataSourceVisibilitySettingsModel;
    webMapSettingsModel?: WebMapSettingsModel;
+   aiSettingsModel?: PresentationAISettingsModel;
    securityEnabled?: boolean;
    orgSettings?: boolean;
 }

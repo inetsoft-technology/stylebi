@@ -31,13 +31,17 @@ import { ComponentTool } from "../util/component-tool";
 })
 export class AiAssistantDialogService {
 
-   constructor(private aiAssistantService: AiAssistantService,
+   constructor(public aiAssistantService: AiAssistantService,
                private modalService: NgbModal)
    {
    }
 
    get isEnabled(): boolean {
       return !!this.aiAssistantService.chatAppServerUrl;
+   }
+
+   get aiAssistantVisible(): boolean {
+      return this.aiAssistantService.aiAssistantVisible;
    }
 
    openAiAssistantDialog(): void {
