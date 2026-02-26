@@ -52,7 +52,11 @@
          [style.padding-bottom.px]="cellFormat?.padding?.bottom"
          [style.vertical-align]="cellFormat.vAlign">
       <div class="icon-label-content"
-           tooltipIf [disableTooltipIf]="toggleEnabled">
+           tooltipIf [disableTooltipIf]="toggleEnabled"
+           (touchstart)="onTouchStart($event)"
+           (touchend)="onTouchEnd()"
+           (touchmove)="onTouchMove()"
+           (touchcancel)="onTouchCancel()">
         <div [ngClass]="getTreeIconClass()"
              [class.mobile-max-mode-icon]="mobile && maxMode"
              [style.color]="cellFormat.foreground"
@@ -67,11 +71,7 @@
              [class.mobile-max-mode-icon]="mobile && maxMode"
              [style.padding-left.px]="isFolder() ? 1 : nodeIndent"
              [style.color]="cellFormat.foreground"
-             (click)="click($event)"
-             (touchstart)="onTouchStart($event)"
-             (touchend)="onTouchEnd()"
-             (touchmove)="onTouchMove()"
-             (touchcancel)="onTouchCancel()">
+             (click)="click($event)">
         </div>
         <div class="selection-list-cell-label" tooltipIf
              [style.justify-content]="cellFormat.justifyContent"

@@ -185,7 +185,7 @@ public abstract class SelectionVSAssemblyInfo extends VSAssemblyInfo {
       createdAdhoc = "true".equals(Tool.getAttribute(elem, "adhoc"));
       submitValue.setDValue(getAttributeStr(elem, "submitOnChange", "true"));
       selectFirstItem.setDValue(getAttributeStr(elem, "selectFirstItem", "false"));
-      quickSwitchAllowed.setDValue(getAttributeStr(elem, "quickSwitchAllowed", "true"));
+      quickSwitchAllowed.setDValue(getAttributeStr(elem, "quickSwitchAllowed", "false"));
       String prop = Tool.getAttribute(elem, "singleSelection");
 
       if(prop != null) {

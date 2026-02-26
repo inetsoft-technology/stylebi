@@ -21,6 +21,7 @@ import {
    EventEmitter,
    Input,
    OnChanges,
+   OnDestroy,
    OnInit,
    Output,
    SimpleChanges,
@@ -49,7 +50,7 @@ import { ContextProvider } from "../../context-provider.service";
    templateUrl: "selection-list-cell.component.html",
    styleUrls: ["selection-list-cell.component.scss"]
 })
-export class SelectionListCell implements OnInit, OnChanges {
+export class SelectionListCell implements OnInit, OnChanges, OnDestroy {
    static INDENT_SIZE = 8;
 
    @Input() selectionValue: SelectionValueModel;
@@ -107,8 +108,10 @@ export class SelectionListCell implements OnInit, OnChanges {
    htmlLabel: SafeHtml;
    mobile: boolean = GuiTool.isMobileDevice();
 
-   private touchTimeout: any;
+   private touchTimeout: any = null;
    private longPressDuration = 500;
+   private suppressNextClick = false;
+   private longPressFired = false;
 
    constructor(public vsSelectionComponent: VSSelection,
                private sanitization: DomSanitizer,
@@ -169,6 +172,10 @@ export class SelectionListCell implements OnInit, OnChanges {
 
       this.htmlLabel = this.isHTML(this.selectionValue.label) ?
          this.sanitization.bypassSecurityTrustHtml(this.selectionValue.label) : null;
+   }
+
+   ngOnDestroy(): void {
+      this.cancelLongPress();
    }
 
    ngOnChanges(changes: SimpleChanges) {
@@ -278,6 +285,17 @@ export class SelectionListCell implements OnInit, OnChanges {
          return;
       }
 
+      // After a long-press fires the switching path, mobile browsers emit a real click event
+      // when the finger lifts. Suppress that click so it does not also select the item.
+      if(!switching && this.suppressNextClick) {
+         this.suppressNextClick = false;
+         this.longPressFired = false;
+         // Prevent the event from bubbling to the label-container's (click) handler,
+         // which would otherwise call selectRegion() for this already-suppressed click.
+         event.stopPropagation();
+         return;
+      }
+
       let toggleAll = false;
       let toggle = false;
 
@@ -328,7 +346,14 @@ export class SelectionListCell implements OnInit, OnChanges {
          return;
       }
 
+      // Clear any stale flags left over from a previous press sequence.
+      this.longPressFired = false;
+      this.suppressNextClick = false;
+
       this.touchTimeout = setTimeout(() => {
+         this.longPressFired = true;
+         // Tell click() to suppress the real browser click that fires when the finger lifts.
+         this.suppressNextClick = true;
          // Route through the switching path so behavior matches the quick-switch button:
          // the mode is toggled and the label is selected, but region focus does not shift.
          this.click(new MouseEvent("click"), true);
@@ -347,6 +372,14 @@ export class SelectionListCell implements OnInit, OnChanges {
 
    /** Cancels the long-press timer when the touch is interrupted by the system. */
    onTouchCancel(): void {
+      if(this.longPressFired) {
+         // The OS interrupted the touch sequence after our long-press fired.
+         // The browser will not synthesize a click event, so reset the suppression
+         // flag that would otherwise persist until the next touch sequence.
+         this.suppressNextClick = false;
+         this.longPressFired = false;
+      }
+
       this.cancelLongPress();
    }
 
@@ -358,6 +391,18 @@ export class SelectionListCell implements OnInit, OnChanges {
    // toggle tree node expanded status
    toggleFolder(event: MouseEvent) {
       event.stopPropagation();
+
+      // If a long-press just fired the mode-switch on this cell, the browser synthesizes a
+      // click that lands on the tree toggle icon (the element being touched). The click should
+      // not also open or close the folder. Reset the stale suppression flag here because
+      // this handler does not call click(), so suppressNextClick would otherwise persist
+      // until the next touch sequence and wrongly suppress a subsequent mouse click.
+      if(this.longPressFired) {
+         this.longPressFired = false;
+         this.suppressNextClick = false;
+         return;
+      }
+
       this.vsSelectionComponent.controller.toggleNode(this.selectionValue);
       this.vsSelectionComponent.folderToggled();
    }
@@ -466,6 +511,17 @@ export class SelectionListCell implements OnInit, OnChanges {
    }
 
    selectRegion(event: MouseEvent, region: CellRegion): void {
+      // Guard against a synthesized click that fires after a mobile long-press when
+      // the click lands directly on this element (e.g. label-container padding, measure
+      // text, or bar) without first passing through click() or toggleFolder(), which
+      // would have already cleared the flag. Also clears suppressNextClick so it does
+      // not persist and wrongly suppress the next real mouse click.
+      if(this.longPressFired) {
+         this.longPressFired = false;
+         this.suppressNextClick = false;
+         return;
+      }
+
       if(region == null) {
          region = (this.selectionValue.measureValue < 0) ? CellRegion.MEASURE_N_BAR
             : CellRegion.MEASURE_BAR;
