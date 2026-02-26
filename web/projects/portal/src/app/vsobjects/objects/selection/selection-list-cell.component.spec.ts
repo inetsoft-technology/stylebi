@@ -111,7 +111,8 @@ describe("Selection List Cell Test", () => {
          barWidth: 0,
          textWidth: 0,
          showSubmitOnChange: false,
-         submitOnChange: false
+         submitOnChange: false,
+         quickSwitchAllowed: false
       }, TestUtils.createMockVSObjectModel("VSSelectionList", "VSSelectionList1"));
    };
    let selectionListCell: SelectionListCell;

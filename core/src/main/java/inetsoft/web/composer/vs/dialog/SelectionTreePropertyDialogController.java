@@ -159,6 +159,8 @@ public class SelectionTreePropertyDialogController {
       selectionGeneralPane.setSingleSelection(selectionTreeAssemblyInfo.getSingleSelectionValue());
       selectionGeneralPane.setSuppressBlank(selectionTreeAssemblyInfo.isSuppressBlankValue());
       selectionGeneralPane.setSelectFirstItem(selectionTreeAssemblyInfo.getSelectFirstItemValue());
+      // Quick-switch is not supported for selection trees; the field is intentionally not
+      // populated here because the checkbox is hidden in the UI for trees (*ngIf="!treeModel").
 
       if(selectionTreeAssemblyInfo.getSingleSelectionLevels() != null) {
          selectionGeneralPane.setSingleSelectionLevels(

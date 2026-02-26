@@ -53,7 +53,7 @@ public abstract class VSSelectionBaseModel<T extends AbstractSelectionVSAssembly
       textWidth = (showText && measure != null) ? assemblyInfo.getMeasureSize() : 0;
       barWidth = (showBar && measure != null) ? assemblyInfo.getBarSize() : 0;
 
-      quickSwitchAllowed = assemblyInfo.getQuickSwitchAllowedValue(); //switched from isQuickSwitchAllowed to getQuickSwitchAllowedValue
+      quickSwitchAllowed = assemblyInfo.getQuickSwitchAllowedValue();
 
       Dimension maxSize = assemblyInfo.getMaxSize();
 

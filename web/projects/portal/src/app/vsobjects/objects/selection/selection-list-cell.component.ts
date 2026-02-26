@@ -103,6 +103,7 @@ export class SelectionListCell implements OnInit, OnChanges {
    measureTextHAlign: string;
    measureTextVAlign: string;
    isParentIDTree: boolean = false;
+   quickSwitchAllowed: boolean = false;
    htmlLabel: SafeHtml;
    mobile: boolean = GuiTool.isMobileDevice();
 
@@ -151,6 +152,8 @@ export class SelectionListCell implements OnInit, OnChanges {
       this.measureTextHAlign = GuiTool.getFlexHAlign(this.measureTextFormat.hAlign);
       this.measureTextVAlign = GuiTool.getFlexVAlign(this.measureTextFormat.vAlign);
       this.isParentIDTree = model.objectType === "VSSelectionTree" && (<VSSelectionTreeModel> model).mode == MODE.ID;
+      this.quickSwitchAllowed = model.quickSwitchAllowed && model.objectType === "VSSelectionList"
+         && (this.contextProvider.viewer || this.contextProvider.preview) && !this.mobile;
 
       switch(this.measureTextFormat.vAlign) {
       case "top":
@@ -309,8 +312,19 @@ export class SelectionListCell implements OnInit, OnChanges {
       this.selectRegion(event, CellRegion.LABEL);
    }
 
+   /**
+    * Starts a long-press timer on touch. After {@link longPressDuration} ms the selection mode
+    * is toggled (single ↔ multi) via the switching path, identical to alt-click. Only active
+    * in max mode on mobile — in non-max mode the component header tap opens max mode first.
+    */
    onTouchStart(event: TouchEvent): void {
       if(!event.touches.length) {
+         return;
+      }
+
+      // On mobile, cells can only be interacted with in max mode.
+      // In non-max mode a tap on the header opens max mode first.
+      if(this.mobile && !this.maxMode) {
          return;
       }
 
@@ -321,14 +335,17 @@ export class SelectionListCell implements OnInit, OnChanges {
       }, this.longPressDuration);
    }
 
+   /** Cancels the long-press timer when the finger is lifted before the threshold. */
    onTouchEnd(): void {
       this.cancelLongPress();
    }
 
+   /** Cancels the long-press timer when the touch point moves (scroll or drag intent). */
    onTouchMove(): void {
       this.cancelLongPress();
    }
 
+   /** Cancels the long-press timer when the touch is interrupted by the system. */
    onTouchCancel(): void {
       this.cancelLongPress();
    }
@@ -565,8 +582,4 @@ export class SelectionListCell implements OnInit, OnChanges {
       return Array.from(doc.body.childNodes).some(node => node.nodeType === 1);
    }
 
-   get quickSwitchAllowed() {
-      return (this.vsSelectionComponent.model.quickSwitchAllowed && this.isList
-         && this.toggleEnabled && !this.mobile);
-   }
 }
