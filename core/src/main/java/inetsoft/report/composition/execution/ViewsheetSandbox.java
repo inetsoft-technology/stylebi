@@ -2593,11 +2593,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                lassembly.setValues(ldata.getValues());
                lassembly.setFormats(ldata.getFormats());
             }
-            else {
-               lassembly.setLabels(null);
-               lassembly.setValues(null);
-               lassembly.setFormats(null);
-            }
          }
       }
       catch(Exception ex) {
@@ -2659,7 +2654,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
          else if(assembly instanceof InputVSAssembly) {
             InputVSAssembly iassembly = (InputVSAssembly) assembly;
-            new InputVSAQuery(this, iassembly.getName()).resetEmbeddedData(initing);
+            new InputVSAQuery(this, iassembly.getAbsoluteName()).resetEmbeddedData(initing);
             updateAssembly(iassembly);
             outputDataChanged(
                entry, clist, rselection, initing, true, inputChangeMap, scriptDependencies);

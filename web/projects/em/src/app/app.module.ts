@@ -35,6 +35,7 @@ import { RouteReuseStrategy } from "@angular/router";
 import { EmClientInterceptor } from "../../../portal/src/app/common/services/emclient-interceptor";
 import { HttpParamsCodecInterceptor } from "../../../portal/src/app/common/services/http-params-codec-interceptor";
 import { RequestedWithInterceptor } from "../../../portal/src/app/common/services/requested-with-interceptor";
+import { AiAssistantModule } from "../../../shared/ai-assistant/ai-assistant.module";
 import { DownloadModule } from "../../../shared/download/download.module";
 import { ScheduleTaskNamesService } from "../../../shared/schedule/schedule-task-names.service";
 import { ScheduleUsersService } from "../../../shared/schedule/schedule-users.service";
@@ -66,6 +67,7 @@ export const httpInterceptorProviders = [
 
 @NgModule({
     imports: [
+        AiAssistantModule,
         BrowserModule,
         BrowserAnimationsModule,
         ReactiveFormsModule,

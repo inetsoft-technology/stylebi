@@ -18,7 +18,11 @@
 package inetsoft.web.binding.command;
 
 import inetsoft.web.binding.model.table.CalcTableLayout;
+import inetsoft.web.binding.model.table.CellBindingInfo;
 import inetsoft.web.viewsheet.command.ViewsheetCommand;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Command that instructs the client to refresh an assembly object.
@@ -49,5 +53,14 @@ public class GetTableLayoutCommand implements ViewsheetCommand {
       this.layout = layout;
    }
 
+   public Map<String, CellBindingInfo> getCellBindings() {
+      return cellBindings;
+   }
+
+   public void setCellBindings(Map<String, CellBindingInfo> cellBindings) {
+      this.cellBindings = cellBindings;
+   }
+
    private CalcTableLayout layout;
+   private Map<String, CellBindingInfo> cellBindings = new HashMap<>();
 }

@@ -1094,7 +1094,16 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    }
 
    public getDateLabel(dateNumber: number): string {
-      return DateTypeFormatter.getLocalTime(dateNumber,  this.dateTimeFormat);
+      const formatted = DateTypeFormatter.getLocalTime(dateNumber, this.dateTimeFormat);
+
+      if(formatted) {
+         const tz = new Intl.DateTimeFormat("en", {timeZoneName: "short"})
+            .formatToParts(new Date())
+            .find(p => p.type === "timeZoneName")?.value;
+         return tz ? `${formatted} (${tz})` : formatted;
+      }
+
+      return formatted;
    }
 
    public getLabel(fieldName: string, fieldValue: number): string {

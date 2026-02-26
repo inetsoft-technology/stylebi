@@ -22,3 +22,10 @@
 .form-control {
   width: 100%;
 }
+
+.auto-size-textarea {
+  resize: none;
+  overflow: hidden;
+  min-height: fit-content !important;
+  word-break: break-all;
+}

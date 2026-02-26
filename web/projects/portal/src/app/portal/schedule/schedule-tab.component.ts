@@ -15,11 +15,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, OnInit } from "@angular/core";
-import { Tool } from "../../../../../shared/util/tool";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { HttpClient } from "@angular/common/http";
-import { ComponentTool } from "../../common/util/component-tool";
+import { Component } from "@angular/core";
+import {
+   AiAssistantService,
+   ContextType
+} from "../../../../../shared/ai-assistant/ai-assistant.service";
 
 @Component({
    selector: "p-schedule-tab",
@@ -27,4 +27,7 @@ import { ComponentTool } from "../../common/util/component-tool";
    styleUrls: ["./schedule-tab.component.scss"]
 })
 export class ScheduleTabComponent {
+   constructor(private aiAssistantService: AiAssistantService) {
+      this.aiAssistantService.setContextTypeFieldValue(ContextType.SCHEDULE_TASK);
+   }
 }

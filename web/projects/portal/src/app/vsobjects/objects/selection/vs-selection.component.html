@@ -146,6 +146,19 @@
          </div>
       </div>
     </div>
+    <div *ngIf="showScroll" [style.width.px]="scrollbarWidth"
+    	   class="vertical-scrollbar-wrapper-container">
+      <div class="vertical-scroll-wrapper vertical-scrollbar-offset"
+           [style.width.px]="scrollbarWidth + 1"
+           [style.height.px]="getBodyHeight()"
+           [style.top.px]="verticalScrollbarTop"
+           outOfZone (onScroll)="verticalScrollHandler($event.target.scrollTop)"
+           (onMousedown)="$event.stopPropagation()"
+           #verticalScrollWrapper>
+        <div [style.height.px]="scrollHeight">
+        </div>
+      </div>
+    </div>
     <div class="selection-list-search-container"
          [style.height.px]="model.titleFormat.height"
          [hidden]="!model.searchDisplayed">
@@ -158,26 +171,13 @@
              (keydown)="preventPropagation($event)"
              (keyup)="onSearchKeyUp()"
              [(ngModel)]="model.searchString"
-             (blur)="hideSearchDisplay()">
+             placeholder="_#(Search)">
       <div #clearSearch
            [style.top.px]="(model.titleFormat.height - 20) / 2"
            class="selection-list-search-close close-icon"
            role="button" aria-label="_#(Clear Search)" tabindex="-1"
            [class.bd-selected-cell]="lastCellSelectedIndex == FocusRegions.CLEAR_SEARCH"
            (mousedown)="onCloseSearch()">
-      </div>
-    </div>
-    <div *ngIf="showScroll" [style.width.px]="scrollbarWidth"
-    	   class="vertical-scrollbar-wrapper-container">
-      <div class="vertical-scroll-wrapper vertical-scrollbar-offset"
-           [style.width.px]="scrollbarWidth + 1"
-           [style.height.px]="getBodyHeight()"
-           [style.top.px]="verticalScrollbarTop"
-           outOfZone (onScroll)="verticalScrollHandler($event.target.scrollTop)"
-           (onMousedown)="$event.stopPropagation()"
-           #verticalScrollWrapper>
-        <div [style.height.px]="scrollHeight">
-        </div>
       </div>
     </div>
     <div *ngIf="!isHidden"
@@ -269,7 +269,9 @@
   <i *ngIf="pendingSubmit" class="submit-icon pending-alert"
      [class.left]="model.dropdown || model.maxMode || inContainer"
      [class.top]="!model.titleVisible"
-     title="_#(common.viewsheet.pending.submit)"></i>
+     title="_#(common.viewsheet.pending.submit)"
+     (click)="this.controller.applySelections()"
+     [style.cursor]="'pointer'"></i>
 
   <vs-loading-display *ngIf="model?.submitPadding"
                       [assemblyLoading]="true"></vs-loading-display>

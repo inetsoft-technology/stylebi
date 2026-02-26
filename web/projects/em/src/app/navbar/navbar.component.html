@@ -22,7 +22,7 @@
       <mat-icon fontSet="ineticons" fontIcon="inetsoft-icon" aria-label="_#(Enterprise Manager)"></mat-icon>
     </ng-template>
   </span>
-  <a class="em-home em-button" href=".." aria-label="_#(Home)" [title]="'_#(Home)'">
+  <a class="em-home em-button" [href]="model?.homeLink || '..'" aria-label="_#(Home)" [title]="'_#(Home)'">
     <mat-icon fontSet="ineticons" fontIcon="home-icon"></mat-icon>
   </a>
   <a mat-icon-button *ngIf="monitoringVisible" class="em-button" routerLink="/monitoring" routerLinkActive="active" aria-label="_#(Monitoring)" [title]="'_#(Monitoring)'">
@@ -39,6 +39,9 @@
   <a mat-icon-button *ngIf="notifyVisible" class="em-button" aria-label="_#(Send Notification)" title="_#(Send Notification)" (click)="showNotifyDialog()">
     <mat-icon fontSet="ineticons" fontIcon="message-icon"></mat-icon>
   </a>
+  <button *ngIf="aiAssistantEnabled" mat-icon-button class="em-button" aria-label="_#(Assistant)" [title]="'_#(Assistant)'" (click)="showAiAssistantDialog()">
+    <mat-icon fontSet="ineticons" fontIcon="ai-assistant-icon"></mat-icon>
+  </button>
   <a mat-icon-button class="em-button" [href]="this.helpLink?.link" target="_blank" aria-label="_#(Help)" [title]="'_#(Help)'" [disabled]="!this.helpLink">
     <mat-icon fontSet="ineticons" fontIcon="help-question-mark-icon"></mat-icon>
   </a>

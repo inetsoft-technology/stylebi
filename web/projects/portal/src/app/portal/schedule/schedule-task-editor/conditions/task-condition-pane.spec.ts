@@ -394,6 +394,53 @@ describe("Task Condition Pane Unit Test", () => {
       expect(delBtn.hasAttribute("disabled")).toBeTruthy();
    });
 
+   it("should copy selected condition", () => {
+      taskConditionPane.model.conditions = [
+         {conditionType: "TimeCondition", label: "Daily Condition", type: TimeConditionType.EVERY_DAY, interval: 3} as TimeConditionModel,
+         {conditionType: "TimeCondition", label: "Weekly Condition", type: TimeConditionType.EVERY_WEEK, interval: 2} as TimeConditionModel
+      ];
+      taskConditionPane.selectedConditions = [0];
+      taskConditionPane.copyCondition();
+
+      expect(taskConditionPane.model.conditions.length).toBe(3);
+      expect(taskConditionPane.model.conditions[2].label).toContain("Copy of");
+      expect(taskConditionPane.model.conditions[2].label).toContain("Daily Condition");
+      expect((<TimeConditionModel>taskConditionPane.model.conditions[2]).interval).toBe(3);
+      expect(taskConditionPane.selectedConditions).toEqual([2]);
+   });
+
+   it("should deep clone condition so modifying copy does not affect original", () => {
+      taskConditionPane.model.conditions = [
+         {conditionType: "TimeCondition", label: "Daily Condition", type: TimeConditionType.EVERY_DAY, daysOfWeek: [1, 2]} as TimeConditionModel
+      ];
+      taskConditionPane.selectedConditions = [0];
+      taskConditionPane.copyCondition();
+
+      (<TimeConditionModel>taskConditionPane.model.conditions[1]).daysOfWeek.push(3);
+      expect((<TimeConditionModel>taskConditionPane.model.conditions[0]).daysOfWeek).toEqual([1, 2]);
+   });
+
+   it("should not copy when no condition is selected", () => {
+      taskConditionPane.model.conditions = [
+         {conditionType: "TimeCondition", label: "Daily Condition"} as TimeConditionModel
+      ];
+      taskConditionPane.selectedConditions = [];
+      taskConditionPane.copyCondition();
+
+      expect(taskConditionPane.model.conditions.length).toBe(1);
+   });
+
+   it("should not copy when multiple conditions are selected", () => {
+      taskConditionPane.model.conditions = [
+         {conditionType: "TimeCondition", label: "Condition 1"} as TimeConditionModel,
+         {conditionType: "TimeCondition", label: "Condition 2"} as TimeConditionModel
+      ];
+      taskConditionPane.selectedConditions = [0, 1];
+      taskConditionPane.copyCondition();
+
+      expect(taskConditionPane.model.conditions.length).toBe(2);
+   });
+
    //Bug #19860 should keep last condition
    xit("should keep last condition", () => {
       taskConditionPane.changeConditionType(0);

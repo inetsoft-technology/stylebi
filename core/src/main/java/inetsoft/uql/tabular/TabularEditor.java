@@ -470,6 +470,14 @@ public class TabularEditor implements XMLSerializable {
       this.autocomplete = autocomplete;
    }
 
+   public boolean isAutoSize() {
+      return autoSize;
+   }
+
+   public void setAutoSize(boolean autoSize) {
+      this.autoSize = autoSize;
+   }
+
    @Override
    public void writeXML(PrintWriter writer) {
       writer.println("<tabularEditor>");
@@ -575,6 +583,7 @@ public class TabularEditor implements XMLSerializable {
       }
 
       writer.format("<autocomplete><![CDATA[%s]]></autocomplete>%n", autocomplete);
+      writer.format("<autoSize><![CDATA[%s]]></autoSize>%n", autoSize);
 
       if(value != null) {
          writeValue(writer, value, type);
@@ -763,6 +772,7 @@ public class TabularEditor implements XMLSerializable {
       propertyType = Tool.getChildValueByTagName(tag, "propertyType");
       propertySubtype = Tool.getChildValueByTagName(tag, "propertySubtype");
       autocomplete = "true".equals(Tool.getChildValueByTagName(tag, "autocomplete"));
+      autoSize = "true".equals(Tool.getChildValueByTagName(tag, "autoSize"));
 
       node = Tool.getChildNodeByTagName(tag, "value");
 
@@ -907,6 +917,7 @@ public class TabularEditor implements XMLSerializable {
    private String visibleMethod;
    private boolean visible = true;
    private boolean autocomplete;
+   private boolean autoSize;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(TabularEditor.class);
@@ -1059,6 +1070,10 @@ public class TabularEditor implements XMLSerializable {
 
          if((child = node.get("autocomplete")) != null) {
             editor.setAutocomplete(child.asBoolean());
+         }
+
+         if((child = node.get("autoSize")) != null) {
+            editor.setAutoSize(child.asBoolean());
          }
 
          if((child = node.get("value")) != null) {

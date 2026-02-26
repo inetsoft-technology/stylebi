@@ -50,6 +50,7 @@ public class ShapeLegendItem extends LegendItem {
       Graphics2D g2 = (Graphics2D) g.create();
       ShapeFrame frame = (ShapeFrame) getVisualFrame();
       GShape gshape = frame.getShape(getValue());
+      int size = getSymbolSize();
 
       g2.setColor(getSymbolColor());
 
@@ -66,10 +67,10 @@ public class ShapeLegendItem extends LegendItem {
          img.setAlignment(GShape.ImageShape.Alignment.CENTER);
          img.setApplySize(true);
          // give icon a little larger area to avoid resize
-         img.paint(g2, x + 1, y, SYMBOL_SIZE, SYMBOL_SIZE);
+         img.paint(g2, x + 1, y, size, size);
       }
       else if(gshape != null) {
-         gshape.paint(g2, x + 2, y + 1, SYMBOL_SIZE - 2, SYMBOL_SIZE - 2);
+         gshape.paint(g2, x + 2, y + 1, size - 2, size - 2);
       }
 
       g2.dispose();

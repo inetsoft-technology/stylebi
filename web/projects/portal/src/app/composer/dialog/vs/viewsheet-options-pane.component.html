@@ -82,6 +82,17 @@
       <div class="row form-row-checkbox">
         <div class="col-auto">
           <div class="form-check">
+            <input type="checkbox" class="form-check-input" [(ngModel)]="model.hideNotifications"
+                   [ngModelOptions]="{standalone: true}" id="hideNotifications"/>
+            <label class="form-check-label" for="hideNotifications">
+              _#(Hide Info Notifications in Composer)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="row form-row-checkbox">
+        <div class="col-auto">
+          <div class="form-check">
             <input type="checkbox" class="form-check-input" [(ngModel)]="model.promptForParams"
                  [ngModelOptions]="{standalone: true}" id="prompt"/>
             <label class="form-check-label" for="prompt">

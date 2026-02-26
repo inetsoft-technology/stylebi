@@ -49,6 +49,7 @@ export abstract class Sheet {
    private _focused: boolean;
    private focusedAssembliesSubject = new BehaviorSubject<any[]>([]);
    private _focusedAssemblies: any[];
+   private _saving: boolean = false;
 
    public get loading(): boolean {
       return this._loading;
@@ -57,6 +58,14 @@ export abstract class Sheet {
    public set loading(flag: boolean) {
       this._loading = flag;
       this.loadingSubject.next(flag);
+   }
+
+   public get saving(): boolean {
+      return this._saving;
+   }
+
+   public set saving(flag: boolean) {
+      this._saving = flag;
    }
 
    public get isFocused(): boolean {

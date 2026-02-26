@@ -153,6 +153,15 @@
           </div>
         </li>
       </ng-template>
+      <li *ngIf="!mobile && aiAssistantDialogService.isEnabled" class="nav-item portal-nav-item bb-highlight-filler" [class.disabled]="!model.helpVisible">
+        <a class="nav-link nav-icon nav-icon-size"
+           (click)="aiAssistantDialogService.openAiAssistantDialog()"
+           (keyup.enter)="aiAssistantDialogService.openAiAssistantDialog()"
+           title="_#(Assistant)" aria-label="_#(Assistant)" tabindex="0" enterClick>
+          <i class="ai-assistant-icon nav-icon-size portal-toolbar-icon"></i>
+          <span class="visually-hidden">_#(Assistant)</span>
+        </a>
+      </li>
       <li *ngIf="!mobile" class="nav-item portal-nav-item bb-highlight-filler" [class.disabled]="!model.helpVisible">
         <a class="nav-link nav-icon nav-icon-size" (click)="showDocument()" (keyup.enter)="showDocument()"
            title="_#(Help)" aria-label="_#(Help)" tabindex="0" enterClick>
