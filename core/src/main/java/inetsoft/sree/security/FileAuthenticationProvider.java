@@ -958,7 +958,9 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
          String defaultOrg = Organization.getDefaultOrganizationID();
          FSUser user = new FSUser(new IdentityID("admin", defaultOrg));
          String envPassword = System.getenv("INETSOFT_ADMIN_PASSWORD");
-         HashedPassword hash = Tool.hash(envPassword != null && !envPassword.isEmpty() ? envPassword : "admin", "bcrypt");
+         String trimmedEnvPassword = envPassword != null ? envPassword.trim() : null;
+         boolean useEnvPassword = trimmedEnvPassword != null && !trimmedEnvPassword.isBlank();
+         HashedPassword hash = Tool.hash(useEnvPassword ? trimmedEnvPassword : "admin", "bcrypt");
          user.setPassword(hash.getHash());
          user.setPasswordAlgorithm(hash.getAlgorithm());
          user.setRoles(new IdentityID[] { new IdentityID("Administrator", null),
@@ -970,7 +972,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
          user.setPassword(hash.getHash());
          user.setPasswordAlgorithm(hash.getAlgorithm());
          user.setRoles(new IdentityID[] { new IdentityID("Everyone", defaultOrg) });
-         user.setActive(envPassword == null || envPassword.isEmpty());
+         user.setActive(!useEnvPassword);
          map.put(user.getIdentityID().convertToKey(), user);
 
          return FSUser.class;
