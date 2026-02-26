@@ -114,7 +114,21 @@
               (onPanMap)="panMap($event)"
               (mousewheel)="zoomByWheel($event)"
               [container]="container">
-    <!-- chart data annotations rendered at vs-object-container level to avoid stacking context issues -->
+    <ng-container *ngIf="enableAnnotation && !!model.plot" ngProjectAs="vs-annotation">
+      <ng-container *ngFor="let annotationModel of model.dataAnnotationModels">
+        <vs-annotation [model]="annotationModel"
+                       [actions]="actions"
+                       [tetherTo]="chartContainerBounds"
+                       [restrictTo]="annotationContainerBounds"
+                       [offsetX]="-scrollLeft"
+                       [offsetY]="-scrollTop"
+                       [vsInfo]="vsInfo"
+                       [selected]="isAnnotationSelected(annotationModel)"
+                       (remove)="removeAnnotation(annotationModel)"
+                       (mouseSelect)="selectAnnotation($event)">
+        </vs-annotation>
+      </ng-container>
+    </ng-container>
     <ng-container *ngIf="model.showPlotResizers && model.horizontallyResizable">
       <div class="chart-plot-resizer-horizontal">
         <div class="chart-plot-resizer-horizontal-container">
