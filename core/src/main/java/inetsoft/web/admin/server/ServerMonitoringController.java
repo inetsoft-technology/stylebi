@@ -120,7 +120,7 @@ public class ServerMonitoringController {
                   serverDateTimeMap.put(node, format.format(date));
                }
 
-               if(schedule != null) {
+               if(schedule != null && ScheduleClient.getScheduleClient().isReady(node)) {
                   schedulerUpTimeMap.put(node, formatAge(schedule.getUpTime()));
                }
             }
@@ -141,7 +141,11 @@ public class ServerMonitoringController {
             final Date date = Date.from(
                Instant.ofEpochMilli(timestamp).atOffset(OffsetDateTime.now().getOffset()).toInstant());
             serverDateTimeMap.put("local", format.format(date));
-            schedulerUpTimeMap.put("local", formatAge(schedulerMonitoringService.getUpTime()));
+            long schedulerUpTime = schedulerMonitoringService.getUpTime();
+
+            if(schedulerUpTime >= 0) {
+               schedulerUpTimeMap.put("local", formatAge(schedulerUpTime));
+            }
          }
 
          return ServerModel.builder()
