@@ -15,10 +15,27 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.admin.navbar;
+package inetsoft.web.admin.presentation.model;
 
-import java.util.List;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.value.Value;
 
-public record EmNavBarModel(String logoutUrl, boolean customLogo, boolean enterprise, boolean ssoUser, boolean elasticLicenseExhausted, String homeLink, boolean aiAssistantVisible)
-{
+import javax.annotation.Nullable;
+
+@Value.Immutable
+@JsonSerialize(as = ImmutablePresentationAISettingsModel.class)
+@JsonDeserialize(as = ImmutablePresentationAISettingsModel.class)
+public interface PresentationAISettingsModel {
+   boolean aiAssistantVisible();
+
+   @Nullable
+   String chatAppServerUrl();
+
+   static PresentationAISettingsModel.Builder builder() {
+      return new PresentationAISettingsModel.Builder();
+   }
+
+   class Builder extends ImmutablePresentationAISettingsModel.Builder {
+   }
 }

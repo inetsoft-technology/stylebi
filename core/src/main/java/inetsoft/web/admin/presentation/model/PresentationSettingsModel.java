@@ -80,6 +80,9 @@ public interface PresentationSettingsModel {
    WebMapSettingsModel webMapSettingsModel();
 
    @Nullable
+   PresentationAISettingsModel aiSettingsModel();
+
+   @Nullable
    Boolean securityEnabled();
 
    @Nullable

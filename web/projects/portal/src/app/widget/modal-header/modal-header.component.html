@@ -31,7 +31,7 @@
     </div>
   </div>
   <div class="d-flex align-items-center">
-    <button *ngIf="isShowAiAssistant" type="button" class="btn-toolbar btn composer-btn ai-assistant-icon" title="_#(Assistant)"
+    <button *ngIf="isShowAiAssistant && aiAssistantDialogService.aiAssistantVisible" type="button" class="btn-toolbar btn composer-btn ai-assistant-icon" title="_#(Assistant)"
             (click)="aiAssistantDialogService.openAiAssistantDialog()">
     </button>
     <i *ngIf="showHelpLink" [helpLink]="cshid" class="mx-1" tabindex="0" aria-label="_#(Help Information)" role="link" enterClick></i>

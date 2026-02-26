@@ -108,9 +108,13 @@ public class PortalController {
 
       PortalCreationPermisisons creationModel = refreshPortalCreationPermissions(principal);
 
+      String aiAssistantVisibleProp = SreeEnv.getProperty("portal.ai.assistant.visible", "true");
+      boolean aiAssistantVisible = "true".equalsIgnoreCase(aiAssistantVisibleProp);
+
       return PortalModel.builder()
          .currentUser(getCurrentUser(principal))
          .helpVisible(manager.isButtonVisible(PortalThemesManager.HELP_BUTTON))
+         .aiAssistantVisible(aiAssistantVisible)
          .preferencesVisible(manager.isButtonVisible(PortalThemesManager.PREFERENCES_BUTTON))
          .logoutVisible(manager.isButtonVisible(PortalThemesManager.LOGOUT_BUTTON))
          .homeLink(homeLink)
