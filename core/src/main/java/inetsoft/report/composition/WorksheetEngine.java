@@ -102,7 +102,12 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    }
 
    public void putRuntimeSheet(String id, RuntimeSheet rs) {
-      amap.putSheet(id, rs);
+      try {
+         amap.putSheet(id, rs).get(10, TimeUnit.SECONDS);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to persist sheet {} to distributed cache", id, e);
+      }
    }
 
    /**

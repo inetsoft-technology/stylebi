@@ -36,31 +36,15 @@ import org.w3c.dom.Document;
 import java.io.*;
 import java.util.Arrays;
 import java.util.List;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 
 public class AvroXTableSerializer {
    public static void writeTable(ObjectOutput out, XTable table) throws IOException {
-      ByteArrayOutputStream baos = new ByteArrayOutputStream();
-
-      try(GZIPOutputStream gzipOut = new GZIPOutputStream(baos)) {
-         writeAvro(gzipOut, table);
-      }
-
-      byte[] bytes = baos.toByteArray();
-      out.writeLong(bytes.length);
-      out.write(bytes);
-   }
-
-   /**
-    * Writes out table data with avro
-    */
-   private static void writeAvro(OutputStream out, XTable table) throws IOException {
       Schema schema = getSchema(table);
       DatumWriter<GenericRecord> datumWriter = new GenericDatumWriter<>(schema);
 
       try(DataFileWriter<GenericRecord> dataFileWriter = new DataFileWriter<>(datumWriter)) {
-         dataFileWriter.create(schema, out);
+         dataFileWriter.setCodec(CodecFactory.deflateCodec(6));
+         dataFileWriter.create(schema, (OutputStream) out);
 
          for(int r = 0; r < table.getRowCount(); r++) {
             GenericRecord tableRecord = new GenericData.Record(schema);
@@ -82,33 +66,8 @@ public class AvroXTableSerializer {
    }
 
    public static XSwappableTable readTable(ObjectInput in, XSwappableTable table) throws IOException {
-      int size = (int) in.readLong();
-      byte[] compressed = new byte[size];
-      int offset = 0;
-
-      while(offset < size) {
-         int read = in.read(compressed, offset, size - offset);
-
-         if(read == -1) {
-            break;
-         }
-
-         offset += read;
-      }
-
-      ByteArrayOutputStream baos = new ByteArrayOutputStream();
-
-      try(GZIPInputStream gzipIn = new GZIPInputStream(new ByteArrayInputStream(compressed))) {
-         byte[] buffer = new byte[4096];
-         int bytesRead;
-
-         while((bytesRead = gzipIn.read(buffer)) != -1) {
-            baos.write(buffer, 0, bytesRead);
-         }
-      }
-
       try {
-         return readAvro(new SeekableByteArrayInput(baos.toByteArray()), table);
+         return readAvro((InputStream) in, table);
       }
       catch(Exception e) {
          throw new RuntimeException(e);
@@ -116,80 +75,87 @@ public class AvroXTableSerializer {
    }
 
    /**
-    * Reads table data from avro
+    * Reads table data from avro. The stream is not closed — the caller owns it.
     */
-   private static XSwappableTable readAvro(SeekableInput in, XSwappableTable table) throws Exception {
+   private static XSwappableTable readAvro(InputStream in, XSwappableTable table) throws Exception {
+      // Wrap in a non-closing filter so DataFileStream.close() does not close the
+      // underlying ObjectInput stream, which still has subsequent data to read.
+      InputStream shielded = new FilterInputStream(in) {
+         @Override public void close() { /* caller owns the stream */ }
+      };
+
       DatumReader<GenericRecord> datumReader = new GenericDatumReader<>();
-      DataFileReader<GenericRecord> dataFileReader = new DataFileReader<>(in, datumReader);
 
-      Schema schema = dataFileReader.getSchema(); // Retrieve schema from the file
-      List<Schema.Field> fields = schema.getFields();
-      String[] colTypes = new String[fields.size()];
-      XMetaInfo[] metaInfos = new XMetaInfo[fields.size()];
-      Class<?>[] colClasses = new Class<?>[fields.size()];
+      try(DataFileStream<GenericRecord> dataFileReader = new DataFileStream<>(shielded, datumReader)) {
+         Schema schema = dataFileReader.getSchema();
+         List<Schema.Field> fields = schema.getFields();
+         String[] colTypes = new String[fields.size()];
+         XMetaInfo[] metaInfos = new XMetaInfo[fields.size()];
+         Class<?>[] colClasses = new Class<?>[fields.size()];
 
-      for(int i = 0; i < fields.size(); i++) {
-         colTypes[i] = fields.get(i).getProp("colType");
-         colClasses[i] = Tool.getDataClass(colTypes[i]);
+         for(int i = 0; i < fields.size(); i++) {
+            colTypes[i] = fields.get(i).getProp("colType");
+            colClasses[i] = Tool.getDataClass(colTypes[i]);
+
+            try {
+               String metaStr = fields.get(i).getProp("meta");
+
+               if(metaStr != null) {
+                  XMetaInfo metaInfo = new XMetaInfo();
+                  ByteArrayInputStream inputStream = new ByteArrayInputStream(Tool.byteDecode(metaStr).getBytes());
+                  Document document = Tool.parseXML(inputStream);
+                  metaInfo.parseXML(document.getDocumentElement());
+                  metaInfos[i] = metaInfo;
+               }
+            }
+            catch(Exception ignore) {
+            }
+         }
+
+         if(table == null) {
+            table = new XSwappableTable();
+         }
+
+         XTableColumnCreator[] creators = Arrays.stream(colClasses).map(XObjectColumn::getCreator)
+            .toArray(XTableColumnCreator[]::new);
+         table.init(creators);
+
+         GenericRecord tableRecord;
+         boolean headerRow = true;
+
+         while(dataFileReader.hasNext()) {
+            tableRecord = dataFileReader.next();
+            Object[] values = new Object[fields.size()];
+
+            for(int i = 0; i < fields.size(); i++) {
+               Schema.Field colField = fields.get(i);
+               Object val = tableRecord.get(colField.name());
+               values[i] = deserializeTableData(val == null ? null : val.toString(), colTypes[i],
+                                                headerRow);
+            }
+
+            headerRow = false;
+            table.addRow(values);
+         }
+
+         table.complete();
 
          try {
-            String metaStr = fields.get(i).getProp("meta");
+            for(int i = 0; i < table.getColCount(); i++) {
+               Object header = table.getObject(0, i);
 
-            if(metaStr != null) {
-               XMetaInfo metaInfo = new XMetaInfo();
-               ByteArrayInputStream inputStream = new ByteArrayInputStream(Tool.byteDecode(metaStr).getBytes());
-               Document document = Tool.parseXML(inputStream);
-               metaInfo.parseXML(document.getDocumentElement());
-               metaInfos[i] = metaInfo;
+               if(header == null) {
+                  continue;
+               }
+
+               table.setXMetaInfo(header.toString(), metaInfos[i]);
             }
          }
          catch(Exception ignore) {
          }
+
+         return table;
       }
-
-      if(table == null) {
-         table = new XSwappableTable();
-      }
-
-      XTableColumnCreator[] creators = Arrays.stream(colClasses).map(XObjectColumn::getCreator)
-         .toArray(XTableColumnCreator[]::new);
-      table.init(creators);
-
-      GenericRecord tableRecord;
-      boolean headerRow = true;
-
-      while(dataFileReader.hasNext()) {
-         tableRecord = dataFileReader.next();
-         Object[] values = new Object[fields.size()];
-
-         for(int i = 0; i < fields.size(); i++) {
-            Schema.Field colField = fields.get(i);
-            Object val = tableRecord.get(colField.name());
-            values[i] = deserializeTableData(val == null ? null : val.toString(), colTypes[i],
-                                             headerRow);
-         }
-
-         headerRow = false;
-         table.addRow(values);
-      }
-
-      table.complete();
-
-      try {
-         for(int i = 0; i < table.getColCount(); i++) {
-            Object header = table.getObject(0, i);
-
-            if(header == null) {
-               continue;
-            }
-
-            table.setXMetaInfo(header.toString(), metaInfos[i]);
-         }
-      }
-      catch(Exception ignore) {
-      }
-
-      return table;
    }
 
    /**

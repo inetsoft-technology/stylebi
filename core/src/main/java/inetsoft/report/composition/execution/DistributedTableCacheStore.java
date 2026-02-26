@@ -84,9 +84,10 @@ public class DistributedTableCacheStore {
       }
 
       try(InputStream storageInputStream = storage.getInputStream(key);
-          GZIPInputStream gzipIn = new GZIPInputStream(storageInputStream))
+          GZIPInputStream gzipIn = new GZIPInputStream(storageInputStream);
+          ObjectInputStream ois = new ObjectInputStream(gzipIn))
       {
-         lens = (TableLens) new ObjectInputStream(gzipIn).readObject();
+         lens = (TableLens) ois.readObject();
          LOG.debug("Loaded lens {} from distributed table cache store", key);
       }
       catch(ZipException ex) {
