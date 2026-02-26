@@ -947,8 +947,7 @@ public class ServerMonitoringController {
             .map(s -> new Object[] {
                new Time(s.time() + tzAdjustMs).toString(),
                s.sheetBytesRead() + s.dataBytesRead(),
-               s.sheetBytesWritten(),
-               s.dataBytesWritten()
+               s.sheetBytesWritten() + s.dataBytesWritten()
             })
             .toArray(Object[][]::new);
          format = "million";
@@ -956,7 +955,7 @@ public class ServerMonitoringController {
          title = catalog.getString("Swapping Size");
          max = Arrays.stream(data)
             .skip(1L)
-            .flatMapToLong(r -> LongStream.of(safeMapToLong(r[1]), safeMapToLong(r[2]), safeMapToLong(r[3])))
+            .flatMapToLong(r -> LongStream.of(safeMapToLong(r[1]), safeMapToLong(r[2])))
             .max()
             .orElse(1L);
       }
