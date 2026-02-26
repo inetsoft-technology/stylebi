@@ -15,12 +15,26 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DashboardModel } from "../../common/data/dashboard-model";
+import { HttpClient } from "@angular/common/http";
+import { Injectable } from "@angular/core";
+import { Observable } from "rxjs";
+import { shareReplay } from "rxjs/operators";
+import { DashboardTabModel } from "../dashboard/dashboard-tab-model";
 
-export interface DashboardTabModel {
-   dashboards: DashboardModel[];
-   dashboardTabsTop: boolean;
-   drillTabsTop: boolean;
-   editable: boolean;
-   composerEnabled: boolean;
+@Injectable({ providedIn: "root" })
+export class DashboardTabService {
+   private dashboardTabModel$: Observable<DashboardTabModel>;
+
+   constructor(private http: HttpClient) {
+   }
+
+   getDashboardTabModel(): Observable<DashboardTabModel> {
+      if(!this.dashboardTabModel$) {
+         this.dashboardTabModel$ = this.http
+            .get<DashboardTabModel>("../api/portal/dashboard-tab-model")
+            .pipe(shareReplay(1));
+      }
+
+      return this.dashboardTabModel$;
+   }
 }

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClient, HttpParams } from "@angular/common/http";
+import { HttpParams } from "@angular/common/http";
 import {
    AfterViewChecked,
    ChangeDetectorRef,
@@ -52,7 +52,8 @@ import { ViewData } from "../view-data";
 import { Tool } from "../../../../../shared/util/tool";
 import { map, mergeMap } from "rxjs/operators";
 import { ModelService } from "../../widget/services/model.service";
-import { DashboardTabModel } from "../../portal/dashboard/dashboard-tab-model"
+import { DashboardTabModel } from "../../portal/dashboard/dashboard-tab-model";
+import { DashboardTabService } from "../../portal/services/dashboard-tab.service";
 
 @Component({
    selector: "v-viewer-view",
@@ -80,9 +81,13 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
    tabBarHeight: number = 0;
    hasBaseEntry: boolean = false;
    dashboardTabModel: DashboardTabModel = null;
-   toolbarVisible: boolean;
+   drillTabsTopPx: number = null;
+   toolbarVisible: boolean = true;
    public modified: boolean = false;
    private subscriptions: Subscription = new Subscription();
+   private static readonly TOOLBAR_HEIGHT_PX = 33;
+   private static readonly TOOLBAR_HEIGHT_MOBILE_PX = 66;
+   private readonly isMobile: boolean = GuiTool.isMobileDevice();
 
    constructor(private route: ActivatedRoute,
                private router: Router,
@@ -90,7 +95,7 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
                private modelService: ModelService,
                private modalService: NgbModal,
                private hideNavService: HideNavService,
-               private http: HttpClient,
+               private dashboardTabService: DashboardTabService,
                private pageTabService: PageTabService,
                private changeRef: ChangeDetectorRef)
    {
@@ -132,8 +137,11 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
          this.runtimeId = tab.runtimeId;
       }));
 
-      this.subscriptions.add(this.http.get<DashboardTabModel>("../api/portal/dashboard-tab-model")
-         .subscribe(data => this.dashboardTabModel = data));
+      this.subscriptions.add(this.dashboardTabService.getDashboardTabModel()
+         .subscribe(data => {
+            this.dashboardTabModel = data;
+            this.updateDrillTabsTopPx();
+         }));
    }
 
    /**
@@ -311,22 +319,22 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
       return GuiTool.isIFrame();
    }
 
-   getDrillTabsTopPx(): number {
-      const isMobile = GuiTool.isMobileDevice();
-      if(this.dashboardTabModel.drillTabsTop) {
-         if (this.toolbarVisible){
-            if(isMobile) {
-               return 66;
-            }
-            return 33;
-         }
-         return 0;
-      } else {
-         return null;
-      }
-   }
-
    onToolbarVisibleChange(value: boolean) {
       this.toolbarVisible = value;
+      this.updateDrillTabsTopPx();
+   }
+
+   private updateDrillTabsTopPx(): void {
+      if(this.dashboardTabModel?.drillTabsTop) {
+         if(this.toolbarVisible) {
+            this.drillTabsTopPx = this.isMobile
+               ? ViewerViewComponent.TOOLBAR_HEIGHT_MOBILE_PX
+               : ViewerViewComponent.TOOLBAR_HEIGHT_PX;
+         } else {
+            this.drillTabsTopPx = 0;
+         }
+      } else {
+         this.drillTabsTopPx = null;
+      }
    }
 }

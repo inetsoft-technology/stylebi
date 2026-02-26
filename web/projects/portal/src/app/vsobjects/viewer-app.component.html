@@ -372,13 +372,13 @@
   </div>
   <div class="viewer-root" #viewerRoot
        tabindex="0"
-       [class.mobile-viewer-root]="mobileDevice"
+       [class.mobile-viewer-root]="mobileDevice && !dashboardTabModel?.drillTabsTop"
        [class.show-hints]="_showHints"
        [class.overflow-hide]="(scaleToScreen && !fitToWidth && !showScroll && !embed) || (maxMode && !embed)"
        [class.overflow-x-hide]="(scaleToScreen && fitToWidth && !showScroll && !mobileDevice && !embed) || (maxMode && !embed)"
        [class.overflow-visible]="!fullScreen && embed"
-       [style.bottom]="getBottomPx()"
-       [style.top]="getTopPx()"
+       [style.bottom]="bottomPx"
+       [style.top]="topPx"
        [style.transform]="bodyTransform"
        [attr.aria-label]="'_#(Viewsheet) ' + name"
        [style.background]="viewsheetBackground"

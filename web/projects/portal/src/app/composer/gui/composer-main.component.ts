@@ -130,6 +130,7 @@ import { ComposerObjectService } from "./vs/composer-object.service";
 import { CloseSheetEvent } from "./vs/event/close-sheet-event";
 import { SaveSheetEvent } from "./ws/socket/save-sheet-event";
 import { DashboardTabModel } from "../../portal/dashboard/dashboard-tab-model";
+import { DashboardTabService } from "../../portal/services/dashboard-tab.service";
 
 export enum SidebarTab {
    ASSET_TREE,
@@ -319,7 +320,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       private gettingStartedService: GettingStartedService,
       private router: Router,
       private scriptService: ScriptService,
-      private fontService: FontService)
+      private fontService: FontService,
+      private dashboardTabService: DashboardTabService)
    {
       GuiTool.isTouchDevice().then((value: boolean) => {
          this.touchDevice = value;
@@ -434,7 +436,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          }
       });
 
-      this.subscriptions.add(this.http.get<DashboardTabModel>("../api/portal/dashboard-tab-model")
+      this.subscriptions.add(this.dashboardTabService.getDashboardTabModel()
          .subscribe(data => this.dashboardTabModel = data));
    }
 
