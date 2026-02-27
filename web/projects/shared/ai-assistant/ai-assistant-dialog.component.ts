@@ -34,8 +34,6 @@ export class AiAssistantDialogComponent {
    get userEmail(): string { return this.aiAssistantService.email; }
 
    constructor(private aiAssistantService: AiAssistantService) {
-
-   constructor(private aiAssistantService: AiAssistantService) {
       this.context = this.aiAssistantService.getFullContext();
    }
 }
