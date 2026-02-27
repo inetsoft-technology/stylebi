@@ -42,9 +42,19 @@ public class AvroXTableSerializer {
       Schema schema = getSchema(table);
       DatumWriter<GenericRecord> datumWriter = new GenericDatumWriter<>(schema);
 
+      // Shield the caller's stream: DataFileWriter.close() (called by try-with-resources)
+      // would otherwise call close() on the underlying ObjectOutputStream via
+      // AutoSyncOutputStream, prematurely finalizing the enclosing serialization stream.
+      OutputStream shielded = new FilterOutputStream((OutputStream) out) {
+         @Override
+         public void close() throws IOException {
+            super.flush(); // flush Avro container bytes to stream, but do not close it
+         }
+      };
+
       try(DataFileWriter<GenericRecord> dataFileWriter = new DataFileWriter<>(datumWriter)) {
          dataFileWriter.setCodec(CodecFactory.deflateCodec(6));
-         dataFileWriter.create(schema, (OutputStream) out);
+         dataFileWriter.create(schema, shielded);
 
          for(int r = 0; r < table.getRowCount(); r++) {
             GenericRecord tableRecord = new GenericData.Record(schema);
