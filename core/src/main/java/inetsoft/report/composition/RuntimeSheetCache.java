@@ -495,7 +495,10 @@ public class RuntimeSheetCache
             lock.writeLock().lock();
 
             try {
-               cache.putAsync(affinityKey, compressed);
+               // Re-check: skip if the sheet was removed while we were serializing
+               if(local.containsKey(key)) {
+                  cache.putAsync(affinityKey, compressed);
+               }
             }
             finally {
                lock.writeLock().unlock();
@@ -540,7 +543,12 @@ public class RuntimeSheetCache
          lock.writeLock().lock();
 
          try {
-            cache.putAllAsync(changeset);
+            // Remove keys that were evicted from local while we were serializing
+            changeset.keySet().removeIf(k -> !local.containsKey(k.key()));
+
+            if(!changeset.isEmpty()) {
+               cache.putAllAsync(changeset);
+            }
          }
          finally {
             lock.writeLock().unlock();
