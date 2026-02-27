@@ -32,7 +32,6 @@ export class AiAssistantDialogComponent {
    get styleBIUrl(): string { return this.aiAssistantService.styleBIUrl; }
    get userId(): string { return this.aiAssistantService.userId; }
    get userEmail(): string { return this.aiAssistantService.email; }
-   get userEmail(): string { return this.aiAssistantService.email; }
 
    constructor(private aiAssistantService: AiAssistantService) {
 
