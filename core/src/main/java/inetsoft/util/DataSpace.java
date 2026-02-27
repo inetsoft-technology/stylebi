@@ -394,6 +394,10 @@ public class DataSpace implements AutoCloseable {
       return false;
    }
 
+   public String listBlobs() throws IOException {
+      return blobStorage.listBlobs();
+   }
+
    /**
     * Retrieve the last modification time of the file.
     *
