@@ -231,7 +231,7 @@ public class HomePageController {
     * The script is served by the assistant-client at
     * {@code {chatAppServerUrl}/web-component/ai-assistant.umd.js}.
     */
-   @SuppressWarnings({ "unchecked", "rawtypes" })
+   @SuppressWarnings("unchecked")
    private void addChatAppScript(ModelAndView model) {
       String chatAppUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_SERVER_URL);
 
@@ -245,7 +245,7 @@ public class HomePageController {
          chatAppUrl = chatAppUrl.substring(0, chatAppUrl.length() - 1);
       }
 
-      List scripts = (List) model.getModel()
+      List<String> scripts = (List<String>) model.getModel()
          .computeIfAbsent("additionalScripts", k -> new ArrayList<>());
       scripts.add(chatAppUrl + "/web-component/ai-assistant.umd.js");
    }
@@ -282,15 +282,15 @@ public class HomePageController {
       }
    }
 
+   @SuppressWarnings({ "unchecked", "rawtypes" })
    private void addAdditionalTags(ModelAndView model, String key, String property, String linkUri) {
       if(property != null) {
-         List<String> tags = Arrays.stream(property.split(","))
+         List tags = (List) model.getModel().computeIfAbsent(key, k -> new ArrayList<>());
+         Arrays.stream(property.split(","))
             .map(String::trim)
             .filter(t -> !t.isEmpty())
             .map(t -> resolveTagLink(t, linkUri))
-            .collect(Collectors.toList());
-
-         model.addObject(key, tags);
+            .forEach(tags::add);
       }
    }
 
