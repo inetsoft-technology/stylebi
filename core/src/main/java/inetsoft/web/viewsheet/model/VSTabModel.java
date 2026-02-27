@@ -24,8 +24,6 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.binding.model.BaseFormatModel;
 import org.springframework.stereotype.Component;
 
-import java.awt.*;
-
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class VSTabModel extends VSObjectModel<TabVSAssembly> {
    public VSTabModel(TabVSAssembly assembly, RuntimeViewsheet rvs) {
@@ -75,54 +73,15 @@ public class VSTabModel extends VSObjectModel<TabVSAssembly> {
       bottomTabs = info.isBottomTabs();
       roundBottomCornersOnly = info.isRoundBottomCornersOnly();
 
+      // info is already a clone, so mutating activeBorder only affects this model's copy
+      // and does not alter the shared assembly FormatInfo.
       if(bottomTabs) {
-         BaseFormatModel.Border topActiveBorder = activeFormat.getBorder();
-         String currBottomBorder = activeFormat.getBorder().getBottom();
-         String currTopBorder = activeFormat.getBorder().getTop();
-         topActiveBorder.setTop(currBottomBorder);
-         topActiveBorder.setBottom(currTopBorder);
-         activeFormat.setBorder(topActiveBorder);
-      }
-
-      if(this.selected != null) {
-         adjustTabPosition(assembly, rvs, bottomTabs);
-      }
-   }
-
-   private void adjustTabPosition(TabVSAssembly tabVSAssembly, RuntimeViewsheet rvs, boolean bottomTabs) {
-      Viewsheet vs = rvs.getViewsheet();
-      VSAssembly selectedAssembly = vs.getAssembly(this.selected);
-
-      if(selectedAssembly != null) {
-         TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tabVSAssembly.getVSAssemblyInfo();
-         Point tabOffset = tabInfo.getPixelOffset();
-         VSAssemblyInfo selectedInfo = selectedAssembly.getVSAssemblyInfo();
-         Point selectedOffset = selectedAssembly.getPixelOffset();
-         Dimension selectedSize = selectedAssembly.getPixelSize();
-         Dimension tabSize = tabVSAssembly.getPixelSize();
-
-         if(selectedOffset != null && selectedSize != null && tabSize != null) {
-
-            if(bottomTabs) {
-               int newTop = tabOffset.y - selectedSize.height;
-               int newLeft = tabOffset.x;
-               Point newPosition = new Point(newLeft, newTop);
-               selectedInfo.setPixelOffset(newPosition);
-            } else {
-               int newTop = selectedOffset.y - tabSize.height;
-               int newLeft = selectedOffset.x;
-               Point newPosition;
-
-               if (newTop < 0) {
-                  newPosition = new Point(newLeft, 0);
-                  tabInfo.setPixelOffset(newPosition);
-                  selectedInfo.setPixelOffset(new Point(tabOffset.x, tabSize.height));
-               } else {
-                  newPosition = new Point(newLeft, newTop);
-                  tabInfo.setPixelOffset(newPosition);
-               }
-            }
-         }
+         BaseFormatModel.Border activeBorder = activeFormat.getBorder();
+         String currBottomBorder = activeBorder.getBottom();
+         String currTopBorder = activeBorder.getTop();
+         activeBorder.setTop(currBottomBorder);
+         activeBorder.setBottom(currTopBorder);
+         activeFormat.setBorder(activeBorder);
       }
    }
 
@@ -162,7 +121,7 @@ public class VSTabModel extends VSObjectModel<TabVSAssembly> {
    public String toString() {
       return "{" + super.toString() +
          "bottomTabs=" + bottomTabs +
-         "roundBottomCornersOnly=" + roundBottomCornersOnly +
+         ", roundBottomCornersOnly=" + roundBottomCornersOnly +
          "} ";
    }
 

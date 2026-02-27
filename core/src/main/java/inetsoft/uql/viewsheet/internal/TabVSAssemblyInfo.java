@@ -322,7 +322,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
             result = true;
          }
 
-         if(bottomTabs != tinfo.bottomTabs) {
+         if(!Tool.equals(bottomTabs, tinfo.bottomTabs)) {
             bottomTabs = tinfo.bottomTabs;
             result = true;
          }
@@ -353,6 +353,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
 
       labelsValue.setRValue(null);
       selectedValue.setRValue(null);
+      bottomTabs.setRValue(null);
    }
 
    /**
@@ -381,7 +382,8 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    }
 
    public boolean isBottomTabs() {
-      return Boolean.parseBoolean(bottomTabs.getRValue().toString());
+      Object rval = bottomTabs.getRValue();
+      return Boolean.parseBoolean(rval != null ? rval.toString() : "false");
    }
 
    public void setBottomTabs(boolean bottomTabs) {

@@ -59,7 +59,7 @@
            [ngStyle]="getTabItemBottomBorderStyle(tabID)">
       </div>
     </div>
-    <div *ngIf = "!model.bottomTabs" class="tab-bottom-border" [style.border-bottom]="getBottomBorder()"
+    <div *ngIf="!model.bottomTabs" class="tab-bottom-border" [style.border-bottom]="getBottomBorder()"
          (click)="model.selectedRegions = []">
     </div>
   </div>

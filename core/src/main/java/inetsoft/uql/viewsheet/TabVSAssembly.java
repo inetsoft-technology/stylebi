@@ -226,13 +226,27 @@ public class TabVSAssembly extends AbstractContainerVSAssembly {
    protected void updateChildPosition(Point opos) {
       String[] children = getAssemblies();
       Rectangle bounds = getBounds();
+      boolean bottomTabs = getTabInfo().getBottomTabsValue();
 
       for(int i = 0; i < children.length; i++) {
          Assembly child = getViewsheet().getAssembly(children[i]);
 
          if(child != null) {
             int x = bounds.x;
-            int y = bounds.y + bounds.height;
+            int y;
+
+            if(bottomTabs) {
+               // In bottom-tabs mode the tab bar sits below the children.
+               // Each child's bottom edge must be flush with the tab bar's top edge.
+               int childHeight = child instanceof VSAssembly &&
+                  ((VSAssembly) child).getPixelSize() != null
+                  ? ((VSAssembly) child).getPixelSize().height : 0;
+               y = Math.max(0, bounds.y - childHeight);
+            }
+            else {
+               y = bounds.y + bounds.height;
+            }
+
             child.setPixelOffset(new Point(x, y));
          }
       }

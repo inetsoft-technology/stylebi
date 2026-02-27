@@ -22,16 +22,18 @@
                      [operatorTreeRoot]="operatorTreeRoot" [scriptDefinitions]="scriptDefinitions">
   </general-prop-pane>
   <tab-list-pane [model]="model.tabListPaneModel"></tab-list-pane>
-  <div class="form-row-float-label row">
-    <div class="col-auto">
-      <div class="form-check">
-        <input id="bottomTabs" type="checkbox" class="form-check-input"
-               [ngModelOptions]="{standalone: true}" [(ngModel)]="model.bottomTabs"/>
-        <label class="form-check-label" for="bottomTabs">
-          _#(Bottom Tabs)
-        </label>
+  <fieldset>
+    <div class="form-row-float-label row">
+      <div class="col-auto">
+        <div class="form-check">
+          <input id="bottomTabs" type="checkbox" class="form-check-input"
+                 [ngModelOptions]="{standalone: true}" [(ngModel)]="model.bottomTabs"/>
+          <label class="form-check-label" for="bottomTabs">
+            _#(Bottom Tabs)
+          </label>
+        </div>
       </div>
     </div>
-  </div>
+  </fieldset>
   <size-position-pane [model]="model.sizePositionPaneModel" [(form)]="form.controls['sizePositionPaneForm']"></size-position-pane>
 </form>
