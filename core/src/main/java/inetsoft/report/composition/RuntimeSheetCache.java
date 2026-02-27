@@ -472,14 +472,34 @@ public class RuntimeSheetCache
       AffinityKey<String> affinityKey = getAffinityKey(key);
 
       if(sheet == null) {
-         cache.removeAsync(affinityKey);
+         lock.writeLock().lock();
+
+         try {
+            cache.removeAsync(affinityKey);
+         }
+         finally {
+            lock.writeLock().unlock();
+         }
       }
       else {
+         CompressedSheetState compressed = null;
+
          try {
-            cache.putAsync(affinityKey, compressState(sheet.saveState(mapper)));
+            compressed = compressState(sheet.saveState(mapper));
          }
          catch(Exception e) {
             LOG.warn("Failed to serialize sheet state to cache", e);
+         }
+
+         if(compressed != null) {
+            lock.writeLock().lock();
+
+            try {
+               cache.putAsync(affinityKey, compressed);
+            }
+            finally {
+               lock.writeLock().unlock();
+            }
          }
       }
    }
@@ -517,7 +537,14 @@ public class RuntimeSheetCache
       }
 
       if(!changeset.isEmpty()) {
-         cache.putAllAsync(changeset);
+         lock.writeLock().lock();
+
+         try {
+            cache.putAllAsync(changeset);
+         }
+         finally {
+            lock.writeLock().unlock();
+         }
       }
    }
 
