@@ -173,12 +173,25 @@ public class RuntimeSheetCache
 
    @Override
    public RuntimeSheet put(String key, RuntimeSheet value) {
+      AffinityKey<String> affinityKey = getAffinityKey(key);
+      CompressedSheetState compressed = null;
+
+      try {
+         compressed = compressState(value.saveState(mapper));
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to serialize sheet state to cache", e);
+      }
+
       lock.writeLock().lock();
 
       try {
-         AffinityKey<String> affinityKey = getAffinityKey(key);
          RuntimeSheet sheet = putLocal(affinityKey, value);
-         putCache(affinityKey, value);
+
+         if(compressed != null) {
+            putCache(affinityKey, value, compressed);
+         }
+
          return sheet;
       }
       finally {
@@ -187,12 +200,30 @@ public class RuntimeSheetCache
    }
 
    public Future<RuntimeSheet> putSheet(String key, RuntimeSheet value) {
+      AffinityKey<String> affinityKey = getAffinityKey(key);
+      CompressedSheetState compressed = null;
+      Exception serializeError = null;
+
+      try {
+         compressed = compressState(value.saveState(mapper));
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to serialize sheet state to cache", e);
+         serializeError = e;
+      }
+
       lock.writeLock().lock();
 
       try {
-         AffinityKey<String> affinityKey = getAffinityKey(key);
          putLocal(affinityKey, value);
-         return putCache(affinityKey, value);
+
+         if(compressed != null) {
+            return putCache(affinityKey, value, compressed);
+         }
+
+         CompletableFuture<RuntimeSheet> failed = new CompletableFuture<>();
+         failed.completeExceptionally(serializeError);
+         return failed;
       }
       finally {
          lock.writeLock().unlock();
@@ -223,9 +254,10 @@ public class RuntimeSheetCache
       return result;
    }
 
-   private Future<RuntimeSheet> putCache(AffinityKey<String> key, RuntimeSheet value) {
+   private Future<RuntimeSheet> putCache(AffinityKey<String> key, RuntimeSheet value,
+                                         CompressedSheetState compressed)
+   {
       try {
-         CompressedSheetState compressed = compressState(value.saveState(mapper));
          IgniteFuture<Void> igniteFuture = cache.putAsync(key, compressed);
          CompletableFuture<RuntimeSheet> future = new CompletableFuture<>();
 

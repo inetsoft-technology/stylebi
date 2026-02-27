@@ -766,8 +766,8 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
     * @param id the specified viewsheet id.
     */
    public void addExecution(String id) {
-      synchronized(emap) {
-         if(isValidExecutingObject(id)) {
+      if(isValidExecutingObject(id)) {
+         synchronized(emap) {
             Vector<ThreadDef> threads = emap.get(id);
 
             if(threads == null) {
@@ -792,8 +792,8 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
     * @param id the specified viewsheet id.
     */
    public void removeExecution(String id) {
-      synchronized(emap) {
-         if(isValidExecutingObject(id)) {
+      if(isValidExecutingObject(id)) {
+         synchronized(emap) {
             Vector<ThreadDef> threads = emap.get(id);
 
             if(threads != null) {
