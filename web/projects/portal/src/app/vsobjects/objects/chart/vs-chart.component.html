@@ -64,11 +64,13 @@
             [titleSelected]="model.titleSelected"
             [titleVisible]="model.titleVisible"
             [titleWidth]="model.objectFormat.width - model.paddingLeft - model.paddingRight"
-            (selectTitle)="selectTitle()"
+            (selectTitle)="selectTitle($event)"
             (changeTitle)="changeTitle($event)"
             (titleResizeMove)="titleResizeMove($event)"
             (titleResizeEnd)="titleResizeEnd()"
-            [zIndex]="viewer ? getZIndex() + 1 : 0">
+            [zIndex]="viewer ? getZIndex() + 1 : 0"
+            [cursorPointer]="viewer && model.titleLinkModel"
+            [wTooltip]="model.titleLinkModel?.tooltip ?? ''">
   </vs-title>
   <chart-area *ngIf="!viewer || model.visible || model.active"
               #chartArea
@@ -113,7 +115,8 @@
               (onClearPanZoom)="clearPanZoomMap()"
               (onPanMap)="panMap($event)"
               (mousewheel)="zoomByWheel($event)"
-              [container]="container">
+              [container]="container"
+              [emptyPlotLinkTooltip]="model.emptyPlotLinkModel?.tooltip">
     <ng-container *ngIf="enableAnnotation && !!model.plot" ngProjectAs="vs-annotation">
       <ng-container *ngFor="let annotationModel of model.dataAnnotationModels">
         <vs-annotation [model]="annotationModel"
