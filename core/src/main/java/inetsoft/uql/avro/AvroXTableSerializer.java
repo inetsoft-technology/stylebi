@@ -45,7 +45,15 @@ public class AvroXTableSerializer {
       // Shield the caller's stream: DataFileWriter.close() (called by try-with-resources)
       // would otherwise call close() on the underlying ObjectOutputStream via
       // AutoSyncOutputStream, prematurely finalizing the enclosing serialization stream.
+      // write(byte[], int, int) is overridden to delegate in bulk; the default
+      // FilterOutputStream implementation iterates byte-by-byte which is extremely slow
+      // for the large compressed blocks that Avro's DataFileWriter emits.
       OutputStream shielded = new FilterOutputStream((OutputStream) out) {
+         @Override
+         public void write(byte[] b, int off, int len) throws IOException {
+            out.write(b, off, len);
+         }
+
          @Override
          public void close() throws IOException {
             super.flush(); // flush Avro container bytes to stream, but do not close it

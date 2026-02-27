@@ -202,7 +202,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
          amap.putSheet(id, sheet).get(20L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
-         LOG.error("Failed to create the temporary sheet:{}", id);
+         LOG.error("Failed to create the temporary sheet:{}", id, e);
       }
    }
 
@@ -293,6 +293,8 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
 
       String id = getNextPreviewID(originalId, PREVIEW_WORKSHEET);
       rws.setID(id);
+      // Preview worksheets are local-only and short-lived; fire-and-forget put() is
+      // intentional here — no affinity guarantee is needed for transient preview sessions.
       amap.put(id, rws);
       return id;
    }
@@ -703,6 +705,9 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
             rs.access(true);
          }
 
+         // Access-time update only — fire-and-forget put() is intentional here.
+         // The caller does not depend on the updated entry being visible across the cluster
+         // immediately; this merely refreshes the LRU timestamp in the local node's map.
          amap.put(id, rs);
       }
    }
