@@ -825,7 +825,11 @@ public class BaseTableShowDetailsService extends BaseTableService<ShowDetailsEve
 
             ConditionList cellConds = ConditionUtil.mergeConditionList(condList,
                                                                        JunctionOperator.AND);
-            cellConds.trim();
+
+            if(cellConds != null) {
+               cellConds.trim();
+            }
+
             allCondList.add(cellConds);
          }
       }
