@@ -1131,6 +1131,14 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       }
    }
 
+   /**
+    * Updates the selection state of a cell in response to a user interaction.
+    *
+    * When `event.toggle` or `event.toggleAll` is `true` (alt-click, quick-switch button, or
+    * mobile long-press), the selection mode is toggled (single ↔ multi) and the clicked
+    * cell's label is selected as the new anchor. All other cells are cleared. This intentional
+    * coupling means the user always has a well-defined anchor cell after a mode switch.
+    */
    updateSelectionState(value: SelectionValueModel, event?: {toggle: boolean, toggleAll: boolean}) {
       if(this.mobileDevice && !this.isMaxMode()) {
          return;

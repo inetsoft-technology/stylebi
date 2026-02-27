@@ -136,6 +136,14 @@ public class SelectionGeneralPaneModel implements Serializable {
       this.selectFirstItem = selectFirstItem;
    }
 
+   public boolean isQuickSwitchAllowed() {
+      return quickSwitchAllowed;
+   }
+
+   public void setQuickSwitchAllowed(boolean quickSwitchAllowed) {
+      this.quickSwitchAllowed = quickSwitchAllowed;
+   }
+
    private int showType;
    private int listHeight;
    private int sortType;
@@ -149,4 +157,5 @@ public class SelectionGeneralPaneModel implements Serializable {
    private SizePositionPaneModel sizePositionPaneModel;
    private boolean inSelectionContainer;
    private boolean selectFirstItem;
+   private boolean quickSwitchAllowed;
 }

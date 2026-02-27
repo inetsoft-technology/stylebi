@@ -129,6 +129,7 @@ public class SelectionListPropertyDialogService {
       selectionGeneralPane.setSingleSelection(selectionListAssemblyInfo.getSingleSelectionValue());
       selectionGeneralPane.setSuppressBlank(selectionListAssemblyInfo.isSuppressBlankValue());
       selectionGeneralPane.setSelectFirstItem(selectionListAssemblyInfo.getSelectFirstItemValue());
+      selectionGeneralPane.setQuickSwitchAllowed(selectionListAssemblyInfo.getQuickSwitchAllowedValue());
 
       for(Assembly assembly : vs.getAssemblies()) {
          if(assembly instanceof CurrentSelectionVSAssembly) {
@@ -235,6 +236,7 @@ public class SelectionListPropertyDialogService {
       selectionListAssemblyInfo.setSingleSelectionValue(selectionGeneralPane.isSingleSelection());
       selectionListAssemblyInfo.setSuppressBlankValue(selectionGeneralPane.isSuppressBlank());
       selectionListAssemblyInfo.setSelectFirstItemValue(selectionGeneralPane.isSelectFirstItem());
+      selectionListAssemblyInfo.setQuickSwitchAllowedValue(selectionGeneralPane.isQuickSwitchAllowed());
 
       setAssemblyInfoTables(selectionListAssemblyInfo, selectionListPaneModel);
       setAssemblyInfoDataRefs(selectionListAssemblyInfo, selectionListPaneModel);

@@ -132,6 +132,8 @@ public class SelectionTreePropertyDialogService {
       selectionGeneralPane.setSingleSelection(selectionTreeAssemblyInfo.getSingleSelectionValue());
       selectionGeneralPane.setSuppressBlank(selectionTreeAssemblyInfo.isSuppressBlankValue());
       selectionGeneralPane.setSelectFirstItem(selectionTreeAssemblyInfo.getSelectFirstItemValue());
+      // Quick-switch is not supported for selection trees; the field is intentionally not
+      // populated here because the checkbox is hidden in the UI for trees (*ngIf="!treeModel").
 
       if(selectionTreeAssemblyInfo.getSingleSelectionLevels() != null) {
          selectionGeneralPane.setSingleSelectionLevels(
@@ -268,6 +270,8 @@ public class SelectionTreePropertyDialogService {
       streeInfo.setSubmitOnChangeValue(selectionGeneralPane.isSubmitOnChange());
       streeInfo.setSuppressBlankValue(selectionGeneralPane.isSuppressBlank());
       streeInfo.setSelectFirstItemValue(selectionGeneralPane.isSelectFirstItem());
+      // Quick-switch is not supported for selection trees; always persist as false.
+      streeInfo.setQuickSwitchAllowedValue(false);
 
       setAssemblyInfoTables(streeInfo, selectionTreePaneModel);
       setAssemblyInfoDataRefs(streeInfo, selectionTreePaneModel);

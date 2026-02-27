@@ -15,12 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {Component, EventEmitter, Input, OnInit, Output} from "@angular/core";
+import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { CreateUpdateMvRequest } from "../../../../../../../shared/util/model/mv/create-update-mv-request";
+import { MaterializedModel } from "../../../../../../../shared/util/model/mv/materialized-model";
 import { NameLabelTuple } from "../../../../../../../shared/util/name-label-tuple";
 import { ComponentTool } from "../../../../common/util/component-tool";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { MaterializedModel } from "../../../../../../../shared/util/model/mv/materialized-model";
-import { CreateUpdateMvRequest } from "../../../../../../../shared/util/model/mv/create-update-mv-request";
 
 @Component({
    selector: "create-mv-pane",

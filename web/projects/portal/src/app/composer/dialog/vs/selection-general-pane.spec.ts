@@ -56,7 +56,8 @@ let createModel: () => SelectionGeneralPaneModel = () => {
          scaleVertical: false,
          titleHeight: null
       },
-      inSelectionContainer: false
+      inSelectionContainer: false,
+      quickSwitchAllowed: false
    };
 };
 
