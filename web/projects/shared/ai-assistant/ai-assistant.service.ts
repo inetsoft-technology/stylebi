@@ -65,9 +65,7 @@ export class AiAssistantService {
    calcTableCellBindings: { [key: string]: CellBindingInfo } = {};
    calcTableAggregates: string[] = [];
    private contextMap: Record<string, string> = {};
-   private _lastOpenUrl: string = "";
    private _lastBindingObject: string = "";
-   private _newChatFromUrl: boolean = false;
    private _newChatFromBinding : boolean = false;
 
    constructor(private http: HttpClient) {
@@ -80,22 +78,16 @@ export class AiAssistantService {
       });
    }
 
-   set lastOpenUrl(value: string) {
-      this._newChatFromUrl = value !== this._lastOpenUrl;
-      this._lastOpenUrl = value;
-   }
-
    set lastBindingObject(value: string) {
       this._newChatFromBinding = value !== this._lastBindingObject;
       this._lastBindingObject = value;
    }
 
    get createNewChat(): boolean {
-      return this._newChatFromUrl || this._newChatFromBinding;
+      return this._newChatFromBinding;
    }
 
    resetNewChat(): void {
-      this._newChatFromUrl = false;
       this._newChatFromBinding = false;
    }
 

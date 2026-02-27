@@ -17,7 +17,6 @@
  */
 
 import { Component } from "@angular/core";
-import { Router } from "@angular/router";
 import { AiAssistantService } from "./ai-assistant.service";
 
 @Component({
@@ -34,10 +33,9 @@ export class AiAssistantDialogComponent {
    get chatAppServerUrl(): string { return this.aiAssistantService.chatAppServerUrl; }
    get styleBIUrl(): string { return this.aiAssistantService.styleBIUrl; }
 
-   constructor(private aiAssistantService: AiAssistantService, private router: Router) {
+   constructor(private aiAssistantService: AiAssistantService) {
       this.userEmail = this.aiAssistantService.email;
       this.context = this.aiAssistantService.getFullContext();
-      this.aiAssistantService.lastOpenUrl = router.url;
       this.newChat = this.aiAssistantService.createNewChat;
       this.aiAssistantService.resetNewChat();
    }
