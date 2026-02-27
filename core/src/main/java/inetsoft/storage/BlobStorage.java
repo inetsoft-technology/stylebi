@@ -257,15 +257,27 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
       try {
          cluster.submit(id, new CreateDirectoryTask<>(id, blob)).get(10L, TimeUnit.SECONDS);
       }
+      catch(InterruptedException e) {
+         Thread.currentThread().interrupt();
+         throw new IOException("Failed to create directory at " + path, e);
+      }
       catch(TimeoutException e) {
          LOG.warn("Timeout creating directory at {}, retrying...", path);
 
          try {
             cluster.submit(id, new CreateDirectoryTask<>(id, blob)).get(10L, TimeUnit.SECONDS);
+            LOG.info("Retry succeeded for createDirectory at {}", path);
          }
          catch(InterruptedException retryEx) {
             Thread.currentThread().interrupt();
             IOException ioEx = new IOException("Failed to create directory at " + path, retryEx);
+            ioEx.addSuppressed(e);
+            throw ioEx;
+         }
+         catch(ExecutionException retryEx) {
+            Throwable cause = retryEx.getCause();
+            IOException ioEx = new IOException(
+               "Failed to create directory at " + path, cause != null ? cause : retryEx);
             ioEx.addSuppressed(e);
             throw ioEx;
          }
