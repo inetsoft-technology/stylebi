@@ -194,19 +194,6 @@ public class TabPropertyDialogController {
       String[] assemblies = tabListPaneModel.getAssemblies();
       String[] labels = tabListPaneModel.getLabels();
 
-      // @by changhongyang 2017-10-10, move tab children in addition to tab
-      if(sizePositionPaneModel.getLeft() >= 0 && sizePositionPaneModel.getTop() >= 0) {
-         dialogService.setContainerPosition(tabAssemblyInfo, sizePositionPaneModel,
-                                            tabAssembly.getAssemblies(), vs);
-
-         ChangedAssemblyList clist = this.coreLifecycleService.createList(false,
-            commandDispatcher, viewsheet, linkUri);
-         this.coreLifecycleService.layoutViewsheet(viewsheet, viewsheet.getID(), linkUri,
-            commandDispatcher, tabAssembly.getAbsoluteName(), clist);
-      }
-
-      dialogService.setAssemblySize(tabAssemblyInfo, sizePositionPaneModel);
-
       for(int i = 0; i < labels.length; i++) {
          if(labels[i] == null || labels[i].isEmpty()) {
             labels[i] = assemblies[i];
@@ -221,10 +208,37 @@ public class TabPropertyDialogController {
 
       tabAssemblyInfo.setBottomTabsValue(tabGeneralPaneModel.getBottomTabs());
 
+      // Apply the mode flip before setContainerPosition for two reasons:
+      //
+      // 1. setContainerPosition computes its translation delta as (userTargetY - currentTabY).
+      //    Running the mode flip first makes currentTabY the post-flip position, so the delta
+      //    moves the tab bar to exactly the Y the user entered even when both changes are
+      //    submitted together.
+      //
+      // 2. setContainerPosition calls tabAssemblyInfo.isBottomTabs() to decide whether to add
+      //    a height-change correction to the Y delta.  isBottomTabs() reads
+      //    DynamicValue.getRValue(), which falls back to dvalue when rvalue is null.
+      //    setBottomTabsValue() calls DynamicValue.setDValue(), which clears rvalue whenever
+      //    the value changes.  Therefore, after setBottomTabsValue(newMode), calling
+      //    isBottomTabs() returns newMode via that fallback — even though only dvalue was set,
+      //    not rvalue — so the height correction is applied in the right direction.
       if(oldBottomTabs != tabGeneralPaneModel.getBottomTabs()) {
-         repositionChildrenForBottomTabsChange(tabAssemblyInfo, tabAssembly.getAssemblies(), vs,
-                                               tabGeneralPaneModel.getBottomTabs());
+         TabVSAssemblyInfo.repositionForBottomTabs(tabAssemblyInfo, vs,
+                                                   tabGeneralPaneModel.getBottomTabs());
       }
+
+      // @by changhongyang 2017-10-10, move tab children in addition to tab
+      if(sizePositionPaneModel.getLeft() >= 0 && sizePositionPaneModel.getTop() >= 0) {
+         dialogService.setContainerPosition(tabAssemblyInfo, sizePositionPaneModel,
+                                            tabAssembly.getAssemblies(), vs);
+
+         ChangedAssemblyList clist = this.coreLifecycleService.createList(false,
+            commandDispatcher, viewsheet, linkUri);
+         this.coreLifecycleService.layoutViewsheet(viewsheet, viewsheet.getID(), linkUri,
+            commandDispatcher, tabAssembly.getAbsoluteName(), clist);
+      }
+
+      dialogService.setAssemblySize(tabAssemblyInfo, sizePositionPaneModel);
 
       this.vsObjectPropertyService.editObjectProperty(
          viewsheet, tabAssemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri, principal,
@@ -233,97 +247,6 @@ public class TabPropertyDialogController {
       VSObjectTreeNode tree = vsObjectTreeService.getObjectTree(viewsheet);
       PopulateVSObjectTreeCommand treeCommand = new PopulateVSObjectTreeCommand(tree);
       commandDispatcher.sendCommand(treeCommand);
-   }
-
-   /**
-    * Adjusts child assembly positions and the tab bar position when the bottomTabs property
-    * is toggled. This runs once at the time of the property change, not on every model render.
-    *
-    * Top-tabs: every child's top edge is flush with the tab bar bottom.
-    * Bottom-tabs: every child's bottom edge is flush with the tab bar top.
-    *
-    * The tab bar is moved by the full content-area height (maxChildHeight). Its new Y is
-    * computed first and used as the authoritative reference. Each child is then placed at
-    * an absolute target Y:
-    *
-    *   toBottomTabs: childY = max(0, newTabY - childHeight)
-    *   toTopTabs:    childY = newTabY + tabHeight
-    *
-    * Using absolute positions (rather than per-child deltas from current positions) avoids
-    * accumulated errors when a child's Y was previously clamped to 0 in bottom-tabs mode.
-    *
-    * Both pixelOffset and layoutPosition are updated, following the same pattern as
-    * VSDialogService.setContainerPosition.
-    */
-   private static void repositionChildrenForBottomTabsChange(TabVSAssemblyInfo tabAssemblyInfo,
-                                                              String[] children,
-                                                              Viewsheet vs,
-                                                              boolean toBottomTabs)
-   {
-      if(children == null || children.length == 0) {
-         return;
-      }
-
-      int tabHeight = tabAssemblyInfo.getPixelSize().height;
-
-      if(tabHeight == 0) {
-         return;
-      }
-
-      // Find the tallest child; the tab bar must land beyond it.
-      int maxChildHeight = 0;
-
-      for(String childName : children) {
-         VSAssembly child = (VSAssembly) vs.getAssembly(childName);
-
-         if(child != null && child.getPixelSize() != null) {
-            maxChildHeight = Math.max(maxChildHeight, child.getPixelSize().height);
-         }
-      }
-
-      if(maxChildHeight == 0) {
-         return;
-      }
-
-      // Tab bar moves by the full content-area height. Compute the new tab Y first so
-      // children can be placed at absolute positions relative to it, avoiding errors
-      // from previously clamped child positions in bottom-tabs mode.
-      int tabDy = toBottomTabs ? maxChildHeight : -maxChildHeight;
-
-      Point tabPos = tabAssemblyInfo.getPixelOffset();
-      int newTabY = Math.max(0, tabPos.y + tabDy);
-      int actualTabDy = newTabY - tabPos.y;
-      tabAssemblyInfo.setPixelOffset(new Point(tabPos.x, newTabY));
-
-      if(tabAssemblyInfo.getLayoutPosition() != null) {
-         tabAssemblyInfo.getLayoutPosition().translate(0, actualTabDy);
-      }
-
-      for(String childName : children) {
-         VSAssembly child = (VSAssembly) vs.getAssembly(childName);
-
-         if(child == null) {
-            continue;
-         }
-
-         VSAssemblyInfo childInfo = child.getVSAssemblyInfo();
-         int childHeight = child.getPixelSize() != null ? child.getPixelSize().height : maxChildHeight;
-
-         // Use absolute target positions to avoid accumulating errors from clamped positions.
-         // toBottomTabs: each child's bottom edge is flush with the tab bar top.
-         // toTopTabs:    each child's top edge is flush with the tab bar bottom.
-         int newChildY = toBottomTabs
-            ? Math.max(0, newTabY - childHeight)
-            : newTabY + tabHeight;
-
-         Point childPos = child.getPixelOffset();
-         int actualDy = newChildY - childPos.y;
-         childInfo.setPixelOffset(new Point(childPos.x, newChildY));
-
-         if(childInfo.getLayoutPosition() != null) {
-            childInfo.getLayoutPosition().translate(0, actualDy);
-         }
-      }
    }
 
    private final VSObjectPropertyService vsObjectPropertyService;

@@ -147,7 +147,13 @@ public class TabVSAScriptable extends VSAScriptable {
    }
 
    public void setBottomTabs(boolean bottomTabs) {
-      getInfo().setBottomTabs(bottomTabs);
+      TabVSAssemblyInfo info = getInfo();
+      boolean isCurrentlyAtBottom = TabVSAssemblyInfo.isPhysicallyAtBottom(info, box.getViewsheet());
+      info.setBottomTabs(bottomTabs);
+
+      if(box.isRuntime() && bottomTabs != isCurrentlyAtBottom) {
+         TabVSAssemblyInfo.repositionForBottomTabs(info, box.getViewsheet(), bottomTabs);
+      }
    }
 
    public boolean getBottomTabs() {
@@ -177,16 +183,20 @@ public class TabVSAScriptable extends VSAScriptable {
       int ychange = size.height - originalSize.height;
       String[] children = getInfo().getAssemblies();
 
-      Arrays.stream(children)
-         .map(c -> getVSAssembly(c))
-         .filter(c -> c != null)
-         .map(c -> c.getVSAssemblyInfo())
-         .forEach(c -> {
-            Point pos = c.getPixelOffset();
+      // In bottom-tabs mode the tab bar sits below the children; children Y must not shift
+      // when the assembly height changes.
+      if(!getInfo().isBottomTabs()) {
+         Arrays.stream(children)
+            .map(c -> getVSAssembly(c))
+            .filter(c -> c != null)
+            .map(c -> c.getVSAssemblyInfo())
+            .forEach(c -> {
+               Point pos = c.getPixelOffset();
 
-            if(pos != null) {
-               setPosition(c, new Point(pos.x, pos.y + ychange));
-            }
-         });
+               if(pos != null) {
+                  setPosition(c, new Point(pos.x, pos.y + ychange));
+               }
+            });
+      }
    }
 }

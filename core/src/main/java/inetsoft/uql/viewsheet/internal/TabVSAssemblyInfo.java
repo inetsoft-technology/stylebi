@@ -203,7 +203,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
 
       str = Tool.getAttribute(elem, "roundBottomCornersOnly");
 
-      if (str != null) {
+      if(str != null) {
          roundBottomCornersOnly = Boolean.parseBoolean(str);
       }
    }
@@ -345,6 +345,109 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    }
 
    /**
+    * Adjusts child assembly positions and the tab bar position when the bottomTabs property
+    * is toggled. This is idempotent when called with the same value — use
+    * {@link #isPhysicallyAtBottom(TabVSAssemblyInfo, Viewsheet)} to guard against
+    * redundant calls.
+    *
+    * Top-tabs: every child's top edge is flush with the tab bar bottom.
+    * Bottom-tabs: every child's bottom edge is flush with the tab bar top.
+    */
+   public static void repositionForBottomTabs(TabVSAssemblyInfo tabInfo,
+                                              Viewsheet vs,
+                                              boolean toBottomTabs)
+   {
+      String[] children = tabInfo.getAssemblies();
+
+      if(children == null || children.length == 0 || vs == null) {
+         return;
+      }
+
+      int tabHeight = tabInfo.getPixelSize().height;
+
+      if(tabHeight == 0) {
+         return;
+      }
+
+      int maxChildHeight = 0;
+
+      for(String childName : children) {
+         VSAssembly child = (VSAssembly) vs.getAssembly(childName);
+
+         if(child != null && child.getPixelSize() != null) {
+            maxChildHeight = Math.max(maxChildHeight, child.getPixelSize().height);
+         }
+      }
+
+      if(maxChildHeight == 0) {
+         return;
+      }
+
+      int tabDy = toBottomTabs ? maxChildHeight : -maxChildHeight;
+      Point tabPos = tabInfo.getPixelOffset();
+      int newTabY = Math.max(0, tabPos.y + tabDy);
+      int actualTabDy = newTabY - tabPos.y;
+      tabInfo.setPixelOffset(new Point(tabPos.x, newTabY));
+
+      if(tabInfo.getLayoutPosition() != null) {
+         tabInfo.getLayoutPosition().translate(0, actualTabDy);
+      }
+
+      for(String childName : children) {
+         VSAssembly child = (VSAssembly) vs.getAssembly(childName);
+
+         if(child == null) {
+            continue;
+         }
+
+         VSAssemblyInfo childInfo = child.getVSAssemblyInfo();
+         int childHeight = child.getPixelSize() != null ? child.getPixelSize().height : maxChildHeight;
+
+         int newChildY = toBottomTabs
+            ? Math.max(0, newTabY - childHeight)
+            : newTabY + tabHeight;
+
+         Point childPos = child.getPixelOffset();
+         int actualDy = newChildY - childPos.y;
+         childInfo.setPixelOffset(new Point(childPos.x, newChildY));
+
+         if(childInfo.getLayoutPosition() != null) {
+            childInfo.getLayoutPosition().translate(0, actualDy);
+         }
+      }
+   }
+
+   /**
+    * Returns true if the tab bar is physically positioned below at least one child assembly,
+    * indicating the layout is already in bottom-tabs configuration.
+    */
+   public static boolean isPhysicallyAtBottom(TabVSAssemblyInfo tabInfo, Viewsheet vs) {
+      Point tabPos = tabInfo.getPixelOffset();
+
+      if(tabPos == null || vs == null) {
+         return false;
+      }
+
+      String[] children = tabInfo.getAssemblies();
+
+      if(children == null) {
+         return false;
+      }
+
+      for(String childName : children) {
+         VSAssembly child = (VSAssembly) vs.getAssembly(childName);
+
+         if(child != null && child.getPixelOffset() != null &&
+            child.getPixelOffset().y < tabPos.y)
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
     * Reset runtime values.
     */
    @Override
@@ -381,6 +484,23 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
       this.roundTopCornersOnly = roundTopCornersOnly;
    }
 
+   /**
+    * Returns the effective bottomTabs value for the current execution context.
+    *
+    * <p>{@link DynamicValue#getRValue()} already implements the dvalue fallback: when
+    * {@code rvalue} is null and {@code dvalue} is not a variable or script expression,
+    * it assigns {@code rvalue = dvalue} before returning. This means:
+    * <ul>
+    *   <li>In design mode (only {@link #setBottomTabsValue} has been called), the method
+    *       returns the design-time value via that fallback.</li>
+    *   <li>At runtime (after {@link #setBottomTabs} or after
+    *       {@link DynamicValue#setDValue(String)} clears rvalue), the fallback kicks in again
+    *       and reflects the most recently committed design-time value.</li>
+    * </ul>
+    * The explicit {@code null} guard below is a safety net for the degenerate case where
+    * {@code dvalue} itself is {@code null} (impossible given the constructor initializes it to
+    * {@code "false"}, but guarded defensively).
+    */
    public boolean isBottomTabs() {
       Object rval = bottomTabs.getRValue();
       return Boolean.parseBoolean(rval != null ? rval.toString() : "false");

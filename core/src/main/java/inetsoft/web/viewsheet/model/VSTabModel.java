@@ -120,7 +120,8 @@ public class VSTabModel extends VSObjectModel<TabVSAssembly> {
    @Override
    public String toString() {
       return "{" + super.toString() +
-         "bottomTabs=" + bottomTabs +
+         ", bottomTabs=" + bottomTabs +
+         ", roundTopCornersOnly=" + roundTopCornersOnly +
          ", roundBottomCornersOnly=" + roundBottomCornersOnly +
          "} ";
    }

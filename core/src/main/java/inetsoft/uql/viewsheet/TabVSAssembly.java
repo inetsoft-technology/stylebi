@@ -226,7 +226,7 @@ public class TabVSAssembly extends AbstractContainerVSAssembly {
    protected void updateChildPosition(Point opos) {
       String[] children = getAssemblies();
       Rectangle bounds = getBounds();
-      boolean bottomTabs = getTabInfo().getBottomTabsValue();
+      boolean bottomTabs = getTabInfo().isBottomTabs();
 
       for(int i = 0; i < children.length; i++) {
          Assembly child = getViewsheet().getAssembly(children[i]);
