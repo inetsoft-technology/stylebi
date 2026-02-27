@@ -27,7 +27,7 @@ import { AiAssistantService } from "./ai-assistant.service";
 export class AiAssistantDialogComponent {
    context: string = "";
 
-    // Use getters so Angular re-evaluates on each change-detection cycle.
+   // Use getters so Angular re-evaluates on each change-detection cycle.
    get chatAppServerUrl(): string { return this.aiAssistantService.chatAppServerUrl; }
    get styleBIUrl(): string { return this.aiAssistantService.styleBIUrl; }
    get userId(): string { return this.aiAssistantService.userId; }
