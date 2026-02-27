@@ -20,6 +20,7 @@ import { DashboardModel } from "../../common/data/dashboard-model";
 export interface DashboardTabModel {
    dashboards: DashboardModel[];
    dashboardTabsTop: boolean;
+   drillTabsTop: boolean;
    editable: boolean;
    composerEnabled: boolean;
 }
