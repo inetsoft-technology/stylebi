@@ -222,7 +222,8 @@ public class RuntimeSheetCache
          }
 
          CompletableFuture<RuntimeSheet> failed = new CompletableFuture<>();
-         failed.completeExceptionally(serializeError);
+         failed.completeExceptionally(serializeError != null ? serializeError
+            : new IllegalStateException("Serialization produced null state without throwing"));
          return failed;
       }
       finally {
@@ -458,42 +459,65 @@ public class RuntimeSheetCache
    }
 
    public void flush(String key) {
-      lock.writeLock().lock();
+      RuntimeSheet sheet;
+      lock.readLock().lock();
 
       try {
-         RuntimeSheet sheet = local.get(key);
-         AffinityKey<String> affinityKey = getAffinityKey(key);
-
-         if(sheet == null) {
-            cache.removeAsync(affinityKey);
-         }
-         else {
-            cache.putAsync(affinityKey, compressState(sheet.saveState(mapper)));
-         }
+         sheet = local.get(key);
       }
       finally {
-         lock.writeLock().unlock();
+         lock.readLock().unlock();
+      }
+
+      AffinityKey<String> affinityKey = getAffinityKey(key);
+
+      if(sheet == null) {
+         cache.removeAsync(affinityKey);
+      }
+      else {
+         try {
+            cache.putAsync(affinityKey, compressState(sheet.saveState(mapper)));
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to serialize sheet state to cache", e);
+         }
       }
    }
 
    private void flushAll() {
-      lock.writeLock().lock();
+      Map<AffinityKey<String>, RuntimeSheet> snapshot = new HashMap<>();
+      lock.readLock().lock();
 
       try {
-         Map<AffinityKey<String>, CompressedSheetState> changeset = new HashMap<>();
-
          for(AffinityKey<String> key : getLocalKeys()) {
             RuntimeSheet sheet = local.get(key.key());
 
             if(sheet != null) {
-               changeset.put(key, compressState(sheet.saveState(mapper)));
+               snapshot.put(key, sheet);
             }
          }
-
-         cache.putAllAsync(changeset);
       }
       finally {
-         lock.writeLock().unlock();
+         lock.readLock().unlock();
+      }
+
+      if(snapshot.isEmpty()) {
+         return;
+      }
+
+      Map<AffinityKey<String>, CompressedSheetState> changeset = new HashMap<>();
+
+      for(Map.Entry<AffinityKey<String>, RuntimeSheet> e : snapshot.entrySet()) {
+         try {
+            changeset.put(e.getKey(), compressState(e.getValue().saveState(mapper)));
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to serialize sheet state to cache", ex);
+         }
+      }
+
+      if(!changeset.isEmpty()) {
+         cache.putAllAsync(changeset);
       }
    }
 
