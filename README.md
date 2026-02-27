@@ -56,6 +56,12 @@ Create or update the `~/.m2/settings.xml` file (`C:\Users\USERNAME\.m2\settings.
 </settings>
 ```
 
+Create or update the `~/.npmrc` file (`C:\Users\USERNAME\.npmrc` on Windows) with the following contents, replacing `YOUR_GITHUB_ACCESS_TOKEN` with your GitHub personal access token:
+
+```
+//npm.pkg.github.com/:_authToken=YOUR_GITHUB_ACCESS_TOKEN
+```
+
 You must have the Java 21 SDK installed and the `JAVA_HOME` environment variable pointing to the installation. You may use a Java distribution from any vendor.
 
 You must also have Docker installed.
