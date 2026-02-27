@@ -355,11 +355,11 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    @Input() embedViewer: boolean = false;
    @Input() viewerOffsetFunc: () => { x: number, y: number, width: number, height: number, scrollLeft: number, scrollTop: number };
    @Input()
-   get dashboardTabModel(): DashboardTabModel {
+   get dashboardTabModel(): DashboardTabModel | null {
       return this._dashboardTabModel;
    }
 
-   set dashboardTabModel(value: DashboardTabModel) {
+   set dashboardTabModel(value: DashboardTabModel | null) {
       this._dashboardTabModel = value;
       this.updateTabPositions();
    }
@@ -503,7 +503,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    isDefaultOrgAsset: boolean = false;
    private intersectionObserver: IntersectionObserver;
    private _tabsHeight: number = 0;
-   private _dashboardTabModel: DashboardTabModel;
+   private _dashboardTabModel: DashboardTabModel | null;
 
    constructor(public viewsheetClient: ViewsheetClientService,
                private stompClientService: StompClientService,

@@ -81,7 +81,7 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
    fullScreenId: string;
    tabBarHeight: number = 0;
    hasBaseEntry: boolean = false;
-   dashboardTabModel: DashboardTabModel = null;
+   dashboardTabModel: DashboardTabModel | null = null;
    drillTabsTopPx: number | null = null;
    toolbarVisible: boolean = true;
    public modified: boolean = false;
