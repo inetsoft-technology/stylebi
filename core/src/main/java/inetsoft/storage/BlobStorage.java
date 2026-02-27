@@ -257,6 +257,16 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
       try {
          cluster.submit(id, new CreateDirectoryTask<>(id, blob)).get(10L, TimeUnit.SECONDS);
       }
+      catch(TimeoutException e) {
+         LOG.warn("Timeout creating directory at {}, retrying...", path);
+
+         try {
+            cluster.submit(id, new CreateDirectoryTask<>(id, blob)).get(10L, TimeUnit.SECONDS);
+         }
+         catch(Exception retryEx) {
+            throw new IOException("Failed to create directory at " + path, retryEx);
+         }
+      }
       catch(Exception e) {
          throw new IOException("Failed to create directory at " + path, e);
       }
@@ -595,6 +605,7 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
    private boolean isClosed = false;
    private final ExecutorService eventExecutor =
       Executors.newSingleThreadExecutor(r -> new GroupedThread(r, "BlobStorageEvent"));
+   private final Logger LOG = LoggerFactory.getLogger(BlobStorage.class);
 
    private final KeyValueStorage.Listener<Blob<T>> listener = new KeyValueStorage.Listener<>() {
       @Override
