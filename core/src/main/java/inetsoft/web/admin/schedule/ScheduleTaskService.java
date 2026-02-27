@@ -24,6 +24,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.util.*;
@@ -1326,7 +1327,25 @@ public class ScheduleTaskService {
          return null;
       }
 
-      return new IdentityID(name, OrganizationManager.getInstance().getInstance().getCurrentOrgID(principal));
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
+
+      // When a site admin manages tasks in another org, OrganizationContextHolder is set to
+      // that org, causing getCurrentOrgID to return the wrong org for the site admin's own
+      // identity. Use the principal's actual org only when constructing the principal's own
+      // identity, so that other identities (task executors, other owners) keep the target org.
+      if(principal instanceof XPrincipal xPrincipal) {
+         String principalOrgId = xPrincipal.getOrgId();
+         String principalName = IdentityID.getIdentityIDFromKey(principal.getName()).getName();
+
+         if(name.equals(principalName) &&
+            principalOrgId != null && !Tool.equals(orgId, principalOrgId) &&
+            OrganizationManager.getInstance().isSiteAdmin(principal))
+         {
+            orgId = principalOrgId;
+         }
+      }
+
+      return new IdentityID(name, orgId);
    }
 
    private final AnalyticRepository analyticRepository;
