@@ -445,7 +445,10 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       });
 
       this.subscriptions.add(this.dashboardTabService.getDashboardTabModel()
-         .subscribe(data => this.dashboardTabModel = data));
+         .subscribe({
+            next: data => { this.dashboardTabModel = data; },
+            error: err => console.error('Failed to load dashboard tab model', err)
+         }));
    }
 
    // open wizard if requested from portal

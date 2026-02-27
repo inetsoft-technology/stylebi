@@ -30,17 +30,20 @@ export class DashboardTabService {
 
    getDashboardTabModel(): Observable<DashboardTabModel> {
       if(!this.dashboardTabModel$) {
-         this.dashboardTabModel$ = this.http
+         const source$ = this.http
             .get<DashboardTabModel>("../api/portal/dashboard-tab-model")
             .pipe(
-               shareReplay(1),
-               catchError(err => {
-                  this.dashboardTabModel$ = null;
-                  return throwError(() => err);
-               })
+               shareReplay({ bufferSize: 1, refCount: false })
             );
+         this.dashboardTabModel$ = source$;
       }
 
-      return this.dashboardTabModel$;
+      return this.dashboardTabModel$.pipe(
+         catchError(err => {
+            // Reset cached observable so next call retries
+            this.dashboardTabModel$ = undefined;
+            return throwError(() => err);
+         })
+      );
    }
 }

@@ -137,9 +137,9 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
       }));
 
       this.subscriptions.add(this.dashboardTabService.getDashboardTabModel()
-         .subscribe(data => {
-            this.dashboardTabModel = data;
-            this.updateDrillTabsTopPx();
+         .subscribe({
+            next: data => { this.dashboardTabModel = data; this.updateDrillTabsTopPx(); },
+            error: err => console.error('Failed to load dashboard tab model', err)
          }));
    }
 

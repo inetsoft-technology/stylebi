@@ -68,8 +68,8 @@ public class PresentationDashboardSettingsService {
    )
    public void resetSettings(boolean globalSettings) throws Exception {
       SreeEnv.resetProperty("dashboard.enabled", !globalSettings);
-      SreeEnv.resetProperty("dashboard.tabs.top",  !globalSettings);
-      SreeEnv.resetProperty("drill.tabs.top",  !globalSettings);
+      SreeEnv.resetProperty("dashboard.tabs.top", !globalSettings);
+      SreeEnv.resetProperty("drill.tabs.top", !globalSettings);
 
       SreeEnv.save();
    }
