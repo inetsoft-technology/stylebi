@@ -1331,11 +1331,14 @@ public class ScheduleTaskService {
 
       // When a site admin manages tasks in another org, OrganizationContextHolder is set to
       // that org, causing getCurrentOrgID to return the wrong org for the site admin's own
-      // identity. Use the principal's actual org if the principal is a site admin.
+      // identity. Use the principal's actual org only when constructing the principal's own
+      // identity, so that other identities (task executors, other owners) keep the target org.
       if(principal instanceof XPrincipal xPrincipal) {
          String principalOrgId = xPrincipal.getOrgId();
+         String principalName = IdentityID.getIdentityIDFromKey(principal.getName()).getName();
 
-         if(principalOrgId != null && !Tool.equals(orgId, principalOrgId) &&
+         if(name.equals(principalName) &&
+            principalOrgId != null && !Tool.equals(orgId, principalOrgId) &&
             OrganizationManager.getInstance().isSiteAdmin(principal))
          {
             orgId = principalOrgId;
