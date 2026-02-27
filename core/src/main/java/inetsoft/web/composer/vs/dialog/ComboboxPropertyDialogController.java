@@ -222,6 +222,9 @@ public class ComboboxPropertyDialogController {
       dataInputPaneModel.setTargetTree(
          this.vsInputService.getInputTablesTree(rvs, false, principal));
       dataInputPaneModel.setWriteBackDirectly(comboBoxAssemblyInfo.getWriteBackValue());
+      dataInputPaneModel.setQueryDateFormat(comboBoxAssemblyInfo.isQueryDateFormat());
+      dataInputPaneModel.setDateFormatPattern(comboBoxAssemblyInfo.getDateFormatPattern());
+
       vsAssemblyScriptPaneModel.scriptEnabled(comboBoxAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(comboBoxAssemblyInfo.getScript() == null ?
                                               "" : comboBoxAssemblyInfo.getScript());
@@ -297,6 +300,14 @@ public class ComboboxPropertyDialogController {
          table != null && table.startsWith("$(") && table.endsWith(")"));
       comboBoxAssemblyInfo.setWriteBackValue(dataInputPaneModel.isWriteBackDirectly());
       comboBoxAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
+
+      comboBoxAssemblyInfo.setQueryDateFormat(dataInputPaneModel.isQueryDateFormat());
+
+      if(dataInputPaneModel.getDateFormatInvalid()) {
+         comboBoxAssemblyInfo.setDateFormatPattern("yyyy-MM-dd");
+      } else {
+         comboBoxAssemblyInfo.setDateFormatPattern(dataInputPaneModel.getDateFormatPattern());
+      }
 
       comboBoxAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       comboBoxAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
