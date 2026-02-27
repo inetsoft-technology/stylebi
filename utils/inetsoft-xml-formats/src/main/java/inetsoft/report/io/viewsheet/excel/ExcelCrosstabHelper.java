@@ -79,7 +79,7 @@ public class ExcelCrosstabHelper extends VSCrosstabHelper {
       excelRows = new int[rowPixelHLength];
 
       for(int i = 0; i < rowPixelH.length; i++) {
-         excelRows[i] = (int) Math.round(((double)rowPixelH[i]) / AssetUtil.defh);
+         excelRows[i] = (int) Math.ceil(((double)rowPixelH[i]) / AssetUtil.defh);
          excelRows[i] = Math.max(1, excelRows[i]);
       }
 
