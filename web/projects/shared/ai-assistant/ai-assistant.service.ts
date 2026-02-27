@@ -65,9 +65,9 @@ export class AiAssistantService {
    calcTableCellBindings: { [key: string]: CellBindingInfo } = {};
    calcTableAggregates: string[] = [];
    private contextMap: Record<string, string> = {};
-   private _lastOpenUrl: string;
-   private _lastBindingObject: string;
-   private _newChatFromUrl : boolean = false;
+   private _lastOpenUrl: string = "";
+   private _lastBindingObject: string = "";
+   private _newChatFromUrl: boolean = false;
    private _newChatFromBinding : boolean = false;
 
    constructor(private http: HttpClient) {

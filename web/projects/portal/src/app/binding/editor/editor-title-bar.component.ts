@@ -155,7 +155,8 @@ export class EditorTitleBar {
       ];
 
    openAiAssistantDialog(): void {
-      this.aiAssistantService.lastBindingObject = this.objectType + "^^" + this.elementName;
+      this.aiAssistantService.lastBindingObject =
+         (this.objectType && this.elementName) ? this.objectType + "^^" + this.elementName : "";
       this.aiAssistantDialogService.openAiAssistantDialog();
    }
 }
