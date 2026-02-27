@@ -293,6 +293,8 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
    selectionBorderOffset: number = 2;
    snapOffset = 0;
    consoleMessages: ConsoleMessage[] = [];
+   newInfoConsoleMessages: boolean = false;
+   hideNotifications: boolean = false;
    guideLineColor: string;
    autoFocusSearchTimeout: any;
    searchResultCount: number = 0;
@@ -473,6 +475,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.subscriptions.add(this.appInfoService.getCurrentOrgInfo().subscribe((orgInfo) => {
          this.orgInfo = orgInfo;
       }));
+
    }
 
    getAssemblyName(): string {
@@ -787,6 +790,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.vs.messageLevels = command.info["messageLevels"];
       this.vs.snapGrid = command.info["snapGrid"];
       this.hasScript = command.hasScript;
+      this.hideNotifications = !!command.hideNotifications;
       this.refreshStatus();
 
       if(command.linkUri) {
@@ -1328,6 +1332,9 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
             message: command.message,
             type: command.type
          });
+         if(command.type == "INFO") {
+            this.newInfoConsoleMessages = true;
+         }
       }
    }
 
@@ -2477,6 +2484,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
          .then((messageLevels: string[]) => {
             this.vs.messageLevels = messageLevels;
          }, () => {});
+      this.newInfoConsoleMessages = false;
    }
 
    getTemplateWidth(): number {
@@ -2714,4 +2722,5 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
    isFilterInMaxModeView(vsObject: VSObjectModel): boolean {
       return !!this.maxModeAssembly && (<any> vsObject).adhocFilter;
    }
+
 }

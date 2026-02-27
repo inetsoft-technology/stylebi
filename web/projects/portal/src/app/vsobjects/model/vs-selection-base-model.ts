@@ -40,4 +40,5 @@ export interface VSSelectionBaseModel extends VSCompositeModel {
    objectHeight?: number;
    maxMode?: boolean;
    submitPadding?: boolean;
+   quickSwitchAllowed: boolean;
 }

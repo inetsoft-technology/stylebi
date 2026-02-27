@@ -153,7 +153,7 @@
           </div>
         </li>
       </ng-template>
-      <li *ngIf="!mobile" class="nav-item portal-nav-item bb-highlight-filler" [class.disabled]="!model.helpVisible">
+      <li *ngIf="!mobile && aiAssistantDialogService.isEnabled" class="nav-item portal-nav-item bb-highlight-filler" [class.disabled]="!model.helpVisible">
         <a class="nav-link nav-icon nav-icon-size"
            (click)="aiAssistantDialogService.openAiAssistantDialog()"
            (keyup.enter)="aiAssistantDialogService.openAiAssistantDialog()"

@@ -36,6 +36,10 @@ export class AiAssistantDialogService {
    {
    }
 
+   get isEnabled(): boolean {
+      return !!this.aiAssistantService.chatAppServerUrl;
+   }
+
    openAiAssistantDialog(): void {
       const injector = Injector.create({
          providers: [

@@ -114,6 +114,7 @@ public class SaveViewsheetDialogController {
       vsOptionsPaneModel.setPromptForParams(!info.isDisableParameterSheet());
       vsOptionsPaneModel.setSelectionAssociation(info.isAssociationEnabled());
       vsOptionsPaneModel.setMaxRowsWarning(info.isMaxRowsWarning());
+      vsOptionsPaneModel.setHideNotifications(info.isHideNotifications());
       vsOptionsPaneModel.setCreateMv(info.isMVOnDemand());
       vsOptionsPaneModel.setAlias(viewsheet.getRuntimeEntry() == null ? null:
          viewsheet.getRuntimeEntry().getAlias());
@@ -298,6 +299,7 @@ public class SaveViewsheetDialogController {
          info.setSnapGrid(vsOptionsPaneModel.getSnapGrid());
          info.setAssociationEnabled(vsOptionsPaneModel.isSelectionAssociation());
          info.setMaxRowsWarning(vsOptionsPaneModel.isMaxRowsWarning());
+         info.setHideNotifications(vsOptionsPaneModel.isHideNotifications());
          info.setMVOnDemand(vsOptionsPaneModel.isCreateMv());
          info.setDescription(vsOptionsPaneModel.getDesc());
          info.setUpdateEnabled(vsOptionsPaneModel.isServerSideUpdate());
