@@ -221,7 +221,11 @@ public class CoreLifecycleService {
          }
 
          if(box != null) {
-            // replace all drilldown variables so they don't accumulate
+            // Replace all drilldown variables so they don't accumulate across navigations.
+            // Note: VariableTable.clear() only clears the local vartable map; any chained
+            // base table entries remain visible via contains()/get(). At this point no
+            // queries have run on the new sandbox, so the base table is null and the
+            // concern does not apply.
             box.getVariableTable().clear();
          }
       }
