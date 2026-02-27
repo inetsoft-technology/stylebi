@@ -23,7 +23,7 @@ import { DashboardTabModel } from "../dashboard/dashboard-tab-model";
 
 @Injectable({ providedIn: "root" })
 export class DashboardTabService {
-   private dashboardTabModel$: Observable<DashboardTabModel>;
+   private dashboardTabModel$: Observable<DashboardTabModel> | undefined;
 
    constructor(private http: HttpClient) {
    }

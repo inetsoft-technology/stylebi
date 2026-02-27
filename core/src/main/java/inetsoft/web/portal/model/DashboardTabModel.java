@@ -51,7 +51,7 @@ public class DashboardTabModel {
    public void setEditable(boolean editable) {
       this.editable = editable;
    }
-   
+
    public boolean isComposerEnabled() {
       return composerEnabled;
    }
