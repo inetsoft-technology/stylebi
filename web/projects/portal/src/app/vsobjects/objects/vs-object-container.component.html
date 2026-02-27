@@ -40,7 +40,7 @@
          [class.popup-showing]="isPopupShowing(vsObject)"
          [class.max-mode]="vsObject.maxMode"
          [class.force-show-toolbar]="forceShowMiniToolbar && isFocused(vsObject)"
-         [style.z-index]="zIndex(vsObject)"
+         [style.z-index]="isActivePopComponent(vsObject) || needsZIndexBoost(vsObject) ? zIndex(vsObject) + getPopUpContentBoostZIndex() : zIndex(vsObject)"
          (click)="select(i, $event)" (mouseenter)="onMouseEnter(vsObject, $event)">
       <vs-annotation *ngIf="vsObject.objectType == 'VSAnnotation'"
                      (remove)="removeAnnotations.emit()"

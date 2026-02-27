@@ -465,6 +465,43 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       }
    }
 
+   isActivePopComponent(vsObject: VSObjectModel): boolean {
+      return this.popService.isPopComponent(vsObject.absoluteName) &&
+         this.popService.getPopComponent() === vsObject.absoluteName;
+   }
+
+   needsZIndexBoost(vsObject: VSObjectModel): boolean {
+      if(this.dataTipService.dataTipName) {
+         if(this.dataTipService.isCurrentDataTip(vsObject.absoluteName, vsObject.container)) {
+            return true;
+         }
+
+         // Boost the z-index of any embedded viewsheet that contains the active datatip so
+         // the popup and its overflow content render above the dim canvas
+         if(vsObject.objectType === "VSViewsheet" &&
+            this.dataTipService.dataTipName.startsWith(vsObject.absoluteName + "."))
+         {
+            return true;
+         }
+      }
+
+      // Boost the z-index of any embedded viewsheet that contains the active pop component
+      // so it renders above the dim canvas (mirrors the datatip case above).
+      // Guard with hasPopUpComponentShowing() to avoid using stale getPopComponent() state
+      // when no pop component is actually visible (which could incorrectly boost an embedded
+      // VS with a higher natural z-index than the datatip, covering the datatip).
+      if(vsObject.objectType === "VSViewsheet" && this.popService.hasPopUpComponentShowing()) {
+         const popComponent = this.popService.getPopComponent();
+         return !!popComponent && popComponent.startsWith(vsObject.absoluteName + ".");
+      }
+
+      return false;
+   }
+
+   getPopUpContentBoostZIndex(): number {
+      return DateTipHelper.getPopUpContentBoostZIndex();
+   }
+
    zIndex(vsObject: VSObjectModel): number {
       if(this.popService.isPopSource(vsObject.absoluteName) ||
          this.dataTipService.isDataTipSource(vsObject.absoluteName))
@@ -596,6 +633,12 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    }
 
    showingPopUpOrDataTip(): boolean {
+      // Only the top-level container renders the dim canvas; embedded viewsheet containers
+      // rely on z-index ordering relative to the top-level canvas instead
+      if(this.embeddedVS) {
+         return false;
+      }
+
       let showingPop = this.popService.hasPopUpComponentShowing() || this.dataTipService.hasDataTipShowing();
 
       if(showingPop && !this.popDimDrew) {
@@ -620,13 +663,6 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          context.clearRect(0, 0, this.popUpDim.nativeElement.width, this.popUpDim.nativeElement.height);
          context.fillStyle = DateTipHelper.popDimColor;
          context.fillRect(0, 0, this.getPopDimWidth(), this.getPopDimHeight());
-
-         for(let vsObject of this.vsInfo.vsObjects) {
-            if(vsObject.objectType == "VSViewsheet") {
-               context.clearRect(vsObject.objectFormat.left, vsObject.objectFormat.top,
-                  vsObject.objectFormat.width, vsObject.objectFormat.height);
-            }
-         }
       }
    }
 
