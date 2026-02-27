@@ -306,7 +306,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    openedTabs: ComposerTabModel[] = [];
    private _focusedTab: ComposerTabModel;
    private propertyDialogModal: NgbModalRef;
-   dashboardTabModel: DashboardTabModel;
+   dashboardTabModel: DashboardTabModel | null = null;
 
    constructor(private composerObjectService: ComposerObjectService,
       private resizeHandlerService: ResizeHandlerService,

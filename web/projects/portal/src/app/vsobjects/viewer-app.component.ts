@@ -399,8 +399,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    exportTypes: { label: string, value: string }[] = [];
    viewsheetLoading: boolean = false;
    preparingData: boolean = false;
-   topPx: string = null;
-   bottomPx: string = null;
+   topPx: string | null = null;
+   bottomPx: string | null = null;
    toolbarVisible: boolean = true;
    hideLoadingDisplay: boolean = false;
    profilingVisible: boolean = false;
@@ -503,7 +503,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    isDefaultOrgAsset: boolean = false;
    private intersectionObserver: IntersectionObserver;
    private _tabsHeight: number = 0;
-   private _dashboardTabModel: DashboardTabModel | null;
+   private _dashboardTabModel: DashboardTabModel | null = null;
 
    constructor(public viewsheetClient: ViewsheetClientService,
                private stompClientService: StompClientService,
