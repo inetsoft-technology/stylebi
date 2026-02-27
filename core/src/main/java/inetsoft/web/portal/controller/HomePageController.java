@@ -25,6 +25,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.DataSpace;
 import inetsoft.util.Tool;
+import inetsoft.web.assistant.AIAssistantController;
 import inetsoft.web.viewsheet.service.LinkUri;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -101,6 +102,7 @@ public class HomePageController {
 
       addAdditionalStyles(model, linkUri);
       addAdditionalScripts(model, linkUri);
+      addChatAppScript(model);
       addDataSpaceTags(model, linkUri);
       addOpenGraphTags(model, linkUri, request.getRequestURI(), request.getHeader("User-Agent"));
 
@@ -223,6 +225,31 @@ public class HomePageController {
          model, "additionalScripts", SreeEnv.getProperty("portal.additional.scripts"), linkUri);
    }
 
+   /**
+    * When {@code chat.app.server.url} is configured, injects the AI assistant web component
+    * script so that the {@code <ai-assistant>} custom element is available in the portal.
+    * The script is served by the assistant-client at
+    * {@code {chatAppServerUrl}/web-component/ai-assistant.umd.js}.
+    */
+   @SuppressWarnings("unchecked")
+   private void addChatAppScript(ModelAndView model) {
+      String chatAppUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_SERVER_URL);
+
+      if(chatAppUrl == null || chatAppUrl.trim().isEmpty()) {
+         return;
+      }
+
+      chatAppUrl = chatAppUrl.trim();
+
+      if(chatAppUrl.endsWith("/")) {
+         chatAppUrl = chatAppUrl.substring(0, chatAppUrl.length() - 1);
+      }
+
+      List<String> scripts = (List<String>) model.getModel()
+         .computeIfAbsent("additionalScripts", k -> new ArrayList<>());
+      scripts.add(chatAppUrl + "/web-component/ai-assistant.umd.js");
+   }
+
    private void addDataSpaceTags(ModelAndView model, String linkUrl) {
       if(webAssetsExist) {
          addDataSpaceTags(model, linkUrl, "web-assets");
@@ -255,15 +282,15 @@ public class HomePageController {
       }
    }
 
+   @SuppressWarnings({ "unchecked", "rawtypes" })
    private void addAdditionalTags(ModelAndView model, String key, String property, String linkUri) {
       if(property != null) {
-         List<String> tags = Arrays.stream(property.split(","))
+         List tags = (List) model.getModel().computeIfAbsent(key, k -> new ArrayList<>());
+         Arrays.stream(property.split(","))
             .map(String::trim)
             .filter(t -> !t.isEmpty())
             .map(t -> resolveTagLink(t, linkUri))
-            .collect(Collectors.toList());
-
-         model.addObject(key, tags);
+            .forEach(tags::add);
       }
    }
 
