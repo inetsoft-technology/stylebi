@@ -65,6 +65,8 @@ export class AiAssistantService {
    calcTableCellBindings: { [key: string]: CellBindingInfo } = {};
    calcTableAggregates: string[] = [];
    private contextMap: Record<string, string> = {};
+   private _lastBindingObject: string = "";
+   private _newChatFromBinding: boolean = false;
 
    constructor(private http: HttpClient) {
       this.http.get("../api/assistant/get-chat-app-server-url").subscribe((url: string) => {
@@ -74,6 +76,19 @@ export class AiAssistantService {
       this.http.get("../api/assistant/get-stylebi-url").subscribe((url: string) => {
          this.styleBIUrl = url || "";
       });
+   }
+
+   set lastBindingObject(value: string) {
+      this._newChatFromBinding = value !== this._lastBindingObject;
+      this._lastBindingObject = value;
+   }
+
+   get createNewChat(): boolean {
+      return this._newChatFromBinding;
+   }
+
+   resetNewChat(): void {
+      this._newChatFromBinding = false;
    }
 
    resetContextMap(): void {
