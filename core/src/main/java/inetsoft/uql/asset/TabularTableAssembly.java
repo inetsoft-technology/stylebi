@@ -273,10 +273,13 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
       }
 
       TabularQuery query = getTabularTableAssemblyInfo().getQuery();
-      String[] used = query.getDependedAssets(names.toArray(new String[0]));
 
-      for(String name : used) {
-         set.add(new AssemblyRef(new AssemblyEntry(name, AbstractSheet.TABLE_ASSET)));
+      if(query != null) {
+         String[] used = query.getDependedAssets(names.toArray(new String[0]));
+
+         for(String name : used) {
+            set.add(new AssemblyRef(new AssemblyEntry(name, AbstractSheet.TABLE_ASSET)));
+         }
       }
    }
 
@@ -294,9 +297,12 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
       }
 
       TabularQuery query = getTabularTableAssemblyInfo().getQuery();
-      String[] used = query.getDependedAssets(names.toArray(new String[0]));
-      Arrays.stream(used).forEach(
-         (name) -> addToDependencyTypes(dependeds, name, DependencyType.TABULAR_SUBQUERY));
+
+      if(query != null) {
+         String[] used = query.getDependedAssets(names.toArray(new String[0]));
+         Arrays.stream(used).forEach(
+            (name) -> addToDependencyTypes(dependeds, name, DependencyType.TABULAR_SUBQUERY));
+      }
    }
 
    /**
