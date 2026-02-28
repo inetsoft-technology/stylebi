@@ -20,7 +20,7 @@ input {
    type: number;
    min: 0;
    max: 100;
-   position: absolute;
+   position: relative;
 }
 
 input::-webkit-inner-spin-button {

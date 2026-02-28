@@ -15,49 +15,44 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-/* Component Defaults */
-textarea {
-  position: relative;
-  resize: none;
-  white-space: nowrap;
-  border-width: 1px;
+:host {
+  display: inline-block;
+}
 
-  &.wrapped {
-    white-space: normal;
-    word-wrap: break-word;
-    overflow: hidden;
+.vs-input-label-wrapper {
+  display: flex;
+  width: 100%;
+  height: 100%;
 
-    &.moz-wrapped {
-      white-space: pre-wrap;
-    }
+  &.label-top {
+    flex-direction: column;
+  }
+
+  &.label-bottom {
+    flex-direction: column-reverse;
+  }
+
+  &.label-left {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  &.label-right {
+    flex-direction: row-reverse;
+    align-items: center;
   }
 }
 
-input {
-  border-width: 1px;
+.vs-input-label {
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
 }
 
-.TextInput {
+.vs-input-content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
   position: relative;
-  resize: none;
-}
-
-.disable-input {
-  pointer-events: none;
-}
-
-.TextInput i.fa {
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-.dropdown-datepicker {
-  background: white;
-}
-
-.date-editor-toggle {
-  position: absolute;
-  top: calc((100% - 20px) / 2);
-  right: 0px;
 }

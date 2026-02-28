@@ -65,6 +65,10 @@ export enum TableDataPathTypes {
     */
    MONTH_CALENDAR = 0x4004,
    /**
+    * Input label.
+    */
+   INPUT_LABEL = 0x5000,
+   /**
     * Object.
     */
    OBJECT = 0x8000

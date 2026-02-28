@@ -21,6 +21,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.SliderVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.LabelInfo;
 import inetsoft.uql.viewsheet.internal.SliderVSAssemblyInfo;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.vs.*;
@@ -110,6 +111,7 @@ public class SliderPropertyDialogController {
       DataInputPaneModel dataInputPaneModel = result.getDataInputPaneModel();
       SliderAdvancedPaneModel sliderAdvancedPaneModel = result.getSliderAdvancedPaneModel();
       SliderLabelPaneModel sliderLabelPaneModel = sliderAdvancedPaneModel.getSliderLabelPaneModel();
+      InputLabelPaneModel inputLabelPaneModel = result.getInputLabelPaneModel();
       VSAssemblyScriptPaneModel.Builder vsAssemblyScriptPaneModel = VSAssemblyScriptPaneModel.builder();
 
       numericRangePaneModel.setMinimum(sliderAssemblyInfo.getMinValue());
@@ -149,6 +151,14 @@ public class SliderPropertyDialogController {
       sliderLabelPaneModel.setMaximum(sliderAssemblyInfo.getMaxVisibleValue());
 
       sliderAdvancedPaneModel.setSnap(sliderAssemblyInfo.isSnap());
+
+      LabelInfo labelInfo = sliderAssemblyInfo.getLabelInfo();
+
+      inputLabelPaneModel.setLabelText(labelInfo.getLabelTextValue());
+      inputLabelPaneModel.setLabelGap(labelInfo.getLabelGap());
+      inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPosition());
+      inputLabelPaneModel.setShowLabel(labelInfo.isLabelVisible());
+
 
       vsAssemblyScriptPaneModel.scriptEnabled(sliderAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(sliderAssemblyInfo.getScript() == null ?
@@ -196,6 +206,7 @@ public class SliderPropertyDialogController {
       DataInputPaneModel dataInputPaneModel = value.getDataInputPaneModel();
       SliderAdvancedPaneModel sliderAdvancedPaneModel = value.getSliderAdvancedPaneModel();
       SliderLabelPaneModel sliderLabelPaneModel = sliderAdvancedPaneModel.getSliderLabelPaneModel();
+      InputLabelPaneModel inputLabelPaneModel = value.getInputLabelPaneModel();
       VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel = value.getVsAssemblyScriptPaneModel();
 
       sliderAssemblyInfo.setEnabledValue(generalPropPaneModel.getEnabled());
@@ -238,6 +249,12 @@ public class SliderPropertyDialogController {
       sliderAssemblyInfo.setMaxVisibleValue(sliderLabelPaneModel.isMaximum());
 
       sliderAssemblyInfo.setSnapValue(sliderAdvancedPaneModel.isSnap());
+
+      LabelInfo labelInfo = sliderAssemblyInfo.getLabelInfo();
+      labelInfo.setLabelTextValue(inputLabelPaneModel.getLabelText());
+      labelInfo.setLabelGapValue(inputLabelPaneModel.getLabelGap());
+      labelInfo.setLabelPosition(inputLabelPaneModel.getLabelPosition());
+      labelInfo.setLabelVisibleValue(inputLabelPaneModel.isShowLabel() + "");
 
       sliderAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       sliderAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());

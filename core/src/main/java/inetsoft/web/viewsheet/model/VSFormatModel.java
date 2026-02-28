@@ -168,6 +168,7 @@ public class VSFormatModel extends BaseFormatModel {
          hAlign = VSCSSUtil.gethAlign(compositeFormat);
          font = VSCSSUtil.getFont(compositeFormat);
          decoration = VSCSSUtil.getDecoration(compositeFormat);
+         roundCorner = compositeFormat.getRoundCorner();
          getBorder().setBottom(VSCSSUtil.getBorder(compositeFormat, "bottom"));
          getBorder().setTop(VSCSSUtil.getBorder(compositeFormat, "top"));
          getBorder().setRight(VSCSSUtil.getBorder(compositeFormat, "right"));

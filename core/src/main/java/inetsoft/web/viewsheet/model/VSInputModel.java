@@ -19,8 +19,7 @@ package inetsoft.web.viewsheet.model;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.InputVSAssembly;
-import inetsoft.uql.viewsheet.internal.ClickableInputVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.InputVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.*;
 
 public abstract class VSInputModel<T extends InputVSAssembly> extends VSObjectModel<T> {
    protected VSInputModel(T assembly, RuntimeViewsheet rvs) {
@@ -36,6 +35,17 @@ public abstract class VSInputModel<T extends InputVSAssembly> extends VSObjectMo
 
       if(assemblyInfo instanceof InputVSAssemblyInfo) {
          setWriteBackDirectly(assemblyInfo.getWriteBackValue());
+      }
+
+      LabelInfo labelInfo = assemblyInfo.getLabelInfo();
+
+      if (labelInfo != null) {
+         labelModel = new VSInputLabelModel();
+         labelModel.setShowLabel(labelInfo.isLabelVisible());
+         labelModel.setLabelText(labelInfo.getLabelText());
+         labelModel.setLabelPosition(labelInfo.getLabelPosition());
+         labelModel.setLabelGap(labelInfo.getLabelGap());
+         labelModel.setLabelFormat(new VSFormatModel(labelInfo.getLabelFormat()));
       }
    }
 
@@ -63,7 +73,25 @@ public abstract class VSInputModel<T extends InputVSAssembly> extends VSObjectMo
       this.writeBackDirectly = writeBackDirectly;
    }
 
+   public VSInputLabelModel getLabelModel() {
+      return labelModel;
+   }
+
+   public void setLabelModel(VSInputLabelModel labelModel) {
+      this.labelModel = labelModel;
+   }
+
+   public boolean isLabelSelected() {
+      return labelSelected;
+   }
+
+   public void setLabelSelected(boolean labelSelected) {
+      this.labelSelected = labelSelected;
+   }
+
    private boolean refresh;
    private boolean hasOnClick;
    private boolean writeBackDirectly;
+   private VSInputLabelModel labelModel;
+   private boolean labelSelected;
 }

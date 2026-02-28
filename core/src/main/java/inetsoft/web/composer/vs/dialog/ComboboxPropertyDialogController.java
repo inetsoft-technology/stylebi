@@ -25,8 +25,7 @@ import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.ComboBoxVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
@@ -131,6 +130,7 @@ public class ComboboxPropertyDialogController {
       VariableListDialogModel variableListDialogModel =
          comboBoxEditorModel.getVariableListDialogModel();
       DataInputPaneModel dataInputPaneModel = result.getDataInputPaneModel();
+      InputLabelPaneModel inputLabelPaneModel = result.getInputLabelPaneModel();
       VSAssemblyScriptPaneModel.Builder vsAssemblyScriptPaneModel =
          VSAssemblyScriptPaneModel.builder();
 
@@ -227,6 +227,13 @@ public class ComboboxPropertyDialogController {
                                               "" : comboBoxAssemblyInfo.getScript());
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
 
+      LabelInfo labelInfo = comboBoxAssemblyInfo.getLabelInfo();
+
+      inputLabelPaneModel.setLabelText(labelInfo.getLabelTextValue());
+      inputLabelPaneModel.setLabelGap(labelInfo.getLabelGap());
+      inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPosition());
+      inputLabelPaneModel.setShowLabel(labelInfo.isLabelVisible());
+
       return result;
    }
 
@@ -268,6 +275,7 @@ public class ComboboxPropertyDialogController {
       SizePositionPaneModel sizePositionPaneModel =
          comboboxGeneralPaneModel.getSizePositionPaneModel();
       DataInputPaneModel dataInputPaneModel = value.getDataInputPaneModel();
+      InputLabelPaneModel inputLabelPaneModel = value.getInputLabelPaneModel();
       VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel = value.getVsAssemblyScriptPaneModel();
 
       comboBoxAssemblyInfo.setEnabledValue(generalPropPaneModel.getEnabled());
@@ -297,6 +305,12 @@ public class ComboboxPropertyDialogController {
          table != null && table.startsWith("$(") && table.endsWith(")"));
       comboBoxAssemblyInfo.setWriteBackValue(dataInputPaneModel.isWriteBackDirectly());
       comboBoxAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
+
+      LabelInfo labelInfo = comboBoxAssemblyInfo.getLabelInfo();
+      labelInfo.setLabelTextValue(inputLabelPaneModel.getLabelText());
+      labelInfo.setLabelGapValue(inputLabelPaneModel.getLabelGap());
+      labelInfo.setLabelPosition(inputLabelPaneModel.getLabelPosition());
+      labelInfo.setLabelVisibleValue(inputLabelPaneModel.isShowLabel() + "");
 
       comboBoxAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       comboBoxAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());

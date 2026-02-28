@@ -207,7 +207,19 @@ public class FormatPainterController {
       String presenter = null;
       String presenterLabel = null;
       boolean hasDescriptors = false;
-      VSCompositeFormat format = formatInfo.getFormat(dataPath, false);
+      VSCompositeFormat format;
+
+      // Handle input label format - stored in LabelInfo, not FormatInfo
+      if(dataPath.getType() == TableDataPath.INPUT_LABEL &&
+         info instanceof InputVSAssemblyInfo)
+      {
+         InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
+         LabelInfo labelInfo = inputInfo.getLabelInfo();
+         format = labelInfo != null ? labelInfo.getLabelFormat() : null;
+      }
+      else {
+         format = formatInfo.getFormat(dataPath, false);
+      }
 
       if(format == null) {
          format = new VSCompositeFormat();
@@ -588,8 +600,22 @@ public class FormatPainterController {
                      warnStringFormat = handleHeaderFormats(event, assembly, format, path, warnStringFormat, catalog);
                   }
 
-                  changeFormat(formatInfo, format, event.getOrigFormat(),
-                               path, event.isReset());
+                  // Handle input label format separately - stored in LabelInfo
+                  if(path.getType() == TableDataPath.INPUT_LABEL &&
+                     info instanceof InputVSAssemblyInfo)
+                  {
+                     InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
+                     LabelInfo labelInfo = inputInfo.getLabelInfo();
+
+                     if(labelInfo != null) {
+                        changeLabelFormat(labelInfo, format, event.getOrigFormat(),
+                                          event.isReset(), false);
+                     }
+                  }
+                  else {
+                     changeFormat(formatInfo, format, event.getOrigFormat(),
+                                  path, event.isReset());
+                  }
                }
 
                if(warnStringFormat) {
@@ -954,6 +980,38 @@ public class FormatPainterController {
       }
 
       info.setFormat(path, format);
+   }
+
+   /**
+    * Update Label Format - stores format in LabelInfo instead of FormatInfo.
+    */
+   private void changeLabelFormat(LabelInfo labelInfo, VSObjectFormatInfoModel model,
+                                  VSObjectFormatInfoModel origFormat, boolean reset,
+                                  boolean copyFormat)
+   {
+      VSCompositeFormat format = labelInfo.getLabelFormat();
+
+      if(format == null) {
+         format = new VSCompositeFormat();
+      }
+
+      if(reset) {
+         model = new VSObjectFormatInfoModel();
+      }
+
+      setUserFormat(format, model, origFormat, reset, copyFormat);
+
+      VSCSSFormat cssFormat = format.getCSSFormat();
+
+      if(!Tool.equals(cssFormat.getCSSClass(), model.getCssClass()) ||
+         !Tool.equals(cssFormat.getCSSID(), model.getCssID()))
+      {
+         cssFormat.setCSSClass(model.getCssClass());
+         cssFormat.setCSSID(model.getCssID());
+         updateFormatModel(model, format);
+      }
+
+      labelInfo.setLabelFormat(format);
    }
 
    // if CSS class/id changed, we may need to update the formats to reflect the new css

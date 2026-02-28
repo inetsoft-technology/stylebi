@@ -17,10 +17,12 @@
  */
 import { DataInputPaneModel } from "./data-input-pane-model";
 import { VSAssemblyScriptPaneModel } from "../../../widget/dialog/vsassembly-script-pane/vsassembly-script-pane-model";
+import { InputLabelPaneModel } from "./input-label-pane-model";
 import { SpinnerGeneralPaneModel } from "./spinner-general-pane-model";
 
 export interface SpinnerPropertyDialogModel {
    spinnerGeneralPaneModel: SpinnerGeneralPaneModel;
    dataInputPaneModel: DataInputPaneModel;
    vsAssemblyScriptPaneModel: VSAssemblyScriptPaneModel;
+   inputLabelPaneModel: InputLabelPaneModel;
 }

@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { VSAssemblyScriptPaneModel } from "../../../widget/dialog/vsassembly-script-pane/vsassembly-script-pane-model";
+import { InputLabelPaneModel } from "./input-label-pane-model";
 import { SliderAdvancedPaneModel } from "./slider-advanced-pane-model";
 import { DataInputPaneModel } from "./data-input-pane-model";
 import { SliderGeneralPaneModel } from "./slider-general-pane-model";
@@ -25,4 +26,5 @@ export interface SliderPropertyDialogModel {
    dataInputPaneModel: DataInputPaneModel;
    sliderAdvancedPaneModel: SliderAdvancedPaneModel;
    vsAssemblyScriptPaneModel: VSAssemblyScriptPaneModel;
+   inputLabelPaneModel: InputLabelPaneModel;
 }

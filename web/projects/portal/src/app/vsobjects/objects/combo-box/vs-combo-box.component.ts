@@ -151,7 +151,18 @@ export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements 
       return this._model;
    }
 
-   @Input() selected: boolean = false;
+   private _selected: boolean = false;
+   @Input() set selected(selected: boolean) {
+      this._selected = selected;
+
+      if(!selected && this.model) {
+         this.model.labelSelected = false;
+      }
+   }
+
+   get selected(): boolean {
+      return this._selected;
+   }
    @Input() submitted: Observable<boolean>;
    @Output() comboBoxChanged = new EventEmitter();
    @ViewChild(FixedDropdownDirective) dropdown: FixedDropdownDirective;
@@ -669,5 +680,19 @@ export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements 
    isSelected(): boolean {
       const vs: any = this.vsInfo;
       return vs.isAssemblyFocused && vs.isAssemblyFocused(this.model.absoluteName);
+   }
+
+   selectLabel(event: MouseEvent): void {
+      if(this.context.preview) {
+         return;
+      }
+
+      this.model.labelSelected = true;
+   }
+
+   clearLabelSelection(): void {
+      if(this.model) {
+         this.model.labelSelected = false;
+      }
    }
 }

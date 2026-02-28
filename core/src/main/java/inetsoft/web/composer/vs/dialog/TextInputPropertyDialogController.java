@@ -20,6 +20,7 @@ package inetsoft.web.composer.vs.dialog;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.LabelInfo;
 import inetsoft.uql.viewsheet.internal.TextInputVSAssemblyInfo;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.vs.*;
@@ -109,6 +110,7 @@ public class TextInputPropertyDialogController {
       BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
       DataInputPaneModel dataInputPaneModel = result.getDataInputPaneModel();
       TextInputColumnOptionPaneModel textInputColumnOptionPaneModel = result.getTextInputColumnOptionPaneModel();
+      InputLabelPaneModel inputLabelPaneModel = result.getInputLabelPaneModel();
       ClickableScriptPaneModel.Builder clickableScriptPaneModel = ClickableScriptPaneModel.builder();
       String defaultText = textInputGeneralPaneModel.getDefaultText();
       defaultText = Strings.isEmpty(defaultText) ? null : defaultText;
@@ -188,6 +190,13 @@ public class TextInputPropertyDialogController {
          passwordEditorModel.setErrorMessage(columnOption.getMessage());
       }
 
+      LabelInfo labelInfo = textInputAssemblyInfo.getLabelInfo();
+
+      inputLabelPaneModel.setLabelText(labelInfo.getLabelTextValue());
+      inputLabelPaneModel.setLabelGap(labelInfo.getLabelGap());
+      inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPosition());
+      inputLabelPaneModel.setShowLabel(labelInfo.isLabelVisible());
+
       clickableScriptPaneModel.scriptEnabled(textInputAssemblyInfo.isScriptEnabled());
       String script = textInputAssemblyInfo.getScript() == null ? "" : textInputAssemblyInfo.getScript();
       String onClick = textInputAssemblyInfo.getOnClick() == null ? "" :textInputAssemblyInfo.getOnClick();
@@ -238,6 +247,7 @@ public class TextInputPropertyDialogController {
       DataInputPaneModel dataInputPaneModel = value.getDataInputPaneModel();
       TextInputColumnOptionPaneModel textInputColumnOptionPaneModel =
          value.getTextInputColumnOptionPaneModel();
+      InputLabelPaneModel inputLabelPaneModel = value.getInputLabelPaneModel();
       ClickableScriptPaneModel clickableScriptPaneModel = value.getClickableScriptPaneModel();
 
       textInputAssemblyInfo.setEnabledValue(generalPropPaneModel.getEnabled());
@@ -309,6 +319,12 @@ public class TextInputPropertyDialogController {
             passwordEditorModel.getErrorMessage(), true);
          textInputAssemblyInfo.setColumnOption(passwordColumnOption);
       }
+
+      LabelInfo labelInfo = textInputAssemblyInfo.getLabelInfo();
+      labelInfo.setLabelTextValue(inputLabelPaneModel.getLabelText());
+      labelInfo.setLabelGapValue(inputLabelPaneModel.getLabelGap());
+      labelInfo.setLabelPosition(inputLabelPaneModel.getLabelPosition());
+      labelInfo.setLabelVisibleValue(inputLabelPaneModel.isShowLabel() + "");
 
       textInputAssemblyInfo.setScriptEnabled(clickableScriptPaneModel.scriptEnabled());
       textInputAssemblyInfo.setScript(clickableScriptPaneModel.scriptExpression());

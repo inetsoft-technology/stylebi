@@ -48,7 +48,19 @@ import { Tool } from "../../../../../../shared/util/tool";
 export class VSSpinner extends NavigationComponent<VSSpinnerModel>
 implements OnInit, OnChanges, OnDestroy
 {
-   @Input() selected: boolean = false;
+   private _selected: boolean = false;
+
+   @Input() set selected(selected: boolean) {
+      this._selected = selected;
+
+      if(!selected && this.model) {
+         this.model.labelSelected = false;
+      }
+   }
+
+   get selected(): boolean {
+      return this._selected;
+   }
    @Input() submitted: Observable<boolean>;
    @Output() spinnerClicked = new EventEmitter();
    private _updateOnChange: boolean = true;
@@ -239,5 +251,19 @@ implements OnInit, OnChanges, OnDestroy
 
    getLabelBorder(border: string): string {
       return border || "solid 1px gray";
+   }
+
+   selectLabel(event: MouseEvent): void {
+      if(this.context.preview) {
+         return;
+      }
+
+      this.model.labelSelected = true;
+   }
+
+   clearLabelSelection(): void {
+      if(this.model) {
+         this.model.labelSelected = false;
+      }
    }
 }
