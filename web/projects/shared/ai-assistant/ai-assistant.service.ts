@@ -66,7 +66,7 @@ export class AiAssistantService {
    calcTableAggregates: string[] = [];
    private contextMap: Record<string, string> = {};
    private _lastBindingObject: string = "";
-   private _newChatFromBinding : boolean = false;
+   private _newChatFromBinding: boolean = false;
 
    constructor(private http: HttpClient) {
       this.http.get("../api/assistant/get-chat-app-server-url").subscribe((url: string) => {
