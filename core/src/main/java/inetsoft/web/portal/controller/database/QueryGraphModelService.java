@@ -445,6 +445,8 @@ public class QueryGraphModelService {
          GraphModel graphModel = new GraphModel();
          SelectTable selectTable = sql.getSelectTable(i);
          AssetEntry entry = getSelectTableEntry(runtimeQuery, selectTable);
+         String additionalDatasource = ConnectionProcessor.getInstance().getAdditionalDatasource(principal, database, null);
+         entry.setProperty(XUtil.DATASOURCE_ADDITIONAL, additionalDatasource);
          graphModel.setNode(buildGraphNodeModel(entry, selectTable, database));
          graphModel.setEdge(buildGraphNodeEdge(sql, selectTable, database));
          graphModel.setCols(buildColumns(entry, selectTable, database, principal));
@@ -612,8 +614,8 @@ public class QueryGraphModelService {
          }
       }
       else {
-         TableNode tableNode = getTableNode(entry, database);
          String source = entry.getProperty("source");
+         TableNode tableNode = getTableNode(entry, database);
          BiFunction<String, String, Boolean> vpmHiddenCols = VpmProcessor.getInstance()
             .getHiddenColumnsSelector(
                new String[] { source }, new String[0], database, null, null, principal);
