@@ -614,8 +614,8 @@ public class QueryGraphModelService {
          }
       }
       else {
-         String source = entry.getProperty("source");
          TableNode tableNode = getTableNode(entry, database);
+         String source = entry.getProperty("source");
          BiFunction<String, String, Boolean> vpmHiddenCols = VpmProcessor.getInstance()
             .getHiddenColumnsSelector(
                new String[] { source }, new String[0], database, null, null, principal);
