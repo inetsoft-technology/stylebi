@@ -58,11 +58,6 @@ export namespace PropertiesTool {
    ];
 
    export const enumProperties = {
-      "chat.app.server.url": {
-         options: [
-            {label: "https://localhost:3001", value: "https://localhost:3001"}
-         ]
-      },
       "log.detail.level": {
          options: LOG_OPTIONS
       },
