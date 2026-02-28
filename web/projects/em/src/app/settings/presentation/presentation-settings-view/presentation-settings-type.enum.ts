@@ -31,4 +31,5 @@ export enum PresentationSettingsType {
    TIME_SETTINGS_MODEL = "timeSettingsModel",
    DATA_SOURCE_VISIBILITY_SETTINGS_MODEL = "dataSourceVisibilitySettingsModel",
    WEBMAP_SETTINGS_MODEL = "webMapSettingsModel",
+   AI_SETTINGS_MODEL = "aiSettingsModel",
 }

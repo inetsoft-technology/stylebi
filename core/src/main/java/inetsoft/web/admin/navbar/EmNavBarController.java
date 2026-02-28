@@ -74,10 +74,13 @@ public class EmNavBarController {
       }
 
       String homeLink = SreeEnv.getProperty("em.home.link", "..");
+      boolean aiAssistantVisible = "true".equalsIgnoreCase(
+         SreeEnv.getProperty("portal.ai.assistant.visible", "true"));
 
       return new EmNavBarModel(logoutUri,
                                manager.hasCustomLogo(OrganizationManager.getInstance().getCurrentOrgID()),
-                               enterprise, ssoUser, elasticLicenseExhausted, homeLink);
+                               enterprise, ssoUser, elasticLicenseExhausted, homeLink,
+                               aiAssistantVisible);
    }
 
    @GetMapping("/api/em/navbar/organization")

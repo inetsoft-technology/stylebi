@@ -89,6 +89,7 @@ import { PresentationViewsheetToolbarOptionsViewComponent } from "./presentation
 import { ToolbarOptionsTableViewComponent } from "./toolbar-options-table-view/toolbar-options-table-view.component";
 import { WebMapSettingsViewComponent } from "./webmap-settings-view/webmap-settings-view.component";
 import { WelcomePageSettingsViewComponent } from "./welcome-page-settings-view/welcome-page-settings-view.component";
+import { PresentationAISettingsViewComponent } from "./presentation-ai-settings-view/presentation-ai-settings-view.component";
 
 @NgModule({
    imports: [
@@ -167,7 +168,8 @@ import { WelcomePageSettingsViewComponent } from "./welcome-page-settings-view/w
       ThemePropertiesViewComponent,
       ThemeCssViewComponent,
       PresentationComposerMessageSettingsViewComponent,
-      WebMapSettingsViewComponent
+      WebMapSettingsViewComponent,
+      PresentationAISettingsViewComponent
    ],
    providers: [
       {provide: MatPaginatorIntl, useClass: LocalizedMatPaginator}
