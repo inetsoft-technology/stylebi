@@ -147,7 +147,21 @@ public final class XDateColumn extends AbstractTableColumn {
    @Override
    public Object getObject(int r) {
       long[] arr = access();
-      return arr[r] == -1 ? null : new java.sql.Date(arr[r]);
+
+      if(arr[r] == -1) {
+         return null;
+      }
+
+      // Normalize to midnight local time to avoid DST/timezone issues
+      // when comparing dates in MV queries
+      java.sql.Date date = new java.sql.Date(arr[r]);
+      java.util.Calendar cal = java.util.Calendar.getInstance();
+      cal.setTime(date);
+      cal.set(java.util.Calendar.HOUR_OF_DAY, 0);
+      cal.set(java.util.Calendar.MINUTE, 0);
+      cal.set(java.util.Calendar.SECOND, 0);
+      cal.set(java.util.Calendar.MILLISECOND, 0);
+      return new java.sql.Date(cal.getTimeInMillis());
    }
 
    /**
