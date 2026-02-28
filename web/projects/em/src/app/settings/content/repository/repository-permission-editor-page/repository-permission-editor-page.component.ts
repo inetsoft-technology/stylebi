@@ -20,6 +20,7 @@ import {Component, EventEmitter, Input, OnChanges, Output, SimpleChanges} from "
 import {ResourcePermissionModel} from "../../../security/resource-permission/resource-permission-model";
 import {RepositoryEditorModel} from "../../../../../../../shared/util/model/repository-editor-model";
 import {Tool} from "../../../../../../../shared/util/tool";
+import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../security/resource-permission/copy-paste-context";
 
 export interface RepositoryPermissionEditorModel extends RepositoryEditorModel {
    label: string;
@@ -37,6 +38,7 @@ export class RepositoryPermissionEditorPageComponent implements OnChanges {
    @Output() cancel = new EventEmitter<void>();
    @Output() editorChanged = new EventEmitter<void>();
    @Output() unsavedChanges = new EventEmitter<boolean>();
+   protected readonly copyPasteContext = COPY_PASTE_CONTEXT_REPOSITORY;
 
    private _oldModel: RepositoryPermissionEditorModel;
    private permissionChanged: boolean = false;

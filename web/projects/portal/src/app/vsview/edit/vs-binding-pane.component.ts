@@ -113,7 +113,6 @@ import { ConsoleMessage } from "../../widget/console-dialog/console-message";
    templateUrl: "vs-binding-pane.component.html",
    styleUrls: ["vs-binding-pane.component.scss"],
    providers: [
-      AiAssistantService,
       ViewsheetClientService,
       DataTipService,
       AdhocFilterService,

@@ -30,6 +30,7 @@ import {
 } from "../../../../../../../shared/util/model/driver-availability";
 import { StagedFileChooserComponent } from "../../../../common/util/file-chooser/staged-file-chooser/staged-file-chooser.component";
 import { ResourcePermissionModel } from "../../../security/resource-permission/resource-permission-model";
+import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../security/resource-permission/copy-paste-context";
 
 @Component({
    selector: "em-repository-data-source-settings-view",
@@ -45,6 +46,7 @@ export class RepositoryDataSourceSettingsViewComponent {
    @Output() applyClicked = new EventEmitter<void>();
    @Output() resetClicked = new EventEmitter<void>();
    @Output() unsavedChanges = new EventEmitter<boolean>();
+   protected readonly copyPasteContext = COPY_PASTE_CONTEXT_REPOSITORY;
 
    datasourceChanged: boolean = false;
 

@@ -37,10 +37,13 @@ public class PresentationDashboardSettingsService {
          "true".equals(SreeEnv.getProperty("dashboard.enabled", false, !globalProperty));
       boolean tabsTop = SreeEnv.getProperty("dashboard.tabs.top", false, !globalProperty) != null &&
          "true".equals(SreeEnv.getProperty("dashboard.tabs.top", false, !globalProperty));
+      boolean drillTabsTop = SreeEnv.getProperty("drill.tabs.top", false, !globalProperty) != null &&
+         "true".equals(SreeEnv.getProperty("drill.tabs.top", false, !globalProperty));
 
       return PresentationDashboardSettingsModel.builder()
          .enabled(enabled)
          .tabsTop(tabsTop)
+         .drillTabsTop(drillTabsTop)
          .build();
    }
 
@@ -53,6 +56,7 @@ public class PresentationDashboardSettingsService {
 
       SreeEnv.setProperty("dashboard.enabled", model.enabled() ? "true" : "false", !globalSettings);
       SreeEnv.setProperty("dashboard.tabs.top", model.tabsTop() ? "true" : "false", !globalSettings);
+      SreeEnv.setProperty("drill.tabs.top", model.drillTabsTop() ? "true" : "false", !globalSettings);
 
       SreeEnv.save();
    }
@@ -64,7 +68,8 @@ public class PresentationDashboardSettingsService {
    )
    public void resetSettings(boolean globalSettings) throws Exception {
       SreeEnv.resetProperty("dashboard.enabled", !globalSettings);
-      SreeEnv.resetProperty("dashboard.tabs.top",  !globalSettings);
+      SreeEnv.resetProperty("dashboard.tabs.top", !globalSettings);
+      SreeEnv.resetProperty("drill.tabs.top", !globalSettings);
 
       SreeEnv.save();
    }

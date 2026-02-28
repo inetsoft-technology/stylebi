@@ -34,6 +34,7 @@ import { HttpClient } from "@angular/common/http";
 import { AssetEntry, createAssetEntry } from "../../../../../../../../shared/data/asset-entry";
 import { AssetConstants } from "../../../../../../../../portal/src/app/common/data/asset-constants";
 import { AssetType } from "../../../../../../../../shared/data/asset-type";
+import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../../security/resource-permission/copy-paste-context";
 
 @Component({
    selector: "em-repository-dashboard-settings-view",
@@ -50,6 +51,7 @@ export class RepositoryDashboardSettingsViewComponent implements OnChanges, OnIn
    @Output() selectedTabChanged = new EventEmitter<number>();
    @Output() dashboardSettingsChanged = new EventEmitter<RepositoryDashboardSettingsModel>();
    @Output() unsavedChanges = new EventEmitter<boolean>();
+   protected readonly copyPasteContext = COPY_PASTE_CONTEXT_REPOSITORY;
    form: UntypedFormGroup;
    private destroy$: Subject<void> = new Subject();
    private _oldModel: RepositoryDashboardSettingsModel;

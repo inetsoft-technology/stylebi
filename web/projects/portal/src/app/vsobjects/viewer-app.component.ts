@@ -92,6 +92,7 @@ import { EmbedErrorCommand } from "../embed/embed-error-command";
 import { ChartTool } from "../graph/model/chart-tool";
 import { ChartService } from "../graph/services/chart.service";
 import { PageTabService } from "../viewer/services/page-tab.service";
+import { ViewConstants } from "../viewer/view-constants";
 import { ViewDataService } from "../viewer/services/view-data.service";
 import { VariableInputDialogModel } from "../widget/dialog/variable-input-dialog/variable-input-dialog-model";
 import { VariableInputDialog } from "../widget/dialog/variable-input-dialog/variable-input-dialog.component";
@@ -200,6 +201,7 @@ import { ViewerResizeService } from "./util/viewer-resize.service";
 import { VSUtil } from "./util/vs-util";
 import { VsToolbarButtonDirective } from "./vs-toolbar-button.directive";
 import { BaseHrefService } from "../common/services/base-href.service";
+import { DashboardTabModel } from "../portal/dashboard/dashboard-tab-model";
 
 declare const window: any;
 declare var globalPostParams: { [name: string]: string[] } | null;
@@ -334,7 +336,15 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    @Input() fullScreen: boolean = false;
    @Input() inPortal = false; // currently opened as child route of portal
    @Input() inDashboard = false; // currently opened in the dashboard tab of portal
-   @Input() tabsHeight: number = 0;
+   @Input()
+   get tabsHeight(): number {
+      return this._tabsHeight;
+   }
+
+   set tabsHeight(value: number) {
+      this._tabsHeight = value;
+      this.updateTabPositions();
+   }
    @Input() dashboardName: string = null;
    @Input() fullscreenId: string;
    @Input() designSaved: boolean;
@@ -344,6 +354,15 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    @Input() globalLoadingIndicator: boolean = false;
    @Input() embedViewer: boolean = false;
    @Input() viewerOffsetFunc: () => { x: number, y: number, width: number, height: number, scrollLeft: number, scrollTop: number };
+   @Input()
+   get dashboardTabModel(): DashboardTabModel | null {
+      return this._dashboardTabModel;
+   }
+
+   set dashboardTabModel(value: DashboardTabModel | null) {
+      this._dashboardTabModel = value;
+      this.updateTabPositions();
+   }
    @Output() onAnnotationChanged = new EventEmitter<boolean>();
    @Output() runtimeIdChange = new EventEmitter<string>();
    @Output() socket = new EventEmitter<ViewsheetClientService>();
@@ -359,6 +378,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    @Output() onLoadingStateChanged = new EventEmitter<{ name: string, loading: boolean }>();
    @Output() onDataTipPopComponentVisible = new EventEmitter<boolean>();
    @Output() onViewerSizeChanged = new EventEmitter<{width: number, height: number}>();
+   @Output() toolbarVisibleChange = new EventEmitter<boolean>();
 
    @Input()
    get runtimeId(): string {
@@ -379,6 +399,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    exportTypes: { label: string, value: string }[] = [];
    viewsheetLoading: boolean = false;
    preparingData: boolean = false;
+   topPx: string | null = null;
+   bottomPx: string | null = null;
    toolbarVisible: boolean = true;
    hideLoadingDisplay: boolean = false;
    profilingVisible: boolean = false;
@@ -480,6 +502,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    selectedDataTipView: string = null;
    isDefaultOrgAsset: boolean = false;
    private intersectionObserver: IntersectionObserver;
+   private _tabsHeight: number = 0;
+   private _dashboardTabModel: DashboardTabModel | null = null;
 
    constructor(public viewsheetClient: ViewsheetClientService,
                private stompClientService: StompClientService,
@@ -2312,6 +2336,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
     */
    processInitGridCommand(command: InitGridCommand): void {
       this.toolbarVisible = command.toolbarVisible;
+      this.toolbarVisibleChange.emit(this.toolbarVisible);
+      this.updateTabPositions();
       this.stompClientService.reloadOnFailure = command.wallboard;
       this.wallboard = !!command.wallboard;
       this.hyperlinkService.singleClick = command.singleClick;
@@ -2339,6 +2365,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    processSetPermissionsCommand(command: SetPermissionsCommand): void {
       this.toolbarPermissions = command.permissions || [];
       this.toolbarVisible = this.toolbarPermissions.indexOf("Toolbar") < 0;
+      this.toolbarVisibleChange.emit(this.toolbarVisible);
+      this.updateTabPositions();
       this.hyperlinkService.portalRepositoryPermission =
          this.toolbarPermissions.indexOf("PortalRepository") < 0;
       this.profilingVisible = !!command.permissions && command.permissions.indexOf("Profiling") > 0;
@@ -3352,9 +3380,12 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       {
          this.debounceService.debounce(this.runtimeId + "_notify_parent_frame", () => {
             // check if the bottom tab bar is visible and if so add its height
-            // to the scroll height to prevent any scrollbars on the iframe
+            // to the scroll height to prevent any scrollbars on the iframe.
+            // when drillTabsTop is true the bar is at the top and the viewsheet body's
+            // topPx already accounts for it, so do not add it again.
             const pageTabBar = document.querySelector(".page-tab-bar");
-            const pageTabBarHeight = !!pageTabBar ? pageTabBar.getBoundingClientRect().height : 0;
+            const pageTabBarHeight = (!!pageTabBar && !this.dashboardTabModel?.drillTabsTop)
+               ? pageTabBar.getBoundingClientRect().height : 0;
 
             const message = {
                scrollHeight: this.viewerRoot.nativeElement.scrollHeight + pageTabBarHeight
@@ -4216,5 +4247,22 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       }
 
       return { top: 0, left: 0, width: 0, height: 0 };
+   }
+
+   private updateTabPositions(): void {
+      if(this.dashboardTabModel?.drillTabsTop) {
+         if(this.toolbarVisible) {
+            const offset = this.mobileDevice
+               ? ViewConstants.TOOLBAR_HEIGHT_MOBILE_PX
+               : ViewConstants.TOOLBAR_HEIGHT_PX;
+            this.topPx = this.tabsHeight + offset + 'px';
+         } else {
+            this.topPx = this.tabsHeight + 'px';
+         }
+         this.bottomPx = '0px';
+      } else {
+         this.topPx = null;
+         this.bottomPx = this.tabsHeight + 'px';
+      }
    }
 }
