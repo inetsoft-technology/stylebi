@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.security.Principal;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 @SingletonManager.Singleton
@@ -98,22 +99,40 @@ public class DistributedTableCacheStore {
       final Principal principal = ThreadContext.getContextPrincipal();
 
       debouncer.debounce(key, 1L, TimeUnit.SECONDS, () -> {
-         ThreadContext.setContextPrincipal(principal);
-
-         try(BlobTransaction<Metadata> tx = storage.beginTransaction();
-             OutputStream out = tx.newStream(key, null);
-             ObjectOutputStream oos = new ObjectOutputStream(out))
-         {
-            // get all rows before writing
-            lens.moreRows(XTable.EOT);
-            oos.writeObject(lens);
-            oos.flush();
-            tx.commit();
+         // Limit concurrent blob writes to prevent bursting the Ignite partition-owning
+         // node with simultaneous PutBlobTask submissions under high user concurrency.
+         // Tasks that cannot acquire a slot within the timeout are skipped — this is safe
+         // because DistributedTableCacheStore is a pure cache; a miss causes a re-query.
+         try {
+            if(!WRITE_SEMAPHORE.tryAcquire(BLOB_WRITE_SEMAPHORE_TIMEOUT_SECS, TimeUnit.SECONDS)) {
+               LOG.warn("Timed out waiting for blob write slot, skipping cache write for {}", key);
+               return;
+            }
          }
-         catch(IOException ex) {
-            LOG.error("Failed to write to the blob storage: {}", key, ex);
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return;
+         }
+
+         try {
+            ThreadContext.setContextPrincipal(principal);
+
+            try(BlobTransaction<Metadata> tx = storage.beginTransaction();
+                OutputStream out = tx.newStream(key, null);
+                ObjectOutputStream oos = new ObjectOutputStream(out))
+            {
+               // get all rows before writing
+               lens.moreRows(XTable.EOT);
+               oos.writeObject(lens);
+               oos.flush();
+               tx.commit();
+            }
+            catch(IOException ex) {
+               LOG.error("Failed to write to the blob storage: {}", key, ex);
+            }
          }
          finally {
+            WRITE_SEMAPHORE.release();
             ThreadContext.setContextPrincipal(null);
          }
       });
@@ -164,6 +183,11 @@ public class DistributedTableCacheStore {
 
    private static final long CLEANUP_FREQUENCY_TIME = 30L; // minutes
    private static final String COUNTER_NAME = DistributedTableCacheStore.class.getName() + ".counter";
+   // Cap concurrent blob writes to avoid bursting the Ignite partition-owning node with
+   // simultaneous PutBlobTask submissions when many users execute dashboards concurrently.
+   private static final int MAX_CONCURRENT_BLOB_WRITES = 16;
+   private static final long BLOB_WRITE_SEMAPHORE_TIMEOUT_SECS = 10L;
+   private static final Semaphore WRITE_SEMAPHORE = new Semaphore(MAX_CONCURRENT_BLOB_WRITES);
    private static final Logger LOG = LoggerFactory.getLogger(DistributedTableCacheStore.class);
 
    public static final class Metadata implements Serializable {
