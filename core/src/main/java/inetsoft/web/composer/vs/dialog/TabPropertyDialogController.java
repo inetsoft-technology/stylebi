@@ -22,8 +22,10 @@ import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.TabVSAssembly;
+import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.VSObjectTreeNode;
@@ -114,6 +116,8 @@ public class TabPropertyDialogController {
       SizePositionPaneModel sizePositionPaneModel = tabGeneralPaneModel.getSizePositionPaneModel();
       VSAssemblyScriptPaneModel.Builder vsAssemblyScriptPaneModel = VSAssemblyScriptPaneModel.builder();
 
+      tabGeneralPaneModel.setBottomTabs(tabAssemblyInfo.getBottomTabsValue());
+
       generalPropPaneModel.setShowEnabledGroup(true);
       generalPropPaneModel.setEnabled(tabAssemblyInfo.getEnabledValue());
 
@@ -172,6 +176,9 @@ public class TabPropertyDialogController {
          throw e;
       }
 
+      // Capture the current value before any modifications so we can detect a change below.
+      boolean oldBottomTabs = tabAssemblyInfo.getBottomTabsValue();
+
       TabGeneralPaneModel tabGeneralPaneModel = value.getTabGeneralPaneModel();
       GeneralPropPaneModel generalPropPaneModel = tabGeneralPaneModel.getGeneralPropPaneModel();
       BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
@@ -212,6 +219,13 @@ public class TabPropertyDialogController {
       tabAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       tabAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
 
+      tabAssemblyInfo.setBottomTabsValue(tabGeneralPaneModel.getBottomTabs());
+
+      if(oldBottomTabs != tabGeneralPaneModel.getBottomTabs()) {
+         repositionChildrenForBottomTabsChange(tabAssemblyInfo, tabAssembly.getAssemblies(), vs,
+                                               tabGeneralPaneModel.getBottomTabs());
+      }
+
       this.vsObjectPropertyService.editObjectProperty(
          viewsheet, tabAssemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri, principal,
          commandDispatcher);
@@ -219,6 +233,97 @@ public class TabPropertyDialogController {
       VSObjectTreeNode tree = vsObjectTreeService.getObjectTree(viewsheet);
       PopulateVSObjectTreeCommand treeCommand = new PopulateVSObjectTreeCommand(tree);
       commandDispatcher.sendCommand(treeCommand);
+   }
+
+   /**
+    * Adjusts child assembly positions and the tab bar position when the bottomTabs property
+    * is toggled. This runs once at the time of the property change, not on every model render.
+    *
+    * Top-tabs: every child's top edge is flush with the tab bar bottom.
+    * Bottom-tabs: every child's bottom edge is flush with the tab bar top.
+    *
+    * The tab bar is moved by the full content-area height (maxChildHeight). Its new Y is
+    * computed first and used as the authoritative reference. Each child is then placed at
+    * an absolute target Y:
+    *
+    *   toBottomTabs: childY = max(0, newTabY - childHeight)
+    *   toTopTabs:    childY = newTabY + tabHeight
+    *
+    * Using absolute positions (rather than per-child deltas from current positions) avoids
+    * accumulated errors when a child's Y was previously clamped to 0 in bottom-tabs mode.
+    *
+    * Both pixelOffset and layoutPosition are updated, following the same pattern as
+    * VSDialogService.setContainerPosition.
+    */
+   private static void repositionChildrenForBottomTabsChange(TabVSAssemblyInfo tabAssemblyInfo,
+                                                              String[] children,
+                                                              Viewsheet vs,
+                                                              boolean toBottomTabs)
+   {
+      if(children == null || children.length == 0) {
+         return;
+      }
+
+      int tabHeight = tabAssemblyInfo.getPixelSize().height;
+
+      if(tabHeight == 0) {
+         return;
+      }
+
+      // Find the tallest child; the tab bar must land beyond it.
+      int maxChildHeight = 0;
+
+      for(String childName : children) {
+         VSAssembly child = (VSAssembly) vs.getAssembly(childName);
+
+         if(child != null && child.getPixelSize() != null) {
+            maxChildHeight = Math.max(maxChildHeight, child.getPixelSize().height);
+         }
+      }
+
+      if(maxChildHeight == 0) {
+         return;
+      }
+
+      // Tab bar moves by the full content-area height. Compute the new tab Y first so
+      // children can be placed at absolute positions relative to it, avoiding errors
+      // from previously clamped child positions in bottom-tabs mode.
+      int tabDy = toBottomTabs ? maxChildHeight : -maxChildHeight;
+
+      Point tabPos = tabAssemblyInfo.getPixelOffset();
+      int newTabY = Math.max(0, tabPos.y + tabDy);
+      int actualTabDy = newTabY - tabPos.y;
+      tabAssemblyInfo.setPixelOffset(new Point(tabPos.x, newTabY));
+
+      if(tabAssemblyInfo.getLayoutPosition() != null) {
+         tabAssemblyInfo.getLayoutPosition().translate(0, actualTabDy);
+      }
+
+      for(String childName : children) {
+         VSAssembly child = (VSAssembly) vs.getAssembly(childName);
+
+         if(child == null) {
+            continue;
+         }
+
+         VSAssemblyInfo childInfo = child.getVSAssemblyInfo();
+         int childHeight = child.getPixelSize() != null ? child.getPixelSize().height : maxChildHeight;
+
+         // Use absolute target positions to avoid accumulating errors from clamped positions.
+         // toBottomTabs: each child's bottom edge is flush with the tab bar top.
+         // toTopTabs:    each child's top edge is flush with the tab bar bottom.
+         int newChildY = toBottomTabs
+            ? Math.max(0, newTabY - childHeight)
+            : newTabY + tabHeight;
+
+         Point childPos = child.getPixelOffset();
+         int actualDy = newChildY - childPos.y;
+         childInfo.setPixelOffset(new Point(childPos.x, newChildY));
+
+         if(childInfo.getLayoutPosition() != null) {
+            childInfo.getLayoutPosition().translate(0, actualDy);
+         }
+      }
    }
 
    private final VSObjectPropertyService vsObjectPropertyService;

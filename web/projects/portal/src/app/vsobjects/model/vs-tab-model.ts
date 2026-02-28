@@ -24,4 +24,6 @@ export interface VSTabModel extends VSObjectModel {
    selected: string;
    activeFormat: VSFormatModel;
    roundTopCornersOnly: boolean;
+   roundBottomCornersOnly: boolean;
+   bottomTabs: boolean;
 }

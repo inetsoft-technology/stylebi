@@ -20,8 +20,8 @@ package inetsoft.web.viewsheet.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.web.binding.model.BaseFormatModel;
 import org.springframework.stereotype.Component;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -70,6 +70,19 @@ public class VSTabModel extends VSObjectModel<TabVSAssembly> {
       activeFormat = new VSFormatModel(compositeFormat, info);
 
       roundTopCornersOnly = info.isRoundTopCornersOnly();
+      bottomTabs = info.isBottomTabs();
+      roundBottomCornersOnly = info.isRoundBottomCornersOnly();
+
+      // info is already a clone, so mutating activeBorder only affects this model's copy
+      // and does not alter the shared assembly FormatInfo.
+      if(bottomTabs) {
+         BaseFormatModel.Border activeBorder = activeFormat.getBorder();
+         String currBottomBorder = activeBorder.getBottom();
+         String currTopBorder = activeBorder.getTop();
+         activeBorder.setTop(currBottomBorder);
+         activeBorder.setBottom(currTopBorder);
+         activeFormat.setBorder(activeBorder);
+      }
    }
 
    public String[] getLabels() {
@@ -96,11 +109,29 @@ public class VSTabModel extends VSObjectModel<TabVSAssembly> {
       this.roundTopCornersOnly = roundTopCornersOnly;
    }
 
+   public boolean isBottomTabs() {
+      return this.bottomTabs;
+   }
+
+   public boolean isRoundBottomCornersOnly() {
+      return roundBottomCornersOnly;
+   }
+
+   @Override
+   public String toString() {
+      return "{" + super.toString() +
+         "bottomTabs=" + bottomTabs +
+         ", roundBottomCornersOnly=" + roundBottomCornersOnly +
+         "} ";
+   }
+
    private String[] labels;
    private String[] childrenNames;
    private String selected;
    private VSFormatModel activeFormat;
    private boolean roundTopCornersOnly;
+   private boolean bottomTabs;
+   private boolean roundBottomCornersOnly;
 
    @Component
    public static final class VSTabModelFactory

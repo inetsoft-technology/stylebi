@@ -447,14 +447,74 @@ public class ComposerObjectController {
 
          if(assembly instanceof TabVSAssembly) {
             TabVSAssembly tab = (TabVSAssembly) assembly;
+            TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getInfo();
             int ychange = event.getHeight() - originalSize.height;
 
-            if(ychange != 0) {
+            if(ychange != 0 && !tabInfo.getBottomTabsValue()) {
                this.updateContainerChildrenYChange(tab, viewsheet, ychange);
             }
          }
 
          move(viewsheet, position, (VSAssembly) assembly);
+
+         // When a child inside a bottom-tabs TabVSAssembly is resized, the tab bar must
+         // stay flush with the child's new bottom edge. move() translates the tab bar by
+         // the child's top-Y delta, which is wrong when height also changed (e.g. dragging
+         // the bottom edge). Correct the tab bar position and re-align every sibling so
+         // each child's bottom equals the tab bar top.
+         ContainerVSAssembly parentContainer =
+            (ContainerVSAssembly) ((VSAssembly) assembly).getContainer();
+
+         if(parentContainer instanceof TabVSAssembly) {
+            TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) parentContainer.getVSAssemblyInfo();
+
+            if(tabInfo.getBottomTabsValue()) {
+               int newChildBottom = position.y + size.height;
+               Point tabPos = tabInfo.getPixelOffset();
+               int dy = newChildBottom - tabPos.y;
+
+               if(dy != 0) {
+                  tabInfo.setPixelOffset(new Point(tabPos.x, tabPos.y + dy));
+
+                  if(tabInfo.getLayoutPosition() != null) {
+                     tabInfo.getLayoutPosition().translate(0, dy);
+                  }
+               }
+
+               // Reposition every child of the tab so its bottom aligns with the
+               // (possibly updated) tab bar top.
+               String[] tabChildren = parentContainer.getAssemblies();
+
+               for(String childName : tabChildren) {
+                  VSAssembly childAssembly = viewsheet.getAssembly(childName);
+
+                  if(childAssembly == null) {
+                     continue;
+                  }
+
+                  VSAssemblyInfo childInfo = childAssembly.getVSAssemblyInfo();
+                  int childH = childAssembly.getPixelSize() != null
+                     ? childAssembly.getPixelSize().height : 0;
+                  int targetY = Math.max(0, newChildBottom - childH);
+                  Point childPos = childInfo.getPixelOffset();
+                  int childDy = targetY - childPos.y;
+
+                  if(childDy != 0) {
+                     childInfo.setPixelOffset(new Point(childPos.x, targetY));
+
+                     if(childInfo.getLayoutPosition() != null) {
+                        childInfo.getLayoutPosition().translate(0, childDy);
+                     }
+
+                     // Propagate the shift into any nested group container children.
+                     if(childAssembly instanceof GroupContainerVSAssembly) {
+                        updateContainerChildrenYChange(
+                           (GroupContainerVSAssembly) childAssembly, viewsheet, childDy);
+                     }
+                  }
+               }
+            }
+         }
 
          if(assembly instanceof ContainerVSAssembly || (viewsheet.getViewsheetInfo() != null &&
             viewsheet.getViewsheetInfo().isScaleToScreen()))
