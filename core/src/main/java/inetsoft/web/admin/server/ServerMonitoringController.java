@@ -566,6 +566,16 @@ public class ServerMonitoringController {
 
       List<ViewsheetHistory> vsExe = viewsheetService.getHistory(clusterNode);
 
+      // If no server viewsheet history and clusterNode is a scheduler, use scheduler history
+      if(vsExe.isEmpty() && clusterNode != null) {
+         for(String scheduleServer : getScheduleServers()) {
+            if(clusterNode.equals(scheduleServer)) {
+               vsExe = schedulerMonitoringService.getViewsheetHistory(scheduleServer);
+               break;
+            }
+         }
+      }
+
       if(!vsExe.isEmpty()) {
          legends.addExecution(SummaryChartLegend.builder()
                                  .text("Viewsheets")
@@ -1027,15 +1037,26 @@ public class ServerMonitoringController {
                                               long tzAdjustMs)
    {
       Catalog catalog = Catalog.getCatalog();
-
-      List<QueryHistory> queryExe = queryService.getHistory(clusterNode);
       List<Time> timeline = new ArrayList<>();
       List<Object> headers = new ArrayList<>();
       List<Map<Time, Integer>> maps = new ArrayList<>();
 
       headers.add("Time");
 
-      List<ViewsheetHistory> vsExe = viewsheetService.getHistory(clusterNode);
+      boolean isSchedulerNode = false;
+
+      if(clusterNode != null) {
+         for(String scheduleServer : getScheduleServers()) {
+            if(clusterNode.equals(scheduleServer)) {
+               isSchedulerNode = true;
+               break;
+            }
+         }
+      }
+
+      List<ViewsheetHistory> vsExe = isSchedulerNode
+         ? schedulerMonitoringService.getViewsheetHistory(clusterNode)
+         : viewsheetService.getHistory(clusterNode);
 
       if(!vsExe.isEmpty()) {
          Map<Time, Integer> map = new HashMap<>();
@@ -1049,18 +1070,29 @@ public class ServerMonitoringController {
          }
       }
 
-      if(!queryExe.isEmpty()) {
-         Map<Time, Integer> map = new HashMap<>();
-         maps.add(map);
-         headers.add("Queries");
+      if(!isSchedulerNode) {
+         List<QueryHistory> queryExe = queryService.getHistory(clusterNode);
 
-         for(QueryHistory query : queryExe) {
-            Time time = new Time(query.timestamp() + tzAdjustMs);
-            timeline.add(time);
-            map.put(time, query.queryCount());
+         if(!queryExe.isEmpty()) {
+            Map<Time, Integer> map = new HashMap<>();
+            maps.add(map);
+            headers.add("Queries");
+
+            for(QueryHistory query : queryExe) {
+               Time time = new Time(query.timestamp() + tzAdjustMs);
+               timeline.add(time);
+               map.put(time, query.queryCount());
+            }
          }
       }
 
+      return buildExecutionChart(timeline, headers, maps, width, height, catalog);
+   }
+
+   private Graphics2D buildExecutionChart(List<Time> timeline, List<Object> headers,
+                                          List<Map<Time, Integer>> maps,
+                                          int width, int height, Catalog catalog)
+   {
       if(timeline.isEmpty()) {
          return null;
       }
