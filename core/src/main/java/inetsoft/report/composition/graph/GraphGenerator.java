@@ -1980,6 +1980,8 @@ public abstract class GraphGenerator {
          // if separate style, we make the pie on top of each other. this is needed to
          // support the donut with a number in middle.
          if(info.isMultiStyles()) {
+            // don't lose the scale range set for other measures. (73966)
+            range.copyMeasureRanges(scale.getScaleRange());
             range.addStackFields(scale.getFields()[0]);
          }
          // multiple measures in a pie are stacked together
