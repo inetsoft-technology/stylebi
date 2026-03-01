@@ -1314,20 +1314,40 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
                   continue;
                }
 
-               // No named group - use the CalculateRef directly (Bug #73729)
-               gref = new GroupRef(calcRef);
+               // If the dimension has a date level (e.g., a user CalcField with date
+               // grouping), or is a DC runtime date-part calc ref (e.g., MonthOfQuarter
+               // (Calcdate) where isDateRange=false because the DC CalculateRef has
+               // integer type), fall through to the normal handling below.
+               // The CalculateRef added to cols above ensures the calc field formula
+               // is computed during the query.
+               //
+               // Without this check, findColumn() in getTableLens0() would fail because
+               // the base table would group by the raw CalcField (e.g. Calcdate) instead
+               // of the date-part column (e.g. MonthOfQuarter(Calcdate)). Bug #73967.
+               DataRef dimGroup = ref.getDataRef();
+               boolean isDcDatePart = dimGroup instanceof CalculateRef &&
+                  ((CalculateRef) dimGroup).isDcRuntime();
 
-               if(!groupInfo.containsGroup(gref)) {
-                  groupInfo.addGroup(gref);
+               if((ref.isDateRange() || isDcDatePart) && gref != null) {
+                  // fall through to normal handling below
                }
+               else {
+                  // No named group, no date level, not a DC date part -
+                  // use the CalculateRef directly (Bug #73729)
+                  gref = new GroupRef(calcRef);
 
-               if(!allGroupInfo.containsGroup(gref)) {
-                  allGroupInfo.addGroup(gref);
+                  if(!groupInfo.containsGroup(gref)) {
+                     groupInfo.addGroup(gref);
+                  }
+
+                  if(!allGroupInfo.containsGroup(gref)) {
+                     allGroupInfo.addGroup(gref);
+                  }
+
+                  // Skip normal processing below - it would call getColumnRefFromAttribute()
+                  // which could replace our CalculateRef with the wrong column reference
+                  continue;
                }
-
-               // Skip normal processing below - it would call getColumnRefFromAttribute()
-               // which could replace our CalculateRef with the wrong column reference
-               continue;
             }
             else if(gref == null) {
                continue;
