@@ -1314,20 +1314,29 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
                   continue;
                }
 
-               // No named group - use the CalculateRef directly (Bug #73729)
-               gref = new GroupRef(calcRef);
-
-               if(!groupInfo.containsGroup(gref)) {
-                  groupInfo.addGroup(gref);
+               // If the dimension has a date level (e.g., Year grouping), keep the
+               // DateRangeRef-based GroupRef from createGroupRef() so date level grouping
+               // is applied correctly. The CalculateRef added to cols above ensures the
+               // calc field formula is computed. Fall through to DateRangeRef handling below.
+               if(ref.isDateRange() && gref != null) {
+                  // fall through to normal DateRangeRef handling
                }
+               else {
+                  // No named group, no date level - use the CalculateRef directly (Bug #73729)
+                  gref = new GroupRef(calcRef);
 
-               if(!allGroupInfo.containsGroup(gref)) {
-                  allGroupInfo.addGroup(gref);
+                  if(!groupInfo.containsGroup(gref)) {
+                     groupInfo.addGroup(gref);
+                  }
+
+                  if(!allGroupInfo.containsGroup(gref)) {
+                     allGroupInfo.addGroup(gref);
+                  }
+
+                  // Skip normal processing below - it would call getColumnRefFromAttribute()
+                  // which could replace our CalculateRef with the wrong column reference
+                  continue;
                }
-
-               // Skip normal processing below - it would call getColumnRefFromAttribute()
-               // which could replace our CalculateRef with the wrong column reference
-               continue;
             }
             else if(gref == null) {
                continue;
