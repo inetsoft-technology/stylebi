@@ -95,6 +95,8 @@ public class AxisPropertyDialogModel {
          maxMode ? axisDesc.isMaxModeLabelVisible() : axisDesc.isLabelVisible());
       axisLabelPaneModel.setShowAxisLabelEnabled(showAxisLabelEnabled);
       axisLabelPaneModel.setLabelOnSecondaryAxis(axisDesc.isLabelOnSecondaryAxis());
+      axisLabelPaneModel.setSecondary("right_y_axis".equals(axisType) ||
+         GraphTypes.isRadar(cInfo.getRTChartType()));
 
       RotationRadioGroupModel rotationRadioGroupModel = new RotationRadioGroupModel();
       CompositeTextFormat textFormat;
