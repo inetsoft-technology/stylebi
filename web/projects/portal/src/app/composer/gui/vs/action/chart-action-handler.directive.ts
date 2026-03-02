@@ -98,6 +98,8 @@ export class ChartActionHandlerDirective extends AbstractActionHandler implement
          this.showHyperlinkDialog();
          break;
       case "chart title-hyperlink":
+         this.showHyperlinkDialog(false, true);
+         break;
       case "chart plot-hyperlink":
          this.showHyperlinkDialog();
          break;
@@ -113,7 +115,7 @@ export class ChartActionHandlerDirective extends AbstractActionHandler implement
       }
    }
 
-   private showHyperlinkDialog(emptyPlotArea?: boolean): void {
+   private showHyperlinkDialog(emptyPlotArea?: boolean, titleLink?: boolean): void {
       let params = new HttpParams()
          .set("runtimeId", this._viewsheet.runtimeId)
          .set("objectId", this.model.absoluteName);
@@ -138,7 +140,7 @@ export class ChartActionHandlerDirective extends AbstractActionHandler implement
          if(regions) {
             colName = ChartTool.getDim(this.model, regions[0]);
          }
-         else if (this.model.titleSelected) {
+         else if (titleLink || this.model.titleSelected) {
             params = params.append("titleLink", "true");
          }
          else if (emptyPlotArea) {
@@ -148,7 +150,7 @@ export class ChartActionHandlerDirective extends AbstractActionHandler implement
             colName = ChartTool.getFirstAvailableMeasure(this.model);
          }
 
-         if (!this.model.titleSelected && !emptyPlotArea) {
+         if (!titleLink && !this.model.titleSelected && !emptyPlotArea) {
             params = params.append("isAxis", "true");
          }
       }

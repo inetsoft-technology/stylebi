@@ -156,7 +156,7 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
             icon: () => "fa fa-link",
             enabled: () => true,
             visible: () => this.model.emptyPlotLinkModel &&
-               this.model.chartSelection?.regions.length == 0 &&
+               this.model.chartSelection?.regions?.length == 0 &&
                this.isActionVisibleInViewer("Show Hyperlinks") && this.mobileDevice
          },
          {
