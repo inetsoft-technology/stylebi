@@ -95,7 +95,8 @@ public class AxisPropertyDialogModel {
          maxMode ? axisDesc.isMaxModeLabelVisible() : axisDesc.isLabelVisible());
       axisLabelPaneModel.setShowAxisLabelEnabled(showAxisLabelEnabled);
       axisLabelPaneModel.setLabelOnSecondaryAxis(axisDesc.isLabelOnSecondaryAxis());
-      axisLabelPaneModel.setSecondary("right_y_axis".equals(axisType));
+      axisLabelPaneModel.setSecondary("right_y_axis".equals(axisType) ||
+         GraphTypes.isRadar(cInfo.getRTChartType()));
 
       // A right_y_axis click can mean either a true secondary y-axis OR a primary axis whose
       // labels were moved to the right via "Labels on Opposite Side".
