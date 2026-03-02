@@ -33,6 +33,9 @@ import java.io.*;
 import java.security.Principal;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
+import java.util.zip.ZipException;
 
 @SingletonManager.Singleton
 public class DistributedTableCacheStore {
@@ -80,9 +83,24 @@ public class DistributedTableCacheStore {
          return null;
       }
 
-      try(InputStream storageInputStream = storage.getInputStream(key)) {
-         lens = (TableLens) new ObjectInputStream(storageInputStream).readObject();
+      try(InputStream storageInputStream = storage.getInputStream(key);
+          GZIPInputStream gzipIn = new GZIPInputStream(storageInputStream);
+          ObjectInputStream ois = new ObjectInputStream(gzipIn))
+      {
+         lens = (TableLens) ois.readObject();
          LOG.debug("Loaded lens {} from distributed table cache store", key);
+      }
+      catch(ZipException ex) {
+         // Uncompressed entry written before this change; delete it so subsequent
+         // get() calls don't repeatedly open and fail the GZIP check.
+         LOG.debug("Cached lens {} is not compressed, treating as cache miss and deleting stale entry", key);
+
+         try {
+            storage.delete(key);
+         }
+         catch(IOException deleteEx) {
+            LOG.debug("Failed to delete stale uncompressed entry {}", key, deleteEx);
+         }
       }
 
       return lens;
@@ -100,14 +118,17 @@ public class DistributedTableCacheStore {
       debouncer.debounce(key, 1L, TimeUnit.SECONDS, () -> {
          ThreadContext.setContextPrincipal(principal);
 
-         try(BlobTransaction<Metadata> tx = storage.beginTransaction();
-             OutputStream out = tx.newStream(key, null);
-             ObjectOutputStream oos = new ObjectOutputStream(out))
-         {
-            // get all rows before writing
-            lens.moreRows(XTable.EOT);
-            oos.writeObject(lens);
-            oos.flush();
+         try(BlobTransaction<Metadata> tx = storage.beginTransaction()) {
+            try(OutputStream out = tx.newStream(key, null);
+                GZIPOutputStream gzipOut = new GZIPOutputStream(out);
+                ObjectOutputStream oos = new ObjectOutputStream(gzipOut))
+            {
+               // get all rows before writing
+               lens.moreRows(XTable.EOT);
+               oos.writeObject(lens);
+            }
+
+            // streams are fully closed (GZIP trailer written) before commit
             tx.commit();
          }
          catch(IOException ex) {
