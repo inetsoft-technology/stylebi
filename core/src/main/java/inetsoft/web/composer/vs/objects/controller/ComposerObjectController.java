@@ -457,11 +457,11 @@ public class ComposerObjectController {
 
          move(viewsheet, position, (VSAssembly) assembly);
 
-         // When a child inside a bottom-tabs TabVSAssembly is resized, the tab bar must
-         // stay flush with the child's new bottom edge. move() translates the tab bar by
-         // the child's top-Y delta, which is wrong when height also changed (e.g. dragging
-         // the bottom edge). Correct the tab bar position and re-align every sibling so
-         // each child's bottom equals the tab bar top.
+         // When a child inside a bottom-tabs TabVSAssembly is resized from the top edge,
+         // move() translates the tab bar by the child's top-Y delta, which is wrong —
+         // the child's bottom is unchanged so the tab bar must not move. Correct the tab
+         // bar position and re-align every sibling so each child's bottom equals the tab
+         // bar top.
          ContainerVSAssembly parentContainer =
             (ContainerVSAssembly) ((VSAssembly) assembly).getContainer();
 
@@ -474,6 +474,10 @@ public class ComposerObjectController {
                int dy = newChildBottom - tabPos.y;
 
                if(dy != 0) {
+                  // Write directly to tabInfo instead of calling parentContainer.setPixelOffset(),
+                  // because TabVSAssembly.setPixelOffset() calls updateChildPosition() and would
+                  // cascade the delta to all children. Child positions are managed explicitly
+                  // in the sibling loop below, so the cascade must be skipped here.
                   tabInfo.setPixelOffset(new Point(tabPos.x, tabPos.y + dy));
 
                   if(tabInfo.getLayoutPosition() != null) {
@@ -482,7 +486,10 @@ public class ComposerObjectController {
                }
 
                // Reposition every child of the tab so its bottom aligns with the
-               // (possibly updated) tab bar top.
+               // (possibly updated) tab bar top. This runs outside the if(dy != 0) guard
+               // intentionally: when dy == 0 the tab bar was already correct, but siblings
+               // may still be misaligned if a prior operation left them inconsistent.
+               // Each childDy check prevents unnecessary mutations in the common case.
                String[] tabChildren = parentContainer.getAssemblies();
 
                for(String childName : tabChildren) {

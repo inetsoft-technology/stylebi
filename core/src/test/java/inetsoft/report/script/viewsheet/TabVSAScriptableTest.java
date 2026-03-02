@@ -33,19 +33,16 @@ import java.awt.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
-import static org.mockito.MockitoAnnotations.openMocks;
 
 public class TabVSAScriptableTest {
    private Viewsheet viewsheet;
-   private ViewsheetSandbox viewsheetSandbox ;
+   private ViewsheetSandbox viewsheetSandbox;
    private TabVSAScriptable tabVSAScriptable;
    private TabVSAssemblyInfo tabVSAssemblyInfo;
    private TabVSAssembly tabVSAssembly;
-   private VSAScriptable vsaScriptable;
 
    @BeforeEach
    void setUp() {
-      openMocks(this);
       viewsheet = new Viewsheet();
       viewsheet.getVSAssemblyInfo().setName("vs1");
 
@@ -59,9 +56,7 @@ public class TabVSAScriptableTest {
       when(viewsheetSandbox.getViewsheet()).thenReturn(viewsheet);
 
       tabVSAScriptable = new TabVSAScriptable(viewsheetSandbox);
-      vsaScriptable = new VSAScriptable(viewsheetSandbox);
       tabVSAScriptable.setAssembly("Tab1");
-      vsaScriptable.setAssembly("Tab1");
    }
 
    @Test

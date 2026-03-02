@@ -219,9 +219,8 @@ export class EditableObjectContainer extends AbstractActionComponent
             }
          }
 
-         // Resizing the bottom of a dropdown is meaningless — it should resize the title bar.
-         // In bottom-tabs mode the child's bottom edge is flush against the tab bar, so
-         // bottom-edge resizing is also disabled to prevent overlapping the tab bar.
+         // Lock the edge that faces the tab bar: top edge in top-tabs mode, bottom edge in
+         // bottom-tabs mode. Dropdowns also disable the bottom edge (title bar is the handle).
          const dropdown = (<any> _vsObject).dropdownCalendar || (<any> _vsObject).dropdown;
          this.resizeTopEdge = (!isInTab || containerBottomTabs) && !dropdown;
          this.resizeBottomEdge = !dropdown && !containerBottomTabs;
