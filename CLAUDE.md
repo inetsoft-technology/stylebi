@@ -11,7 +11,7 @@ StyleBI is a cloud-native business intelligence web application. It is a multi-m
 ### Prerequisites
 - Java 21 SDK with `JAVA_HOME` set
 - Docker (running)
-- GitHub classic personal access token with `read:packages` scope configured in `~/.m2/settings.xml` (see README.md)
+- GitHub classic personal access token with `read:packages` scope configured in `~/.m2/settings.xml` and `~/.npmrc` (see README.md)
 
 ### Java / Full Build
 ```bash
