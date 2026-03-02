@@ -566,12 +566,7 @@ public class SchedulerMonitoringService
 
    public List<ViewsheetHistory> getViewsheetHistory(String server) {
       ServerClusterStatus status = getServerClusterStatus(server);
-
-      if(status == null) {
-         return Collections.emptyList();
-      }
-
-      String address = Objects.toString(status.getAddress(), server);
+      String address = status != null ? Objects.toString(status.getAddress(), server) : server;
       Queue<ViewsheetHistory> history = client
          .getStatusHistory(StatusMetricsType.SCHEDULE_METRICS, address, VIEWSHEET_HISTORY);
       return history == null ? Collections.emptyList() : new ArrayList<>(history);

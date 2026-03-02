@@ -556,21 +556,13 @@ public class ServerMonitoringController {
    public SummaryChartLegends getMonitoringChartLegends(
       @RequestParam(value = "clusterNode", required = false) String clusterNode)
    {
-      List<QueryHistory> queryExe = queryService.getHistory(clusterNode);
       SummaryChartLegends.Builder legends = SummaryChartLegends.builder();
       int counter = 0;
+      boolean isSchedulerNode = isSchedulerNode(clusterNode);
 
-      List<ViewsheetHistory> vsExe = viewsheetService.getHistory(clusterNode);
-
-      // If no server viewsheet history and clusterNode is a scheduler, use scheduler history
-      if(vsExe.isEmpty() && clusterNode != null) {
-         for(String scheduleServer : getScheduleServers()) {
-            if(clusterNode.equals(scheduleServer)) {
-               vsExe = schedulerMonitoringService.getViewsheetHistory(scheduleServer);
-               break;
-            }
-         }
-      }
+      List<ViewsheetHistory> vsExe = isSchedulerNode
+         ? schedulerMonitoringService.getViewsheetHistory(clusterNode)
+         : viewsheetService.getHistory(clusterNode);
 
       if(!vsExe.isEmpty()) {
          legends.addExecution(SummaryChartLegend.builder()
@@ -580,12 +572,16 @@ public class ServerMonitoringController {
                                  .build());
       }
 
-      if(!queryExe.isEmpty()) {
-         legends.addExecution(SummaryChartLegend.builder()
-                                 .text("Queries")
-                                 .color(COLOR_PALETTE[counter])
-                                 .link("queries")
-                                 .build());
+      if(!isSchedulerNode) {
+         List<QueryHistory> queryExe = queryService.getHistory(clusterNode);
+
+         if(!queryExe.isEmpty()) {
+            legends.addExecution(SummaryChartLegend.builder()
+                                    .text("Queries")
+                                    .color(COLOR_PALETTE[counter])
+                                    .link("queries")
+                                    .build());
+         }
       }
 
       legends.addSwapping(SummaryChartLegend.builder()
@@ -1040,16 +1036,7 @@ public class ServerMonitoringController {
 
       headers.add("Time");
 
-      boolean isSchedulerNode = false;
-
-      if(clusterNode != null) {
-         for(String scheduleServer : getScheduleServers()) {
-            if(clusterNode.equals(scheduleServer)) {
-               isSchedulerNode = true;
-               break;
-            }
-         }
-      }
+      boolean isSchedulerNode = isSchedulerNode(clusterNode);
 
       List<ViewsheetHistory> vsExe = isSchedulerNode
          ? schedulerMonitoringService.getViewsheetHistory(clusterNode)
@@ -1169,6 +1156,20 @@ public class ServerMonitoringController {
 
    private int safeMapToInt(Object n) {
       return n == null ? 0 : (Integer) n;
+   }
+
+   private boolean isSchedulerNode(String clusterNode) {
+      if(clusterNode == null) {
+         return false;
+      }
+
+      for(String s : getScheduleServers()) {
+         if(clusterNode.equals(s)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private String[] getScheduleServers() {
