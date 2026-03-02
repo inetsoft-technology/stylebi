@@ -17,7 +17,7 @@
  */
 body {
   font-family: var(--inet-font-family);
-  font-size: var(--inet-font-size-base);
+  font-size: var(--inet-font-size-base) !important;
   color: var(--inet-text-color);
   background-color: var(--inet-main-panel-bg-color);
   height: 100vh;
@@ -778,7 +778,7 @@ schema-column, edit-join-table-column {
 }
 
 .table-data__row.highlighted {
-  background-color: var(--inet-hover-primary-bg-color);
+  background-color: var(--inet-primary-color);
 }
 
 /********************************** Buttons and Icons *********************************************/

@@ -211,8 +211,8 @@ public class ComposerViewsheetController {
             .savePoint(rvs.getSavePoint())
             .id(entry.toIdentifier())
             .build();
-         dispatcher.sendCommand(command);
          coreLifecycleService.setViewsheetInfo(rvs, linkUri, dispatcher);
+         dispatcher.sendCommand(command);
          return true;
       }
       catch(Exception ex) {
@@ -678,6 +678,12 @@ public class ComposerViewsheetController {
    public String getScriptHelpUrL() {
       String base = Tool.getHelpBaseURL();
       return Encode.forUri(base + "#cshid=GeneralScriptFunctions");
+   }
+
+   @GetMapping("/api/composer/viewsheet/script-cursor-top")
+   @ResponseBody
+   public boolean isScriptCursorTop() {
+      return Boolean.parseBoolean(SreeEnv.getProperty("script.cursor.top"));
    }
 
    @GetMapping("/api/composer/viewsheet/checkDependChanged")

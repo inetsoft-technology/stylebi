@@ -50,7 +50,8 @@ public class TextureLegendItem extends LegendItem {
       g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL,
 			  RenderingHints.VALUE_STROKE_PURE);
 
-      Rectangle2D rect= new Rectangle2D.Double(x, y, SYMBOL_SIZE, SYMBOL_SIZE);
+      int size = getSymbolSize();
+      Rectangle2D rect= new Rectangle2D.Double(x, y, size, size);
       TextureFrame frame = (TextureFrame) getVisualFrame();
       GTexture gt = frame.getTexture(getValue());
 

@@ -1356,6 +1356,14 @@ public class FormTableLens implements TableLens, TableFilter {
       return selection;
    }
 
+   public Format getFormat(int row, int col) {
+      return null;
+   }
+
+   public void setFormat(int row, int col, Format format) {
+      //no-op
+   }
+
    private static final Color ADDED_FOREGROUND = new Color(0, 0, 0);
    private static final Color CHANGED_FOREGROUND = new Color(0, 0, 0);
    private static final Color ADDED_BACKGROUND = new Color(204, 255, 255);

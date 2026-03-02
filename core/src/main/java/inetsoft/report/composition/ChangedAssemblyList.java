@@ -174,6 +174,10 @@ public class ChangedAssemblyList implements Serializable {
       return val == null ? 0 : val;
    }
 
+   public boolean hasProcessedSelections() {
+      return !smap.isEmpty();
+   }
+
    /**
     * Add a ready assembly.
     * @param assembly the specified assembly.

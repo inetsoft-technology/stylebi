@@ -21,4 +21,5 @@ export interface EmNavbarModel {
    enterprise?: boolean;
    ssoUser?: boolean;
    elasticLicenseExhausted: boolean;
+   homeLink: string;
 }

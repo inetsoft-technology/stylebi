@@ -911,7 +911,8 @@ export namespace TestUtils {
          barWidth: 0,
          textWidth: 0,
          submitOnChange: true,
-         sortType: 8
+         sortType: 8,
+         quickSwitchAllowed: false
       }, createMockVSCompositeModel(type, name));
    }
 

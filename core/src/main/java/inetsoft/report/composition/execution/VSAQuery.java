@@ -446,20 +446,6 @@ public abstract class VSAQuery {
          return ws;
       }
 
-      VSAssembly vassembly = getAssembly();
-      boolean dynamic = false;
-      boolean sqlCube = XCube.SQLSERVER.equals(getCubeType(getAssembly()));
-
-      if(vassembly instanceof DynamicBindableVSAssembly) {
-         DynamicBindableVSAssembly dassembly =
-            (DynamicBindableVSAssembly) vassembly;
-         ConditionList conds = dassembly.getPreConditionList();
-
-         if(conds != null && !conds.isEmpty()) {
-            dynamic = true;
-         }
-      }
-
       // if contains condition list defined in viewsheet, wrap worksheet to
       // avoid it being polluted, for the table assembly in the worksheet will
       // be changed by merging condition lists
@@ -475,7 +461,7 @@ public abstract class VSAQuery {
     * @return the viewsheet assembly in context.
     */
    protected VSAssembly getAssembly() {
-      return (VSAssembly) getViewsheet().getAssembly(vname);
+      return getViewsheet().getAssembly(vname);
    }
 
    /**

@@ -110,7 +110,7 @@ export class LogMonitoringPageComponent implements OnInit, OnDestroy {
          this.subscriptions.unsubscribe();
       }
 
-      if(this.model.autoRefresh) {
+      if(this.model.autoRefresh && this.isLogSelected()) {
          this.subscriptions = new Subscription();
          this.subscriptions.add(
             this.monitoringDataService.connect(AUTO_REFRESH_LOG_URL + this.refreshUrlVars)
@@ -140,6 +140,10 @@ export class LogMonitoringPageComponent implements OnInit, OnDestroy {
    }
 
    refreshLog(updateSub: boolean = true) {
+      if(!this.isLogSelected()) {
+         return;
+      }
+
       this.http.get(REFRESH_LOG_URL + this.refreshUrlVars)
          .subscribe((data: string[]) => {
             this.logContents.next(data);
@@ -153,5 +157,10 @@ export class LogMonitoringPageComponent implements OnInit, OnDestroy {
    private get refreshUrlVars(): string {
       const offset: number = this.model.allLines ? 0 : -this.model.lines;
       return `${this.model.selectedLog?.clusterNode}/${this.model.selectedLog?.logFile}/${offset}/-1`
+   }
+
+   private isLogSelected(): boolean {
+      return this.model && !!this.model.selectedLog && !!this.model.selectedLog.clusterNode &&
+         !!this.model.selectedLog.logFile;
    }
 }

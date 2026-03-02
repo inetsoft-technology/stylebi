@@ -55,6 +55,8 @@
       <mat-tab *ngIf="model?.scriptSettings?.permissions" label="_#(Security)">
          <ng-template matTabContent>
             <em-resource-permission [model]="model.scriptSettings.permissions"
+                                    [showCopyPaste]="true"
+                                    [copyPasteContext]="copyPasteContext"
                                     (permissionChanged)="_scriptChanged = true">
             </em-resource-permission>
          </ng-template>

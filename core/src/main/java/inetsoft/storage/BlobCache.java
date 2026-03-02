@@ -43,7 +43,13 @@ public class BlobCache {
    }
 
    public Path get(String storeId, Blob<?> blob) throws IOException {
-      return copyToCache(storeId, blob.getDigest());
+      String digest = blob.getDigest();
+
+      if(digest == null) {
+         throw new IOException("Blob at " + blob.getPath() + " has no digest");
+      }
+
+      return copyToCache(storeId, digest);
    }
 
    protected Path copyToCache(String storeId, String digest) throws IOException {

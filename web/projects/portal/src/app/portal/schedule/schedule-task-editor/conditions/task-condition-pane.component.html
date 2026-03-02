@@ -484,6 +484,8 @@
   </div>
   <div class="form-group">
     <button type="button" class="btn btn-primary" (click)="addCondition()">_#(Add)</button>
+    <button type="button" class="btn btn-default ms-2" (click)="copyCondition()"
+            [disabled]="selectedConditions.length != 1 || model.conditions.length < 1">_#(Copy)</button>
     <button type="button" class="btn btn-default delete-button-id ms-2" (click)="deleteCondition()"
             [disabled]="selectedConditions.length < 1 || model.conditions.length < 1">_#(Delete)</button>
     <button type="button" class="btn btn-default ms-2"

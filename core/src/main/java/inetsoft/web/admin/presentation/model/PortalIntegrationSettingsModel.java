@@ -48,6 +48,9 @@ public interface PortalIntegrationSettingsModel {
    @Nullable
    String homeLink();
 
+   @Nullable
+   String emHomeLink();
+
    static PortalIntegrationSettingsModel.Builder builder() {
       return new PortalIntegrationSettingsModel.Builder();
    }

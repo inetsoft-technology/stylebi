@@ -50,6 +50,7 @@ export interface SetViewsheetInfoCommand extends ViewsheetCommand {
    annotation: boolean;
    annotated: boolean;
    formTable: boolean;
+   hideNotifications?: boolean;
    assetId?: string;
    hasScript?: boolean;
 }

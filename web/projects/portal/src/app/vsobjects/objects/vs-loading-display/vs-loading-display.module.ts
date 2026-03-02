@@ -18,16 +18,19 @@
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { VSLoadingDisplay } from "./vs-loading-display.component";
+import { VSSavingDisplay } from "./vs-saving-display.component";
 
 @NgModule({
    imports: [
       CommonModule,
    ],
    declarations: [
-      VSLoadingDisplay
+      VSLoadingDisplay,
+      VSSavingDisplay
    ],
    exports: [
-      VSLoadingDisplay
+      VSLoadingDisplay,
+      VSSavingDisplay
    ],
    providers: [],
 })

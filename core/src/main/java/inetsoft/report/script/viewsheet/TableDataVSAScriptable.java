@@ -455,6 +455,10 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
             table = new TableFilter2((TableLens) getTableArray().getTable());
          }
 
+         if(link == null) {
+            link = new Hyperlink.Ref("__NULL_LINK__");
+         }
+
          table.setHyperlink(row, col, (Hyperlink.Ref) link);
       }
       catch(Exception ex) {

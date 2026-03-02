@@ -343,6 +343,10 @@ public class CSSDictionary {
             ConfigurationContext.getContext().get(DICTIONARIES_KEY);
 
          if(map != null) {
+            for(CSSDictionary dictionary : map.values()) {
+               dictionary.dmgr.clear();
+            }
+
             map.clear();
          }
       }

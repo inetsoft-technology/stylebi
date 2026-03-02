@@ -18,4 +18,5 @@
 export interface ColorMap {
    option: string;
    color: string;
+   manualInput?: boolean;
 }

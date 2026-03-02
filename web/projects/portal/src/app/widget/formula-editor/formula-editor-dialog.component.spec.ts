@@ -60,8 +60,7 @@ describe("Formula Editor Test", () => {
       element = { };
       dropdownService = { open: jest.fn() };
 
-      formulaEditor = new FormulaEditorDialog(editorService, modalService, renderer, element,
-         dropdownService);
+      formulaEditor = new FormulaEditorDialog(editorService, modalService, renderer, element, dropdownService);
       formulaEditor.formulaName = "formula name";
       formulaEditor.dataType = "string";
    });

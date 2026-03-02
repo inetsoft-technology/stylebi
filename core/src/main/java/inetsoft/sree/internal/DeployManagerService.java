@@ -748,6 +748,13 @@ public class DeployManagerService {
                }
 
                changeAssetMap.put(supportEntry, getAssetObjectByAsset(newAsset));
+
+               if(OrganizationManager.getInstance().isSiteAdmin(principal) && supportEntry instanceof AssetEntry) {
+                  AssetObject currOrgEntry = ((AssetEntry) supportEntry).cloneAssetEntry(
+                                             new Organization(OrganizationManager.getInstance().getCurrentOrgID()));
+                  changeAssetMap.put(currOrgEntry, getAssetObjectByAsset(newAsset));
+               }
+
             }
 
             List<File> unImportedFile = new ArrayList<>();
@@ -1001,12 +1008,14 @@ public class DeployManagerService {
 
          AssetObject originDependency = dependency;
 
+         AssetObject changedNewEntry = changeAssetMap.get(originDependency);
+
          if(originDependency instanceof AssetEntry entry) {
             originDependency = entry.cloneAssetEntry(
                new Organization(OrganizationManager.getInstance().getCurrentOrgID()));
+            changedNewEntry = changeAssetMap.get(originDependency) == null ? changedNewEntry :
+                                                                             changeAssetMap.get(originDependency);
          }
-
-         AssetObject changedNewEntry = changeAssetMap.get(originDependency);
 
          boolean isTaskAsset = supportEntry instanceof AssetEntry && ((AssetEntry) supportEntry).isScheduleTask();
          boolean taskDependencyExtend = false;
@@ -1051,7 +1060,7 @@ public class DeployManagerService {
 
          if(dependency instanceof AssetEntry) {
             AssetEntry assetEntry = (AssetEntry) dependency;
-            isCubeDs = "true".equals(assetEntry.getProperty("isCube")) && !assetEntry.isWorksheet();
+            isCubeDs = "true".equals(assetEntry.getProperty("isCube")) && !assetEntry.isWorksheet() && !assetEntry.isViewsheet();
 
             if(assetEntry.isWorksheet()) {
                types.add(RenameInfo.ASSET | RenameInfo.SOURCE);
@@ -1184,8 +1193,8 @@ public class DeployManagerService {
                else {
                   boolean rest =
                      (type & RenameInfo.TABULAR_SOURCE) == RenameInfo.TABULAR_SOURCE;
-                  String oldName = dependencyAsset.toIdentifier();
-                  String newName = changedNewEntryAsset.toIdentifier();
+                  String oldName = dependencyAsset.toIdentifier(true);
+                  String newName = changedNewEntryAsset.toIdentifier(true);
 
                   if(rest || (type & RenameInfo.SQL_TABLE) == RenameInfo.SQL_TABLE) {
                      oldName = dependencyAsset.getPath();
@@ -1849,8 +1858,8 @@ public class DeployManagerService {
          }
          else {
             if(createUserFolder && asset.getUser() != null &&
-               !Tool.isEmptyString(asset.getUser().name) &&
-               !Tool.equals(asset.getUser(), commonPrefixFolder.getUser()))
+               !Tool.isEmptyString(asset.getUser().name) && !(commonPrefixFolder.getUser() == null) &&
+               !Tool.equals(asset.getUser().getName(), commonPrefixFolder.getUser().getName()))
             {
                targetFolderPath += "/" + asset.getUser().name;
             }

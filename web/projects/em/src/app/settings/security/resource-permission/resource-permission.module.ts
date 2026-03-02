@@ -29,6 +29,7 @@ import { MatRadioModule } from "@angular/material/radio";
 import { SecurityTreeService } from "../users/security-tree.service";
 import { FormsModule } from "@angular/forms";
 import { SecurityTreeDialogModule } from "../security-tree-dialog/security-tree-dialog.module";
+import { MessageDialogModule } from "../../../common/util/message-dialog.module";
 
 @NgModule({
    imports: [
@@ -43,6 +44,7 @@ import { SecurityTreeDialogModule } from "../security-tree-dialog/security-tree-
       SecurityTableViewModule,
       PermissionsTableModule,
       SecurityTreeDialogModule,
+      MessageDialogModule,
    ],
    exports: [ResourcePermissionComponent],
    declarations: [ResourcePermissionComponent],

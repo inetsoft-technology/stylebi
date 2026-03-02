@@ -242,8 +242,8 @@ export class PopComponentService {
     */
    toggle(name: string, x: number, y: number, alpha: number, source: string): void {
       let offset = this.viewerOffset;
-      this._popX = x - offset.x;
-      this._popY = y - offset.y;
+      this._popX = Math.round(x - offset.x);
+      this._popY = Math.round(y - offset.y);
       this._popAlpha = alpha;
 
       if(name && this._popComponent && this._popComponent != name) {

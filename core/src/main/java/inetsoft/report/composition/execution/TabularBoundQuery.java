@@ -96,4 +96,13 @@ public class TabularBoundQuery extends BoundQuery {
          }
       }
    }
+
+   @Override
+   protected int getQueryTimeOut() {
+      if(xquery != null) {
+         return xquery.getTimeout();
+      }
+
+      return super.getQueryTimeOut();
+   }
 }

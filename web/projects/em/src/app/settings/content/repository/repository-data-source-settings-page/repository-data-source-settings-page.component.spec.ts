@@ -28,6 +28,8 @@ import { MatSelectModule } from "@angular/material/select";
 import { MatSnackBarModule } from "@angular/material/snack-bar";
 import { MatTabsModule } from "@angular/material/tabs";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
+import { NEVER, of as observableOf } from "rxjs";
+import { StompClientService } from "../../../../../../../shared/stomp/stomp-client.service";
 import { DatabaseDefinitionModel } from "../../../../../../../shared/util/model/database-definition-model";
 import { DatasourceDatabaseType } from "../../../../../../../shared/util/model/datasource-database-type";
 import { ResourcePermissionModule } from "../../../security/resource-permission/resource-permission.module";
@@ -53,14 +55,39 @@ const DEFAULT_DATABASE: DatabaseDefinitionModel = {
 describe("RepositoryDataSourceSettingsPageComponent", () => {
    let component: RepositoryDataSourceSettingsPageComponent;
    let fixture: ComponentFixture<RepositoryDataSourceSettingsPageComponent>;
+   let stompClientService: any;
 
    beforeEach(async(() => {
+      const stompConnection = {
+         subscribe: jest.fn(() => NEVER),
+         disconnect: jest.fn()
+      };
+      stompClientService = {
+         connect: jest.fn(() => observableOf(stompConnection))
+      };
       TestBed.configureTestingModule({
-         imports: [MatCardModule, MatTabsModule, ResourcePermissionModule, MatSnackBarModule,
-            NoopAnimationsModule, FormsModule, ReactiveFormsModule, HttpClientTestingModule,
-            MatCheckboxModule, MatSelectModule, MatOptionModule, MatFormFieldModule, MatInputModule],
-         declarations: [RepositoryDataSourceSettingsPageComponent,
-            RepositoryDataSourceSettingsViewComponent],
+         imports: [
+            MatCardModule,
+            MatTabsModule,
+            ResourcePermissionModule,
+            MatSnackBarModule,
+            NoopAnimationsModule,
+            FormsModule,
+            ReactiveFormsModule,
+            HttpClientTestingModule,
+            MatCheckboxModule,
+            MatSelectModule,
+            MatOptionModule,
+            MatFormFieldModule,
+            MatInputModule
+         ],
+         declarations: [
+            RepositoryDataSourceSettingsPageComponent,
+            RepositoryDataSourceSettingsViewComponent
+         ],
+         providers: [
+            { provide: StompClientService, useValue: stompClientService }
+         ],
          schemas: [NO_ERRORS_SCHEMA]
       })
          .compileComponents();

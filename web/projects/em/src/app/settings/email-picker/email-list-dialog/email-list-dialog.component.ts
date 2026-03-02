@@ -141,6 +141,17 @@ export class EmailListDialogComponent implements OnInit, OnDestroy {
       this.dialog.close();
    }
 
+   apply(): void {
+      const pendingEmail = this.form.get("email")?.value;
+
+      if(pendingEmail && pendingEmail.trim()) {
+         this.snackBar.open("_#(js:em.schedule.emailNotAdded)", null, {duration: Tool.SNACKBAR_DURATION});
+         return;
+      }
+
+      this.dialog.close(this.emails);
+   }
+
    addEmail(): void {
       const newEmails: string[] = this.form.get("email").value.split(",");
 

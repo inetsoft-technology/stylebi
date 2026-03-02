@@ -34,6 +34,8 @@ public abstract class WSLoadTableDataCountCommand implements ViewsheetCommand {
 
    abstract Optional<String> exceededMsg();
 
+   abstract long duration();
+
    public static Builder builder() {
       return new Builder();
    }

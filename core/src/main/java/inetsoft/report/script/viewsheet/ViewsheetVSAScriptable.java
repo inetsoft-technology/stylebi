@@ -98,7 +98,8 @@ public class ViewsheetVSAScriptable extends VSAScriptable {
 
    @Override
    protected VSAssembly getVSAssembly() {
-      return box.getViewsheet();
+      return ViewsheetScope.VIEWSHEET_SCRIPTABLE.equals(assembly) ?
+         box.getViewsheet() : super.getVSAssembly();
    }
 
    /**

@@ -16,11 +16,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient } from "@angular/common/http";
-import { Component, Input, OnInit } from "@angular/core";
+import { Component, OnInit } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { map } from "rxjs/operators";
-import { ComponentTool } from "../../../../../../../portal/src/app/common/util/component-tool";
 import { MessageDialog, MessageDialogType } from "../../../../common/util/message-dialog";
 
 @Component({

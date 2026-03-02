@@ -48,6 +48,7 @@ export type WSTableButton = WSTableMode | "preview" | "exit-preview" | "conditio
    "wrap-column-headers" | "visible";
 
 export interface WSTableAssembly extends WSAssembly {
+   duration: number;
    totalRows: number;
    rowsCompleted: boolean;
    info: WSTableAssemblyInfo;

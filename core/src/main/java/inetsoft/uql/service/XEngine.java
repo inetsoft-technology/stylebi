@@ -912,6 +912,10 @@ public class XEngine implements XRepository, XQueryRepository {
             ThreadContext.getContextPrincipal(), ds, null);
          XDataSource xds = getDataSource(ds);
 
+         if(xds == null) {
+            throw new RemoteException("Data source not found: " + ds);
+         }
+
          if(ads != null) {
             XDataSource xds2 = ((AdditionalConnectionDataSource<?>) xds).getDataSource(ads);
             xds = xds2 != null ? xds2 : xds;

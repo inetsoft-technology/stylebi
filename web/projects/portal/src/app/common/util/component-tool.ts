@@ -102,7 +102,7 @@ export namespace ComponentTool {
       let cancelSubscription: Subscription;
       let applySubscription: Subscription;
 
-      commitSubscription = modal.componentInstance[commitEmitter].subscribe((v: any) => {
+      commitSubscription = modal.componentInstance[commitEmitter]?.subscribe((v: any) => {
          commitSubscription.unsubscribe();
          cancelSubscription.unsubscribe();
 
@@ -120,7 +120,7 @@ export namespace ComponentTool {
          setTimeout(() => modal.close(v), 0);
       });
 
-      cancelSubscription = modal.componentInstance[cancelEmitter].subscribe((v: any) => {
+      cancelSubscription = modal.componentInstance[cancelEmitter]?.subscribe((v: any) => {
          commitSubscription.unsubscribe();
          cancelSubscription.unsubscribe();
 

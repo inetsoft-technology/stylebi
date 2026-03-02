@@ -18,6 +18,7 @@
 package inetsoft.web.binding.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.graph.aesthetic.SizeFrame;
 import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
@@ -41,6 +42,7 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
+import java.util.Arrays;
 
 @Controller
 public class SwapXYBindingController {
@@ -193,6 +195,23 @@ public class SwapXYBindingController {
          }
 
          cinfo.addYField(i, yref);
+      }
+
+      // Copy size frames from the first y field to the x fields, if available
+      VSChartAggregateRef yfield =
+         (VSChartAggregateRef) Arrays.stream(yfields)
+            .filter(VSChartAggregateRef.class::isInstance)
+            .findFirst()
+            .orElse(null);
+
+      if(yfield != null) {
+         SizeFrame oldSizeFrame =  yfield.getSizeFrame();
+
+         for(ChartRef xfield : xfields) {
+            if(xfield instanceof VSChartAggregateRef) {
+               ((VSChartAggregateRef) xfield).setSizeFrame((SizeFrame) oldSizeFrame.clone());
+            }
+         }
       }
    }
 

@@ -358,6 +358,19 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       // fix bug1341215663394
       entry.setProperty("preview", null);
 
+      String owner = getLockOwner(entry);
+      String uname = user == null ? null : user.getName();
+
+      if(owner != null && !owner.equals(uname)) {
+         IdentityID ownerIdentity = IdentityID.getIdentityIDFromKey(owner);
+         IdentityID userIdentity = IdentityID.getIdentityIDFromKey(uname);
+         String ownerName = ownerIdentity.getName() != null ? ownerIdentity.getName() : "";
+         String unameName =
+            userIdentity != null && userIdentity.getName() != null ? userIdentity.getName() : "";
+         Tool.addUserWarning(Catalog.getCatalog().getString("common.worksheetLocked.warning",
+                                                            entry.getPath(), ownerName, unameName));
+      }
+
       for(Assembly obj : sheet.getAssemblies()) {
          if(obj instanceof TableAssembly) {
             ((TableAssembly) obj).setRuntime(false);
@@ -700,7 +713,13 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       if(rsheet != null && user != null &&
          rsheet.getUser() != null && !rsheet.matches(user))
       {
-         if(!(user instanceof SRPrincipal &&
+         // Allow closing scheduled viewsheets even if principal doesn't match exactly.
+         // Scheduled tasks may have principal context changes during execution.
+         boolean isSchedulerSheet = rsheet.getEntry() != null &&
+            "true".equals(rsheet.getEntry().getProperty("_scheduler_"));
+
+         if(!isSchedulerSheet &&
+            !(user instanceof SRPrincipal &&
             Boolean.TRUE.toString().equals(((SRPrincipal) user).getProperty("supportLogin"))))
          {
             throw new InvalidUserException(Catalog.getCatalog().

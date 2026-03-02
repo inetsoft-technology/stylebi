@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.crypto.SecretKey;
 import java.io.IOException;
+import java.security.KeyPair;
 import java.util.UUID;
 import java.util.function.Function;
 
@@ -166,6 +167,11 @@ public abstract class AbstractSecretsManager extends AbstractPasswordEncryption 
    @Override
    public SecretKey getJwtSigningKey() throws IOException {
       return localEncryption.getJwtSigningKey();
+   }
+
+   @Override
+   public KeyPair getSSOKeyPair() throws IOException {
+      return localEncryption.getSSOKeyPair();
    }
 
    @Override

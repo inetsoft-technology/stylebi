@@ -111,6 +111,14 @@ public class SetViewsheetInfoCommand implements ViewsheetCommand, InitializingCo
       this.hasScript = hasScript;
    }
 
+   public boolean isHideNotifications() {
+      return hideNotifications;
+   }
+
+   public void setHideNotifications(boolean hideNotifications) {
+      this.hideNotifications = hideNotifications;
+   }
+
    private Map<String, Object> info;
    private Map<String, Object> assemblyInfo;
    private AssetEntry baseEntry;
@@ -121,4 +129,5 @@ public class SetViewsheetInfoCommand implements ViewsheetCommand, InitializingCo
    private String linkUri;
    private String assetId;
    private boolean hasScript;
+   private boolean hideNotifications;
 }

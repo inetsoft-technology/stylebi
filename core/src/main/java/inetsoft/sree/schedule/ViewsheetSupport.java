@@ -74,24 +74,41 @@ public interface ViewsheetSupport extends ScheduleAction {
          return null;
       }
 
-      getViewsheetEntry();
-      ViewsheetService engine = ViewsheetEngine.getViewsheetEngine();
-      RuntimeViewsheet rvs = engine.getViewsheet(id, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-
-      if(box == null || !box.isScheduleAction()) {
-         closeViewsheet(id, principal);
-         return null;
+      if(LOG.isDebugEnabled()) {
+         LOG.debug("Opened scheduled viewsheet: {} for {}", id, principal);
       }
 
-      ViewsheetVSAScriptable vscriptable = (ViewsheetVSAScriptable)
-         box.getScope().getVSAScriptable(ViewsheetScope.VIEWSHEET_SCRIPTABLE);
+      boolean success = false;
 
-      if(vscriptable != null) {
-         vscriptable.addProperty("taskName", getViewsheetTaskName(principal));
+      try {
+         getViewsheetEntry();
+         ViewsheetService engine = ViewsheetEngine.getViewsheetEngine();
+         RuntimeViewsheet rvs = engine.getViewsheet(id, principal);
+         ViewsheetSandbox box = rvs.getViewsheetSandbox();
+
+         if(box == null || !box.isScheduleAction()) {
+            LOG.debug("Closing viewsheet {} - sandbox null or not schedule action", id);
+            closeViewsheet(id, principal);
+            success = true; // viewsheet already closed, don't close again in finally
+            return null;
+         }
+
+         ViewsheetVSAScriptable vscriptable = (ViewsheetVSAScriptable)
+            box.getScope().getVSAScriptable(ViewsheetScope.VIEWSHEET_SCRIPTABLE);
+
+         if(vscriptable != null) {
+            vscriptable.addProperty("taskName", getViewsheetTaskName(principal));
+         }
+
+         success = true;
+         return rvs;
       }
-
-      return rvs;
+      finally {
+         if(!success) {
+            LOG.debug("Closing viewsheet {} in finally block due to failure", id);
+            closeViewsheet(id, principal);
+         }
+      }
    }
 
    default String getViewsheetTaskName(Principal principal) {
@@ -149,6 +166,10 @@ public interface ViewsheetSupport extends ScheduleAction {
    }
 
    default void closeViewsheet(String id, Principal principal) {
+      if(LOG.isDebugEnabled()) {
+         LOG.debug("Closing scheduled viewsheet: {} for {}", id, principal);
+      }
+
       ScheduleViewsheetService.getInstance().closeViewsheet(id, principal);
    }
 

@@ -230,6 +230,7 @@
                  [designLastModified]="getParentSocketConnection(asViewsheet(_tab))?.lastModified"
                  [designSaved]="designSaved"
                  [isIframe]="isIframe()"
+                 [dashboardTabModel]="dashboardTabModel"
                  (closeClicked)="closePreview(i, $event)"
                  (onAnnotationChanged)="asViewsheet(_tab).annotationChanged = $event"
                  (socket)="asViewsheet(_tab).socketConnection = $event"

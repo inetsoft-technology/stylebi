@@ -105,7 +105,8 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
    @Property(label="Credential", required=true)
    @PropertyEditor(dependsOn = "useCredentialId")
    public String getCredentialId() {
-      return Objects.requireNonNullElse(getCredential().getId(), "");
+      Credential credential = getCredential();
+      return credential != null ? Objects.requireNonNullElse(credential.getId(), "") : "";
    }
 
    @Property(label="Use Secret ID")

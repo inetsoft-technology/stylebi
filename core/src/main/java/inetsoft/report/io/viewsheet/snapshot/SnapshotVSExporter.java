@@ -484,7 +484,10 @@ public class SnapshotVSExporter {
       // because it has two XNodeTable, at the same time, if there exist
       // sql formula in the composite table, it is also not valid
       // fix bug1333935758061
-      if(table instanceof CompositeTableAssembly || table instanceof MirrorTableAssembly) {
+      if(table instanceof CompositeTableAssembly ||
+         table instanceof MirrorTableAssembly ||
+         table instanceof UnpivotTableAssembly)
+      {
          return false;
       }
 

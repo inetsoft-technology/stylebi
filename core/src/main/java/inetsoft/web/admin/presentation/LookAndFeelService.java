@@ -18,11 +18,13 @@
 package inetsoft.web.admin.presentation;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.FontFaceModel;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.audit.Audit;
 import inetsoft.util.css.CSSDictionary;
 import inetsoft.web.admin.model.FileData;
 import inetsoft.web.admin.presentation.model.*;
@@ -150,7 +152,7 @@ public class LookAndFeelService {
       objectName = "Presentation-Look and Feel",
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
-   public void setModel(LookAndFeelSettingsModel model, boolean globalSettings) throws Exception {
+   public void setModel(LookAndFeelSettingsModel model, Principal principal, boolean globalSettings) throws Exception {
       PortalThemesManager manager = PortalThemesManager.getManager();
 
       String sort = model.ascending() ? "Ascending" : "Descending";
@@ -175,40 +177,46 @@ public class LookAndFeelService {
 
       if(model.userformatFile() != null && model.userformatFile().content() != null) {
          InputStream in = new ByteArrayInputStream(Base64.getDecoder().decode(model.userformatFile().content()));
+         ActionRecord actionRecord = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_CREATE,
+                                                           "userformat.xml", ActionRecord.OBJECT_TYPE_FILE);
 
          try {
             dataSpace.withOutputStream(null, "userformat.xml", out -> Tool.fileCopy(in, out));
          }
          catch(Exception e) {
             LOG.error("Error saving file: " + e);
+            actionRecord.setActionError("Error saving file.");
+            actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
          }
+
+         Audit.getInstance().auditAction(actionRecord, principal);
       }
 
       if(!defaultViewsheet && model.viewsheetFile() != null &&
          model.viewsheetFile().content() != null)
       {
-         setViewsheet(model.viewsheetFile(), dataSpace, dir, globalSettings);
+         setViewsheet(model.viewsheetFile(), dataSpace, dir, principal, globalSettings);
       }
       else if(defaultViewsheet) {
-         setViewsheet(null, dataSpace, dir, globalSettings);
+         setViewsheet(null, dataSpace, dir, principal, globalSettings);
       }
 
       if(!defaultLogo && model.logoFile() != null &&
          model.logoFile().content() != null)
       {
-         setLogo(model.logoFile(), dataSpace, dir, globalSettings);
+         setLogo(model.logoFile(), dataSpace, dir, principal, globalSettings);
       }
       else if(defaultLogo) {
-         setLogo(null, dataSpace, dir, globalSettings);
+         setLogo(null, dataSpace, dir, principal, globalSettings);
       }
 
       if(!defaultFavicon && model.faviconFile() != null &&
          model.faviconFile().content() != null)
       {
-         setFavicon(model.faviconFile(), dataSpace, dir, globalSettings);
+         setFavicon(model.faviconFile(), dataSpace, dir, principal, globalSettings);
       }
       else if(defaultFavicon) {
-         setFavicon(null, dataSpace, dir, globalSettings);
+         setFavicon(null, dataSpace, dir, principal, globalSettings);
       }
 
       // need to reset here so new entries can be rebuilt over any existing ones
@@ -217,7 +225,7 @@ public class LookAndFeelService {
 
       updateFonts(
          model.userFonts(), model.fontFaces(), model.deleteFontFaces(), model.newFontFaces(),
-         model.defaultFont(), dataSpace);
+         model.defaultFont(), dataSpace, principal);
 
       manager.save();
       SreeEnv.save();
@@ -231,7 +239,7 @@ public class LookAndFeelService {
       objectName = "Presentation-Look and Feel",
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
-   public void resetSettings(boolean globalSettings) throws Exception {
+   public void resetSettings(Principal principal, boolean globalSettings) throws Exception {
       PortalThemesManager manager = PortalThemesManager.getManager();
       Properties defaultProp = SreeEnv.getDefaultProperties();
 
@@ -248,9 +256,9 @@ public class LookAndFeelService {
 
       String dir = "portal";
       DataSpace dataSpace = DataSpace.getDataSpace();
-      setViewsheet(null, dataSpace, dir, globalSettings);
-      setLogo(null, dataSpace, dir, globalSettings);
-      setFavicon(null, dataSpace, dir, globalSettings);
+      setViewsheet(null, dataSpace, dir, principal, globalSettings);
+      setLogo(null, dataSpace, dir, principal, globalSettings);
+      setFavicon(null, dataSpace, dir, principal, globalSettings);
 
       if(globalSettings) {
          // need to reset here so new entries can be rebuilt over any existing ones
@@ -259,7 +267,7 @@ public class LookAndFeelService {
 
          updateFonts(
             Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList(),
-            true, dataSpace);
+            true, dataSpace, principal);
          dataSpace.delete(null, "userformat.xml");
          resetUserFormatFile();
       }
@@ -301,7 +309,7 @@ public class LookAndFeelService {
    }
 
    private void updateFonts(List<String> userFonts, List<FontFaceModel> fontFaces, List<FontFaceModel> deletedFontFaces,
-                            List<UserFontModel> newFontFaces, boolean defaultFont, DataSpace space)
+                            List<UserFontModel> newFontFaces, boolean defaultFont, DataSpace space, Principal principal)
       throws Exception
    {
       PortalThemesManager ptm = PortalThemesManager.getManager();
@@ -326,7 +334,7 @@ public class LookAndFeelService {
 
          if(newFontFaces != null && !newFontFaces.isEmpty()) {
             for(UserFontModel newFontFace : newFontFaces) {
-               saveFontFaceFiles(newFontFace, fontPath, space);
+               saveFontFaceFiles(newFontFace, fontPath, space, principal);
             }
          }
 
@@ -384,7 +392,7 @@ public class LookAndFeelService {
       }
    }
 
-   private void saveFontFaceFiles(UserFontModel fontFaceModel, String fontPath, DataSpace space)
+   private void saveFontFaceFiles(UserFontModel fontFaceModel, String fontPath, DataSpace space, Principal principal)
       throws Exception
    {
       final String fileName = fontFaceModel.getFileNamePrefix();
@@ -394,7 +402,7 @@ public class LookAndFeelService {
 
       String ttf = fileName + ".ttf";
       byte[] fontData = decoder.decode(fontFaceModel.ttf().content());
-      writeStyleFile(fontData, space, fontPath, ttf);
+      writeStyleFile(fontData, space, fontPath, ttf, principal);
 
       String eot = null;
       String woff = null;
@@ -403,19 +411,19 @@ public class LookAndFeelService {
       if(fontFaceModel.eot() != null) {
          eot = fileName + ".eot";
          fontData = decoder.decode(Objects.requireNonNull(fontFaceModel.eot()).content());
-         writeStyleFile(fontData, space, fontPath, eot);
+         writeStyleFile(fontData, space, fontPath, eot, principal);
       }
 
       if(fontFaceModel.woff() != null) {
          woff = fileName + ".woff";
          fontData = decoder.decode(Objects.requireNonNull(fontFaceModel.woff()).content());
-         writeStyleFile(fontData, space, fontPath, woff);
+         writeStyleFile(fontData, space, fontPath, woff, principal);
       }
 
       if(fontFaceModel.svg() != null) {
          svg = fileName + ".svg";
          fontData = decoder.decode(Objects.requireNonNull(fontFaceModel.svg()).content());
-         writeStyleFile(fontData, space, fontPath, svg);
+         writeStyleFile(fontData, space, fontPath, svg, principal);
       }
    }
 
@@ -487,7 +495,7 @@ public class LookAndFeelService {
       }
    }
 
-   private void setLogo(FileData logo, DataSpace space, String directory, boolean globalSettings) throws Exception {
+   private void setLogo(FileData logo, DataSpace space, String directory, Principal principal, boolean globalSettings) throws Exception {
       final PortalThemesManager manager = PortalThemesManager.getManager();
       final String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
@@ -518,7 +526,7 @@ public class LookAndFeelService {
                throw new Exception("Failed to write logo", ex);
             }
 
-            writeStyleFile(logoData, space, directory, logoName);
+            writeStyleFile(logoData, space, directory, logoName, principal);
             manager.setLogo(directory + "/" + logoName);
          }
          else {
@@ -531,13 +539,13 @@ public class LookAndFeelService {
                throw new Exception("Failed to write logo", ex);
             }
 
-            writeStyleFile(logoData, space, directory, logoName);
+            writeStyleFile(logoData, space, directory, logoName, principal);
             manager.addLogoEntry(orgID, directory + "/" + logoName);
          }
       }
    }
 
-   private void setFavicon(FileData favi, DataSpace space, String directory, boolean globalSettings) throws Exception {
+   private void setFavicon(FileData favi, DataSpace space, String directory, Principal principal, boolean globalSettings) throws Exception {
       final PortalThemesManager manager = PortalThemesManager.getManager();
       final String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
@@ -555,7 +563,7 @@ public class LookAndFeelService {
                throw new Exception("Failed to write icon", ex);
             }
 
-            writeStyleFile(faviData, space, directory, faviconName);
+            writeStyleFile(faviData, space, directory, faviconName, principal);
             manager.setFavicon(directory + "/" + faviconName);
          }
          else {
@@ -568,7 +576,7 @@ public class LookAndFeelService {
                throw new Exception("Failed to write logo", ex);
             }
 
-            writeStyleFile(faviData, space, directory, faviconName);
+            writeStyleFile(faviData, space, directory, faviconName, principal);
             manager.addFaviconEntry(orgID, directory + "/" + faviconName);
          }
       }
@@ -587,7 +595,7 @@ public class LookAndFeelService {
       }
    }
 
-   private void setViewsheet(FileData vs, DataSpace space, String directory, boolean globalSettings) throws Exception {
+   private void setViewsheet(FileData vs, DataSpace space, String directory, Principal principal, boolean globalSettings) throws Exception {
       PortalThemesManager manager = PortalThemesManager.getManager();
       String cssName = "format.css";
       byte[] cssData;
@@ -600,7 +608,7 @@ public class LookAndFeelService {
       }
 
       if(globalSettings) {
-         writeStyleFile(cssData, space, directory, cssName);
+         writeStyleFile(cssData, space, directory, cssName, principal);
          manager.setCSSFile(directory + "/" + cssName);
       }
       else {
@@ -609,7 +617,7 @@ public class LookAndFeelService {
          if(vs != null) {
             cssName = vs.name();
             directory += "/" + orgID;
-            writeStyleFile(cssData, space, directory, cssName);
+            writeStyleFile(cssData, space, directory, cssName, principal);
             CSSDictionary.parseCSSFile(cssName, cssData);
             manager.addCSSEntry(orgID, orgID + "/" + cssName);
          }
@@ -624,16 +632,23 @@ public class LookAndFeelService {
       }
    }
 
-   private void writeStyleFile(byte[] data, DataSpace space, String directory, String fileName)
+   private void writeStyleFile(byte[] data, DataSpace space, String directory, String fileName, Principal principal)
       throws Exception
    {
+      ActionRecord actionRecord = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_CREATE,
+                                                        directory + "/" + fileName, ActionRecord.OBJECT_TYPE_FILE);
       InputStream in = new ByteArrayInputStream(data);
 
       try {
          space.withOutputStream(directory, fileName, out -> Tool.copyTo(in, out));
       }
       catch(Throwable ex) {
+         actionRecord.setActionError("Failed to write style file.");
+         actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
          throw new Exception("Failed to write style file: " + fileName, ex);
+      }
+      finally {
+         Audit.getInstance().auditAction(actionRecord, principal);
       }
    }
 

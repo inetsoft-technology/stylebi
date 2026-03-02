@@ -31,6 +31,7 @@ import { ViewsheetFlatNode } from "../viewsheet-tree-node/viewsheet-flat-node";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { HttpClient } from "@angular/common/http";
 import { RepositoryFolderDashboardSettingsModel } from "../repository-dashboard-folder-settings-page/repository-folder-dashboard-settings-model";
+import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../../security/resource-permission/copy-paste-context";
 
 export interface DashboardOption {
    name: string;
@@ -50,6 +51,7 @@ export class RepositoryFolderDashboardSettingsViewComponent implements OnChanges
    @Output() selectedTabChanged = new EventEmitter<number>();
    @Output() dashboardFoldertSettingsChanged = new EventEmitter<RepositoryFolderDashboardSettingsModel>();
    @Output() unsavedChanges = new EventEmitter<boolean>();
+   protected readonly copyPasteContext = COPY_PASTE_CONTEXT_REPOSITORY;
    dataSource: DashboardOption[];
    dashboardChanged: boolean = false;
    columnNames: string[] = ["name", "arrange"];

@@ -67,6 +67,7 @@ export class ChartAxisArea extends ChartObjectAreaBase<Axis> implements OnChange
    @Input() flyover: boolean;
    @Input() flyOnClick: boolean;
    @Input() dataTip: string;
+   @Input() dataTipOnClick: boolean;
    @Output() showTooltip = new EventEmitter<TooltipInfo>();
    @Output() selectRegion = new EventEmitter();
    @Output() startAxisResize = new EventEmitter<ChartSelection>();
@@ -391,7 +392,7 @@ export class ChartAxisArea extends ChartObjectAreaBase<Axis> implements OnChange
          regions: regions
       };
 
-      if(this.dataTip) {
+      if(this.dataTip && !this.dataTipOnClick) {
          this.debounceService.debounce(this.debounceKey, () => {
             this.emitDataTip(chartSelection);
          }, 100, []);
@@ -508,6 +509,12 @@ export class ChartAxisArea extends ChartObjectAreaBase<Axis> implements OnChange
 
                this.sendFlyover.emit(flyoverPayload);
             }
+
+            if(this.dataTipOnClick && this.dataTip) {
+               const hasHyperlinks = regions.some(r => r && r.hyperlinks != null);
+               this.emitClickDataTip(hasHyperlinks, event, x1, y1,
+                  s => this.emitDataTip(s));
+            }
          }
       }
 
@@ -560,7 +567,7 @@ export class ChartAxisArea extends ChartObjectAreaBase<Axis> implements OnChange
             return;
          }
 
-         if(this.dataTip) {
+         if(this.dataTip && !this.dataTipOnClick) {
             const cls = "current-datatip-" + this.dataTip.replace(/ /g, "_");
             const tipElement: HTMLElement = document.getElementsByClassName(cls)[0] as HTMLElement;
 

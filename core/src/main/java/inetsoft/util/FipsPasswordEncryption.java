@@ -33,8 +33,8 @@ import javax.crypto.*;
 import javax.crypto.spec.*;
 import java.nio.charset.StandardCharsets;
 import java.rmi.dgc.VMID;
-import java.security.SecureRandom;
-import java.security.Security;
+import java.security.*;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Base64;
 import java.util.function.Function;
 
@@ -140,6 +140,37 @@ class FipsPasswordEncryption extends LocalPasswordEncryption {
       }
       catch(Exception e) {
          throw new RuntimeException("Failed to unwrap encryption key", e);
+      }
+   }
+
+   @Override
+   protected KeyPair createSSOKeyPair() {
+      try {
+         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA", "BCFIPS");
+         keyPairGenerator.initialize(2048, random);
+         return keyPairGenerator.generateKeyPair();
+      }
+      catch(Exception e) {
+         throw new RuntimeException("Failed to generate SSO RSA key pair", e);
+      }
+   }
+
+   @Override
+   protected byte[] encryptSSOPrivateKey(PrivateKey key, SecretKey masterKey) {
+      return encryptWithMaster(key.getEncoded(), masterKey);
+   }
+
+   @Override
+   protected PrivateKey decryptSSOPrivateKey(String encryptedKey, SecretKey masterKey) {
+      try {
+         byte[] data = Base64.getDecoder().decode(encryptedKey);
+         byte[] keyData = decryptWithMaster(data, masterKey);
+         PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyData);
+         KeyFactory keyFactory = KeyFactory.getInstance("RSA", "BCFIPS");
+         return keyFactory.generatePrivate(keySpec);
+      }
+      catch(Exception e) {
+         throw new RuntimeException("Failed to decrypt SSO private key", e);
       }
    }
 

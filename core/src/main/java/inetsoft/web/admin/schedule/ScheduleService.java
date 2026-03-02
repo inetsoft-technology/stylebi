@@ -24,6 +24,7 @@ import inetsoft.report.io.csv.CSVConfig;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
+import java.time.LocalTime;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XDataSource;
@@ -262,8 +263,12 @@ public class ScheduleService {
 
          if(timeCondition.getTimeRange() != null) {
             if(oTimeCondition != null &&
-               timeCondition.getTimeRange().equals(oTimeCondition.getTimeRange()))
+               timeCondition.getTimeRange().equals(oTimeCondition.getTimeRange()) &&
+               isTimeInRange(oTimeCondition, timeCondition.getTimeRange()))
             {
+               // Preserve the existing balanced time only when it falls within the range.
+               // If it is outside the range it is still an unbalanced placeholder, so
+               // fall through to the else branch to let the TaskBalancer assign a proper slot.
                timeCondition.setHour(oTimeCondition.getHour());
                timeCondition.setMinute(oTimeCondition.getMinute());
                timeCondition.setSecond(oTimeCondition.getSecond());
@@ -275,6 +280,28 @@ public class ScheduleService {
       }
 
       return null;
+   }
+
+   /**
+    * Returns true if the condition's hour/minute/second falls within the given time range.
+    * Used to detect unbalanced placeholder times (e.g. 01:30 outside a Morning 06:00-12:00 range)
+    * so the TaskBalancer can be invoked to assign a proper slot.
+    */
+   private boolean isTimeInRange(TimeCondition condition, TimeRange range) {
+      int h = Math.max(0, condition.getHour());
+      int m = Math.max(0, condition.getMinute());
+      int s = Math.max(0, condition.getSecond());
+      LocalTime time = LocalTime.of(h, m, s);
+      LocalTime start = range.getStartTime();
+      LocalTime end = range.getEndTime();
+
+      if(start.isBefore(end)) {
+         return !time.isBefore(start) && time.isBefore(end);
+      }
+      else {
+         // overnight range (e.g. 18:00 – 06:00): in-range means ≥ start OR < end
+         return !time.isBefore(start) || time.isBefore(end);
+      }
    }
 
    /**

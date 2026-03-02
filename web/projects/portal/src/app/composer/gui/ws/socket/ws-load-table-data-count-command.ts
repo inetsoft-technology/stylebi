@@ -20,4 +20,5 @@ export interface WSLoadTableDataCountCommand {
    count: number;
    completed: boolean;
    exceededMsg?: string;
+   duration: number;
 }

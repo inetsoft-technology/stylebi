@@ -144,11 +144,6 @@ export class VSDataTipDirective implements DoCheck {
                topOffset = viewerRect.scrollTop;
             }
 
-            if(containerInfo) {
-               top += popInfo.top - containerInfo.top;
-               left += popInfo.left - containerInfo.left;
-            }
-
             top += topOffset;
             left += leftOffset;
 
@@ -164,6 +159,12 @@ export class VSDataTipDirective implements DoCheck {
             // if displaying top/left, make sure it's not out of bounds
             top = Math.max(top, viewerRect.scrollTop - reducedEmbeddedVsTop);
             left = Math.max(left, viewerRect.scrollLeft - reducedEmbeddedVsLeft);
+
+            // add individual top, left last so components in group container don't overlap each other
+            if(containerInfo) {
+               top += popInfo.top - containerInfo.top;
+               left += popInfo.left - containerInfo.left;
+            }
 
             this.renderer.setStyle(nativeElement, "left", left + "px");
             this.renderer.setStyle(nativeElement, "top", top + "px");

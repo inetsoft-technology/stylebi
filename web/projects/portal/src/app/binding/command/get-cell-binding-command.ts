@@ -35,4 +35,5 @@ export interface GetCellBindingCommand extends ViewsheetCommand {
    groupNum: number;
    cellRow: number;
    cellCol: number;
+   cellScript: string;
 }

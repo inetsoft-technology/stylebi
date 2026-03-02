@@ -170,3 +170,18 @@ div.vs-pane .bl-selected {
     min-width: 60px;
   }
 }
+
+.console-blink {
+  animation: vs-pane-slow-blink 2.5s infinite;
+}
+
+@keyframes vs-pane-slow-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .console-blink {
+    animation: none;
+  }
+}

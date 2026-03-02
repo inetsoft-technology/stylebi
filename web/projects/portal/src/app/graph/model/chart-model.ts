@@ -33,6 +33,7 @@ export interface ChartModel {
    zoomed: boolean;
    hasFlyovers: boolean;
    flyOnClick: boolean;
+   dataTipOnClick: boolean;
    axes: Axis[];
    facets: Facet[];
    legends: LegendContainer[];

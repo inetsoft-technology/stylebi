@@ -20,6 +20,7 @@ import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { Component, NgZone, NO_ERRORS_SCHEMA, ViewChild } from "@angular/core";
 import { async, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MatDialog, MatDialogModule } from "@angular/material/dialog";
 import { MatIconModule } from "@angular/material/icon";
 import { MatLegacyButtonModule } from "@angular/material/legacy-button";
 import { MatLegacyCheckboxModule } from "@angular/material/legacy-checkbox";
@@ -69,7 +70,8 @@ describe("RepositoryTreeViewComponent", () => {
             MatLegacyCheckboxModule,
             MatLegacyMenuModule,
             MatLegacyButtonModule,
-            MatIconModule
+            MatIconModule,
+            MatDialogModule,
          ],
          declarations: [
             TestApp,
@@ -90,7 +92,8 @@ describe("RepositoryTreeViewComponent", () => {
       component = fixture.componentInstance;
       const http = fixture.debugElement.injector.get(HttpClient);
       const zone = fixture.debugElement.injector.get(NgZone);
-      component.dataSource = new RepositoryTreeDataSource(http, stompClientService, zone);
+      const dialog = fixture.debugElement.injector.get(MatDialog);
+      component.dataSource = new RepositoryTreeDataSource(http, stompClientService, zone, dialog);
       fixture.detectChanges();
 
       tree = component.treeView;

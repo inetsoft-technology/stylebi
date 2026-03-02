@@ -116,8 +116,12 @@ export class WsSqlQueryController implements SqlQueryDialogController {
 
       return this.modelService.getModel<SqlQueryDialogModel>(url, params)
          .pipe(
-            catchError((error: HttpErrorResponse) => {
+            catchError((error: any) => {
                let message = "_#(js:em.data.databases.error)";
+
+               if(error == "_#(js:composer.nopermission.physicalTable)") {
+                  return of(null);
+               }
 
                if(error.status === 504) {
                   message = "_#(js:em.data.databases.error.gatewayTimeout)";

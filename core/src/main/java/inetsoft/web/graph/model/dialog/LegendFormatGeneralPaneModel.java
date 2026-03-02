@@ -17,6 +17,8 @@
  */
 package inetsoft.web.graph.model.dialog;
 
+import inetsoft.graph.guide.legend.LegendItem;
+
 public class LegendFormatGeneralPaneModel {
    public String getTitle() {
       return title;
@@ -82,6 +84,14 @@ public class LegendFormatGeneralPaneModel {
       this.notShowNullVisible = notShowNullVisible;
    }
 
+   public int getSymbolSize() {
+      return symbolSize;
+   }
+
+   public void setSymbolSize(int symbolSize) {
+      this.symbolSize = symbolSize;
+   }
+
    // title dvalue
    private String title;
    // title rvalue
@@ -92,4 +102,5 @@ public class LegendFormatGeneralPaneModel {
    private boolean visible;
    private boolean notShowNull;
    private boolean notShowNullVisible;
+   private int symbolSize = LegendItem.DEFAULT_SYMBOL_SIZE;
 }

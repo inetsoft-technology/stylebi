@@ -145,6 +145,7 @@ describe("ViewerApp Unit Tests", () => {
    let miniToolbarService: any;
    let assetLoadingService: any;
    let viewContainerRef: any;
+   let baseHrefService: any;
 
    beforeEach(async(() => {
       formDataService = {
@@ -272,6 +273,9 @@ describe("ViewerApp Unit Tests", () => {
       viewContainerRef = {
          element: jest.fn(),
       };
+      baseHrefService = {
+         getBaseHref: jest.fn()
+      };
 
       window.IntersectionObserver = jest.fn().mockImplementation(() => ({
          observe: () => {},
@@ -317,8 +321,8 @@ describe("ViewerApp Unit Tests", () => {
             { provide: MiniToolbarService, useValue: miniToolbarService },
             { provide: AssetLoadingService, useValue: assetLoadingService },
             { provide: ViewContainerRef, useValue: viewContainerRef },
-            AppInfoService,
-            BaseHrefService
+            { provide: BaseHrefService, useValue: baseHrefService },
+            AppInfoService
          ],
          declarations: [
             ViewerAppComponent, ActionsContextmenuComponent, InteractContainerDirective,

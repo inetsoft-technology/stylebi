@@ -54,21 +54,22 @@ public class SizeLegendItem extends LegendItem {
       double smallest = frame.getSmallest();
       double largest = frame.getLargest();
       double sizeRatio = (size - smallest) / (largest - smallest);
-      double r = 1 + (SYMBOL_SIZE  - 1) * sizeRatio;
+      int symbolSz = getSymbolSize();
+      double r = 1 + (symbolSz  - 1) * sizeRatio;
 
-      r = Math.min(r, SYMBOL_SIZE);
-      double x0 = x + SYMBOL_SIZE / 2 - r / 2 + 0.5;
+      r = Math.min(r, symbolSz);
+      double x0 = x + symbolSz / 2.0 - r / 2 + 0.5;
       g2.setColor(getSymbolColor());
       g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
       g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-      g2.fill(new Rectangle2D.Double(x0, y, r, SYMBOL_SIZE));
+      g2.fill(new Rectangle2D.Double(x0, y, r, symbolSz));
       g2.setColor(SYMBOL_BORDER);
 
       if(!GTool.isVectorGraphics(g2)) {
          g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
       }
 
-      g2.draw(new Rectangle2D.Double(x, y, SYMBOL_SIZE, SYMBOL_SIZE));
+      g2.draw(new Rectangle2D.Double(x, y, symbolSz, symbolSz));
       g2.dispose();
    }
 }

@@ -25,4 +25,5 @@ public @interface Audited {
    String actionName() default "";
    String objectName() default "";
    String objectType();
+   boolean defaultOrg() default false;
 }

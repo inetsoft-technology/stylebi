@@ -1431,7 +1431,11 @@ public class VsToReportConverter {
       size.height += assembly.getChartInfo().getPadding().top;
       VGraphPair pair = box.getVGraphPair(assembly.getAbsoluteName(), true, size, true,
          scalefont, true);
-      data = data == null ? pair.getData() : data;
+
+      if (data == null && pair != null) {
+         data = pair.getData();
+      }
+
       VGraph graph = null;
 
       if(data != null && !(data.getRowCount() <= 0 &&

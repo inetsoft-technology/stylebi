@@ -546,7 +546,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
                break;
             case "selection-list search":
             case "selection-tree search":
-               this.onSearch();
+               this.toggleSearchDisplay();
                break;
             case "selection-list open-max-mode":
             case "selection-list close-max-mode":
@@ -695,11 +695,13 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       const bottomMargin: number = Tool.getMarginSize(this._model.objectFormat.border.bottom);
       const topMargin: number = Tool.getMarginSize(this._model.objectFormat.border.top);
       const offset = Math.max(0, bottomMargin + topMargin + this.topMarginTitle);
+      const searchOffset = this.model.searchDisplayed ? this.model.titleFormat.height : 0;
       return this.inContainer ?
-         this.model.objectFormat.height - this.model.titleFormat.height :
-         this.model.dropdown && !this.model.maxMode ? this.cellHeight * this.model.listHeight
+         this.model.objectFormat.height - this.model.titleFormat.height - searchOffset :
+         this.model.dropdown && !this.model.maxMode
+            ? this.cellHeight * this.model.listHeight - searchOffset
             : this.model.objectFormat.height -
-            (!this.viewer || this.model.titleVisible ? this.model.titleFormat.height : 0) - offset;
+            (!this.viewer || this.model.titleVisible ? this.model.titleFormat.height : 0) - offset - searchOffset;
    }
 
    getBodyWidth(): number {
@@ -829,7 +831,6 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       this.clearNavSelection();
       this.lastCellSelectedIndex = FocusRegions.SEARCH_BAR;
       this.updateMiniToolbarFocus(false);
-      this.model.searchDisplayed = true;
       this.changeDetectorRef.detectChanges();
       let elementRef = this.selectionListSearchInputElementRef;
 
@@ -838,9 +839,14 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       }, 200);
    }
 
-   hideSearchDisplay() {
-      if(this.lastCellSelectedIndex != FocusRegions.CLEAR_SEARCH) {
-         this.model.searchDisplayed = false;
+   toggleSearchDisplay() {
+      this.model.searchDisplayed = !this.model.searchDisplayed;
+
+      if(this.model.searchDisplayed) {
+         this.onSearch();
+      }
+      else {
+         this.changeDetectorRef.detectChanges();
       }
    }
 
@@ -1125,6 +1131,14 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       }
    }
 
+   /**
+    * Updates the selection state of a cell in response to a user interaction.
+    *
+    * When `event.toggle` or `event.toggleAll` is `true` (alt-click, quick-switch button, or
+    * mobile long-press), the selection mode is toggled (single ↔ multi) and the clicked
+    * cell's label is selected as the new anchor. All other cells are cleared. This intentional
+    * coupling means the user always has a well-defined anchor cell after a mode switch.
+    */
    updateSelectionState(value: SelectionValueModel, event?: {toggle: boolean, toggleAll: boolean}) {
       if(this.mobileDevice && !this.isMaxMode()) {
          return;
@@ -1585,9 +1599,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
             }
          }
          else if(key == NavigationKeys.DOWN) {
-            this.hideSearchDisplay();
             index = this.model.dropdown || this.inContainer ? FocusRegions.MENU : 0;
-            this.model.searchDisplayed = false;
          }
       }
       else if(this.lastCellSelectedIndex == FocusRegions.CLEAR_SEARCH) {
@@ -1603,9 +1615,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
             index = FocusRegions.CLEAR_SEARCH;
          }
          else if(key == NavigationKeys.DOWN) {
-            this.hideSearchDisplay();
             index = this.model.dropdown || this.inContainer ? FocusRegions.MENU : 0;
-            this.model.searchDisplayed = false;
          }
       }
       else if(!list && (key == NavigationKeys.LEFT || key == NavigationKeys.RIGHT)) {
@@ -1896,7 +1906,8 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    }
 
    get verticalScrollbarTop(): number {
-      return this.model.titleVisible ? this.model.titleFormat.height : 0;
+      const searchOffset = this.model.searchDisplayed ? this.model.titleFormat.height : 0;
+      return (this.model.titleVisible ? this.model.titleFormat.height : 0) + searchOffset;
    }
 
    /**

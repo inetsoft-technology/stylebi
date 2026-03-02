@@ -702,6 +702,7 @@ public abstract class AbstractSecurityFilter
       "/images/**",
       "/js/**",
       "/webjars/**",
+      "/sso/jwks",
    };
    protected static final String ORG_COOKIE = "X-INETSOFT-ORGID";
    private static final Logger LOG = LoggerFactory.getLogger(AbstractSecurityFilter.class);

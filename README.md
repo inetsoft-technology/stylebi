@@ -9,9 +9,9 @@ StyleBI is a cloud-native, small-footprint business intelligence web application
 
 _Screenshots of [StyleBI Cloud](https://www.inetsoft.com/company/bi_dashboard_pricing)_.
 
-## Resources & Scaliblity
+## Resources & Scalablity
 
-StyleBI Open Source can be deployed on any Docker engine, including Docker Desktop. For cloud deployments, a minimum capacity of 2 cores and 4GB of RAM is recommended. [StyleBI Cloud](https://www.inetsoft.com) offers elastic scaling through native cloud servies from AWA, GCP and Azure, built on top of StyleBI Open Source.
+StyleBI Open Source can be deployed on any Docker engine, including Docker Desktop. For cloud deployments, a minimum capacity of 2 cores and 8GB of RAM is recommended. [StyleBI Cloud](https://www.inetsoft.com) offers elastic scaling through native cloud servies from AWA, GCP and Azure, built on top of StyleBI Open Source.
 
 ## Security
 
@@ -79,7 +79,7 @@ or on Windows:
 ```powershell
 .\mvnw.cmd clean install
 ```
-
+> **NOTE**  When building the Java libraries, it is possible certain build tests will fail or some functionality may not work completely.  While we try to keep the trunk as stable as possible, this repository is actively being developed with a trunk based development workflow. For a production stable release, please check out one of the [release tags](https://github.com/inetsoft-technology/stylebi/releases). Alternatively, use the `-DskipTests` flag when building the Java libraries to skip the build tests entirely.
 ### Building the Docker Image
 
 If you have already built the Java libraries, you can then run the following command:
