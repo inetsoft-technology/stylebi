@@ -543,8 +543,8 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
       try {
          return cluster.submit(id, new PutBlobTask<>(id, blob)).get(60L, TimeUnit.SECONDS);
       }
-      catch(TimeoutException e) {
-         LOG.warn("Timeout saving blob metadata for {}, retrying...", blob.getPath());
+      catch(TimeoutException | ExecutionException e) {
+         LOG.warn("Failed to save blob metadata for {}, retrying...", blob.getPath(), e);
 
          try {
             BlobReference<T> ref =
