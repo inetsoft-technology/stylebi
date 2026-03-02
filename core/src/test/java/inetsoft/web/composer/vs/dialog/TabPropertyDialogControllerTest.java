@@ -98,7 +98,7 @@ class TabPropertyDialogControllerTest {
     */
    @Test
    void testFlipToBottomTabsKeepsSamePosition() throws Exception {
-      TabPropertyDialogModel model = buildModel("Tab1", false, true, 10, 200, 200, 30);
+      TabPropertyDialogModel model = buildModel("Tab1", true, 10, 200, 200, 30);
 
       controller.setTabPropertyDialogModel("Tab1", model, "", null, commandDispatcher);
 
@@ -124,7 +124,7 @@ class TabPropertyDialogControllerTest {
    @Test
    void testFlipToBottomTabsWithNewPosition() throws Exception {
       // User moves the tab to Y=300 and also switches to bottom-tabs.
-      TabPropertyDialogModel model = buildModel("Tab1", false, true, 10, 300, 200, 30);
+      TabPropertyDialogModel model = buildModel("Tab1", true, 10, 300, 200, 30);
 
       controller.setTabPropertyDialogModel("Tab1", model, "", null, commandDispatcher);
 
@@ -161,7 +161,7 @@ class TabPropertyDialogControllerTest {
    @Test
    void testFlipToBottomTabsWithHeightChange() throws Exception {
       // User moves tab to Y=300, switches to bottom-tabs, and grows height from 30 to 50.
-      TabPropertyDialogModel model = buildModel("Tab1", false, true, 10, 300, 200, 50);
+      TabPropertyDialogModel model = buildModel("Tab1", true, 10, 300, 200, 50);
 
       controller.setTabPropertyDialogModel("Tab1", model, "", null, commandDispatcher);
 
@@ -194,7 +194,7 @@ class TabPropertyDialogControllerTest {
       child.getVSAssemblyInfo().setPixelOffset(new Point(10, 200));
 
       // User keeps tab at Y=400 and grows height from 30 to 50.
-      TabPropertyDialogModel model = buildModel("Tab1", true, false, 10, 400, 200, 50);
+      TabPropertyDialogModel model = buildModel("Tab1", false, 10, 400, 200, 50);
 
       controller.setTabPropertyDialogModel("Tab1", model, "", null, commandDispatcher);
 
@@ -228,7 +228,7 @@ class TabPropertyDialogControllerTest {
       tabInfo.setPixelOffset(new Point(10, 400));
       child.getVSAssemblyInfo().setPixelOffset(new Point(10, 200)); // flush above tab in bottom-tabs
 
-      TabPropertyDialogModel model = buildModel("Tab1", true, false, 10, 400, 200, 30);
+      TabPropertyDialogModel model = buildModel("Tab1", false, 10, 400, 200, 30);
 
       controller.setTabPropertyDialogModel("Tab1", model, "", null, commandDispatcher);
 
@@ -255,18 +255,13 @@ class TabPropertyDialogControllerTest {
     * Builds a minimal {@link TabPropertyDialogModel} with the given properties.
     *
     * @param name        assembly name
-    * @param oldMode     current bottomTabs value (used to populate the form as if the dialog
-    *                    was opened in that state — not actually read by the controller, but
-    *                    kept here for clarity)
     * @param newMode     the bottomTabs value the user is submitting
     * @param left        desired X position
     * @param top         desired Y position
     * @param width       desired width
     * @param height      desired height (tab bar height)
     */
-   private static TabPropertyDialogModel buildModel(String name,
-                                                    @SuppressWarnings("unused") boolean oldMode,
-                                                    boolean newMode,
+   private static TabPropertyDialogModel buildModel(String name, boolean newMode,
                                                     int left, int top, int width, int height)
    {
       TabPropertyDialogModel dialogModel = new TabPropertyDialogModel();
