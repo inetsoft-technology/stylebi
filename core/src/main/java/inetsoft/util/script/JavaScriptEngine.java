@@ -529,18 +529,22 @@ public class JavaScriptEngine {
             linemsg.append(" " + elines.elementAt(i));
          }
 
-         ViewsheetScope vsScope = (ViewsheetScope) rscope;
-         ScriptEnv scriptEnv = vsScope.getScriptEnv();
+         if(rscope instanceof ViewsheetScope) {
+            ViewsheetScope vsScope = (ViewsheetScope) rscope;
+            ScriptEnv scriptEnv = vsScope.getScriptEnv();
 
-         Viewsheet viewsheet = (Viewsheet) scriptEnv.get("_viewsheet");
-         AssetEntry runtimeEntry = viewsheet.getRuntimeEntry();
+            Viewsheet viewsheet = (Viewsheet) scriptEnv.get("_viewsheet");
+            AssetEntry runtimeEntry = viewsheet.getRuntimeEntry();
 
-         String entryPath = runtimeEntry.getPath();
-         String orgId = runtimeEntry.getOrgID();
-         String viewsheetId = entryPath + "^" + orgId;
+            String entryPath = runtimeEntry.getPath();
+            String orgId = runtimeEntry.getOrgID();
+            String viewsheetId = entryPath + "^" + orgId;
 
-         throw new ScriptException("(" + ex.getMessage() + ") " + linemsg +
-                                      " in viewsheet: " + viewsheetId);
+            throw new ScriptException("(" + ex.getMessage() + ") " + linemsg +
+                                         " in viewsheet: " + viewsheetId);
+         }
+
+         throw new ScriptException("(" + ex.getMessage() + ") " + linemsg);
       }
       finally {
          stack.pop();
