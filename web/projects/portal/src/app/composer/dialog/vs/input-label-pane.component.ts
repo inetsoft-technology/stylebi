@@ -1,4 +1,4 @@
- /*
+/*
  * This file is part of StyleBI.
  * Copyright (C) 2024  InetSoft Technology
  *
@@ -29,10 +29,10 @@ export class InputLabelPane {
    @Input() vsId: string;
 
    positionOptions = [
-    { label: "_#(Left)", value: "left" },
-    { label: "_#(Right)", value: "right" },
-    { label: "_#(Top)", value: "top" },
-    { label: "_#(Bottom)", value: "bottom" }
+      {label: "_#(Left)", value: "left"},
+      {label: "_#(Right)", value: "right"},
+      {label: "_#(Top)", value: "top"},
+      {label: "_#(Bottom)", value: "bottom"}
    ];
 
    selectTextType(type: ComboMode) {

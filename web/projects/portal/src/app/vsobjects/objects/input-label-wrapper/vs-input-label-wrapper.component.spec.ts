@@ -15,10 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { CommonModule } from "@angular/common";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
 import { VSInputLabelWrapper } from "./vs-input-label-wrapper.component";
-import { VSInputLabelModel } from "../../model/vs-input-label-model";
 
 describe("VSInputLabelWrapper", () => {
    let component: VSInputLabelWrapper;
@@ -27,7 +27,7 @@ describe("VSInputLabelWrapper", () => {
    beforeEach(async () => {
       await TestBed.configureTestingModule({
          imports: [CommonModule],
-         declarations: [VSInputLabelWrapper]
+         declarations: [VSInputLabelWrapper, SafeFontDirective]
       }).compileComponents();
 
       fixture = TestBed.createComponent(VSInputLabelWrapper);
@@ -42,7 +42,7 @@ describe("VSInputLabelWrapper", () => {
       component.labelModel = null;
       fixture.detectChanges();
 
-      expect(component.showLabel).toBeFalse();
+      expect(component.showLabel).toBeFalsy();
    });
 
    it("should not show label when showLabel is false", () => {
@@ -53,7 +53,7 @@ describe("VSInputLabelWrapper", () => {
       };
       fixture.detectChanges();
 
-      expect(component.showLabel).toBeFalse();
+      expect(component.showLabel).toBeFalsy();
    });
 
    it("should show label when showLabel is true", () => {
@@ -64,7 +64,7 @@ describe("VSInputLabelWrapper", () => {
       };
       fixture.detectChanges();
 
-      expect(component.showLabel).toBeTrue();
+      expect(component.showLabel).toBeTruthy();
       expect(component.labelText).toBe("Test Label");
    });
 
