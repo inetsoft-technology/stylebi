@@ -1583,6 +1583,10 @@ public class SQLHelper implements KeywordProvider {
       String alias = getValidSubAlias(table, column);
 
       if(table == null || alias == null) {
+         if(table != null && column != null) {
+            return form + quoteTableAlias(table) + "." + quoteColumnAlias(column) + ')';
+         }
+
          if(XUtil.isQualifiedName(npath)) {
             return form + path + ')';
          }

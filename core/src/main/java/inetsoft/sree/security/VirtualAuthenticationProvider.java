@@ -225,7 +225,10 @@ public class VirtualAuthenticationProvider
 
       if(!space.exists(null, fileName)) {
          admin = new FSUser(new IdentityID("admin", Organization.getDefaultOrganizationID()));
-         SUtil.setPassword(admin, "admin");
+         String envPassword = System.getenv("INETSOFT_ADMIN_PASSWORD");
+         String trimmedEnvPassword = envPassword != null ? envPassword.trim() : null;
+         boolean useEnvPassword = trimmedEnvPassword != null && !trimmedEnvPassword.isBlank();
+         SUtil.setPassword(admin, useEnvPassword ? trimmedEnvPassword : "admin");
          admin.setRoles(new IdentityID[] { new IdentityID("Administrator", null) });
          save();
 

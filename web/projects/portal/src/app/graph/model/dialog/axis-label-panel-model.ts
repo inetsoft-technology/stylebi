@@ -21,4 +21,5 @@ export interface AxisLabelPaneModel {
    showAxisLabel: boolean;
    showAxisLabelEnabled?: boolean;
    rotationRadioGroupModel: RotationRadioGroupModel;
+   labelOnSecondaryAxis: boolean;
 }

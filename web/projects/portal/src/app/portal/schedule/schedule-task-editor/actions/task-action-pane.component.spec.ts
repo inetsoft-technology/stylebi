@@ -196,4 +196,43 @@ describe("Task Action Pane Unit Test", () => {
 
       expect(showConfirmDialog).toHaveBeenCalled();
    });
+
+   it("should copy selected action", () => {
+      taskActionPane.model.actions = [createVSActionModel()];
+      taskActionPane.selectedActions = [0];
+      taskActionPane.copyAction();
+
+      expect(taskActionPane.model.actions.length).toBe(2);
+      expect(taskActionPane.model.actions[1].label).toContain("Copy of");
+      expect(taskActionPane.model.actions[1].label).toContain("test action");
+      expect((<GeneralActionModel>taskActionPane.model.actions[1]).sheet)
+         .toBe("1^128^__NULL__^table1");
+      expect(taskActionPane.selectedActions).toEqual([1]);
+   });
+
+   it("should deep clone action so modifying copy does not affect original", () => {
+      taskActionPane.model.actions = [createVSActionModel()];
+      taskActionPane.selectedActions = [0];
+      taskActionPane.copyAction();
+
+      (<GeneralActionModel>taskActionPane.model.actions[1]).sheet = "changed";
+      expect((<GeneralActionModel>taskActionPane.model.actions[0]).sheet)
+         .toBe("1^128^__NULL__^table1");
+   });
+
+   it("should not copy when no action is selected", () => {
+      taskActionPane.model.actions = [createVSActionModel()];
+      taskActionPane.selectedActions = [];
+      taskActionPane.copyAction();
+
+      expect(taskActionPane.model.actions.length).toBe(1);
+   });
+
+   it("should not copy when multiple actions are selected", () => {
+      taskActionPane.model.actions = [createVSActionModel(), createVSActionModel()];
+      taskActionPane.selectedActions = [0, 1];
+      taskActionPane.copyAction();
+
+      expect(taskActionPane.model.actions.length).toBe(2);
+   });
 });

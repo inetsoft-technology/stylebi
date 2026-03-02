@@ -196,6 +196,7 @@ public class ChartPropertyDialogController {
       String[] flyoverViews = chartAssemblyInfo.getFlyoverViewsValue();
       tipPaneModel.setFlyOverViews(flyoverViews == null ? new String[0] : flyoverViews);
       tipPaneModel.setFlyOnClick(Boolean.valueOf(chartAssemblyInfo.getFlyOnClickValue()));
+      tipPaneModel.setTipOnClick(Boolean.valueOf(chartAssemblyInfo.getTipOnClickValue()));
       tipPaneModel.setPopComponents(
          this.vsObjectPropertyService.getSupportedTablePopComponents(
             rvs, chartAssemblyInfo.getAbsoluteName(), false));
@@ -460,6 +461,7 @@ public class ChartPropertyDialogController {
                                                   viewsheet.getViewsheet());
       assemblyInfo.setFlyoverViewsValue(flyovers);
       assemblyInfo.setFlyOnClickValue(tipPaneModel.isFlyOnClick() + "");
+      assemblyInfo.setTipOnClickValue(tipPaneModel.isTipOnClick() + "");
       vsChartInfo.setTooltipVisible(true);
 
       if(tipModel.getCustomRB() == TipCustomizeDialogModel.TipFormat.NONE) {

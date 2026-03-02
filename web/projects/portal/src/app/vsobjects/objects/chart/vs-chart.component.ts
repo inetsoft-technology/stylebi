@@ -306,6 +306,22 @@ export class VSChart extends AbstractVSObject<VSChartModel>
                   this.vsInfo ? this.vsInfo.linkUri : null,
                   this.isForceTab());
                break;
+            case "chart show-titleHyperlink":
+               this.hyperlinkService.showHyperlinks(
+                  event.event, [this.model.titleLinkModel],
+                  this.dropdownService,
+                  this.viewsheetClient.runtimeId,
+                  this.vsInfo ? this.vsInfo.linkUri : null,
+                  this.isForceTab());
+               break;
+            case "chart show-emptyPlotHyperlink":
+               this.hyperlinkService.showHyperlinks(
+                  event.event, [this.model.emptyPlotLinkModel],
+                  this.dropdownService,
+                  this.viewsheetClient.runtimeId,
+                  this.vsInfo ? this.vsInfo.linkUri : null,
+                  this.isForceTab());
+               break;
             case "chart auto-refresh":
             case "chart manual-refresh":
                this.changeAutoRefresh();
@@ -729,13 +745,31 @@ export class VSChart extends AbstractVSObject<VSChartModel>
          let plotCondition = this.getSelectedString(tipData.payload);
          let tip = plotCondition ? this.model.dataTip : null;
 
-         if(tip != null && this.dataTipService.isFrozen()) {
+         if(this.model.dataTipOnClick) {
             this.dataTipService.unfreeze();
-         }
 
-         this.chartService.showDataTip(this.dataTipService, tipData.tooltipLeft,
-                                       tipData.tooltipTop, this.getAssemblyName(),
-                                       tip, plotCondition, this.model.dataTipAlpha);
+            this.chartService.showDataTip(this.dataTipService, tipData.tooltipLeft,
+                                          tipData.tooltipTop, this.getAssemblyName(),
+                                          tip, plotCondition, this.model.dataTipAlpha);
+
+            if(tip != null) {
+               // Defer freeze so the click event (which fires after mouseup/pointerup)
+               // finishes bubbling before we freeze. The outside click listener in
+               // vs-data-tip.directive only dismisses when isFrozen() is true, so
+               // deferring prevents the same click that triggered the data tip from
+               // immediately dismissing it.
+               setTimeout(() => this.dataTipService.freeze(), 0);
+            }
+         }
+         else {
+            if(tip != null && this.dataTipService.isFrozen()) {
+               this.dataTipService.unfreeze();
+            }
+
+            this.chartService.showDataTip(this.dataTipService, tipData.tooltipLeft,
+                                          tipData.tooltipTop, this.getAssemblyName(),
+                                          tip, plotCondition, this.model.dataTipAlpha);
+         }
       }
    }
 
@@ -781,7 +815,8 @@ export class VSChart extends AbstractVSObject<VSChartModel>
    }
 
    mouseLeave(event: MouseEvent) {
-      if(this.model.dataTip && this.dataTipService.isDataTipVisible(this.model.dataTip) &&
+      if(this.model.dataTip && !this.model.dataTipOnClick &&
+         this.dataTipService.isDataTipVisible(this.model.dataTip) &&
          !this.dataTipService.isFrozen())
       {
          this.debounceService.debounce(DataTipService.DEBOUNCE_KEY, () => {
@@ -812,7 +847,13 @@ export class VSChart extends AbstractVSObject<VSChartModel>
 
    clickHyperlink(event: MouseEvent) {
       if(this.clickAction && event.button === 0) {
-         this.clickAction.action(event);
+         if(this.getSelectedRegions().length === 0 && this.model.emptyPlotLinkModel != null) {
+            this.clickEmptyPlotHyperlink();
+         }
+         else {
+            this.clickAction.action(event);
+         }
+
          event.stopPropagation();
       }
    }
@@ -821,7 +862,7 @@ export class VSChart extends AbstractVSObject<VSChartModel>
     * hide resizers and clear selected annotations when selecting part of the chart
     */
    selectRegion(selection: ChartSelection): void {
-      if(!this.isDataTip()) {
+      if(!this.isDataTip() && !this.model.dataTipOnClick) {
          if(selection && selection.regions.length) {
             this.dataTipService.freeze();
          }
@@ -836,14 +877,40 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       this.model.selectedRegions = [];
    }
 
-   selectTitle(): void {
+   selectTitle(event: MouseEvent): void {
       if(this.context.preview) {
+         if(this.model.titleLinkModel != null && event.button == 0) {
+            this.clickTitleHyperlink();
+         }
+
          return;
       }
 
       this.clearSelection();
       this.model.selectedRegions = [DataPathConstants.TITLE];
       this.model.titleSelected = true;
+
+      if(event.button == 0) {
+         this.clickTitleHyperlink();
+      }
+   }
+
+   private clickSpecialHyperlink(linkModel: HyperlinkModel): void {
+      const cloned = Tool.clone(linkModel);
+
+      if(this.viewer && cloned != null &&
+            (!this.mobileDevice || this.hyperlinkService.singleClick)) {
+         this.hyperlinkService.clickLink(cloned, this.viewsheetClient.runtimeId,
+                     this.vsInfo ? this.vsInfo.linkUri : null);
+      }
+   }
+
+   clickTitleHyperlink(): void {
+      this.clickSpecialHyperlink(this.model.titleLinkModel);
+   }
+
+   clickEmptyPlotHyperlink(): void {
+      this.clickSpecialHyperlink(this.model.emptyPlotLinkModel);
    }
 
    protected getHyperlinks(): HyperlinkModel[] {

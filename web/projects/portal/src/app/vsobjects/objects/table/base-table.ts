@@ -854,7 +854,7 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
       }
 
       if(this.model.dataTip && this.dataTipService.isDataTipVisible(this.model.dataTip) &&
-         !this.dataTipService.isFrozen())
+         !this.dataTipService.isFrozen() && !this.model.isTipOnClick)
       {
          this.debounceService.debounce(DataTipService.DEBOUNCE_KEY, () => {
             const tipElement: HTMLElement = document.getElementsByClassName(

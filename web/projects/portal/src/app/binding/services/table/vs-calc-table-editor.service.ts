@@ -41,6 +41,7 @@ const CALC_TABLE_PROPERTY_URI: string = "composer/vs/calc-table-property-dialog-
 @Injectable()
 export class VSCalcTableEditorService {
    _cellBinding: CellBindingInfo = new CellBindingInfo();
+   _cellScript: string;
    _cellNames: string[];
    _aggregates: AggregateRef[];
    _hasRowGroup: boolean;
@@ -133,7 +134,7 @@ export class VSCalcTableEditorService {
          "/events/vs/calctable/tablelayout/changeColumnValue", event);
    }
 
-   getCellScript(): void {
+   loadCellScript(): void {
       if(this.getSelectCells() != null && this.getSelectCells().length >= 0) {
          let cell: CalcTableCell = this.getSelectCells()[this.getSelectCells().length - 1];
          let evt: GetCellScriptEvent = new GetCellScriptEvent(
@@ -155,6 +156,7 @@ export class VSCalcTableEditorService {
       }
 
       this._cellBinding = command.binding;
+      this._cellScript = command.cellScript;
       this._cellNames = command.cellNames;
       this._aggregates = command.aggregates;
       this._hasRowGroup = command.rowGroup;
@@ -171,6 +173,10 @@ export class VSCalcTableEditorService {
 
    getCellBinding(): CellBindingInfo {
       return this._cellBinding;
+   }
+
+   get cellScript(): string {
+      return this._cellScript;
    }
 
    getCellNames(): string[] {
@@ -238,6 +244,7 @@ export class VSCalcTableEditorService {
 
    clearAllData(): void {
       this._cellBinding = new CellBindingInfo();
+      this._cellScript = null;
       this._cellNames = [];
       this._aggregates = [];
       this._hasRowGroup = false;

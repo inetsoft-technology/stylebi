@@ -65,6 +65,7 @@ export class VirtualScrollTreeComponent {
   @Input() recentEnabled: boolean;
   @Input() getRecentTreeFun: () => Observable<TreeNodeModel[]>;
   @Input() nodeEqualsFun: (node1: TreeNodeModel, node2: TreeNodeModel) => boolean;
+  @Input() stickySearch: boolean = false;
   @Output() nodeExpanded = new EventEmitter<TreeNodeModel>();
   @Output() nodeCollapsed = new EventEmitter<TreeNodeModel>();
   @Output() nodesSelected = new EventEmitter<TreeNodeModel[]>();
@@ -74,6 +75,7 @@ export class VirtualScrollTreeComponent {
   @Output() nodeClicked = new EventEmitter<TreeNodeModel>();
   @Output() onContextmenu = new EventEmitter<[MouseEvent | any, TreeNodeModel, TreeNodeModel[]]>();
   @Output() searchStart = new EventEmitter<boolean>();
+  @Output() searchStrChange = new EventEmitter<string>();
   @ViewChild(TreeComponent) tree: TreeComponent;
   dataSource: VirtualScrollTreeDatasource = new VirtualScrollTreeDatasource();
   private _searchEndNode: (node: TreeNodeModel) => boolean;

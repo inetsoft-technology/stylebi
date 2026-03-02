@@ -20,6 +20,7 @@ package inetsoft.graph.aesthetic;
 import com.inetsoft.build.tern.*;
 import inetsoft.graph.GraphTool;
 import inetsoft.graph.internal.GTool;
+import inetsoft.util.DataSpace;
 import inetsoft.util.ResourceCache;
 import inetsoft.util.Tool;
 import inetsoft.util.graphics.SVGSupport;
@@ -30,6 +31,7 @@ import org.slf4j.LoggerFactory;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Rectangle2D;
+import java.io.InputStream;
 import java.net.URL;
 
 /**
@@ -271,6 +273,12 @@ public class SVGShape extends GShape {
          Tuple tuple = (Tuple) key;
          String uri = tuple.resource;
          Dimension size = tuple.size;
+
+         try(InputStream input = DataSpace.getDataSpace().getInputStream(null, uri)) {
+            if(input != null) {
+               return SVGSupport.getInstance().getSVGImage(input, size.width, size.height);
+            }
+         }
 
          if(uri.indexOf(':') < 0) {
             URL url = SVGShape.class.getResource(uri);

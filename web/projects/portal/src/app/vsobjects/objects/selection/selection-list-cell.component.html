@@ -52,7 +52,11 @@
          [style.padding-bottom.px]="cellFormat?.padding?.bottom"
          [style.vertical-align]="cellFormat.vAlign">
       <div class="icon-label-content"
-           tooltipIf [disableTooltipIf]="toggleEnabled">
+           tooltipIf [disableTooltipIf]="toggleEnabled"
+           (touchstart)="onTouchStart($event)"
+           (touchend)="onTouchEnd()"
+           (touchmove)="onTouchMove()"
+           (touchcancel)="onTouchCancel()">
         <div [ngClass]="getTreeIconClass()"
              [class.mobile-max-mode-icon]="mobile && maxMode"
              [style.color]="cellFormat.foreground"
@@ -91,6 +95,13 @@
                [style.wordWrap]="cellFormat.wrapping.wordWrap">
             {{selectionValue.label}}
           </div>
+          <button *ngIf="quickSwitchAllowed"
+                  class="switch-mode-btn"
+                  type="button"
+                  (click)="click($event, true)"
+                  [title]="singleSelection ? '_#(multi.switchTip)' : '_#(single.switchTip)'">
+            {{ singleSelection ? '_#(multi.switch)' : '_#(single.switch)' }}
+          </button>
         </div>
       </div>
     </div>

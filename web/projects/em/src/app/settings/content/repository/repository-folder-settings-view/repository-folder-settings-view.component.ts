@@ -32,6 +32,7 @@ import { takeUntil } from "rxjs/operators";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { RepositoryFolderSettingsModel } from "../repository-folder-settings-page/repository-folder-settings.model";
+import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../security/resource-permission/copy-paste-context";
 
 @Component({
    selector: "em-repository-folder-settings-view",
@@ -47,6 +48,7 @@ export class RepositoryFolderSettingsViewComponent implements OnChanges, OnDestr
    @Output() selectedTabChanged = new EventEmitter<number>();
    @Output() folderSettingsChanged = new EventEmitter<RepositoryFolderSettingsModel>();
    @Output() unsavedChanges = new EventEmitter<boolean>();
+   protected readonly copyPasteContext = COPY_PASTE_CONTEXT_REPOSITORY;
    form: UntypedFormGroup;
    folderChanged: boolean = false;
    private _oldModel: RepositoryFolderSettingsModel;

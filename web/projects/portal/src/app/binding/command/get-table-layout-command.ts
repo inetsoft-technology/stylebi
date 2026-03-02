@@ -26,4 +26,5 @@ export interface GetTableLayoutCommand extends ViewsheetCommand {
     * The data model for the assembly object.
     */
    layout: CalcTableLayout;
+   cellBindings: any;
 }

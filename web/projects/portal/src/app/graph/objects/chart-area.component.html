@@ -134,6 +134,7 @@
                        [flyover]="model.hasFlyovers"
                        [flyOnClick]="model.flyOnClick"
                        [dataTip]="vsChartModel.dataTip"
+                       [dataTipOnClick]="model.dataTipOnClick"
                        (selectRegion)="selectRegion($event)"
                        (changeCursor)="changeCursor($event)"
                        (showTooltip)="showTooltip($event)"
@@ -154,6 +155,7 @@
         <chart-plot-area *ngIf="model.plot"
                        #chartPlotArea
                        [viewerMode]="viewerMode"
+                       [hasEmptyPlotLinkModel]="!!model.emptyPlotLinkModel"
                        [previewMode]="previewMode"
                        [wTooltip]="tooltipString"
                        [followCursor]="true"
@@ -172,6 +174,7 @@
                        [dataTip]="vsChartModel.dataTip"
                        [flyover]="model.hasFlyovers"
                        [flyOnClick]="model.flyOnClick"
+                       [dataTipOnClick]="model.dataTipOnClick"
                        [urlPrefix]="urlPrefix"
                        [scrollbarWidth]="scrollbarWidth"
                        [plotScaleInfo]="plotScaleInfo"

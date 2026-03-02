@@ -24,6 +24,7 @@ export interface TipPaneModel {
    alpha: string;
    flyOverViews: string[];
    flyOnClick: boolean;
+   tipOnClick: boolean;
    popComponents: string[];
    flyoverComponents: string[];
    tipCustomizeDialogModel: TipCustomizeDialogModel;

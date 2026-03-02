@@ -152,6 +152,15 @@
           </label>
         </div>
       </div>
+      <div class="col-auto" *ngIf="!treeModel">
+        <div class="form-check" [title]="'_#(vs.select.quickswitch.tooltip)'">
+          <input id="quickSwitchAllowed" type="checkbox" class="form-check-input"
+                 [ngModelOptions]="{standalone: true}" [(ngModel)]="model.quickSwitchAllowed"/>
+          <label class="form-check-label" for="quickSwitchAllowed">
+            _#(Allow toggle between single and multi-selection)
+          </label>
+        </div>
+      </div>
     </div>
   </fieldset>
   <fieldset *ngIf="columnMode && levels.length != 0">

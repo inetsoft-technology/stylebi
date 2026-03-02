@@ -273,3 +273,7 @@ $brush-cursor-path: '~/../../portal/src/assets/cursor/brushcursor.gif';
   line-height: 1.6;
   word-break: break-word;
 }
+
+.ai-assistant-container .mat-mdc-dialog-surface {
+  padding: 0 !important;
+}

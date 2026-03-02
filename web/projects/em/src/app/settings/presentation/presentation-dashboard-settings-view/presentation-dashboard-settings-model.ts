@@ -18,4 +18,5 @@
 export interface PresentationDashboardSettingsModel {
    enabled: boolean;
    tabsTop: boolean;
+   drillTabsTop: boolean;
 }

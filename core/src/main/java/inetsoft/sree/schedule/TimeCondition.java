@@ -24,6 +24,7 @@ import org.w3c.dom.Element;
 
 import java.io.*;
 import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -475,13 +476,17 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
       }
       else if(type == EVERY_DAY) {
          StringBuilder buffer = new StringBuilder();
-         Calendar cal = Calendar.getInstance(TimeZone.getDefault());
+         // Use the condition's own timezone so the DST check and AM/PM flag are evaluated
+         // against the correct local time, not the server's default timezone.
+         Calendar cal = Calendar.getInstance(tz);
          cal.setTime(new Date());
          cal.set(Calendar.HOUR_OF_DAY, hour);
          cal.set(Calendar.MINUTE, minute);
          cal.set(Calendar.SECOND, second);
+         SimpleDateFormat conditionTimeFmt = (SimpleDateFormat) timeFmt.clone();
+         conditionTimeFmt.setTimeZone(tz);
          buffer.append(catalog.getString("TimeCondition")).append(": ")
-            .append(timeFmt.format(cal.getTime()) +
+            .append(conditionTimeFmt.format(cal.getTime()) +
                (twelveHourSystem ? cal.get(Calendar.AM_PM) > 0 ? "PM" : "AM" : ""));
 
          boolean dst = tz.inDaylightTime(cal.getTime());

@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import {TextFieldModule} from "@angular/cdk/text-field";
 import {CommonModule} from "@angular/common";
 import {NgModule} from "@angular/core";
 import { GooglePickerService } from "./google-picker/google-picker.service";
@@ -60,6 +61,7 @@ import {TreeModule} from "../tree/tree.module";
       ExpandStringModule,
       DateTypeEditorModule,
       TreeModule,
+      TextFieldModule,
    ],
    declarations: [
       TabularAutocompleteEditor,

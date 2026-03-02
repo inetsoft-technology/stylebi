@@ -15,19 +15,21 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
 import { ActivatedRouteSnapshot, CanActivate, Router, RouterStateSnapshot } from "@angular/router";
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
+import {
+   AiAssistantService,
+   ContextType
+} from "../../../../shared/ai-assistant/ai-assistant.service";
 import { AuthorizationService } from "./authorization.service";
-import { MatDialog, MatDialogConfig } from "@angular/material/dialog";
-import { MessageDialog, MessageDialogType } from "../common/util/message-dialog";
 
 @Injectable()
 export class AuthorizationGuard implements CanActivate {
-   constructor(private service: AuthorizationService, private router: Router,
-               private dialog: MatDialog, private http: HttpClient)
+   constructor(private service: AuthorizationService,
+               private router: Router,
+               private aiAssistantService: AiAssistantService)
    {
    }
 
@@ -55,6 +57,9 @@ export class AuthorizationGuard implements CanActivate {
                   this.router.navigate([uri]);
                }
             }
+
+            this.aiAssistantService.loadCurrentUser(true);
+            this.aiAssistantService.setContextTypeFieldValue(ContextType.EM);
 
             return allowed;
          })

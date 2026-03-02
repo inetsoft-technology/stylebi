@@ -19,7 +19,7 @@ import { DOCUMENT } from "@angular/common";
 import { Inject, Injectable } from "@angular/core";
 import { ActivatedRouteSnapshot, CanActivate, RouterStateSnapshot } from "@angular/router";
 import { Observable } from "rxjs";
-import { map, tap } from "rxjs/operators";
+import { map } from "rxjs/operators";
 import { LicenseInfo } from "./common/data/license-info";
 import { LicenseInfoService } from "./common/services/license-info.service";
 

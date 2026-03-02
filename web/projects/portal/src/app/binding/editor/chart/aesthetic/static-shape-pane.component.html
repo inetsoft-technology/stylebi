@@ -20,7 +20,7 @@
     <i class="add-icon icon-size-small icon-color-default" aria-hidden="true"
        (click)="addShape()" title="_#(Add Shape)"></i>&nbsp;
     <input #uploadInput class="hidden-input col-10" type="file" id="imageInput" name="imageInput"
-           accept=".jpg,.png" hidden multiple
+           accept=".jpg,.png,.svg" hidden multiple
            (change)="fileChanged($event)"/>
     <i *ngIf="nilSupported" class="eraser-icon icon-size-small icon-color-default"
        aria-hidden="true"

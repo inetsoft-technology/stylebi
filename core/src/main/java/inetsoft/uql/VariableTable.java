@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import java.io.PrintWriter;
 import java.io.Serializable;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The VariableTable holds the variable values. It is passed to the
@@ -244,8 +245,35 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
             if(asIs != null && vars.asIs != null) {
                asIs.addAll(vars.asIs);
             }
+
+            formats.putAll(vars.formats);
          }
       }
+   }
+
+   /**
+    * Set a format value.
+    * @param name format name.
+    * @param format format value.
+    */
+   public void putFormat(String name, String format) {
+      formats.put(name, format);
+   }
+
+   /**
+    * Get a format value.
+    * @param name format name.
+    */
+   public String getFormat(String name) {
+      return formats.get(name);
+   }
+
+   /**
+    * Remove a format value.
+    * @param name format name.
+    */
+   public void removeFormat(String name) {
+      formats.remove(name);
    }
 
    /**
@@ -605,6 +633,8 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
             vars.asIs = new HashSet<>(asIs);
          }
 
+         vars.formats = new ConcurrentHashMap<>(formats);
+
          return vars;
       }
       catch(Exception ex) {
@@ -855,6 +885,7 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
    private static final long serialVersionUID = -590812805739315908L;
    private Object session = null; // session used for query variables
    private Map<String, Object> vartable = new HashMap<>();
+   private Map<String, String> formats = new ConcurrentHashMap<>();
    private Set<String> notIgnoreNull = new HashSet<>();
    private Set<String> asIs;
    private VariableTable basetable = null;

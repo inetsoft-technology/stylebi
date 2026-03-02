@@ -22,6 +22,7 @@
 <div class="modal-body" enterSubmit (onEnter)="ok()" *ngIf="model">
    <div class="bordered-box bd-gray bordered-box-md">
       <tree [root]="model" [showRoot]="false" [showTooltip]="true" [multiSelect]="true"
+         [searchEnabled]="true"
          (nodesSelected)="selectNodes($event)" [iconFunction]="getCSSIcon" [grayedOutFields]="grayedOutFields"></tree>
    </div>
 </div>
