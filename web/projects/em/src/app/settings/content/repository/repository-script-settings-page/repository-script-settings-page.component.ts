@@ -22,6 +22,7 @@ import {FormValidators} from "../../../../../../../shared/util/form-validators";
 import {ScriptSettingsModel} from "./script-settings.model";
 import {HttpClient, HttpParams} from "@angular/common/http";
 import {Tool} from "../../../../../../../shared/util/tool";
+import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../security/resource-permission/copy-paste-context";
 
 export interface RepositoryScriptEditorModel extends RepositoryEditorModel {
    scriptSettings: ScriptSettingsModel;
@@ -38,6 +39,7 @@ export class RepositoryScriptSettingsPageComponent implements OnInit, OnChanges 
    @Output() cancel = new EventEmitter<void>();
    @Output() editorChanged = new EventEmitter<string>();
    @Output() unsavedChanges = new EventEmitter<boolean>();
+   protected readonly copyPasteContext = COPY_PASTE_CONTEXT_REPOSITORY;
    form: UntypedFormGroup;
    _scriptChanged: boolean = false;
    private _oldModel: RepositoryScriptEditorModel;

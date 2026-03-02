@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClient, HttpParams } from "@angular/common/http";
+import { HttpParams } from "@angular/common/http";
 import {
    AfterViewChecked,
    ChangeDetectorRef,
@@ -32,6 +32,7 @@ import { ActivatedRoute, NavigationExtras, Params, Router } from "@angular/route
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { from, Observable, of, Subscription } from "rxjs";
 import { CanComponentDeactivate } from "../../../../../shared/util/guard/can-component-deactivate";
+import { ViewConstants } from "../view-constants";
 import { ComponentTool } from "../../common/util/component-tool";
 import { GuiTool } from "../../common/util/gui-tool";
 import { HideNavService } from "../../portal/services/hide-nav.service";
@@ -52,6 +53,8 @@ import { ViewData } from "../view-data";
 import { Tool } from "../../../../../shared/util/tool";
 import { map, mergeMap } from "rxjs/operators";
 import { ModelService } from "../../widget/services/model.service";
+import { DashboardTabModel } from "../../portal/dashboard/dashboard-tab-model";
+import { DashboardTabService } from "../../portal/services/dashboard-tab.service";
 
 @Component({
    selector: "v-viewer-view",
@@ -78,8 +81,12 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
    fullScreenId: string;
    tabBarHeight: number = 0;
    hasBaseEntry: boolean = false;
+   dashboardTabModel: DashboardTabModel | null = null;
+   drillTabsTopPx: number | null = null;
+   toolbarVisible: boolean = true;
    public modified: boolean = false;
    private subscriptions: Subscription = new Subscription();
+   private readonly isMobile: boolean = GuiTool.isMobileDevice();
 
    constructor(private route: ActivatedRoute,
                private router: Router,
@@ -87,7 +94,7 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
                private modelService: ModelService,
                private modalService: NgbModal,
                private hideNavService: HideNavService,
-               private http: HttpClient,
+               private dashboardTabService: DashboardTabService,
                private pageTabService: PageTabService,
                private changeRef: ChangeDetectorRef)
    {
@@ -128,6 +135,12 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
       this.subscriptions.add(this.pageTabService.onRefreshPage.subscribe((tab: TabInfoModel) => {
          this.runtimeId = tab.runtimeId;
       }));
+
+      this.subscriptions.add(this.dashboardTabService.getDashboardTabModel()
+         .subscribe({
+            next: data => { this.dashboardTabModel = data; this.updateDrillTabsTopPx(); },
+            error: err => console.error('Failed to load dashboard tab model', err)
+         }));
    }
 
    /**
@@ -303,5 +316,24 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
 
    isIframe(): boolean {
       return GuiTool.isIFrame();
+   }
+
+   onToolbarVisibleChange(value: boolean) {
+      this.toolbarVisible = value;
+      this.updateDrillTabsTopPx();
+   }
+
+   private updateDrillTabsTopPx(): void {
+      if(this.dashboardTabModel?.drillTabsTop) {
+         if(this.toolbarVisible) {
+            this.drillTabsTopPx = this.isMobile
+               ? ViewConstants.TOOLBAR_HEIGHT_MOBILE_PX
+               : ViewConstants.TOOLBAR_HEIGHT_PX;
+         } else {
+            this.drillTabsTopPx = 0;
+         }
+      } else {
+         this.drillTabsTopPx = null;
+      }
    }
 }

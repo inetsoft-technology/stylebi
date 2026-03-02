@@ -23,4 +23,8 @@ export class ViewConstants {
     * Use to save previous sheet data stack when hyperlink to other sheet.
     */
    public static readonly PRE_SNAPSHOT_PARAM_NAME = "previousSnapshots";
+   /** Height of the viewer toolbar in pixels on desktop. */
+   public static readonly TOOLBAR_HEIGHT_PX = 33;
+   /** Height of the viewer toolbar in pixels on mobile (taller to accommodate touch targets). */
+   public static readonly TOOLBAR_HEIGHT_MOBILE_PX = 66;
 }

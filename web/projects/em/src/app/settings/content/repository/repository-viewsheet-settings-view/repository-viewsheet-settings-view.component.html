@@ -33,7 +33,7 @@
     </mat-tab>
     <mat-tab *ngIf="sheetModel.permissionTableModel" label="_#(Security)">
       <ng-template matTabContent>
-        <em-resource-permission [model]="sheetModel.permissionTableModel" (permissionChanged)="_viewsheetChanged = true">
+        <em-resource-permission [model]="sheetModel.permissionTableModel" [showCopyPaste]="true" [copyPasteContext]="copyPasteContext" (permissionChanged)="_viewsheetChanged = true">
         </em-resource-permission>
       </ng-template>
     </mat-tab>
