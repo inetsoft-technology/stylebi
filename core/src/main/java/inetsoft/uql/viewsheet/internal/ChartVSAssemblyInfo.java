@@ -1503,7 +1503,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       Element titleLinkNode = Tool.getChildNodeByTagName(elem, "titleLinkValue");
 
-      if(titleLinkNode != null){
+      if(titleLinkNode != null) {
          Element node2 = Tool.getChildNodeByTagName(titleLinkNode, "Hyperlink");
 
          if (node2 != null) {
@@ -1514,7 +1514,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       Element emptyPlotLinkNode = Tool.getChildNodeByTagName(elem, "emptyPlotLinkValue");
 
-      if(emptyPlotLinkNode != null){
+      if(emptyPlotLinkNode != null) {
          Element node2 = Tool.getChildNodeByTagName(emptyPlotLinkNode, "Hyperlink");
 
          if (node2 != null) {

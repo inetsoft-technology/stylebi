@@ -69,7 +69,7 @@
             (titleResizeMove)="titleResizeMove($event)"
             (titleResizeEnd)="titleResizeEnd()"
             [zIndex]="viewer ? getZIndex() + 1 : 0"
-            [cursorPointer]="viewer && model.titleLinkModel"
+            [cursorPointer]="!!(viewer && model.titleLinkModel)"
             [wTooltip]="model.titleLinkModel?.tooltip ?? ''">
   </vs-title>
   <chart-area *ngIf="!viewer || model.visible || model.active"

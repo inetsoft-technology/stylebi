@@ -432,36 +432,38 @@ public class HyperlinkDialogController {
             info.setEmptyPlotLinkValue(hyperlink);
          }
 
-         if(GraphTypes.isTreemap(chartInfo.getRTChartType()) && !model.isAxis()) {
-            ChartRef[] groups = chartInfo.getGroupFields();
+         if(!model.isTitleLink() && !model.isEmptyPlotLink()) {
+            if(GraphTypes.isTreemap(chartInfo.getRTChartType()) && !model.isAxis()) {
+               ChartRef[] groups = chartInfo.getGroupFields();
 
-            if(groups != null) {
-               final String finalColName = model.getColName();
-               chartRefs = new ChartRef[]{ Arrays.stream(groups)
-                  .filter(f -> f.getFullName().equals(finalColName))
-                  .findFirst().orElse(null) };
-            }
-         }
-
-         if(chartInfo instanceof MergedVSChartInfo &&
-            !(GraphUtil.isDimension(ref) && !(ref instanceof VSChartGeoRef)))
-         {
-            ((MergedVSChartInfo) chartInfo).setHyperlink(hyperlink);
-         }
-         else {
-            if(dcRef instanceof ChartRef) {
-               chartRefs = (ChartRef[]) ArrayUtils.add(chartRefs, dcRef);
-            }
-
-            if(chartRefs.length == 0 && ref != null) {
-               if(ref instanceof HyperlinkRef) {
-                  ((HyperlinkRef) ref).setHyperlink(hyperlink);
+               if(groups != null) {
+                  final String finalColName = model.getColName();
+                  chartRefs = new ChartRef[]{ Arrays.stream(groups)
+                     .filter(f -> f.getFullName().equals(finalColName))
+                     .findFirst().orElse(null) };
                }
             }
+
+            if(chartInfo instanceof MergedVSChartInfo &&
+               !(GraphUtil.isDimension(ref) && !(ref instanceof VSChartGeoRef)))
+            {
+               ((MergedVSChartInfo) chartInfo).setHyperlink(hyperlink);
+            }
             else {
-               for(ChartRef chartRef : chartRefs) {
-                  if(chartRef instanceof HyperlinkRef) {
-                     ((HyperlinkRef) chartRef).setHyperlink(hyperlink);
+               if(dcRef instanceof ChartRef) {
+                  chartRefs = (ChartRef[]) ArrayUtils.add(chartRefs, dcRef);
+               }
+
+               if(chartRefs.length == 0 && ref != null) {
+                  if(ref instanceof HyperlinkRef) {
+                     ((HyperlinkRef) ref).setHyperlink(hyperlink);
+                  }
+               }
+               else {
+                  for(ChartRef chartRef : chartRefs) {
+                     if(chartRef instanceof HyperlinkRef) {
+                        ((HyperlinkRef) chartRef).setHyperlink(hyperlink);
+                     }
                   }
                }
             }

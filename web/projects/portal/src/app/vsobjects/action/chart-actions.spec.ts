@@ -506,7 +506,7 @@ describe("ChartActions", () => {
       model.chartType = GraphTypes.CHART_MAP;
       selectLegendContent(model);
       expect(menuActions[1].actions[1].visible()).toBe(false);
-      expect(menuActions[1].actions[2].visible()).toBe(false);
+      expect(menuActions[1].actions[3].visible()).toBe(false);
    });
 
    it("check status of menu actions and toolbar actions in binding", () => {

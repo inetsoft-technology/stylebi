@@ -157,6 +157,7 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
             enabled: () => true,
             visible: () => this.model.emptyPlotLinkModel &&
                this.model.chartSelection?.regions?.length == 0 &&
+               !this.model.titleSelected &&
                this.isActionVisibleInViewer("Show Hyperlinks") && this.mobileDevice
          },
          {
