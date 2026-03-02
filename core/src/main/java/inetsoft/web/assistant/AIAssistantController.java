@@ -34,7 +34,7 @@ public class AIAssistantController {
 
    @GetMapping("/api/assistant/ai-assistant-visible")
    public boolean isAiAssistantVisible() {
-      String value = SreeEnv.getProperty(AI_ASSISTANT_VISIBLE, "true");
+      String value = SreeEnv.getProperty(AI_ASSISTANT_VISIBLE, "false");
       return "true".equalsIgnoreCase(value);
    }
 
