@@ -22,4 +22,5 @@ export interface EmNavbarModel {
    ssoUser?: boolean;
    elasticLicenseExhausted: boolean;
    homeLink: string;
+   aiAssistantVisible: boolean;
 }

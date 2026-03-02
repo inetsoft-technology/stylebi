@@ -54,7 +54,8 @@ public class PresentationSettingsController {
       PresentationTimeSettingsService timeSettingsService,
       PresentationDataSourceVisibilitySettingsService dataSourceVisibilitySettingsService,
       WebMapSettingsService webMapSettingsService,
-      DataSpaceContentSettingsService dataSpaceContentSettingsService)
+      DataSpaceContentSettingsService dataSpaceContentSettingsService,
+      AISettingsService aiSettingsService)
    {
       this.lookAndFeelService = lookAndFeelService;
       this.welcomePageService = welcomePageService;
@@ -73,6 +74,7 @@ public class PresentationSettingsController {
       this.dataSourceVisibilitySettingsService = dataSourceVisibilitySettingsService;
       this.webMapSettingsService = webMapSettingsService;
       this.dataSpaceContentSettingsService = dataSpaceContentSettingsService;
+      this.aiSettingsService = aiSettingsService;
    }
 
    @GetMapping("/api/em/settings/presentation/model")
@@ -105,6 +107,7 @@ public class PresentationSettingsController {
          .timeSettingsModel(timeSettingsService.getModel(globalProperty))
          .dataSourceVisibilitySettingsModel(dataSourceVisibilitySettingsService.getModel(globalProperty))
          .webMapSettingsModel(webMapSettingsService.getModel(globalProperty))
+         .aiSettingsModel(globalProperty ? aiSettingsService.getModel() : null)
          .securityEnabled(!securityEngine.getSecurityProvider().isVirtual())
          .orgSettings(!globalProperty)
          .build();
@@ -196,6 +199,10 @@ public class PresentationSettingsController {
          if(model.webMapSettingsModel() != null) {
             webMapSettingsService.setModel(model.webMapSettingsModel(), principal, globalSettings);
          }
+
+         if(model.aiSettingsModel() != null) {
+            aiSettingsService.setModel(model.aiSettingsModel());
+         }
       }
       finally {
          settingsLock.unlock();
@@ -239,6 +246,7 @@ public class PresentationSettingsController {
 
          if(globalSettings) {
             fontMappingSettingsService.resetSettings();
+            aiSettingsService.resetSettings();
          }
       }
       finally {
@@ -265,6 +273,7 @@ public class PresentationSettingsController {
    private final PresentationDataSourceVisibilitySettingsService dataSourceVisibilitySettingsService;
    private final WebMapSettingsService webMapSettingsService;
    private final DataSpaceContentSettingsService dataSpaceContentSettingsService;
+   private final AISettingsService aiSettingsService;
 
    private static final String SETTINGS_LOCK = PresentationSettingsController.class.getName() + ".settingsLock";
 }

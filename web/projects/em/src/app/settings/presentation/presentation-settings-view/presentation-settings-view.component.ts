@@ -167,6 +167,11 @@ export class PresentationSettingsViewComponent implements OnInit, OnDestroy {
                      new PresentationSettingsNavLink("sharing", "_#(js:Social Sharing)"));
                }
 
+               if(model.aiSettingsModel) {
+                  this.navLinks.push(
+                     new PresentationSettingsNavLink("ai-integration", "_#(js:AI Integration)"));
+               }
+
                this.model = model;
                this.modelClone = Tool.clone(model);
                setTimeout(() => this.scrollToItem(this.currentView));
