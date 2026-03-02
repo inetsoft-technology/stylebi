@@ -167,7 +167,6 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
 
          info.bottomTabs = bottomTabs == null ?
             null : (DynamicValue) bottomTabs.clone();
-         info.setRoundBottomCornersOnly(roundBottomCornersOnly);
 
          return info;
       }
@@ -346,9 +345,9 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
 
    /**
     * Adjusts child assembly positions and the tab bar position when the bottomTabs property
-    * is toggled. This is idempotent when called with the same value — use
-    * {@link #isPhysicallyAtBottom(TabVSAssemblyInfo, Viewsheet)} to guard against
-    * redundant calls.
+    * is toggled. Callers must guard against redundant calls — calling this method twice with
+    * the same value will shift the tab bar and children twice. Use
+    * {@link #isBottomTabs()} to check the current flag before calling.
     *
     * Top-tabs: every child's top edge is flush with the tab bar bottom.
     * Bottom-tabs: every child's bottom edge is flush with the tab bar top.
@@ -369,6 +368,12 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
          return;
       }
 
+      Point tabPos = tabInfo.getPixelOffset();
+
+      if(tabPos == null) {
+         return;
+      }
+
       int tabHeight = tabDim.height;
 
       int maxChildHeight = 0;
@@ -386,7 +391,6 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
       }
 
       int tabDy = toBottomTabs ? maxChildHeight : -maxChildHeight;
-      Point tabPos = tabInfo.getPixelOffset();
       int newTabY = Math.max(0, tabPos.y + tabDy);
       int actualTabDy = newTabY - tabPos.y;
       tabInfo.setPixelOffset(new Point(tabPos.x, newTabY));
@@ -410,6 +414,11 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
             : newTabY + tabHeight;
 
          Point childPos = child.getPixelOffset();
+
+         if(childPos == null) {
+            continue;
+         }
+
          int actualDy = newChildY - childPos.y;
          childInfo.setPixelOffset(new Point(childPos.x, newChildY));
 
@@ -417,36 +426,6 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
             childInfo.getLayoutPosition().translate(0, actualDy);
          }
       }
-   }
-
-   /**
-    * Returns true if the tab bar is physically positioned below at least one child assembly,
-    * indicating the layout is already in bottom-tabs configuration.
-    */
-   public static boolean isPhysicallyAtBottom(TabVSAssemblyInfo tabInfo, Viewsheet vs) {
-      Point tabPos = tabInfo.getPixelOffset();
-
-      if(tabPos == null || vs == null) {
-         return false;
-      }
-
-      String[] children = tabInfo.getAssemblies();
-
-      if(children == null) {
-         return false;
-      }
-
-      for(String childName : children) {
-         VSAssembly child = (VSAssembly) vs.getAssembly(childName);
-
-         if(child != null && child.getPixelOffset() != null &&
-            child.getPixelOffset().y < tabPos.y)
-         {
-            return true;
-         }
-      }
-
-      return false;
    }
 
    /**
@@ -487,21 +466,9 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    }
 
    /**
-    * Returns the effective bottomTabs value for the current execution context.
-    *
-    * <p>{@link DynamicValue#getRValue()} already implements the dvalue fallback: when
-    * {@code rvalue} is null and {@code dvalue} is not a variable or script expression,
-    * it assigns {@code rvalue = dvalue} before returning. This means:
-    * <ul>
-    *   <li>In design mode (only {@link #setBottomTabsValue} has been called), the method
-    *       returns the design-time value via that fallback.</li>
-    *   <li>At runtime (after {@link #setBottomTabs} or after
-    *       {@link DynamicValue#setDValue(String)} clears rvalue), the fallback kicks in again
-    *       and reflects the most recently committed design-time value.</li>
-    * </ul>
-    * The explicit {@code null} guard below is a safety net for the degenerate case where
-    * {@code dvalue} itself is {@code null} (impossible given the constructor initializes it to
-    * {@code "false"}, but guarded defensively).
+    * Returns the effective bottomTabs value (runtime if set, otherwise design-time).
+    * {@link DynamicValue#getRValue()} already handles the dvalue fallback for non-expression
+    * values, so this works correctly in both design and runtime contexts.
     */
    public boolean isBottomTabs() {
       Object rval = bottomTabs.getRValue();

@@ -159,10 +159,35 @@ public class TabVSAScriptableTest {
 
       tabVSAScriptable.setBottomTabs(true);
 
+      assertTrue(tabVSAssemblyInfo.isBottomTabs());
       // Tab bar should have moved below the child (30 + 100 = 130)
       assertEquals(130, tabVSAssemblyInfo.getPixelOffset().y);
       // Child should now be above the tab bar (130 - 100 = 30)
       assertEquals(30, child.getVSAssemblyInfo().getPixelOffset().y);
+   }
+
+   @Test
+   void testSetBottomTabsToTopRepositionsChildren() {
+      when(viewsheetSandbox.isRuntime()).thenReturn(true);
+
+      TextVSAssembly child = new TextVSAssembly();
+      child.getVSAssemblyInfo().setName("Text1");
+      child.getVSAssemblyInfo().setPixelOffset(new Point(0, 30));   // child above tab bar
+      child.getVSAssemblyInfo().setPixelSize(new Dimension(180, 100));
+      viewsheet.addAssembly(child);
+
+      tabVSAssemblyInfo.setAssemblies(new String[]{"Text1"});
+      tabVSAssemblyInfo.setPixelOffset(new Point(0, 130));  // tab bar below child (30 + 100)
+      tabVSAssemblyInfo.setPixelSize(new Dimension(180, 30));
+      tabVSAssemblyInfo.setBottomTabs(true);
+
+      tabVSAScriptable.setBottomTabs(false);
+
+      assertFalse(tabVSAssemblyInfo.isBottomTabs());
+      // Tab bar should have moved back up (130 - 100 = 30)
+      assertEquals(30, tabVSAssemblyInfo.getPixelOffset().y);
+      // Child should now be flush below the tab bar (30 + 30 = 60)
+      assertEquals(60, child.getVSAssemblyInfo().getPixelOffset().y);
    }
 
    @ParameterizedTest

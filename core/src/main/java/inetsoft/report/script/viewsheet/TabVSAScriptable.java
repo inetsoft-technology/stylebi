@@ -148,7 +148,7 @@ public class TabVSAScriptable extends VSAScriptable {
 
    public void setBottomTabs(boolean bottomTabs) {
       TabVSAssemblyInfo info = getInfo();
-      boolean isCurrentlyAtBottom = TabVSAssemblyInfo.isPhysicallyAtBottom(info, box.getViewsheet());
+      boolean isCurrentlyAtBottom = info.isBottomTabs();
       info.setBottomTabs(bottomTabs);
 
       if(box.isRuntime() && bottomTabs != isCurrentlyAtBottom) {

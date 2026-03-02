@@ -73,15 +73,13 @@ public class VSTabModel extends VSObjectModel<TabVSAssembly> {
       bottomTabs = info.isBottomTabs();
       roundBottomCornersOnly = info.isRoundBottomCornersOnly();
 
-      // info is already a clone, so mutating activeBorder only affects this model's copy
-      // and does not alter the shared assembly FormatInfo.
+      // Safe to mutate activeBorder directly — info is a clone so this won't affect the assembly.
+      // In bottom-tabs mode, move the active-tab indicator border from bottom to top.
       if(bottomTabs) {
          BaseFormatModel.Border activeBorder = activeFormat.getBorder();
          String currBottomBorder = activeBorder.getBottom();
-         String currTopBorder = activeBorder.getTop();
+         activeBorder.setBottom(activeBorder.getTop());
          activeBorder.setTop(currBottomBorder);
-         activeBorder.setBottom(currTopBorder);
-         activeFormat.setBorder(activeBorder);
       }
    }
 
