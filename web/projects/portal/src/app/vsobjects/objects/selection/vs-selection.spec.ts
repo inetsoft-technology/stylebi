@@ -162,6 +162,7 @@ describe("VSSelection Test", () => {
    const zone: any = { run: jest.fn(), runOutsideAngular: jest.fn() };
    const scaleService = { getScale: jest.fn(), setScale: jest.fn(), getCurrentScale: jest.fn() };
    scaleService.getScale.mockImplementation(() => observableOf(1));
+   let httpClient: HttpClient;
 
    beforeEach(async(() => {
       fixedDropdownService = { open: jest.fn() };
@@ -196,7 +197,8 @@ describe("VSSelection Test", () => {
       const httpClient = fixture.debugElement.injector.get(HttpClient);
       vsSelection = new VSSelection(
          viewsheetClientService, formDataService, renderer, adhocFilterService, elementRef, changeRef,
-         zone, scaleService, contextService, dataTipService, fixedDropdownService, globalSubmitService, popService, httpClient);
+         zone, scaleService, contextService, dataTipService, fixedDropdownService, globalSubmitService,
+         popService, httpClient, null);
    }));
 
    // Bug #15994 selection bars not showing on selection trees

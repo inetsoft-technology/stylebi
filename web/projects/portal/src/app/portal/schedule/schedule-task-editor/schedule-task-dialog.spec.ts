@@ -80,7 +80,7 @@ describe("Schedule Task Dialog Unit Test", () => {
          ],
          providers: [
             { provide: HttpClient, useValue: httpService },
-            { provide: ScheduleTaskNamesService, useValue: scheduleTaskNamesService }
+            { provide: ScheduleTaskNamesService, useValue: scheduleTaskNamesService },
          ],
          schemas: [ NO_ERRORS_SCHEMA ]
       });

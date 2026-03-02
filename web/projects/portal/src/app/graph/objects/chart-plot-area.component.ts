@@ -74,6 +74,7 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
    @Input() container: Element;
    @Input() selected: boolean = false;
    @Input() panMode: boolean = false;
+   @Input() hasEmptyPlotLinkModel: boolean = false;
    @Input() set plotScaleInfo(plotScaleInfo: PlotScaleInfo) {
       if(plotScaleInfo) {
          const context = this.getContext();
@@ -271,6 +272,9 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
 
             if(!hasLinkPoint && regions.some((region) =>
                   !!region && !!region.hyperlinks && region.hyperlinks.length > 0)) {
+               this.changeCursor0("pointer");
+            }
+            else if (!hasLinkPoint && this.hasEmptyPlotLinkModel && regions.length == 0) {
                this.changeCursor0("pointer");
             }
             else if(!hasLinkPoint) {
