@@ -827,13 +827,16 @@ export class VSChart extends AbstractVSObject<VSChartModel>
    }
 
    clickHyperlink(event: MouseEvent) {
-      if(this.clickAction && event.button === 0 && this.getSelectedRegions().length > 0) {
-         this.clickAction.action(event);
-      } else if (this.clickAction && event.button === 0 && this.getSelectedRegions().length == 0) {
-         this.clickEmptyPlotHyperlink();
-      }
+      if(this.clickAction && event.button === 0) {
+         if(this.getSelectedRegions().length === 0 && this.model.emptyPlotLinkModel != null) {
+            this.clickEmptyPlotHyperlink();
+         }
+         else {
+            this.clickAction.action(event);
+         }
 
-      event.stopPropagation();
+         event.stopPropagation();
+      }
    }
 
    /**
@@ -856,7 +859,11 @@ export class VSChart extends AbstractVSObject<VSChartModel>
    }
 
    selectTitle(event: MouseEvent): void {
-      if(this.context.preview && this.model.titleLinkModel == null) {
+      if(this.context.preview) {
+         if(this.model.titleLinkModel != null && event.button == 0) {
+            this.clickTitleHyperlink();
+         }
+
          return;
       }
 
@@ -869,24 +876,22 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       }
    }
 
-   clickTitleHyperlink(): void {
-      let titleLinkModel = Tool.clone(this.model.titleLinkModel);
+   private clickSpecialHyperlink(linkModel: HyperlinkModel): void {
+      const cloned = Tool.clone(linkModel);
 
-      if (this.viewer && titleLinkModel != null &&
+      if(this.viewer && cloned != null &&
             (!this.mobileDevice || this.hyperlinkService.singleClick)) {
-         this.hyperlinkService.clickLink(titleLinkModel, this.viewsheetClient.runtimeId,
-                     this.vsInfo.linkUri);
+         this.hyperlinkService.clickLink(cloned, this.viewsheetClient.runtimeId,
+                     this.vsInfo ? this.vsInfo.linkUri : null);
       }
    }
 
-   clickEmptyPlotHyperlink(): void {
-      let emptyPlotLinkModel = Tool.clone(this.model.emptyPlotLinkModel);
+   clickTitleHyperlink(): void {
+      this.clickSpecialHyperlink(this.model.titleLinkModel);
+   }
 
-      if (this.viewer && emptyPlotLinkModel != null &&
-            (!this.mobileDevice || this.hyperlinkService.singleClick)) {
-         this.hyperlinkService.clickLink(emptyPlotLinkModel, this.viewsheetClient.runtimeId,
-                     this.vsInfo.linkUri);
-      }
+   clickEmptyPlotHyperlink(): void {
+      this.clickSpecialHyperlink(this.model.emptyPlotLinkModel);
    }
 
    protected getHyperlinks(): HyperlinkModel[] {

@@ -1387,7 +1387,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       if(titleLinkValue != null) {
          writer.print("<titleLinkValue>");
-        titleLinkValue.writeXML(writer);
+         titleLinkValue.writeXML(writer);
          writer.println("</titleLinkValue>");
       }
 

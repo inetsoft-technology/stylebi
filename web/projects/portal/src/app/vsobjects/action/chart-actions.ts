@@ -171,7 +171,7 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
                this.isActionVisible("Reset Size") && !this.annotationsSelected
          },
          {
-            id: () => "chart plot-hyperlink",
+            id: () => "chart title-hyperlink",
             label: () => "_#(js:Hyperlink Title)",
             icon: () => "fa fa-link",
             enabled: () => true,

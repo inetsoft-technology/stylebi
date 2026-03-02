@@ -199,6 +199,8 @@ public class HyperlinkDialogController {
 
          model.setColName(colName);
 
+         // Fields are not applicable for title and empty plot hyperlinks since they are not
+         // data-bound areas.
          if (!titleLink && !emptyPlotLink) {
             model.setFields(getFields(rvs, assembly, row, col, null, colName));
          }
@@ -216,14 +218,13 @@ public class HyperlinkDialogController {
 
       if (titleLink) {
          model.setTitleLink(true);
-         ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo();
-         hyperlink = info.getTitleLinkValue();
+         ChartVSAssemblyInfo chartInfo = (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo();
+         hyperlink = chartInfo.getTitleLinkValue();
       }
-
-      if (emptyPlotLink) {
+      else if (emptyPlotLink) {
          model.setEmptyPlotLink(true);
-         ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo();
-         hyperlink = info.getEmptyPlotLinkValue();
+         ChartVSAssemblyInfo chartInfo = (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo();
+         hyperlink = chartInfo.getEmptyPlotLinkValue();
       }
 
       if(hyperlink == null) {

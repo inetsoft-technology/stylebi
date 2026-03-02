@@ -17,6 +17,7 @@
  */
 package inetsoft.web.viewsheet.model.chart;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.report.Hyperlink;
 import inetsoft.report.TableDataPath;
@@ -525,6 +526,7 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
       this.errorFormat = errorFormat;
    }
 
+   @JsonIgnore
    public Hyperlink getTitleLinkValue() {
       return titleLinkValue;
    }
@@ -541,6 +543,7 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
       this.titleLinkModel = titleLinkModel;
    }
 
+   @JsonIgnore
    public Hyperlink getEmptyPlotLinkValue() {
       return emptyPlotLinkValue;
    }
