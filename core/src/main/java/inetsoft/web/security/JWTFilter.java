@@ -85,6 +85,7 @@ public class JWTFilter extends AbstractSecurityFilter {
 
          try {
             SRPrincipal principal = service.getPrincipal(request.getRemoteHost(), header);
+            principal.setIgnoreLogin(true);
             httpRequest = new AuthenticatedRequest(httpRequest, principal);
             ThreadContext.setContextPrincipal(principal);
             ThreadContext.setLocale(principal.getLocale());
