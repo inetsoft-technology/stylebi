@@ -181,6 +181,41 @@ public abstract class TileCoord extends AbstractCoord {
          setAxisTickVisible(BOTTOM_AXIS, (hint & BOTTOM_MOST) != 0);
          setAxisTickVisible(TOP_AXIS, (hint & TOP_MOST) != 0);
          setAxisTickVisible(RIGHT_AXIS, (hint & RIGHT_MOST) != 0);
+
+         // In multi-measure separated graphs, each inner coord has its own scale and may have
+         // a different labelOnSecondaryAxis setting than coords[0].
+         for(int i = 1; i < coords.length; i++) {
+            if(coords[i] instanceof RectCoord) {
+               RectCoord rc = (RectCoord) coords[i];
+               Scale vs = rc.getScaleAt(LEFT_AXIS);
+
+               if(vs != null) {
+                  int vst = vs.getAxisSpec().getAxisStyle();
+                  boolean coordV2 = (vst & AxisSpec.AXIS_SINGLE2) == AxisSpec.AXIS_SINGLE2;
+
+                  if(coordV2 != v2) {
+                     Scale vs2 = rc.getScaleAt(RIGHT_AXIS);
+                     coords[i].setAxisLabelVisible(LEFT_AXIS, !coordV2 && (hint & LEFT_MOST) != 0);
+                     coords[i].setAxisLabelVisible(RIGHT_AXIS,
+                                                   (coordV2 || vs != vs2) && (hint & RIGHT_MOST) != 0);
+                  }
+               }
+
+               Scale hs = rc.getScaleAt(BOTTOM_AXIS);
+
+               if(hs != null) {
+                  int hst = hs.getAxisSpec().getAxisStyle();
+                  boolean coordH2 = (hst & AxisSpec.AXIS_SINGLE2) == AxisSpec.AXIS_SINGLE2;
+
+                  if(coordH2 != h2) {
+                     Scale hs2 = rc.getScaleAt(TOP_AXIS);
+                     coords[i].setAxisLabelVisible(BOTTOM_AXIS, !coordH2 && (hint & BOTTOM_MOST) != 0);
+                     coords[i].setAxisLabelVisible(TOP_AXIS,
+                                                   (coordH2 || hs != hs2) && (hint & TOP_MOST) != 0);
+                  }
+               }
+            }
+         }
       }
       else if(coords[0] instanceof FacetCoord) {
          TileCoord[][] tiles = ((FacetCoord) coords[0]).getTileCoords();
@@ -538,6 +573,29 @@ public abstract class TileCoord extends AbstractCoord {
          }
 
          return count;
+      }
+
+      /**
+       * Check if the axis label is visible. For LEFT/RIGHT axes in a vertical tile,
+       * returns true if any inner coord has the axis visible. This handles the case
+       * where inner panels have mixed labelOnSecondaryAxis settings, ensuring the
+       * tile coord is included in the axis size list for proper layout.
+       */
+      @Override
+      public boolean isAxisLabelVisible(int axis) {
+         if(super.isAxisLabelVisible(axis)) {
+            return true;
+         }
+
+         if(axis == LEFT_AXIS || axis == RIGHT_AXIS) {
+            for(Coordinate coord : coords) {
+               if(coord.isAxisLabelVisible(axis)) {
+                  return true;
+               }
+            }
+         }
+
+         return false;
       }
 
       /**
