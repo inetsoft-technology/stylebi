@@ -1006,6 +1006,29 @@ public abstract class TileCoord extends AbstractCoord {
       }
 
       /**
+       * Check if the axis label is visible. For BOTTOM/TOP axes in a horizontal tile,
+       * returns true if any inner coord has the axis visible. Mirrors the Vertical override
+       * to handle mixed labelOnSecondaryAxis settings across panels.
+       *
+       */
+      @Override
+      public boolean isAxisLabelVisible(int axis) {
+         if(super.isAxisLabelVisible(axis)) {
+            return true;
+         }
+
+         if(axis == BOTTOM_AXIS || axis == TOP_AXIS) {
+            for(Coordinate coord : coords) {
+               if(coord.isAxisLabelVisible(axis)) {
+                  return true;
+               }
+            }
+         }
+
+         return false;
+      }
+
+      /**
        * Set axis label visible.
        */
       @Override
