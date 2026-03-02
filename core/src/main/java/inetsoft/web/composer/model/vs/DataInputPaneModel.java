@@ -102,14 +102,6 @@ public class DataInputPaneModel {
       this.dateFormatPattern = dateFormatPattern;
    }
 
-   public boolean getDateFormatInvalid() {
-      return dateFormatInvalid;
-   }
-
-   public void setDateFormatInvalid(boolean dateFormatInvalid) {
-      this.dateFormatInvalid = dateFormatInvalid;
-   }
-
    private String table;
    private String tableLabel;
    private String rowValue;
@@ -120,5 +112,4 @@ public class DataInputPaneModel {
    private boolean writeBackDirectly;
    private boolean queryDateFormat;
    private String dateFormatPattern;
-   private boolean dateFormatInvalid;
 }

@@ -44,6 +44,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.awt.*;
 import java.security.Principal;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -303,11 +304,20 @@ public class ComboboxPropertyDialogController {
 
       comboBoxAssemblyInfo.setQueryDateFormat(dataInputPaneModel.isQueryDateFormat());
 
-      if(dataInputPaneModel.getDateFormatInvalid()) {
-         comboBoxAssemblyInfo.setDateFormatPattern("yyyy-MM-dd");
-      } else {
-         comboBoxAssemblyInfo.setDateFormatPattern(dataInputPaneModel.getDateFormatPattern());
+      String dateFormatPattern = dataInputPaneModel.getDateFormatPattern();
+      boolean validPattern = false;
+
+      if(dateFormatPattern != null && !dateFormatPattern.isEmpty()) {
+         try {
+            DateTimeFormatter.ofPattern(dateFormatPattern);
+            validPattern = true;
+         }
+         catch(IllegalArgumentException e) {
+            // fall through to use default
+         }
       }
+
+      comboBoxAssemblyInfo.setDateFormatPattern(validPattern ? dateFormatPattern : "yyyy-MM-dd");
 
       comboBoxAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       comboBoxAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());

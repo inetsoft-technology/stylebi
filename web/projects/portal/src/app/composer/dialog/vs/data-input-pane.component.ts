@@ -46,6 +46,7 @@ export class DataInputPane implements OnInit {
    selectedRow: string = "";
    rowType: ComboMode = ComboMode.VALUE;
    popupTable: PopupEmbeddedTable;
+   dateFormatInvalid: boolean = false;
    @ViewChild(FixedDropdownDirective) dropdown: FixedDropdownDirective;
 
    constructor(private http: HttpClient,
@@ -57,6 +58,10 @@ export class DataInputPane implements OnInit {
 
    ngOnInit() {
       this.updateColumns();
+
+      if(this.comboBox && this.model.queryDateFormat && this.model.dateFormatPattern) {
+         this.validateDateFormat(this.model.dateFormatPattern);
+      }
    }
 
    selectTarget(targetNode: TreeNodeModel): void {
@@ -343,31 +348,32 @@ export class DataInputPane implements OnInit {
 
    validateDateFormat(format: string) {
       try {
-         // Allow only known date tokens and separators
-         const allowed = /^[yMd:\-/. ]+$/;
+         // Allow known date tokens, separators, and quoted literals
+         const allowed = /^[yMd:\-/. ,']+$/;
 
-         // Must include y, M, and d
-         const required = /(?=.*y{2,4})(?=.*M{1,2})(?=.*d{1,2})/;
+         // Must include y, M, and d (any quantity)
+         const required = /(?=.*y+)(?=.*M+)(?=.*d+)/;
 
          if (!allowed.test(format) || !required.test(format)) {
-            this.model.dateFormatInvalid = true;
+            this.dateFormatInvalid = true;
             return;
          }
 
          const d1 = new Date();
-         const d2 = new Date(d1.getDate() + 1);
+         const d2 = new Date(d1);
+         d2.setDate(d2.getDate() + 1);
 
          const r1 = this.datePipe.transform(d1, format);
          const r2 = this.datePipe.transform(d2, format);
 
          if (!r1 || !r2 || r1 === r2) {
-            this.model.dateFormatInvalid = true;
+            this.dateFormatInvalid = true;
             return;
          }
 
-         this.model.dateFormatInvalid = false;
+         this.dateFormatInvalid = false;
       } catch {
-         this.model.dateFormatInvalid = true;
+         this.dateFormatInvalid = true;
       }
    }
 }

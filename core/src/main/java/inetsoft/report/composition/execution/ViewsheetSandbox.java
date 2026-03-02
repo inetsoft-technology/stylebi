@@ -3910,15 +3910,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          else if(ass instanceof VariableAssembly) {
             vt.put(tname, mdata == null ? cdata : mdata);
 
-            if(iassembly instanceof ComboBoxVSAssembly comboBox) {
-               ComboBoxVSAssemblyInfo comboBoxInfo = (ComboBoxVSAssemblyInfo) comboBox.getVSAssemblyInfo();
-
-               if(comboBoxInfo.isQueryDateFormat()) {
-                  String dateFormatValue = comboBoxInfo.getDateFormatPattern();
-                  vt.putFormat(tname, dateFormatValue);
-               }
-            }
-
+            applyComboBoxDateFormat(iassembly, vt, tname);
             wbox.refreshVariableTable(vt);
          }
          else {
@@ -3927,16 +3919,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             for(UserVariable var : uvars) {
                if(var != null && tname.equals(var.getName())) {
                   vt.put(tname, mdata == null ? cdata : mdata);
-
-                  if(iassembly instanceof ComboBoxVSAssembly comboBox) {
-                     ComboBoxVSAssemblyInfo comboBoxInfo = (ComboBoxVSAssemblyInfo) comboBox.getVSAssemblyInfo();
-
-                     if(comboBoxInfo.isQueryDateFormat()) {
-                        String dateFormatValue = comboBoxInfo.getDateFormatPattern();
-                        vt.putFormat(tname, dateFormatValue);
-                     }
-                  }
-
+                  applyComboBoxDateFormat(iassembly, vt, tname);
                   break;
                }
             }
@@ -3946,17 +3929,18 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
       else if(wbox != null) {
          vt.put(iassembly.getName(), mdata == null ? cdata : mdata);
-
-         if(iassembly instanceof ComboBoxVSAssembly comboBox) {
-            ComboBoxVSAssemblyInfo comboBoxInfo = (ComboBoxVSAssemblyInfo) comboBox.getVSAssemblyInfo();
-
-            if(comboBoxInfo.isQueryDateFormat()) {
-               String dateFormatValue = comboBoxInfo.getDateFormatPattern();
-               vt.putFormat(comboBoxInfo.getName(), dateFormatValue);
-            }
-         }
-
+         applyComboBoxDateFormat(iassembly, vt, iassembly.getName());
          wbox.refreshVariableTable(vt);
+      }
+   }
+
+   private void applyComboBoxDateFormat(InputVSAssembly iassembly, VariableTable vt, String varName) {
+      if(iassembly instanceof ComboBoxVSAssembly comboBox) {
+         ComboBoxVSAssemblyInfo comboBoxInfo = (ComboBoxVSAssemblyInfo) comboBox.getVSAssemblyInfo();
+
+         if(comboBoxInfo.isQueryDateFormat()) {
+            vt.putFormat(varName, comboBoxInfo.getDateFormatPattern());
+         }
       }
    }
 

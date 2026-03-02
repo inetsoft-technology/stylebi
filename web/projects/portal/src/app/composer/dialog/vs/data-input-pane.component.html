@@ -92,15 +92,13 @@
           </div>
         </div>
       </div>
-      <div class="form-row-float-label row" *ngIf="comboBox">
+      <div class="form-row-float-label row" *ngIf="comboBox && model.queryDateFormat">
         <div class="col">
           <div class="form">
-            <input type="text" class="form-control" [(ngModel)]="model.dateFormatPattern" [disabled]="!model.queryDateFormat" id="dateFormatPattern"
+            <input type="text" class="form-control" [(ngModel)]="model.dateFormatPattern" id="dateFormatPattern"
               placeholder="_#(Query Date Format)" (ngModelChange)="validateDateFormat($event)"
             />
-            <label class="form-label" for="dateFormatPattern">
-            </label>
-            <div *ngIf="model.dateFormatInvalid" class="alert alert-danger">
+            <div *ngIf="dateFormatInvalid" class="alert alert-danger">
               _#(Invalid Date Format)
             </div>
           </div>

@@ -245,6 +245,8 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
             if(asIs != null && vars.asIs != null) {
                asIs.addAll(vars.asIs);
             }
+
+            formats.putAll(vars.formats);
          }
       }
    }
@@ -622,6 +624,8 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
          if(asIs != null) {
             vars.asIs = new HashSet<>(asIs);
          }
+
+         vars.formats = new ConcurrentHashMap<>(formats);
 
          return vars;
       }

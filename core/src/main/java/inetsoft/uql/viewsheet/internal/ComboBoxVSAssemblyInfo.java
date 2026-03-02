@@ -202,7 +202,7 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
       writer.print(" rowCount=\"" + getRowCount() + "\"");
       writer.print(" rowCountValue=\"" + getRowCountValue() + "\"");
       writer.print(" queryDateFormat=\"" + queryDateFormat + "\"");
-      writer.print(" dateFormatPattern=\"" + dateFormatPattern + "\"");
+      writer.print(" dateFormatPattern=\"" + Tool.encodeHTMLAttribute(dateFormatPattern) + "\"");
 
       if(getDefaultValue() == null) {
          writer.print(" defaultValue=\"" + Tool.NULL_PARAMETER_VALUE + "\"");
