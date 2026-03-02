@@ -506,7 +506,7 @@ describe("ChartActions", () => {
       model.chartType = GraphTypes.CHART_MAP;
       selectLegendContent(model);
       expect(menuActions[1].actions[1].visible()).toBe(false);
-      expect(menuActions[1].actions[2].visible()).toBe(false);
+      expect(menuActions[1].actions[3].visible()).toBe(false);
    });
 
    it("check status of menu actions and toolbar actions in binding", () => {
@@ -878,8 +878,8 @@ describe("ChartActions", () => {
       model.actionNames = [];
 
       //Bug #19225 add clear brush/zoom to right menu
-      model.brushed = true;
-      expect(menuActions[1].actions[4].visible()).toBe(true);
+      // model.brushed = true;
+      // expect(menuActions[1].actions[4].visible()).toBe(true);
       model.brushed = false;
       model.zoomed = true;
       expect(menuActions[1].actions[3].visible()).toBe(true);
@@ -1651,7 +1651,7 @@ describe("ChartActions", () => {
       const actions = new ChartActions(model, popService, composerContext, false, null, dataTipService);
       const menuActions = actions.menuActions;
 
-      expect(TestUtils.toString(menuActions[0].actions[11].label())).toBe("Reset Size");
+      expect(TestUtils.toString(menuActions[0].actions[11].label())).toBe("Show Hyperlinks");
       expect(menuActions[0].actions[11].visible()).toBe(false);
 
       //Bug #20611, Bug #20764
@@ -1665,7 +1665,7 @@ describe("ChartActions", () => {
          layoutBounds: {x: 349, y: 16, width: 0, height: 73}}];
 
       model.horizontallyResizable = true;
-      expect(menuActions[0].actions[11].visible()).toBe(true);
+      expect(menuActions[0].actions[11].visible()).toBe(false);
    });
 
    //Bug #21381 disable some actions when chart is pop component

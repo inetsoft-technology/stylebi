@@ -60,6 +60,7 @@ import org.springframework.stereotype.Service;
 import java.awt.*;
 import java.security.Principal;
 import java.text.Format;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -1743,6 +1744,9 @@ public class VSInputService {
       dataInputPaneModel.setRowValue(comboBoxAssemblyInfo.getRowValue());
       dataInputPaneModel.setTargetTree(getInputTablesTree(rvs, false, principal));
       dataInputPaneModel.setWriteBackDirectly(comboBoxAssemblyInfo.getWriteBackValue());
+      dataInputPaneModel.setQueryDateFormat(comboBoxAssemblyInfo.isQueryDateFormat());
+      dataInputPaneModel.setDateFormatPattern(comboBoxAssemblyInfo.getDateFormatPattern());
+
       vsAssemblyScriptPaneModel.scriptEnabled(comboBoxAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(comboBoxAssemblyInfo.getScript() == null ?
                                               "" : comboBoxAssemblyInfo.getScript());
@@ -1858,6 +1862,23 @@ public class VSInputService {
          table != null && table.startsWith("$(") && table.endsWith(")"));
       comboBoxAssemblyInfo.setWriteBackValue(dataInputPaneModel.isWriteBackDirectly());
       comboBoxAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
+
+      comboBoxAssemblyInfo.setQueryDateFormat(dataInputPaneModel.isQueryDateFormat());
+
+      String dateFormatPattern = dataInputPaneModel.getDateFormatPattern();
+      boolean validPattern = false;
+
+      if(dateFormatPattern != null && !dateFormatPattern.isEmpty()) {
+         try {
+            DateTimeFormatter.ofPattern(dateFormatPattern);
+            validPattern = true;
+         }
+         catch(IllegalArgumentException e) {
+            // fall through to use default
+         }
+      }
+
+      comboBoxAssemblyInfo.setDateFormatPattern(validPattern ? dateFormatPattern : "yyyy-MM-dd");
 
       comboBoxAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       comboBoxAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
@@ -3615,6 +3636,7 @@ public class VSInputService {
 
          if(ass instanceof VariableAssembly) {
             vt.put(tname, mdata == null ? cdata : mdata);
+            applyComboBoxDateFormat(iassembly, vt, tname);
             wbox.refreshVariableTable(vt);
          }
          else {
@@ -3626,6 +3648,7 @@ public class VSInputService {
             for(UserVariable var : variableList) {
                if(var != null && tname.equals(var.getName())) {
                   vt.put(tname, mdata == null ? cdata : mdata);
+                  applyComboBoxDateFormat(iassembly, vt, tname);
                   break;
                }
             }
@@ -3635,7 +3658,21 @@ public class VSInputService {
       }
       else {
          vt.put(iassembly.getName(), mdata == null ? cdata : mdata);
+         applyComboBoxDateFormat(iassembly, vt, iassembly.getName());
          wbox.refreshVariableTable(vt);
+      }
+   }
+
+   private void applyComboBoxDateFormat(InputVSAssembly iassembly, VariableTable vt, String varName) {
+      if(iassembly instanceof ComboBoxVSAssembly comboBox) {
+         ComboBoxVSAssemblyInfo comboBoxInfo = (ComboBoxVSAssemblyInfo) comboBox.getVSAssemblyInfo();
+
+         if(comboBoxInfo.isQueryDateFormat()) {
+            vt.putFormat(varName, comboBoxInfo.getDateFormatPattern());
+         }
+         else {
+            vt.removeFormat(varName);
+         }
       }
    }
 

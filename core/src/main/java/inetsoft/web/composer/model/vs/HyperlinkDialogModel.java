@@ -210,6 +210,22 @@ public class HyperlinkDialogModel implements Serializable {
       this.grayedOutFields = grayedOutFields;
    }
 
+   public boolean isTitleLink() {
+      return titleLink;
+   }
+
+   public void setTitleLink(boolean titleLink) {
+      this.titleLink = titleLink;
+   }
+
+   public boolean isEmptyPlotLink() {
+      return emptyPlotLink;
+   }
+
+   public void setEmptyPlotLink(boolean emptyPlotLink) {
+      this.emptyPlotLink = emptyPlotLink;
+   }
+
    @Override
    public String toString() {
       return "HyperlinkDialogModel{" +
@@ -254,4 +270,6 @@ public class HyperlinkDialogModel implements Serializable {
    private boolean applyToRow;
    private boolean showRow;
    private DataRefModel[] grayedOutFields;
+   private boolean titleLink;
+   private boolean emptyPlotLink;
 }

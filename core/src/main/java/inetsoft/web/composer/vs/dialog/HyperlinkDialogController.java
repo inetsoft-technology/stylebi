@@ -85,11 +85,14 @@ public class HyperlinkDialogController {
       @RequestParam(value = "colName", required = false) String colName,
       @RequestParam(value = "isAxis", required = false) boolean isAxis,
       @RequestParam(value = "isText", required = false) boolean isText,
+      @RequestParam(value = "titleLink", required = false) boolean titleLink,
+      @RequestParam(value = "emptyPlotLink", required = false) boolean emptyPlotLink,
       @RequestParam("runtimeId") String runtimeId, Principal principal)
       throws Exception
    {
       return hyperlinkDialogServiceProxy.getHyperlinkDialogModel(runtimeId, objectId, row, col,
-                                                          colName, isAxis, isText, principal);
+                                                          colName, isAxis, isText, titleLink,
+                                                                 emptyPlotLink, principal);
    }
 
    @RequestMapping(

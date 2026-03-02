@@ -26,4 +26,6 @@ export interface DataInputPaneModel {
    variable: boolean;
    defaultValue: string;
    writeBackDirectly: boolean;
+   queryDateFormat?: boolean;
+   dateFormatPattern?: string;
 }
