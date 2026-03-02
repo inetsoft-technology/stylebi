@@ -370,7 +370,10 @@ public final class MV implements Cloneable {
                Object val = exp.getValue();
 
                // date used as measure?
-               if(val instanceof Date) {
+               if(val instanceof java.sql.Date) {
+                  exp.setValue(normalizeToMidnight((Date) val), exp.getType());
+               }
+               else if(val instanceof Date) {
                   exp.setValue(((Date) val).getTime(), exp.getType());
                }
                // fix bug1328151618606, if the value is Array, should check
@@ -380,7 +383,10 @@ public final class MV implements Cloneable {
                   Object[] dates = new Object[vals.length];
 
                   for(int i = 0; i < vals.length; i++) {
-                     if(vals[i] instanceof Date) {
+                     if(vals[i] instanceof java.sql.Date) {
+                        dates[i] = normalizeToMidnight((Date) vals[i]);
+                     }
+                     else if(vals[i] instanceof Date) {
                         dates[i] = ((Date) vals[i]).getTime();
                      }
                      else {
@@ -1034,6 +1040,20 @@ public final class MV implements Cloneable {
          LOG.error("Clone failed: " + e);
          return null;
       }
+   }
+
+   /**
+    * Normalize a date to midnight local time to avoid DST/timezone issues
+    * when comparing dates in MV queries.
+    */
+   private static long normalizeToMidnight(Date date) {
+      Calendar cal = Calendar.getInstance();
+      cal.setTime(date);
+      cal.set(Calendar.HOUR_OF_DAY, 0);
+      cal.set(Calendar.MINUTE, 0);
+      cal.set(Calendar.SECOND, 0);
+      cal.set(Calendar.MILLISECOND, 0);
+      return cal.getTimeInMillis();
    }
 
    private List<MVBlockInfo> blockInfos = new ArrayList<>();
