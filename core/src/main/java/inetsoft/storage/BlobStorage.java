@@ -540,7 +540,30 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
     * @throws Exception if the blob could not be added.
     */
    protected final BlobReference<T> putBlob(Blob<T> blob) throws Exception {
-      return cluster.submit(id, new PutBlobTask<>(id, blob)).get(60L, TimeUnit.SECONDS);
+      try {
+         return cluster.submit(id, new PutBlobTask<>(id, blob)).get(60L, TimeUnit.SECONDS);
+      }
+      catch(TimeoutException e) {
+         LOG.warn("Timeout saving blob metadata for {}, retrying...", blob.getPath());
+
+         try {
+            BlobReference<T> ref =
+               cluster.submit(id, new PutBlobTask<>(id, blob)).get(60L, TimeUnit.SECONDS);
+            LOG.info("Retry succeeded for putBlob at {}", blob.getPath());
+            return ref;
+         }
+         catch(InterruptedException retryEx) {
+            Thread.currentThread().interrupt();
+            IOException ioEx = new IOException("Failed to save blob metadata at " + blob.getPath(), retryEx);
+            ioEx.addSuppressed(e);
+            throw ioEx;
+         }
+         catch(Exception retryEx) {
+            IOException ioEx = new IOException("Failed to save blob metadata at " + blob.getPath(), retryEx);
+            ioEx.addSuppressed(e);
+            throw ioEx;
+         }
+      }
    }
 
    /**
