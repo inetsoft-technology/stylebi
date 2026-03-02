@@ -35,6 +35,7 @@ import inetsoft.util.Tool;
 import inetsoft.web.RecycleUtils;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeService;
 import inetsoft.web.composer.AssetTreeController;
+import inetsoft.web.composer.AssetTreeService;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.portal.model.database.DatasourceTreeAction;
 import org.slf4j.Logger;
@@ -110,7 +111,7 @@ public class DatasourcesTreeService {
                .type(entry.getType().name())
                .leaf(children == null || children.size() == 0)
                .children(children)
-               .materialized(AssetTreeController.getMaterialized(entry, principal))
+               .materialized(AssetTreeService.getMaterialized(entry, principal))
                .build();
          })
          .collect(Collectors.toList());
@@ -234,7 +235,7 @@ public class DatasourcesTreeService {
                .type(entry.getType().name())
                .leaf(children == null || children.size() == 0)
                .children(children)
-               .materialized(AssetTreeController.getMaterialized(entry, principal))
+               .materialized(AssetTreeService.getMaterialized(entry, principal))
                .build();
          nodes.add(node);
       }

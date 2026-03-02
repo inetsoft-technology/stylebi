@@ -92,13 +92,13 @@ public class AssetTreeController {
       throws Exception
    {
       return getNodes0(includeDatasources, includeColumns, includeWorksheets, includeViewsheets,
-         includeTableStyles, includeScripts, includeLibrary, reportRepositoryEnabled, readOnly,
-         physical, event, principal, readOnly || assetRepository.checkPermission(
-            principal, ResourceType.WORKSHEET, "*", EnumSet.of(ResourceAction.ACCESS)),
-            SecurityEngine.getSecurity().checkPermission(
-            principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS),
-            readOnly || assetRepository.checkPermission(
-            principal, ResourceType.VIEWSHEET, "*", EnumSet.of(ResourceAction.ACCESS)));
+                       includeTableStyles, includeScripts, includeLibrary, reportRepositoryEnabled, readOnly,
+                       physical, event, principal, readOnly || assetRepository.checkPermission(
+                          principal, ResourceType.WORKSHEET, "*", EnumSet.of(ResourceAction.ACCESS)),
+                       SecurityEngine.getSecurity().checkPermission(
+                          principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS),
+                       readOnly || assetRepository.checkPermission(
+                          principal, ResourceType.VIEWSHEET, "*", EnumSet.of(ResourceAction.ACCESS)));
    }
 
    /**
@@ -222,7 +222,7 @@ public class AssetTreeController {
 
             if(reportRepositoryEnabled &&
                (expandedEntry.getScope() == AssetRepository.REPOSITORY_SCOPE ||
-                expandedEntry.getScope() == AssetRepository.REPORT_SCOPE))
+                  expandedEntry.getScope() == AssetRepository.REPORT_SCOPE))
             {
                children = getReportRepositoryChildren(expandedEntry, principal);
             }
@@ -275,7 +275,7 @@ public class AssetTreeController {
          }
          else {
             treeNodeModel = convertToTreeNodeModel(atmNode, catalog,
-                                            AssetTreeController::isLeafNode, sqlEnabled, principal);
+                                                   AssetTreeController::isLeafNode, sqlEnabled, principal);
          }
       }
 
@@ -305,11 +305,11 @@ public class AssetTreeController {
          if(childEvent != null && child.children().isEmpty() && !child.leaf()) {
             child = TreeNodeModel.builder().from(child)
                .addAllChildren(getNodes0(includeDatasources, includeColumns,
-                                        includeWorksheets, includeViewsheets,
-                                        includeTableStyles, includeScripts, includeLibrary,
-                                        reportRepositoryEnabled, readOnly,
-                                        physical, childEvent, principal, worksheetPermission,
-                                        sqlEnabled, viewsheetPermission)
+                                         includeWorksheets, includeViewsheets,
+                                         includeTableStyles, includeScripts, includeLibrary,
+                                         reportRepositoryEnabled, readOnly,
+                                         physical, childEvent, principal, worksheetPermission,
+                                         sqlEnabled, viewsheetPermission)
                                   .treeNodeModel().children())
                .expanded(childEventOptional.isPresent())
                .build();
@@ -318,20 +318,20 @@ public class AssetTreeController {
             childEntry.isDataSourceFolder())
          {
             child = loadAllChildren(includeDatasources, includeColumns, includeWorksheets,
-               includeViewsheets, includeTableStyles, includeScripts, includeLibrary, reportRepositoryEnabled, readOnly,
-               physical, child, childEvent, principal,
-               assetEntry -> assetEntry != null && assetEntry.isDataSourceFolder(),
-               assetEntry -> assetEntry != null && assetEntry.isDataSource());
+                                    includeViewsheets, includeTableStyles, includeScripts, includeLibrary, reportRepositoryEnabled, readOnly,
+                                    physical, child, childEvent, principal,
+                                    assetEntry -> assetEntry != null && assetEntry.isDataSourceFolder(),
+                                    assetEntry -> assetEntry != null && assetEntry.isDataSource());
          }
          else if(childEvent != null && event.loadAll() && childEntry != null &&
             childEntry.isDataModelFolder())
          {
             child = loadAllChildren(includeDatasources, includeColumns, includeWorksheets,
-               includeViewsheets, includeTableStyles, includeScripts, includeLibrary,
-               reportRepositoryEnabled, readOnly,
-               physical, child, childEvent, principal,
-               assetEntry -> assetEntry != null && assetEntry.isDataModelFolder(),
-               assetEntry -> assetEntry != null && assetEntry.isLogicModel());
+                                    includeViewsheets, includeTableStyles, includeScripts, includeLibrary,
+                                    reportRepositoryEnabled, readOnly,
+                                    physical, child, childEvent, principal,
+                                    assetEntry -> assetEntry != null && assetEntry.isDataModelFolder(),
+                                    assetEntry -> assetEntry != null && assetEntry.isLogicModel());
          }
 
          updatedChildren.add(child);
@@ -395,7 +395,7 @@ public class AssetTreeController {
                .scope(event.scope())
                // if private folder, start from the root of private folder (don't +1 to index)
                .index(pubRoot && event.scope() == AssetRepository.USER_SCOPE ? -1
-                      : event.index() + 1)
+                         : event.index() + 1)
                .build();
 
             String path = String.join("/", event.path());
@@ -474,7 +474,7 @@ public class AssetTreeController {
             Object[] values = Arrays.stream(var.getValue())
                .map((val) -> val == null ? null : val.toString())
                .map((val) -> val == null || val.length() == 0 ? null :
-               Tool.getData(var.getType(), val))
+                  Tool.getData(var.getType(), val))
                .toArray(Object[]::new);
 
             String vname = var.getName();
@@ -519,9 +519,9 @@ public class AssetTreeController {
                // copy to user to avoid always prompt
                if(name != null && pass != null && principal != null) {
                   ((XPrincipal) principal).setProperty(XUtil.DB_USER_PREFIX + db,
-                                                  name);
+                                                       name);
                   ((XPrincipal) principal).setProperty(XUtil.DB_PASSWORD_PREFIX+ db,
-                                                  pass);
+                                                       pass);
                }
 
                rep.connect(session, ":" + db, vtable);
@@ -542,7 +542,7 @@ public class AssetTreeController {
 
             if(var.getName() != null && principal != null) {
                ((XPrincipal) principal).setParameter(var.getName(),
-                  vtable.get(var.getName()));
+                                                     vtable.get(var.getName()));
             }
          }
       }
@@ -598,7 +598,7 @@ public class AssetTreeController {
                                          Principal principal,
                                          Function<AssetEntry, Boolean> folderMatcher,
                                          Function<AssetEntry, Boolean> assetMatcher)
-           throws Exception
+      throws Exception
    {
       AssetEntry entry = (AssetEntry) treeNodeModel.data();
 
@@ -616,25 +616,25 @@ public class AssetTreeController {
 
          if(folderMatcher.apply(centry)) {
             updateChild = loadAllChildren(includeDatasources, includeColumns, includeWorksheets,
-                    includeViewsheets, includeTableStyles, includeScripts, includeLibrary, reportRepositoryEnabled,
-                    readOnly, physical, child, event, principal,
-                    folderMatcher, assetMatcher);
+                                          includeViewsheets, includeTableStyles, includeScripts, includeLibrary, reportRepositoryEnabled,
+                                          readOnly, physical, child, event, principal,
+                                          folderMatcher, assetMatcher);
          }
          else if(assetMatcher.apply(centry)) {
             if(child.children().isEmpty() && !child.leaf()) {
                LoadAssetTreeNodesEvent childEvent = LoadAssetTreeNodesEvent.builder().from(event)
-                       .targetEntry(centry)
-                       .loadAll(true)
-                       .build();
+                  .targetEntry(centry)
+                  .loadAll(true)
+                  .build();
 
                updateChild = TreeNodeModel.builder().from(child)
-                       .addAllChildren(getNodes(includeDatasources, includeColumns, includeWorksheets,
-                               includeViewsheets, includeTableStyles, includeScripts, includeLibrary,
-                               reportRepositoryEnabled, readOnly,
-                               physical, childEvent, principal)
-                               .treeNodeModel().children())
-                       .expanded(false)
-                       .build();
+                  .addAllChildren(getNodes(includeDatasources, includeColumns, includeWorksheets,
+                                           includeViewsheets, includeTableStyles, includeScripts, includeLibrary,
+                                           reportRepositoryEnabled, readOnly,
+                                           physical, childEvent, principal)
+                                     .treeNodeModel().children())
+                  .expanded(false)
+                  .build();
             }
          }
 
@@ -642,9 +642,9 @@ public class AssetTreeController {
       }
 
       return TreeNodeModel.builder()
-              .from(treeNodeModel)
-              .children(updatedChildren)
-              .build();
+         .from(treeNodeModel)
+         .children(updatedChildren)
+         .build();
    }
 
    private AssetEntry[] getChildren(
@@ -670,7 +670,7 @@ public class AssetTreeController {
    }
 
    private void appendCubes(AssetTreeModel.Node rootNode,
-      Principal principal) throws Exception
+                            Principal principal) throws Exception
    {
       List<AssetTreeModel.Node> cubes = AssetEventUtil.getCubes(principal, null, null);
 
@@ -680,7 +680,7 @@ public class AssetTreeController {
 
       Collections.sort(cubes, new AssetEventUtil.NodeComparator());
       AssetEntry cubesEntry = new AssetEntry(AssetRepository.QUERY_SCOPE,
-         AssetEntry.Type.FOLDER, Catalog.getCatalog().getString("Cubes"), null);
+                                             AssetEntry.Type.FOLDER, Catalog.getCatalog().getString("Cubes"), null);
       cubesEntry.setProperty("localStr", Catalog.getCatalog().getString("Cubes"));
       cubesEntry.setProperty("entryName", "cubeRoot");
       AssetTreeModel.Node cubesRootNode = new AssetTreeModel.Node(cubesEntry);
@@ -708,10 +708,10 @@ public class AssetTreeController {
    }
 
    private TreeNodeModel createUserWorksheetRoot(Principal principal,
-      boolean includeDatasources, boolean includeColumns, boolean includeWorksheets,
-      boolean includeViewsheets, boolean includeTableStyles, boolean includeScripts, boolean includeLibrary,
-      boolean reportRepositoryEnabled,
-      boolean readOnly, boolean physical, LoadAssetTreeNodesEvent event)
+                                                 boolean includeDatasources, boolean includeColumns, boolean includeWorksheets,
+                                                 boolean includeViewsheets, boolean includeTableStyles, boolean includeScripts, boolean includeLibrary,
+                                                 boolean reportRepositoryEnabled,
+                                                 boolean readOnly, boolean physical, LoadAssetTreeNodesEvent event)
       throws Exception
    {
       IdentityID user = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
@@ -988,10 +988,10 @@ public class AssetTreeController {
     * @param selector the specified selector.
     */
    public static void getSubEntries(AssetRepository engine, Principal user,
-      AssetTreeModel.Node parent, AssetEntry entry,
-      ArrayList<AssetEntry> filter,
-      AssetEntry.Selector selector,
-      ResourceAction perm)
+                                    AssetTreeModel.Node parent, AssetEntry entry,
+                                    ArrayList<AssetEntry> filter,
+                                    AssetEntry.Selector selector,
+                                    ResourceAction perm)
       throws Exception
    {
       AssetTreeModel.Node curNode = new AssetTreeModel.Node(entry);
@@ -1032,7 +1032,7 @@ public class AssetTreeController {
                }
 
                getSubEntries(engine, user, curNode, ae, filter,
-                  selector, perm);
+                             selector, perm);
             }
          }
       }
@@ -1134,7 +1134,7 @@ public class AssetTreeController {
                return 80;
             case QUERY:
                return 90;
-         }
+            }
 
          return 100;
       }

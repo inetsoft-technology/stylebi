@@ -202,6 +202,7 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
    public static final class Selector {
       public Selector(Type ... types) {
          flags = new BitSet();
+         excludeFlags = new BitSet();
 
          for(Type type : types) {
             flags.or(type.flags);
@@ -261,6 +262,24 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
          }
       }
 
+      public void addExclude(Type ... types) {
+         for(Type type : types) {
+            excludeFlags.or(type.flags);
+         }
+      }
+
+      public boolean excluded(Type ... types) {
+         BitSet tFlags = new BitSet();
+
+         for(Type type : types) {
+            tFlags.or(type.flags);
+         }
+
+         BitSet flags = (BitSet) this.excludeFlags.clone();
+         flags.and(tFlags);
+         return !flags.isEmpty();
+      }
+
       /**
        * Checks whether the selector's bit set is equal to the OR'd bit set
        * of the specified types
@@ -285,6 +304,7 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
       }
 
       private BitSet flags;
+      private BitSet excludeFlags;
    }
 
    /**
