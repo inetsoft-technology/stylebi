@@ -54,6 +54,17 @@ const INPUT_TYPES = {
    "VSSelectionTree": true
 };
 
+const INPUT_LABEL_DATA_PATH = {
+   level: -1,
+   col: false,
+   row: false,
+   type: TableDataPathTypes.INPUT_LABEL,
+   dataType: "string",
+   path: [],
+   index: 0,
+   colIndex: -1
+};
+
 const KEY_NAV_ENABLED = {
    "VSSelectionList": true,
    "VSSelectionTree": true,
@@ -433,16 +444,7 @@ export namespace VSUtil {
 
             // Handle input label selection - set dataPath to INPUT_LABEL type
             if(INPUT_TYPES[obj.objectType] && (<VSInputModel> obj).labelSelected) {
-               data = [{
-                  level: -1,
-                  col: false,
-                  row: false,
-                  type: TableDataPathTypes.INPUT_LABEL,
-                  dataType: "string",
-                  path: [],
-                  index: 0,
-                  colIndex: -1
-               }];
+               data = [INPUT_LABEL_DATA_PATH];
             }
             else {
                data = Tool.clone(obj.selectedRegions);
@@ -521,16 +523,7 @@ export namespace VSUtil {
       if(object && INPUT_TYPES[object.objectType] &&
          (<VSInputModel> object).labelSelected)
       {
-         vsevent.dataPath = {
-            level: -1,
-            col: false,
-            row: false,
-            type: TableDataPathTypes.INPUT_LABEL,
-            dataType: "string",
-            path: [],
-            index: 0,
-            colIndex: -1
-         };
+         vsevent.dataPath = INPUT_LABEL_DATA_PATH;
       }
       else {
          vsevent.dataPath = object?.selectedRegions?.[object.selectedRegions.length - 1];

@@ -195,7 +195,7 @@ import { VSTableCell } from "./objects/table/vs-table-cell.component";
 import { VSTable } from "./objects/table/vs-table.component";
 import { VSTextInput } from "./objects/text-input/vs-text-input.component";
 import { VSInputLabelWrapper } from "./objects/input-label-wrapper/vs-input-label-wrapper.component";
-import { InputLabelPane } from "../composer/dialog/vs/input-label-pane.component"
+import { InputLabelPane } from "../composer/dialog/vs/input-label-pane.component";
 import { VSThermometer } from "./objects/thermometer/vs-thermometer.component";
 import { TitleCell } from "./objects/title-cell/title-cell.component";
 import { VSTitleModule } from "./objects/title/vs-title.module";

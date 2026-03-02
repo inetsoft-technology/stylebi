@@ -159,7 +159,6 @@ public class SliderPropertyDialogController {
       inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPosition());
       inputLabelPaneModel.setShowLabel(labelInfo.isLabelVisible());
 
-
       vsAssemblyScriptPaneModel.scriptEnabled(sliderAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(sliderAssemblyInfo.getScript() == null ?
                                               "" : sliderAssemblyInfo.getScript());

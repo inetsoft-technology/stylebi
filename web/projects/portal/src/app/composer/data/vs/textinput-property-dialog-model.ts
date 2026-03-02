@@ -19,7 +19,7 @@ import { TextInputGeneralPaneModel } from "./textinput-general-pane-model";
 import { DataInputPaneModel } from "./data-input-pane-model";
 import { TextInputColumnOptionPaneModel } from "./textinput-column-option-pane-model";
 import { ClickableScriptPaneModel } from "./clickable-script-pane-model";
-import { InputLabelPaneModel } from "./input-label-pane-model"
+import { InputLabelPaneModel } from "./input-label-pane-model";
 
 export interface TextInputPropertyDialogModel {
    textInputGeneralPaneModel: TextInputGeneralPaneModel;

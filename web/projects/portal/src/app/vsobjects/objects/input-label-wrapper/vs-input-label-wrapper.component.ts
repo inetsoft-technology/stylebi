@@ -65,4 +65,21 @@ export class VSInputLabelWrapper {
    get gapStyle(): { [key: string]: string } {
       return { "gap": `${this.labelGap}px` };
    }
+
+   get labelStyles(): { [key: string]: string } {
+      const format = this.labelFormat;
+
+      if(!format) {
+         return {};
+      }
+
+      const styles: { [key: string]: string } = {};
+
+      if(format.foreground) { styles["color"] = format.foreground; }
+      if(format.font) { styles["font"] = format.font; }
+      if(format.hAlign) { styles["text-align"] = format.hAlign; }
+      if(format.decoration) { styles["text-decoration"] = format.decoration; }
+
+      return styles;
+   }
 }

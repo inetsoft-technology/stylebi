@@ -78,9 +78,10 @@ public class SliderPropertyDialogModel {
    }
 
    public InputLabelPaneModel getInputLabelPaneModel() {
-      if (inputLabelPaneModel == null) {
+      if(inputLabelPaneModel == null) {
          inputLabelPaneModel = new InputLabelPaneModel();
       }
+
       return inputLabelPaneModel;
    }
 

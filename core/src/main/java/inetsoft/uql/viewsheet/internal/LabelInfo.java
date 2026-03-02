@@ -306,14 +306,6 @@ public class LabelInfo implements AssetObject {
     * @param writer the specified writer.
     */
    protected void writeContents(PrintWriter writer) {
-      String text = getLabelText();
-
-      if(text != null && !text.isEmpty()) {
-         writer.print("<labelText>");
-         writer.print("<![CDATA[" + text + "]]>");
-         writer.println("</labelText>");
-      }
-
       String textValue = getLabelTextValue();
 
       if(textValue != null && !textValue.isEmpty()) {
@@ -364,12 +356,9 @@ public class LabelInfo implements AssetObject {
       LabelInfo info = (LabelInfo) obj;
 
       return Tool.equals(labelText, info.labelText) &&
-         Tool.equals(getLabelText(), info.getLabelText()) &&
          Tool.equals(labelVisible, info.labelVisible) &&
-         isLabelVisible() == info.isLabelVisible() &&
          Tool.equals(labelPosition, info.labelPosition) &&
          Tool.equals(labelGap, info.labelGap) &&
-         getLabelGap() == info.getLabelGap() &&
          Tool.equals(labelFormat, info.labelFormat);
    }
 
@@ -382,6 +371,7 @@ public class LabelInfo implements AssetObject {
       result = 31 * result + (labelVisible != null ? labelVisible.hashCode() : 0);
       result = 31 * result + (labelPosition != null ? labelPosition.hashCode() : 0);
       result = 31 * result + (labelGap != null ? labelGap.hashCode() : 0);
+      result = 31 * result + (labelFormat != null ? labelFormat.hashCode() : 0);
       return result;
    }
 

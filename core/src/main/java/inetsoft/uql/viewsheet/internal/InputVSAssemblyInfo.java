@@ -33,7 +33,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 
-import java.awt.*;
 import java.awt.geom.Point2D;
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -337,10 +336,6 @@ public abstract class InputVSAssemblyInfo extends VSAssemblyInfo {
 
       if(rnode != null) {
          rowValue.setDValue(Tool.getValue(rnode));
-      }
-
-      if(labelInfo == null) {
-         labelInfo = new LabelInfo();
       }
 
       labelInfo.parseXML(elem);
