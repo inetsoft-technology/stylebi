@@ -1347,6 +1347,7 @@ public class VSInputService {
             for(UserVariable var : variableList) {
                if(var != null && tname.equals(var.getName())) {
                   vt.put(tname, mdata == null ? cdata : mdata);
+                  applyComboBoxDateFormat(iassembly, vt, tname);
                   break;
                }
             }
@@ -1367,6 +1368,9 @@ public class VSInputService {
 
          if(comboBoxInfo.isQueryDateFormat()) {
             vt.putFormat(varName, comboBoxInfo.getDateFormatPattern());
+         }
+         else {
+            vt.removeFormat(varName);
          }
       }
    }

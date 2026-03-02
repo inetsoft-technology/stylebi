@@ -3941,6 +3941,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          if(comboBoxInfo.isQueryDateFormat()) {
             vt.putFormat(varName, comboBoxInfo.getDateFormatPattern());
          }
+         else {
+            vt.removeFormat(varName);
+         }
       }
    }
 

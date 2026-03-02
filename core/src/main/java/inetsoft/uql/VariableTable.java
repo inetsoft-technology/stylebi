@@ -269,6 +269,14 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
    }
 
    /**
+    * Remove a format value.
+    * @param name format name.
+    */
+   public void removeFormat(String name) {
+      formats.remove(name);
+   }
+
+   /**
     * Set a variable value. The type of the value must match the type
     * declared in the corresponding UserVariable object.
     * @param name variable name.
