@@ -54,8 +54,9 @@ export class SummaryMonitoringChartViewComponent implements OnChanges {
 
    @Input()
    set selectedClusterNode(value: string) {
-      if(this._selectedClusterNode != value) {
+      if(this._selectedClusterNode !== value) {
          this.imageError = false;
+         this.showLegends = true;
       }
 
       this._selectedClusterNode = value;
