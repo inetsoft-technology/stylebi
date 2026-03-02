@@ -107,8 +107,10 @@ public class PortalController {
       }
 
       PortalCreationPermisisons creationModel = refreshPortalCreationPermissions(principal);
-      String aiAssistantVisibleProp = SreeEnv.getProperty("portal.ai.assistant.visible", "true");
-      boolean aiAssistantVisible = "true".equalsIgnoreCase(aiAssistantVisibleProp);
+      String aiAssistantVisibleProp = SreeEnv.getProperty("portal.ai.assistant.visible", "false");
+      String chatAppServerUrl = SreeEnv.getProperty("chat.app.server.url");
+      boolean aiAssistantVisible = "true".equalsIgnoreCase(aiAssistantVisibleProp) &&
+         chatAppServerUrl != null && !chatAppServerUrl.isEmpty();
 
       return PortalModel.builder()
          .currentUser(getCurrentUser(principal))

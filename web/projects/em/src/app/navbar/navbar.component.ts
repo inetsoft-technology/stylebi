@@ -144,10 +144,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
       ["sharing", "_#(js:Social Sharing)"]
    ]);
 
-   get aiAssistantEnabled(): boolean {
-      return !!this.aiAssistantService.chatAppServerUrl;
-   }
-
    constructor(private favoritesService: FavoritesService,
                private helpService: HelpService,
                private pageTitleService: PageHeaderService,

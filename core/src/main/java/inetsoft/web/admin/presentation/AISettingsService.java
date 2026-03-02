@@ -26,7 +26,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class AISettingsService {
    public PresentationAISettingsModel getModel() {
-      String aiAssistantVisibleProp = SreeEnv.getProperty("portal.ai.assistant.visible", "true");
+      String aiAssistantVisibleProp = SreeEnv.getProperty("portal.ai.assistant.visible", "false");
       boolean aiAssistantVisible = "true".equalsIgnoreCase(aiAssistantVisibleProp);
       String chatAppServerUrl = SreeEnv.getProperty("chat.app.server.url");
 
@@ -55,7 +55,8 @@ public class AISettingsService {
    }
 
    public void resetSettings() throws Exception {
-      SreeEnv.remove("portal.ai.assistant.visible");
+      SreeEnv.setProperty("portal.ai.assistant.visible", "false");
+      SreeEnv.remove("chat.app.server.url");
       SreeEnv.save();
    }
 }

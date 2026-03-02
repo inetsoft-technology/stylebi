@@ -75,7 +75,8 @@ public class EmNavBarController {
 
       String homeLink = SreeEnv.getProperty("em.home.link", "..");
       boolean aiAssistantVisible = "true".equalsIgnoreCase(
-         SreeEnv.getProperty("portal.ai.assistant.visible", "true"));
+         SreeEnv.getProperty("portal.ai.assistant.visible", "false")) &&
+         !StringUtils.isEmpty(SreeEnv.getProperty("chat.app.server.url"));
 
       return new EmNavBarModel(logoutUri,
                                manager.hasCustomLogo(OrganizationManager.getInstance().getCurrentOrgID()),
