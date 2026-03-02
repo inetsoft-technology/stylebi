@@ -187,4 +187,17 @@ class ApplyParameterToInputTest {
 
       assertArrayEquals(new Object[]{"solo"}, assembly.getSelectedObjects());
    }
+
+   @Test
+   void emptyArrayPreservesDesignTimeDefaultForCompositeInput() throws Exception {
+      // VariableTable.put() normalises empty Object[] to null → val == null guard fires.
+      variableTable.put("CheckBox1", new Object[]{});
+      CheckBoxVSAssembly assembly = new CheckBoxVSAssembly();
+      assembly.getVSAssemblyInfo().setName("CheckBox1");
+      assembly.setSelectedObjects(new Object[]{"designDefault"});
+
+      invoke(assembly);
+
+      assertArrayEquals(new Object[]{"designDefault"}, assembly.getSelectedObjects());
+   }
 }
