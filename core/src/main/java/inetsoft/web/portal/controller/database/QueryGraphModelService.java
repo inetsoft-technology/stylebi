@@ -441,12 +441,17 @@ public class QueryGraphModelService {
          JDBCUtil.fixTableLocation(sql);
       }
 
+      String additionalDatasource = ConnectionProcessor.getInstance().getAdditionalDatasource(principal, database, null);
+
       for(int i = 0; i < sql.getTableCount(); i++) {
          GraphModel graphModel = new GraphModel();
          SelectTable selectTable = sql.getSelectTable(i);
          AssetEntry entry = getSelectTableEntry(runtimeQuery, selectTable);
-         String additionalDatasource = ConnectionProcessor.getInstance().getAdditionalDatasource(principal, database, null);
-         entry.setProperty(XUtil.DATASOURCE_ADDITIONAL, additionalDatasource);
+
+         if(entry != null) {
+            entry.setProperty(XUtil.DATASOURCE_ADDITIONAL, additionalDatasource);
+         }
+
          graphModel.setNode(buildGraphNodeModel(entry, selectTable, database));
          graphModel.setEdge(buildGraphNodeEdge(sql, selectTable, database));
          graphModel.setCols(buildColumns(entry, selectTable, database, principal));
