@@ -44,6 +44,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.awt.*;
 import java.security.Principal;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -222,6 +223,9 @@ public class ComboboxPropertyDialogController {
       dataInputPaneModel.setTargetTree(
          this.vsInputService.getInputTablesTree(rvs, false, principal));
       dataInputPaneModel.setWriteBackDirectly(comboBoxAssemblyInfo.getWriteBackValue());
+      dataInputPaneModel.setQueryDateFormat(comboBoxAssemblyInfo.isQueryDateFormat());
+      dataInputPaneModel.setDateFormatPattern(comboBoxAssemblyInfo.getDateFormatPattern());
+
       vsAssemblyScriptPaneModel.scriptEnabled(comboBoxAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(comboBoxAssemblyInfo.getScript() == null ?
                                               "" : comboBoxAssemblyInfo.getScript());
@@ -297,6 +301,23 @@ public class ComboboxPropertyDialogController {
          table != null && table.startsWith("$(") && table.endsWith(")"));
       comboBoxAssemblyInfo.setWriteBackValue(dataInputPaneModel.isWriteBackDirectly());
       comboBoxAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
+
+      comboBoxAssemblyInfo.setQueryDateFormat(dataInputPaneModel.isQueryDateFormat());
+
+      String dateFormatPattern = dataInputPaneModel.getDateFormatPattern();
+      boolean validPattern = false;
+
+      if(dateFormatPattern != null && !dateFormatPattern.isEmpty()) {
+         try {
+            DateTimeFormatter.ofPattern(dateFormatPattern);
+            validPattern = true;
+         }
+         catch(IllegalArgumentException e) {
+            // fall through to use default
+         }
+      }
+
+      comboBoxAssemblyInfo.setDateFormatPattern(validPattern ? dateFormatPattern : "yyyy-MM-dd");
 
       comboBoxAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       comboBoxAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());

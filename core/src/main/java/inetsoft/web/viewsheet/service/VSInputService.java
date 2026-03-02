@@ -1335,6 +1335,7 @@ public class VSInputService {
 
          if(ass instanceof VariableAssembly) {
             vt.put(tname, mdata == null ? cdata : mdata);
+            applyComboBoxDateFormat(iassembly, vt, tname);
             wbox.refreshVariableTable(vt);
          }
          else {
@@ -1346,6 +1347,7 @@ public class VSInputService {
             for(UserVariable var : variableList) {
                if(var != null && tname.equals(var.getName())) {
                   vt.put(tname, mdata == null ? cdata : mdata);
+                  applyComboBoxDateFormat(iassembly, vt, tname);
                   break;
                }
             }
@@ -1355,7 +1357,21 @@ public class VSInputService {
       }
       else {
          vt.put(iassembly.getName(), mdata == null ? cdata : mdata);
+         applyComboBoxDateFormat(iassembly, vt, iassembly.getName());
          wbox.refreshVariableTable(vt);
+      }
+   }
+
+   private void applyComboBoxDateFormat(InputVSAssembly iassembly, VariableTable vt, String varName) {
+      if(iassembly instanceof ComboBoxVSAssembly comboBox) {
+         ComboBoxVSAssemblyInfo comboBoxInfo = (ComboBoxVSAssemblyInfo) comboBox.getVSAssemblyInfo();
+
+         if(comboBoxInfo.isQueryDateFormat()) {
+            vt.putFormat(varName, comboBoxInfo.getDateFormatPattern());
+         }
+         else {
+            vt.removeFormat(varName);
+         }
       }
    }
 
