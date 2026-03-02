@@ -7034,20 +7034,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             List<TableMetaDataKey> keys = new ArrayList<>(metamap.keySet());
 
             for(TableMetaDataKey key : keys) {
-               TableAssembly tassembly = (TableAssembly) ws.getAssembly(key.getTable());
-
-               if(tassembly == null) {
-                  TableMetaData metadata = metamap.remove(key);
-
-                  if(metadata != null) {
-                     metadata.dispose();
-                  }
-               }
-
-               TableMetaDataKey key2 = TableMetaDataKey.createKey(
-                  key.getTable(), getViewsheet(), vmode);
-
-               if(!Tool.equals(key, key2)) {
+               // Remove entries for tables that no longer exist in the worksheet.
+               // Stale entries for tables that still exist (column/aggregate changes)
+               // are self-healing: getTableMetaDataFromTable() calls createKey(), detects
+               // any key mismatch, disposes the old TableMetaData entry (releasing its
+               // resources), and inserts a fresh entry — so proactive eviction here is
+               // unnecessary. The createKey() call also invokes appendCalcField() as a
+               // side effect, which modifies shared table assembly state and causes
+               // IndexOutOfBoundsException under concurrent load.
+               if(ws.getAssembly(key.getTable()) == null) {
                   TableMetaData metadata = metamap.remove(key);
 
                   if(metadata != null) {
@@ -7074,7 +7069,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          // ws is locked. the shrink() method will call lockRead, which assumes it's
          // called before ws is locked. we run it in a separate thread to avoid deadlock
          final Principal principal = ThreadContext.getContextPrincipal();
-         debouncer.debounce("shrink" + System.identityHashCode(ViewsheetSandbox.this), 1,
+         debouncer.debounce("shrink" + System.identityHashCode(ViewsheetSandbox.this), 5,
                             TimeUnit.SECONDS, () -> {
                ThreadPool.ContextRunnable runnable = new ThreadPool.AbstractContextRunnable() {
                   @Override

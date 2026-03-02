@@ -531,9 +531,13 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
          // generate public column selection if not a crosstab
          if(!isCrosstab()) {
             ColumnSelection ocolumns = new ColumnSelection();
+            // Snapshot the selection to avoid IndexOutOfBoundsException if another thread
+            // concurrently modifies the same ColumnSelection (e.g. appendCalcField called
+            // from the shrink() background thread and from a viewsheet execution thread).
+            List<DataRef> selectionSnapshot = selection.stream().toList();
 
-            for(int i = 0; i < selection.getAttributeCount(); i++) {
-               ColumnRef column = (ColumnRef) selection.getAttribute(i);
+            for(int i = 0; i < selectionSnapshot.size(); i++) {
+               ColumnRef column = (ColumnRef) selectionSnapshot.get(i);
 
                if(!column.isVisible()) {
                   continue;
