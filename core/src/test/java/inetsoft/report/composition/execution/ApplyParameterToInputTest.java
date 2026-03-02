@@ -133,7 +133,9 @@ class ApplyParameterToInputTest {
 
    @Test
    void emptyArrayPreservesDesignTimeDefaultForSingleInput() throws Exception {
-      // An empty Object[] carries no value; the design-time default must be retained.
+      // VariableTable.put() normalises an empty Object[] to null before storage,
+      // so vt.get() returns null here and the val == null early-return fires.
+      // The design-time default must therefore be retained.
       variableTable.put("TextInput1", new Object[]{});
       TextInputVSAssembly assembly = new TextInputVSAssembly();
       assembly.getVSAssemblyInfo().setName("TextInput1");

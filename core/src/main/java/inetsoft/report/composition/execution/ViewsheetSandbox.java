@@ -3999,6 +3999,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       // Null parameter values are intentionally ignored to preserve design-time defaults;
       // a null entry in the variable table should not clear an existing default selection.
+      // Note: VariableTable.put() also normalises empty and all-null Object[] arrays to null,
+      // so this guard implicitly covers those cases as well.
       if(val == null) {
          return;
       }
@@ -4011,12 +4013,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
             if(raw instanceof Object[]) {
                Object[] arr = (Object[]) raw;
-
-               // An empty array carries no value; preserve the design-time default.
-               if(arr.length == 0) {
-                  return;
-               }
-
                raw = arr[0];
             }
 
