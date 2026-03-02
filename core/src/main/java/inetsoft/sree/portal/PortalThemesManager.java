@@ -520,8 +520,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
 
    /**
     * Performs the actual write without acquiring the distributed lock.
-    * Called by save() (which holds the lock) and by loadThemes() when invoked
-    * from the changeListener (which already holds the lock).
+    * Must only be called by save(), which acquires the lock first.
     */
    private void saveUnderLock() {
       String name = SreeEnv.getPath("portal.themes.file", "portalthemes.xml");
@@ -945,7 +944,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
 
          if(!saveFile) {
             // Only register listener here when no save is needed. When saveFile
-            // is true, saveUnderLock() handles listener registration itself
+            // is true, save() handles listener registration itself
             // (removes before write, re-adds after), so registering here first
             // would open a race window where a remote change notification could
             // fire reset() between this line and the save call below.
@@ -987,7 +986,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
       // Hold the same distributed lock used by save() so that a concurrent save
       // on any pod cannot interleave with reset() + loadThemes() on this pod,
       // and vice versa. The lock's per-thread reentrancy means the nested
-      // saveUnderLock() call inside loadThemes() acquires safely.
+      // save() call inside loadThemes() acquires safely.
       Lock lock = Cluster.getInstance().getLock(DISTRIBUTED_LOCK_NAME);
       lock.lock();
 
