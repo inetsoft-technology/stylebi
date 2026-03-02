@@ -17,6 +17,7 @@
  */
 
 package inetsoft.web.composer.model.vs;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @JsonIgnoreProperties(ignoreUnknown = true)

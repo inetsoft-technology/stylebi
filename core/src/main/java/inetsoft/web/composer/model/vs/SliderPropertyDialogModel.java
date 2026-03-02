@@ -21,7 +21,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
  * Data transfer object that represents the {@link SliderPropertyDialogModel} for the
- * textinput property dialog
+ * slider property dialog
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SliderPropertyDialogModel {

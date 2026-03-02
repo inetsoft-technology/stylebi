@@ -16,8 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 export interface InputLabelPaneModel {
-    showLabel: boolean;
-    labelText: string;
-    labelPosition: string;  // "top" | "bottom" | "left" | "right"
-    labelGap: number;
- }
+   showLabel: boolean;
+   labelText: string;
+   labelPosition: string;  // "top" | "bottom" | "left" | "right"
+   labelGap: number;
+}
