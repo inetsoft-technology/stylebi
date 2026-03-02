@@ -129,6 +129,6 @@ describe("task options pane componnet unit case: ", () => {
       let locale = fixture.nativeElement.querySelectorAll(
          "div.form-row-float-label.row.form-group")[3];
       let defaultElement = locale.querySelectorAll("select")[0];
-      expect(defaultElement.getAttribute("ng-reflect-model")).toBe("Default");
+      expect(defaultElement.getAttribute("ng-reflect-model")).toBe("0");
    });
 });

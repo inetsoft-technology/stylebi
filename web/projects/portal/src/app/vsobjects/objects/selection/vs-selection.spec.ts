@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClient } from "@angular/common/http";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { ElementRef, NO_ERRORS_SCHEMA, Renderer2 } from "@angular/core";
 import { async, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule } from "@angular/forms";
@@ -160,12 +162,13 @@ describe("VSSelection Test", () => {
    const zone: any = { run: jest.fn(), runOutsideAngular: jest.fn() };
    const scaleService = { getScale: jest.fn(), setScale: jest.fn(), getCurrentScale: jest.fn() };
    scaleService.getScale.mockImplementation(() => observableOf(1));
+   let httpClient: HttpClient;
 
    beforeEach(async(() => {
       fixedDropdownService = { open: jest.fn() };
 
       TestBed.configureTestingModule({
-         imports: [ NgbModule, FormsModule ],
+         imports: [ NgbModule, FormsModule, HttpClientTestingModule ],
          schemas: [NO_ERRORS_SCHEMA],
          declarations: [
             VSSelection, MiniToolbar, TitleCell, SelectionListCell, DefaultFocusDirective,
@@ -191,9 +194,11 @@ describe("VSSelection Test", () => {
       fixture.componentInstance.selectionValues = createMockSelectionValues();
       fixture.componentInstance.model = createListModel();
       fixture.detectChanges();
+      const httpClient = fixture.debugElement.injector.get(HttpClient);
       vsSelection = new VSSelection(
          viewsheetClientService, formDataService, renderer, adhocFilterService, elementRef, changeRef,
-         zone, scaleService, contextService, dataTipService, fixedDropdownService, globalSubmitService, popService);
+         zone, scaleService, contextService, dataTipService, fixedDropdownService, globalSubmitService,
+         popService, httpClient, null);
    }));
 
    // Bug #15994 selection bars not showing on selection trees

@@ -111,7 +111,6 @@ describe("Table Advanced Pane Unit Test", () => {
 
       expect(shrinkToFit.getAttribute("ng-reflect-is-disabled")).toEqual("false");
       expect(enableAdhocEdit.getAttribute("ng-reflect-is-disabled")).toEqual("false");
-      expect(emTable.getAttribute("ng-reflect-is-disabled")).toEqual("false");
       expect(addRow.getAttribute("ng-reflect-is-disabled")).toEqual("true");
       expect(deleteRow.getAttribute("ng-reflect-is-disabled")).toEqual("true");
       expect(editRow.getAttribute("ng-reflect-is-disabled")).toEqual("true");

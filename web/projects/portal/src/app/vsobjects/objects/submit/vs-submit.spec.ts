@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -47,7 +48,7 @@ describe("VS Submit component unit case", () => {
       debounceService = { debounce: jest.fn((key, fn, delay, args) => fn(...args)) };
       ssoHeartbeatService = { heartbeat: jest.fn() };
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule],
          declarations: [VSSubmit, VSPopComponentDirective, SafeFontDirective],
          schemas: [NO_ERRORS_SCHEMA],
          providers: [

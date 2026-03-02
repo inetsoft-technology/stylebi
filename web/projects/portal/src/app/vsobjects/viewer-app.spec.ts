@@ -40,13 +40,16 @@ import { of as observableOf } from "rxjs";
 import { DownloadService } from "../../../../shared/download/download.service";
 import { AppInfoService } from "../../../../shared/util/app-info.service";
 import { AssetLoadingService } from "../common/services/asset-loading.service";
+import { BaseHrefService } from "../common/services/base-href.service";
 import { FirstDayOfWeekService } from "../common/services/first-day-of-week.service";
 import { FullScreenService } from "../common/services/full-screen.service";
+import { PagingControlService } from "../common/services/paging-control.service";
 import { DropDownTestModule } from "../common/test/test-module";
 import { TestUtils } from "../common/test/test-utils";
 import { ComponentTool } from "../common/util/component-tool";
 import { StompClientService, ViewsheetClientService } from "../common/viewsheet-client";
 import { Viewsheet } from "../composer/data/vs/viewsheet";
+import { ComposerRecentService } from "../composer/gui/composer-recent.service";
 import { PageTabService } from "../viewer/services/page-tab.service";
 import { ViewDataService } from "../viewer/services/view-data.service";
 import { DomService } from "../widget/dom-service/dom.service";
@@ -76,17 +79,14 @@ import { VSChartService } from "./objects/chart/services/vs-chart.service";
 import { DataTipService } from "./objects/data-tip/data-tip.service";
 import { PopComponentService } from "./objects/data-tip/pop-component.service";
 import { VSPopComponentDirective } from "./objects/data-tip/vs-pop-component.directive";
+import { MiniToolbarService } from "./objects/mini-toolbar/mini-toolbar.service";
+import { SelectionMobileService } from "./objects/selection/services/selection-mobile.service";
 import { ShowHyperlinkService } from "./show-hyperlink.service";
+import { ToolbarActionsHandler } from "./toolbar-actions-handler";
 import { CheckFormDataService } from "./util/check-form-data.service";
+import { GlobalSubmitService } from "./util/global-submit.service";
 import { ViewerResizeService } from "./util/viewer-resize.service";
 import { ViewerAppComponent } from "./viewer-app.component";
-import { ResizeSensor } from "css-element-queries";
-import { ToolbarActionsHandler } from "./toolbar-actions-handler";
-import { ComposerRecentService } from "../composer/gui/composer-recent.service";
-import { PagingControlService } from "../common/services/paging-control.service";
-import { SelectionMobileService } from "./objects/selection/services/selection-mobile.service";
-import { GlobalSubmitService } from "./util/global-submit.service";
-import { MiniToolbarService } from "./objects/mini-toolbar/mini-toolbar.service";
 
 jest.mock("css-element-queries");
 
@@ -317,7 +317,8 @@ describe("ViewerApp Unit Tests", () => {
             { provide: MiniToolbarService, useValue: miniToolbarService },
             { provide: AssetLoadingService, useValue: assetLoadingService },
             { provide: ViewContainerRef, useValue: viewContainerRef },
-            AppInfoService
+            AppInfoService,
+            BaseHrefService
          ],
          declarations: [
             ViewerAppComponent, ActionsContextmenuComponent, InteractContainerDirective,
@@ -364,6 +365,7 @@ describe("ViewerApp Unit Tests", () => {
 
    it("should remove the vsobject's actions when removing the vsobject", () => {
       const httpClient = TestBed.inject(HttpClient);
+      const baseHrefService = TestBed.inject(BaseHrefService);
       const viewerApp = new ViewerAppComponent(
          viewsheetClientService, null, null, null, null, null, null, null,
          new NgbDatepickerConfig(), null, actionFactory, httpClient, null, formDataService,
@@ -372,7 +374,7 @@ describe("ViewerApp Unit Tests", () => {
          firstDayOfWeekService, new NgbTooltipConfig(new NgbConfig()), shareService, null,
          richTextService, viewerToolbarMessageService, mobileToolbarService, mockDocument, composerRecentService,
          pageTabService, pagingControlService, selectionMobileService,
-         assetLoadingService, viewContainerRef);
+         assetLoadingService, viewContainerRef, baseHrefService);
       const mockChart = TestUtils.createMockVSChartModel("Mock Chart");
       const mockTable = TestUtils.createMockVSTableModel("Mock Table");
       const mockCrosstab = TestUtils.createMockVSCrosstabModel("Mock Crosstab");
