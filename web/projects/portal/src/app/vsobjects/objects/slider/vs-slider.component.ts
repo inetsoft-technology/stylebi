@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {
+   AfterViewInit,
    ChangeDetectorRef,
    Component, ElementRef,
    EventEmitter,
@@ -57,7 +58,7 @@ const GET_OBJECT_MODEL_URL: string = "/events/vsview/object/model";
    templateUrl: "vs-slider.component.html",
    styleUrls: ["vs-slider.component.scss"]
 })
-export class VSSlider extends NavigationComponent<VSSliderModel> implements OnChanges, OnDestroy {
+export class VSSlider extends NavigationComponent<VSSliderModel> implements OnChanges, OnDestroy, AfterViewInit {
    private _selected: boolean = false;
 
    @Input() set selected(selected: boolean) {
@@ -130,6 +131,12 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
       }
    }
 
+   ngAfterViewInit() {
+      // Recalculate handle position now that the DOM is rendered and the actual
+      // container width is known (may differ from model width when a label is present).
+      this.handlePosition = this.getValueX();
+   }
+
    ngOnDestroy() {
       super.ngOnDestroy();
 
@@ -140,7 +147,7 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
 
    // get the width of the slider line, used to calculate the various positions.
    getLineWidth(): number {
-      return this.model.objectFormat.width;
+      return this.sliderContainer?.nativeElement?.clientWidth || this.model.objectFormat.width;
    }
 
    // get the current (handle) position

@@ -33,10 +33,6 @@ public abstract class VSInputModel<T extends InputVSAssembly> extends VSObjectMo
          ? ((ClickableInputVSAssemblyInfo) assemblyInfo).getOnClick() : null;
       hasOnClick = onClick != null && !onClick.isEmpty();
 
-      if(assemblyInfo instanceof InputVSAssemblyInfo) {
-         setWriteBackDirectly(assemblyInfo.getWriteBackValue());
-      }
-
       LabelInfo labelInfo = assemblyInfo.getLabelInfo();
 
       if (labelInfo != null) {
