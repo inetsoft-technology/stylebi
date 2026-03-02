@@ -132,11 +132,9 @@ class ApplyParameterToInputTest {
    }
 
    @Test
-   void allNullArrayElementsPreservesDesignTimeDefault() throws Exception {
-      // VariableTable.put() converts an Object[]{null, null, ...} to a stored null value
-      // (the key is present but the value is null). Verify the null-preservation path
-      // is triggered the same way as an explicit scalar null.
-      variableTable.put("TextInput1", new Object[]{null});
+   void emptyArrayPreservesDesignTimeDefaultForSingleInput() throws Exception {
+      // An empty Object[] carries no value; the design-time default must be retained.
+      variableTable.put("TextInput1", new Object[]{});
       TextInputVSAssembly assembly = new TextInputVSAssembly();
       assembly.getVSAssemblyInfo().setName("TextInput1");
       assembly.setSelectedObject("designDefault");

@@ -4009,8 +4009,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          if(iassembly instanceof SingleInputVSAssembly) {
             Object raw = val;
 
-            if(raw instanceof Object[] && ((Object[]) raw).length > 0) {
-               raw = ((Object[]) raw)[0];
+            if(raw instanceof Object[]) {
+               Object[] arr = (Object[]) raw;
+
+               // An empty array carries no value; preserve the design-time default.
+               if(arr.length == 0) {
+                  return;
+               }
+
+               raw = arr[0];
             }
 
             Object coerced = Tool.getData(dtype, raw);
@@ -7927,6 +7934,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private VSBookmarkInfo openedBookmark; // the current opened bookmark
    private boolean onLoadExeced = false;
    private boolean parametersApplied = false;
+   // Accessed only while the write lock is held (resetRuntime → reset → applyParameterToInput),
+   // so a plain HashSet is safe here; no concurrent access occurs outside that path.
    private final Set<String> parametersAppliedAssemblies = new HashSet<>();
    private Map<String, Boolean> normalColumns = new ConcurrentHashMap<>();
    private boolean binding; // true if in binding pane
