@@ -543,7 +543,14 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
       try {
          return cluster.submit(id, new PutBlobTask<>(id, blob)).get(60L, TimeUnit.SECONDS);
       }
-      catch(TimeoutException | ExecutionException e) {
+      catch(TimeoutException e) {
+         // Timed out waiting — the node may be overloaded. Fail fast rather than
+         // retrying with the same timeout, which could stall the caller for 120 s.
+         throw new IOException("Timed out saving blob metadata at " + blob.getPath(), e);
+      }
+      catch(ExecutionException e) {
+         // Remote task failed (e.g. node shutdown / connection reset during rolling
+         // restart). Retry once — the cluster may have recovered by the time we resubmit.
          LOG.warn("Failed to save blob metadata for {}, retrying...", blob.getPath(), e);
 
          try {
@@ -555,6 +562,14 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
          catch(InterruptedException retryEx) {
             Thread.currentThread().interrupt();
             IOException ioEx = new IOException("Failed to save blob metadata at " + blob.getPath(), retryEx);
+            ioEx.addSuppressed(e);
+            throw ioEx;
+         }
+         catch(ExecutionException retryEx) {
+            Throwable cause = retryEx.getCause();
+            IOException ioEx = new IOException(
+               "Failed to save blob metadata at " + blob.getPath(),
+               cause != null ? cause : retryEx);
             ioEx.addSuppressed(e);
             throw ioEx;
          }
