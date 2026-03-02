@@ -469,6 +469,8 @@ public class ComposerObjectController {
             TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) parentContainer.getVSAssemblyInfo();
 
             if(tabInfo.isBottomTabs()) {
+               // In bottom-tabs mode all children share the same bottom edge (= tab bar top).
+               // Resizing one child reanchors all siblings' bottom edges to the new bottom.
                int newChildBottom = position.y + size.height;
                Point tabPos = tabInfo.getPixelOffset();
                int dy = newChildBottom - tabPos.y;

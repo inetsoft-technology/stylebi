@@ -182,7 +182,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    protected void writeAttributes(PrintWriter writer) {
       super.writeAttributes(writer);
       writer.print(" roundTopCornersOnly=\"" + roundTopCornersOnly + "\"");
-      writer.print(" bottomTabs=\"" + bottomTabs.toString() + "\"");
+      writer.print(" bottomTabs=\"" + bottomTabs.getDValue() + "\"");
       writer.print(" roundBottomCornersOnly=\"" + roundBottomCornersOnly + "\"");
    }
 
@@ -363,11 +363,13 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
          return;
       }
 
-      int tabHeight = tabInfo.getPixelSize().height;
+      Dimension tabDim = tabInfo.getPixelSize();
 
-      if(tabHeight == 0) {
+      if(tabDim == null || tabDim.height == 0) {
          return;
       }
+
+      int tabHeight = tabDim.height;
 
       int maxChildHeight = 0;
 

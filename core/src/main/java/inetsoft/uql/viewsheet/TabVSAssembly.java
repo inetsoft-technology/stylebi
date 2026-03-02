@@ -241,6 +241,11 @@ public class TabVSAssembly extends AbstractContainerVSAssembly {
                int childHeight = child instanceof VSAssembly &&
                   ((VSAssembly) child).getPixelSize() != null
                   ? ((VSAssembly) child).getPixelSize().height : 0;
+
+               if(childHeight == 0) {
+                  continue; // no valid size yet; skip
+               }
+
                y = Math.max(0, bounds.y - childHeight);
             }
             else {
