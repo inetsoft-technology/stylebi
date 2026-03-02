@@ -178,7 +178,11 @@ public class LogMonitoringService implements MessageListener {
          String clusterNode = entry.getValue();
          long remaining = deadline - System.currentTimeMillis();
 
-         if(remaining <= 0) {
+         // Only abandon a future that has not yet completed. If it is already
+         // done its result is available instantly (FutureTask.get() returns
+         // immediately for a completed task regardless of the timeout value),
+         // so collecting it does not consume any remaining budget.
+         if(remaining <= 0 && !future.isDone()) {
             future.cancel(true);
             skipped++;
             continue;
