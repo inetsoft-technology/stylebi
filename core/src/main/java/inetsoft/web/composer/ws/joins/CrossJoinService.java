@@ -59,7 +59,7 @@ public class CrossJoinService extends WorksheetControllerService {
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void executeCrossjoinAssemblies(@ClusterProxyKey String runtimeId, Principal principal,
-                                   CommandDispatcher dispatcher, String linkUri, String tableName) throws Exception
+                                          CommandDispatcher dispatcher, String linkUri, String tableName) throws Exception
    {
       final RuntimeSheet sheet = getWorksheetEngine().getSheet(runtimeId, principal);
 
@@ -75,24 +75,24 @@ public class CrossJoinService extends WorksheetControllerService {
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void doCrossJoin(@ClusterProxyKey String runtimeId, WSCrossJoinEvent event, Principal principal,
-      CommandDispatcher commandDispatcher) throws Exception
+                           CommandDispatcher commandDispatcher) throws Exception
    {
       RuntimeWorksheet rws = super.getWorksheetEngine()
          .getWorksheet(runtimeId, principal);
       final CrossJoinMetaInfo joinInfo = process(rws, event.getTableNames(), false);
 
-      if(joinInfo == null || joinInfo.joinTable == null) {
+      if(joinInfo == null || joinInfo.getJoinTable() == null) {
          return null;
       }
 
       rws.getWorksheet().checkDependencies();
-      final RelationalJoinTableAssembly jTable = joinInfo.joinTable;
+      final RelationalJoinTableAssembly jTable = joinInfo.getJoinTable();
       AssetEventUtil.initColumnSelection(rws, jTable);
       TableModeService.setDefaultTableMode(jTable, rws.getAssetQuerySandbox());
       WorksheetEventUtil.loadTableData(rws, jTable.getName(), true, false);
       WorksheetEventUtil.layout(rws, commandDispatcher);
 
-      if(joinInfo.newTable) {
+      if(joinInfo.isNewTable()) {
          WorksheetEventUtil.createAssembly(rws, jTable, commandDispatcher, principal);
          WorksheetEventUtil.focusAssembly(jTable.getName(), commandDispatcher);
       }
@@ -173,11 +173,11 @@ public class CrossJoinService extends WorksheetControllerService {
       CrossJoinMetaInfo joinInfo = null;
 
       for(int i = 1; i < assemblies.length; i++) {
-         String fromTable = joinInfo == null ? assemblies[i - 1] : joinInfo.joinTable.getName();
+         String fromTable = joinInfo == null ? assemblies[i - 1] : joinInfo.getJoinTable().getName();
          CrossJoinMetaInfo currInfo = concatenateTableCross(
             fromTable, assemblies[i], rws, newTable);
 
-         if(currInfo == null || currInfo.joinTable == null) {
+         if(currInfo == null || currInfo.getJoinTable() == null) {
             return null;
          }
 
@@ -276,6 +276,14 @@ public class CrossJoinService extends WorksheetControllerService {
       private CrossJoinMetaInfo(RelationalJoinTableAssembly joinTable, boolean newTable) {
          this.joinTable = joinTable;
          this.newTable = newTable;
+      }
+
+      public RelationalJoinTableAssembly getJoinTable() {
+         return joinTable;
+      }
+
+      public boolean isNewTable() {
+         return newTable;
       }
 
       protected final RelationalJoinTableAssembly joinTable;

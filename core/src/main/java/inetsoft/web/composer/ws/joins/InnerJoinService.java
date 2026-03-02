@@ -65,7 +65,7 @@ public class InnerJoinService extends WorksheetControllerService {
       if(event.getTableName() != null) {
          final RelationalJoinTableAssembly joinTableAssembly =
             (RelationalJoinTableAssembly) ws.getAssembly(event.getTableName());
-         editExistingJoinTable(rws, joinTableAssembly,
+         editExistingJoinTable(ws, joinTableAssembly,
                                noperator, false);
          WorksheetEventUtil.refreshColumnSelection(
             rws, joinTableAssembly.getName(), false);
@@ -126,7 +126,7 @@ public class InnerJoinService extends WorksheetControllerService {
             joinInfo = currInfo;
          }
 
-         joinTable = joinInfo == null ? null : joinInfo.joinTable.getAbsoluteName();
+         joinTable = joinInfo == null ? null : joinInfo.getJoinTable().getAbsoluteName();
       }
 
       validateWSAndDispatchCommands(commandDispatcher, rws, joinInfo, principal);
@@ -175,15 +175,15 @@ public class InnerJoinService extends WorksheetControllerService {
       JoinMetaInfo joinInfo, RuntimeWorksheet rws,
       CommandDispatcher commandDispatcher, Principal principal) throws Exception
    {
-      if(joinInfo == null || joinInfo.joinTable == null) {
+      if(joinInfo == null || joinInfo.getJoinTable() == null) {
          return;
       }
 
-      final RelationalJoinTableAssembly jtable = joinInfo.joinTable;
+      final RelationalJoinTableAssembly jtable = joinInfo.getJoinTable();
       AssetEventUtil.initColumnSelection(rws, jtable);
 
-      final AbstractTableAssembly targetTable = joinInfo.targetTable;
-      final AbstractTableAssembly sourceTable = joinInfo.sourceTable;
+      final AbstractTableAssembly targetTable = joinInfo.getTargetTable();
+      final AbstractTableAssembly sourceTable = joinInfo.getSourceTable();
       TableModeService.setDefaultTableMode(jtable, rws.getAssetQuerySandbox());
       AssetEventUtil.layoutResultantTable(targetTable, sourceTable, jtable);
       WorksheetEventUtil.layout(rws, commandDispatcher);
@@ -240,7 +240,8 @@ public class InnerJoinService extends WorksheetControllerService {
          noperator = new TableAssemblyOperator();
       }
 
-      outer: for(AbstractTableAssembly innerJoinTable : innerJoinTables) {
+      outer:
+      for(AbstractTableAssembly innerJoinTable : innerJoinTables) {
          AbstractTableAssembly leftTable, rightTable;
 
          if(targetJoinTable != null) {
@@ -283,7 +284,7 @@ public class InnerJoinService extends WorksheetControllerService {
             String[] pair = new String[2];
             pair[0] = sourceTable.getAbsoluteName();
             pair[1] = targetTable.getAbsoluteName();
-            jtable = CrossJoinService.process(rws, pair, true).joinTable;
+            jtable = CrossJoinService.process(rws, pair, true).getJoinTable();
          }
 
          if(jtable != null) {
@@ -309,7 +310,7 @@ public class InnerJoinService extends WorksheetControllerService {
             targetJoinTable.setTableAssemblies(narr);
          }
 
-         editExistingJoinTable(rws, targetJoinTable,
+         editExistingJoinTable(ws, targetJoinTable,
                                noperator, true);
 
          if(schemaTableInfo != null) {
@@ -426,8 +427,8 @@ public class InnerJoinService extends WorksheetControllerService {
     * From 12.2 EditInnerJoinOverEvent.
     * Creates a new inner join table
     *
-    * @param rws               the runtime worksheet
-    * @param noperator         the operators for the join table
+    * @param rws       the runtime worksheet
+    * @param noperator the operators for the join table
     */
    public RelationalJoinTableAssembly createNewInnerJoinTable(
       RuntimeWorksheet rws, TableAssemblyOperator noperator)
@@ -453,7 +454,7 @@ public class InnerJoinService extends WorksheetControllerService {
          TableAssemblyOperator top = new TableAssemblyOperator();
          TableAssemblyOperator.Operator op = noperator.getOperator(i);
          top.addOperator(op);
-         joined = concatenateTable(joined, top, rws);
+         joined = concatenateTable(joined, top, rws.getWorksheet());
       }
 
       return joined;
@@ -462,9 +463,8 @@ public class InnerJoinService extends WorksheetControllerService {
    private RelationalJoinTableAssembly concatenateTable(
       RelationalJoinTableAssembly jTable,
       TableAssemblyOperator operator,
-      RuntimeWorksheet rws)
+      Worksheet ws)
    {
-      Worksheet ws = rws.getWorksheet();
       TableAssembly ltable = (TableAssembly) ws.getAssembly(
          operator.getOperator(0).getLeftTable());
       TableAssembly rtable = (TableAssembly) ws.getAssembly(
@@ -666,7 +666,7 @@ public class InnerJoinService extends WorksheetControllerService {
     * From 12.2 EditJoinTypeOverEvent
     */
    public void editExistingJoinTable(
-      RuntimeWorksheet rws, RelationalJoinTableAssembly joinTableAssembly,
+      Worksheet ws, RelationalJoinTableAssembly joinTableAssembly,
       TableAssemblyOperator noperator, boolean containsNewTable) throws Exception
    {
       List<TableAssemblyOperator.Operator> operators = Arrays
@@ -723,7 +723,7 @@ public class InnerJoinService extends WorksheetControllerService {
             TableAssemblyOperator top = new TableAssemblyOperator();
             TableAssemblyOperator.Operator op = noperator.getOperator(i);
             top.addOperator(op);
-            joinTableAssembly = concatenateTable(joinTableAssembly, top, rws);
+            joinTableAssembly = concatenateTable(joinTableAssembly, top, ws);
          }
       }
 
@@ -774,7 +774,7 @@ public class InnerJoinService extends WorksheetControllerService {
 
       // ChrisSpagnoli bug1417795166475 2014-12-18
       // Check validity *after* processing of *all* operator updates completes.
-      for(Enumeration<?> e = joinTableAssembly.getOperatorTables(); e.hasMoreElements();) {
+      for(Enumeration<?> e = joinTableAssembly.getOperatorTables(); e.hasMoreElements(); ) {
          String[] pair = (String[]) e.nextElement();
          TableAssemblyOperator toperator =
             joinTableAssembly.getOperator(pair[0], pair[1]);
@@ -899,6 +899,22 @@ public class InnerJoinService extends WorksheetControllerService {
          this.newTable = newTable;
          this.targetTable = targetTable;
          this.sourceTable = sourceTable;
+      }
+
+      public RelationalJoinTableAssembly getJoinTable() {
+         return joinTable;
+      }
+
+      public boolean isNewTable() {
+         return newTable;
+      }
+
+      public AbstractTableAssembly getTargetTable() {
+         return targetTable;
+      }
+
+      public AbstractTableAssembly getSourceTable() {
+         return sourceTable;
       }
 
       final RelationalJoinTableAssembly joinTable;

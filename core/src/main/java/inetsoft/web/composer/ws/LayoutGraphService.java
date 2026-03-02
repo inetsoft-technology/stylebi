@@ -51,8 +51,15 @@ public class LayoutGraphService extends WorksheetControllerService {
                            CommandDispatcher commandDispatcher)
       throws Exception
    {
-      RuntimeWorksheet worksheet = getRuntimeWorksheet(runtimeId, principal);
+      RuntimeWorksheet rws = getRuntimeWorksheet(runtimeId, principal);
+      commandDispatcher.sendCommand(layoutGraph(rws.getWorksheet(), event));
+      return null;
+   }
 
+   public WSMoveAssembliesCommand layoutGraph(Worksheet worksheet,
+                                              WSLayoutGraphEvent event)
+      throws Exception
+   {
       mxGraph graph = new mxGraph();
       Object parent = graph.getDefaultParent();
       Map<String, Object> vertices = new HashMap<>();
@@ -66,9 +73,9 @@ public class LayoutGraphService extends WorksheetControllerService {
 
       for(String name : event.names()) {
          AssemblyEntry entry =
-            worksheet.getWorksheet().getAssembly(name).getAssemblyEntry();
+            worksheet.getAssembly(name).getAssemblyEntry();
 
-         for(AssemblyRef dependency : worksheet.getWorksheet().getDependeds(entry)) {
+         for(AssemblyRef dependency : worksheet.getDependeds(entry)) {
             String dname = dependency.getEntry().getName();
             // reverse the direction of the dependency during layout so that the direction
             // of the graph flows top-to-bottom (specifying SwingConstants.SOUTH does not
@@ -95,7 +102,7 @@ public class LayoutGraphService extends WorksheetControllerService {
          lefts[i] = geometry.getX() + 10;
 
          AbstractWSAssembly assembly = (AbstractWSAssembly)
-            worksheet.getWorksheet().getAssembly(event.names()[i]);
+            worksheet.getAssembly(event.names()[i]);
          assembly.setPixelOffset(
             new Point((int) Math.round(lefts[i]), (int) Math.round(tops[i])));
       }
@@ -104,8 +111,7 @@ public class LayoutGraphService extends WorksheetControllerService {
       command.setAssemblyNames(event.names());
       command.setTops(tops);
       command.setLefts(lefts);
-      commandDispatcher.sendCommand(command);
-      return null;
+      return command;
    }
 
    private void adjustNodesPositionToPositive(mxGraph graph, Map<String, Object> vertices) {
