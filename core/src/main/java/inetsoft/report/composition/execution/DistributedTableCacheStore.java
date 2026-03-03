@@ -51,12 +51,12 @@ public class DistributedTableCacheStore {
       clusterId = cluster.getId();
       storages = new ConcurrentHashMap<>();
 
-      // Use distributed executor so cleanup only runs on one node in the cluster
-      if(cluster.getLong(COUNTER_NAME).getAndIncrement() == 0) {
-         cluster.getScheduledExecutor().scheduleAtFixedRate(
-            new CleanupTableCacheTask(), 1L, CLEANUP_FREQUENCY_TIME,
-            TimeUnit.MINUTES);
-      }
+      // scheduleAtFixedRate is idempotent across the cluster (deduplicates by class name),
+      // so calling it on every construction is safe and ensures the task is re-registered
+      // whenever the distributed executor service is re-deployed after a node restart.
+      cluster.getScheduledExecutor().scheduleAtFixedRate(
+         new CleanupTableCacheTask(), 1L, CLEANUP_FREQUENCY_TIME,
+         TimeUnit.MINUTES);
 
       this.debouncer = new DefaultDebouncer<>(false);
    }
@@ -195,7 +195,6 @@ public class DistributedTableCacheStore {
    private final Debouncer<String> debouncer;
 
    private static final long CLEANUP_FREQUENCY_TIME = 30L; // minutes
-   private static final String COUNTER_NAME = DistributedTableCacheStore.class.getName() + ".counter";
    private static final Logger LOG = LoggerFactory.getLogger(DistributedTableCacheStore.class);
 
    public static final class Metadata implements Serializable {
