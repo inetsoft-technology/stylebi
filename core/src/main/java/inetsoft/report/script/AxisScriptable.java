@@ -85,6 +85,20 @@ public class AxisScriptable extends PropertyScriptable {
       }
 
       inited = true;
+
+      // Global axis scriptables (yAxis, xAxis, y2Axis) are constructed before RT
+      // descriptors exist, so axis may be null at construction time. Refresh from the
+      // current RT or base descriptor now that createRTAxisDescriptor() has run.
+      if(field == null && axis == null) {
+         axis = info instanceof VSChartInfo
+            ? ((VSChartInfo) info).getRTAxisDescriptor()
+            : null;
+
+         if(axis == null) {
+            axis = info.getAxisDescriptor();
+         }
+      }
+
       ChartRef ref = ChartProcessor.getRuntimeField(info, field);
       boolean radarParallel = "Parallel_Label".equals(field) &&
          (info instanceof RadarChartInfo);
@@ -140,6 +154,9 @@ public class AxisScriptable extends PropertyScriptable {
                         boolean.class, AxisDescriptor.class);
             addProperty("labelVisible", "isLabelVisible",
                         "setLabelVisible", boolean.class,
+                        AxisDescriptor.class);
+            addProperty("labelOnSecondaryAxis", "isLabelOnSecondaryAxis",
+                        "setLabelOnSecondaryAxis", boolean.class,
                         AxisDescriptor.class);
             addProperty("lineColor", "getLineColor", "setLineColor",
                         Color.class, AxisDescriptor.class);
