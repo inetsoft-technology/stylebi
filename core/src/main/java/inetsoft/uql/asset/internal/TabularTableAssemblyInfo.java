@@ -24,6 +24,7 @@ import inetsoft.uql.util.Config;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.lang.Nullable;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
@@ -60,8 +61,12 @@ public class TabularTableAssemblyInfo extends BoundTableAssemblyInfo {
    }
 
    /**
-    * Get the SQL Query
+    * Get the SQL Query.
+    *
+    * <p>May return {@code null} if the data source plugin was not found during
+    * deserialization (e.g. missing connector). All callers must guard against null.
     */
+   @Nullable
    public TabularQuery getQuery() {
       return this.query;
    }
@@ -130,7 +135,9 @@ public class TabularTableAssemblyInfo extends BoundTableAssemblyInfo {
             }
          }
          catch(ClassNotFoundException ex) {
-            LOG.error("Data source plugin missing: " + cls);
+            LOG.error("Data source plugin missing: {}", cls);
+            // query remains null after this early return (plugin not available).
+            // Callers of getQuery() must handle null to avoid NullPointerException.
             return;
          }
       }
