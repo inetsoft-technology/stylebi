@@ -96,7 +96,11 @@ public class VSDialogService {
                childInfo.getLayoutPosition().translate(xchange, ychange);
             }
 
-            childInfo.getPixelOffset().translate(xchange, ychange);
+            Point childPos = childInfo.getPixelOffset();
+
+            if(childPos != null) {
+               childPos.translate(xchange, ychange);
+            }
          }
       }
    }

@@ -527,6 +527,11 @@ public class ComposerObjectController {
 
          VSAssemblyInfo childInfo = childAssembly.getVSAssemblyInfo();
          int childH = childAssembly.getPixelSize() != null ? childAssembly.getPixelSize().height : 0;
+
+         if(childH == 0) {
+            continue; // no valid size yet; skip
+         }
+
          int targetY = Math.max(0, newChildBottom - childH);
          Point childPos = childInfo.getPixelOffset();
 
@@ -637,7 +642,11 @@ public class ComposerObjectController {
                containerInfo.getLayoutPosition().translate(xchange, ychange);
             }
 
-            containerInfo.getPixelOffset().translate(xchange, ychange);
+            Point containerPos = containerInfo.getPixelOffset();
+
+            if(containerPos != null) {
+               containerPos.translate(xchange, ychange);
+            }
          }
          else if(!moveParent) {
             if(info.getLayoutPosition() != null) {
@@ -677,7 +686,11 @@ public class ComposerObjectController {
             childInfo.getLayoutPosition().translate(xchange, ychange);
          }
 
-         childInfo.getPixelOffset().translate(xchange, ychange);
+         Point childPos = childInfo.getPixelOffset();
+
+         if(childPos != null) {
+            childPos.translate(xchange, ychange);
+         }
 
          if(childAssembly instanceof ContainerVSAssembly) {
             moveContainer(viewsheet, (ContainerVSAssembly) childAssembly, xchange, ychange);
