@@ -147,7 +147,7 @@ public class JobCompletionListener extends JobListenerSupport {
             contextPrincipal == null)
          {
             if(identity == null) {
-               principal = SUtil.getPrincipal(owner, addr, true);
+               principal = SUtil.getScheduleTaskOwnerPrincipal(owner, addr, true);
             }
             else {
                principal = SUtil.getPrincipal(identity, addr, true);
