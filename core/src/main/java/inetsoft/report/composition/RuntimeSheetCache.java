@@ -130,25 +130,38 @@ public class RuntimeSheetCache
    public RuntimeSheet get(Object key) {
       if(key instanceof String id) {
          AffinityKey<String> affinityKey = getAffinityKey(id);
-         boolean loadFromCache;
          lock.readLock().lock();
 
          try {
             if(local.containsKey(id)) {
                return local.get(id);
             }
-
-            loadFromCache = cache.containsKey(affinityKey);
          }
          finally {
             lock.readLock().unlock();
          }
 
-         if(loadFromCache) {
+         // Use a single cache.get() outside the local lock instead of the two-step
+         // containsKey()+get() pattern. This eliminates:
+         //   1. The TOCTOU window between containsKey and get.
+         //   2. False-negative containsKey results during Ignite DHT partition
+         //      rebalancing (topology changes in AKS), where containsKey can return
+         //      false for keys that are in the process of being migrated.
+         //   3. Holding the local read lock across a potentially slow Ignite network
+         //      call, which blocks all writers unnecessarily.
+         CompressedSheetState state = cache.get(affinityKey);
+
+         if(state != null) {
             lock.writeLock().lock();
 
             try {
-               RuntimeSheet sheet = toSheet(cache.get(affinityKey));
+               // Re-check local under the write lock: another thread may have already
+               // loaded and cached this sheet between our cache.get() and lock acquire.
+               if(local.containsKey(id)) {
+                  return local.get(id);
+               }
+
+               RuntimeSheet sheet = toSheet(state);
 
                if(sheet != null) {
                   if(!isLocal(affinityKey)) {
