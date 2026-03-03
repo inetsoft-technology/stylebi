@@ -17,6 +17,7 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, EventEmitter, Input, Output } from "@angular/core";
+import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assistant.service";
 import { AiAssistantDialogService } from "../../common/services/ai-assistant-dialog.service";
 import { ContextProvider } from "../../vsobjects/context-provider.service";
 import { VSObjectModel } from "../../vsobjects/model/vs-object-model";
@@ -40,6 +41,7 @@ export class ObjectWizardToolBarComponent {
    elementName: string = "_#(js:Visualization Recommender)";
 
    constructor(public aiAssistantDialogService: AiAssistantDialogService,
+               private aiAssistantService: AiAssistantService,
                private context: ContextProvider,
                private http: HttpClient)
    {
@@ -143,4 +145,10 @@ export class ObjectWizardToolBarComponent {
             action: () => this.cancel()
          }
       ];
+
+   openAiAssistantDialog(): void {
+      this.aiAssistantService.lastBindingObject =
+         !!this.vsObject ? this.vsObject.objectType + "^^" + this.vsObject.absoluteName : "";
+      this.aiAssistantDialogService.openAiAssistantDialog();
+   }
 }
