@@ -96,7 +96,12 @@ public class AxisPropertyDialogModel implements Serializable {
          maxMode ? axisDesc.isMaxModeLabelVisible() : axisDesc.isLabelVisible());
       axisLabelPaneModel.setShowAxisLabelEnabled(showAxisLabelEnabled);
       axisLabelPaneModel.setLabelOnSecondaryAxis(axisDesc.isLabelOnSecondaryAxis());
-      axisLabelPaneModel.setSecondary("right_y_axis".equals(axisType) ||
+
+      // A right_y_axis click can mean either a true secondary y-axis OR a primary axis whose
+      // labels were moved to the right via "Labels on Opposite Side".
+      // Only hide the option for a true secondary axis.
+      axisLabelPaneModel.setSecondary(
+         ("right_y_axis".equals(axisType) && !axisDesc.isLabelOnSecondaryAxis()) ||
          GraphTypes.isRadar(cInfo.getRTChartType()) ||
          GraphTypes.isMekko(cInfo.getRTChartType()));
 
