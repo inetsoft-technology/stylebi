@@ -330,6 +330,11 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
             roundBottomCornersOnly = tinfo.roundBottomCornersOnly;
             result = true;
          }
+
+         if(roundTopCornersOnly != tinfo.roundTopCornersOnly) {
+            roundTopCornersOnly = tinfo.roundTopCornersOnly;
+            result = true;
+         }
       }
 
       return result;

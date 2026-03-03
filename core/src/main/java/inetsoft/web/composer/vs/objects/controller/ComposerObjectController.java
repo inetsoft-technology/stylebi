@@ -572,7 +572,11 @@ public class ComposerObjectController {
             childInfo.getLayoutPosition().translate(0, ychange);
          }
 
-         childInfo.getPixelOffset().translate(0, ychange);
+         Point childPos = childInfo.getPixelOffset();
+
+         if(childPos != null) {
+            childPos.translate(0, ychange);
+         }
 
          if(childAssembly instanceof GroupContainerVSAssembly) {
             this.updateContainerChildrenYChange((GroupContainerVSAssembly) childAssembly, viewsheet, ychange);
