@@ -16,8 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Dimension } from "../../common/data/dimension";
+import { TableDataPathTypes } from "../../common/data/table-data-path-types";
 import { Tool } from "../../../../../shared/util/tool";
 import { ViewsheetClientService } from "../../common/viewsheet-client";
+import { VSInputModel } from "../model/vs-input-model";
 import { ChartSelection } from "../../graph/model/chart-selection";
 import { ChartTool } from "../../graph/model/chart-tool";
 import { FormatVSObjectEvent } from "../event/format-vs-object-event";
@@ -50,6 +52,17 @@ const INPUT_TYPES = {
    "VSSlider": true,
    "VSSpinner": true,
    "VSSelectionTree": true
+};
+
+const INPUT_LABEL_DATA_PATH = {
+   level: -1,
+   col: false,
+   row: false,
+   type: TableDataPathTypes.INPUT_LABEL,
+   dataType: "string",
+   path: [],
+   index: 0,
+   colIndex: -1
 };
 
 const KEY_NAV_ENABLED = {
@@ -211,6 +224,11 @@ export namespace VSUtil {
          default:
             // no changes to newModel
             break;
+      }
+
+      // Preserve labelSelected state for input components
+      if(INPUT_TYPES[objectType]) {
+         (<VSInputModel> newModel).labelSelected = (<VSInputModel> oldModel).labelSelected;
       }
 
       return newModel;
@@ -423,12 +441,19 @@ export namespace VSUtil {
          }
          else {
             event.objects.push(obj.absoluteName);
-            data = Tool.clone(obj.selectedRegions);
 
-            //shouldn't setFormat for multiple regions
-            if(obj.objectType === "VSCalendar" && obj.selectedRegions && obj.selectedRegions.length > 0) {
-               let selectRegion = obj.selectedRegions[obj.selectedRegions.length - 1];
-               data = Tool.clone([selectRegion]);
+            // Handle input label selection - set dataPath to INPUT_LABEL type
+            if(INPUT_TYPES[obj.objectType] && (<VSInputModel> obj).labelSelected) {
+               data = [INPUT_LABEL_DATA_PATH];
+            }
+            else {
+               data = Tool.clone(obj.selectedRegions);
+
+               //shouldn't setFormat for multiple regions
+               if(obj.objectType === "VSCalendar" && obj.selectedRegions && obj.selectedRegions.length > 0) {
+                  let selectRegion = obj.selectedRegions[obj.selectedRegions.length - 1];
+                  data = Tool.clone([selectRegion]);
+               }
             }
 
             if(data) {
@@ -494,7 +519,16 @@ export namespace VSUtil {
          vsevent.column = table.firstSelectedColumn;
       }
 
-      vsevent.dataPath = object?.selectedRegions?.[object.selectedRegions.length - 1];
+      // Handle input label selection - set dataPath to INPUT_LABEL type
+      if(object && INPUT_TYPES[object.objectType] &&
+         (<VSInputModel> object).labelSelected)
+      {
+         vsevent.dataPath = INPUT_LABEL_DATA_PATH;
+      }
+      else {
+         vsevent.dataPath = object?.selectedRegions?.[object.selectedRegions.length - 1];
+      }
+
       return vsevent;
    }
 

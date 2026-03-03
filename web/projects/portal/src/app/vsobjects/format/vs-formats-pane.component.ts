@@ -28,7 +28,7 @@ import {
    ViewChild
 } from "@angular/core";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
-import { FormatInfoModel } from "../../common/data/format-info-model";
+import { FontInfo, FormatInfoModel } from "../../common/data/format-info-model";
 import { VSObjectFormatInfoModel } from "../../common/data/vs-object-format-info-model";
 import { FormatTool } from "../../common/util/format-tool";
 import { Tool } from "../../../../../shared/util/tool";
@@ -39,6 +39,7 @@ import { BaseTableModel } from "../model/base-table-model";
 import { PrintLayoutSection } from "../model/layout/print-layout-section";
 import { VSTextModel } from "../model/output/vs-text-model";
 import { VSChartModel } from "../model/vs-chart-model";
+import { VSInputModel } from "../model/vs-input-model";
 import { VSObjectModel } from "../model/vs-object-model";
 import { VSGaugeModel } from "../model/output/vs-gauge-model";
 import { ColorDropdown } from "../../widget/color-picker/color-dropdown.component";
@@ -166,6 +167,11 @@ export class VSFormatsPane implements OnInit, OnChanges {
    @Input()
    set format(format: FormatInfoModel | VSObjectFormatInfoModel) {
       this._format = format;
+
+      // Ensure font is initialized so font-pane can work with it
+      if(format && !format.font) {
+         format.font = new FontInfo();
+      }
 
       if(format && (format as any).type &&
          (format as any).type.indexOf("VSObjectFormatInfoModel") != -1)
@@ -364,8 +370,13 @@ export class VSFormatsPane implements OnInit, OnChanges {
          let nonGroupAssemblies = this._focusedAssemblies
             .filter(assembly => !parentContainers.has(assembly.absoluteName));
 
-         //disabled if textInput, calendar comboBox, or shape is focused
+         //disabled if textInput, inputLabel, calendar comboBox, or shape is focused
          return !!nonGroupAssemblies.find((object) => {
+            // Allow formatting for input labels when selected
+            if(this.isInputType(object) && (<VSInputModel> object).labelSelected) {
+               return true;
+            }
+
             return object.objectType == "VSTextInput" || object.objectType == "VSLine" ||
                object.objectType == "VSGroupContainer" || object.objectType == "VSTab" ||
                object.objectType == "VSRectangle" || object.objectType == "VSOval" ||
@@ -403,6 +414,10 @@ export class VSFormatsPane implements OnInit, OnChanges {
                return true;
             }
 
+            if(this.isInputType(object) && (<VSInputModel> object).labelSelected) {
+               return true;
+            }
+
             return this.measureBarSelected(object) || this.isNonEditableChartVOSelected(object);
          });
       }
@@ -433,6 +448,11 @@ export class VSFormatsPane implements OnInit, OnChanges {
    isWrapTextDisabled(): boolean {
       if(this._focusedAssemblies && this._focusedAssemblies.length) {
          return !!this._focusedAssemblies.find((object) => {
+            // Disable wrap text for input labels when selected
+            if(this.isInputType(object) && (<VSInputModel> object).labelSelected) {
+               return true;
+            }
+
             if(object.objectType == "VSChart" && !(<VSChartModel> object).titleSelected ||
                object.objectType == "VSTab" || object.objectType == "VSTextInput")
             {
@@ -705,6 +725,15 @@ export class VSFormatsPane implements OnInit, OnChanges {
              object.selectedRegions && object.selectedRegions.some(region =>
                 region.path[0] == "Measure Bar" || region.path[0] == "Measure Bar(-)"
              );
+   }
+
+   private isInputType(object: VSObjectModel): boolean {
+      return object.objectType === "VSTextInput" ||
+             object.objectType === "VSCheckBox" ||
+             object.objectType === "VSRadioButton" ||
+             object.objectType === "VSComboBox" ||
+             object.objectType === "VSSlider" ||
+             object.objectType === "VSSpinner";
    }
 
    private selectedDetailCell(object: VSObjectModel) {

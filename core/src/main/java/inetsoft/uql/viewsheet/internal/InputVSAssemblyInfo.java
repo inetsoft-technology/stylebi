@@ -192,6 +192,21 @@ public abstract class InputVSAssemblyInfo extends VSAssemblyInfo {
 
       list.add(autoRefresh);
 
+      if(labelInfo != null) {
+         list.addAll(labelInfo.getViewDynamicValues());
+      }
+
+      return list;
+   }
+
+   @Override
+   public List<DynamicValue> getViewDynamicValues(boolean all) {
+      List<DynamicValue> list = super.getViewDynamicValues(all);
+
+      if(labelInfo != null) {
+         list.addAll(labelInfo.getViewDynamicValues());
+      }
+
       return list;
    }
 
@@ -284,6 +299,10 @@ public abstract class InputVSAssemblyInfo extends VSAssemblyInfo {
          writer.print("<![CDATA[" + rowValue.getDValue() + "]]>");
          writer.println("</rowValue>");
       }
+
+      if(labelInfo != null) {
+         labelInfo.writeXML(writer);
+      }
    }
 
    /**
@@ -318,6 +337,8 @@ public abstract class InputVSAssemblyInfo extends VSAssemblyInfo {
       if(rnode != null) {
          rowValue.setDValue(Tool.getValue(rnode));
       }
+
+      labelInfo.parseXML(elem);
    }
 
    /**
@@ -351,6 +372,10 @@ public abstract class InputVSAssemblyInfo extends VSAssemblyInfo {
             if(autoRefresh != null) {
                info.autoRefresh = (DynamicValue) autoRefresh.clone();
             }
+
+            if(labelInfo != null) {
+               info.labelInfo = (LabelInfo) labelInfo.clone();
+            }
          }
 
          return info;
@@ -369,6 +394,11 @@ public abstract class InputVSAssemblyInfo extends VSAssemblyInfo {
 
       if(!Tool.equals(autoRefresh, cinfo.autoRefresh)) {
          autoRefresh.setDValue(cinfo.autoRefresh.getDValue());
+         result = true;
+      }
+
+      if(!Tool.equals(labelInfo, cinfo.getLabelInfo())) {
+         labelInfo = cinfo.labelInfo != null ? (LabelInfo) cinfo.labelInfo.clone() : null;
          result = true;
       }
 
@@ -650,6 +680,22 @@ public abstract class InputVSAssemblyInfo extends VSAssemblyInfo {
       return strictNull;
    }
 
+   /**
+    * Get the label info for this input.
+    * @return the label info.
+    */
+   public LabelInfo getLabelInfo() {
+      return labelInfo;
+   }
+
+   /**
+    * Set the label info for this input.
+    * @param labelInfo the label info.
+    */
+   public void setLabelInfo(LabelInfo labelInfo) {
+      this.labelInfo = labelInfo;
+   }
+
    // input data
    private String table;
    private DynamicValue columnValue;
@@ -663,6 +709,7 @@ public abstract class InputVSAssemblyInfo extends VSAssemblyInfo {
    private boolean strictNull = true; // for bc
    private DynamicValue submitOnChange;
    private DynamicValue2 writeBackValue;
+   private LabelInfo labelInfo = new LabelInfo();
 
    private static final Logger LOG =
       LoggerFactory.getLogger(InputVSAssemblyInfo.class);
