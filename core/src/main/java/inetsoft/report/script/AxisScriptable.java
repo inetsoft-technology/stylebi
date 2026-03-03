@@ -62,6 +62,18 @@ public class AxisScriptable extends PropertyScriptable {
    }
 
    /**
+    * Create a scriptable for a specific axis descriptor.
+    * @param isXAxis the axis is xAxis or x2Axis if true.
+    * @param isY2Axis the axis is the secondary Y axis if true.
+    */
+   public AxisScriptable(ChartInfo cinfo, AxisDescriptor axis, boolean isXAxis, boolean isY2Axis) {
+      this.info = cinfo;
+      this.axis = axis;
+      this.isXAxis = isXAxis;
+      this.isY2Axis = isY2Axis;
+   }
+
+   /**
     * Get the name of the set of objects implemented by this Java class.
     */
    @Override
@@ -90,9 +102,10 @@ public class AxisScriptable extends PropertyScriptable {
       // descriptors exist, so axis may be null at construction time. Refresh from the
       // current RT or base descriptor now that createRTAxisDescriptor() has run.
       if(field == null && axis == null) {
-         axis = info instanceof VSChartInfo
-            ? ((VSChartInfo) info).getRTAxisDescriptor()
-            : null;
+         if(info instanceof VSChartInfo) {
+            VSChartInfo vsInfo = (VSChartInfo) info;
+            axis = isY2Axis ? vsInfo.getRTAxisDescriptor2() : vsInfo.getRTAxisDescriptor();
+         }
 
          if(axis == null) {
             axis = info.getAxisDescriptor();
@@ -385,6 +398,7 @@ public class AxisScriptable extends PropertyScriptable {
    private ChartInfo info;
    private boolean inited = false;
    private boolean isXAxis = false;
+   private boolean isY2Axis = false;
    private boolean isFieldAxis = false;
 
    private static final Logger LOG =
