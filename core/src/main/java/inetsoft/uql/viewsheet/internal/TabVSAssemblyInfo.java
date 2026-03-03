@@ -412,7 +412,11 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
          }
 
          VSAssemblyInfo childInfo = child.getVSAssemblyInfo();
-         int childHeight = child.getPixelSize() != null ? child.getPixelSize().height : maxChildHeight;
+         int childHeight = child.getPixelSize() != null ? child.getPixelSize().height : 0;
+
+         if(childHeight == 0) {
+            continue; // no valid size yet; consistent with TabVSAssembly.updateChildPosition
+         }
 
          int newChildY = toBottomTabs
             ? Math.max(0, newTabY - childHeight)
@@ -471,9 +475,8 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    }
 
    /**
-    * Returns the effective bottomTabs value (runtime if set, otherwise design-time).
-    * {@link DynamicValue#getRValue()} already handles the dvalue fallback for non-expression
-    * values, so this works correctly in both design and runtime contexts.
+    * Returns the effective bottomTabs value, reflecting the runtime value if set,
+    * otherwise the design-time value.
     */
    public boolean isBottomTabs() {
       Object rval = bottomTabs.getRValue();

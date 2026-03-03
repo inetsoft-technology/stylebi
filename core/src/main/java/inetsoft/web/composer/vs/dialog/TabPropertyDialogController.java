@@ -230,7 +230,7 @@ public class TabPropertyDialogController {
       // @by changhongyang 2017-10-10, move tab children in addition to tab
       if(sizePositionPaneModel.getLeft() >= 0 && sizePositionPaneModel.getTop() >= 0) {
          dialogService.setContainerPosition(tabAssemblyInfo, sizePositionPaneModel,
-                                            tabAssembly.getAssemblies(), vs);
+                                            tabAssemblyInfo.getAssemblies(), vs);
 
          ChangedAssemblyList clist = this.coreLifecycleService.createList(false,
             commandDispatcher, viewsheet, linkUri);
