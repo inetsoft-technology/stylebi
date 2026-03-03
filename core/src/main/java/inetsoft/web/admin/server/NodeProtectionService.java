@@ -60,11 +60,9 @@ public class NodeProtectionService implements MembershipListener, MapChangeListe
          if(clusterConfig != null && !clusterConfig.isClientMode()) {
             cluster.addReplicatedMapListener(NODE_PROTECTION_MAP, this);
 
-            if(cluster.getLong(COUNTER_NAME).getAndIncrement() == 0) {
-               // first instance, start task
-               cluster.getScheduledExecutor().scheduleAtFixedRate(
-                  new NodeProtectionCoordinatorTask(), 20L, 20L, TimeUnit.SECONDS);
-            }
+            // scheduleAtFixedRate is idempotent across the cluster (deduplicates by class name)
+            cluster.getScheduledExecutor().scheduleAtFixedRate(
+               new NodeProtectionCoordinatorTask(), 20L, 20L, TimeUnit.SECONDS);
 
             if(clusterConfig.getMinSingleInstanceUptime() > 0L) {
                minUptime = Duration.ofSeconds(clusterConfig.getMinSingleInstanceUptime());
@@ -226,7 +224,6 @@ public class NodeProtectionService implements MembershipListener, MapChangeListe
    private boolean sessionProtected = false;
    private boolean instanceProtected = false;
    private final Lock lock = new ReentrantLock();
-   private static final String COUNTER_NAME = NodeProtectionService.class.getName() + ".counter";
    public static final String NODE_PROTECTION_MAP = NodeProtectionService.class.getName() + ".nodeProtectionMap";
    private static final Logger LOG = LoggerFactory.getLogger(NodeProtectionService.class);
 }
