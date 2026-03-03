@@ -64,6 +64,13 @@ public class XDataSourceWrapper implements XMLSerializable {
       setSource(null);
       String name = Tool.getAttribute(elem, "name");
       String type = Tool.getAttribute(elem, "type");
+      String legacyType = null;
+
+      if("GOOGLE_ANALYTICS".equals(type)) {
+         legacyType = type;
+         type = "GOOGLE_ANALYTICS_GA4";
+      }
+
       String cls = Config.getDataSourceClass(type);
 
       if(cls == null) {
@@ -89,6 +96,13 @@ public class XDataSourceWrapper implements XMLSerializable {
          // to conform to the query_TYPE convention
          if(list2.getLength() > 0) {
             dsNode = elem.getFirstChild();
+         }
+         else if(legacyType != null) {
+            NodeList legacyList = Tool.getChildNodesByTagName(elem, "ds_" + legacyType);
+
+            if(legacyList.getLength() > 0) {
+               dsNode = legacyList.item(0);
+            }
          }
       }
       else {

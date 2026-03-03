@@ -112,6 +112,13 @@ public class TabularTableAssemblyInfo extends BoundTableAssemblyInfo {
             cls = Config.getQueryClass(type);
          }
 
+         if(Objects.equals(cls, "inetsoft.uql.googleanalytics.AnalyticsQuery")) {
+            cls = "inetsoft.uql.googleanalyticsga4.AnalyticsQuery";
+            type = "GOOGLE_ANALYTICS_GA4";
+            LOG.warn("Legacy Google Analytics query '{}' loaded as GA4 - account, property, " +
+                     "metrics and dimensions must be reconfigured.", getName());
+         }
+
          node = Tool.getFirstChildNode(node);
 
          if(cls == null) {
