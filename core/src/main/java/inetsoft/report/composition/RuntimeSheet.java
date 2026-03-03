@@ -484,7 +484,7 @@ public abstract class RuntimeSheet {
 
    abstract RuntimeSheetState saveState(ObjectMapper mapper);
 
-   void saveState(RuntimeSheetState state, ObjectMapper mapper) {
+   synchronized void saveState(RuntimeSheetState state, ObjectMapper mapper) {
       state.setEntry(saveXml(entry));
       state.setAccessed(accessed);
 
