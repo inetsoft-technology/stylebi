@@ -1363,6 +1363,12 @@ public abstract class VSAQuery {
    public static void appendCalcField(TableAssembly table, String tname,
                                       boolean detail, Viewsheet vs)
    {
+      appendCalcField(table, tname, detail, false, vs);
+   }
+
+   protected static void appendCalcField(TableAssembly table, String tname,
+                                      boolean detail, boolean range, Viewsheet vs)
+   {
       if(table == null) {
          return;
       }
@@ -1381,6 +1387,10 @@ public abstract class VSAQuery {
                continue;
             }
 
+            if(range && !calcs[i].getName().startsWith("Range@")) {
+               continue;
+            }
+
             // clear the mirror table entity-prefixed calc_field
             // to avoid duplicates when adding the bare calc_field
             DataRef old = columns.getAttribute(calcs[i].getName());
@@ -1390,7 +1400,7 @@ public abstract class VSAQuery {
             }
 
             calcs[i].setVisible(true);
-            columns.addAttribute((CalculateRef) calcs[i].clone());
+            columns.addAttribute(calcs[i].clone());
             changed = true;
          }
 
