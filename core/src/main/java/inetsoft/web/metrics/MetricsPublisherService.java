@@ -43,11 +43,9 @@ public class MetricsPublisherService {
       MetricsConfig metricsConfig = InetsoftConfig.getInstance().getMetrics();
 
       if(metricsConfig != null && metricsConfig.getType() != null) {
-         if(cluster.getLong(COUNTER_NAME).getAndIncrement() == 0) {
-            // first instance, start task
-            cluster.getScheduledExecutor().scheduleAtFixedRate(
-               new PublishMetricsTask(), 120L, 60L, TimeUnit.SECONDS);
-         }
+         // scheduleAtFixedRate is idempotent across the cluster (deduplicates by class name)
+         cluster.getScheduledExecutor().scheduleAtFixedRate(
+            new PublishMetricsTask(), 120L, 60L, TimeUnit.SECONDS);
       }
    }
 
@@ -63,6 +61,5 @@ public class MetricsPublisherService {
    private final ScalingMetricsService metricsService;
    private Cluster cluster;
    private DistributedMap<String, Double> scalingMetricMap;
-   private static final String COUNTER_NAME = MetricsPublisherService.class.getName() + ".counter";
    public static final String SCALING_METRIC_MAP = MetricsPublisherService.class.getName() + ".scalingMetricMap";
 }
