@@ -71,7 +71,7 @@ public class ScheduleTaskJob implements InterruptableJob {
             // Bug #40798, don't audit logins for internal tasks
             if(!ScheduleManager.isInternalTask(taskName)) {
                if(identity == null) {
-                  principal = SUtil.getPrincipal(task.getOwner(), addr, true);
+                  principal = SUtil.getScheduleTaskOwnerPrincipal(task.getOwner(), addr, true);
                }
                else {
                   principal = SUtil.getPrincipal(identity, addr, true);

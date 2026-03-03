@@ -192,7 +192,7 @@ public class CloudRunner implements Callable<Integer> {
             IdentityID owner = task.getOwner();
 
             if(identity == null) {
-               principal = SUtil.getPrincipal(owner, addr, false);
+               principal = SUtil.getScheduleTaskOwnerPrincipal(owner, addr, false);
             }
             else {
                principal = SUtil.getPrincipal(identity, addr, false);

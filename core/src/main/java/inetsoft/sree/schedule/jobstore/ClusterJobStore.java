@@ -1299,7 +1299,7 @@ public class ClusterJobStore implements JobStore, Serializable {
 
       if(!ScheduleManager.isInternalTask(taskName)) {
          if(task.getIdentity() == null) {
-            principal = SUtil.getPrincipal(task.getOwner(), addr, true);
+            principal = SUtil.getScheduleTaskOwnerPrincipal(task.getOwner(), addr, true);
          }
          else {
             principal = SUtil.getPrincipal(task.getIdentity(), addr, true);
