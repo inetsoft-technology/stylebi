@@ -3659,19 +3659,38 @@ public final class Tool extends CoreTool {
     * @throws IOException if an I/O error occurs.
     */
    private static InetAddress getLocalIP0() throws IOException {
+      // In containerized Linux environments (e.g. AKS), eth0 is the primary pod
+      // interface. Prefer it explicitly to avoid secondary bridge or tunnel interfaces
+      // (e.g. Azure CNI bridge) whose IPs may sort lexicographically before the pod's
+      // actual IP, causing incorrect IP selection.
+      try {
+         NetworkInterface eth0 = NetworkInterface.getByName("eth0");
+
+         if(eth0 != null && eth0.isUp() && !eth0.isLoopback()) {
+            Enumeration<InetAddress> addrs = eth0.getInetAddresses();
+
+            while(addrs.hasMoreElements()) {
+               InetAddress addr = addrs.nextElement();
+
+               if(addr instanceof Inet4Address && !addr.isLoopbackAddress()) {
+                  return addr;
+               }
+            }
+         }
+      }
+      catch(Exception ignored) {
+      }
+
+      // Fall back to existing behavior on non-Linux or when eth0 is not available.
       InetAddress[] addresses = getIPAddresses(true);
-      InetAddress address;
 
       if(addresses.length == 0) {
          // Fall back to the JVM default, this is non-deterministic on machines
          // with multiple network interfaces.
-         address = InetAddress.getLocalHost();
-      }
-      else {
-         address = addresses[0];
+         return InetAddress.getLocalHost();
       }
 
-      return address;
+      return addresses[0];
    }
 
    /**

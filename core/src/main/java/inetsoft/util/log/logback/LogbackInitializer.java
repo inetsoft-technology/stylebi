@@ -73,7 +73,7 @@ public class LogbackInitializer implements LogInitializer {
 
       LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
       context.reset();
-      context.putProperty("LOCAL_IP_ADDR", Tool.getIP());
+      context.putProperty("LOCAL_IP_ADDR", logFileDiscriminator != null ? logFileDiscriminator : Tool.getIP());
       context.addTurboFilter(new IgniteBinaryWarningFilter());
       context.addTurboFilter(new LogbackSpringExceptionFilter());
       context.addTurboFilter(new LogbackContextFilter());
