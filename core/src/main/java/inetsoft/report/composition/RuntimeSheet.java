@@ -994,7 +994,7 @@ public abstract class RuntimeSheet {
                output = Tool.createCompressOutputStream(new FileOutputStream(file));
             }
 
-            if(disposed) {
+            if(disposed || sheet == null) {
                return;
             }
 
