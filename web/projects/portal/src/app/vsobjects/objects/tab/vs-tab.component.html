@@ -33,6 +33,7 @@
          (click)="changeTab(model.childrenNames[tabID])" tabindex="-1"
          [class.disable-events]="disableEvents"
          [class.round-top-corners-only]="model.roundTopCornersOnly"
+         [class.round-bottom-corners-only]="model.roundBottomCornersOnly"
          [style.background-color]="getFormat(tabID).background"
          [style.align-items]="getFlexVAlign(tabID)"
          [style.border-bottom]="getBorder(tabID).bottom"
@@ -58,7 +59,7 @@
            [ngStyle]="getTabItemBottomBorderStyle(tabID)">
       </div>
     </div>
-    <div class="tab-bottom-border" [style.border-bottom]="getBottomBorder()"
+    <div *ngIf="!model.bottomTabs" class="tab-bottom-border" [style.border-bottom]="getBottomBorder()"
          (click)="model.selectedRegions = []">
     </div>
   </div>

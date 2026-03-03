@@ -22,8 +22,10 @@ import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.TabVSAssembly;
+import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.VSObjectTreeNode;
@@ -114,6 +116,8 @@ public class TabPropertyDialogController {
       SizePositionPaneModel sizePositionPaneModel = tabGeneralPaneModel.getSizePositionPaneModel();
       VSAssemblyScriptPaneModel.Builder vsAssemblyScriptPaneModel = VSAssemblyScriptPaneModel.builder();
 
+      tabGeneralPaneModel.setBottomTabs(tabAssemblyInfo.getBottomTabsValue());
+
       generalPropPaneModel.setShowEnabledGroup(true);
       generalPropPaneModel.setEnabled(tabAssemblyInfo.getEnabledValue());
 
@@ -172,6 +176,9 @@ public class TabPropertyDialogController {
          throw e;
       }
 
+      // Capture the current value before any modifications so we can detect a change below.
+      boolean oldBottomTabs = tabAssemblyInfo.getBottomTabsValue();
+
       TabGeneralPaneModel tabGeneralPaneModel = value.getTabGeneralPaneModel();
       GeneralPropPaneModel generalPropPaneModel = tabGeneralPaneModel.getGeneralPropPaneModel();
       BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
@@ -187,19 +194,6 @@ public class TabPropertyDialogController {
       String[] assemblies = tabListPaneModel.getAssemblies();
       String[] labels = tabListPaneModel.getLabels();
 
-      // @by changhongyang 2017-10-10, move tab children in addition to tab
-      if(sizePositionPaneModel.getLeft() >= 0 && sizePositionPaneModel.getTop() >= 0) {
-         dialogService.setContainerPosition(tabAssemblyInfo, sizePositionPaneModel,
-                                            tabAssembly.getAssemblies(), vs);
-
-         ChangedAssemblyList clist = this.coreLifecycleService.createList(false,
-            commandDispatcher, viewsheet, linkUri);
-         this.coreLifecycleService.layoutViewsheet(viewsheet, viewsheet.getID(), linkUri,
-            commandDispatcher, tabAssembly.getAbsoluteName(), clist);
-      }
-
-      dialogService.setAssemblySize(tabAssemblyInfo, sizePositionPaneModel);
-
       for(int i = 0; i < labels.length; i++) {
          if(labels[i] == null || labels[i].isEmpty()) {
             labels[i] = assemblies[i];
@@ -211,6 +205,40 @@ public class TabPropertyDialogController {
 
       tabAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       tabAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
+
+      tabAssemblyInfo.setBottomTabsValue(tabGeneralPaneModel.getBottomTabs());
+
+      // Apply the mode flip before setContainerPosition for two reasons:
+      //
+      // 1. setContainerPosition computes its translation delta as (userTargetY - currentTabY).
+      //    Running the mode flip first makes currentTabY the post-flip position, so the delta
+      //    moves the tab bar to exactly the Y the user entered even when both changes are
+      //    submitted together.
+      //
+      // 2. setContainerPosition calls tabAssemblyInfo.isBottomTabs() to decide whether to add
+      //    a height-change correction to the Y delta.  isBottomTabs() reads
+      //    DynamicValue.getRValue(), which falls back to dvalue when rvalue is null.
+      //    setBottomTabsValue() calls DynamicValue.setDValue(), which clears rvalue whenever
+      //    the value changes.  Therefore, after setBottomTabsValue(newMode), calling
+      //    isBottomTabs() returns newMode via that fallback — even though only dvalue was set,
+      //    not rvalue — so the height correction is applied in the right direction.
+      if(oldBottomTabs != tabGeneralPaneModel.getBottomTabs()) {
+         TabVSAssemblyInfo.repositionForBottomTabs(tabAssemblyInfo, vs,
+                                                   tabGeneralPaneModel.getBottomTabs());
+      }
+
+      // @by changhongyang 2017-10-10, move tab children in addition to tab
+      if(sizePositionPaneModel.getLeft() >= 0 && sizePositionPaneModel.getTop() >= 0) {
+         dialogService.setContainerPosition(tabAssemblyInfo, sizePositionPaneModel,
+                                            tabAssemblyInfo.getAssemblies(), vs);
+
+         ChangedAssemblyList clist = this.coreLifecycleService.createList(false,
+            commandDispatcher, viewsheet, linkUri);
+         this.coreLifecycleService.layoutViewsheet(viewsheet, viewsheet.getID(), linkUri,
+            commandDispatcher, tabAssembly.getAbsoluteName(), clist);
+      }
+
+      dialogService.setAssemblySize(tabAssemblyInfo, sizePositionPaneModel);
 
       this.vsObjectPropertyService.editObjectProperty(
          viewsheet, tabAssemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri, principal,

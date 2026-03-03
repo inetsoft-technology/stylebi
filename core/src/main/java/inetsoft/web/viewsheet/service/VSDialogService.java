@@ -74,7 +74,11 @@ public class VSDialogService {
          if(containerInfo instanceof TabVSAssemblyInfo) {
             Dimension originalSize = containerInfo.getLayoutSize() != null ?
                containerInfo.getLayoutSize() : vs.getPixelSize(containerInfo);
-            ychange += height - originalSize.height;
+            if (!((TabVSAssemblyInfo) containerInfo).isBottomTabs()) {
+               // Top-tabs: children sit below the bar, so a taller bar pushes them down.
+               // Bottom-tabs: children sit above the bar, which grows downward — no correction needed.
+               ychange += height - originalSize.height;
+            }
          }
 
          setAssemblyPosition(containerInfo, model);
@@ -92,7 +96,11 @@ public class VSDialogService {
                childInfo.getLayoutPosition().translate(xchange, ychange);
             }
 
-            childInfo.getPixelOffset().translate(xchange, ychange);
+            Point childPos = childInfo.getPixelOffset();
+
+            if(childPos != null) {
+               childPos.translate(xchange, ychange);
+            }
          }
       }
    }
