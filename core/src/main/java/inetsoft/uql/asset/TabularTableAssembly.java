@@ -296,6 +296,10 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
             set.add(new AssemblyRef(new AssemblyEntry(name, AbstractSheet.TABLE_ASSET)));
          }
       }
+      else {
+         LOG.debug("getDependeds() skipped for '{}': query is null (data source plugin may be missing)",
+                   getName());
+      }
    }
 
    @Override
@@ -317,6 +321,10 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
          String[] used = query.getDependedAssets(names.toArray(new String[0]));
          Arrays.stream(used).forEach(
             (name) -> addToDependencyTypes(dependeds, name, DependencyType.TABULAR_SUBQUERY));
+      }
+      else {
+         LOG.debug("getAugmentedDependeds() skipped for '{}': query is null (data source plugin may be missing)",
+                   getName());
       }
    }
 
