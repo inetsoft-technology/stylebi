@@ -23,7 +23,7 @@ import java.io.Serializable;
 
 /**
  * Data transfer object that represents the {@link SliderPropertyDialogModel} for the
- * textinput property dialog
+ * slider property dialog
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SliderPropertyDialogModel implements Serializable {
@@ -75,8 +75,21 @@ public class SliderPropertyDialogModel implements Serializable {
       this.sliderAdvancedPaneModel = sliderAdvancedPaneModel;
    }
 
+   public void setInputLabelPaneModel(InputLabelPaneModel inputLabelPaneModel) {
+      this.inputLabelPaneModel = inputLabelPaneModel;
+   }
+
+   public InputLabelPaneModel getInputLabelPaneModel() {
+      if(inputLabelPaneModel == null) {
+         inputLabelPaneModel = new InputLabelPaneModel();
+      }
+
+      return inputLabelPaneModel;
+   }
+
    private SliderGeneralPaneModel sliderGeneralPaneModel;
    private DataInputPaneModel dataInputPaneModel;
    private SliderAdvancedPaneModel sliderAdvancedPaneModel;
    private VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel;
+   private InputLabelPaneModel inputLabelPaneModel;
 }

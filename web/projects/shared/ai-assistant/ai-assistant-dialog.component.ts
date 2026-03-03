@@ -26,6 +26,7 @@ import { AiAssistantService } from "./ai-assistant.service";
 })
 export class AiAssistantDialogComponent {
    context: string = "";
+   newChat: boolean = false;
 
    // Use getters so Angular re-evaluates on each change-detection cycle.
    get chatAppServerUrl(): string { return this.aiAssistantService.chatAppServerUrl; }
@@ -35,5 +36,7 @@ export class AiAssistantDialogComponent {
 
    constructor(private aiAssistantService: AiAssistantService) {
       this.context = this.aiAssistantService.getFullContext();
+      this.newChat = this.aiAssistantService.createNewChat;
+      this.aiAssistantService.resetNewChat();
    }
 }

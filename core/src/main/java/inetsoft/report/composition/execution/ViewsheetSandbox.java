@@ -356,6 +356,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       try {
          Worksheet ws = getWorksheet();
 
+         parametersApplied = false;
+         parametersAppliedAssemblies.clear();
          metarep.clear();
          shrink();
          vs.resetWS();
@@ -1744,6 +1746,14 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             clist.mergeCore(clist2);
             clist.mergeFilters(clist2);
          }
+      }
+
+      if(initing) {
+         parametersApplied = true;
+         // The flag now short-circuits the refreshVariable() guard for the rest of this
+         // init cycle, so the set will never be consulted again until the next
+         // resetRuntime(). Clear it eagerly to reclaim memory.
+         parametersAppliedAssemblies.clear();
       }
 
       for(int i = 0; i < thisParameterScriptAssemblies.size(); i++) {
@@ -3916,6 +3926,13 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private void refreshVariable(InputVSAssembly iassembly, boolean initing, ChangedAssemblyList clist)
       throws Exception
    {
+      // During init, if the variable table already has a value for this assembly
+      // (e.g. from hyperlink parameters), apply it to the assembly so it takes
+      // effect as the default selected value.
+      if(initing && wbox != null && !parametersApplied) {
+         applyParameterToInput(iassembly);
+      }
+
       Object cdata = null; // single value
       Object mdata = null; // multiple value (null or array)
 
@@ -3987,6 +4004,110 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          vt.put(iassembly.getName(), mdata == null ? cdata : mdata);
          applyComboBoxDateFormat(iassembly, vt, iassembly.getName());
          wbox.refreshVariableTable(vt);
+      }
+   }
+
+   /**
+    * If the variable table has a parameter value matching this input assembly's name,
+    * apply it as the assembly's selected value with type coercion. This handles
+    * hyperlink parameters defaulting matching input components in child viewsheets.
+    *
+    * <p><b>Variable table scope:</b> This method checks the variable table without
+    * discriminating between genuine hyperlink parameters and other variables that
+    * happen to share the same name (e.g. worksheet variables loaded by
+    * {@code executeVariablesQuery}, or URL query parameters on a direct open).
+    * For drill-down navigation the table is cleared before hyperlink parameters are
+    * injected, so only explicit hyperlink parameters are present at this point.
+    * For direct URL opens the table may also contain worksheet variables; if a
+    * worksheet variable and an input assembly share the same local name the variable's
+    * value will seed the assembly's initial selection. This is intentional: the two
+    * are considered logically related (the assembly drives the variable through
+    * {@link #refreshVariable(InputVSAssembly, boolean, ChangedAssemblyList)}),
+    * so starting them in sync is the correct semantic.
+    * Viewsheets where a worksheet variable and an unrelated input assembly share a
+    * name by accident may observe unexpected initial selections as a result.
+    */
+   private void applyParameterToInput(InputVSAssembly iassembly) {
+      if(wbox == null) {
+         return;
+      }
+
+      VariableTable vt = wbox.getVariableTable();
+      // Hyperlink parameters are keyed by the assembly's local name.
+      String name = iassembly.getName();
+
+      if(!vt.contains(name)) {
+         return;
+      }
+
+      // Dependency chains can cause refreshVariable() to be called more than once for
+      // the same assembly before parametersApplied is set. Use the absolute name as the
+      // dedup key so that same-named assemblies in parent and embedded viewsheets are
+      // tracked independently.
+      if(!parametersAppliedAssemblies.add(iassembly.getAbsoluteName())) {
+         return;
+      }
+
+      Object val;
+
+      try {
+         val = vt.get(name);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to look up hyperlink parameter for input assembly: " + name, e);
+         return;
+      }
+
+      // Null parameter values are intentionally ignored to preserve design-time defaults;
+      // a null entry in the variable table should not clear an existing default selection.
+      // Note: VariableTable.put() also normalises empty and all-null Object[] arrays to null,
+      // so this guard implicitly covers those cases as well.
+      if(val == null) {
+         return;
+      }
+
+      String dtype = iassembly.getDataType();
+
+      try {
+         if(iassembly instanceof SingleInputVSAssembly) {
+            Object raw = val;
+
+            if(raw instanceof Object[]) {
+               Object[] arr = (Object[]) raw;
+               raw = arr[0];
+            }
+
+            Object coerced = Tool.getData(dtype, raw);
+
+            if(coerced != null) {
+               // Return value is an output-reset hint; ignored here because the full
+               // init cycle refreshes output after all assemblies are processed.
+               ((SingleInputVSAssembly) iassembly).setSelectedObject(coerced);
+            }
+         }
+         else if(iassembly instanceof CompositeInputVSAssembly) {
+            Object[] arr = val instanceof Object[] ? (Object[]) val
+               : new Object[] { val };
+            List<Object> coerced = new ArrayList<>();
+
+            for(Object item : arr) {
+               Object c = Tool.getData(dtype, item);
+
+               if(c != null) {
+                  coerced.add(c);
+               }
+            }
+
+            if(!coerced.isEmpty()) {
+               // Return value is an output-reset hint; ignored here because the full
+               // init cycle refreshes output after all assemblies are processed.
+               ((CompositeInputVSAssembly) iassembly)
+                  .setSelectedObjects(coerced.toArray());
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to coerce hyperlink parameter value for input assembly: " + name, e);
       }
    }
 
@@ -7897,6 +8018,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private Map<String, String> limitMessages; //record the asselby limit message.
    private VSBookmarkInfo openedBookmark; // the current opened bookmark
    private boolean onLoadExeced = false;
+   private boolean parametersApplied = false;
+   // Accessed only while the write lock is held (resetRuntime → reset → applyParameterToInput),
+   // so a plain HashSet is safe here; no concurrent access occurs outside that path.
+   private final Set<String> parametersAppliedAssemblies = new HashSet<>();
    private Map<String, Boolean> normalColumns = new ConcurrentHashMap<>();
    private boolean binding; // true if in binding pane
    private final Map<Integer, Set<String>> delayedVisibilityAssemblies = new ConcurrentHashMap<>();

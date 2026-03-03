@@ -18,11 +18,13 @@
 import {
    Component,
    ElementRef,
+   EventEmitter,
    Input,
    NgZone,
    OnChanges,
    OnDestroy,
    OnInit,
+   Output,
    SimpleChanges,
    ViewChild
 } from "@angular/core";
@@ -93,6 +95,7 @@ export class VSTextInput extends NavigationComponent<VSTextInputModel>
 
       if(!selected && this.model) {
          this.model.editing = false;
+         this.model.labelSelected = false;
       }
    }
 
@@ -364,6 +367,20 @@ export class VSTextInput extends NavigationComponent<VSTextInputModel>
          if(!!date && !!date.years && !!date.months && !!date.date) {
             this.date = {year: date.years, month: date.months + 1, day: date.date};
          }
+      }
+   }
+
+   selectLabel(event: MouseEvent): void {
+      if(this.context.preview) {
+         return;
+      }
+
+      this.model.labelSelected = true;
+   }
+
+   clearLabelSelection(): void {
+      if(this.model) {
+         this.model.labelSelected = false;
       }
    }
 }

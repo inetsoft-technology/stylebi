@@ -37,9 +37,16 @@ input {
   border-width: 1px;
 }
 
-div {
-  position: absolute;
+.TextInput {
+  position: relative;
   resize: none;
+  width: 100%;
+  height: 100%;
+}
+
+.TextInputEntryArea {
+  width: 100%;
+  height: 100%;
 }
 
 .disable-input {

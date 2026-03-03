@@ -47,6 +47,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
       super();
 
       labelsValue.setDValue(new String[0]);
+      bottomTabs.setDValue("false");
       setPixelSize(new Dimension(3 * AssetUtil.defw, 24));
    }
 
@@ -104,6 +105,14 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
       labelsValue.setDValue(labels);
    }
 
+   public void setBottomTabsValue(boolean bottomTabs) {
+      this.bottomTabs.setDValue(String.valueOf(bottomTabs));
+   }
+
+   public boolean getBottomTabsValue() {
+      return Boolean.parseBoolean(bottomTabs.getDValue());
+   }
+
    /**
     * Get the selected object name.
     * @return the name of the selected object.
@@ -156,6 +165,9 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
             }
          }
 
+         info.bottomTabs = bottomTabs == null ?
+            null : (DynamicValue) bottomTabs.clone();
+
          return info;
       }
       catch(Exception ex) {
@@ -169,6 +181,8 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    protected void writeAttributes(PrintWriter writer) {
       super.writeAttributes(writer);
       writer.print(" roundTopCornersOnly=\"" + roundTopCornersOnly + "\"");
+      writer.print(" bottomTabs=\"" + bottomTabs.getDValue() + "\"");
+      writer.print(" roundBottomCornersOnly=\"" + roundBottomCornersOnly + "\"");
    }
 
    @Override
@@ -178,6 +192,18 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
 
       if(str != null) {
          roundTopCornersOnly = Boolean.parseBoolean(str);
+      }
+
+      str = Tool.getAttribute(elem, "bottomTabs");
+
+      if(str != null) {
+         bottomTabs.setDValue(str);
+      }
+
+      str = Tool.getAttribute(elem, "roundBottomCornersOnly");
+
+      if(str != null) {
+         roundBottomCornersOnly = Boolean.parseBoolean(str);
       }
    }
 
@@ -295,6 +321,21 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
             selectedValue = tinfo.selectedValue;
             result = true;
          }
+
+         if(!Tool.equals(bottomTabs, tinfo.bottomTabs)) {
+            bottomTabs = tinfo.bottomTabs;
+            result = true;
+         }
+
+         if(roundBottomCornersOnly != tinfo.roundBottomCornersOnly) {
+            roundBottomCornersOnly = tinfo.roundBottomCornersOnly;
+            result = true;
+         }
+
+         if(roundTopCornersOnly != tinfo.roundTopCornersOnly) {
+            roundTopCornersOnly = tinfo.roundTopCornersOnly;
+            result = true;
+         }
       }
 
       return result;
@@ -309,6 +350,95 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    }
 
    /**
+    * Adjusts child assembly positions and the tab bar position when the bottomTabs property
+    * is toggled. Callers must guard against redundant calls — calling this method twice with
+    * the same value will shift the tab bar and children twice. Use
+    * {@link #isBottomTabs()} to check the current flag before calling.
+    *
+    * Top-tabs: every child's top edge is flush with the tab bar bottom.
+    * Bottom-tabs: every child's bottom edge is flush with the tab bar top.
+    */
+   public static void repositionForBottomTabs(TabVSAssemblyInfo tabInfo,
+                                              Viewsheet vs,
+                                              boolean toBottomTabs)
+   {
+      String[] children = tabInfo.getAssemblies();
+
+      if(children == null || children.length == 0 || vs == null) {
+         return;
+      }
+
+      Dimension tabDim = tabInfo.getPixelSize();
+
+      if(tabDim == null || tabDim.height == 0) {
+         return;
+      }
+
+      Point tabPos = tabInfo.getPixelOffset();
+
+      if(tabPos == null) {
+         return;
+      }
+
+      int tabHeight = tabDim.height;
+
+      int maxChildHeight = 0;
+
+      for(String childName : children) {
+         VSAssembly child = (VSAssembly) vs.getAssembly(childName);
+
+         if(child != null && child.getPixelSize() != null) {
+            maxChildHeight = Math.max(maxChildHeight, child.getPixelSize().height);
+         }
+      }
+
+      if(maxChildHeight == 0) {
+         return;
+      }
+
+      int tabDy = toBottomTabs ? maxChildHeight : -maxChildHeight;
+      int newTabY = Math.max(0, tabPos.y + tabDy);
+      int actualTabDy = newTabY - tabPos.y;
+      tabInfo.setPixelOffset(new Point(tabPos.x, newTabY));
+
+      if(tabInfo.getLayoutPosition() != null) {
+         tabInfo.getLayoutPosition().translate(0, actualTabDy);
+      }
+
+      for(String childName : children) {
+         VSAssembly child = (VSAssembly) vs.getAssembly(childName);
+
+         if(child == null) {
+            continue;
+         }
+
+         VSAssemblyInfo childInfo = child.getVSAssemblyInfo();
+         int childHeight = child.getPixelSize() != null ? child.getPixelSize().height : 0;
+
+         if(childHeight == 0) {
+            continue; // no valid size yet; consistent with TabVSAssembly.updateChildPosition
+         }
+
+         int newChildY = toBottomTabs
+            ? Math.max(0, newTabY - childHeight)
+            : newTabY + tabHeight;
+
+         Point childPos = child.getPixelOffset();
+
+         if(childPos == null) {
+            continue;
+         }
+
+         int actualDy = newChildY - childPos.y;
+         childInfo.setPixelOffset(new Point(childPos.x, newChildY));
+
+         if(childInfo.getLayoutPosition() != null) {
+            childInfo.getLayoutPosition().translate(0, actualDy);
+         }
+      }
+   }
+
+   /**
     * Reset runtime values.
     */
    @Override
@@ -317,6 +447,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
 
       labelsValue.setRValue(null);
       selectedValue.setRValue(null);
+      bottomTabs.setRValue(null);
    }
 
    /**
@@ -344,9 +475,32 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
       this.roundTopCornersOnly = roundTopCornersOnly;
    }
 
+   /**
+    * Returns the effective bottomTabs value, reflecting the runtime value if set,
+    * otherwise the design-time value.
+    */
+   public boolean isBottomTabs() {
+      Object rval = bottomTabs.getRValue();
+      return Boolean.parseBoolean(rval != null ? rval.toString() : "false");
+   }
+
+   public void setBottomTabs(boolean bottomTabs) {
+      this.bottomTabs.setRValue(bottomTabs);
+   }
+
+   public boolean isRoundBottomCornersOnly() {
+      return roundBottomCornersOnly;
+   }
+
+   public void setRoundBottomCornersOnly(boolean roundBottomCornersOnly) {
+      this.roundBottomCornersOnly = roundBottomCornersOnly;
+   }
+
    private ClazzHolder<String[]> labelsValue = new ClazzHolder<>();
    private DynamicValue selectedValue = new DynamicValue();
    private boolean roundTopCornersOnly = true;
+   private DynamicValue bottomTabs = new DynamicValue();
+   private boolean roundBottomCornersOnly;
 
    public static final TableDataPath ACTIVE_TAB_PATH =
       new TableDataPath(-1, TableDataPath.DETAIL);

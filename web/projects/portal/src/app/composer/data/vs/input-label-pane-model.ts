@@ -1,4 +1,4 @@
-/*!
+/*
  * This file is part of StyleBI.
  * Copyright (C) 2024  InetSoft Technology
  *
@@ -15,28 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-/* Component Defaults */
-.vs-spinner {
-   width: 100%;
-   height: 100%;
-}
-
-input {
-   type: number;
-   min: 0;
-   max: 100;
-   position: relative;
-   width: 100%;
-   height: 100%;
-}
-
-input::-webkit-inner-spin-button {
-  min-width: 8px;
-  min-height: 18px;
-}
-
-.text-label {
-  display: flex;
-  width: 100%;
-  height: 100%;
+export interface InputLabelPaneModel {
+   showLabel: boolean;
+   labelText: string;
+   labelPosition: string;  // "top" | "bottom" | "left" | "right"
+   labelGap: number;
 }
