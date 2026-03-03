@@ -76,19 +76,30 @@ public class DistributedTableCacheStore {
    public TableLens get(DataKey dataKey, long touchTime) throws Exception {
       String key = getKey(dataKey);
       BlobStorage<Metadata> storage = getStorage();
-      TableLens lens = null;
 
       // don't return stale data from the store
       if(touchTime > 0 && storage.getLastModified(key).toEpochMilli() < touchTime) {
          return null;
       }
 
-      try(InputStream storageInputStream = storage.getInputStream(key);
-          GZIPInputStream gzipIn = new GZIPInputStream(storageInputStream);
+      // Read the raw bytes while holding the Ignite distributed lock, then release the lock
+      // before deserializing. Deserialization of XSwappableTable calls XSwapper.waitForMemory()
+      // which acquires waitLock. Holding an Ignite distributed lock across that call creates a
+      // cross-layer lock ordering dependency that leads to deadlock under concurrent export
+      // workloads. (Bug #73990)
+      byte[] data;
+
+      try(InputStream storageInputStream = storage.getInputStream(key)) {
+         data = storageInputStream.readAllBytes();
+      }
+
+      // Ignite distributed lock is now released; decompress and deserialize without holding it
+      try(GZIPInputStream gzipIn = new GZIPInputStream(new ByteArrayInputStream(data));
           ObjectInputStream ois = new ObjectInputStream(gzipIn))
       {
-         lens = (TableLens) ois.readObject();
+         TableLens lens = (TableLens) ois.readObject();
          LOG.debug("Loaded lens {} from distributed table cache store", key);
+         return lens;
       }
       catch(ZipException ex) {
          // Uncompressed entry written before this change; delete it so subsequent
@@ -101,9 +112,9 @@ public class DistributedTableCacheStore {
          catch(IOException deleteEx) {
             LOG.debug("Failed to delete stale uncompressed entry {}", key, deleteEx);
          }
-      }
 
-      return lens;
+         return null;
+      }
    }
 
    void put(DataKey dataKey, TableLens lens) {

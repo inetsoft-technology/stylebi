@@ -30,6 +30,8 @@ import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -437,7 +439,17 @@ public final class XSwapper {
                }
 
                try {
-                  Thread.sleep(200);
+                  if(deadlock) {
+                     Thread.sleep(200);
+                  }
+                  else {
+                     // Use Condition.await() instead of Thread.sleep() so that waitLock is
+                     // released during the wait. Holding waitLock across Thread.sleep() blocks
+                     // all threads that need to enter waitForMemory(), including threads that
+                     // hold critical locks (VS write lock, Ignite distributed locks), causing a
+                     // distributed deadlock under high-concurrency export workloads. (Bug #73990)
+                     waitCondition.await(200, TimeUnit.MILLISECONDS);
+                  }
                }
                catch(InterruptedException exc) {
                }
@@ -900,6 +912,7 @@ public final class XSwapper {
    private final AtomicLong criticalWaitCount = new AtomicLong(0L);
 
    private final Lock waitLock = new ReentrantLock();
+   private final Condition waitCondition = waitLock.newCondition();
    private final Object swapLock = "swapLock";
 
    private final static AtomicLong counter = new AtomicLong(0);
