@@ -46,10 +46,7 @@ export enum ContextType {
    TABLE = "table",
    PORTAL_DATA = "portal",
    EM = "em",
-   VIEWSHEET_SCRIPT = "viewsheetScript",
    WORKSHEET_SCRIPT = "worksheetScript",
-   CHART_SCRIPT = "chartScript",
-   CROSSTAB_SCRIPT = "crosstabScript",
    DASHBOARD_PORTAL = "dashboardPortal",
    SCHEDULE_TASK = "scheduleTask"
 }
