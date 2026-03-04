@@ -144,7 +144,7 @@ public class TabularTableAssemblyInfo extends BoundTableAssemblyInfo {
 
       node = Tool.getChildNodeByTagName(elem, "datasource");
 
-      if(node != null) {
+      if(node != null && query != null) {
          String name = Tool.getAttribute(node, "name");
          XRepository repository = XFactory.getRepository();
          XDataSource dataSource = repository.getDataSource(name);

@@ -118,6 +118,8 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
       TabularQuery query = getTabularTableAssemblyInfo().getQuery();
 
       if(query == null) {
+         LOG.debug("replaceVariables() skipped for '{}': query is null (data source plugin may be missing)",
+                   getName());
          return;
       }
 
@@ -132,6 +134,8 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
       TabularQuery query = getTabularTableAssemblyInfo().getQuery();
 
       if(query == null) {
+         LOG.debug("dependencyChanged() skipped for '{}': query is null (data source plugin may be missing)",
+                   getName());
          return;
       }
 
@@ -158,6 +162,8 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
       TabularQuery query = getTabularTableAssemblyInfo().getQuery();
 
       if(query == null) {
+         LOG.debug("loadColumnSelection() skipped for '{}': query is null (data source plugin may be missing)",
+                   getName());
          return;
       }
 
@@ -414,6 +420,8 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
       TabularQuery query = info.getQuery();
 
       if(query == null) {
+         LOG.debug("printKey() returning false for '{}': query is null (data source plugin may be missing)",
+                   getName());
          return false;
       }
 
