@@ -3110,7 +3110,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    refreshAiAssistantContext(): void {
       this.aiAssistantService.resetContextMap();
       const contextType = this.focusedSheet ? this.focusedSheet.type : "";
-      this.aiAssistantService.setContextTypeFieldValue(contextType || ContextType.VIEWSHEET);
+      this.aiAssistantService.setContextTypeFieldValue(contextType === "worksheet" ?
+         ContextType.WORKSHEET : ContextType.VIEWSHEET);
 
       if(contextType === "worksheet") {
          this.aiAssistantDialogService.setWorksheetContext(this.focusedSheet as Worksheet);
