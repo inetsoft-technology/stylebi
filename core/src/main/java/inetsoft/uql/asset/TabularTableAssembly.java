@@ -295,16 +295,16 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
 
       TabularQuery query = getTabularTableAssemblyInfo().getQuery();
 
-      if(query != null) {
-         String[] used = query.getDependedAssets(names.toArray(new String[0]));
-
-         for(String name : used) {
-            set.add(new AssemblyRef(new AssemblyEntry(name, AbstractSheet.TABLE_ASSET)));
-         }
-      }
-      else {
+      if(query == null) {
          LOG.debug("getDependeds() skipped for '{}': query is null (data source plugin may be missing)",
                    getName());
+         return;
+      }
+
+      String[] used = query.getDependedAssets(names.toArray(new String[0]));
+
+      for(String name : used) {
+         set.add(new AssemblyRef(new AssemblyEntry(name, AbstractSheet.TABLE_ASSET)));
       }
    }
 
@@ -323,15 +323,15 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
 
       TabularQuery query = getTabularTableAssemblyInfo().getQuery();
 
-      if(query != null) {
-         String[] used = query.getDependedAssets(names.toArray(new String[0]));
-         Arrays.stream(used).forEach(
-            (name) -> addToDependencyTypes(dependeds, name, DependencyType.TABULAR_SUBQUERY));
-      }
-      else {
+      if(query == null) {
          LOG.debug("getAugmentedDependeds() skipped for '{}': query is null (data source plugin may be missing)",
                    getName());
+         return;
       }
+
+      String[] used = query.getDependedAssets(names.toArray(new String[0]));
+      Arrays.stream(used).forEach(
+         (name) -> addToDependencyTypes(dependeds, name, DependencyType.TABULAR_SUBQUERY));
    }
 
    /**
