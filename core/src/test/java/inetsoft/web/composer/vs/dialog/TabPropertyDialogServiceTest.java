@@ -44,7 +44,7 @@ import static org.mockito.Mockito.*;
 
 @SreeHome()
 @ExtendWith(MockitoExtension.class)
-class TabPropertyDialogControllerTest {
+class TabPropertyDialogServiceTest {
    // Shared viewsheet and assemblies initialised once per test in setUp.
    private Viewsheet realVS;
    private TabVSAssembly tab;
