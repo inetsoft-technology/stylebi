@@ -24,12 +24,10 @@ import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.VSObjectTreeNode;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
-import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,12 +52,11 @@ class TabPropertyDialogControllerTest {
 
    @BeforeEach
    void setUp() throws Exception {
-      controller = new TabPropertyDialogController(
+      service = new TabPropertyDialogService(
          vsObjectPropertyService,
-         runtimeViewsheetRef,
          vsObjectTreeService,
          coreLifecycleService,
-         new VSDialogService(),      // real service — we test its interaction with the controller
+         new VSDialogService(),      // real service — we test its interaction with the service
          viewsheetService);
 
       // Build a minimal viewsheet with one Tab containing one Text child.
@@ -81,7 +78,6 @@ class TabPropertyDialogControllerTest {
       realVS.addAssembly(tab);
       realVS.addAssembly(child);
 
-      when(runtimeViewsheetRef.getRuntimeId()).thenReturn("vs1");
       when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(realVS);
       when(rvs.getID()).thenReturn("vs1");
@@ -100,7 +96,7 @@ class TabPropertyDialogControllerTest {
    void testFlipToBottomTabsKeepsSamePosition() throws Exception {
       TabPropertyDialogModel model = buildModel("Tab1", true, 10, 200, 200, 30);
 
-      controller.setTabPropertyDialogModel("Tab1", model, "", null, commandDispatcher);
+      service.setTabPropertyDialogModel("vs1", "Tab1", model, "", null, commandDispatcher);
 
       ArgumentCaptor<TabVSAssemblyInfo> captor = ArgumentCaptor.forClass(TabVSAssemblyInfo.class);
       verify(vsObjectPropertyService).editObjectProperty(
@@ -126,7 +122,7 @@ class TabPropertyDialogControllerTest {
       // User moves the tab to Y=300 and also switches to bottom-tabs.
       TabPropertyDialogModel model = buildModel("Tab1", true, 10, 300, 200, 30);
 
-      controller.setTabPropertyDialogModel("Tab1", model, "", null, commandDispatcher);
+      service.setTabPropertyDialogModel("vs1", "Tab1", model, "", null, commandDispatcher);
 
       ArgumentCaptor<TabVSAssemblyInfo> captor = ArgumentCaptor.forClass(TabVSAssemblyInfo.class);
       verify(vsObjectPropertyService).editObjectProperty(
@@ -163,7 +159,7 @@ class TabPropertyDialogControllerTest {
       // User moves tab to Y=300, switches to bottom-tabs, and grows height from 30 to 50.
       TabPropertyDialogModel model = buildModel("Tab1", true, 10, 300, 200, 50);
 
-      controller.setTabPropertyDialogModel("Tab1", model, "", null, commandDispatcher);
+      service.setTabPropertyDialogModel("vs1", "Tab1", model, "", null, commandDispatcher);
 
       ArgumentCaptor<TabVSAssemblyInfo> captor = ArgumentCaptor.forClass(TabVSAssemblyInfo.class);
       verify(vsObjectPropertyService).editObjectProperty(
@@ -196,7 +192,7 @@ class TabPropertyDialogControllerTest {
       // User keeps tab at Y=400 and grows height from 30 to 50.
       TabPropertyDialogModel model = buildModel("Tab1", false, 10, 400, 200, 50);
 
-      controller.setTabPropertyDialogModel("Tab1", model, "", null, commandDispatcher);
+      service.setTabPropertyDialogModel("vs1", "Tab1", model, "", null, commandDispatcher);
 
       ArgumentCaptor<TabVSAssemblyInfo> captor = ArgumentCaptor.forClass(TabVSAssemblyInfo.class);
       verify(vsObjectPropertyService).editObjectProperty(
@@ -230,7 +226,7 @@ class TabPropertyDialogControllerTest {
 
       TabPropertyDialogModel model = buildModel("Tab1", false, 10, 400, 200, 30);
 
-      controller.setTabPropertyDialogModel("Tab1", model, "", null, commandDispatcher);
+      service.setTabPropertyDialogModel("vs1", "Tab1", model, "", null, commandDispatcher);
 
       ArgumentCaptor<TabVSAssemblyInfo> captor = ArgumentCaptor.forClass(TabVSAssemblyInfo.class);
       verify(vsObjectPropertyService).editObjectProperty(
@@ -284,7 +280,6 @@ class TabPropertyDialogControllerTest {
       return dialogModel;
    }
 
-   @Mock RuntimeViewsheetRef runtimeViewsheetRef;
    @Mock CommandDispatcher commandDispatcher;
    @Mock RuntimeViewsheet rvs;
    @Mock VSObjectPropertyService vsObjectPropertyService;
@@ -292,5 +287,5 @@ class TabPropertyDialogControllerTest {
    @Mock VSObjectTreeService vsObjectTreeService;
    @Mock CoreLifecycleService coreLifecycleService;
 
-   private TabPropertyDialogController controller;
+   private TabPropertyDialogService service;
 }
