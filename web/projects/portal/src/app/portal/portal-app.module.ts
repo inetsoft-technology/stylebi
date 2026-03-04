@@ -31,12 +31,15 @@ import {
 } from "@ng-bootstrap/ng-bootstrap";
 import { MonitoringDataService } from "../../../../em/src/app/monitoring/monitoring-data.service";
 import { AiAssistantModule } from "../../../../shared/ai-assistant/ai-assistant.module";
+import { WizPortalModule } from "../../../../shared/wiz-portal/wiz-portal.module";
 import { AiAssistantService } from "../../../../shared/ai-assistant/ai-assistant.service";
 import { CkeditorWrapperModule } from "../../../../shared/ckeditor-wrapper/ckeditor-wrapper.module";
 import { ScheduleTaskNamesService } from "../../../../shared/schedule/schedule-task-names.service";
 import { PORTAL, ScheduleUsersService } from "../../../../shared/schedule/schedule-users.service";
 import { CodemirrorService } from "../../../../shared/util/codemirror/codemirror.service";
 import { DefaultCodemirrorService } from "../../../../shared/util/codemirror/default-codemirror.service";
+import { WizPortalService } from "../../../../shared/wiz-portal/wiz-portal.service";
+import { WizPortalDialogService } from "../common/services/wiz-portal-dialog.service";
 import { UIContextService } from "../common/services/ui-context.service";
 import { FormatModule } from "../format/format.module";
 import { DataTreeValidatorService } from "../vsobjects/dialog/data-tree-validator.service";
@@ -358,7 +361,8 @@ import { PortalTabsService } from "./services/portal-tabs.service";
       DynamicComboBoxModule,
       SimpleTableModule,
       CkeditorWrapperModule,
-      AiAssistantModule
+      AiAssistantModule,
+      WizPortalModule
    ],
    bootstrap: [
       PortalAppComponent
@@ -395,6 +399,8 @@ import { PortalTabsService } from "./services/portal-tabs.service";
       },
       DataQueryModelService,
       AiAssistantService,
+      WizPortalService,
+      WizPortalDialogService,
    ]
 })
 export class PortalAppModule {

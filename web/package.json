@@ -33,6 +33,7 @@
     "@ckeditor/ckeditor5-angular": "^8.0.0",
     "@ctrl/tinycolor": "^3.4.1",
     "@inetsoft-technology/ai-assistant": "~0.0.20260302005505",
+    "@inetsoft-technology/stylebi-wiz-portal": "1.0.0",
     "@ng-bootstrap/ng-bootstrap": "^16.0.0",
     "@thebespokepixel/es-tinycolor": "^2.1.1",
     "approx-string-match": "^2.0.0",
