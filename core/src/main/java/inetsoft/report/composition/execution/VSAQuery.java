@@ -1400,7 +1400,7 @@ public abstract class VSAQuery {
             }
 
             calcs[i].setVisible(true);
-            columns.addAttribute(calcs[i].clone());
+            columns.addAttribute((CalculateRef) calcs[i].clone());
             changed = true;
          }
 
