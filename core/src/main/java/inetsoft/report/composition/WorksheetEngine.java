@@ -102,7 +102,12 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    }
 
    public void putRuntimeSheet(String id, RuntimeSheet rs) {
-      amap.putSheet(id, rs);
+      try {
+         amap.putSheet(id, rs).get(10, TimeUnit.SECONDS);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to persist sheet {} to distributed cache", id, e);
+      }
    }
 
    /**
@@ -197,7 +202,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
          amap.putSheet(id, sheet).get(20L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
-         LOG.error("Failed to create the temporary sheet:{}", id);
+         LOG.error("Failed to create the temporary sheet:{}", id, e);
       }
    }
 
@@ -288,6 +293,8 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
 
       String id = getNextPreviewID(originalId, PREVIEW_WORKSHEET);
       rws.setID(id);
+      // Preview worksheets are local-only and short-lived; fire-and-forget put() is
+      // intentional here — no affinity guarantee is needed for transient preview sessions.
       amap.put(id, rws);
       return id;
    }
@@ -475,7 +482,23 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       }
 
       rs.setID(sheetId);
-      amap.put(sheetId, rs);
+
+      // Use putSheet() and await the future rather than put() so the Ignite distributed
+      // cache write completes before this method returns. Under concurrent load, Ignite
+      // topology changes can cause an AffinityCallRequestTask to execute on a node that
+      // no longer owns the affinity partition for this sheet (the routing decision and
+      // the isPrimary check on the receiving node observe different topology versions).
+      // When that happens the sheet lands in the wrong node's local map. By awaiting the
+      // cache write, we guarantee the entry exists in the distributed cache before the
+      // caller receives the sheet ID, so the correct partition-owning node can always
+      // find the sheet via the cache on subsequent affinity-routed requests instead of
+      // throwing ExpiredSheetException.
+      try {
+         amap.putSheet(sheetId, rs).get(10, TimeUnit.SECONDS);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to persist sheet {} to distributed cache", sheetId, e);
+      }
 
       if(LOG.isDebugEnabled()) {
          LOG.debug("Opened runtime sheet {} on {}", sheetId, Cluster.getInstance().getLocalMember());
@@ -682,6 +705,9 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
             rs.access(true);
          }
 
+         // Access-time update only — fire-and-forget put() is intentional here.
+         // The caller does not depend on the updated entry being visible across the cluster
+         // immediately; this merely refreshes the LRU timestamp in the local node's map.
          amap.put(id, rs);
       }
    }

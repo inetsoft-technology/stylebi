@@ -208,16 +208,22 @@ export class EditableObjectContainer extends AbstractActionComponent
 
       if(_vsObject) {
          let isInTab = false;
+         let containerBottomTabs = false;
 
          if(_vsObject.container) {
             const container = this.viewsheet.getAssembly(_vsObject.container);
             isInTab = container && container.objectType === "VSTab";
+
+            if(container && container.objectType === "VSTab") {
+               containerBottomTabs = (container as VSTabModel).bottomTabs;
+            }
          }
 
-         // resizing bottom of a dropdown is meaningless. it should resize the title
+         // Lock the edge that faces the tab bar: top edge in top-tabs mode, bottom edge in
+         // bottom-tabs mode. Dropdowns also disable the bottom edge (title bar is the handle).
          const dropdown = (<any> _vsObject).dropdownCalendar || (<any> _vsObject).dropdown;
-         this.resizeTopEdge = !isInTab && !dropdown;
-         this.resizeBottomEdge = !dropdown;
+         this.resizeTopEdge = (!isInTab || containerBottomTabs) && !dropdown;
+         this.resizeBottomEdge = !dropdown && !containerBottomTabs;
       }
 
       // if group removed (ungroup), children shouldn't be forced to interactable

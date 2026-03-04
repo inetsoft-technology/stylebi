@@ -85,6 +85,7 @@ public class DashboardController {
       DashboardTabModel model = new DashboardTabModel();
       model.setDashboards(getDashboards(principal));
       model.setDashboardTabsTop(isDashboardTabsTop());
+      model.setDrillTabsTop(isDrillTabsTop());
       model.setComposerEnabled(composerEnable);
       model.setEditable(editable);
       return model;
@@ -219,6 +220,10 @@ public class DashboardController {
 
    private boolean isDashboardTabsTop() {
       return Boolean.parseBoolean(SreeEnv.getProperty("dashboard.tabs.top"));
+   }
+
+   private boolean isDrillTabsTop() {
+      return Boolean.parseBoolean(SreeEnv.getProperty("drill.tabs.top"));
    }
 
    @PostMapping(value = "/api/portal/dashboard/new")

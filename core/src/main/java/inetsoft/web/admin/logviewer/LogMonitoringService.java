@@ -162,6 +162,16 @@ public class LogMonitoringService implements MessageListener {
                      return response.getLogFiles();
                   }
                }
+               catch(InterruptedException e) {
+                  // The outer wait loop cancelled this future (deadline or per-node timeout).
+                  // This is expected during transient conditions such as a node that just
+                  // joined the cluster and hasn't finished initializing its message listeners
+                  // yet. Restore the interrupt flag and log at WARN; the outer loop already
+                  // records the timeout event.
+                  Thread.currentThread().interrupt();
+                  LOG.warn("Log file list fetch interrupted for node {}, " +
+                           "node may still be initializing", clusterNode);
+               }
                catch(Exception e) {
                   LOG.error("Failed to get log files from {}", clusterNode, e);
                }
@@ -178,7 +188,11 @@ public class LogMonitoringService implements MessageListener {
          String clusterNode = entry.getValue();
          long remaining = deadline - System.currentTimeMillis();
 
-         if(remaining <= 0) {
+         // Only abandon a future that has not yet completed. If it is already
+         // done its result is available instantly (FutureTask.get() returns
+         // immediately for a completed task regardless of the timeout value),
+         // so collecting it does not consume any remaining budget.
+         if(remaining <= 0 && !future.isDone()) {
             future.cancel(true);
             skipped++;
             continue;

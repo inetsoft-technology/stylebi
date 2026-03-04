@@ -10,6 +10,11 @@ StyleBI Community is a cloud-native business intelligence web application. This 
 
 ## Build Commands
 
+### Prerequisites
+- Java 21 SDK with `JAVA_HOME` set
+- Docker (running)
+- GitHub classic personal access token with `read:packages` scope configured in `~/.m2/settings.xml` and `~/.npmrc` (see README.md)
+
 ```bash
 # Build all Java modules
 ./mvnw clean install -DskipTests

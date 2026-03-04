@@ -19,7 +19,6 @@ package inetsoft.web.security;
 
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
@@ -189,7 +188,7 @@ public class SecuredAspect {
       }
 
       if(!check) {
-         throw new SecurityException(
+         throw new java.lang.SecurityException(
             "Unauthorized access to resource \"" + uri + "\" by user " + user);
       }
 

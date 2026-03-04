@@ -76,7 +76,7 @@ export class FontPane implements OnInit, OnChanges {
    }
 
    ngOnInit(): void {
-      this._font = this.fontModel;
+      this._font = this.fontModel || new FontInfo();
 
       if(!this.fonts || this.fonts.length == 0) {
          this.getFonts();
@@ -97,12 +97,12 @@ export class FontPane implements OnInit, OnChanges {
          // it should not cause any out of sync problem
          if(this.pending > 0 && this._font) {
             this.debounceService.debounce("font-pane", () => {
-               this._font = this.fontModel;
+               this._font = this.fontModel || new FontInfo();
                this.changeRef.detectChanges();
             }, 1000, []);
          }
          else {
-            this._font = this.fontModel;
+            this._font = this.fontModel || new FontInfo();
             this.changeRef.detectChanges();
          }
 
@@ -169,9 +169,11 @@ export class FontPane implements OnInit, OnChanges {
    }
 
    private fireChangeEvent() {
-      for(let key in this._font) {
-         if(this._font.hasOwnProperty(key)) {
-            this.fontModel[key] = this._font[key];
+      if(this.fontModel) {
+         for(let key in this._font) {
+            if(this._font.hasOwnProperty(key)) {
+               this.fontModel[key] = this._font[key];
+            }
          }
       }
 

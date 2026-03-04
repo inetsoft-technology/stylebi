@@ -60,6 +60,7 @@ import org.springframework.stereotype.Service;
 import java.awt.*;
 import java.security.Principal;
 import java.text.Format;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -642,6 +643,7 @@ public class VSInputService {
       BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
       DataInputPaneModel dataInputPaneModel = result.getDataInputPaneModel();
       TextInputColumnOptionPaneModel textInputColumnOptionPaneModel = result.getTextInputColumnOptionPaneModel();
+      InputLabelPaneModel inputLabelPaneModel = result.getInputLabelPaneModel();
       ClickableScriptPaneModel.Builder clickableScriptPaneModel = ClickableScriptPaneModel.builder();
       String defaultText = textInputGeneralPaneModel.getDefaultText();
       defaultText = StringUtils.isBlank(defaultText) ? null : defaultText;
@@ -720,6 +722,13 @@ public class VSInputService {
          passwordEditorModel.setErrorMessage(columnOption.getMessage());
       }
 
+      LabelInfo labelInfo = textInputAssemblyInfo.getLabelInfo();
+
+      inputLabelPaneModel.setLabelText(labelInfo.getLabelTextValue());
+      inputLabelPaneModel.setLabelGap(labelInfo.getLabelGap());
+      inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPosition());
+      inputLabelPaneModel.setShowLabel(labelInfo.isLabelVisible());
+
       clickableScriptPaneModel.scriptEnabled(textInputAssemblyInfo.isScriptEnabled());
       String script = textInputAssemblyInfo.getScript() == null ? "" : textInputAssemblyInfo.getScript();
       String onClick = textInputAssemblyInfo.getOnClick() == null ? "" :textInputAssemblyInfo.getOnClick();
@@ -758,6 +767,7 @@ public class VSInputService {
       DataInputPaneModel dataInputPaneModel = value.getDataInputPaneModel();
       TextInputColumnOptionPaneModel textInputColumnOptionPaneModel =
          value.getTextInputColumnOptionPaneModel();
+      InputLabelPaneModel inputLabelPaneModel = value.getInputLabelPaneModel();
       ClickableScriptPaneModel clickableScriptPaneModel = value.getClickableScriptPaneModel();
 
       textInputAssemblyInfo.setEnabledValue(generalPropPaneModel.getEnabled());
@@ -829,6 +839,12 @@ public class VSInputService {
          textInputAssemblyInfo.setColumnOption(passwordColumnOption);
       }
 
+      LabelInfo labelInfo = textInputAssemblyInfo.getLabelInfo();
+      labelInfo.setLabelTextValue(inputLabelPaneModel.getLabelText());
+      labelInfo.setLabelGapValue(inputLabelPaneModel.getLabelGap());
+      labelInfo.setLabelPosition(inputLabelPaneModel.getLabelPosition());
+      labelInfo.setLabelVisibleValue(inputLabelPaneModel.isShowLabel() + "");
+
       textInputAssemblyInfo.setScriptEnabled(clickableScriptPaneModel.scriptEnabled());
       textInputAssemblyInfo.setScript(clickableScriptPaneModel.scriptExpression());
       textInputAssemblyInfo.setOnClick(clickableScriptPaneModel.onClickExpression());
@@ -869,6 +885,7 @@ public class VSInputService {
       DataInputPaneModel dataInputPaneModel = result.getDataInputPaneModel();
       SliderAdvancedPaneModel sliderAdvancedPaneModel = result.getSliderAdvancedPaneModel();
       SliderLabelPaneModel sliderLabelPaneModel = sliderAdvancedPaneModel.getSliderLabelPaneModel();
+      InputLabelPaneModel inputLabelPaneModel = result.getInputLabelPaneModel();
       VSAssemblyScriptPaneModel.Builder vsAssemblyScriptPaneModel = VSAssemblyScriptPaneModel.builder();
 
       numericRangePaneModel.setMinimum(sliderAssemblyInfo.getMinValue());
@@ -908,6 +925,13 @@ public class VSInputService {
 
       sliderAdvancedPaneModel.setSnap(sliderAssemblyInfo.isSnap());
 
+      LabelInfo labelInfo = sliderAssemblyInfo.getLabelInfo();
+
+      inputLabelPaneModel.setLabelText(labelInfo.getLabelTextValue());
+      inputLabelPaneModel.setLabelGap(labelInfo.getLabelGap());
+      inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPosition());
+      inputLabelPaneModel.setShowLabel(labelInfo.isLabelVisible());
+
       vsAssemblyScriptPaneModel.scriptEnabled(sliderAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(sliderAssemblyInfo.getScript() == null ?
                                               "" : sliderAssemblyInfo.getScript());
@@ -942,6 +966,7 @@ public class VSInputService {
       DataInputPaneModel dataInputPaneModel = value.getDataInputPaneModel();
       SliderAdvancedPaneModel sliderAdvancedPaneModel = value.getSliderAdvancedPaneModel();
       SliderLabelPaneModel sliderLabelPaneModel = sliderAdvancedPaneModel.getSliderLabelPaneModel();
+      InputLabelPaneModel inputLabelPaneModel = value.getInputLabelPaneModel();
       VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel = value.getVsAssemblyScriptPaneModel();
 
       sliderAssemblyInfo.setEnabledValue(generalPropPaneModel.getEnabled());
@@ -983,6 +1008,12 @@ public class VSInputService {
       sliderAssemblyInfo.setMaxVisibleValue(sliderLabelPaneModel.isMaximum());
 
       sliderAssemblyInfo.setSnapValue(sliderAdvancedPaneModel.isSnap());
+
+      LabelInfo labelInfo = sliderAssemblyInfo.getLabelInfo();
+      labelInfo.setLabelTextValue(inputLabelPaneModel.getLabelText());
+      labelInfo.setLabelGapValue(inputLabelPaneModel.getLabelGap());
+      labelInfo.setLabelPosition(inputLabelPaneModel.getLabelPosition());
+      labelInfo.setLabelVisibleValue(inputLabelPaneModel.isShowLabel() + "");
 
       sliderAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       sliderAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
@@ -1653,6 +1684,7 @@ public class VSInputService {
       VariableListDialogModel variableListDialogModel =
          comboBoxEditorModel.getVariableListDialogModel();
       DataInputPaneModel dataInputPaneModel = result.getDataInputPaneModel();
+      InputLabelPaneModel inputLabelPaneModel = result.getInputLabelPaneModel();
       VSAssemblyScriptPaneModel.Builder vsAssemblyScriptPaneModel =
          VSAssemblyScriptPaneModel.builder();
 
@@ -1743,10 +1775,21 @@ public class VSInputService {
       dataInputPaneModel.setRowValue(comboBoxAssemblyInfo.getRowValue());
       dataInputPaneModel.setTargetTree(getInputTablesTree(rvs, false, principal));
       dataInputPaneModel.setWriteBackDirectly(comboBoxAssemblyInfo.getWriteBackValue());
+      dataInputPaneModel.setQueryDateFormat(comboBoxAssemblyInfo.isQueryDateFormat());
+      dataInputPaneModel.setDateFormatPattern(comboBoxAssemblyInfo.getDateFormatPattern());
+
       vsAssemblyScriptPaneModel.scriptEnabled(comboBoxAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(comboBoxAssemblyInfo.getScript() == null ?
                                               "" : comboBoxAssemblyInfo.getScript());
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+
+
+      LabelInfo labelInfo = comboBoxAssemblyInfo.getLabelInfo();
+
+      inputLabelPaneModel.setLabelText(labelInfo.getLabelTextValue());
+      inputLabelPaneModel.setLabelGap(labelInfo.getLabelGap());
+      inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPosition());
+      inputLabelPaneModel.setShowLabel(labelInfo.isLabelVisible());
 
       return result;
    }
@@ -1829,6 +1872,7 @@ public class VSInputService {
       SizePositionPaneModel sizePositionPaneModel =
          comboboxGeneralPaneModel.getSizePositionPaneModel();
       DataInputPaneModel dataInputPaneModel = value.getDataInputPaneModel();
+      InputLabelPaneModel inputLabelPaneModel = value.getInputLabelPaneModel();
       VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel = value.getVsAssemblyScriptPaneModel();
 
       comboBoxAssemblyInfo.setEnabledValue(generalPropPaneModel.getEnabled());
@@ -1858,6 +1902,28 @@ public class VSInputService {
          table != null && table.startsWith("$(") && table.endsWith(")"));
       comboBoxAssemblyInfo.setWriteBackValue(dataInputPaneModel.isWriteBackDirectly());
       comboBoxAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
+
+      LabelInfo labelInfo = comboBoxAssemblyInfo.getLabelInfo();
+      labelInfo.setLabelTextValue(inputLabelPaneModel.getLabelText());
+      labelInfo.setLabelGapValue(inputLabelPaneModel.getLabelGap());
+      labelInfo.setLabelPosition(inputLabelPaneModel.getLabelPosition());
+      labelInfo.setLabelVisibleValue(inputLabelPaneModel.isShowLabel() + "");
+      comboBoxAssemblyInfo.setQueryDateFormat(dataInputPaneModel.isQueryDateFormat());
+
+      String dateFormatPattern = dataInputPaneModel.getDateFormatPattern();
+      boolean validPattern = false;
+
+      if(dateFormatPattern != null && !dateFormatPattern.isEmpty()) {
+         try {
+            DateTimeFormatter.ofPattern(dateFormatPattern);
+            validPattern = true;
+         }
+         catch(IllegalArgumentException e) {
+            // fall through to use default
+         }
+      }
+
+      comboBoxAssemblyInfo.setDateFormatPattern(validPattern ? dateFormatPattern : "yyyy-MM-dd");
 
       comboBoxAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       comboBoxAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
@@ -2020,6 +2086,7 @@ public class VSInputService {
          spinnerGeneralPaneModel.getSizePositionPaneModel();
       BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
       DataInputPaneModel dataInputPaneModel = result.getDataInputPaneModel();
+      InputLabelPaneModel inputLabelPaneModel = result.getInputLabelPaneModel();
       VSAssemblyScriptPaneModel.Builder vsAssemblyScriptPaneModel = VSAssemblyScriptPaneModel.builder();
 
       numericRangePaneModel.setMinimum(spinnerAssemblyInfo.getMinValue());
@@ -2049,6 +2116,13 @@ public class VSInputService {
       dataInputPaneModel.setRowValue(spinnerAssemblyInfo.getRowValue());
       dataInputPaneModel.setTargetTree(getInputTablesTree(rvs, false, principal));
       dataInputPaneModel.setWriteBackDirectly(spinnerAssemblyInfo.getWriteBackValue());
+
+      LabelInfo labelInfo = spinnerAssemblyInfo.getLabelInfo();
+
+      inputLabelPaneModel.setLabelText(labelInfo.getLabelTextValue());
+      inputLabelPaneModel.setLabelGap(labelInfo.getLabelGap());
+      inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPosition());
+      inputLabelPaneModel.setShowLabel(labelInfo.isLabelVisible());
 
       vsAssemblyScriptPaneModel.scriptEnabled(spinnerAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(spinnerAssemblyInfo.getScript() == null ?
@@ -2082,6 +2156,7 @@ public class VSInputService {
          spinnerGeneralPaneModel.getSizePositionPaneModel();
       BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
       DataInputPaneModel dataInputPaneModel = value.getDataInputPaneModel();
+      InputLabelPaneModel inputLabelPaneModel = value.getInputLabelPaneModel();
       VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel = value.getVsAssemblyScriptPaneModel();
 
       spinnerAssemblyInfo.setEnabledValue(generalPropPaneModel.getEnabled());
@@ -2128,6 +2203,12 @@ public class VSInputService {
 
          spinnerAssemblyInfo.setValue(dvalue);
       }
+
+      LabelInfo labelInfo = spinnerAssemblyInfo.getLabelInfo();
+      labelInfo.setLabelTextValue(inputLabelPaneModel.getLabelText());
+      labelInfo.setLabelGapValue(inputLabelPaneModel.getLabelGap());
+      labelInfo.setLabelPosition(inputLabelPaneModel.getLabelPosition());
+      labelInfo.setLabelVisibleValue(inputLabelPaneModel.isShowLabel() + "");
 
       spinnerAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       spinnerAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
@@ -3615,6 +3696,7 @@ public class VSInputService {
 
          if(ass instanceof VariableAssembly) {
             vt.put(tname, mdata == null ? cdata : mdata);
+            applyComboBoxDateFormat(iassembly, vt, tname);
             wbox.refreshVariableTable(vt);
          }
          else {
@@ -3626,6 +3708,7 @@ public class VSInputService {
             for(UserVariable var : variableList) {
                if(var != null && tname.equals(var.getName())) {
                   vt.put(tname, mdata == null ? cdata : mdata);
+                  applyComboBoxDateFormat(iassembly, vt, tname);
                   break;
                }
             }
@@ -3635,7 +3718,21 @@ public class VSInputService {
       }
       else {
          vt.put(iassembly.getName(), mdata == null ? cdata : mdata);
+         applyComboBoxDateFormat(iassembly, vt, iassembly.getName());
          wbox.refreshVariableTable(vt);
+      }
+   }
+
+   private void applyComboBoxDateFormat(InputVSAssembly iassembly, VariableTable vt, String varName) {
+      if(iassembly instanceof ComboBoxVSAssembly comboBox) {
+         ComboBoxVSAssemblyInfo comboBoxInfo = (ComboBoxVSAssemblyInfo) comboBox.getVSAssemblyInfo();
+
+         if(comboBoxInfo.isQueryDateFormat()) {
+            vt.putFormat(varName, comboBoxInfo.getDateFormatPattern());
+         }
+         else {
+            vt.removeFormat(varName);
+         }
       }
    }
 

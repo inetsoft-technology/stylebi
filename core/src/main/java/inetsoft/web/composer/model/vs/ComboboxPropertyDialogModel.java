@@ -65,7 +65,20 @@ public class ComboboxPropertyDialogModel implements Serializable {
       this.vsAssemblyScriptPaneModel = vsAssemblyScriptPaneModel;
    }
 
+   public void setInputLabelPaneModel(InputLabelPaneModel inputLabelPaneModel) {
+      this.inputLabelPaneModel = inputLabelPaneModel;
+   }
+
+   public InputLabelPaneModel getInputLabelPaneModel() {
+      if(inputLabelPaneModel == null) {
+         inputLabelPaneModel = new InputLabelPaneModel();
+      }
+
+      return inputLabelPaneModel;
+   }
+
    private ComboboxGeneralPaneModel comboboxGeneralPaneModel;
    private DataInputPaneModel dataInputPaneModel;
    private VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel;
+   private InputLabelPaneModel inputLabelPaneModel;
 }

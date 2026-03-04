@@ -24,6 +24,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.util.*;
@@ -1326,7 +1327,8 @@ public class ScheduleTaskService {
          return null;
       }
 
-      return new IdentityID(name, OrganizationManager.getInstance().getInstance().getCurrentOrgID(principal));
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      return new IdentityID(name, orgId);
    }
 
    private final AnalyticRepository analyticRepository;

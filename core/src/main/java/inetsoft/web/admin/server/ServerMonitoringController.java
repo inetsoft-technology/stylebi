@@ -560,11 +560,13 @@ public class ServerMonitoringController {
    public SummaryChartLegends getMonitoringChartLegends(
       @RequestParam(value = "clusterNode", required = false) String clusterNode)
    {
-      List<QueryHistory> queryExe = queryService.getHistory(clusterNode);
       SummaryChartLegends.Builder legends = SummaryChartLegends.builder();
       int counter = 0;
+      boolean isSchedulerNode = isSchedulerNode(clusterNode);
 
-      List<ViewsheetHistory> vsExe = viewsheetService.getHistory(clusterNode);
+      List<ViewsheetHistory> vsExe = isSchedulerNode
+         ? schedulerMonitoringService.getViewsheetHistory(clusterNode)
+         : viewsheetService.getHistory(clusterNode);
 
       if(!vsExe.isEmpty()) {
          legends.addExecution(SummaryChartLegend.builder()
@@ -574,12 +576,16 @@ public class ServerMonitoringController {
                                  .build());
       }
 
-      if(!queryExe.isEmpty()) {
-         legends.addExecution(SummaryChartLegend.builder()
-                                 .text("Queries")
-                                 .color(COLOR_PALETTE[counter])
-                                 .link("queries")
-                                 .build());
+      if(!isSchedulerNode) {
+         List<QueryHistory> queryExe = queryService.getHistory(clusterNode);
+
+         if(!queryExe.isEmpty()) {
+            legends.addExecution(SummaryChartLegend.builder()
+                                    .text("Queries")
+                                    .color(COLOR_PALETTE[counter])
+                                    .link("queries")
+                                    .build());
+         }
       }
 
       legends.addSwapping(SummaryChartLegend.builder()
@@ -1027,15 +1033,17 @@ public class ServerMonitoringController {
                                               long tzAdjustMs)
    {
       Catalog catalog = Catalog.getCatalog();
-
-      List<QueryHistory> queryExe = queryService.getHistory(clusterNode);
       List<Time> timeline = new ArrayList<>();
       List<Object> headers = new ArrayList<>();
       List<Map<Time, Integer>> maps = new ArrayList<>();
 
       headers.add("Time");
 
-      List<ViewsheetHistory> vsExe = viewsheetService.getHistory(clusterNode);
+      boolean isSchedulerNode = isSchedulerNode(clusterNode);
+
+      List<ViewsheetHistory> vsExe = isSchedulerNode
+         ? schedulerMonitoringService.getViewsheetHistory(clusterNode)
+         : viewsheetService.getHistory(clusterNode);
 
       if(!vsExe.isEmpty()) {
          Map<Time, Integer> map = new HashMap<>();
@@ -1049,18 +1057,29 @@ public class ServerMonitoringController {
          }
       }
 
-      if(!queryExe.isEmpty()) {
-         Map<Time, Integer> map = new HashMap<>();
-         maps.add(map);
-         headers.add("Queries");
+      if(!isSchedulerNode) {
+         List<QueryHistory> queryExe = queryService.getHistory(clusterNode);
 
-         for(QueryHistory query : queryExe) {
-            Time time = new Time(query.timestamp() + tzAdjustMs);
-            timeline.add(time);
-            map.put(time, query.queryCount());
+         if(!queryExe.isEmpty()) {
+            Map<Time, Integer> map = new HashMap<>();
+            maps.add(map);
+            headers.add("Queries");
+
+            for(QueryHistory query : queryExe) {
+               Time time = new Time(query.timestamp() + tzAdjustMs);
+               timeline.add(time);
+               map.put(time, query.queryCount());
+            }
          }
       }
 
+      return buildExecutionChart(timeline, headers, maps, width, height, catalog);
+   }
+
+   private Graphics2D buildExecutionChart(List<Time> timeline, List<Object> headers,
+                                          List<Map<Time, Integer>> maps,
+                                          int width, int height, Catalog catalog)
+   {
       if(timeline.isEmpty()) {
          return null;
       }
@@ -1140,6 +1159,20 @@ public class ServerMonitoringController {
 
    private int safeMapToInt(Object n) {
       return n == null ? 0 : (Integer) n;
+   }
+
+   private boolean isSchedulerNode(String clusterNode) {
+      if(clusterNode == null) {
+         return false;
+      }
+
+      for(String s : getScheduleServers()) {
+         if(clusterNode.equals(s)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private String[] getScheduleServers() {

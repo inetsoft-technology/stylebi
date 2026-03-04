@@ -34,17 +34,21 @@
                      [inDashboard]="inDashboard"
                      [tabsHeight]="tabBarHeight"
                      [isIframe]="isIframe()"
+                     [dashboardTabModel]="dashboardTabModel"
                      (onEditTable)="onEditTable($event)"
                      (onEditChart)="onEditChart($event)"
                      (closeCurrentTab)="closeCurrentTab()"
                      (closeClicked)="onViewsheetClosed()"
                      (onAnnotationChanged)="modified = $event"
-                     (onOpenViewsheet)="openViewsheet($event)">
+                     (onOpenViewsheet)="openViewsheet($event)"
+                     (toolbarVisibleChange)="onToolbarVisibleChange($event)">
          </viewer-app>
       </div>
 
       <div class="page-tab-bar" #pageTabBar
-           [class.page-tab-fullscreen]="fullScreen" *ngIf="tabs.length > 1">
+           [class.page-tab-fullscreen]="fullScreen" *ngIf="tabs.length > 1"
+           [style.top.px]="drillTabsTopPx"
+           [style.bottom]="dashboardTabModel?.drillTabsTop ? 'unset' : null">
          <page-tab></page-tab>
       </div>
    </div>

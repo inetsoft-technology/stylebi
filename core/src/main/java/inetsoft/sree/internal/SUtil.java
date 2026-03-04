@@ -844,6 +844,57 @@ public class SUtil {
    }
 
    /**
+    * Gets the principal for a schedule task owner. Unlike {@link #getPrincipal}, this
+    * handles the case where a site admin owns tasks in an organization other than their
+    * home org: if the owner is not found in the specified org, it searches for a site
+    * admin with the same name across all orgs and returns a principal using that admin's
+    * roles with the original org preserved as the context.
+    */
+   public static SRPrincipal getScheduleTaskOwnerPrincipal(IdentityID owner, String addr,
+                                                            boolean fireEvent)
+   {
+      SRPrincipal principal = getPrincipal(owner, addr, fireEvent);
+
+      // If the user does not exist in the specified org, check whether the name belongs to a
+      // site admin in a different org
+      if(owner != null && owner.orgID != null &&
+         !XPrincipal.ANONYMOUS.equals(owner.name) && !XPrincipal.SYSTEM.equals(owner.name))
+      {
+         try {
+            SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+
+            if(provider.getUser(owner) == null) {
+               for(IdentityID candidateId : provider.getUsers()) {
+                  if(candidateId.name.equals(owner.name) && !owner.orgID.equals(candidateId.orgID)) {
+                     User candidate = provider.getUser(candidateId);
+
+                     if(candidate != null && OrganizationManager.getInstance().isSiteAdmin(candidateId)) {
+                        // Create a principal with the site admin's roles but the originally-
+                        // requested org as context so org-scoped lookups (task map, assets)
+                        // continue to use the correct org.
+                        LOG.debug("Resolved cross-org site admin {} (from {}) for task owner {}",
+                                  candidateId, candidateId.orgID, owner);
+                        principal = new SRPrincipal(
+                           new ClientInfo(owner, addr, null, null),
+                           candidate.getRoles(), new String[0], owner.orgID,
+                           getRandom().nextLong(), candidate.getAlias());
+                        principal.setIgnoreLogin(true);
+                        setAdditionalDatasource(principal);
+                        break;
+                     }
+                  }
+               }
+            }
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to find cross-org site admin principal for {}", owner, e);
+         }
+      }
+
+      return principal;
+   }
+
+   /**
     * Get the principal using an identity;
     * @param iden the identity object.
     * @return the specified principal.

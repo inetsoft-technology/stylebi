@@ -301,6 +301,22 @@ export class VSChart extends AbstractVSObject<VSChartModel>
                   this.vsInfo ? this.vsInfo.linkUri : null,
                   this.isForceTab());
                break;
+            case "chart show-titleHyperlink":
+               this.hyperlinkService.showHyperlinks(
+                  event.event, [this.model.titleLinkModel],
+                  this.dropdownService,
+                  this.viewsheetClient.runtimeId,
+                  this.vsInfo ? this.vsInfo.linkUri : null,
+                  this.isForceTab());
+               break;
+            case "chart show-emptyPlotHyperlink":
+               this.hyperlinkService.showHyperlinks(
+                  event.event, [this.model.emptyPlotLinkModel],
+                  this.dropdownService,
+                  this.viewsheetClient.runtimeId,
+                  this.vsInfo ? this.vsInfo.linkUri : null,
+                  this.isForceTab());
+               break;
             case "chart auto-refresh":
             case "chart manual-refresh":
                this.changeAutoRefresh();
@@ -828,7 +844,13 @@ export class VSChart extends AbstractVSObject<VSChartModel>
 
    clickHyperlink(event: MouseEvent) {
       if(this.clickAction && event.button === 0) {
-         this.clickAction.action(event);
+         if(this.getSelectedRegions().length === 0 && this.model.emptyPlotLinkModel != null) {
+            this.clickEmptyPlotHyperlink();
+         }
+         else {
+            this.clickAction.action(event);
+         }
+
          event.stopPropagation();
       }
    }
@@ -852,14 +874,40 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       this.model.selectedRegions = [];
    }
 
-   selectTitle(): void {
+   selectTitle(event: MouseEvent): void {
       if(this.context.preview) {
+         if(this.model.titleLinkModel != null && event.button == 0) {
+            this.clickTitleHyperlink();
+         }
+
          return;
       }
 
       this.clearSelection();
       this.model.selectedRegions = [DataPathConstants.TITLE];
       this.model.titleSelected = true;
+
+      if(event.button == 0) {
+         this.clickTitleHyperlink();
+      }
+   }
+
+   private clickSpecialHyperlink(linkModel: HyperlinkModel): void {
+      const cloned = Tool.clone(linkModel);
+
+      if(this.viewer && cloned != null &&
+            (!this.mobileDevice || this.hyperlinkService.singleClick)) {
+         this.hyperlinkService.clickLink(cloned, this.viewsheetClient.runtimeId,
+                     this.vsInfo ? this.vsInfo.linkUri : null);
+      }
+   }
+
+   clickTitleHyperlink(): void {
+      this.clickSpecialHyperlink(this.model.titleLinkModel);
+   }
+
+   clickEmptyPlotHyperlink(): void {
+      this.clickSpecialHyperlink(this.model.emptyPlotLinkModel);
    }
 
    protected getHyperlinks(): HyperlinkModel[] {

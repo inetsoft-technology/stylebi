@@ -201,14 +201,26 @@ public class ComposerObjectService {
 
          if(assembly instanceof TabVSAssembly) {
             TabVSAssembly tab = (TabVSAssembly) assembly;
+            TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getInfo();
             int ychange = event.getHeight() - originalSize.height;
 
-            if(ychange != 0) {
+            if(ychange != 0 && !tabInfo.isBottomTabs()) {
                this.updateContainerChildrenYChange(tab, viewsheet, ychange);
             }
          }
 
          move(viewsheet, position, (VSAssembly) assembly);
+
+         // After any resize of a child inside a bottom-tabs TabVSAssembly, re-anchor the
+         // tab bar to the child's new bottom edge and realign all siblings so every child's
+         // bottom edge stays flush with the tab bar top.
+         if(((VSAssembly) assembly).getContainer() instanceof TabVSAssembly tabParent) {
+            TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tabParent.getVSAssemblyInfo();
+
+            if(tabInfo.isBottomTabs()) {
+               reanchorBottomTabSiblings(tabInfo, tabParent, viewsheet, position.y + size.height);
+            }
+         }
 
          if(assembly instanceof ContainerVSAssembly || (viewsheet.getViewsheetInfo() != null &&
             viewsheet.getViewsheetInfo().isScaleToScreen()))
@@ -224,6 +236,79 @@ public class ComposerObjectService {
       }
 
       return null;
+   }
+
+   /**
+    * After any resize of a child inside a bottom-tabs tab assembly, corrects the tab bar
+    * position and re-aligns every sibling so each child's bottom edge equals the tab bar top.
+    *
+    * @param tabInfo        the tab assembly info to update in place
+    * @param tabParent      the tab assembly (used to iterate children)
+    * @param viewsheet      the active viewsheet
+    * @param newChildBottom the new bottom Y coordinate of the resized child
+    */
+   private void reanchorBottomTabSiblings(TabVSAssemblyInfo tabInfo,
+                                          TabVSAssembly tabParent,
+                                          Viewsheet viewsheet,
+                                          int newChildBottom)
+   {
+      Point tabPos = tabInfo.getPixelOffset();
+
+      if(tabPos == null) {
+         return;
+      }
+
+      int dy = newChildBottom - tabPos.y;
+
+      if(dy != 0) {
+         // Write directly to tabInfo instead of calling tabParent.setPixelOffset(),
+         // because TabVSAssembly.setPixelOffset() cascades the delta to all children.
+         // Child positions are managed explicitly in the sibling loop below.
+         tabInfo.setPixelOffset(new Point(tabPos.x, tabPos.y + dy));
+
+         if(tabInfo.getLayoutPosition() != null) {
+            tabInfo.getLayoutPosition().translate(0, dy);
+         }
+      }
+
+      // Reposition every child so its bottom aligns with the (possibly updated) tab bar top.
+      // Runs outside the dy != 0 guard intentionally: siblings may be misaligned even when
+      // the tab bar itself did not move.
+      for(String childName : tabParent.getAssemblies()) {
+         VSAssembly childAssembly = viewsheet.getAssembly(childName);
+
+         if(childAssembly == null) {
+            continue;
+         }
+
+         VSAssemblyInfo childInfo = childAssembly.getVSAssemblyInfo();
+         int childH = childAssembly.getPixelSize() != null ? childAssembly.getPixelSize().height : 0;
+
+         if(childH == 0) {
+            continue; // no valid size yet; skip
+         }
+
+         int targetY = Math.max(0, newChildBottom - childH);
+         Point childPos = childInfo.getPixelOffset();
+
+         if(childPos == null) {
+            continue;
+         }
+
+         int childDy = targetY - childPos.y;
+
+         if(childDy != 0) {
+            childInfo.setPixelOffset(new Point(childPos.x, targetY));
+
+            if(childInfo.getLayoutPosition() != null) {
+               childInfo.getLayoutPosition().translate(0, childDy);
+            }
+
+            if(childAssembly instanceof GroupContainerVSAssembly groupChild) {
+               updateContainerChildrenYChange(groupChild, viewsheet, childDy);
+            }
+         }
+      }
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -1030,7 +1115,11 @@ public class ComposerObjectService {
                containerInfo.getLayoutPosition().translate(xchange, ychange);
             }
 
-            containerInfo.getPixelOffset().translate(xchange, ychange);
+            Point containerPos = containerInfo.getPixelOffset();
+
+            if(containerPos != null) {
+               containerPos.translate(xchange, ychange);
+            }
          }
          else if(!moveParent) {
             if(info.getLayoutPosition() != null) {
@@ -1070,7 +1159,11 @@ public class ComposerObjectService {
             childInfo.getLayoutPosition().translate(xchange, ychange);
          }
 
-         childInfo.getPixelOffset().translate(xchange, ychange);
+         Point childPos = childInfo.getPixelOffset();
+
+         if(childPos != null) {
+            childPos.translate(xchange, ychange);
+         }
 
          if(childAssembly instanceof ContainerVSAssembly) {
             moveContainer(viewsheet, (ContainerVSAssembly) childAssembly, xchange, ychange);
@@ -1118,7 +1211,11 @@ public class ComposerObjectService {
             childInfo.getLayoutPosition().translate(0, ychange);
          }
 
-         childInfo.getPixelOffset().translate(0, ychange);
+         Point childPos = childInfo.getPixelOffset();
+
+         if(childPos != null) {
+            childPos.translate(0, ychange);
+         }
 
          if(childAssembly instanceof GroupContainerVSAssembly) {
             this.updateContainerChildrenYChange((GroupContainerVSAssembly) childAssembly, viewsheet, ychange);

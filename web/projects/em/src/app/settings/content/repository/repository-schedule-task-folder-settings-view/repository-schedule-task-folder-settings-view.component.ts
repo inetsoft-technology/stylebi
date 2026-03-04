@@ -25,6 +25,7 @@ import {
    ScheduleTaskFolderSettingsModel
 } from "../repository-schedule-task-folder-settings-page/schedule-task-folder-settings-model";
 import { Tool } from "../../../../../../../shared/util/tool";
+import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../security/resource-permission/copy-paste-context";
 
 @Component({
    selector: "em-repository-schedule-task-folder-settings-view",
@@ -35,6 +36,7 @@ export class RepositoryScheduleTaskFolderSettingsViewComponent implements OnChan
    @Output() cancel = new EventEmitter<void>();
    @Output() unsavedChanges = new EventEmitter<boolean>();
    @Output() folderSettingsChanged = new EventEmitter<ScheduleTaskFolderSettingsModel>();
+   protected readonly copyPasteContext = COPY_PASTE_CONTEXT_REPOSITORY;
    private _oldModel: ScheduleTaskFolderSettingsModel;
 
    ngOnChanges(changes: SimpleChanges): void {

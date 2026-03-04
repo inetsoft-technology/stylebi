@@ -33,6 +33,9 @@ import java.io.*;
 import java.security.Principal;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
+import java.util.zip.ZipException;
 
 @SingletonManager.Singleton
 public class DistributedTableCacheStore {
@@ -48,12 +51,12 @@ public class DistributedTableCacheStore {
       clusterId = cluster.getId();
       storages = new ConcurrentHashMap<>();
 
-      // Use distributed executor so cleanup only runs on one node in the cluster
-      if(cluster.getLong(COUNTER_NAME).getAndIncrement() == 0) {
-         cluster.getScheduledExecutor().scheduleAtFixedRate(
-            new CleanupTableCacheTask(), 1L, CLEANUP_FREQUENCY_TIME,
-            TimeUnit.MINUTES);
-      }
+      // scheduleAtFixedRate is idempotent across the cluster (deduplicates by class name),
+      // so calling it on every construction is safe and ensures the task is re-registered
+      // whenever the distributed executor service is re-deployed after a node restart.
+      cluster.getScheduledExecutor().scheduleAtFixedRate(
+         new CleanupTableCacheTask(), 1L, CLEANUP_FREQUENCY_TIME,
+         TimeUnit.MINUTES);
 
       this.debouncer = new DefaultDebouncer<>(false);
    }
@@ -73,19 +76,45 @@ public class DistributedTableCacheStore {
    public TableLens get(DataKey dataKey, long touchTime) throws Exception {
       String key = getKey(dataKey);
       BlobStorage<Metadata> storage = getStorage();
-      TableLens lens = null;
 
       // don't return stale data from the store
       if(touchTime > 0 && storage.getLastModified(key).toEpochMilli() < touchTime) {
          return null;
       }
 
+      // Read the raw bytes while holding the Ignite distributed lock, then release the lock
+      // before deserializing. Deserialization of XSwappableTable calls XSwapper.waitForMemory()
+      // which acquires waitLock. Holding an Ignite distributed lock across that call creates a
+      // cross-layer lock ordering dependency that leads to deadlock under concurrent export
+      // workloads. (Bug #73990)
+      byte[] data;
+
       try(InputStream storageInputStream = storage.getInputStream(key)) {
-         lens = (TableLens) new ObjectInputStream(storageInputStream).readObject();
-         LOG.debug("Loaded lens {} from distributed table cache store", key);
+         data = storageInputStream.readAllBytes();
       }
 
-      return lens;
+      // Ignite distributed lock is now released; decompress and deserialize without holding it
+      try(GZIPInputStream gzipIn = new GZIPInputStream(new ByteArrayInputStream(data));
+          ObjectInputStream ois = new ObjectInputStream(gzipIn))
+      {
+         TableLens lens = (TableLens) ois.readObject();
+         LOG.debug("Loaded lens {} from distributed table cache store", key);
+         return lens;
+      }
+      catch(ZipException ex) {
+         // Uncompressed entry written before this change; delete it so subsequent
+         // get() calls don't repeatedly open and fail the GZIP check.
+         LOG.debug("Cached lens {} is not compressed, treating as cache miss and deleting stale entry", key);
+
+         try {
+            storage.delete(key);
+         }
+         catch(IOException deleteEx) {
+            LOG.debug("Failed to delete stale uncompressed entry {}", key, deleteEx);
+         }
+
+         return null;
+      }
    }
 
    void put(DataKey dataKey, TableLens lens) {
@@ -100,14 +129,17 @@ public class DistributedTableCacheStore {
       debouncer.debounce(key, 1L, TimeUnit.SECONDS, () -> {
          ThreadContext.setContextPrincipal(principal);
 
-         try(BlobTransaction<Metadata> tx = storage.beginTransaction();
-             OutputStream out = tx.newStream(key, null);
-             ObjectOutputStream oos = new ObjectOutputStream(out))
-         {
-            // get all rows before writing
-            lens.moreRows(XTable.EOT);
-            oos.writeObject(lens);
-            oos.flush();
+         try(BlobTransaction<Metadata> tx = storage.beginTransaction()) {
+            try(OutputStream out = tx.newStream(key, null);
+                GZIPOutputStream gzipOut = new GZIPOutputStream(out);
+                ObjectOutputStream oos = new ObjectOutputStream(gzipOut))
+            {
+               // get all rows before writing
+               lens.moreRows(XTable.EOT);
+               oos.writeObject(lens);
+            }
+
+            // streams are fully closed (GZIP trailer written) before commit
             tx.commit();
          }
          catch(IOException ex) {
@@ -163,7 +195,6 @@ public class DistributedTableCacheStore {
    private final Debouncer<String> debouncer;
 
    private static final long CLEANUP_FREQUENCY_TIME = 30L; // minutes
-   private static final String COUNTER_NAME = DistributedTableCacheStore.class.getName() + ".counter";
    private static final Logger LOG = LoggerFactory.getLogger(DistributedTableCacheStore.class);
 
    public static final class Metadata implements Serializable {

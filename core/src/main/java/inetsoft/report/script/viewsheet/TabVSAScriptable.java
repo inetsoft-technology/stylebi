@@ -86,6 +86,8 @@ public class TabVSAScriptable extends VSAScriptable {
          TabVSAScriptable.class, this);
       addProperty("selectedIndex", "getSelectedIndex", "setSelectedIndex", int.class,
          TabVSAScriptable.class, this);
+      addProperty("bottomTabs", "getBottomTabs", "setBottomTabs", boolean.class,
+         TabVSAScriptable.class, this);
    }
 
    /**
@@ -144,6 +146,20 @@ public class TabVSAScriptable extends VSAScriptable {
       setSelectedValue(labels[idx]);
    }
 
+   public void setBottomTabs(boolean bottomTabs) {
+      TabVSAssemblyInfo info = getInfo();
+      boolean isCurrentlyAtBottom = info.isBottomTabs();
+      info.setBottomTabs(bottomTabs);
+
+      if(box.isRuntime() && bottomTabs != isCurrentlyAtBottom) {
+         TabVSAssemblyInfo.repositionForBottomTabs(info, box.getViewsheet(), bottomTabs);
+      }
+   }
+
+   public boolean getBottomTabs() {
+      return getInfo().isBottomTabs();
+   }
+
    /**
     * Get the assembly info of current tab.
     */
@@ -167,16 +183,20 @@ public class TabVSAScriptable extends VSAScriptable {
       int ychange = size.height - originalSize.height;
       String[] children = getInfo().getAssemblies();
 
-      Arrays.stream(children)
-         .map(c -> getVSAssembly(c))
-         .filter(c -> c != null)
-         .map(c -> c.getVSAssemblyInfo())
-         .forEach(c -> {
-            Point pos = c.getPixelOffset();
+      // In bottom-tabs mode the tab bar sits below the children; children Y must not shift
+      // when the assembly height changes.
+      if(!getInfo().isBottomTabs()) {
+         Arrays.stream(children)
+            .map(c -> getVSAssembly(c))
+            .filter(c -> c != null)
+            .map(c -> c.getVSAssemblyInfo())
+            .forEach(c -> {
+               Point pos = c.getPixelOffset();
 
-            if(pos != null) {
-               setPosition(c, new Point(pos.x, pos.y + ychange));
-            }
-         });
+               if(pos != null) {
+                  setPosition(c, new Point(pos.x, pos.y + ychange));
+               }
+            });
+      }
    }
 }

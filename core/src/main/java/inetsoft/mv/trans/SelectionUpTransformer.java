@@ -1554,9 +1554,10 @@ public final class SelectionUpTransformer extends AbstractTransformer {
 
       boolean subRanking = desc.getRankingSelectionColumns(name).size() > 0;
 
-      // if this table is bound to input assembly, don't create MV since the value may
-      // change at runtime
-      if(desc.isInputDynamicTable(name)) {
+      // If this table is bound to an input assembly, don't include dynamic filters in the MV
+      // at creation time since values may change. However, at runtime we allow moving filters
+      // up to the MV query so they can be applied when fetching data rather than in post-processing.
+      if(desc.isInputDynamicTable(name) && !desc.isRuntime()) {
          return false;
       }
 

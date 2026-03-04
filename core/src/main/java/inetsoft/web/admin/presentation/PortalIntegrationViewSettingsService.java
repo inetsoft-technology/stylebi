@@ -44,6 +44,8 @@ public class PortalIntegrationViewSettingsService {
       String homeLink = SreeEnv.getProperty("portal.home.link", false, !globalProperty);
       String emHomeLink = SreeEnv.getProperty("em.home.link", false, !globalProperty);
 
+      PortalThemesManager manager = getManager();
+
       if(manager.isButtonVisible(PortalThemesManager.HELP_BUTTON)) {
          help = true;
       }
@@ -123,6 +125,7 @@ public class PortalIntegrationViewSettingsService {
    public void setModel(PortalIntegrationSettingsModel model, Principal principal, boolean globalSettings)
       throws Exception
    {
+      PortalThemesManager manager = getManager();
       manager.loadThemes();
       manager.setButtonVisible(PortalThemesManager.HELP_BUTTON, model.help());
       manager.setButtonVisible(PortalThemesManager.PREFERENCES_BUTTON,
@@ -178,6 +181,7 @@ public class PortalIntegrationViewSettingsService {
       throws Exception
    {
       if(globalSettings) {
+         PortalThemesManager manager = getManager();
          List<PortalTab> portalTabs = manager.getPortalTabs();
          List<PortalTab> newPortalTabs = new ArrayList<>();
 
@@ -221,5 +225,7 @@ public class PortalIntegrationViewSettingsService {
       SreeEnv.save();
    }
 
-   private PortalThemesManager manager = PortalThemesManager.getManager();
+   private PortalThemesManager getManager() {
+      return PortalThemesManager.getManager();
+   }
 }

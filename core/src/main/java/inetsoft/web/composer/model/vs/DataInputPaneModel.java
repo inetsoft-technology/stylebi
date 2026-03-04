@@ -88,6 +88,22 @@ public class DataInputPaneModel implements Serializable {
       this.writeBackDirectly = writeBackDirectly;
    }
 
+   public boolean isQueryDateFormat() {
+      return queryDateFormat;
+   }
+
+   public void setQueryDateFormat(boolean queryDateFormat) {
+      this.queryDateFormat = queryDateFormat;
+   }
+
+   public String getDateFormatPattern() {
+      return dateFormatPattern;
+   }
+
+   public void setDateFormatPattern(String dateFormatPattern) {
+      this.dateFormatPattern = dateFormatPattern;
+   }
+
    private String table;
    private String tableLabel;
    private String rowValue;
@@ -96,4 +112,6 @@ public class DataInputPaneModel implements Serializable {
    private TreeNodeModel targetTree;
    private boolean variable;
    private boolean writeBackDirectly;
+   private boolean queryDateFormat;
+   private String dateFormatPattern;
 }

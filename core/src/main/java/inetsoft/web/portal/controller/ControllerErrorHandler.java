@@ -61,7 +61,7 @@ public class ControllerErrorHandler extends ResponseEntityExceptionHandler {
    /**
     * Handles security exceptions.
     */
-   @ExceptionHandler(SecurityException.class)
+   @ExceptionHandler({SecurityException.class, java.lang.SecurityException.class})
    public ResponseEntity<Map<String, String>> handleSecurityException(Exception e) {
       log("Unauthorized access", e, LogLevel.WARN);
 
