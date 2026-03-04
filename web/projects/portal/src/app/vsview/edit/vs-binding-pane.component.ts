@@ -22,6 +22,7 @@ import { ChangeDetectorRef, Component, EventEmitter, HostListener, Injector, Inp
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { Subject, Subscription } from "rxjs";
 import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assistant.service";
+import { AiAssistantDialogService } from "../../common/services/ai-assistant-dialog.service";
 import { RefreshBindingTreeCommand } from "../../binding/command/refresh-binding-tree-command";
 import { SetGrayedOutFieldsCommand } from "../../binding/command/set-grayed-out-fields-command";
 import { VSBindingTrapCommand } from "../../binding/command/vs-binding-trap-command";
@@ -115,6 +116,8 @@ import { ConsoleMessage } from "../../widget/console-dialog/console-message";
    providers: [
       ViewsheetClientService,
       DataTipService,
+      AiAssistantService,
+      AiAssistantDialogService,
       AdhocFilterService,
       PopComponentService,
       ModelService, // use separate instance for custom error handler,
