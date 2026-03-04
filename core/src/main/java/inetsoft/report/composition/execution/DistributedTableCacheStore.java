@@ -31,8 +31,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.security.Principal;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipException;
@@ -50,15 +49,24 @@ public class DistributedTableCacheStore {
       Cluster cluster = Cluster.getInstance();
       clusterId = cluster.getId();
       storages = new ConcurrentHashMap<>();
-
-      // scheduleAtFixedRate is idempotent across the cluster (deduplicates by class name),
-      // so calling it on every construction is safe and ensures the task is re-registered
-      // whenever the distributed executor service is re-deployed after a node restart.
-      cluster.getScheduledExecutor().scheduleAtFixedRate(
-         new CleanupTableCacheTask(), 1L, CLEANUP_FREQUENCY_TIME,
-         TimeUnit.MINUTES);
-
       this.debouncer = new DefaultDebouncer<>(false);
+
+      // Run a local scheduler on every node. Only the cluster master executes the actual cleanup,
+      // so exactly one node does work at a time. Using a per-node local scheduler avoids the
+      // Ignite distributed-service lifecycle, which can cause the task to silently stop running
+      // when cluster topology changes (e.g. GKE scale-up across multiple physical nodes).
+      // When mastership transfers, the new master picks up cleanup at the next scheduled tick
+      // (within one CLEANUP_FREQUENCY_TIME window).
+      ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+         Thread t = new Thread(r, "table-cache-cleanup");
+         t.setDaemon(true);
+         return t;
+      });
+      scheduler.scheduleAtFixedRate(() -> {
+         if(cluster.isMaster()) {
+            new CleanupTableCacheTask().run();
+         }
+      }, 1L, CLEANUP_FREQUENCY_TIME, TimeUnit.MINUTES);
    }
 
    /**

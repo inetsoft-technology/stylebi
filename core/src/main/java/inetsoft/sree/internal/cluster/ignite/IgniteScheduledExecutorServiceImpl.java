@@ -43,8 +43,8 @@ public class IgniteScheduledExecutorServiceImpl implements IgniteScheduledExecut
          ScheduledExecutorCommand command = entry.getValue();
 
          if(command.period > 0) {
-            scheduleCommandAtFixedRate(id, (Runnable) command.command, command.delay, command.period,
-                                       command.unit);
+            scheduleFixedRateIfAbsent(id, (Runnable) command.command, command.delay, command.period,
+                                      command.unit);
          }
          else if(command.command instanceof Callable) {
             scheduleCommand(id, (Callable<?>) command.command, command.delay, command.unit);
@@ -57,6 +57,8 @@ public class IgniteScheduledExecutorServiceImpl implements IgniteScheduledExecut
 
    @Override
    public void cancel() {
+      periodicFutures.values().forEach(f -> f.cancel(false));
+      periodicFutures.clear();
       shutdown();
    }
 
@@ -79,11 +81,8 @@ public class IgniteScheduledExecutorServiceImpl implements IgniteScheduledExecut
                                    TimeUnit unit)
    {
       String id = command.getClass().getName();
-
-      if(!map.containsKey(id)) {
-         map.put(id, new ScheduledExecutorCommand((Serializable) command, initialDelay, period, unit));
-         scheduleCommandAtFixedRate(id, command, initialDelay, period, unit);
-      }
+      map.putIfAbsent(id, new ScheduledExecutorCommand((Serializable) command, initialDelay, period, unit));
+      scheduleFixedRateIfAbsent(id, command, initialDelay, period, unit);
    }
 
    public void scheduleWithId(String id, Runnable command, long delay, TimeUnit unit) {
@@ -112,16 +111,21 @@ public class IgniteScheduledExecutorServiceImpl implements IgniteScheduledExecut
       return executor.schedule(command, delay, unit);
    }
 
-   private ScheduledFuture<?> scheduleCommandAtFixedRate(String id, Runnable command,
-                                                         long initialDelay,
-                                                         long period,
-                                                         TimeUnit unit)
+   private void scheduleFixedRateIfAbsent(String id, Runnable command,
+                                          long initialDelay, long period, TimeUnit unit)
    {
-      return executor.scheduleAtFixedRate(command, initialDelay, period, unit);
+      periodicFutures.compute(id, (k, existing) -> {
+         if(existing != null && !existing.isCancelled() && !existing.isDone()) {
+            return existing;
+         }
+
+         return executor.scheduleAtFixedRate(command, initialDelay, period, unit);
+      });
    }
 
    private DistributedMap<String, ScheduledExecutorCommand> map;
    private ScheduledExecutorService executor;
+   private final ConcurrentHashMap<String, ScheduledFuture<?>> periodicFutures = new ConcurrentHashMap<>();
 
    private static final class ScheduledExecutorCommand implements Serializable {
       public ScheduledExecutorCommand(Serializable command, long delay, long period, TimeUnit unit) {
