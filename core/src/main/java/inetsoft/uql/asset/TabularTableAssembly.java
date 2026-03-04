@@ -420,8 +420,8 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
       TabularQuery query = info.getQuery();
 
       if(query == null) {
-         LOG.debug("printKey() returning false for '{}': query is null (data source plugin may be missing)",
-                   getName());
+         LOG.warn("printKey() returning false for '{}': query is null (data source plugin may be missing)",
+                  getName());
          return false;
       }
 
