@@ -24,15 +24,17 @@ import { NgbDatepickerConfig, NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subject, Subscription } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { AiAssistantService } from "../../../../shared/ai-assistant/ai-assistant.service";
-import { AiAssistantDialogService } from "../common/services/ai-assistant-dialog.service";
-import { LogoutService } from "../../../../shared/util/logout.service";
 import { AssetEntry, createAssetEntry } from "../../../../shared/data/asset-entry";
+import { LogoutService } from "../../../../shared/util/logout.service";
 import { LicenseInfo } from "../common/data/license-info";
+import { AiAssistantDialogService } from "../common/services/ai-assistant-dialog.service";
 import { FirstDayOfWeekService } from "../common/services/first-day-of-week.service";
 import { LicenseInfoService } from "../common/services/license-info.service";
 import { OpenComposerService } from "../common/services/open-composer.service";
+import { WizPortalDialogService } from "../common/services/wiz-portal-dialog.service";
 import { ComponentTool } from "../common/util/component-tool";
 import { GuiTool } from "../common/util/gui-tool";
+import { GettingStartedService } from "../widget/dialog/getting-started-dialog/service/getting-started.service";
 import { PortalCreationPermissions } from "./custom/portal-creation-permissions";
 import { PreferencesDialog } from "./dialog/preferences-dialog.component";
 import { PortalModel } from "./portal-model";
@@ -42,7 +44,6 @@ import { HideNavService } from "./services/hide-nav.service";
 import { HistoryBarService } from "./services/history-bar.service";
 import { PortalModelService } from "./services/portal-model.service";
 import { PortalTabsService } from "./services/portal-tabs.service";
-import { GettingStartedService } from "../widget/dialog/getting-started-dialog/service/getting-started.service";
 
 const PORTAL_MODEL_URI: string = "../api/portal/get-portal-model";
 const REFRESH_CREATION_PERMISSION_URI = "../api/portal/refresh-creation-permissions";
@@ -80,6 +81,7 @@ export class PortalAppComponent implements OnInit, OnDestroy {
 
    constructor(public aiAssistantService: AiAssistantService,
                public aiAssistantDialogService: AiAssistantDialogService,
+               public wizPortalDialogService: WizPortalDialogService,
                private modalService: NgbModal,
                private http: HttpClient,
                private portalTabsService: PortalTabsService,
@@ -404,6 +406,7 @@ export class PortalAppComponent implements OnInit, OnDestroy {
 
 export class WizardDialogStatusModel {
    constructor(public viewsheetWizardStatus: string,
-      public worksheetWizardStatus: string) {
+               public worksheetWizardStatus: string)
+   {
    }
 }
