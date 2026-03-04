@@ -1387,6 +1387,8 @@ public abstract class VSAQuery {
                continue;
             }
 
+            // Only append Range@ calc fields in the cube path to avoid double-appending
+            // detail calc fields that are already merged via SQL (Bug #73963 / Bug #73410).
             if(rangeOnly && !calcs[i].getName().startsWith("Range@")) {
                continue;
             }
