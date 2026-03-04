@@ -1363,6 +1363,12 @@ public abstract class VSAQuery {
    public static void appendCalcField(TableAssembly table, String tname,
                                       boolean detail, Viewsheet vs)
    {
+      appendCalcFieldWithType(table, tname, detail, false, vs);
+   }
+
+   protected static void appendCalcFieldWithType(TableAssembly table, String tname,
+                                                 boolean detail, boolean rangeOnly, Viewsheet vs)
+   {
       if(table == null) {
          return;
       }
@@ -1381,6 +1387,12 @@ public abstract class VSAQuery {
                continue;
             }
 
+            // Only append Range@ calc fields in the cube path to avoid double-appending
+            // detail calc fields that are already merged via SQL (Bug #73963 / Bug #73410).
+            if(rangeOnly && !calcs[i].getName().startsWith("Range@")) {
+               continue;
+            }
+
             // clear the mirror table entity-prefixed calc_field
             // to avoid duplicates when adding the bare calc_field
             DataRef old = columns.getAttribute(calcs[i].getName());
@@ -1394,7 +1406,11 @@ public abstract class VSAQuery {
             changed = true;
          }
 
-         changed = VSUtil.addCalcBaseRefs(columns, null, Arrays.asList(calcs)) || changed;
+         List<CalculateRef> calcsToProcess = rangeOnly
+            ? Arrays.stream(calcs).filter(c -> c.getName().startsWith("Range@"))
+               .collect(Collectors.toList())
+            : Arrays.asList(calcs);
+         changed = VSUtil.addCalcBaseRefs(columns, null, calcsToProcess) || changed;
 
          if(changed) {
             table.resetColumnSelection();
