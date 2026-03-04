@@ -41,6 +41,7 @@ import { CheckFormDataService } from "../../util/check-form-data.service";
 import { AdhocFilterService } from "../data-tip/adhoc-filter.service";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { PopComponentService } from "../data-tip/pop-component.service";
+import { TimerService } from "../data-tip/timer.service";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { MiniMenu } from "../mini-toolbar/mini-menu.component";
 import { MiniToolbar } from "../mini-toolbar/mini-toolbar.component";
@@ -163,9 +164,15 @@ describe("VSSelection Test", () => {
    const scaleService = { getScale: jest.fn(), setScale: jest.fn(), getCurrentScale: jest.fn() };
    scaleService.getScale.mockImplementation(() => observableOf(1));
    let httpClient: HttpClient;
+   let timerService: any;
 
    beforeEach(waitForAsync(() => {
       fixedDropdownService = { open: jest.fn() };
+      timerService = {
+         defer: jest.fn((fn) => {
+            fn();
+         })
+      };
 
       TestBed.configureTestingModule({
          imports: [ NgbModule, FormsModule, HttpClientTestingModule ],
@@ -185,6 +192,7 @@ describe("VSSelection Test", () => {
             { provide: DataTipService, useValue: dataTipService },
             { provide: FixedDropdownService, useValue: fixedDropdownService },
             { provide: AdhocFilterService, useValue: adhocFilterService },
+            { provide: TimerService, useValue: timerService },
             GlobalSubmitService
          ]
       });

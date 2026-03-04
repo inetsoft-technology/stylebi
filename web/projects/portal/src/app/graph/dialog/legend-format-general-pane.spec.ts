@@ -54,7 +54,8 @@ let createModel: () => LegendFormatGeneralPaneModel = () => {
       position: "",
       visible: false,
       notShowNull: false,
-      notShowNullVisible: false
+      notShowNullVisible: false,
+      symbolSize: 0
    };
 };
 

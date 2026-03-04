@@ -42,6 +42,7 @@ import { ShowHyperlinkService } from "../../../show-hyperlink.service";
 import { VSAnnotation } from "../../annotation/vs-annotation.component";
 import { DataTipService } from "../../data-tip/data-tip.service";
 import { PopComponentService } from "../../data-tip/pop-component.service";
+import { TimerService } from "../../data-tip/timer.service";
 import { VSImage } from "./vs-image.component";
 
 declare const window;
@@ -66,6 +67,7 @@ describe("VSImage", () => {
    let modelService: any;
    let router: any;
    let richTextService: any;
+   let timerService: any;
 
    beforeEach(() => {
       model = createModel();
@@ -86,6 +88,11 @@ describe("VSImage", () => {
       };
       richTextService = {
          showAnnotationDialog: jest.fn()
+      };
+      timerService = {
+         defer: jest.fn((fn) => {
+            fn();
+         })
       };
 
       TestBed.configureTestingModule({
@@ -108,7 +115,8 @@ describe("VSImage", () => {
             { provide: ModelService, useValue: modelService },
             { provide: Router, useValue: router },
             ShowHyperlinkService, DebounceService, ViewDataService, AppInfoService, PopComponentService,
-            { provide: RichTextService, useValue: richTextService }
+            { provide: RichTextService, useValue: richTextService },
+            { provide: TimerService, useValue: timerService },
          ]
       });
       TestBed.compileComponents();

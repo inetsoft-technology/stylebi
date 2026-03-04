@@ -22,6 +22,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
+import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.Assembly;
@@ -66,17 +67,13 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, ConfigurationContextExtension.class})
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ImagePropertyDialogControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
+      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
 
       trapService = new VSTrapService();
       List<DataRefModelFactory<?, ?>> dataRefModelFactories = Arrays.asList(
@@ -125,11 +122,6 @@ class ImagePropertyDialogControllerTest {
          .getSpringBean(ImagePropertyDialogService.class);
       controller = new ImagePropertyDialogController(runtimeViewsheetRef,
                                                      new ImagePropertyDialogServiceProxy());
-   }
-
-   @AfterEach
-   void afterEach() throws Exception {
-      staticConfigurationContext.close();
    }
 
    @Test
@@ -188,8 +180,6 @@ class ImagePropertyDialogControllerTest {
    @Mock VSCompositionService vsCompositionService;
    @Mock SharedFilterService sharedFilterService;
    @Mock VSObjectService vsObjectService;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
-
    private CoreLifecycleService coreLifecycleService;
    @Mock VSColumnHandler vsColumnHandler;
    private VSObjectPropertyService vsObjectPropertyService;

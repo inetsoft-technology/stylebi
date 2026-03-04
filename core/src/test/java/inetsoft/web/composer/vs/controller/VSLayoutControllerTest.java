@@ -19,6 +19,7 @@ package inetsoft.web.composer.vs.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
@@ -44,16 +45,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, ConfigurationContextExtension.class})
 class VSLayoutControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
+      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
       BinaryTransferService binaryTransferService = new BinaryTransferService();
       ImagePreviewPaneService imagePreviewPaneService =
          new ImagePreviewPaneService(viewsheetService, objectService, binaryTransferService);
@@ -67,11 +64,6 @@ class VSLayoutControllerTest {
 
       VSLayoutControllerServiceProxy vsLayoutControllerServiceProxy = new VSLayoutControllerServiceProxy();
       controller = new VSLayoutController(runtimeViewsheetRef, vsLayoutControllerServiceProxy);
-   }
-
-   @AfterEach
-   void afterEach() throws Exception {
-      staticConfigurationContext.close();
    }
 
    // Bug #16600 Make sure that when not setting a script, the default value doesnt error out.
@@ -115,7 +107,5 @@ class VSLayoutControllerTest {
    @Mock VSObjectModelFactoryService objectModelService;
    @Mock VSLayoutService vsLayoutService;
    @Mock VSObjectTreeService vsObjectTreeService;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
-
    private VSLayoutController controller;
 }

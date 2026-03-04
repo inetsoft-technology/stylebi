@@ -21,6 +21,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.security.*;
+import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.Assembly;
@@ -50,14 +51,12 @@ import java.util.Optional;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, ConfigurationContextExtension.class})
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ComposerViewsheetApiControllerTest {
    @BeforeEach
    void setup() throws Exception {
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(configurationContext);
+      ConfigurationContext configurationContext = ConfigurationContextExtension.getSpyContext();
       vsutil = Mockito.mockStatic(VSUtil.class);
       ComposerViewsheetService composerViewsheetService =
          new ComposerViewsheetService(runtimeViewsheetManager,
@@ -78,7 +77,6 @@ class ComposerViewsheetApiControllerTest {
 
    @AfterEach
    void afterEach() throws Exception {
-      staticConfigurationContext.close();
       vsutil.close();
    }
 
@@ -146,8 +144,6 @@ class ComposerViewsheetApiControllerTest {
    @Mock VSObjectModelFactoryService objectModelService;
    @Mock VSCompositionService vsCompositionService;
    @Mock ApplicationContext applicationContext;
-   @Spy ConfigurationContext configurationContext;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
    MockedStatic<VSUtil> vsutil;
 
    private ComposerViewsheetController controller;

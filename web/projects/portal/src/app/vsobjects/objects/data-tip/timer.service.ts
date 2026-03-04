@@ -15,19 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClientTestingModule } from "@angular/common/http/testing";
-import { TestBed, inject } from "@angular/core/testing";
-import { ViewsheetActionService } from "./viewsheet-action.service";
+import { Injectable } from "@angular/core";
 
-describe("ViewsheetActionService", () => {
-   beforeEach(() => {
-      TestBed.configureTestingModule({
-         imports: [HttpClientTestingModule],
-         providers: [ViewsheetActionService]
-      });
-   });
-
-   it("should be created", inject([ViewsheetActionService], (service: ViewsheetActionService) => {
-      expect(service).toBeTruthy();
-   }));
-});
+/**
+ * Thin wrapper around {@code setTimeout} that can be replaced in tests with a
+ * synchronous implementation, allowing tests to avoid fake timers.
+ */
+@Injectable()
+export class TimerService {
+   defer(fn: () => void, ms = 0): void {
+      setTimeout(fn, ms);
+   }
+}

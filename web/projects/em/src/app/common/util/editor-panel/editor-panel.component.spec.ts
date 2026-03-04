@@ -15,12 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { NO_ERRORS_SCHEMA, SimpleChange } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
-import { MatButtonModule } from "@angular/material/button";
-import { MatCardModule } from "@angular/material/card";
-import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { RouterModule } from "@angular/router";
+import { MaterialTestingModule } from "../../../testing/material-testing.module";
 import { EditorPanelComponent } from "./editor-panel.component";
 
 describe("EditorPanelComponent", () => {
@@ -28,20 +26,10 @@ describe("EditorPanelComponent", () => {
    let fixture: ComponentFixture<EditorPanelComponent>;
 
    beforeEach(waitForAsync(() => {
-      // window.matchMedia = jest.fn().mockImplementation(query => ({
-      //    matches: false,
-      //    media: query,
-      //    onchange: null,
-      //    addListener: jest.fn(),
-      //    removeListener: jest.fn()
-      // }));
-
       TestBed.configureTestingModule({
          imports: [
-            NoopAnimationsModule,
-            RouterModule.forRoot([]),
-            MatButtonModule,
-            MatCardModule
+            MaterialTestingModule,
+            RouterModule.forRoot([])
          ],
          declarations: [
             EditorPanelComponent
@@ -61,5 +49,36 @@ describe("EditorPanelComponent", () => {
 
    it("should create", () => {
       expect(component).toBeTruthy();
+   });
+
+   it("should emit unsavedChanges(true) when applyDisabled becomes false", () => {
+      const emitted: boolean[] = [];
+      component.unsavedChanges.subscribe((v: boolean) => emitted.push(v));
+
+      component.applyDisabled = false;
+      component.ngOnChanges({
+         applyDisabled: new SimpleChange(true, false, false)
+      });
+
+      expect(emitted).toEqual([true]);
+   });
+
+   it("should emit unsavedChanges(false) when applyDisabled becomes true", () => {
+      const emitted: boolean[] = [];
+      component.unsavedChanges.subscribe((v: boolean) => emitted.push(v));
+
+      component.applyDisabled = true;
+      component.ngOnChanges({
+         applyDisabled: new SimpleChange(false, true, false)
+      });
+
+      expect(emitted).toEqual([false]);
+   });
+
+   it("should set applyDisabled to true on handleClick", () => {
+      component.applyDisabled = false;
+      component.handleClick(new MouseEvent("click"));
+
+      expect(component.applyDisabled).toBe(true);
    });
 });

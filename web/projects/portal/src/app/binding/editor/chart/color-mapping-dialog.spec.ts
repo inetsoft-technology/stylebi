@@ -99,7 +99,8 @@ describe("Color Mapping Dialog Unit Test", () => {
 
       let cMaps: ColorMap[] = [{
          color: "#0000ff",
-         option: "1997"
+         option: "1997",
+         manualInput: false
       }];
       colorMappingDialog.onCommit.subscribe((maps: ColorMap[]) => {
          expect(maps).toEqual(cMaps);

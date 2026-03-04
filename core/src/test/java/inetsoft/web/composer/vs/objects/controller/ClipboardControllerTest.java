@@ -21,7 +21,9 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.security.*;
+import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
+import inetsoft.test.VSAssemblyFixture;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.util.ConfigurationContext;
@@ -46,16 +48,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, ConfigurationContextExtension.class})
 class ClipboardControllerTest {
 
    @BeforeEach
    void setup() {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
+      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
 
       ClipboardControllerService clipboardControllerService =
          Mockito.spy(new ClipboardControllerService(coreLifecycleService, vsObjectTreeService,
@@ -68,23 +66,16 @@ class ClipboardControllerTest {
       controller = new ClipboardController(runtimeViewsheetRef, new ClipboardControllerServiceProxy());
    }
 
-   @AfterEach
-   void afterEach() throws Exception {
-      staticConfigurationContext.close();
-   }
-
    // Bug #16764 make sure the top left is calculated correctly.
    @Test
-   void pastedObjectPosition() throws Exception {
+   void should_position_pasted_objects_relative_to_origin() throws Exception {
       when(viewsheetService.getViewsheet(any(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
       when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(sandbox));
 
       List<Assembly> assemblies = new ArrayList<>();
-      ImageVSAssembly image = new ImageVSAssembly(viewsheet, "Image");
-      image.setPixelOffset(new Point(100, 100));
-      GaugeVSAssembly gauge = new GaugeVSAssembly(viewsheet, "Gauge");
-      gauge.setPixelOffset(new Point(200, 200));
+      ImageVSAssembly image = VSAssemblyFixture.image(viewsheet, "Image", 100, 100);
+      GaugeVSAssembly gauge = VSAssemblyFixture.gauge(viewsheet, "Gauge", 200, 200);
       assemblies.add(image);
       assemblies.add(gauge);
 
@@ -136,8 +127,6 @@ class ClipboardControllerTest {
    @Mock VSAssemblyInfoHandler assemblyHandler;
    @Mock VSObjectPropertyService vsObjectPropertyService;
    @Mock ViewsheetSandbox sandbox;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
-
    private ClipboardController controller;
    private final String linkUri = "http://localhost:18080/sree/";
 }

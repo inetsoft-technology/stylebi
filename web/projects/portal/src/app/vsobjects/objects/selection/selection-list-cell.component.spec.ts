@@ -296,6 +296,7 @@ describe("Selection List Cell Test", () => {
 
       // Long-press timer cancellation
       it("should cancel the long-press timer on touchmove", () => {
+         selectionListCell.contextProvider = viewerContext();
          const mockEvent = { touches: [{}] } as unknown as TouchEvent;
          selectionListCell.onTouchStart(mockEvent);
          expect((selectionListCell as any).touchTimeout).not.toBeNull();
@@ -306,6 +307,7 @@ describe("Selection List Cell Test", () => {
       });
 
       it("should cancel the long-press timer on touchcancel", () => {
+         selectionListCell.contextProvider = viewerContext();
          const mockEvent = { touches: [{}] } as unknown as TouchEvent;
          selectionListCell.onTouchStart(mockEvent);
          expect((selectionListCell as any).touchTimeout).not.toBeNull();

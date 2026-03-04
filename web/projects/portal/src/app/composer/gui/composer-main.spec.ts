@@ -20,7 +20,7 @@ import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { ActivatedRoute, Router } from "@angular/router";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
-import { of as observableOf, Subject } from "rxjs";
+import { EMPTY, of as observableOf, Subject } from "rxjs";
 import { AppInfoService } from "../../../../../shared/util/app-info.service";
 import { UIContextService } from "../../common/services/ui-context.service";
 import { TestUtils } from "../../common/test/test-utils";
@@ -103,7 +103,7 @@ describe("ComposerMain Unit Tests", () => {
 
       stompClientService = { connect: jest.fn(() => observableOf(stompClientConnection)) };
 
-      httpService = { get: jest.fn(), post: jest.fn() };
+      httpService = { get: jest.fn(() => EMPTY), post: jest.fn() };
 
       appInfoService = {
          getCurrentOrgInfo: jest.fn(() => observableOf({})),

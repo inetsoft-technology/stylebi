@@ -18,9 +18,9 @@
 import { NO_ERRORS_SCHEMA, Renderer2 } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { ReactiveFormsModule } from "@angular/forms";
-import { MatCardModule } from "@angular/material/card";
 import { ChangePasswordFormComponent } from "./change-password-form.component";
 import { ChangePasswordService } from "./change-password.service";
+import { MaterialTestingModule } from "../testing/material-testing.module";
 
 describe("ChangePasswordFormComponent", () => {
    let component: ChangePasswordFormComponent;
@@ -41,7 +41,7 @@ describe("ChangePasswordFormComponent", () => {
       TestBed.configureTestingModule({
          imports: [
             ReactiveFormsModule,
-            MatCardModule
+            MaterialTestingModule
          ],
          providers: [
             { provide: Renderer2, useValue: render },

@@ -23,6 +23,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
@@ -55,17 +56,14 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, ConfigurationContextExtension.class})
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ComposerBindingControllerTest {
 
+   @SuppressWarnings("unchecked")
    @BeforeEach
    void setup() throws Exception {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
+      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
       vsutil = Mockito.mockStatic(VSUtil.class);
 
       VSBindingService vsBindService = new VSBindingService(trapService, vsTableService, groupingService,
@@ -108,7 +106,6 @@ class ComposerBindingControllerTest {
 
    @AfterEach
    void afterEach() throws Exception {
-      staticConfigurationContext.close();
       vsutil.close();
    }
 
@@ -142,7 +139,6 @@ class ComposerBindingControllerTest {
    }
 
    // Bug #16854 Populate object tree after creating assembly from binding
-   @SuppressWarnings("unchecked")
    @Test
    void populateObjectTree() throws Exception {
       ChangeVSObjectBindingEvent eventModel = new ChangeVSObjectBindingEvent();
@@ -248,7 +244,6 @@ class ComposerBindingControllerTest {
    @Mock VSObjectModelFactoryService objectModelService;
    @Mock VSWizardTemporaryInfoService wizardTemporaryInfoService;
    @Mock VSSelectionContainerService vsSelectionContainerService;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
    MockedStatic<VSUtil> vsutil;
 
    private ComposerBindingController controller;

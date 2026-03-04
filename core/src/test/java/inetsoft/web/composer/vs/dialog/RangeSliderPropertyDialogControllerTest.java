@@ -19,6 +19,7 @@ package inetsoft.web.composer.vs.dialog;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.TimeSliderVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -44,15 +45,11 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, ConfigurationContextExtension.class})
 class RangeSliderPropertyDialogControllerTest {
    @BeforeEach
    void setup() throws Exception {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
+      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
       RangeSliderPropertyDialogService rangeSliderPropertyDialogService =
          new RangeSliderPropertyDialogService(
             vsObjectPropertyService,
@@ -73,11 +70,6 @@ class RangeSliderPropertyDialogControllerTest {
       when(rvs.getViewsheet()).thenReturn(viewsheet);
       when(viewsheet.getAssembly(anyString())).thenReturn(timeSliderAssembly);
       when(timeSliderAssembly.getVSAssemblyInfo()).thenReturn(timeSliderVSAssemblyInfoSpy);
-   }
-
-   @AfterEach
-   void afterEach() throws Exception {
-      staticConfigurationContext.close();
    }
 
    @Test
@@ -123,8 +115,6 @@ class RangeSliderPropertyDialogControllerTest {
    VSAssemblyInfoHandler assemblyInfoHandler;
    @Mock (answer = Answers.RETURNS_DEEP_STUBS)
    private RangeSliderPropertyDialogModel rangeSliderPropertyDialogModel;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
-
    private RangeSliderPropertyDialogController controller;
 
 }

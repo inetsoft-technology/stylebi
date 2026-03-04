@@ -179,7 +179,7 @@ describe("Data Input Pane Popup Table Test", () => {
 
    beforeEach(() => {
       httpService = { get: jest.fn() };
-      dataInputPane = new DataInputPane(httpService);
+      dataInputPane = new DataInputPane(httpService, { transform: jest.fn() } as any);
       dataInputPane.model = createModel();
       dataInputPane.runtimeId = "Viewsheet1";
       dataInputPane.variableValues = [];

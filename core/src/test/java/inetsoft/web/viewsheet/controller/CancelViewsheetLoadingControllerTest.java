@@ -24,6 +24,7 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.util.ConfigurationContext;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.CancelViewsheetLoadingEvent;
@@ -31,6 +32,7 @@ import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.viewsheet.controller.CancelViewsheetLoadingController;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -42,10 +44,10 @@ import java.util.Optional;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(ConfigurationContextExtension.class)
 public class CancelViewsheetLoadingControllerTest {
    @Mock ViewsheetService viewsheetService;
    @Mock CoreLifecycleService coreLifecycleService;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
    @InjectMocks
    private CancelViewsheetLoadingController controller;
    private MockMvc mockMvc;
@@ -60,11 +62,7 @@ public class CancelViewsheetLoadingControllerTest {
 
    @BeforeEach
    public void setUp() throws Exception {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
+      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
 
       viewsheetService = mock(ViewsheetService.class);
       rvs = mock(RuntimeViewsheet.class);
@@ -94,11 +92,6 @@ public class CancelViewsheetLoadingControllerTest {
       CancelViewsheetLoadingService loadingService = new CancelViewsheetLoadingService(viewsheetService, coreLifecycleService);
       doReturn(loadingService).when(spyContext).getSpringBean(CancelViewsheetLoadingService.class);
       controller = new CancelViewsheetLoadingController(new CancelViewsheetLoadingServiceProxy());
-   }
-
-   @AfterEach
-   void afterEach() throws Exception {
-      staticConfigurationContext.close();
    }
 
    @Test

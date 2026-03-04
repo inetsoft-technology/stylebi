@@ -28,6 +28,7 @@ import { CheckFormDataService } from "../../util/check-form-data.service";
 import { FormInputService } from "../../util/form-input.service";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { PopComponentService } from "../data-tip/pop-component.service";
+import { TimerService } from "../data-tip/timer.service";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSSlider } from "./vs-slider.component";
 
@@ -35,6 +36,7 @@ describe("VSSlider Unit Tests", () => {
    let stompClient: any;
    let dataTipService: any;
    let fixture: ComponentFixture<VSSlider>;
+   let timerService: any;
 
    beforeEach(waitForAsync(() => {
       stompClient = TestUtils.createMockStompClientService();
@@ -45,6 +47,11 @@ describe("VSSlider Unit Tests", () => {
          removeObject: jest.fn(),
          addObject: jest.fn(),
          replaceObject: jest.fn()
+      };
+      timerService = {
+         defer: jest.fn((fn) => {
+            fn();
+         })
       };
 
       TestBed.configureTestingModule({
@@ -65,6 +72,7 @@ describe("VSSlider Unit Tests", () => {
             DebounceService,
             { provide: DataTipService, useValue: dataTipService },
             { provide: ContextProvider, useValue: contextProvider },
+            { provide: TimerService, useValue: timerService },
          ]
       });
       TestBed.compileComponents();

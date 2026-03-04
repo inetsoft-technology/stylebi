@@ -21,6 +21,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.FormTableLens;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.erm.AttributeRef;
@@ -43,16 +44,12 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, ConfigurationContextExtension.class})
 class VSFormTableControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
+      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
 
       VSFormTableServiceProxy serviceProxy = new VSFormTableServiceProxy();
       VSFormTableService vsFormTableService = new VSFormTableService(viewsheetService, coreLifecycleService);
@@ -61,11 +58,6 @@ class VSFormTableControllerTest {
          .getSpringBean(VSFormTableService.class);
 
       controller = new VSFormTableController(serviceProxy, runtimeViewsheetRef);
-   }
-
-   @AfterEach
-   void afterEach() throws Exception {
-      staticConfigurationContext.close();
    }
 
    // Empty input is valid, set form object to data
@@ -105,6 +97,5 @@ class VSFormTableControllerTest {
    @Mock Viewsheet viewsheet;
    @Mock CommandDispatcher commandDispatcher;
    @Mock Principal principal;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
    private VSFormTableController controller;
 }

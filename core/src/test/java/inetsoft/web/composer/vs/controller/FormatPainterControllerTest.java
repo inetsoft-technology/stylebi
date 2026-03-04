@@ -22,6 +22,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.report.composition.region.ChartArea;
+import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
@@ -50,16 +51,12 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, ConfigurationContextExtension.class})
 class FormatPainterControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
+      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
       FormatPainterService formatPainterService =
          new FormatPainterService(coreLifecycleService,
                                   chartRegionHandler, viewsheetEngine,
@@ -90,13 +87,8 @@ class FormatPainterControllerTest {
       when(viewsheet.getAssembly("Chart1")).thenReturn(chart);
    }
 
-   @AfterEach
-   void afterEach() throws Exception {
-      staticConfigurationContext.close();
-   }
-
    @Test
-   void getChartFormatWorks() throws Exception {
+   void should_initialize_text_format_when_reading_chart_title() throws Exception {
       TitlesDescriptor titlesDescriptor = new TitlesDescriptor();
       TitleDescriptor titleDescriptor = spy(new TitleDescriptor());
       titleDescriptor.setTextFormat(null);
@@ -115,7 +107,7 @@ class FormatPainterControllerTest {
 
    @Test
    @Disabled
-   void legendAlignIsEnabled() throws Exception {
+   void should_enable_horizontal_alignment_for_legend_content() throws Exception {
 //      LegendDescriptor legendDescriptor = new LegendDescriptor();
 //
 //      doReturn(legendDescriptor).when(controller)
@@ -140,7 +132,7 @@ class FormatPainterControllerTest {
 
    // Bug #16423 when selecting axis label, ensure correct alignment options are enabled.
    @Test
-   void yAxisAlignEnabled() throws Exception {
+   void should_enable_horizontal_alignment_for_y_axis_label() throws Exception {
       AxisDescriptor axisDescriptor = new AxisDescriptor();
 
       doReturn(axisDescriptor).when(chartRegionHandler)
@@ -185,7 +177,5 @@ class FormatPainterControllerTest {
    @Mock VSLayoutService vsLayoutService;
    @Mock VGraphPair graphPair;
    private ChartVSAssembly chart;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
-
    private FormatPainterController controller;
 }

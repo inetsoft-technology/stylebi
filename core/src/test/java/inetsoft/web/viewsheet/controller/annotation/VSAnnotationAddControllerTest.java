@@ -22,6 +22,7 @@ import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityProvider;
+import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
@@ -32,6 +33,7 @@ import inetsoft.web.viewsheet.event.annotation.AddAnnotationEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 
 import java.security.Principal;
@@ -41,14 +43,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
+@ExtendWith(ConfigurationContextExtension.class)
 class VSAnnotationAddControllerTest {
    @BeforeEach
    void setUp() throws Exception {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
+      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
       runtimeViewsheetRef = mock(RuntimeViewsheetRef.class);
       coreLifecycleService = mock(CoreLifecycleService.class);
       viewsheetService = mock(ViewsheetService.class);
@@ -93,7 +92,6 @@ class VSAnnotationAddControllerTest {
       rvs = null;
       viewsheet = null;
       service = null;
-      staticConfigurationContext.close();
    }
 
    @Test
@@ -185,7 +183,6 @@ class VSAnnotationAddControllerTest {
       assertEquals(annotationNames.get(0), annotations.get(0).getAbsoluteName());
    }
 
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
    private RuntimeViewsheetRef runtimeViewsheetRef;
    private CoreLifecycleService coreLifecycleService;
    private ViewsheetService viewsheetService;

@@ -66,6 +66,8 @@ describe("Viewsheet Pane Test", () => {
    let composerVsSearchService: any;
    let appInfoService: any;
    let fontService: any;
+   let aiAssistantService: any;
+   let aiAssistantDialogService: any;
 
    let createChartObject: () =>  ChartObject = () => {
       return {
@@ -185,7 +187,11 @@ describe("Viewsheet Pane Test", () => {
          defaultFont: "Roboto"
       };
 
+      aiAssistantService = {};
+      aiAssistantDialogService = { setViewsheetScriptContext: jest.fn() };
+
       viewsheetPane = new VSPane(
+         aiAssistantService, aiAssistantDialogService,
          elementRef, composerObjectService, viewsheetClientService,
          treeService, changeDetectorRef, modelService, modalService,
          downloadService, dragService, scaleService, renderer, actionFactory,
@@ -476,7 +482,9 @@ describe("Viewsheet Pane Test", () => {
          childrenNames: ["group1", "gauge2"],
          selected: "group1",
          activeFormat: TestUtils.createMockVSFormatModel(),
-         roundTopCornersOnly: true
+         roundTopCornersOnly: true,
+         roundBottomCornersOnly: false,
+         bottomTabs: false
       }, TestUtils.createMockVSObjectModel("VSTab", "tab1"));
 
       table1.container = "group1";

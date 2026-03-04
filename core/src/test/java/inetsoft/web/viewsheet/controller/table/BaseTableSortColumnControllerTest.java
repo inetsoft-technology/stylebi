@@ -21,6 +21,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.internal.binding.DimensionRef;
+import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
@@ -49,17 +50,13 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, ConfigurationContextExtension.class})
 @MockitoSettings(strictness = Strictness.LENIENT)
 class BaseTableSortColumnControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
+      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
 
       BaseTableSortColumnServiceProxy service = new BaseTableSortColumnServiceProxy();
 
@@ -70,11 +67,6 @@ class BaseTableSortColumnControllerTest {
          .getSpringBean(BaseTableSortColumnService.class);
 
       controller = new BaseTableSortColumnController(runtimeViewsheetRef, service);
-   }
-
-   @AfterEach
-   void afterEach() throws Exception {
-      staticConfigurationContext.close();
    }
 
    // Bug #17147 Create new sort info when sort event multi flag is false
@@ -129,7 +121,5 @@ class BaseTableSortColumnControllerTest {
    @Mock CommandDispatcher commandDispatcher;
    @Mock Principal principal;
    @Mock ViewsheetSandbox box;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
-
    private BaseTableSortColumnController controller;
 }

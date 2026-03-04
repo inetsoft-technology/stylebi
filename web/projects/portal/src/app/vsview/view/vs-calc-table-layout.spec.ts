@@ -58,8 +58,9 @@ describe("vs calc table layout unit case", () => {
       renderer = { setStyle: jest.fn() };
       zone = { run: jest.fn(), runOutsideAngular: jest.fn() };
       let doc = { addEventListener: jest.fn(), removeEventListener: jest.fn() };
+      let aiAssistantService: any = {};
 
-      calcTableLayoutPane = new CalcTableLayoutPane(editorService, clientService, changeRef, renderer, doc, zone);
+      calcTableLayoutPane = new CalcTableLayoutPane(aiAssistantService, editorService, clientService, changeRef, renderer, doc, zone);
       calcTableModel = TestUtils.createMockVSCalcTableModel("calc1");
       calcTableLayoutPane.vsObjectModel = calcTableModel;
    });

@@ -31,6 +31,7 @@ let createModel: () => ComboboxPropertyDialogModel = () => {
          titlePropPaneModel: null
       },
       dataInputPaneModel: null,
+      inputLabelPaneModel: null,
       vsAssemblyScriptPaneModel: {}
    };
 };

@@ -19,6 +19,7 @@ package inetsoft.web.composer.vs.objects.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
@@ -40,27 +41,18 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, ConfigurationContextExtension.class})
 @MockitoSettings(strictness = Strictness.LENIENT)
 class VSConditionDialogControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
+      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
 
       VSConditionDialogService dialogService = new VSConditionDialogService(dataRefModelFactoryService, vsAssemblyInfoHandler, viewsheetEngine);
       doReturn(dialogService).when(spyContext).getSpringBean(VSConditionDialogService.class);
       controller = new VSConditionDialogController(runtimeViewsheetRef,
                                                    new VSConditionDialogServiceProxy());
-   }
-
-   @AfterEach
-   void afterEach() throws Exception {
-      staticConfigurationContext.close();
    }
 
    @Test
@@ -109,7 +101,5 @@ class VSConditionDialogControllerTest {
    @Mock RuntimeViewsheet rvs;
    @Mock Viewsheet viewsheet;
    @Mock BindingInfo bindingInfo;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
-
    private VSConditionDialogController controller;
 }

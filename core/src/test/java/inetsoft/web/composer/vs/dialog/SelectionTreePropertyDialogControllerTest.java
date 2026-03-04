@@ -19,6 +19,7 @@ package inetsoft.web.composer.vs.dialog;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -45,15 +46,11 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, ConfigurationContextExtension.class})
 class SelectionTreePropertyDialogControllerTest {
    @BeforeEach
    void setup(){
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
+      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
       SelectionTreePropertyDialogService selectionTreePropertyDialogService =
          new SelectionTreePropertyDialogService(
             vsObjectPropertyService,
@@ -70,11 +67,6 @@ class SelectionTreePropertyDialogControllerTest {
          .getSpringBean(SelectionTreePropertyDialogService.class);
       controller = new SelectionTreePropertyDialogController(runtimeViewsheetRef,
                                                              new SelectionTreePropertyDialogServiceProxy());
-   }
-
-   @AfterEach
-   void afterEach() throws Exception {
-      staticConfigurationContext.close();
    }
 
    @Test
@@ -131,7 +123,5 @@ class SelectionTreePropertyDialogControllerTest {
    private Viewsheet viewsheet;
    @Mock (answer = Answers.RETURNS_DEEP_STUBS)
    private SelectionTreePropertyDialogModel selectionTreePropertyDialogModel;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
-
    private SelectionTreePropertyDialogController controller;
 }

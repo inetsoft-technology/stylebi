@@ -77,6 +77,7 @@ import { VSBookmarkInfoModel } from "./model/vs-bookmark-info-model";
 import { VSChartService } from "./objects/chart/services/vs-chart.service";
 import { DataTipService } from "./objects/data-tip/data-tip.service";
 import { PopComponentService } from "./objects/data-tip/pop-component.service";
+import { TimerService } from "./objects/data-tip/timer.service";
 import { VSPopComponentDirective } from "./objects/data-tip/vs-pop-component.directive";
 import { MiniToolbarService } from "./objects/mini-toolbar/mini-toolbar.service";
 import { SelectionMobileService } from "./objects/selection/services/selection-mobile.service";
@@ -145,6 +146,7 @@ describe("ViewerApp Unit Tests", () => {
    let assetLoadingService: any;
    let viewContainerRef: any;
    let baseHrefService: any;
+   let timerService: any;
 
    beforeEach(waitForAsync(() => {
       formDataService = {
@@ -275,6 +277,11 @@ describe("ViewerApp Unit Tests", () => {
       baseHrefService = {
          getBaseHref: jest.fn(),
       };
+      timerService = {
+         defer: jest.fn((fn) => {
+            fn();
+         })
+      };
 
 
       window.IntersectionObserver = jest.fn().mockImplementation(() => ({
@@ -322,7 +329,8 @@ describe("ViewerApp Unit Tests", () => {
             { provide: AssetLoadingService, useValue: assetLoadingService },
             { provide: ViewContainerRef, useValue: viewContainerRef },
             { provide: BaseHrefService, useValue: baseHrefService },
-            AppInfoService
+            AppInfoService,
+            { provide: TimerService, useValue: timerService },
          ],
          declarations: [
             ViewerAppComponent, ActionsContextmenuComponent, InteractContainerDirective,

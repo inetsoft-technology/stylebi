@@ -135,6 +135,7 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
       // Recalculate handle position now that the DOM is rendered and the actual
       // container width is known (may differ from model width when a label is present).
       this.handlePosition = this.getValueX();
+      this.changeRef.detectChanges();
    }
 
    ngOnDestroy() {

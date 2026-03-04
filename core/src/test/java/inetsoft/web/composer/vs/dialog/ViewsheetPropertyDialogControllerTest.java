@@ -20,6 +20,7 @@ package inetsoft.web.composer.vs.dialog;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
@@ -49,15 +50,11 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
 @SreeHome()
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, ConfigurationContextExtension.class})
 public class ViewsheetPropertyDialogControllerTest {
    @BeforeEach
    public void setup() throws Exception {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
+      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
 
       ViewsheetPropertyDialogService viewsheetPropertyDialogService =
          new ViewsheetPropertyDialogService(coreLifecycleService, viewsheetService,
@@ -69,11 +66,6 @@ public class ViewsheetPropertyDialogControllerTest {
 
       controller = new ViewsheetPropertyDialogController(
          runtimeViewsheetRef, new ViewsheetPropertyDialogServiceProxy());
-   }
-
-   @AfterEach
-   public void tearDown() throws Exception {
-      staticConfigurationContext.close();
    }
 
    // Bug #16756 Update layout info if it has same id as incoming layout
@@ -134,7 +126,5 @@ public class ViewsheetPropertyDialogControllerTest {
    @Mock ViewsheetSandbox viewsheetSandbox;
    @Mock CommandDispatcher commandDispatcher;
    @Mock VSAssemblyInfoHandler vsAssemblyInfoHandler;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
-
    private ViewsheetPropertyDialogController controller;
 }

@@ -29,6 +29,7 @@ import { SafeFontDirective } from "../../directives/safe-font.directive";
 import { FormInputService } from "../../util/form-input.service";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { PopComponentService } from "../data-tip/pop-component.service";
+import { TimerService } from "../data-tip/timer.service";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSSubmit } from "./vs-submit.component";
 import { GlobalSubmitService } from "../../util/global-submit.service";
@@ -40,6 +41,7 @@ describe("VS Submit component unit case", () => {
    let dataTipService: any;
    let debounceService: any;
    let ssoHeartbeatService: any;
+   let timerService: any;
 
    beforeEach(() => {
       socket = { sendEvent: jest.fn() };
@@ -47,6 +49,11 @@ describe("VS Submit component unit case", () => {
       const contextProvider = {};
       debounceService = { debounce: jest.fn((key, fn, delay, args) => fn(...args)) };
       ssoHeartbeatService = { heartbeat: jest.fn() };
+      timerService = {
+         defer: jest.fn((fn) => {
+            fn();
+         })
+      };
       TestBed.configureTestingModule({
          imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule],
          declarations: [VSSubmit, VSPopComponentDirective, SafeFontDirective],
@@ -60,7 +67,8 @@ describe("VS Submit component unit case", () => {
             { provide: ContextProvider, useValue: contextProvider },
             { provide: DataTipService, useValue: dataTipService },
             { provide: DebounceService, useValue: debounceService },
-            { provide: SsoHeartbeatService, useValue: ssoHeartbeatService }
+            { provide: SsoHeartbeatService, useValue: ssoHeartbeatService },
+            { provide: TimerService, useValue: timerService },
          ]
       }).compileComponents();
 

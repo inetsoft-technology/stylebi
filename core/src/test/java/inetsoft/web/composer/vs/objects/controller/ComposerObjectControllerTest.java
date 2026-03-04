@@ -19,6 +19,7 @@ package inetsoft.web.composer.vs.objects.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
@@ -42,25 +43,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, ConfigurationContextExtension.class})
 class ComposerObjectControllerTest {
    @BeforeEach
    void setup() throws Exception {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
+      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
       ComposerObjectService composerObjectService = new ComposerObjectService(vsObjectTreeService, coreLifecycleService,
                                                                               engine, assemblyHandler, objectModelService,
                                                                               vsObjectService, vsCompositionService);
       doReturn(composerObjectService).when(spyContext).getSpringBean(ComposerObjectService.class);
       controller = new ComposerObjectController(runtimeViewsheetRef, new ComposerObjectServiceProxy());
-   }
-
-   @AfterEach
-   void afterEach() throws Exception {
-      staticConfigurationContext.close();
    }
 
    @Test
@@ -130,7 +122,6 @@ class ComposerObjectControllerTest {
    @Mock LockVSObjectEvent event;
    @Mock Principal principal;
    @Mock CommandDispatcher dispatcher;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
    @Mock VSAssemblyInfoHandler assemblyHandler;
    @Mock VSObjectModelFactoryService objectModelService;
    @Mock VSObjectService vsObjectService;
