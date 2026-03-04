@@ -26,6 +26,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
@@ -327,6 +328,22 @@ public abstract class VSTableDataHelper extends ExporterHelper {
          double[] colWidths = BaseTableService.getColWidths(assembly, lens);
          lens.initTableGrid(info);
          lens.setColWidths(colWidths);
+
+         // Bug #73999, apply table.output.maxcol limit during export (same as web display)
+         int ccount = lens.getColCount();
+         String maxColProp = SreeEnv.getProperty("table.output.maxcol");
+         int maxCols = 500;
+
+         try {
+            maxCols = Math.min(Integer.parseInt(maxColProp), 500);
+            maxCols = Math.max(maxCols, 1);
+         }
+         catch(NumberFormatException ignored) {
+         }
+
+         if(ccount > maxCols) {
+            lens.setMaxCols(maxCols);
+         }
       }
 
       int infoWidth = CoordinateHelper.getAssemblySize(
