@@ -22,6 +22,7 @@ import inetsoft.web.composer.model.ws.DependencyType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.*;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -46,6 +47,8 @@ class TabularTableAssemblyTest {
    void getDependeds_doesNotThrowWhenQueryIsNull() {
       Set<AssemblyRef> refs = new HashSet<>();
       assertDoesNotThrow(() -> assembly.getDependeds(refs));
+      // Empty because: no condition assemblies, no expression columns, getInputScript()
+      // returns null (query is null), and there are no other assemblies in the worksheet.
       assertTrue(refs.isEmpty());
    }
 
@@ -53,6 +56,7 @@ class TabularTableAssemblyTest {
    void getAugmentedDependeds_doesNotThrowWhenQueryIsNull() {
       Map<String, Set<DependencyType>> dependeds = new HashMap<>();
       assertDoesNotThrow(() -> assembly.getAugmentedDependeds(dependeds));
+      // Empty for the same reasons as getDependeds_doesNotThrowWhenQueryIsNull above.
       assertTrue(dependeds.isEmpty());
    }
 
@@ -64,5 +68,17 @@ class TabularTableAssemblyTest {
    @Test
    void dependencyChanged_doesNotThrowWhenQueryIsNull() {
       assertDoesNotThrow(() -> assembly.dependencyChanged("someTable"));
+   }
+
+   @Test
+   void loadColumnSelection_doesNotThrowWhenQueryIsNull() {
+      assertDoesNotThrow(() -> assembly.loadColumnSelection(new VariableTable(), true, null));
+   }
+
+   @Test
+   void printKey_returnsFalseWhenQueryIsNull() throws Exception {
+      PrintWriter writer = new PrintWriter(new StringWriter());
+      boolean result = assembly.printKey(writer);
+      assertFalse(result);
    }
 }
