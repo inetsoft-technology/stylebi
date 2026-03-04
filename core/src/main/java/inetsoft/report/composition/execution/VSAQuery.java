@@ -1363,11 +1363,11 @@ public abstract class VSAQuery {
    public static void appendCalcField(TableAssembly table, String tname,
                                       boolean detail, Viewsheet vs)
    {
-      appendCalcField(table, tname, detail, false, vs);
+      appendCalcFieldWithType(table, tname, detail, false, vs);
    }
 
-   protected static void appendCalcField(TableAssembly table, String tname,
-                                      boolean detail, boolean range, Viewsheet vs)
+   protected static void appendCalcFieldWithType(TableAssembly table, String tname,
+                                                 boolean detail, boolean rangeOnly, Viewsheet vs)
    {
       if(table == null) {
          return;
@@ -1387,7 +1387,7 @@ public abstract class VSAQuery {
                continue;
             }
 
-            if(range && !calcs[i].getName().startsWith("Range@")) {
+            if(rangeOnly && !calcs[i].getName().startsWith("Range@")) {
                continue;
             }
 
