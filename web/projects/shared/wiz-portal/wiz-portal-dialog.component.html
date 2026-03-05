@@ -17,5 +17,9 @@
   -->
 
 <div id="wiz-portal-dialog-container" style="position: relative; height: 100%; width: 100%;">
-  <stylebi-wiz-portal [attr.stylebi-url]="styleBIUrl"></stylebi-wiz-portal>
+  <stylebi-wiz-portal [attr.stylebi-url]="styleBIUrl"
+                      [attr.wiz-service-url]="wizServiceUrl"
+                      [attr.expected-user-id]="userId || null"
+                      [attr.domain]="domain || null">
+  </stylebi-wiz-portal>
 </div>
