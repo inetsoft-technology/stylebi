@@ -89,6 +89,15 @@ public class AxisPropertyDialogModel {
       boolean appliedDC = cInfo instanceof VSChartInfo && ((VSChartInfo) cInfo).isAppliedDateComparison();
       boolean showAxisLabelEnabled = isShowAxisLabelEnabled(cInfo, columnName, axisType, appliedDC);
 
+      boolean hasDualAxis = false;
+
+      for(ChartRef yRef : cInfo.getYFields()) {
+         if(yRef instanceof ChartAggregateRef && ((ChartAggregateRef) yRef).isSecondaryY()) {
+            hasDualAxis = true;
+            break;
+         }
+      }
+
       // create AxisLabelPaneModel.
       axisLabelPaneModel = new AxisLabelPaneModel();
       axisLabelPaneModel.setShowAxisLabel(
@@ -98,15 +107,17 @@ public class AxisPropertyDialogModel {
 
       // A right_y_axis click can mean either a true secondary y-axis OR a primary axis whose
       // labels were moved to the right via "Labels on Opposite Side".
-      // Only hide the option for a true secondary axis.
+      // Only hide the option for a true secondary axis, or for the primary axis in a dual axis chart.
       // Similarly for top_x_axis: it can be a true secondary X axis (X measure with
       // isSecondaryY=true in a transposed chart) OR labels moved via "Labels on Opposite Side".
       // The secondary X axis position is hardcoded in RectCoord and cannot be moved by
       // labelOnSecondaryAxis, so hide the option for both the secondary X axis and its primary.
+      boolean isSecondaryYAxis = "right_y_axis".equals(axisType) && !axisDesc.isLabelOnSecondaryAxis();
+      boolean isPrimaryInDualAxis = "left_y_axis".equals(axisType) && hasDualAxis;
       boolean hasSecondaryXAxis = Arrays.stream(cInfo.getRTXFields())
          .anyMatch(f -> f instanceof ChartAggregateRef && ((ChartAggregateRef) f).isSecondaryY());
       axisLabelPaneModel.setSecondary(
-         ("right_y_axis".equals(axisType) && !axisDesc.isLabelOnSecondaryAxis()) ||
+         isSecondaryYAxis || isPrimaryInDualAxis ||
          // Secondary X axis (a top_x_axis whose column ref has isSecondaryY=true). (Bug #74047)
          ("top_x_axis".equals(axisType) && ref instanceof ChartAggregateRef &&
             ((ChartAggregateRef) ref).isSecondaryY()) ||
