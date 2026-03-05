@@ -18,6 +18,7 @@
 <div class="btn-toolbar composer-btn-toolbar composer-toolbar-container" role="toolbar" aria-label="Composer Toolbar">
   <span *ngIf="!hiddenComposerIcon" class="composer-icon composer-breadcrumb txt-primary"></span>
   <i class="assets-icon composer-breadcrumb-1 icon-size-medium me-2"></i>
+  <toolbar-group *ngIf="!deployed" [showTooltips]="true" [actionGroup]="switchWizOperation" [asMenu]="false"></toolbar-group>
   <toolbar-group *ngIf="!deployed" [showTooltips]="true" [actionGroup]="newAssetOperations" [asMenu]="true"></toolbar-group>
   <toolbar-group [showTooltips]="true" [actionGroup]="saveOperations" [asMenu]="editCollapsed"></toolbar-group>
   <toolbar-group [showTooltips]="true" [actionGroup]="previewOperations" [asMenu]="previewCollapsed"></toolbar-group>

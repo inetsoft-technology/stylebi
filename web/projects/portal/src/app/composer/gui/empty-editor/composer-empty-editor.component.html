@@ -19,20 +19,31 @@
  <div class="hint-container">
 
   <ul class="hint-menu">
-    <li class="bg-darken2">
-      <div class="hint-icon bg-primary">
-        <i class="worksheet-icon icon-size-large txt-light" aria-hidden="true"></i>
-        <span class="visually-hidden">_#(New Worksheet)</span>
-      </div>
-      <span class="px-2">{{createWSMessage}} (<i class="new-worksheet-icon icon-size-small align-middle" aria-hidden="true"></i>). <br>{{editWSMessage}}</span>
-    </li>
-    <li class="mt-4 bg-darken2">
-      <div class="hint-icon bg-primary">
-        <i class="viewsheet-icon icon-size-large txt-light" aria-hidden="true"></i>
-        <span class="visually-hidden">_#(New Viewsheet)</span>
-      </div>
-      <span class="px-2">{{createVSMessage}} (<i class="new-viewsheet-icon icon-size-small align-middle" aria-hidden="true"></i>). <br>{{editVSMessage}}</span>
-    </li>
+    <ng-container *ngIf="!wiz">
+      <li class="bg-darken2">
+        <div class="hint-icon bg-primary">
+          <i class="worksheet-icon icon-size-large txt-light" aria-hidden="true"></i>
+          <span class="visually-hidden">_#(New Worksheet)</span>
+        </div>
+        <span class="px-2">{{createWSMessage}} (<i class="new-worksheet-icon icon-size-small align-middle" aria-hidden="true"></i>). <br>{{editWSMessage}}</span>
+      </li>
+      <li class="mt-4 bg-darken2">
+        <div class="hint-icon bg-primary">
+          <i class="viewsheet-icon icon-size-large txt-light" aria-hidden="true"></i>
+          <span class="visually-hidden">_#(New Viewsheet)</span>
+        </div>
+        <span class="px-2">{{createVSMessage}} (<i class="new-viewsheet-icon icon-size-small align-middle" aria-hidden="true"></i>). <br>{{editVSMessage}}</span>
+      </li>
+    </ng-container>
+    <ng-container *ngIf="wiz">
+      <li class="bg-darken2">
+        <div class="hint-icon bg-primary">
+          <i class="worksheet-icon icon-size-large txt-light" aria-hidden="true"></i>
+          <span class="visually-hidden">_#(New Wiz)</span>
+        </div>
+        <span class="px-2">{{"new wiz text"}} (<i class="new-worksheet-icon icon-size-small align-middle" aria-hidden="true"></i>). <br>{{"edit wiz text"}}</span>
+      </li>
+    </ng-container>
   </ul>
  </div>
 </div>

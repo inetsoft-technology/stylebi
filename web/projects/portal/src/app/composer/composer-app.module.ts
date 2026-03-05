@@ -281,6 +281,11 @@ import { EventQueueService } from "./gui/vs/event-queue.service";
 import { LayoutObject } from "./gui/vs/layouts/layout-object.component";
 import { LayoutPane } from "./gui/vs/layouts/layout-pane.component";
 import { ComposerSelectionContainerChildren } from "./gui/vs/objects/selection/composer-selection-container-children.component";
+import { WizComponentsPane } from "./gui/wiz/wiz-components-pane/wiz-components-pane.component";
+import { WizPane } from "./gui/wiz/wiz-main/wiz-pane.component";
+import { WizObject } from "./gui/wiz/wiz-object/wiz-object.component";
+import { WizVisualizationPane } from "./gui/wiz/wiz-visualization-pane/wiz-visualization-pane.component";
+import { WizVsPreview } from "./gui/wiz/wiz-vs-preview/wiz-vs-preview.component";
 import { ConcatRelationConnectorComponent } from "./gui/ws/editor/concatenation/concat-relation-connector.component";
 import { ConcatRelationDescriptorComponent } from "./gui/ws/editor/concatenation/concat-relation-descriptor.component";
 import { ConcatenatedTableThumbnailComponent } from "./gui/ws/editor/concatenation/concatenated-table-thumbnail.component";
@@ -576,7 +581,12 @@ import { LineAnchorService } from "./services/line-anchor.service";
       ViewsheetActionHandlerDirective,
       ShowHideColumnsDialogComponent,
       ScriptEditPaneComponent,
-      SaveScriptDialog
+      SaveScriptDialog,
+      WizComponentsPane,
+      WizPane,
+      WizObject,
+      WizVisualizationPane,
+      WizVsPreview
    ],
    providers: [
       ClipboardService,
