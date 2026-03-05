@@ -411,8 +411,7 @@ import { RouteSourceResolver } from "./services/route-source-resolver.service";
          provide: CodemirrorService,
          useClass: DefaultCodemirrorService
       },
-      DataQueryModelService,
-      AiAssistantService,
+      DataQueryModelService
    ]
 })
 export class PortalAppModule {
