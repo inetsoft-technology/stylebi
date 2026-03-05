@@ -536,7 +536,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       if(this.vs.newSheet && !!!this.vs.runtimeId) {
          if(this.vs.autoSaveFile != null) {
             let event: OpenViewsheetEvent = new OpenViewsheetEvent(
-               this.vs.id, size[0], size[1], mobile, window.navigator.userAgent, this.vs.meta);
+               this.vs.id, size[0], size[1], mobile, window.navigator.userAgent, this.vs.meta, false, this.vs.type == "wiz");
             event.viewer = false;
             event.embeddedViewsheetId = null;
             event.openAutoSaved = true;
@@ -545,7 +545,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
          }
          else {
             let event: NewViewsheetEvent = new NewViewsheetEvent(
-               this.vs.id, 0, 0, mobile, window.navigator.userAgent, this.vs.baseEntry);
+               this.vs.id, 0, 0, mobile, window.navigator.userAgent, this.vs.baseEntry, this.vs.type == "wiz");
             event.viewer = false;
             this.viewsheetClient.sendEvent("/events/composer/viewsheet/new", event);
          }

@@ -66,7 +66,20 @@ public interface ViewsheetService extends WorksheetService {
     *
     * @return the viewsheet id.
     */
-   String openTemporaryViewsheet(String originalId, AssetEntry entry, Principal user) throws Exception;
+   default String  openTemporaryViewsheet(String originalId, AssetEntry entry, Principal user) throws Exception {
+      return openTemporaryViewsheet(originalId, entry, user, null);
+   }
+
+   /**
+    * Open a temporary viewsheet.
+    *
+    * @param originalId the ID of the original runtime sheet.
+    * @param entry the specified base viewsheet entry.
+    * @param user  the specified user.
+    *
+    * @return the viewsheet id.
+    */
+   String openTemporaryViewsheet(String originalId, AssetEntry entry, Principal user, Viewsheet.WizInfo wizInfo) throws Exception;
 
    /**
     * Open a preview viewsheet.

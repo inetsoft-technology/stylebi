@@ -19,6 +19,10 @@
            [snapOffset]="0" [gutterSize]="4">
   <!-- Left: AI dialog placeholder (web component will be embedded here) -->
   <div class="wiz-dialog-panel split">
+    <div class="wiz-action-bar">
+      <button class="btn btn-secondary btn-sm" (click)="exit()">Exit</button>
+      <button class="btn btn-primary btn-sm" (click)="accept()">Accept</button>
+    </div>
     <div class="wiz-dialog-placeholder">
       <span class="placeholder-label">_#(js:Ai Chat)</span>
     </div>
@@ -26,6 +30,6 @@
 
   <!-- Right: Viewsheet object preview -->
   <div class="wiz-preview-panel split bordered-box">
-    <wiz-vs-preview [viewsheet]="viewsheet"></wiz-vs-preview>
+    <wiz-vs-preview [viewsheet]="currentVisualization"></wiz-vs-preview>
   </div>
 </split-pane>

@@ -1,2 +1,2 @@
 <viewsheet-pane *ngIf="!currentVisualization" [vs]="currentDashboard"></viewsheet-pane>
-<wiz-visualization-pane *ngIf="currentVisualization"></wiz-visualization-pane>
+<wiz-visualization-pane *ngIf="currentVisualization" [currentVisualization]="currentVisualization"></wiz-visualization-pane>

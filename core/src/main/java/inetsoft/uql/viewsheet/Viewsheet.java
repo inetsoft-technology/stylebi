@@ -159,8 +159,20 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
     * @param wentry the specified base worksheet entry.
     */
    public Viewsheet(AssetEntry wentry) {
+      this(wentry, false, false, null);
+   }
+
+   /**
+    * Constructor.
+    * @param wentry the specified base worksheet entry.
+    */
+   public Viewsheet(AssetEntry wentry, boolean wizSheet, boolean wizVisualization, String visualizationSheet) {
       this();
       this.wentry = wentry;
+
+      if(wizSheet || wizVisualization) {
+         this.wizInfo = wizSheet ? new WizInfo(true) : new WizInfo(true, visualizationSheet);
+      }
    }
 
    /**
@@ -4035,6 +4047,10 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       layoutInfo.writeXML(writer);
       writer.println("</layoutInfo>");
 
+      if(wizInfo != null) {
+         wizInfo.writeXML(writer);
+      }
+
       // the root viewsheet, save bookmarks and images
       if(getViewsheet() == null) {
          List<Map.Entry<String, byte[]>> entries
@@ -4311,6 +4327,12 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
       if(val != null) {
          setCreatedBy(val);
+      }
+
+      Element wizNode = Tool.getChildNodeByTagName(elem, "wizInfo");
+
+      if(wizNode != null) {
+         this.wizInfo = WizInfo.parseXML(wizNode);
       }
 
       setVersion(Tool.getChildValueByTagName(elem, "Version"));
@@ -5471,6 +5493,61 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       this.snapshotExport = snapshotExport;
    }
 
+   public WizInfo getWizInfo() {
+      return wizInfo;
+   }
+
+   public static class WizInfo {
+      public WizInfo(boolean wizSheet) {
+         this.wizSheet = wizSheet;
+      }
+
+      public WizInfo(boolean wizVisualization, String visualizationSheet) {
+         this.wizVisualization = wizVisualization;
+         this.visualizationSheet = visualizationSheet;
+      }
+
+      public boolean isWizSheet() {
+         return wizSheet;
+      }
+
+      public boolean isWizVisualization() {
+         return wizVisualization;
+      }
+
+      public String getVisualizationSheet() {
+         return visualizationSheet;
+      }
+
+      private void writeXML(PrintWriter writer) {
+         writer.print("<wizInfo wizSheet=\"" + wizSheet +
+            "\" wizVisualization=\"" + wizVisualization + "\"");
+
+         if(visualizationSheet != null) {
+            writer.print(" visualizationSheet=\"" + byteEncode(visualizationSheet) + "\"");
+         }
+
+         writer.println("/>");
+      }
+
+      private static WizInfo parseXML(Element elem) {
+         boolean wizSheet = "true".equals(Tool.getAttribute(elem, "wizSheet"));
+         WizInfo info = new WizInfo(wizSheet);
+         info.wizVisualization = "true".equals(Tool.getAttribute(elem, "wizVisualization"));
+         String visualizationSheet = Tool.getAttribute(elem, "visualizationSheet");
+
+         if(visualizationSheet != null) {
+            info.visualizationSheet = visualizationSheet;
+         }
+
+         return info;
+      }
+
+      private boolean wizSheet;
+      private boolean wizVisualization;
+      private String visualizationSheet;
+   }
+
    private ActionListener listener = new VSChangeListener(this);
    private ViewsheetVSAssemblyInfo info; // assembly info
    private ViewsheetInfo vinfo; // viewsheet info
@@ -5509,6 +5586,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
    private boolean annotationsVisible = true;
    private boolean maxMode = false;
    private final Map<String, LogbackTraceAppender.StackRecord> rmStacks = new ConcurrentHashMap<>();
+   private WizInfo wizInfo;
    private transient boolean snapshotExport = false;
 
    private static final String COLUMN_DELIMITER = "^^";

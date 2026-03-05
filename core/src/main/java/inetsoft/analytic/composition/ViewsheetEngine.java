@@ -190,10 +190,21 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
     * @return the viewsheet id.
     */
    @Override
-   public String openTemporaryViewsheet(String originalId, AssetEntry wentry, Principal user) {
+   public String openTemporaryViewsheet(String originalId, AssetEntry wentry, Principal user, Viewsheet.WizInfo wizInfo) {
       AssetEntry entry = getTemporaryAssetEntry(user, AssetEntry.Type.VIEWSHEET);
+
+      if(wizInfo != null) {
+         if(wizInfo.isWizSheet()) {
+            entry.setProperty("isWizSheet", "true");
+         }
+         else if(wizInfo.isWizVisualization() && !Tool.isEmptyString(wizInfo.getVisualizationSheet())) {
+            entry.setProperty("isWizVisualization", "true");
+            entry.setProperty("visualizationSheet", wizInfo.getVisualizationSheet());
+         }
+      }
+
       String nextId = originalId == null ? getNextID(entry, user) : getNextTemporaryID(originalId);
-      return OpenTemporaryViewsheetTask.openTemporaryViewsheet(this, wentry, entry, user, nextId);
+      return OpenTemporaryViewsheetTask.openTemporaryViewsheet(this, wentry, entry, user, nextId, wizInfo);
    }
 
    /**
@@ -927,11 +938,12 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
    }
 
    private static final class OpenTemporaryViewsheetTask implements AffinityCallable<String> {
-      public OpenTemporaryViewsheetTask(AssetEntry wentry, AssetEntry entry, Principal user, String id) {
+      public OpenTemporaryViewsheetTask(AssetEntry wentry, AssetEntry entry, Principal user, String id, Viewsheet.WizInfo wizInfo) {
          this.wentry = wentry;
          this.entry = entry;
          this.user = user;
          this.id = id;
+         this.wizInfo = wizInfo;
       }
 
       @Override
@@ -945,7 +957,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
             OrganizationContextHolder.setCurrentOrgId(entryOrgId);
 
             try {
-               return doOpenTemporaryViewsheet(engine, wentry, entry, user, id);
+               return doOpenTemporaryViewsheet(engine, wentry, entry, user, id, wizInfo);
             }
             finally {
                OrganizationContextHolder.setCurrentOrgId(originalOrg);
@@ -957,21 +969,23 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       }
 
       public static String openTemporaryViewsheet(ViewsheetEngine engine, AssetEntry wentry,
-                                                  AssetEntry entry, Principal user, String id)
+                                                  AssetEntry entry, Principal user, String id, Viewsheet.WizInfo wizInfo)
       {
          if(engine.amap.isLocal(id)) {
-            return doOpenTemporaryViewsheet(engine, wentry, entry, user, id);
+            return doOpenTemporaryViewsheet(engine, wentry, entry, user, id, wizInfo);
          }
          else {
-            OpenTemporaryViewsheetTask task = new OpenTemporaryViewsheetTask(wentry, entry, user, id);
+            OpenTemporaryViewsheetTask task = new OpenTemporaryViewsheetTask(wentry, entry, user, id, wizInfo);
             return engine.affinityCall(id, task);
          }
       }
 
       private static String doOpenTemporaryViewsheet(ViewsheetEngine engine, AssetEntry wentry,
-                                                     AssetEntry entry, Principal user, String id)
+                                                     AssetEntry entry, Principal user, String id,
+                                                     Viewsheet.WizInfo wizInfo)
       {
-         Viewsheet vs = new Viewsheet(wentry);
+         Viewsheet vs = wizInfo != null ? new Viewsheet(wentry, wizInfo.isWizSheet(), wizInfo.isWizVisualization(), wizInfo.getVisualizationSheet()) : new Viewsheet(wentry);
+
          vs.update(engine.engine, entry, user);
          RuntimeViewsheet rvs = new RuntimeViewsheet(entry, vs, user, engine.engine, engine,
                                                      null, false);
@@ -984,6 +998,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       private final AssetEntry entry;
       private final Principal user;
       private final String id;
+      private final Viewsheet.WizInfo wizInfo;
       private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
    }
 

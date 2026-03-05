@@ -483,7 +483,7 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
    }
 
    private save0(close?: boolean): void {
-      if(this.focusedTab.type === "viewsheet") {
+      if(this.focusedTab.type === "viewsheet" || this.focusedTab.type === "wiz") {
          if(this.sheet.newSheet) {
             this.onSaveViewsheetAs.emit(this.sheet);
          }
@@ -533,7 +533,7 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
    }
 
    saveAs(): void {
-      if(this.sheet && this.sheet.type === "viewsheet") {
+      if(this.sheet && this.sheet.type === "viewsheet" || this.sheet.type === "wiz") {
          this.onSaveViewsheetAs.emit(this.sheet);
       }
       else if(this.sheet && this.sheet.type === "worksheet") {

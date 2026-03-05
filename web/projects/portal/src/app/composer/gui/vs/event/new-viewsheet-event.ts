@@ -38,9 +38,9 @@ export class NewViewsheetEvent extends OpenViewsheetEvent {
     * @param dataSource the asset entry id of the data source.
     */
    constructor(entryId: string, width: number, height: number, mobile: boolean,
-               userAgent: string, dataSource: AssetEntry)
+               userAgent: string, dataSource: AssetEntry, wizSheet?: boolean, wizVisualization?: boolean, visualizationSheet?: string)
    {
-      super(entryId, width, height, mobile, userAgent);
+      super(entryId, width, height, mobile, userAgent, false, false, wizSheet, wizVisualization, visualizationSheet);
 
       this.dataSource = dataSource;
    }

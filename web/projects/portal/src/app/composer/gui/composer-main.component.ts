@@ -454,6 +454,15 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
             next: data => { this.dashboardTabModel = data; },
             error: err => console.error('Failed to load dashboard tab model', err)
          }));
+
+      this.subscriptions.add(this.wizService.saveVisualization.subscribe((vs: WizDashboard) => {
+         if(vs.newSheet) {
+            this.saveViewsheetAs(vs, false);
+         }
+         else {
+            this.saveViewsheet(vs, false);
+         }
+      }));
    }
 
    // open wizard if requested from portal
@@ -1649,12 +1658,12 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       }
    }
 
-   openNewViewsheet(baseEntry: AssetEntry, gettingStarted?: boolean): void {
+   openNewViewsheet(baseEntry: AssetEntry, gettingStarted?: boolean, wiz?: boolean): void {
       if(baseEntry && baseEntry.folder && baseEntry.type === AssetType.FOLDER) {
          baseEntry = null;
       }
 
-      const vs: Viewsheet = new Viewsheet(this.fontService);
+      const vs: Viewsheet = wiz ? new WizDashboard(this.fontService) : new Viewsheet(this.fontService);
       vs.localId = sheetCounter++;
       vs.newSheet = true;
       vs.label = "";
@@ -1718,7 +1727,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                break;
             case "wiz":
             case "viewsheet":
-               const vs = type == "wiz" ? new WizDashboard(this.fontService) : new Viewsheet(this.fontService);
+               const vs = this.showingWiz && type == "wiz" ? new WizDashboard(this.fontService) : new Viewsheet(this.fontService);
                vs.localId = sheetCounter++;
                vs.label = "";
                vs.id = id;
@@ -3099,6 +3108,10 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       return tab.asset as Viewsheet;
    }
 
+   asWizDashboard(tab: ComposerTabModel): Viewsheet {
+      return tab.asset as WizDashboard;
+   }
+
    asWorksheet(tab: ComposerTabModel): Worksheet {
       return tab.asset as Worksheet;
    }
@@ -3147,22 +3160,11 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    createNewWiz(): void {
-      //Todo Create a new wiz
-
-      const dashboard: WizDashboard = new WizDashboard(this.fontService);
-      dashboard.localId = sheetCounter++;
-      dashboard.newSheet = true;
-      dashboard.label = "";
-      dashboard.id = "";
-
-      const index: number = this.sheets.push(dashboard) - 1;
-      this.openedTabs.push(new ComposerTabModel(dashboard.type, dashboard));
-      this.navigateToExisting(index);
+      this.openNewViewsheet(null, false, true);
 
    }
 
    createNewVisualization() {
-      //Todo create new visualization
       this.wizService.onOpenVisualization();
    }
 }
