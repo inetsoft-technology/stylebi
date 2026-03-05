@@ -126,7 +126,12 @@ describe("Selection List Cell Test", () => {
    let fixture: ComponentFixture<SelectionListCell>;
 
    beforeEach(async(() => {
-      vsSelectionComponent = { getMarginSize: jest.fn() };
+      vsSelectionComponent = {
+         getMarginSize: jest.fn(),
+         setQuickSwitchHover: jest.fn(),
+         clearQuickSwitchHoverIfOwner: jest.fn(),
+         isQuickSwitchRetainTarget: jest.fn()
+      };
       selectionListController = { getCellFormat: jest.fn() };
       selectionTreeController = { getCellFormat: jest.fn() };
       interactService = {
