@@ -168,6 +168,7 @@ public enum ResourceType {
          return Objects.equals(getRoot().getPath(), path);
       }
    },
+   AI_ASSISTANT(false),
    FREE_FORM_SQL(false),
    LIBRARY(false),
    LOGIN_AS(false),
