@@ -22,11 +22,9 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.report.composition.region.ChartArea;
-import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
-import inetsoft.util.ConfigurationContext;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.composer.vs.objects.command.SetCurrentFormatCommand;
 import inetsoft.web.composer.vs.objects.event.GetVSObjectFormatEvent;
@@ -51,24 +49,16 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith({MockitoExtension.class, ConfigurationContextExtension.class})
-class FormatPainterControllerTest {
+@ExtendWith(MockitoExtension.class)
+class FormatPainterServiceTest {
 
    @BeforeEach
    void setup() throws Exception {
-      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
-      FormatPainterService formatPainterService =
-         new FormatPainterService(coreLifecycleService,
-                                  chartRegionHandler, viewsheetEngine,
-                                  objectModelService, bindingService,
-                                  vsLayoutService);
-      FormatPainterServiceProxy formatPainterServiceProxy = new FormatPainterServiceProxy();
-      doReturn(formatPainterService)
-         .when(spyContext)
-         .getSpringBean(FormatPainterService.class);
-      controller = spy(new FormatPainterController(runtimeViewsheetRef, formatPainterServiceProxy));
+      service = new FormatPainterService(coreLifecycleService,
+                                         chartRegionHandler, viewsheetEngine,
+                                         objectModelService, bindingService,
+                                         vsLayoutService);
 
-      when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(viewsheetEngine.getViewsheet(anyString(), nullable(Principal.class)))
          .thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
@@ -99,7 +89,7 @@ class FormatPainterControllerTest {
       event.setName("Chart1");
       event.setRegion("x_title");
 
-      controller.getFormat(event, null, dispatcher);
+      service.getFormat("Viewsheet1", event, null, dispatcher);
 
       assertNotNull(titlesDescriptor.getXTitleDescriptor().getTextFormat());
       verify(titleDescriptor, atLeast(2)).setTextFormat(any());
@@ -108,26 +98,20 @@ class FormatPainterControllerTest {
    @Test
    @Disabled
    void should_enable_horizontal_alignment_for_legend_content() throws Exception {
-//      LegendDescriptor legendDescriptor = new LegendDescriptor();
-//
-//      doReturn(legendDescriptor).when(controller)
-//         .getLegendDescriptor(nullable(ChartDescriptor.class), nullable(ChartInfo.class),
-//                              nullable(ChartArea.class), anyInt());
-
       GetVSObjectFormatEvent event = new GetVSObjectFormatEvent();
       event.setName("Chart1");
       event.setRegion("legend_content");
       event.setDimensionColumn(true);
       event.setIndex(0);
 
-      controller.getFormat(event, null, dispatcher);
+      service.getFormat("Viewsheet1", event, null, dispatcher);
 
       verify(dispatcher).sendCommand(any(ViewsheetCommand.class));
       verify(dispatcher).sendCommand(argCaptor.capture());
 
       List<SetCurrentFormatCommand> commands = argCaptor.getAllValues();
-      assertTrue(commands.get(0).getModel().isHAlignmentEnabled());
-      assertFalse(commands.get(0).getModel().isVAlignmentEnabled());
+      assertTrue(commands.getFirst().getModel().isHAlignmentEnabled());
+      assertFalse(commands.getFirst().getModel().isVAlignmentEnabled());
    }
 
    // Bug #16423 when selecting axis label, ensure correct alignment options are enabled.
@@ -146,11 +130,11 @@ class FormatPainterControllerTest {
       event.setIndex(0);
       event.setColumnName("");
 
-      controller.getFormat(event, null, dispatcher);
+      service.getFormat("Viewsheet1", event, null, dispatcher);
 
       event.setDimensionColumn(false);
 
-      controller.getFormat(event, null, dispatcher);
+      service.getFormat("Viewsheet1", event, null, dispatcher);
 
       verify(dispatcher, times(2)).sendCommand(any(ViewsheetCommand.class));
       verify(dispatcher, times(2)).sendCommand(argCaptor.capture());
@@ -177,5 +161,5 @@ class FormatPainterControllerTest {
    @Mock VSLayoutService vsLayoutService;
    @Mock VGraphPair graphPair;
    private ChartVSAssembly chart;
-   private FormatPainterController controller;
+   private FormatPainterService service;
 }

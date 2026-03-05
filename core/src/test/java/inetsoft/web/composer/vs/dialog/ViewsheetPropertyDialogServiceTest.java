@@ -20,21 +20,19 @@ package inetsoft.web.composer.vs.dialog;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
 import inetsoft.uql.viewsheet.vslayout.*;
-import inetsoft.util.ConfigurationContext;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
-import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.*;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.awt.*;
@@ -46,32 +44,21 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.nullable;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
 @SreeHome()
-@ExtendWith({MockitoExtension.class, ConfigurationContextExtension.class})
-public class ViewsheetPropertyDialogControllerTest {
+@ExtendWith({MockitoExtension.class})
+public class ViewsheetPropertyDialogServiceTest {
    @BeforeEach
    public void setup() throws Exception {
-      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
-
-      ViewsheetPropertyDialogService viewsheetPropertyDialogService =
-         new ViewsheetPropertyDialogService(coreLifecycleService, viewsheetService,
-                                            layoutService, viewsheetSettingsService,
-                                            vsAssemblyInfoHandler);
-      doReturn(viewsheetPropertyDialogService)
-         .when(spyContext)
-         .getSpringBean(ViewsheetPropertyDialogService.class);
-
-      controller = new ViewsheetPropertyDialogController(
-         runtimeViewsheetRef, new ViewsheetPropertyDialogServiceProxy());
+      service = new ViewsheetPropertyDialogService(coreLifecycleService, viewsheetService,
+                                                   layoutService, viewsheetSettingsService,
+                                                   vsAssemblyInfoHandler);
    }
 
    // Bug #16756 Update layout info if it has same id as incoming layout
    @Test
    public void layoutIsUpdated() throws Exception {
-      when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
       when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(viewsheetSandbox));
@@ -107,7 +94,7 @@ public class ViewsheetPropertyDialogControllerTest {
          model.localizationPane().setLocalized(new ArrayList<>());
       }
 
-      controller.setViewsheetInfo(model, null, commandDispatcher, null);
+      service.setViewsheetInfo("Viewsheet1", model, null, commandDispatcher, null, null);
       viewsheetLayoutList = layoutInfo.getViewsheetLayouts();
       assertEquals(1, viewsheetLayoutList.size());
       viewsheetLayout = viewsheetLayoutList.get(0);
@@ -118,7 +105,6 @@ public class ViewsheetPropertyDialogControllerTest {
 
    @Mock ViewsheetService viewsheetService;
    @Mock ViewsheetSettingsService viewsheetSettingsService;
-   @Mock RuntimeViewsheetRef runtimeViewsheetRef;
    @Mock CoreLifecycleService coreLifecycleService;
    @Mock VSLayoutService layoutService;
    @Mock RuntimeViewsheet rvs;
@@ -126,5 +112,5 @@ public class ViewsheetPropertyDialogControllerTest {
    @Mock ViewsheetSandbox viewsheetSandbox;
    @Mock CommandDispatcher commandDispatcher;
    @Mock VSAssemblyInfoHandler vsAssemblyInfoHandler;
-   private ViewsheetPropertyDialogController controller;
+   private ViewsheetPropertyDialogService service;
 }

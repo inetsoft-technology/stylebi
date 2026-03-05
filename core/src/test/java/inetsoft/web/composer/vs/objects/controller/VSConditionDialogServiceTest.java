@@ -19,11 +19,9 @@ package inetsoft.web.composer.vs.objects.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
-import inetsoft.util.ConfigurationContext;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.vs.dialog.*;
@@ -41,23 +39,17 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith({MockitoExtension.class, ConfigurationContextExtension.class})
+@ExtendWith({MockitoExtension.class})
 @MockitoSettings(strictness = Strictness.LENIENT)
-class VSConditionDialogControllerTest {
+class VSConditionDialogServiceTest {
 
    @BeforeEach
    void setup() throws Exception {
-      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
-
-      VSConditionDialogService dialogService = new VSConditionDialogService(dataRefModelFactoryService, vsAssemblyInfoHandler, viewsheetEngine);
-      doReturn(dialogService).when(spyContext).getSpringBean(VSConditionDialogService.class);
-      controller = new VSConditionDialogController(runtimeViewsheetRef,
-                                                   new VSConditionDialogServiceProxy());
+      service = new VSConditionDialogService(dataRefModelFactoryService, vsAssemblyInfoHandler, viewsheetEngine);
    }
 
    @Test
    void outputVSAssemblyGetModelWorks() throws Exception {
-      when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(viewsheetEngine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
 
@@ -70,14 +62,13 @@ class VSConditionDialogControllerTest {
       when(viewsheet.getAssembly(anyString())).thenReturn(textVSAssembly);
       when(viewsheet.getBaseWorksheet()).thenReturn(null);
 
-      controller.getModel("Viewsheet1", "TextAssembly", null);
+      service.getModel("Viewsheet1", "TextAssembly", null);
 
       verify(infoSpy).getPreConditionList();
    }
 
    @Test
    void whenBindingInfoNull() throws Exception {
-      when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(viewsheetEngine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
 
@@ -89,7 +80,7 @@ class VSConditionDialogControllerTest {
       when(viewsheet.getAssembly(anyString())).thenReturn(textVSAssembly);
       when(viewsheet.getBaseWorksheet()).thenReturn(null);
 
-      controller.getModel("Viewsheet1", "TextAssembly", null);
+      service.getModel("Viewsheet1", "TextAssembly", null);
 
       verify(infoSpy).getPreConditionList();
    }
@@ -101,5 +92,5 @@ class VSConditionDialogControllerTest {
    @Mock RuntimeViewsheet rvs;
    @Mock Viewsheet viewsheet;
    @Mock BindingInfo bindingInfo;
-   private VSConditionDialogController controller;
+   private VSConditionDialogService service;
 }

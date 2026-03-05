@@ -19,12 +19,9 @@ package inetsoft.web.composer.vs.dialog;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.util.ConfigurationContext;
-import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.LayoutOptionDialogModel;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.objects.controller.GroupingService;
@@ -44,21 +41,13 @@ import java.security.Principal;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith({MockitoExtension.class, ConfigurationContextExtension.class})
-class LayoutOptionDialogControllerTest {
+@ExtendWith({MockitoExtension.class})
+class LayoutOptionDialogServiceTest {
 
    @BeforeEach
    void setup() throws Exception {
-      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
-      LayoutOptionDialogService layoutOptionDialogService =
-         new LayoutOptionDialogService(groupingService, vsObjectTreeService,
-                                       engine, vsTableService, coreLifecycleService);
-      doReturn(layoutOptionDialogService)
-         .when(spyContext)
-         .getSpringBean(LayoutOptionDialogService.class);
-
-      controller = new LayoutOptionDialogController(runtimeViewsheetRef,
-                                                    new LayoutOptionDialogServiceProxy());
+      service = new LayoutOptionDialogService(groupingService, vsObjectTreeService,
+                                              engine, vsTableService, coreLifecycleService);
    }
 
    @Test
@@ -71,7 +60,7 @@ class LayoutOptionDialogControllerTest {
       when(model.getObject()).thenReturn("Table1");
       when(model.getTarget()).thenReturn("Table1");
 
-      controller.setLayoutOptionDialogModel(model, principal, null, dispatcher);
+      service.setLayoutOptionDialogModel(runtimeViewsheetRef.getRuntimeId(), model, principal, null, dispatcher);
       verify(vsObjectTreeService, times(1)).getObjectTree(rvs);
    }
 
@@ -89,7 +78,6 @@ class LayoutOptionDialogControllerTest {
    @Mock VSTableService vsTableService;
    @Mock
    CoreLifecycleService coreLifecycleService;
-   @Mock VSAssemblyInfoHandler infoHandler;
    @Mock ViewsheetService viewsheetService;
-   private LayoutOptionDialogController controller;
+   private LayoutOptionDialogService service;
 }

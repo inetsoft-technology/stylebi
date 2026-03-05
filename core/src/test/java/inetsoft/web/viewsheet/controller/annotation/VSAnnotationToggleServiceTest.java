@@ -21,15 +21,12 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.UserEnv;
 import inetsoft.sree.security.SecurityEngine;
-import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.util.ConfigurationContext;
 import inetsoft.web.viewsheet.event.annotation.ToggleAnnotationStatusEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.security.Principal;
 
@@ -37,12 +34,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith(ConfigurationContextExtension.class)
-class VSAnnotationToggleControllerTest {
+class VSAnnotationToggleServiceTest {
    @BeforeEach
    void setUp() throws Exception {
-      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
-
       runtimeViewsheetRef = mock(RuntimeViewsheetRef.class);
       coreLifecycleService = mock(CoreLifecycleService.class);
       viewsheetService = mock(ViewsheetService.class);
@@ -60,11 +54,7 @@ class VSAnnotationToggleControllerTest {
                                     securityEngine,
                                     sharedFilterService);
 
-      VSAnnotationToggleService vsAnnotationToggleService =
-         new VSAnnotationToggleService(service);
-      doReturn(vsAnnotationToggleService)
-         .when(spyContext)
-            .getSpringBean(VSAnnotationToggleService.class);
+      toggleService = new VSAnnotationToggleService(service);
 
       // stub method calls
       when(viewsheetService.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal)).thenReturn(rvs);
@@ -88,12 +78,8 @@ class VSAnnotationToggleControllerTest {
    void toggleAnnotationStatus() throws Exception {
       ToggleAnnotationStatusEvent event = () -> true;
 
-      VSAnnotationToggleServiceProxy serviceProxy = new VSAnnotationToggleServiceProxy();
-
-      // call method to test
-      VSAnnotationToggleController controller =
-         new VSAnnotationToggleController(serviceProxy, runtimeViewsheetRef);
-      controller.toggleAnnotationStatus(event, principal, null, dispatcher);
+      toggleService.toggleAnnotationStatus(runtimeViewsheetRef.getRuntimeId(),
+                                           event, principal, null, dispatcher);
 
       // check userenv value was set to the same as the event status
       final boolean showAnno = "true".equals(UserEnv.getProperty(principal, "annotation"));
@@ -112,5 +98,6 @@ class VSAnnotationToggleControllerTest {
    private CommandDispatcher dispatcher;
    private RuntimeViewsheet rvs;
    private VSObjectService service;
+   private VSAnnotationToggleService toggleService;
    private SharedFilterService sharedFilterService;
 }

@@ -19,11 +19,9 @@ package inetsoft.web.composer.vs.objects.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
-import inetsoft.util.ConfigurationContext;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.objects.event.LockVSObjectEvent;
@@ -43,16 +41,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith({MockitoExtension.class, ConfigurationContextExtension.class})
-class ComposerObjectControllerTest {
+@ExtendWith({MockitoExtension.class})
+class ComposerObjectServiceTest {
    @BeforeEach
    void setup() throws Exception {
-      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
-      ComposerObjectService composerObjectService = new ComposerObjectService(vsObjectTreeService, coreLifecycleService,
-                                                                              engine, assemblyHandler, objectModelService,
-                                                                              vsObjectService, vsCompositionService);
-      doReturn(composerObjectService).when(spyContext).getSpringBean(ComposerObjectService.class);
-      controller = new ComposerObjectController(runtimeViewsheetRef, new ComposerObjectServiceProxy());
+      service = new ComposerObjectService(vsObjectTreeService, coreLifecycleService,
+                                          engine, assemblyHandler, objectModelService,
+                                          vsObjectService, vsCompositionService);
    }
 
    @Test
@@ -62,7 +57,7 @@ class ComposerObjectControllerTest {
       when(viewsheet.getAssembly(anyString())).thenReturn(assembly);
       when(event.getName()).thenReturn("Assembly1");
 
-      controller.changeLockState(event, principal, dispatcher);
+      service.changeLockState(runtimeViewsheetRef.getRuntimeId(), event, principal, dispatcher);
       verify(vsObjectTreeService, times(1)).getObjectTree(rvs);
    }
 
@@ -103,7 +98,7 @@ class ComposerObjectControllerTest {
       resizeEvent.setWidth(200);
       resizeEvent.setHeight(70);
 
-      controller.resizeObject(resizeEvent, principal, dispatcher, "/test");
+      service.resizeObject(runtimeViewsheetRef.getRuntimeId(), resizeEvent, principal, dispatcher, "/test");
 
       // Tab bar must still be at y=100 (child bottom edge did not change)
       assertEquals(100, tabInfo.getPixelOffset().y);
@@ -127,5 +122,5 @@ class ComposerObjectControllerTest {
    @Mock VSObjectService vsObjectService;
    @Mock VSCompositionService vsCompositionService;
 
-   private ComposerObjectController controller;
+   private ComposerObjectService service;
 }

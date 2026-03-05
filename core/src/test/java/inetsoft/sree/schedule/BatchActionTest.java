@@ -59,7 +59,7 @@ public class BatchActionTest {
       ScheduleTask tk1 = createScheduleTask("Test Batch Action", batchAction);
       ScheduleTask spyTask = spy(ScheduleTask.class);
 
-      try (MockedStatic<ScheduleTask> mockedStatic = Mockito.mockStatic(ScheduleTask.class)) {
+      try(MockedStatic<ScheduleTask> mockedStatic = Mockito.mockStatic(ScheduleTask.class)) {
          mockedStatic.when(() -> ScheduleTask.copyScheduleTask(spyTask)).thenReturn(tk1);
          doNothing().when(tk1).run(admin);
 

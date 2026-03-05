@@ -19,12 +19,10 @@ package inetsoft.web.composer.vs.dialog;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
-import inetsoft.util.ConfigurationContext;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.vs.SelectionTreePropertyDialogModel;
@@ -46,27 +44,20 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith({MockitoExtension.class, ConfigurationContextExtension.class})
-class SelectionTreePropertyDialogControllerTest {
+@ExtendWith({MockitoExtension.class})
+class SelectionTreePropertyDialogServiceTest {
    @BeforeEach
    void setup(){
-      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
-      SelectionTreePropertyDialogService selectionTreePropertyDialogService =
-         new SelectionTreePropertyDialogService(
-            vsObjectPropertyService,
-            vsOutputService,
-            engine,
-            trapService,
-            dialogService,
-            vsSelectionService,
-            selectionDialogService,
-            assemblyInfoHandler,
-            dataRefService);
-      doReturn(selectionTreePropertyDialogService)
-         .when(spyContext)
-         .getSpringBean(SelectionTreePropertyDialogService.class);
-      controller = new SelectionTreePropertyDialogController(runtimeViewsheetRef,
-                                                             new SelectionTreePropertyDialogServiceProxy());
+      service = new SelectionTreePropertyDialogService(
+         vsObjectPropertyService,
+         vsOutputService,
+         engine,
+         trapService,
+         dialogService,
+         vsSelectionService,
+         selectionDialogService,
+         assemblyInfoHandler,
+         dataRefService);
    }
 
    @Test
@@ -76,7 +67,6 @@ class SelectionTreePropertyDialogControllerTest {
       given(selectionTreePropertyDialogModel.getSelectionGeneralPaneModel()
                .getGeneralPropPaneModel().getBasicGeneralPaneModel().getName())
          .willReturn("SelectionTree1");
-      when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
       when(viewsheet.getAssembly(anyString())).thenReturn(selectionTreeAssembly);
@@ -87,9 +77,9 @@ class SelectionTreePropertyDialogControllerTest {
       when(viewsheet.getViewsheet().getPixelSize()).thenReturn(size);
       when(selectionTreePropertyDialogModel.getSelectionTreePaneModel().getMode()).thenReturn(2);
 
-      controller.setSelectionTreePropertyModel("SelectionTree1",
-                                             selectionTreePropertyDialogModel,
-                                             "", null, commandDispatcher);
+      service.setSelectionTreePropertyModel("Viewsheet1", "SelectionTree1",
+                                            selectionTreePropertyDialogModel,
+                                            "", null, commandDispatcher);
 
       ArgumentCaptor<SelectionTreeVSAssemblyInfo> argument =
          ArgumentCaptor.forClass(SelectionTreeVSAssemblyInfo.class);
@@ -123,5 +113,5 @@ class SelectionTreePropertyDialogControllerTest {
    private Viewsheet viewsheet;
    @Mock (answer = Answers.RETURNS_DEEP_STUBS)
    private SelectionTreePropertyDialogModel selectionTreePropertyDialogModel;
-   private SelectionTreePropertyDialogController controller;
+   private SelectionTreePropertyDialogService service;
 }

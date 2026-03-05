@@ -21,13 +21,11 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.FormTableLens;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
-import inetsoft.util.ConfigurationContext;
 import inetsoft.web.viewsheet.event.table.ChangeFormTableCellInputEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -44,20 +42,12 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith({MockitoExtension.class, ConfigurationContextExtension.class})
-class VSFormTableControllerTest {
+@ExtendWith({MockitoExtension.class})
+class VSFormTableServiceTest {
 
    @BeforeEach
    void setup() throws Exception {
-      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
-
-      VSFormTableServiceProxy serviceProxy = new VSFormTableServiceProxy();
-      VSFormTableService vsFormTableService = new VSFormTableService(viewsheetService, coreLifecycleService);
-      doReturn(vsFormTableService)
-         .when(spyContext)
-         .getSpringBean(VSFormTableService.class);
-
-      controller = new VSFormTableController(serviceProxy, runtimeViewsheetRef);
+      service = new VSFormTableService(viewsheetService, coreLifecycleService);
    }
 
    // Empty input is valid, set form object to data
@@ -84,7 +74,7 @@ class VSFormTableControllerTest {
          .assemblyName("")
          .start(0)
          .build();
-      controller.changeFormInput(event, "", commandDispatcher, principal);
+      service.changeFormInput(runtimeViewsheetRef.getRuntimeId(), event, "", commandDispatcher, principal);
 
       verify(form, times(1)).setObject(0, 0, "");
    }
@@ -97,5 +87,5 @@ class VSFormTableControllerTest {
    @Mock Viewsheet viewsheet;
    @Mock CommandDispatcher commandDispatcher;
    @Mock Principal principal;
-   private VSFormTableController controller;
+   private VSFormTableService service;
 }

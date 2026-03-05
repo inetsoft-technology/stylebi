@@ -19,11 +19,9 @@ package inetsoft.web.composer.vs.objects.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.util.ConfigurationContext;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
@@ -42,20 +40,16 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith({MockitoExtension.class, ConfigurationContextExtension.class})
+@ExtendWith({MockitoExtension.class})
 @MockitoSettings(strictness = Strictness.LENIENT)
-class ComposerGroupControllerTest {
+class ComposerGroupServiceTest {
 
    @BeforeEach
    void setup() throws Exception {
-      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
-
-      controller = new ComposerGroupController(runtimeViewsheetRef, new ComposerGroupServiceProxy());
       service = new ComposerGroupService(coreLifecycleService,
-                                          viewsheetService, vsObjectTreeService,
-                                          vsObjectPropertyService, vsCompositionService,
-                                          vsLayoutService);
-      doReturn(service).when(spyContext).getSpringBean(ComposerGroupService.class);
+                                         viewsheetService, vsObjectTreeService,
+                                         vsObjectPropertyService, vsCompositionService,
+                                         vsLayoutService);
       assemblies[0] = tab;
       assemblies[1] = image;
       assemblies[2] = calendar;
@@ -91,7 +85,7 @@ class ComposerGroupControllerTest {
    @Test
    void sendsPopulateObjectTreeCommandTest() throws Exception {
       when(viewsheet.getAssembly("group")).thenReturn(group);
-      controller.ungroup("group", "", principal, commandDispatcher);
+      service.ungroup(runtimeViewsheetRef.getRuntimeId(), "group", "", principal, commandDispatcher);
       verify(commandDispatcher).sendCommand(any(PopulateVSObjectTreeCommand.class));
    }
 
@@ -99,7 +93,7 @@ class ComposerGroupControllerTest {
    @Test
    void linkUriNotNull() throws Exception {
       when(viewsheet.getAssembly("group")).thenReturn(group);
-      controller.ungroup("group", "linkUri", principal, commandDispatcher);
+      service.ungroup(runtimeViewsheetRef.getRuntimeId(), "group", "linkUri", principal, commandDispatcher);
       verify(coreLifecycleService).removeVSAssembly(any(RuntimeViewsheet.class),
                                                     eq("linkUri"),
                                                     any(VSAssembly.class),
@@ -128,6 +122,5 @@ class ComposerGroupControllerTest {
    String[] groupAssemblies = new String[3];
    Assembly[] assemblies = new Assembly[4];
 
-   private ComposerGroupController controller;
    private ComposerGroupService service;
 }

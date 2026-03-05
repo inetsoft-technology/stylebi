@@ -19,18 +19,15 @@ package inetsoft.web.composer.vs.dialog;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.test.ConfigurationContextExtension;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
-import inetsoft.util.ConfigurationContext;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.TextPropertyDialogModel;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
-import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,26 +42,18 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith({MockitoExtension.class, ConfigurationContextExtension.class})
-public class TextPropertyDialogControllerTest {
+@ExtendWith({MockitoExtension.class})
+public class TextPropertyDialogServiceTest {
 
    @BeforeEach
    public void setup() throws Exception {
-      ConfigurationContext spyContext = ConfigurationContextExtension.getSpyContext();
-      TextPropertyDialogService textPropertyDialogService =
-         new TextPropertyDialogService(vsObjectPropertyService,
-                                       vsOutputService,
-                                       engine,
-                                       dialogService,
-                                       trapService,
-                                       infoHandler);
-      doReturn(textPropertyDialogService)
-         .when(spyContext)
-         .getSpringBean(TextPropertyDialogService.class);
-      controller = new TextPropertyDialogController(runtimeViewsheetRef,
-                                                    new TextPropertyDialogServiceProxy());
+      service = new TextPropertyDialogService(vsObjectPropertyService,
+                                              vsOutputService,
+                                              engine,
+                                              dialogService,
+                                              trapService,
+                                              infoHandler);
 
-      when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
       when(viewsheet.getAssembly(anyString())).thenReturn(textAssembly);
@@ -81,8 +70,7 @@ public class TextPropertyDialogControllerTest {
       model.getTextGeneralPaneModel().getOutputGeneralPaneModel().getGeneralPropPaneModel()
          .getBasicGeneralPaneModel().setName("Text1");
 
-      controller.setTextPropertyDialogModel(
-         "Text1", textPropertyDialogModel, "", null, commandDispatcher);
+      service.setTextPropertyDialogModel("Viewsheet1", "Text1", textPropertyDialogModel, "", null, commandDispatcher);
 
       ArgumentCaptor<VSAssemblyInfo> infoCaptor = ArgumentCaptor.forClass(VSAssemblyInfo.class);
       verify(vsObjectPropertyService).editObjectProperty(any(RuntimeViewsheet.class),
@@ -98,7 +86,6 @@ public class TextPropertyDialogControllerTest {
    @Spy TextVSAssemblyInfo textVSAssemblyInfoSpy = new TextVSAssemblyInfo();
    @Mock VSOutputService vsOutputService;
    @Mock VSTrapService trapService;
-   @Mock RuntimeViewsheetRef runtimeViewsheetRef;
    @Mock CommandDispatcher commandDispatcher;
    @Mock RuntimeViewsheet rvs;
    @Mock Viewsheet viewsheet;
@@ -110,5 +97,5 @@ public class TextPropertyDialogControllerTest {
    @Mock VSDialogService dialogService;
    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
    private TextPropertyDialogModel textPropertyDialogModel;
-   private TextPropertyDialogController controller;
+   private TextPropertyDialogService service;
 }
