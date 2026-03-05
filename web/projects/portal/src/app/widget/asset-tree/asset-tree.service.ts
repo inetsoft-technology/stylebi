@@ -58,7 +58,7 @@ export class AssetTreeService {
                            columns: boolean, worksheets: boolean, viewsheets: boolean,
                            tableStyles: boolean, scripts: boolean, library: boolean,
                            reportRepositoryEnabled: boolean = false,
-                           readOnly: boolean = false, physical: boolean = true): Observable<LoadAssetTreeNodesValidator>
+                           readOnly: boolean = false, physical: boolean = true, onlyWizAssets: boolean = false): Observable<LoadAssetTreeNodesValidator>
    {
       if(!event) {
          event = new LoadAssetTreeNodesEvent();
@@ -74,7 +74,8 @@ export class AssetTreeService {
          .set("includeLibrary", library + "")
          .set("reportRepositoryEnabled", reportRepositoryEnabled + "")
          .set("readOnly", readOnly + "")
-         .set("physical", physical + "");
+         .set("physical", physical + "")
+         .set("onlyWizAssets", onlyWizAssets + "");
 
       const options = {headers: this.headers, params: params};
 

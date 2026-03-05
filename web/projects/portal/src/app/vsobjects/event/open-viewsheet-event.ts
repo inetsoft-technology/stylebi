@@ -160,6 +160,21 @@ export class OpenViewsheetEvent implements ViewsheetEvent {
    public embed: boolean;
 
    /**
+    * wiz crated sheet.
+    */
+   public wizSheet: boolean = false;
+
+   /**
+    * wiz created visualization
+    */
+   public wizVisualization: boolean = false;
+
+   /**
+    * wiz visualization parent sheet.
+    */
+   public visualizationSheet: string;
+
+   /**
     * Creates a new instance of <tt>OpenViewsheetEvent</tt>.
     *
     * @param entryId   the asset entry identifier of the viewsheet.
@@ -168,7 +183,9 @@ export class OpenViewsheetEvent implements ViewsheetEvent {
     * @param mobile    the flag that indicates if the client is a mobile device.
     * @param userAgent the user agent string of the client browser.
     */
-   constructor(entryId: string, width: number, height: number, mobile: boolean, userAgent: string, meta?: boolean, newSheet?: boolean) {
+   constructor(entryId: string, width: number, height: number, mobile: boolean, userAgent: string,
+               meta?: boolean, newSheet?: boolean, wizSheet?: boolean, wizVisualization?: boolean, visualizationSheet?: string)
+   {
       this.entryId = entryId;
       this.width = width;
       this.height = height;
@@ -176,6 +193,9 @@ export class OpenViewsheetEvent implements ViewsheetEvent {
       this.userAgent = userAgent;
       this.meta = meta;
       this.newSheet = newSheet;
+      this.wizSheet = wizSheet;
+      this.wizVisualization = wizVisualization;
+      this.visualizationSheet = visualizationSheet;
    }
 
    /**

@@ -97,24 +97,19 @@ public class AssetTreeController {
       @RequestParam(value="reportRepositoryEnabled", required=false) boolean reportRepositoryEnabled,
       @RequestParam(value = "readOnly", required=false, defaultValue="false") boolean readOnly,
       @RequestParam(value = "physical", required = false, defaultValue = "true") boolean physical,
+      @RequestParam(value = "onlyWizAssets", required = false, defaultValue = "false") boolean onlyWizAssets,
       @RequestBody LoadAssetTreeNodesEvent event, Principal principal)
       throws Exception
    {
-      return getNodes0(includeDatasources, includeColumns, includeWorksheets, includeViewsheets,
-         includeTableStyles, includeScripts, includeLibrary, reportRepositoryEnabled, readOnly,
-         physical, event, principal, readOnly || assetRepository.checkPermission(
-            principal, ResourceType.WORKSHEET, "*", EnumSet.of(ResourceAction.ACCESS)),
-            securityEngine.checkPermission(
-            principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS),
-            readOnly || assetRepository.checkPermission(
-            principal, ResourceType.VIEWSHEET, "*", EnumSet.of(ResourceAction.ACCESS)));
+      return assetTreeService.getNodes(includeDatasources, includeColumns, includeWorksheets, includeViewsheets,
+                                       includeTableStyles, includeScripts, includeLibrary, reportRepositoryEnabled, readOnly,
+                                       physical, onlyWizAssets, event, principal);
    }
 
    /**
-    * Gets the child nodes of the specified parent node.
-    *
-    * @return the child nodes.
+    * @deprecated replaced by {@link AssetTreeService#getNodes0}
     */
+   @Deprecated
    public LoadAssetTreeNodesValidator getNodes0(
       boolean includeDatasources,
       boolean includeColumns,

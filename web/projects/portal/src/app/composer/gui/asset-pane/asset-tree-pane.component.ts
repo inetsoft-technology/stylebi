@@ -181,7 +181,7 @@ export class AssetTreePane implements OnChanges, OnInit {
             });
          }
          else if(entry.type === AssetType.VIEWSHEET) {
-            const wiz = entry.properties.wiz == "true";
+            const wiz = entry.properties.isWizSheet == "true";
             this.addRecentlyViewed(entry);
             this.onOpenSheet.emit({type: wiz ? "wiz" : "viewsheet", assetId: entry.identifier, meta: meta});
          }

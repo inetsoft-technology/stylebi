@@ -448,6 +448,30 @@ public class OpenViewsheetEvent implements Serializable {
       this.embed = embed;
    }
 
+   public boolean isWizSheet() {
+      return wizSheet;
+   }
+
+   public void setWizSheet(boolean wizSheet) {
+      this.wizSheet = wizSheet;
+   }
+
+   public boolean isWizVisualization() {
+      return wizVisualization;
+   }
+
+   public void setWizVisualization(boolean wizVisualization) {
+      this.wizVisualization = wizVisualization;
+   }
+
+   public String getVisualizationSheet() {
+      return visualizationSheet;
+   }
+
+   public void setVisualizationSheet(String visualizationSheet) {
+      this.visualizationSheet = visualizationSheet;
+   }
+
    @Override
    public String toString() {
       return "OpenViewsheetEvent{" +
@@ -501,4 +525,7 @@ public class OpenViewsheetEvent implements Serializable {
    private String embedAssemblyName;
    private Dimension embedAssemblySize;
    private boolean embed;
+   private boolean wizSheet;
+   private boolean wizVisualization;
+   private String visualizationSheet;
 }

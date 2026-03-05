@@ -26,11 +26,21 @@
   height: 100%;
   overflow: hidden;
   background-color: var(--inet-surface-color, #fff);
+  display: flex;
+  flex-direction: column;
+}
+
+.wiz-action-bar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--inet-border-color, #ddd);
+  justify-content: flex-end;
 }
 
 .wiz-dialog-placeholder {
   display: flex;
-  height: 100%;
+  flex: 1;
   align-items: center;
   justify-content: center;
   color: var(--inet-text-secondary, #aaa);

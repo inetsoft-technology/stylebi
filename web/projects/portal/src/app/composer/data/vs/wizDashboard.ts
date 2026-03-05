@@ -20,8 +20,8 @@ import { FontService } from "../../../widget/services/font.service";
 import { Viewsheet } from "./viewsheet";
 
 export class WizDashboard extends Viewsheet {
-   constructor(fontService: FontService = null, sheet: Viewsheet = null) {
-      super();
+   constructor(fontService: FontService = null, sheet: Viewsheet = null, public visualization: boolean = false, public visualizationSheet?: string) {
+      super(fontService, sheet);
       this.type = "wiz";
    }
 }
