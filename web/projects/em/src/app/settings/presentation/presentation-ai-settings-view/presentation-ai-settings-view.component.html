@@ -26,8 +26,14 @@
               _#(ai.assistant.visible)
             </mat-checkbox>
             <mat-form-field appearance="outline" color="accent" class="chat-url-field">
-              <mat-label>_#(Chat App Server URL)</mat-label>
+              <mat-label>_#(AI Assistant Internal URL)</mat-label>
+              <input matInput [(ngModel)]="model.chatAppInternalUrl" (input)="emitModel()">
+              <mat-hint>_#(ai.assistant.internal.url.hint)</mat-hint>
+            </mat-form-field>
+            <mat-form-field appearance="outline" color="accent" class="chat-url-field">
+              <mat-label>_#(AI Assistant Server URL)</mat-label>
               <input matInput [(ngModel)]="model.chatAppServerUrl" (input)="emitModel()">
+              <mat-hint>_#(ai.assistant.server.url.hint)</mat-hint>
             </mat-form-field>
           </div>
         </mat-card-content>

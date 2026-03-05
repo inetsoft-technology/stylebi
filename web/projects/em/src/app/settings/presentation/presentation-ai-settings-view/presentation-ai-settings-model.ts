@@ -17,5 +17,6 @@
  */
 export interface PresentationAISettingsModel {
    aiAssistantVisible: boolean;
+   chatAppInternalUrl?: string;
    chatAppServerUrl?: string;
 }
