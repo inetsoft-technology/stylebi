@@ -188,6 +188,7 @@ export class SelectionListCell implements OnInit, OnChanges, OnDestroy {
 
    ngOnDestroy(): void {
       this.cancelLongPress();
+      this.vsSelectionComponent.clearQuickSwitchHoverIfOwner(this.cell?.nativeElement ?? null);
    }
 
    ngOnChanges(changes: SimpleChanges) {
@@ -393,6 +394,31 @@ export class SelectionListCell implements OnInit, OnChanges, OnDestroy {
       }
 
       this.cancelLongPress();
+   }
+
+   onMouseEnter(): void {
+      if(!this.quickSwitchAllowed) {
+         this.vsSelectionComponent.setQuickSwitchHover(null, false, null);
+         return;
+      }
+
+      this.vsSelectionComponent.setQuickSwitchHover(
+         this.cell?.nativeElement ?? null,
+         this.singleSelection,
+         () => this.click(new MouseEvent("click"), true)
+      );
+   }
+
+   onMouseLeave(event: MouseEvent): void {
+      if(!this.quickSwitchAllowed) {
+         return;
+      }
+
+      if(this.vsSelectionComponent.isQuickSwitchRetainTarget(event.relatedTarget as Node | null)) {
+         return;
+      }
+
+      this.vsSelectionComponent.setQuickSwitchHover(null, false, null);
    }
 
    private cancelLongPress(): void {

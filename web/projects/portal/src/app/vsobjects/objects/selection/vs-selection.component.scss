@@ -260,3 +260,20 @@
 .mobile-max-mode-icon {
   font-size: 24px !important;
 }
+
+.quick-switch-overlay-btn {
+  position: absolute;
+  right: 0;
+  display: none;
+  align-items: center;
+  z-index: 200;
+  background: none;
+  border: none;
+  padding: 0 4px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: bold;
+  color: inherit;
+  white-space: nowrap;
+  pointer-events: auto;
+}

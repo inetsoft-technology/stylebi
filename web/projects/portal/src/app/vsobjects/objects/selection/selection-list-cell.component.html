@@ -42,7 +42,9 @@
      [resizableBottomEdge]="'.selection-list-cell-handle.bottom'"
      (onResizableStart)="onResizeCellHeightStart()"
      (onResizableMove)="onResizeCellHeight($event)"
-     (onResizableEnd)="onResizeCellHeightEnd()">
+     (onResizableEnd)="onResizeCellHeightEnd()"
+     (mouseenter)="onMouseEnter()"
+     (mouseleave)="onMouseLeave($event)">
   <div class="selection-list-cell-container"
        [style.vertical-align]="cellFormat.vAlign">
     <div class="label-container"
@@ -95,13 +97,6 @@
                [style.wordWrap]="cellFormat.wrapping.wordWrap">
             {{selectionValue.label}}
           </div>
-          <button *ngIf="quickSwitchAllowed"
-                  class="switch-mode-btn"
-                  type="button"
-                  (click)="click($event, true)"
-                  [title]="singleSelection ? '_#(multi.switchTip)' : '_#(single.switchTip)'">
-            {{ singleSelection ? '_#(multi.switch)' : '_#(single.switch)' }}
-          </button>
         </div>
       </div>
     </div>
