@@ -103,7 +103,8 @@ public class AxisPropertyDialogModel implements Serializable {
       axisLabelPaneModel.setSecondary(
          ("right_y_axis".equals(axisType) && !axisDesc.isLabelOnSecondaryAxis()) ||
          GraphTypes.isRadar(cInfo.getRTChartType()) ||
-         GraphTypes.isMekko(cInfo.getRTChartType()));
+         GraphTypes.isMekko(cInfo.getRTChartType()) ||
+         GraphTypes.is3DBar(cInfo.getRTChartType()));
 
       RotationRadioGroupModel rotationRadioGroupModel = new RotationRadioGroupModel();
       CompositeTextFormat textFormat;
