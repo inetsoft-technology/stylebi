@@ -34,24 +34,8 @@ body.modal-open.javafx, body.dropdown-open.javafx {
   }
 }
 
-.ai-assistant-container {
-  .modal-dialog {
-    width: 90vw;
-    max-width: 1500px;
-    height: 90vh;
-    max-height: 850px;
-  }
-
-  .modal-content {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-  }
-
-  ai-assistant-dialog {
-    flex: 1;
-    max-height: 100%;
-    overflow: hidden;
-  }
+// Portal navbar is 52px — keep the AI panel below it
+ai-assistant-panel {
+  --ai-panel-top-offset: 52px;
 }
+

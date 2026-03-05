@@ -58,6 +58,7 @@ export class AiAssistantService {
    chatAppServerUrl: string = "";
    styleBIUrl: string = "";
    aiAssistantVisible: boolean = false;
+   panelOpen: boolean = false;
    userId: string = "";
    email: string = "";
    calcTableCellBindings: { [key: string]: CellBindingInfo } = {};

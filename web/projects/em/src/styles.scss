@@ -274,6 +274,7 @@ $brush-cursor-path: '~/../../portal/src/assets/cursor/brushcursor.gif';
   word-break: break-word;
 }
 
-.ai-assistant-container .mat-mdc-dialog-surface {
-  padding: 0 !important;
+// EM navbar min-height is 52px — keep the AI panel below it
+ai-assistant-panel {
+  --ai-panel-top-offset: 52px;
 }

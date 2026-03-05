@@ -1,3 +1,22 @@
-::ng-deep #assistant-dialog-container #assistant-root {
-  border-radius: 8px;
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  height: 100%;
+}
+
+::ng-deep #assistant-dialog-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  height: 100%;
+  overflow: auto;
+}
+
+::ng-deep #assistant-dialog-container ai-assistant {
+  display: block;
+  flex: 1;
+  height: 100%;
+  min-height: 0;
 }

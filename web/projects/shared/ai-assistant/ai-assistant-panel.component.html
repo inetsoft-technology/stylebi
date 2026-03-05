@@ -1,0 +1,46 @@
+<!--
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2025  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+<div *ngIf="panelOpen"
+     class="ai-assistant-panel"
+     [class.side-mode]="mode === 'side'"
+     [class.bottom-mode]="mode === 'bottom'"
+     [style.width.px]="mode === 'side' ? sideWidth : null"
+     [style.height.px]="mode === 'bottom' ? bottomHeight : null">
+  <div class="resize-handle" (mousedown)="startDrag($event)"></div>
+  <div class="panel-header bg-white2">
+    <span class="panel-title">_#(AI Assistant)</span>
+    <div class="panel-actions">
+      <button class="panel-action-btn"
+              (click)="toggleMode()"
+              [title]="mode === 'side' ? '_#(Move to bottom)' : '_#(Move to side)'">
+        <svg *ngIf="mode === 'side'" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <rect x="1" y="1" width="14" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <rect x="1" y="11" width="14" height="4" rx="1"/>
+        </svg>
+        <svg *ngIf="mode === 'bottom'" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <rect x="1" y="1" width="9" height="14" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <rect x="11" y="1" width="4" height="14" rx="1"/>
+        </svg>
+      </button>
+      <button class="btn-close panel-close-btn" (click)="close()" aria-label="_#(Close)" title="_#(Close)"></button>
+    </div>
+  </div>
+  <div class="panel-body">
+    <ai-assistant-dialog></ai-assistant-dialog>
+  </div>
+</div>
