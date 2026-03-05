@@ -116,6 +116,13 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
       super.replaceVariables(vars);
 
       TabularQuery query = getTabularTableAssemblyInfo().getQuery();
+
+      if(query == null) {
+         LOG.debug("replaceVariables() skipped for '{}': query is null (data source plugin may be missing)",
+                   getName());
+         return;
+      }
+
       TabularUtil.replaceVariables(query.getDataSource(), vars);
       TabularUtil.replaceVariables(query, vars);
    }
@@ -125,6 +132,13 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
       super.dependencyChanged(depname);
 
       TabularQuery query = getTabularTableAssemblyInfo().getQuery();
+
+      if(query == null) {
+         LOG.debug("dependencyChanged() skipped for '{}': query is null (data source plugin may be missing)",
+                   getName());
+         return;
+      }
+
       String[] deps = query.getDependedAssets(new String[] { depname });
 
       if(deps.length > 0) {
@@ -146,6 +160,13 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
    {
       // Ensure that tabular query's datasource is up-to-date, or it will use the wrong credential tokens
       TabularQuery query = getTabularTableAssemblyInfo().getQuery();
+
+      if(query == null) {
+         LOG.debug("loadColumnSelection() skipped for '{}': query is null (data source plugin may be missing)",
+                   getName());
+         return;
+      }
+
       query.revalidate();
 
       // column in the query output before the refresh
@@ -273,6 +294,13 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
       }
 
       TabularQuery query = getTabularTableAssemblyInfo().getQuery();
+
+      if(query == null) {
+         LOG.debug("getDependeds() skipped for '{}': query is null (data source plugin may be missing)",
+                   getName());
+         return;
+      }
+
       String[] used = query.getDependedAssets(names.toArray(new String[0]));
 
       for(String name : used) {
@@ -294,6 +322,13 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
       }
 
       TabularQuery query = getTabularTableAssemblyInfo().getQuery();
+
+      if(query == null) {
+         LOG.debug("getAugmentedDependeds() skipped for '{}': query is null (data source plugin may be missing)",
+                   getName());
+         return;
+      }
+
       String[] used = query.getDependedAssets(names.toArray(new String[0]));
       Arrays.stream(used).forEach(
          (name) -> addToDependencyTypes(dependeds, name, DependencyType.TABULAR_SUBQUERY));
@@ -384,14 +419,22 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
       TabularTableAssemblyInfo info = getTabularTableAssemblyInfo();
       TabularQuery query = info.getQuery();
 
+      if(query == null) {
+         LOG.warn("printKey() returning false for '{}': query is null (data source plugin may be missing)",
+                  getName());
+         return false;
+      }
+
       writer.print("ColType[");
       XTypeNode[] nodes = query.getOutputColumns();
 
-      for(XTypeNode node : nodes) {
-         String type = query.getColumnType(node.getName());
-         type = type == null ? node.getType() : type;
+      if(nodes != null) {
+         for(XTypeNode node : nodes) {
+            String type = query.getColumnType(node.getName());
+            type = type == null ? node.getType() : type;
 
-         writer.print("," + type);
+            writer.print("," + type);
+         }
       }
 
       writer.print("]TabularT[");
