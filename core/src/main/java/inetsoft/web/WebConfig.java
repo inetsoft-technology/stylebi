@@ -66,7 +66,15 @@ import java.util.*;
 @EnableMBeanExport
 @EnableScheduling
 @Configuration
-@ComponentScan(basePackages = "inetsoft.web", lazyInit = true)
+@ComponentScan(
+   basePackages = {
+      "inetsoft.web",
+      "inetsoft.storage",
+      "inetsoft.util",
+      "inetsoft.sree.security",
+      "inetsoft.sree.schedule"
+   },
+   lazyInit = true)
 public class WebConfig implements WebMvcConfigurer, ApplicationContextAware {
    private ApplicationContext applicationContext;
 

@@ -39,6 +39,7 @@ import inetsoft.web.admin.user.UserMetrics;
 import inetsoft.web.cluster.ServerClusterClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.sql.Timestamp;
@@ -51,6 +52,7 @@ import java.util.stream.Collectors;
  *
  * @since 12.3
  */
+@Service
 @SingletonManager.ShutdownOrder(after = InetsoftConfig.Reference.class)
 public class AuthenticationService {
    /**
@@ -65,7 +67,7 @@ public class AuthenticationService {
     * @return the shared instance.
     */
    public static AuthenticationService getInstance() {
-      return SingletonManager.getInstance(AuthenticationService.class);
+      return ConfigurationContext.getContext().getSpringBean(AuthenticationService.class);
    }
 
    /**

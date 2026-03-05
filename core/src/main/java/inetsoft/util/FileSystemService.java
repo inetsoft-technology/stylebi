@@ -26,6 +26,7 @@ import inetsoft.util.swap.XSwapper;
 import inetsoft.web.service.LocalizationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
@@ -43,10 +44,11 @@ import java.util.stream.Stream;
  * @version 13.1
  * @author InetSoft Technology Corp
  */
+@Service
 @SingletonManager.ShutdownOrder(after = IgniteCluster.class)
 public class FileSystemService {
    public static FileSystemService getInstance() {
-      return SingletonManager.getInstance(FileSystemService.class);
+      return ConfigurationContext.getContext().getSpringBean(FileSystemService.class);
    }
 
    /**

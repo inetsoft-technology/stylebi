@@ -434,7 +434,8 @@ public class DeployService {
          ActionRecord.ACTION_NAME_IMPORT, null, null);
       AnalyticRepository repository = SUtil.getRepletRepository();
 
-      if(repository instanceof RepletEngine) {
+      if(repository.isWrapperFor(RepletEngine.class)) {
+         RepletEngine engine = repository.unwrap(RepletEngine.class);
          List<String> list = new ArrayList<>(ignoreUserAssets);
          List<String> privateSembeddedData = info.getJarInfo().getDependeciesMap().get("privateSembeddedData");
 
@@ -442,7 +443,7 @@ public class DeployService {
             list.addAll(privateSembeddedData);
          }
 
-         List<String> failedAssets = ((RepletEngine) repository).importAssets(
+         List<String> failedAssets = engine.importAssets(
             overwriting, info.getProperties().fileOrders(), info, false, principal, ignoreList,
             targetFolderInfo, actionRecord, list);
          return ImportAssetResponse.builder()
@@ -670,8 +671,8 @@ public class DeployService {
       try {
          AnalyticRepository repository = SUtil.getRepletRepository();
 
-         if(repository instanceof RepletEngine) {
-            ((RepletEngine) repository).importAssets(data, replace);
+         if(repository.isWrapperFor(RepletEngine.class)) {
+            repository.unwrap(RepletEngine.class).importAssets(data, replace);
          }
       }
       catch(Exception e) {

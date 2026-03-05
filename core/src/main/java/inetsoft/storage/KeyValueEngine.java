@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.cfg.ContextAttributes;
 import com.fasterxml.jackson.datatype.guava.GuavaModule;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.SingletonManager;
 import inetsoft.util.config.InetsoftConfig;
 import org.slf4j.LoggerFactory;
@@ -176,7 +177,7 @@ public interface KeyValueEngine extends AutoCloseable {
     * @return the singleton instance.
     */
    static KeyValueEngine getInstance() {
-      return SingletonManager.getInstance(KeyValueEngine.class);
+      return ConfigurationContext.getContext().getSpringBean(KeyValueEngine.class);
    }
 
    String ENCODE_PROPERTY_NAMES = KeyValueEngine.class.getName() + ".encodePropertyNames";

@@ -2156,5 +2156,13 @@ public class RepletEngine extends AbstractAssetEngine
 
    protected Properties inserts = new Properties(); // html/js inserts
 
+   public boolean isWrapperFor(Class<?> iface) {
+      return iface.isAssignableFrom(getClass());
+   }
+
+   public <T> T unwrap(Class<T> iface) {
+      return iface.cast(this);
+   }
+
    private static final Logger LOG = LoggerFactory.getLogger(RepletEngine.class);
 }

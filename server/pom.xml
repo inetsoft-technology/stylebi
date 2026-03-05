@@ -440,6 +440,7 @@
             <element>${basedir}/../web/target/generated-resources/gulp</element>
             <element>${basedir}/../web/target/generated-resources/ng</element>
             <element>${basedir}/src/test/config/orders.jar</element>
+            <element>${basedir}/../schedule-server/target/inetsoft-schedule-server-${project.version}.jar}</element>
           </additionalClasspathElements>
         </configuration>
       </plugin>

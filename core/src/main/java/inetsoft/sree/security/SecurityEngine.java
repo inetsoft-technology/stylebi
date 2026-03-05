@@ -25,8 +25,11 @@ import inetsoft.sree.internal.cluster.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.*;
 import inetsoft.util.*;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
 import java.io.*;
 import java.security.Principal;
@@ -45,13 +48,22 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author Helen Chen
  * @version 5.1, 9/20/2003
  */
+@Service
 public class SecurityEngine implements SessionListener, MessageListener, AutoCloseable {
    /**
-    * Create a <code>SecurityEngine</code> object
+    * Create a <code>SecurityEngine</code> object (used by SingletonManager in non-Spring contexts).
     */
    public SecurityEngine() {
+      this(AuthenticationService.getInstance());
+   }
+
+   /**
+    * Create a <code>SecurityEngine</code> object with Spring-injected dependencies.
+    */
+   @Autowired
+   public SecurityEngine(AuthenticationService authenticationService) {
       init();
-      authenticationService = AuthenticationService.getInstance();
+      this.authenticationService = authenticationService;
       authenticationService.addSessionListener(this);
       clusterInstance = Cluster.getInstance();
       clusterInstance.addMessageListener(this);
@@ -143,7 +155,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
     * @return a <code>SecurityEngine</code> object
     */
    public static SecurityEngine getSecurity() {
-      return SingletonManager.getInstance(SecurityEngine.class);
+      return ConfigurationContext.getContext().getSpringBean(SecurityEngine.class);
    }
 
    /**
@@ -314,6 +326,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       SreeEnv.save();
    }
 
+   @PreDestroy
    @Override
    public void close() throws Exception {
       retryExecutor.shutdownNow();

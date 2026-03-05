@@ -1,0 +1,197 @@
+<!--
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2024  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.inetsoft.stylebi</groupId>
+    <artifactId>inetsoft-stylebi</artifactId>
+    <version>1.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>inetsoft-schedule-server</artifactId>
+  <packaging>jar</packaging>
+
+  <properties>
+    <maven.compiler.source>21</maven.compiler.source>
+    <maven.compiler.target>21</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <maven.build.timestamp.format>yyyyMMddHHmm</maven.build.timestamp.format>
+    <inetsoft.storage.type>mapdb</inetsoft.storage.type>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>com.inetsoft.stylebi</groupId>
+        <artifactId>inetsoft-stylebi-bom</artifactId>
+        <version>${project.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>${spring-boot.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.inetsoft.stylebi</groupId>
+      <artifactId>inetsoft-core</artifactId>
+      <version>${project.version}</version>
+      <scope>compile</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi</groupId>
+      <artifactId>inetsoft-storage-mapdb</artifactId>
+      <version>${project.version}</version>
+      <classifier>shaded</classifier>
+      <scope>runtime</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter</artifactId>
+      <scope>compile</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+      <scope>compile</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-registry-prometheus</artifactId>
+      <scope>compile</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.tomcat.embed</groupId>
+      <artifactId>tomcat-embed-el</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.12.1</version>
+        <configuration>
+          <useIncrementalCompilation>false</useIncrementalCompilation>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.3.0</version>
+        <configuration>
+          <archive>
+            <manifestSections>
+              <manifestSection>
+                <name>inetsoft/scheduler/</name>
+                <manifestEntries>
+                  <Specification-Title>InetSoft Schedule Server</Specification-Title>
+                  <Specification-Version>${project.version}</Specification-Version>
+                  <Specification-Vendor>InetsoftTechnology</Specification-Vendor>
+                  <Implementation-Title>inetsoft.scheduler</Implementation-Title>
+                  <Implementation-Version>${maven.build.timestamp}</Implementation-Version>
+                  <Implementation-Vendor>InetSoft Technology</Implementation-Vendor>
+                </manifestEntries>
+              </manifestSection>
+            </manifestSections>
+          </archive>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <version>${spring-boot.version}</version>
+        <executions>
+          <execution>
+            <id>process-aot</id>
+            <goals>
+              <goal>process-aot</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <workingDirectory>${project.build.directory}/schedule-server</workingDirectory>
+          <mainClass>inetsoft.sree.schedule.ScheduleServerApplication</mainClass>
+          <arguments>
+            <argument>--sree.home=${project.build.directory}/schedule-server/config</argument>
+          </arguments>
+          <systemPropertyVariables>
+            <java.awt.headless>true</java.awt.headless>
+            <java.io.tmpdir>${project.build.directory}/schedule-server/temp</java.io.tmpdir>
+            <java.net.preferIPv4Stack>true</java.net.preferIPv4Stack>
+            <inetsoftClusterDir>${project.build.directory}/schedule-server/cluster</inetsoftClusterDir>
+          </systemPropertyVariables>
+          <jvmArguments>
+            -server -Xmx2g -Xmx2g -XX:InitialCodeCacheSize=100M -XX:ReservedCodeCacheSize=200m
+            -XX:+UseCodeCacheFlushing -XX:+AlwaysPreTouch -XX:+UseG1GC -XX:+ScavengeBeforeFullGC
+            -XX:+DisableExplicitGC
+            -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5006
+            --add-opens=java.base/jdk.internal.access=ALL-UNNAMED
+            --add-opens=java.base/jdk.internal.misc=ALL-UNNAMED
+            --add-opens=java.base/sun.nio.ch=ALL-UNNAMED
+            --add-opens=java.base/sun.util.calendar=ALL-UNNAMED
+            --add-opens=java.management/com.sun.jmx.mbeanserver=ALL-UNNAMED
+            --add-opens=jdk.internal.jvmstat/sun.jvmstat.monitor=ALL-UNNAMED
+            --add-opens=java.base/sun.reflect.generics.reflectiveObjects=ALL-UNNAMED
+            --add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED
+            --add-opens=java.base/java.io=ALL-UNNAMED
+            --add-opens=java.base/java.nio=ALL-UNNAMED
+            --add-opens=java.base/java.net=ALL-UNNAMED
+            --add-opens=java.base/java.util=ALL-UNNAMED
+            --add-opens=java.base/java.util.concurrent=ALL-UNNAMED
+            --add-opens=java.base/java.util.concurrent.locks=ALL-UNNAMED
+            --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED
+            --add-opens=java.base/java.lang=ALL-UNNAMED
+            --add-opens=java.base/java.lang.invoke=ALL-UNNAMED
+            --add-opens=java.base/java.math=ALL-UNNAMED
+            --add-opens=java.sql/java.sql=ALL-UNNAMED
+            --add-opens=java.base/java.lang.reflect=ALL-UNNAMED
+            --add-opens=java.base/java.time=ALL-UNNAMED
+            --add-opens=java.base/java.text=ALL-UNNAMED
+            --add-opens=java.management/sun.management=ALL-UNNAMED
+            --add-opens=java.desktop/java.awt=ALL-UNNAMED
+            --add-opens=java.desktop/java.awt.geom=ALL-UNNAMED
+            --add-opens=java.desktop/java.awt.font=ALL-UNNAMED
+            --add-opens=java.desktop/java.beans=ALL-UNNAMED
+          </jvmArguments>
+          <additionalClasspathElements>
+            <element>${basedir}/../core/target/classes</element>
+          </additionalClasspathElements>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>

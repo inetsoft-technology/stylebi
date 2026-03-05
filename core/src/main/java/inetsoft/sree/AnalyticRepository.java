@@ -53,6 +53,28 @@ public interface AnalyticRepository extends RepletRepository {
       throws RemoteException;
 
    /**
+    * Returns {@code true} if the repository is a wrapper for the given interface.
+    *
+    * @param iface the interface to check.
+    * @return {@code true} if the repository is a wrapper for {@code iface}.
+    */
+   default boolean isWrapperFor(Class<?> iface) {
+      return false;
+   }
+
+   /**
+    * Unwraps the repository to the given interface.
+    *
+    * @param iface the interface to unwrap to.
+    * @param <T>   the type of the interface.
+    * @return the unwrapped instance.
+    * @throws IllegalArgumentException if this repository is not a wrapper for {@code iface}.
+    */
+   default <T> T unwrap(Class<T> iface) {
+      throw new IllegalArgumentException("Not a wrapper for " + iface.getName());
+   }
+
+   /**
     * Factory that handles creating the shared instance of <tt>AnalyticRepository</tt>.
     */
    class Reference extends SingletonManager.Reference<AnalyticRepository> {

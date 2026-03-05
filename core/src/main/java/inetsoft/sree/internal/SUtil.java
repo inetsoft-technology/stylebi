@@ -163,7 +163,7 @@ public class SUtil {
     * Try getting replet engine.
     */
    public static RepletEngine getRepletEngine(AnalyticRepository rep) {
-      return rep instanceof RepletEngine ? (RepletEngine) rep : null;
+      return rep != null && rep.isWrapperFor(RepletEngine.class) ? rep.unwrap(RepletEngine.class) : null;
    }
 
    /**

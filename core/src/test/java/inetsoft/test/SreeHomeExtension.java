@@ -170,7 +170,7 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
       System.err.println("Importing assets from " + url);
       AnalyticRepository repository = SUtil.getRepletRepository();
 
-      if(repository instanceof RepletEngine) {
+      if(repository.isWrapperFor(RepletEngine.class)) {
          try(InputStream input = url.openStream()) {
             XPrincipal testPrincipal = SUtil.getPrincipal(
                new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()), null, false);
@@ -178,7 +178,7 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
             ThreadContext.setPrincipal(testPrincipal);
             ByteArrayOutputStream buffer = new ByteArrayOutputStream();
             Tool.copyTo(input, buffer);
-            ((RepletEngine) repository).importAssets(buffer.toByteArray(), true);
+            repository.unwrap(RepletEngine.class).importAssets(buffer.toByteArray(), true);
          }
       }
       else {

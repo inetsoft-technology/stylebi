@@ -17,6 +17,7 @@
  */
 package inetsoft.storage;
 
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.SingletonManager;
 import inetsoft.util.config.InetsoftConfig;
 import org.slf4j.LoggerFactory;
@@ -98,7 +99,7 @@ public interface BlobEngine extends AutoCloseable {
     * @return the singleton instance.
     */
    static BlobEngine getInstance() {
-      return SingletonManager.getInstance(BlobEngine.class);
+      return ConfigurationContext.getContext().getSpringBean(BlobEngine.class);
    }
 
    final class Reference extends SingletonManager.Reference<BlobEngine> {

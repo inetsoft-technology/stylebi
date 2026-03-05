@@ -40,7 +40,10 @@ import inetsoft.web.admin.server.ServerMetricsCalculator;
 import inetsoft.web.admin.viewsheet.ViewsheetModel;
 import inetsoft.web.admin.viewsheet.ViewsheetThreadModel;
 import inetsoft.web.cluster.ServerClusterClient;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.*;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
@@ -53,18 +56,19 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
+@Service
+@Lazy
 @SingletonManager.Singleton(ScheduleServer.Reference.class)
 public class ScheduleServer extends UnicastRemoteObject implements Schedule {
    /**
     * Default constructor.
     */
-   @SuppressWarnings("WeakerAccess")
-   private ScheduleServer() throws RemoteException {
+   public ScheduleServer() throws RemoteException {
       super();
    }
 
    public static ScheduleServer getInstance() {
-      return SingletonManager.getInstance(ScheduleServer.class);
+      return ConfigurationContext.getContext().getSpringBean(ScheduleServer.class);
    }
 
    /**
@@ -73,8 +77,8 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
    @Override
    public void start() throws RemoteException {
       LOG.debug(
-         "Received start server request on " + Tool.getRmiIP() +
-         " with config directory " + ConfigurationContext.getContext().getHome());
+         "Received start server request on {} with config directory {}",
+         Tool.getRmiIP(), ConfigurationContext.getContext().getHome());
 
       try {
          Scheduler.getScheduler().start();
@@ -95,8 +99,8 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
    @Override
    public void stop() throws RemoteException {
       LOG.debug(
-         "Received stop server request on " + Tool.getRmiIP() +
-         " with config directory " + ConfigurationContext.getContext().getHome());
+         "Received stop server request on {} with config directory {}",
+         Tool.getRmiIP(), ConfigurationContext.getContext().getHome());
 
       new Thread(() -> {
          try {
@@ -441,6 +445,16 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
     */
    public boolean isLocalServerRunning() {
       return Scheduler.getScheduler().isRunning();
+   }
+
+   @PreDestroy
+   public void shutdown() {
+      try {
+         stop();
+      }
+      catch(RemoteException e) {
+         LOG.error("Failed to stop schedule server during shutdown", e);
+      }
    }
 
    public static final class Reference extends SingletonManager.Reference<ScheduleServer> {

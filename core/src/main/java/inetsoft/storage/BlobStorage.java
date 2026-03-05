@@ -36,7 +36,6 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -919,69 +918,22 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
 
    public static final class Reference extends SingletonManager.Reference<BlobStorage<?>> {
       @Override
-      public  BlobStorage<?> get(Object... parameters) {
+      public BlobStorage<?> get(Object... parameters) {
          if(parameters.length < 2 || parameters.length > 3) {
             return null;
          }
 
-         if(storages == null) {
-            storages = new HashMap<>();
-         }
-
          String storeID = (String) parameters[0];
          boolean preload = (Boolean) parameters[1];
-         BlobStorage<?> storage = (BlobStorage<?>) storages.get(storeID);
-
-         if(storage == null || storage.isClosed()) {
-            try {
-               storage = BlobStorage.createBlobStorage(storeID, preload);
-
-               if(storages.get(storeID) == null || storages.get(storeID).isClosed()) {
-                  lock.lock();
-
-                  try {
-                     storages.put(storeID, storage);
-
-                     if(parameters.length == 3) {
-                        Listener listener = (Listener) parameters[2];
-                        storage.addListener(listener);
-                     }
-                  }
-                  finally {
-                     lock.unlock();
-                  }
-               }
-            }
-            catch(IOException e) {
-               LOG.error("Failed to create blob storage with storeID " + storeID, e);
-            }
-         }
-
-         return storage;
+         Listener<?> listener = parameters.length == 3 ? (Listener<?>) parameters[2] : null;
+         BlobStorageManager manager =
+            ConfigurationContext.getContext().getSpringBean(BlobStorageManager.class);
+         return manager.getInstance(storeID, preload, (Listener) listener);
       }
 
       @Override
       public void dispose() {
-         if(storages != null) {
-            for(String storeID : storages.keySet()) {
-               try {
-                  BlobStorage<?> storage = storages.get(storeID);
-
-                  if(!storage.isClosed()) {
-                     storage.close();
-                  }
-               }
-               catch(Exception e) {
-                  LOG.error("Failed to close storage with storeID " + storeID, e);
-               }
-            }
-
-            storages = null;
-         }
+         // lifecycle is managed by BlobStorageManager
       }
-
-      private HashMap<String, BlobStorage<?>> storages;
-      private final ReentrantLock lock = new ReentrantLock();
-      private final Logger LOG = LoggerFactory.getLogger(Reference.class);
    }
 }

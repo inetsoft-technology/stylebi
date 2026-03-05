@@ -18,6 +18,7 @@
 
 package inetsoft.storage;
 
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.SingletonManager;
 import inetsoft.util.config.BlobConfig;
 import inetsoft.util.config.InetsoftConfig;
@@ -39,7 +40,7 @@ public class BlobCache {
    }
 
    public static BlobCache getInstance() {
-      return SingletonManager.getInstance(BlobCache.class);
+      return ConfigurationContext.getContext().getSpringBean(BlobCache.class);
    }
 
    public Path get(String storeId, Blob<?> blob) throws IOException {
