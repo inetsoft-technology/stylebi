@@ -22,7 +22,6 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.util.ConfigurationContext;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
@@ -37,28 +36,20 @@ import org.mockito.quality.Strictness;
 
 import java.security.Principal;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class})
 @MockitoSettings(strictness = Strictness.LENIENT)
-class ComposerGroupControllerTest {
+class ComposerGroupServiceTest {
 
    @BeforeEach
    void setup() throws Exception {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
-
-      controller = new ComposerGroupController(runtimeViewsheetRef, new ComposerGroupServiceProxy());
       service = new ComposerGroupService(coreLifecycleService,
-                                          viewsheetService, vsObjectTreeService,
-                                          vsObjectPropertyService, vsCompositionService,
-                                          vsLayoutService);
-      doReturn(service).when(spyContext).getSpringBean(ComposerGroupService.class);
+                                         viewsheetService, vsObjectTreeService,
+                                         vsObjectPropertyService, vsCompositionService,
+                                         vsLayoutService);
       assemblies[0] = tab;
       assemblies[1] = image;
       assemblies[2] = calendar;
@@ -74,11 +65,6 @@ class ComposerGroupControllerTest {
       when(rvs.getViewsheet()).thenReturn(viewsheet);
    }
 
-   @AfterEach
-   void afterEach() throws Exception {
-      staticConfigurationContext.close();
-   }
-
    @Test
    void checkDependencyTest() throws Exception {
       tabAssemblies[0] = "group";
@@ -87,19 +73,19 @@ class ComposerGroupControllerTest {
       groupAssemblies[1] = "image";
       groupAssemblies[2] = "calendar";
 
-      assertEquals(service.checkDependency(viewsheet), true);
+      assertTrue(service.checkDependency(viewsheet));
 
       tabAssemblies[0] = "calendar";
       tabAssemblies[1] = "image";
 
-      assertEquals(service.checkDependency(viewsheet), false);
+      assertFalse(service.checkDependency(viewsheet));
    }
 
    // Bug #10760 Update the component tree after a grouping action
    @Test
    void sendsPopulateObjectTreeCommandTest() throws Exception {
       when(viewsheet.getAssembly("group")).thenReturn(group);
-      controller.ungroup("group", "", principal, commandDispatcher);
+      service.ungroup(runtimeViewsheetRef.getRuntimeId(), "group", "", principal, commandDispatcher);
       verify(commandDispatcher).sendCommand(any(PopulateVSObjectTreeCommand.class));
    }
 
@@ -107,7 +93,7 @@ class ComposerGroupControllerTest {
    @Test
    void linkUriNotNull() throws Exception {
       when(viewsheet.getAssembly("group")).thenReturn(group);
-      controller.ungroup("group", "linkUri", principal, commandDispatcher);
+      service.ungroup(runtimeViewsheetRef.getRuntimeId(), "group", "linkUri", principal, commandDispatcher);
       verify(coreLifecycleService).removeVSAssembly(any(RuntimeViewsheet.class),
                                                     eq("linkUri"),
                                                     any(VSAssembly.class),
@@ -132,11 +118,9 @@ class ComposerGroupControllerTest {
    @Mock Principal principal;
    @Mock CommandDispatcher commandDispatcher;
    @Mock RuntimeViewsheet rvs;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
    String[] tabAssemblies = new String[2];
    String[] groupAssemblies = new String[3];
    Assembly[] assemblies = new Assembly[4];
 
-   private ComposerGroupController controller;
    private ComposerGroupService service;
 }

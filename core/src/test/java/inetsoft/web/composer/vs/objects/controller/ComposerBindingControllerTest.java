@@ -28,7 +28,6 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
-import inetsoft.util.ConfigurationContext;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.service.*;
@@ -55,29 +54,20 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class})
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ComposerBindingControllerTest {
 
+   @SuppressWarnings("unchecked")
    @BeforeEach
    void setup() throws Exception {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
       vsutil = Mockito.mockStatic(VSUtil.class);
 
-      VSBindingService vsBindService = new VSBindingService(trapService, vsTableService, groupingService,
-                                                            viewsheetService, factories, dataRefService,
-                                                            objectModelService, wizardTemporaryInfoService,
-                                                            vsSelectionContainerService, analyticAssistant,
-                                                            assemblyHandler, vsObjectTreeService, coreLifecycleService);
-      doReturn(vsBindService)
-         .when(spyContext)
-            .getSpringBean(VSBindingService.class);
-
-      controller = spy(new ComposerBindingController(runtimeViewsheetRef, new VSBindingServiceProxy()));
+      vsBindService = new VSBindingService(trapService, vsTableService, groupingService,
+                                           viewsheetService, factories, dataRefService,
+                                           objectModelService, wizardTemporaryInfoService,
+                                           vsSelectionContainerService, analyticAssistant,
+                                           assemblyHandler, vsObjectTreeService, coreLifecycleService);
 
       when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(viewsheetEngine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
@@ -108,7 +98,6 @@ class ComposerBindingControllerTest {
 
    @AfterEach
    void afterEach() throws Exception {
-      staticConfigurationContext.close();
       vsutil.close();
    }
 
@@ -136,13 +125,12 @@ class ComposerBindingControllerTest {
       when(vsBindingService.getNewAssemblyFromBindings(
          eventModel.getBinding(), 0, 0, rvs, null)).thenReturn(rangeSliderAssembly);
 
-      controller.changeBinding(eventModel, null, dispatcher, linkUri);
+      vsBindService.changeBinding("Viewsheet1", eventModel, null, dispatcher, linkUri);
 
       verify(infoSpy).setTableName(anyString());
    }
 
    // Bug #16854 Populate object tree after creating assembly from binding
-   @SuppressWarnings("unchecked")
    @Test
    void populateObjectTree() throws Exception {
       ChangeVSObjectBindingEvent eventModel = new ChangeVSObjectBindingEvent();
@@ -157,7 +145,7 @@ class ComposerBindingControllerTest {
       bindingEntry.setProperty("dtype", Tool.DATE);
       eventModel.setBinding(entries);
 
-      controller.changeBinding(eventModel, null, dispatcher, linkUri);
+      vsBindService.changeBinding("Viewsheet1", eventModel, null, dispatcher, linkUri);
 
       verify(dispatcher).sendCommand(any(PopulateVSObjectTreeCommand.class));
    }
@@ -189,7 +177,7 @@ class ComposerBindingControllerTest {
       when(vsBindingService.getNewAssemblyFromBindings(
          eventModel.getBinding(), 0, 0, rvs, null)).thenReturn(rangeSliderAssembly);
 
-      controller.checkVSTrap(eventModel, "Viewsheet1", linkUri, null);
+      vsBindService.checkVSTrap("Viewsheet1", eventModel, linkUri, null);
 
       verify(viewsheet, never()).addAssembly(nullable(VSAssembly.class));
    }
@@ -221,7 +209,7 @@ class ComposerBindingControllerTest {
       when(worksheet.getAssembly(anyString()))
          .thenReturn(variableAssembly);
 
-      controller.changeBinding(eventModel, null, dispatcher, "");
+      vsBindService.changeBinding("Viewsheet1", eventModel, null, dispatcher, "");
 
       verify(coreLifecycleService)
          .execute(eq(rvs), anyString(), eq(""), anyInt(), eq(dispatcher));
@@ -248,9 +236,8 @@ class ComposerBindingControllerTest {
    @Mock VSObjectModelFactoryService objectModelService;
    @Mock VSWizardTemporaryInfoService wizardTemporaryInfoService;
    @Mock VSSelectionContainerService vsSelectionContainerService;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
    MockedStatic<VSUtil> vsutil;
 
-   private ComposerBindingController controller;
+   private VSBindingService vsBindService;
    private final String linkUri = "http://localhost:18080/sree/";
 }

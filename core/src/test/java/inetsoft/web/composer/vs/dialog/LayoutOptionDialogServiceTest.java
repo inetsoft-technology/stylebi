@@ -22,20 +22,18 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.util.ConfigurationContext;
-import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.LayoutOptionDialogModel;
 import inetsoft.web.composer.vs.VSObjectTreeService;
-import inetsoft.web.composer.vs.controller.VSLayoutControllerService;
 import inetsoft.web.composer.vs.objects.controller.GroupingService;
 import inetsoft.web.composer.vs.objects.controller.VSTableService;
 import inetsoft.web.composer.vs.objects.event.LockVSObjectEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.*;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.security.Principal;
@@ -43,30 +41,13 @@ import java.security.Principal;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith(MockitoExtension.class)
-class LayoutOptionDialogControllerTest {
+@ExtendWith({MockitoExtension.class})
+class LayoutOptionDialogServiceTest {
 
    @BeforeEach
    void setup() throws Exception {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
-      LayoutOptionDialogService layoutOptionDialogService =
-         new LayoutOptionDialogService(groupingService, vsObjectTreeService,
-                                       engine, vsTableService, coreLifecycleService);
-      doReturn(layoutOptionDialogService)
-         .when(spyContext)
-         .getSpringBean(LayoutOptionDialogService.class);
-
-      controller = new LayoutOptionDialogController(runtimeViewsheetRef,
-                                                    new LayoutOptionDialogServiceProxy());
-   }
-
-   @AfterEach
-   void afterEach() throws Exception {
-      staticConfigurationContext.close();
+      service = new LayoutOptionDialogService(groupingService, vsObjectTreeService,
+                                              engine, vsTableService, coreLifecycleService);
    }
 
    @Test
@@ -79,7 +60,7 @@ class LayoutOptionDialogControllerTest {
       when(model.getObject()).thenReturn("Table1");
       when(model.getTarget()).thenReturn("Table1");
 
-      controller.setLayoutOptionDialogModel(model, principal, null, dispatcher);
+      service.setLayoutOptionDialogModel(runtimeViewsheetRef.getRuntimeId(), model, principal, null, dispatcher);
       verify(vsObjectTreeService, times(1)).getObjectTree(rvs);
    }
 
@@ -97,9 +78,6 @@ class LayoutOptionDialogControllerTest {
    @Mock VSTableService vsTableService;
    @Mock
    CoreLifecycleService coreLifecycleService;
-   @Mock VSAssemblyInfoHandler infoHandler;
    @Mock ViewsheetService viewsheetService;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
-
-   private LayoutOptionDialogController controller;
+   private LayoutOptionDialogService service;
 }

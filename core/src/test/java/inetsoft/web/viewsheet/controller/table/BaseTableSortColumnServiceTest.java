@@ -27,7 +27,6 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
-import inetsoft.util.ConfigurationContext;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.event.table.SortColumnEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
@@ -49,32 +48,13 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class})
 @MockitoSettings(strictness = Strictness.LENIENT)
-class BaseTableSortColumnControllerTest {
+class BaseTableSortColumnServiceTest {
 
    @BeforeEach
    void setup() throws Exception {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
-
-      BaseTableSortColumnServiceProxy service = new BaseTableSortColumnServiceProxy();
-
-      BaseTableSortColumnService baseTableSortColumnService = new BaseTableSortColumnService(coreLifecycleService,
-                                                                                             viewsheetService, bindingFactory);
-      doReturn(baseTableSortColumnService)
-         .when(spyContext)
-         .getSpringBean(BaseTableSortColumnService.class);
-
-      controller = new BaseTableSortColumnController(runtimeViewsheetRef, service);
-   }
-
-   @AfterEach
-   void afterEach() throws Exception {
-      staticConfigurationContext.close();
+      service = new BaseTableSortColumnService(coreLifecycleService, viewsheetService, bindingFactory);
    }
 
    // Bug #17147 Create new sort info when sort event multi flag is false
@@ -112,7 +92,7 @@ class BaseTableSortColumnControllerTest {
 
       // Initial sort info has 2 sort refs
       assertEquals(2, assembly.getSortInfo().getSortCount());
-      controller.eventHandler(event, principal, commandDispatcher, "");
+      service.eventHandler(runtimeViewsheetRef.getRuntimeId(), event, principal, commandDispatcher, "");
 
       assertNotEquals(sortInfo, assembly.getSortInfo());
       // should only have one sort ref
@@ -129,7 +109,5 @@ class BaseTableSortColumnControllerTest {
    @Mock CommandDispatcher commandDispatcher;
    @Mock Principal principal;
    @Mock ViewsheetSandbox box;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
-
-   private BaseTableSortColumnController controller;
+   private BaseTableSortColumnService service;
 }

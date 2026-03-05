@@ -23,17 +23,17 @@ import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.vslayout.*;
-import inetsoft.util.ConfigurationContext;
-import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.dialog.ImagePreviewPaneService;
+import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.*;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.*;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.security.Principal;
@@ -45,33 +45,16 @@ import static org.mockito.Mockito.*;
 
 @SreeHome()
 @ExtendWith(MockitoExtension.class)
-class VSLayoutControllerTest {
+class VSLayoutControllerServiceTest {
 
    @BeforeEach
    void setup() throws Exception {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
       BinaryTransferService binaryTransferService = new BinaryTransferService();
       ImagePreviewPaneService imagePreviewPaneService =
          new ImagePreviewPaneService(viewsheetService, objectService, binaryTransferService);
-      VSLayoutControllerService vsLayoutControllerService =
-         new VSLayoutControllerService(coreLifecycleService, viewsheetService,
-                                    imagePreviewPaneService, objectModelService,
-                                    vsLayoutService, vsObjectTreeService);
-      doReturn(vsLayoutControllerService)
-         .when(spyContext)
-         .getSpringBean(VSLayoutControllerService.class);
-
-      VSLayoutControllerServiceProxy vsLayoutControllerServiceProxy = new VSLayoutControllerServiceProxy();
-      controller = new VSLayoutController(runtimeViewsheetRef, vsLayoutControllerServiceProxy);
-   }
-
-   @AfterEach
-   void afterEach() throws Exception {
-      staticConfigurationContext.close();
+      service = new VSLayoutControllerService(coreLifecycleService, viewsheetService,
+                                              imagePreviewPaneService, objectModelService,
+                                              vsLayoutService, vsObjectTreeService);
    }
 
    // Bug #16600 Make sure that when not setting a script, the default value doesnt error out.
@@ -96,11 +79,11 @@ class VSLayoutControllerTest {
          .thenReturn(Optional.of(assemblyLayout));
 
       ImagePropertyDialogModel result =
-         controller.getImagePropertyDialogModel(0, assemblyLayoutName, "", null);
+         service.getImagePropertyDialogModel("", 0, assemblyLayoutName, null);
 
       assertFalse(result.clickableScriptPaneModel().scriptEnabled());
-      assertEquals(result.clickableScriptPaneModel().scriptExpression(), "");
-      assertEquals(result.clickableScriptPaneModel().onClickExpression(), "");
+      assertEquals("", result.clickableScriptPaneModel().scriptExpression());
+      assertEquals("", result.clickableScriptPaneModel().onClickExpression());
    }
 
    @Mock RuntimeViewsheetRef runtimeViewsheetRef;
@@ -115,7 +98,5 @@ class VSLayoutControllerTest {
    @Mock VSObjectModelFactoryService objectModelService;
    @Mock VSLayoutService vsLayoutService;
    @Mock VSObjectTreeService vsObjectTreeService;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
-
-   private VSLayoutController controller;
+   private VSLayoutControllerService service;
 }

@@ -36,6 +36,7 @@ import { VSTextModel } from "../../../model/output/vs-text-model";
 import { ShowHyperlinkService } from "../../../show-hyperlink.service";
 import { DataTipService } from "../../data-tip/data-tip.service";
 import { PopComponentService } from "../../data-tip/pop-component.service";
+import { TimerService } from "../../data-tip/timer.service";
 import { VSText } from "./vs-text.component";
 
 let createModel: () => VSTextModel = () => {
@@ -62,6 +63,7 @@ describe("VS Text Component Unit Test", () => {
    let dataTipService: any;
    let router: any;
    let richTextService: any;
+   let timerService: any;
 
    beforeEach(waitForAsync(() => {
       viewsheetClientService = {};
@@ -70,6 +72,11 @@ describe("VS Text Component Unit Test", () => {
       dataTipService = { isDataTip: jest.fn() };
       viewDataService = {};
       contextProvider = {};
+      timerService = {
+         defer: jest.fn((fn) => {
+            fn();
+         })
+      };
 
       router = {
          navigate: jest.fn(),
@@ -100,7 +107,8 @@ describe("VS Text Component Unit Test", () => {
             DebounceService,
             {provide: DataTipService, useValue: dataTipService},
             { provide: RichTextService, useValue: richTextService },
-            AppInfoService
+            AppInfoService,
+            { provide: TimerService, useValue: timerService },
          ]
       });
       TestBed.compileComponents();

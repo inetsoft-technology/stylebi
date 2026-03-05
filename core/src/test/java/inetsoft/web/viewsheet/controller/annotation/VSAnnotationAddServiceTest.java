@@ -25,14 +25,14 @@ import inetsoft.sree.security.SecurityProvider;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.AnnotationVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.BaseAnnotationVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
-import inetsoft.util.ConfigurationContext;
 import inetsoft.web.viewsheet.event.annotation.AddAnnotationEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.*;
-import org.mockito.*;
+import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
 import java.util.List;
@@ -41,14 +41,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-class VSAnnotationAddControllerTest {
+class VSAnnotationAddServiceTest {
    @BeforeEach
    void setUp() throws Exception {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
       runtimeViewsheetRef = mock(RuntimeViewsheetRef.class);
       coreLifecycleService = mock(CoreLifecycleService.class);
       viewsheetService = mock(ViewsheetService.class);
@@ -76,10 +71,7 @@ class VSAnnotationAddControllerTest {
       when(principal.getName()).thenReturn("test user");
       when(securityEngine.isActiveUser(principal)).thenReturn(true);
 
-      VSAnnotationAddService addService = new VSAnnotationAddService(service, annotationService);
-      doReturn(addService)
-         .when(spyContext)
-         .getSpringBean(VSAnnotationAddService.class);
+      addService = new VSAnnotationAddService(service, annotationService);
    }
 
    @AfterEach
@@ -93,7 +85,6 @@ class VSAnnotationAddControllerTest {
       rvs = null;
       viewsheet = null;
       service = null;
-      staticConfigurationContext.close();
    }
 
    @Test
@@ -107,10 +98,8 @@ class VSAnnotationAddControllerTest {
                                                    .content("test content")
                                                    .build();
 
-      // call method to test
-      VSAnnotationAddController controller =
-         new VSAnnotationAddController(new VSAnnotationAddServiceProxy(), runtimeViewsheetRef);
-      controller.addViewsheetAnnotation(event, "", principal, dispatcher);
+      addService.addAnnotation(runtimeViewsheetRef.getRuntimeId(), event, "",
+                               principal, dispatcher, AnnotationVSAssemblyInfo.VIEWSHEET);
 
       // check annotation and annotation rectangle were created
       verify(coreLifecycleService)
@@ -153,10 +142,8 @@ class VSAnnotationAddControllerTest {
       // return parent assembly (since we're only mocking the viewsheet)
       when(viewsheet.getAssembly(parentName)).thenReturn(parentAssembly);
 
-      // call method to test
-      VSAnnotationAddController controller =
-         new VSAnnotationAddController(new VSAnnotationAddServiceProxy(), runtimeViewsheetRef);
-      controller.addAssemblyAnnotation(event, "", principal, dispatcher);
+      addService.addAnnotation(runtimeViewsheetRef.getRuntimeId(), event, "",
+                               principal, dispatcher, AnnotationVSAssemblyInfo.ASSEMBLY);
 
       // check annotation and annotation rectangle were created
       verify(coreLifecycleService)
@@ -185,7 +172,6 @@ class VSAnnotationAddControllerTest {
       assertEquals(annotationNames.get(0), annotations.get(0).getAbsoluteName());
    }
 
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
    private RuntimeViewsheetRef runtimeViewsheetRef;
    private CoreLifecycleService coreLifecycleService;
    private ViewsheetService viewsheetService;
@@ -196,5 +182,6 @@ class VSAnnotationAddControllerTest {
    private Viewsheet viewsheet;
    private VSObjectService service;
    private VSAnnotationService annotationService;
+   private VSAnnotationAddService addService;
    private SharedFilterService sharedFilterService;
 }

@@ -36,6 +36,7 @@ import { GlobalSubmitService } from "../../util/global-submit.service";
 import { AdhocFilterService } from "../data-tip/adhoc-filter.service";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { PopComponentService } from "../data-tip/pop-component.service";
+import { TimerService } from "../data-tip/timer.service";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { MiniToolbar } from "../mini-toolbar/mini-toolbar.component";
 import { VSRangeSlider } from "./vs-range-slider.component";
@@ -62,6 +63,11 @@ describe("VSRangeSlider Test", () => {
    };
    const contextProvider = {};
    dialogService = { open: jest.fn() };
+   const timerService = {
+      defer: jest.fn((fn) => {
+         fn();
+      })
+   };
 
    beforeEach(waitForAsync(() => {
       adhocFilterService = {
@@ -90,7 +96,8 @@ describe("VSRangeSlider Test", () => {
             { provide: DialogService, useValue: dialogService },
             { provide: AdhocFilterService, useValue: adhocFilterService },
             { provide: FixedDropdownService, useValue: dropdownService},
-            { provide: GlobalSubmitService, useValue: globalSubmitService }
+            { provide: GlobalSubmitService, useValue: globalSubmitService },
+            { provide: TimerService, useValue: timerService },
          ],
          schemas: [ NO_ERRORS_SCHEMA ]
       });

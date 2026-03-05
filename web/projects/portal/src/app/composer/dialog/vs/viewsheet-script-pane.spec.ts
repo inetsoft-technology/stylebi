@@ -79,7 +79,8 @@ describe("Viewsheet script pane Test", () => {
             lineCount: jest.fn(() => 0),
             lastLine: jest.fn(() => ""),
             on: jest.fn(),
-            toTextArea: jest.fn()
+            toTextArea: jest.fn(),
+            getLine: jest.fn(() => ""),
          }))
       };
 

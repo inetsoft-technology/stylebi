@@ -22,9 +22,9 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.security.*;
 import inetsoft.test.SreeHome;
+import inetsoft.test.VSAssemblyFixture;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.util.ConfigurationContext;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.ClipboardService;
 import inetsoft.web.composer.vs.VSObjectTreeService;
@@ -35,7 +35,6 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 
 import java.awt.*;
 import java.security.Principal;
@@ -46,45 +45,30 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
 @SreeHome()
-@ExtendWith(MockitoExtension.class)
-class ClipboardControllerTest {
+@ExtendWith({MockitoExtension.class})
+class ClipboardControllerServiceTest {
 
    @BeforeEach
    void setup() {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
-
-      ClipboardControllerService clipboardControllerService =
+      clipboardControllerService =
          Mockito.spy(new ClipboardControllerService(coreLifecycleService, vsObjectTreeService,
                                                     viewsheetService, assemblyHandler,
                                                     vsObjectPropertyService));
       doReturn(clipboardService)
          .when(clipboardControllerService)
          .getClipboardService(any(Principal.class));
-      doReturn(clipboardControllerService).when(spyContext).getSpringBean(ClipboardControllerService.class);
-      controller = new ClipboardController(runtimeViewsheetRef, new ClipboardControllerServiceProxy());
-   }
-
-   @AfterEach
-   void afterEach() throws Exception {
-      staticConfigurationContext.close();
    }
 
    // Bug #16764 make sure the top left is calculated correctly.
    @Test
-   void pastedObjectPosition() throws Exception {
+   void should_position_pasted_objects_relative_to_origin() throws Exception {
       when(viewsheetService.getViewsheet(any(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
       when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(sandbox));
 
       List<Assembly> assemblies = new ArrayList<>();
-      ImageVSAssembly image = new ImageVSAssembly(viewsheet, "Image");
-      image.setPixelOffset(new Point(100, 100));
-      GaugeVSAssembly gauge = new GaugeVSAssembly(viewsheet, "Gauge");
-      gauge.setPixelOffset(new Point(200, 200));
+      ImageVSAssembly image = VSAssemblyFixture.image(viewsheet, "Image", 100, 100);
+      GaugeVSAssembly gauge = VSAssemblyFixture.gauge(viewsheet, "Gauge", 200, 200);
       assemblies.add(image);
       assemblies.add(gauge);
 
@@ -92,19 +76,9 @@ class ClipboardControllerTest {
          .thenReturn(assemblies.toArray(new Assembly[0]));
 
       when(clipboardService.paste()).thenReturn(assemblies);
-//      Map<String, Object> headers = new HashMap<>();
-//      headers.put(ClipboardService.CLIPBOARD, clipboardService);
-//
-//      MockedStatic<MessageContextHolder> contextHolder = Mockito.mockStatic(MessageContextHolder.class);
-//      MessageAttributes messageAttributes = mock(MessageAttributes.class);
-//      StompHeaderAccessor stompHeaderAccessor = mock(StompHeaderAccessor.class);
-//
-//      contextHolder.when(MessageContextHolder::getMessageAttributes).thenReturn(messageAttributes);
-//      when(messageAttributes.getHeaderAccessor()).thenReturn(stompHeaderAccessor);
-//      when(stompHeaderAccessor.getSessionAttributes()).thenReturn(headers);
 
       Principal principal = new SRPrincipal(new IdentityID("admin", Organization.getDefaultOrganizationID()));
-      controller.pasteObject(0, 0, principal, commandDispatcher, headerAccessor, linkUri);
+      clipboardControllerService.pasteObject(runtimeViewsheetRef.getRuntimeId(), 0, 0, principal, commandDispatcher, linkUri);
 
       verify(coreLifecycleService, times(2))
          .addDeleteVSObject(any(RuntimeViewsheet.class), argCaptor.capture(),
@@ -129,15 +103,12 @@ class ClipboardControllerTest {
    @Mock VSObjectTreeService vsObjectTreeService;
    @Mock ViewsheetService viewsheetService;
    @Mock ClipboardService clipboardService;
-   @Mock SimpMessageHeaderAccessor headerAccessor;
    @Mock RuntimeViewsheet rvs;
    @Mock Viewsheet viewsheet;
    @Mock CommandDispatcher commandDispatcher;
    @Mock VSAssemblyInfoHandler assemblyHandler;
    @Mock VSObjectPropertyService vsObjectPropertyService;
    @Mock ViewsheetSandbox sandbox;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
-
-   private ClipboardController controller;
+   private ClipboardControllerService clipboardControllerService;
    private final String linkUri = "http://localhost:18080/sree/";
 }

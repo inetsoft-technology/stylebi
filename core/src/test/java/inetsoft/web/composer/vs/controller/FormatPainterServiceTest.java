@@ -25,7 +25,6 @@ import inetsoft.report.composition.region.ChartArea;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
-import inetsoft.util.ConfigurationContext;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.composer.vs.objects.command.SetCurrentFormatCommand;
 import inetsoft.web.composer.vs.objects.event.GetVSObjectFormatEvent;
@@ -51,27 +50,15 @@ import static org.mockito.Mockito.*;
 
 @SreeHome()
 @ExtendWith(MockitoExtension.class)
-class FormatPainterControllerTest {
+class FormatPainterServiceTest {
 
    @BeforeEach
    void setup() throws Exception {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
-      FormatPainterService formatPainterService =
-         new FormatPainterService(coreLifecycleService,
-                                  chartRegionHandler, viewsheetEngine,
-                                  objectModelService, bindingService,
-                                  vsLayoutService);
-      FormatPainterServiceProxy formatPainterServiceProxy = new FormatPainterServiceProxy();
-      doReturn(formatPainterService)
-         .when(spyContext)
-         .getSpringBean(FormatPainterService.class);
-      controller = spy(new FormatPainterController(runtimeViewsheetRef, formatPainterServiceProxy));
+      service = new FormatPainterService(coreLifecycleService,
+                                         chartRegionHandler, viewsheetEngine,
+                                         objectModelService, bindingService,
+                                         vsLayoutService);
 
-      when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(viewsheetEngine.getViewsheet(anyString(), nullable(Principal.class)))
          .thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
@@ -90,13 +77,8 @@ class FormatPainterControllerTest {
       when(viewsheet.getAssembly("Chart1")).thenReturn(chart);
    }
 
-   @AfterEach
-   void afterEach() throws Exception {
-      staticConfigurationContext.close();
-   }
-
    @Test
-   void getChartFormatWorks() throws Exception {
+   void should_initialize_text_format_when_reading_chart_title() throws Exception {
       TitlesDescriptor titlesDescriptor = new TitlesDescriptor();
       TitleDescriptor titleDescriptor = spy(new TitleDescriptor());
       titleDescriptor.setTextFormat(null);
@@ -107,7 +89,7 @@ class FormatPainterControllerTest {
       event.setName("Chart1");
       event.setRegion("x_title");
 
-      controller.getFormat(event, null, dispatcher);
+      service.getFormat("Viewsheet1", event, null, dispatcher);
 
       assertNotNull(titlesDescriptor.getXTitleDescriptor().getTextFormat());
       verify(titleDescriptor, atLeast(2)).setTextFormat(any());
@@ -115,32 +97,26 @@ class FormatPainterControllerTest {
 
    @Test
    @Disabled
-   void legendAlignIsEnabled() throws Exception {
-//      LegendDescriptor legendDescriptor = new LegendDescriptor();
-//
-//      doReturn(legendDescriptor).when(controller)
-//         .getLegendDescriptor(nullable(ChartDescriptor.class), nullable(ChartInfo.class),
-//                              nullable(ChartArea.class), anyInt());
-
+   void should_enable_horizontal_alignment_for_legend_content() throws Exception {
       GetVSObjectFormatEvent event = new GetVSObjectFormatEvent();
       event.setName("Chart1");
       event.setRegion("legend_content");
       event.setDimensionColumn(true);
       event.setIndex(0);
 
-      controller.getFormat(event, null, dispatcher);
+      service.getFormat("Viewsheet1", event, null, dispatcher);
 
       verify(dispatcher).sendCommand(any(ViewsheetCommand.class));
       verify(dispatcher).sendCommand(argCaptor.capture());
 
       List<SetCurrentFormatCommand> commands = argCaptor.getAllValues();
-      assertTrue(commands.get(0).getModel().isHAlignmentEnabled());
-      assertFalse(commands.get(0).getModel().isVAlignmentEnabled());
+      assertTrue(commands.getFirst().getModel().isHAlignmentEnabled());
+      assertFalse(commands.getFirst().getModel().isVAlignmentEnabled());
    }
 
    // Bug #16423 when selecting axis label, ensure correct alignment options are enabled.
    @Test
-   void yAxisAlignEnabled() throws Exception {
+   void should_enable_horizontal_alignment_for_y_axis_label() throws Exception {
       AxisDescriptor axisDescriptor = new AxisDescriptor();
 
       doReturn(axisDescriptor).when(chartRegionHandler)
@@ -154,11 +130,11 @@ class FormatPainterControllerTest {
       event.setIndex(0);
       event.setColumnName("");
 
-      controller.getFormat(event, null, dispatcher);
+      service.getFormat("Viewsheet1", event, null, dispatcher);
 
       event.setDimensionColumn(false);
 
-      controller.getFormat(event, null, dispatcher);
+      service.getFormat("Viewsheet1", event, null, dispatcher);
 
       verify(dispatcher, times(2)).sendCommand(any(ViewsheetCommand.class));
       verify(dispatcher, times(2)).sendCommand(argCaptor.capture());
@@ -185,7 +161,5 @@ class FormatPainterControllerTest {
    @Mock VSLayoutService vsLayoutService;
    @Mock VGraphPair graphPair;
    private ChartVSAssembly chart;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
-
-   private FormatPainterController controller;
+   private FormatPainterService service;
 }

@@ -24,17 +24,15 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.util.ConfigurationContext;
-import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.CancelViewsheetLoadingEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
-import inetsoft.web.viewsheet.controller.CancelViewsheetLoadingController;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.servlet.mvc.method.annotation.PrincipalMethodArgumentResolver;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.security.Principal;
 import java.util.Optional;
@@ -42,13 +40,13 @@ import java.util.Optional;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-public class CancelViewsheetLoadingControllerTest {
+@ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
+public class CancelViewsheetLoadingServiceTest {
    @Mock ViewsheetService viewsheetService;
    @Mock CoreLifecycleService coreLifecycleService;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
-   @InjectMocks
-   private CancelViewsheetLoadingController controller;
-   private MockMvc mockMvc;
+
+   private CancelViewsheetLoadingService service;
    private CancelViewsheetLoadingEvent event;
    private Principal principal;
    private CommandDispatcher commandDispatcher;
@@ -60,20 +58,6 @@ public class CancelViewsheetLoadingControllerTest {
 
    @BeforeEach
    public void setUp() throws Exception {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
-
-      viewsheetService = mock(ViewsheetService.class);
-      rvs = mock(RuntimeViewsheet.class);
-
-      MockitoAnnotations.openMocks(this);
-      mockMvc = MockMvcBuilders.standaloneSetup(controller)
-         .setCustomArgumentResolvers(new PrincipalMethodArgumentResolver())
-         .build();
-
       event = mock(CancelViewsheetLoadingEvent.class);
       when(event.getRuntimeViewsheetId()).thenReturn("test-rvs-id");
 
@@ -91,20 +75,13 @@ public class CancelViewsheetLoadingControllerTest {
       when(rvs.getViewsheet()).thenReturn(vs);
       when(rvs.getID()).thenReturn("test-rvs-id");
 
-      CancelViewsheetLoadingService loadingService = new CancelViewsheetLoadingService(viewsheetService, coreLifecycleService);
-      doReturn(loadingService).when(spyContext).getSpringBean(CancelViewsheetLoadingService.class);
-      controller = new CancelViewsheetLoadingController(new CancelViewsheetLoadingServiceProxy());
-   }
-
-   @AfterEach
-   void afterEach() throws Exception {
-      staticConfigurationContext.close();
+      service = new CancelViewsheetLoadingService(viewsheetService, coreLifecycleService);
    }
 
    @Test
    public void cancelViewsheet_checkFirstIf() throws Exception {
       when(event.isMeta()).thenReturn(true);
-      controller.cancelViewsheet(event, linkuri , principal, commandDispatcher);
+      service.cancelViewsheet(event.getRuntimeViewsheetId(), event, linkuri, principal, commandDispatcher);
 
       // check first if
       verify(box).cancelAllQueries();
@@ -121,7 +98,7 @@ public class CancelViewsheetLoadingControllerTest {
       when(event.isIniting()).thenReturn(false);
       when(event.isPreview()).thenReturn(true);
 
-      controller.cancelViewsheet(event, linkuri , principal, commandDispatcher);
+      service.cancelViewsheet(event.getRuntimeViewsheetId(), event, linkuri, principal, commandDispatcher);
 
       verify(coreLifecycleService, never()).refreshViewsheet(
          eq(rvs), eq("test-rvs-id"), eq(linkuri), eq(commandDispatcher),

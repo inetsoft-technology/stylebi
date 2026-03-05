@@ -29,6 +29,7 @@ import { CheckFormDataService } from "../../util/check-form-data.service";
 import { FormInputService } from "../../util/form-input.service";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { PopComponentService } from "../data-tip/pop-component.service";
+import { TimerService } from "../data-tip/timer.service";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSComboBox } from "./vs-combo-box.component";
 
@@ -39,6 +40,7 @@ describe("VS Combo Box Test", () => {
    let debounceService: any;
    let dataTipService: any;
    let firstDayOfWeekService: any;
+   let timerService: any;
 
    beforeEach(waitForAsync(() => {
       const formDataService: any = {
@@ -51,6 +53,11 @@ describe("VS Combo Box Test", () => {
       dataTipService = { isDataTip: jest.fn() };
       const contextProvider = {};
       firstDayOfWeekService = { getFirstDay: jest.fn(() => observableOf({})) };
+      timerService = {
+         defer: jest.fn((fn) => {
+            fn();
+         })
+      };
 
       TestBed.configureTestingModule({
          imports: [
@@ -67,7 +74,8 @@ describe("VS Combo Box Test", () => {
             {provide: CheckFormDataService, useValue: formDataService},
             {provide: DebounceService, useValue: debounceService},
             {provide: DataTipService, useValue: dataTipService},
-            {provide: FirstDayOfWeekService, useValue: firstDayOfWeekService}
+            {provide: FirstDayOfWeekService, useValue: firstDayOfWeekService},
+            {provide: TimerService, useValue: timerService},
          ],
          schemas: [NO_ERRORS_SCHEMA]
       });

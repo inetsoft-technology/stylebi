@@ -55,7 +55,8 @@ describe("Calc Data Pane Unit Test", () => {
          setCellBinding: jest.fn(),
          getSelectCells: jest.fn(),
          getCellNamesWithDefaults: jest.fn(),
-         changeColumnValue: jest.fn()
+         changeColumnValue: jest.fn(),
+         loadCellScript: jest.fn(),
       };
       bindingService = { isGrayedOutField: jest.fn() };
       dialogService = { open: jest.fn() };

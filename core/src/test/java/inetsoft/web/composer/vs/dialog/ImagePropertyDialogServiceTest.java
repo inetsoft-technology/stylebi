@@ -30,31 +30,31 @@ import inetsoft.uql.viewsheet.ImageVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
-import inetsoft.util.ConfigurationContext;
 import inetsoft.web.binding.drm.*;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
+import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.binding.model.*;
 import inetsoft.web.binding.service.DataRefModelFactory;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
-import inetsoft.web.service.BinaryTransferService;
-import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
-import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.vs.VSObjectTreeService;
-import inetsoft.web.composer.vs.controller.*;
+import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
+import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.*;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.*;
+import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.awt.*;
 import java.security.Principal;
@@ -68,17 +68,11 @@ import static org.mockito.Mockito.*;
 @SreeHome()
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-class ImagePropertyDialogControllerTest {
+class ImagePropertyDialogServiceTest {
 
    @BeforeEach
-   void setup() throws Exception {
-      ConfigurationContext context = ConfigurationContext.getContext();
-      ConfigurationContext  spyContext = Mockito.spy(context);
-      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
-      staticConfigurationContext.when(ConfigurationContext::getContext)
-         .thenReturn(spyContext);
-
-      trapService = new VSTrapService();
+   void setup() {
+      VSTrapService trapService = new VSTrapService();
       List<DataRefModelFactory<?, ?>> dataRefModelFactories = Arrays.asList(
          new AggregateRefModel.AggregateRefModelFactory(),
          new AliasDataRefModel.AliasDataRefModelFactory(),
@@ -95,41 +89,31 @@ class ImagePropertyDialogControllerTest {
          new GroupRefModel.GroupRefModelFactory(),
          new NumericRangeRefModel.NumericRangeRefModelFactory()
       );
-      dataRefModelFactoryService = new DataRefModelFactoryService(dataRefModelFactories);
+      DataRefModelFactoryService dataRefModelFactoryService =
+         new DataRefModelFactoryService(dataRefModelFactories);
       ApplicationEventPublisher eventPublisher = event -> {
       };
-      coreLifecycleService = new CoreLifecycleService(
+      CoreLifecycleService coreLifecycleService = new CoreLifecycleService(
          objectModelService, viewsheetEngine, vsLayoutService, parameterService,
          vsCompositionService, dataRefModelFactoryService, null, eventPublisher);
       temporaryInfoService = new VSWizardTemporaryInfoService(viewsheetService);
-      vsObjectPropertyService = spy(new VSObjectPropertyService(coreLifecycleService,
-                                                                vsColumnHandler,
-                                                                vsObjectTreeService,
-                                                                infoHandler, viewsheetEngine,
-                                                                temporaryInfoService,
-                                                                vsCompositionService,
-                                                                sharedFilterService));
+      VSObjectPropertyService vsObjectPropertyService = spy(new VSObjectPropertyService(coreLifecycleService,
+                                                                                        vsColumnHandler,
+                                                                                        vsObjectTreeService,
+                                                                                        infoHandler, viewsheetEngine,
+                                                                                        temporaryInfoService,
+                                                                                        vsCompositionService,
+                                                                                        sharedFilterService));
       BinaryTransferService binaryTransferService = new BinaryTransferService();
       ImagePreviewPaneService imagePreviewPaneService =
          new ImagePreviewPaneService(viewsheetService, vsObjectService, binaryTransferService);
-      ImagePropertyDialogService imagePropertyDialogService =
-         new ImagePropertyDialogService(vsObjectPropertyService,
-                                        vsOutputService,
-                                        viewsheetEngine,
-                                        imagePreviewPaneService,
-                                        dialogService,
-                                        trapService,
-                                        infoHandler);
-      doReturn(imagePropertyDialogService)
-         .when(spyContext)
-         .getSpringBean(ImagePropertyDialogService.class);
-      controller = new ImagePropertyDialogController(runtimeViewsheetRef,
-                                                     new ImagePropertyDialogServiceProxy());
-   }
-
-   @AfterEach
-   void afterEach() throws Exception {
-      staticConfigurationContext.close();
+      service = new ImagePropertyDialogService(vsObjectPropertyService,
+                                               vsOutputService,
+                                               viewsheetEngine,
+                                               imagePreviewPaneService,
+                                               dialogService,
+                                               trapService,
+                                               infoHandler);
    }
 
    @Test
@@ -160,12 +144,12 @@ class ImagePropertyDialogControllerTest {
          .getAssemblySize(Mockito.any(VSAssemblyInfo.class), Mockito.any(Viewsheet.class));
 
       ImagePropertyDialogModel model =
-         controller.getImagePropertyDialogModel("Image1", "Viewsheet1", null);
+         service.getImagePropertyDialogModel("Viewsheet1", "Image1", null);
 
       String dynamicImageValue =
          model.imageAdvancedPaneModel().dynamicImagePaneModel().dynamicImageValue();
 
-      assertNotEquals(dynamicImageValue, "N/A");
+      assertNotEquals("N/A", dynamicImageValue);
    }
 
    @Mock ViewsheetEngine viewsheetEngine;
@@ -180,7 +164,6 @@ class ImagePropertyDialogControllerTest {
    @Mock VSObjectModelFactoryService objectModelService;
    @Mock VSDialogService dialogService;
    @Mock VSAssemblyInfoHandler infoHandler;
-   @Mock SimpMessagingTemplate messagingTemplate;
    @Mock VSWizardTemporaryInfoService temporaryInfoService;
    @Mock ViewsheetService viewsheetService;
    @Mock VSLayoutService vsLayoutService;
@@ -188,12 +171,6 @@ class ImagePropertyDialogControllerTest {
    @Mock VSCompositionService vsCompositionService;
    @Mock SharedFilterService sharedFilterService;
    @Mock VSObjectService vsObjectService;
-   MockedStatic<ConfigurationContext> staticConfigurationContext;
-
-   private CoreLifecycleService coreLifecycleService;
    @Mock VSColumnHandler vsColumnHandler;
-   private VSObjectPropertyService vsObjectPropertyService;
-   private ImagePropertyDialogController controller;
-   private VSTrapService trapService;
-   private DataRefModelFactoryService dataRefModelFactoryService;
+   private ImagePropertyDialogService service;
 }

@@ -17,11 +17,9 @@
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
-import { MatPaginatorModule } from "@angular/material/paginator";
-import { MatTableModule } from "@angular/material/table";
-import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { ActivatedRoute } from "@angular/router";
 import { ActivatedRouteStub } from "../../../../../shared/testing/activated-route-stub";
+import { MaterialTestingModule } from "../../testing/material-testing.module";
 import { SearchResultsComponent } from "../search-results/search-results.component";
 import { SearchResultsViewComponent } from "./search-results-view.component";
 
@@ -33,9 +31,7 @@ describe("SearchResultsViewComponent", () => {
       const route = new ActivatedRouteStub({}, {}, {});
       TestBed.configureTestingModule({
          imports: [
-            NoopAnimationsModule,
-            MatPaginatorModule,
-            MatTableModule
+            MaterialTestingModule
          ],
          declarations: [SearchResultsComponent, SearchResultsViewComponent],
          providers: [
