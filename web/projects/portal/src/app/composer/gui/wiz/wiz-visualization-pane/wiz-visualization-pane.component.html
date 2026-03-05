@@ -1,0 +1,31 @@
+<!--
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2024  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+<split-pane direction="horizontal" [sizes]="[50, 50]" [minSize]="200"
+           [snapOffset]="0" [gutterSize]="4">
+  <!-- Left: AI dialog placeholder (web component will be embedded here) -->
+  <div class="wiz-dialog-panel split">
+    <div class="wiz-dialog-placeholder">
+      <span class="placeholder-label">_#(js:Ai Chat)</span>
+    </div>
+  </div>
+
+  <!-- Right: Viewsheet object preview -->
+  <div class="wiz-preview-panel split bordered-box">
+    <wiz-vs-preview [viewsheet]="viewsheet"></wiz-vs-preview>
+  </div>
+</split-pane>

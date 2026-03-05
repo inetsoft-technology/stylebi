@@ -100,6 +100,7 @@ export class AssetTreePane implements OnChanges, OnInit {
    @Input() openedSheets: Sheet[];
    @Input() opendTabs: ComposerTabModel[];
    @Input() viewsheetPermission = true;
+   @Input() wizAssets: boolean = false;
    @Output() onOpenLibraryAsset = new EventEmitter<OpenLibraryAssetEvent>();
    @Output() onOpenSheet = new EventEmitter<OpenSheetEvent>();
    @Output() onNewViewsheet: EventEmitter<AssetEntry> = new EventEmitter<AssetEntry>();
@@ -180,8 +181,9 @@ export class AssetTreePane implements OnChanges, OnInit {
             });
          }
          else if(entry.type === AssetType.VIEWSHEET) {
+            const wiz = entry.properties.wiz == "true";
             this.addRecentlyViewed(entry);
-            this.onOpenSheet.emit({type: "viewsheet", assetId: entry.identifier, meta: meta});
+            this.onOpenSheet.emit({type: wiz ? "wiz" : "viewsheet", assetId: entry.identifier, meta: meta});
          }
          else if(entry.type === AssetType.SCRIPT) {
             this.addRecentlyViewed(entry);

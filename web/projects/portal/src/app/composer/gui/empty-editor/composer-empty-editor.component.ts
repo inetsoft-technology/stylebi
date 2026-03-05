@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, HostListener, OnInit, Output } from "@angular/core";
+import { Component, EventEmitter, HostListener, Input, OnInit, Output } from "@angular/core";
 import { DragEvent } from "../../../common/data/drag-event";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../../shared/data/asset-type";
@@ -37,6 +37,7 @@ const COMPOSER_CUSTOM_MESSAGE_URI: string = "../api/composer/customMessage";
    styleUrls: ["composer-empty-editor.component.scss"]
 })
 export class ComposerEmptyEditor implements OnInit {
+   @Input() wiz: boolean;
    @Output() onOpenSheet = new EventEmitter<OpenSheetEvent>();
    @Output() onOpenLibraryAsset = new EventEmitter<OpenLibraryAssetEvent>();
    customMessageModel: ComposerCustomMessageModel;

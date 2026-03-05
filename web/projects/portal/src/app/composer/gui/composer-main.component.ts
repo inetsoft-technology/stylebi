@@ -134,7 +134,11 @@ import { ComposerToolbarComponent } from "./toolbar/composer-toolbar.component";
 import { ComposerObjectService } from "./vs/composer-object.service";
 import { CloseSheetEvent } from "./vs/event/close-sheet-event";
 import { LayoutUndoRedoEvent } from "./vs/event/layout-undo-redo-event";
+import { WizService } from "./wiz/services/wiz.service";
 import { SaveSheetEvent } from "./ws/socket/save-sheet-event";
+import { DashboardTabModel } from "../../portal/dashboard/dashboard-tab-model";
+import { DashboardTabService } from "../../portal/services/dashboard-tab.service";
+import { WizDashboard } from "../data/vs/wizDashboard";
 
 export enum SidebarTab {
    ASSET_TREE,
@@ -143,7 +147,8 @@ export enum SidebarTab {
    COMPONENTS,
    FORMAT,
    WORKSHEET_COMPOSITE_TABLE_SIDEBAR,
-   REGIONS
+   REGIONS,
+   VISUALIZATIONS
 }
 
 /** Worksheet URIs */
@@ -306,6 +311,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    openedTabs: ComposerTabModel[] = [];
    private _focusedTab: ComposerTabModel;
    private propertyDialogModal: NgbModalRef;
+   dashboardTabModel: DashboardTabModel | null = null;
 
    constructor(private composerObjectService: ComposerObjectService,
       private resizeHandlerService: ResizeHandlerService,
@@ -326,7 +332,9 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       private scriptService: ScriptService,
       private fontService: FontService,
       private aiAssistantService: AiAssistantService,
-      private aiAssistantDialogService: AiAssistantDialogService)
+      private aiAssistantDialogService: AiAssistantDialogService,
+      private dashboardTabService: DashboardTabService,
+      private wizService: WizService)
    {
       this.aiAssistantService.loadCurrentUser();
       GuiTool.isTouchDevice().then((value: boolean) => {
@@ -462,6 +470,10 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       setTimeout(() => {
          this.tabContentEleToChild = this.tabContentEle;
       });
+   }
+
+   get showingWiz(): boolean {
+      return this.wizService.showingWiz;
    }
 
    get focusedSheet(): Sheet {
@@ -691,7 +703,12 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                }
             }
             else {
-               this.selectedTab = SidebarTab.TOOLBOX;
+               if(sheet.type === "wiz") {
+                  this.selectedTab = SidebarTab.VISUALIZATIONS;
+               }
+               else {
+                  this.selectedTab = SidebarTab.TOOLBOX;
+               }
             }
          }
       }
@@ -921,7 +938,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          return;
       }
 
-      if(sheet.isModified() && !forceClose) {
+      if(sheet.isModified() && !forceClose && sheet.type !== "wiz") {
          this.showCloseSheetConfirmMessage(sheet);
       }
       else {
@@ -1697,8 +1714,9 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                   };
                }
                break;
+            case "wiz":
             case "viewsheet":
-               const vs = new Viewsheet(this.fontService);
+               const vs = type == "wiz" ? new WizDashboard(this.fontService) : new Viewsheet(this.fontService);
                vs.localId = sheetCounter++;
                vs.label = "";
                vs.id = id;
@@ -2333,7 +2351,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    private isSheet(asset: Sheet | LibraryAsset): boolean {
-      return asset?.type == "viewsheet" || asset?.type == "worksheet";
+      return asset?.type == "viewsheet" || asset?.type == "worksheet" ||  asset?.type == "wiz";
    }
 
    private navigateToExisting(index: number, initPreview: boolean = false) {
@@ -3116,5 +3134,34 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       else if(contextType === "viewsheet") {
          this.aiAssistantDialogService.setViewsheetScriptContext(this.focusedSheet as Viewsheet);
       }
+   }
+
+   switchWiz(): void {
+      //Todo
+      if(this._focusedSheet?.type === "wiz") {
+         this.onTabClosed(new ComposerTabModel("wiz", this._focusedSheet));
+      }
+
+      this.wizService.showingWiz = !this.showingWiz;
+   }
+
+   createNewWiz(): void {
+      //Todo Create a new wiz
+
+      const dashboard: WizDashboard = new WizDashboard(this.fontService);
+      dashboard.localId = sheetCounter++;
+      dashboard.newSheet = true;
+      dashboard.label = "";
+      dashboard.id = "";
+
+      const index: number = this.sheets.push(dashboard) - 1;
+      this.openedTabs.push(new ComposerTabModel(dashboard.type, dashboard));
+      this.navigateToExisting(index);
+
+   }
+
+   createNewVisualization() {
+      //Todo create new visualization
+      this.wizService.onOpenVisualization();
    }
 }
