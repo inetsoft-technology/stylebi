@@ -1,38 +1,70 @@
-import { Component } from "@angular/core";
+import { Component, Input, OnDestroy, OnInit } from "@angular/core";
 import { WizDashboard } from "../../../data/vs/wizDashboard";
 import { WizService } from "../services/wiz.service";
+import { FontService } from "../../../../widget/services/font.service";
+import { Subscription } from "rxjs";
+
+let wizDashboardCounter = 1;
 
 @Component({
    selector: "wiz-pane",
    templateUrl: "./wiz-pane.component.html",
    styleUrl: "./wiz-pane.component.scss"
 })
-export class WizPane {
-   private _currentVisualization: any;
-   private _currentDashboard: WizDashboard = new WizDashboard();
+export class WizPane implements OnInit, OnDestroy {
+   private _currentVisualization: WizDashboard;
+   private _currentDashboard: WizDashboard;
+   private subscriptions = new Subscription();
 
-   constructor(private wizService: WizService) {
+   @Input()
+   set currentDashboard(value: WizDashboard) {
+      this._currentDashboard = value;
+   }
+
+   get currentDashboard(): WizDashboard {
+      return this._currentDashboard;
+   }
+
+   get currentVisualization(): WizDashboard {
+      return this._currentVisualization;
+   }
+
+   constructor(private wizService: WizService, private fontService: FontService) {
       wizService.openVisualization.subscribe((value: string) => {
          this.createVisualization(value);
       });
    }
 
+   ngOnInit(): void {
+      this.subscriptions.add(
+         this.wizService.exitVisualization.subscribe(() => {
+            this._currentVisualization = null;
+         })
+      );
+   }
+
+   ngOnDestroy(): void {
+      this.subscriptions.unsubscribe();
+   }
+
    createVisualization(value: string) {
+      const vs = new WizDashboard(this.fontService);
+      vs.localId = wizDashboardCounter++;
+      vs.label = "";
+
       if(value) {
-         this._currentVisualization = {};
-         //Todo open visualization
+         // open existing visualization
+         vs.id = value;
+         vs.newSheet = false;
       }
       else {
-         this._currentVisualization = {};
-         //Todo new visualization
+         // create new visualization
+         vs.id = "";
+         vs.newSheet = true;
       }
-   }
 
-   get currentVisualization(): any {
-      return this._currentVisualization;
-   }
-
-   get currentDashboard(): WizDashboard {
-      return this._currentDashboard;
+      vs.visualization = true;
+      vs.visualizationSheet = this.currentDashboard?.id;
+      this._currentVisualization = vs;
    }
 }

@@ -21,6 +21,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.*;
 import inetsoft.web.composer.vs.event.CloseSheetEvent;
 import inetsoft.web.composer.vs.event.NewViewsheetEvent;
@@ -79,7 +80,16 @@ public class ComposerViewsheetController {
             "composer.authorization.permissionDenied"));
       }
 
-      String runtimeId = viewsheetService.openTemporaryViewsheet(event.getDataSource(), principal);
+      Viewsheet.WizInfo wizInfo = null;
+
+      if(event.isWizSheet()) {
+         wizInfo = new Viewsheet.WizInfo(true);
+      }
+      else if(event.isWizVisualization()) {
+         wizInfo = new Viewsheet.WizInfo(true, event.getVisualizationSheet());
+      }
+
+      String runtimeId = viewsheetService.openTemporaryViewsheet(null, event.getDataSource(), principal, wizInfo);
       runtimeViewsheetRef.setRuntimeId(runtimeId);
 
       composerViewsheetService.newViewsheet(runtimeId, event, principal, commandDispatcher, linkUri);

@@ -157,10 +157,7 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    loadAssetTree() {
       const loadAssetTreeNodesEvent: LoadAssetTreeNodesEvent  = new LoadAssetTreeNodesEvent();
 
-      if(this.wizAssets) {
-         //Todo
-      }
-      else if(this.dataSourcePath) {
+      if(this.dataSourcePath) {
          loadAssetTreeNodesEvent.setPath(this.dataSourcePath.split("/"));
          loadAssetTreeNodesEvent.setScope(this.dataSourceScope);
          loadAssetTreeNodesEvent.setIndex(-1);
@@ -176,7 +173,7 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
                                              this.columns, this.worksheets, this.viewsheets,
                                              this.tableStyles, this.scripts, this.library,
                                              this.reportRepositoryEnabled,
-                                             this.readOnly, this.physical)
+                                             this.readOnly, this.physical, this.wizAssets)
          .subscribe((res) => {
             this.root = res.treeNodeModel;
             this.activeRoot = this.root;
@@ -239,188 +236,7 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
          this.selectedNodes = [];
       }
       else if(changes?.wizAssets) {
-         if(changes.wizAssets?.currentValue) {
-            //Todo load wiz assets
-
-            this.root.children = [
-               {
-                  label: "Wiz Dashboard",
-                  data: {
-                     scope: 1,
-                     type: "REPOSITORY_FOLDER",
-                     user: null,
-                     path: "/",
-                     alias: null,
-                     favoritesUser: "",
-                     identifier: "1^4097^__NULL__^/^host-org",
-                     description: "Dashboard",
-                     folder: true,
-                     createdUsername: "",          // 如果接口中必填，这里可给默认值
-                     createdDate: 0,
-                     modifiedUsername: null,
-                     modifiedDate: 0,
-                     properties: {}
-                  },
-                  dataLabel: "1^4097^__NULL__^/^host-org",
-                  leaf: false,
-                  children: [
-                     {
-                        label: "Dashboard1",
-                        data: {
-                           scope: 1,
-                           type: "VIEWSHEET",
-                           user: null,
-                           path: "Examples/Call Center Monitoring",
-                           alias: null,
-                           favoritesUser: "",
-                           identifier: "1^128^__NULL__^Examples/Call Center Monitoring^host-org",
-                           description: "Dashboard/Examples/Call Center Monitoring",
-                           folder: false,
-                           createdUsername: "inetsoft",
-                           createdDate: 1514808000000,
-                           modifiedUsername: "admin",
-                           modifiedDate: 1580992255944,
-                           properties: {
-                              onReport: "true",
-                              isEdit: "false",
-                              _description_: "Dashboard/Examples/Call Center Monitoring",
-                              description: "Data on Construction orders and employee productivity",
-                              sqlEnabled: "true",
-                              localStr: "Call Center Monitoring",
-                              wiz: "true"
-                           }
-                        },
-                        dataLabel: "1^128^__NULL__^Examples/Call Center Monitoring^host-org",
-                        leaf: true,
-                        children: [],
-                        expanded: false,
-                        dragName: "viewsheet",
-                        expired: false,
-                        disabled: false,
-                        materialized: false,
-                        calculatedFieldPermission: true
-                     },
-                     {
-                        label: "Dashboard2",
-                        data: {
-                           scope: 1,
-                           type: "VIEWSHEET",
-                           user: null,
-                           path: "Examples/Census",
-                           alias: null,
-                           favoritesUser: "",
-                           identifier: "1^128^__NULL__^Examples/Census^host-org",
-                           description: "Dashboard/Examples/Census",
-                           folder: false,
-                           createdUsername: "inetsoft",
-                           createdDate: 1514808000000,
-                           modifiedUsername: "anonymous",
-                           modifiedDate: 1527081643174,
-                           properties: {
-                              onReport: "true",
-                              isEdit: "false",
-                              _description_: "Dashboard/Examples/Census",
-                              description: "Data on Construction orders and employee productivity",
-                              sqlEnabled: "true",
-                              localStr: "Census",
-                              wiz: "true"
-                           }
-                        },
-                        dataLabel: "1^128^__NULL__^Examples/Census^host-org",
-                        leaf: true,
-                        children: [],
-                        expanded: false,
-                        dragName: "viewsheet",
-                        expired: false,
-                        disabled: false,
-                        materialized: false,
-                        calculatedFieldPermission: true
-                     },
-                     {
-                        label: "Dashboard3",
-                        data: {
-                           scope: 1,
-                           type: "VIEWSHEET",
-                           user: null,
-                           path: "Examples/Construction Dashboard",
-                           alias: null,
-                           favoritesUser: "",
-                           identifier: "1^128^__NULL__^Examples/Construction Dashboard^host-org",
-                           description: "Dashboard/Examples/Construction Dashboard",
-                           folder: false,
-                           createdUsername: "inetsoft",
-                           createdDate: 1514808000000,
-                           modifiedUsername: "anonymous",
-                           modifiedDate: 1526565807027,
-                           properties: {
-                              onReport: "true",
-                              isEdit: "false",
-                              _description_: "Dashboard/Examples/Construction Dashboard",
-                              description: "Data on Construction orders and employee productivity",
-                              sqlEnabled: "true",
-                              localStr: "Construction Dashboard",
-                              wiz: "true"
-                           }
-                        },
-                        dataLabel: "1^128^__NULL__^Examples/Construction Dashboard^host-org",
-                        leaf: true,
-                        children: [],
-                        expanded: false,
-                        dragName: "viewsheet",
-                        expired: false,
-                        disabled: false,
-                        materialized: false,
-                        calculatedFieldPermission: true
-                     },
-                     {
-                        label: "Dashboard4",
-                        data: {
-                           scope: 1,
-                           type: "VIEWSHEET",
-                           user: null,
-                           path: "Examples/Hurricane",
-                           alias: null,
-                           favoritesUser: "",
-                           identifier: "1^128^__NULL__^Examples/Hurricane^host-org",
-                           description: "Dashboard/Examples/Hurricane",
-                           folder: false,
-                           createdUsername: "inetsoft",
-                           createdDate: 1514808000000,
-                           modifiedUsername: null,
-                           modifiedDate: 1525187228561,
-                           properties: {
-                              onReport: "true",
-                              isEdit: "false",
-                              _description_: "Dashboard/Examples/Hurricane",
-                              description: "Data on Construction orders and employee productivity",
-                              sqlEnabled: "true",
-                              localStr: "Hurricane",
-                              wiz: "true"
-                           }
-                        },
-                        dataLabel: "1^128^__NULL__^Examples/Hurricane^host-org",
-                        leaf: true,
-                        children: [],
-                        expanded: false,
-                        dragName: "viewsheet",
-                        expired: false,
-                        disabled: false,
-                        materialized: false,
-                        calculatedFieldPermission: true
-                     }
-                  ],
-                  expanded: false,
-                  dragName: "repository_folder",
-                  expired: false,
-                  disabled: false,
-                  materialized: false,
-                  calculatedFieldPermission: true
-               }
-            ];
-         }
-         else {
-            this.loadAssetTree();
-         }
+         this.loadAssetTree();
       }
 
       if(refreshWsRoot) {
@@ -589,7 +405,7 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
                                                          this.columns, this.worksheets, this.viewsheets,
                                                          this.tableStyles, this.scripts, this.library,
                                                          this.reportRepositoryEnabled,
-                                                         this.readOnly, this.physical);
+                                                         this.readOnly, this.physical, this.wizAssets);
 
       obs.pipe(
          catchError((error) => {

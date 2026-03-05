@@ -233,7 +233,7 @@
                  (onGrayedOutFields)="setGrayedOutFields($event)"
                  (onOpenFormatPane)="openFormatPane($event)" (onOpenVSOnPortal)="openVSOnPortal($event)">
                </viewsheet-pane>
-               <wiz-pane *ngIf="_tab.type === 'wiz'"></wiz-pane>
+               <wiz-pane *ngIf="_tab.type === 'wiz'" [currentDashboard]="asWizDashboard(_tab)"></wiz-pane>
                <viewer-app
                  *ngIf="_tab.type === 'viewsheet' && (asViewsheet(_tab).preview || asViewsheet(_tab).linkview)"
                  [preview]="asViewsheet(_tab).preview"

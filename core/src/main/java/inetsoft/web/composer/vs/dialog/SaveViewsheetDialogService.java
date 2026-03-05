@@ -240,6 +240,14 @@ public class SaveViewsheetDialogService {
                                            true, entry, entry.getScope() == AssetRepository.USER_SCOPE);
       entry.setProperty("_description_", desc);
 
+      if("true".equals(oentry.getProperty("isWizSheet"))) {
+         entry.setProperty("isWizSheet", "true");
+      }
+      else if("true".equals(oentry.getProperty("isWizVisualization"))) {
+         entry.setProperty("isWizVisualization", "true");
+         entry.setProperty("visualizationSheet", oentry.getProperty("visualizationSheet"));
+      }
+
       String objectName = parent.getDescription() + "/" + model.getName();
       ActionRecord actionRecord = SUtil.getActionRecord(principal,
                                                         ActionRecord.ACTION_NAME_CREATE,
