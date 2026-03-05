@@ -90,6 +90,15 @@ public class AxisPropertyDialogModel implements Serializable {
       boolean appliedDC = cInfo instanceof VSChartInfo && ((VSChartInfo) cInfo).isAppliedDateComparison();
       boolean showAxisLabelEnabled = isShowAxisLabelEnabled(cInfo, columnName, axisType, appliedDC);
 
+      boolean hasDualAxis = false;
+
+      for(ChartRef yRef : cInfo.getYFields()) {
+         if(yRef instanceof ChartAggregateRef && ((ChartAggregateRef) yRef).isSecondaryY()) {
+            hasDualAxis = true;
+            break;
+         }
+      }
+
       // create AxisLabelPaneModel.
       axisLabelPaneModel = new AxisLabelPaneModel();
       axisLabelPaneModel.setShowAxisLabel(
@@ -99,11 +108,10 @@ public class AxisPropertyDialogModel implements Serializable {
 
       // A right_y_axis click can mean either a true secondary y-axis OR a primary axis whose
       // labels were moved to the right via "Labels on Opposite Side".
-      // Only hide the option for a true secondary axis.
-      axisLabelPaneModel.setSecondary(
-         ("right_y_axis".equals(axisType) && !axisDesc.isLabelOnSecondaryAxis()) ||
-         GraphTypes.isRadar(cInfo.getRTChartType()) ||
-         GraphTypes.isMekko(cInfo.getRTChartType()));
+      // Only hide the option for a true secondary axis, or for the primary axis in a dual axis chart.
+      boolean isSecondaryYAxis = "right_y_axis".equals(axisType) && !axisDesc.isLabelOnSecondaryAxis();
+      boolean isPrimaryInDualAxis = "left_y_axis".equals(axisType) && hasDualAxis;
+      axisLabelPaneModel.setSecondary(isSecondaryYAxis || isPrimaryInDualAxis);
 
       RotationRadioGroupModel rotationRadioGroupModel = new RotationRadioGroupModel();
       CompositeTextFormat textFormat;
