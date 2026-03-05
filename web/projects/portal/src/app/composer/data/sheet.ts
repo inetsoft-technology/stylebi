@@ -19,7 +19,7 @@ import {from as observableFrom,  BehaviorSubject ,  Observable } from "rxjs";
 import { ViewsheetClientService } from "../../common/viewsheet-client";
 import { VSObjectTreeNode } from "./vs-object-tree-node";
 
-export type SheetType = "worksheet" | "viewsheet";
+export type SheetType = "worksheet" | "viewsheet" | "wiz";
 
 export abstract class Sheet {
    public id: string;

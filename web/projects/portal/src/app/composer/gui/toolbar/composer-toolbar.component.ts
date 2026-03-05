@@ -143,11 +143,14 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
    @Input() showHelpButton = false;
    @Input() wsWizard: boolean;
    @Input() focusedTab: ComposerTabModel;
+   @Input() showingWiz: boolean = false;
    @Output() onCopy: EventEmitter<Sheet> = new EventEmitter<Sheet>();
    @Output() onCut: EventEmitter<Sheet> = new EventEmitter<Sheet>();
    @Output() onPaste: EventEmitter<Sheet> = new EventEmitter<Sheet>();
    @Output() onNewWorksheet: EventEmitter<any> = new EventEmitter<any>();
    @Output() onOpenViewsheetWizard: EventEmitter<any> = new EventEmitter<AssetEntry>(); // teamp
+   @Output() onCreateNewVisualization: EventEmitter<any> = new EventEmitter<AssetEntry>();
+   @Output() onCreateWiz: EventEmitter<any> = new EventEmitter<AssetEntry>();
    @Output() onNotification = new EventEmitter<Notification>();
    @Output() onSaveWorksheet: EventEmitter<Sheet> = new EventEmitter<Sheet>();
    @Output() onSaveWorksheetAs: EventEmitter<Sheet> = new EventEmitter<Sheet>();
@@ -168,6 +171,7 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
    @Output() onToggleSnapToObjects = new EventEmitter<boolean>();
    @Output() onOpenScriptOptions = new EventEmitter();
    @Output() closed: EventEmitter<boolean> = new EventEmitter<boolean>();
+   @Output() onSwitchWiz: EventEmitter<any> = new EventEmitter<AssetEntry>();
    private scrolling: any;
    private tempStyles: {[style: string]: any} = {};
    public LayoutAlignment = LayoutAlignment;
@@ -450,6 +454,18 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
 
    openViewsheetWizard(): void {
       this.onOpenViewsheetWizard.emit();
+   }
+
+   createNewVisualization(): void {
+      this.onCreateNewVisualization.emit();
+   }
+
+   createNewWiz(): void {
+      this.onCreateWiz.emit();
+   }
+
+   switchWiz(): void {
+      this.onSwitchWiz.emit();
    }
 
    notify(notification: Notification): void {
@@ -1605,6 +1621,53 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
             enabled: () => this.viewsheetPermission,
             visible: () => !this.deployed,
             action: () => this.openViewsheetWizard()
+         },
+         {
+            label: "_#(js:New Wiz)",
+            iconClass: "new-viewsheet-icon",
+            buttonClass: "new-viewsheet-button",
+            tooltip: () => "<b>_#(js:New Wiz)</b>",
+            enabled: () => true,
+            visible: () => this.showingWiz && !this.focusedTab,
+            action: () => this.createNewWiz()
+         },
+         {
+            label: "_#(js:New Visualization)",
+            iconClass: "new-viewsheet-icon",
+            buttonClass: "new-viewsheet-button",
+            tooltip: () => "<b>_#(js:New Visualization)</b>",
+            enabled: () => true,
+            visible: () => this.showingWiz && this.focusedTab?.type == "wiz",
+            action: () => this.createNewVisualization()
+         }
+      ]
+   };
+
+   switchWizOperation: ToolbarActionGroup  = {
+      label: "_#(js:Create)",
+      iconClass: "creation-icon",
+      buttonClass: "creation-button",
+      enabled: () => true,
+      visible: () => true,
+      action: () => {},
+      actions: [
+         {
+            label: "_#(js:Wiz)",
+            iconClass: "new-viewsheet-icon",
+            buttonClass: "new-viewsheet-button",
+            tooltip: () => "<b>_#(js:Go To Wiz)</b>",
+            enabled: () => true,
+            visible: () => !this.showingWiz,
+            action: () => this.switchWiz()
+         },
+         {
+            label: "_#(js:Exit Wiz)",
+            iconClass: "new-viewsheet-icon",
+            buttonClass: "new-viewsheet-button",
+            tooltip: () =>  "<b>_#(js:Exit Wiz)</b>" ,
+            enabled: () => true,
+            visible: () => this.showingWiz,
+            action: () => this.switchWiz()
          }
       ]
    };

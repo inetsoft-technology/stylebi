@@ -26,6 +26,7 @@
          [viewsheetPermission]="viewsheetPermission" [worksheetPermission]="worksheetPermission"
          [scriptPermission]="scriptPermission" [tableStylePermission]="tableStylePermission"
          [showHelpButton]="focusedViewsheet && !focusedViewsheet.preview"
+         [showingWiz]="showingWiz"
          (onCopy)="copySheet($event)" (onCut)="cutSheet($event)"
          (onPaste)="pasteObjects($event)"
          (onToggleSnapToGrid)="onToggleSnapToGrid()" (onToggleSnapToObjects)="onToggleSnapToObjects()"
@@ -44,7 +45,8 @@
          (onRefreshViewsheet)="refreshSelectViewsheet($event)"
          (onNotification)="processNotification($event)"
          (onOpenScriptOptions)="openScriptOptions()"
-         (closed)="closeComposer($event)">
+         (closed)="closeComposer($event)"
+         (onSwitchWiz)="switchWiz()" (onCreateWiz)="createNewWiz()" (onCreateNewVisualization)="createNewVisualization()">
        </composer-toolbar>
      </div>
      <div class="composer-body"
@@ -59,6 +61,7 @@
            <div class="composer-tab-content" [class.composer-nav-tab-hidden]="navTabHidden">
              <div #tabContent class="composer-tab-content-body bg-white-inet" >
                <asset-tree-pane
+                 [wizAssets]="showingWiz"
                  [openedSheets]="sheets"
                  [opendTabs]="openedTabs"
                  [inactive]="selectedTab !== SidebarTab.ASSET_TREE"
@@ -74,78 +77,99 @@
                  (onNewTableStyle)="onNewTableStyle()"
                  (onNewScript)="openNewScriptAsset()">
                </asset-tree-pane>
-               <composer-toolbox-pane [inactive]="selectedTab !== SidebarTab.TOOLBOX"
-                  [focusedViewsheet]="focusedViewsheet"
-                  [grayedOutFields]="grayedOutFields"
-                  [deployed]="deployed"
-                  [containerView]="tabContentEleToChild?.nativeElement">
-               </composer-toolbox-pane>
-               <script-tree-pane *ngIf="focusedTab?.type == 'script'" [inactive]="selectedTab !== SidebarTab.SCRIPT"
-                  [functionTree]="scriptTreePaneModel?.functionTree">
-               </script-tree-pane>
-               <components-pane *ngIf="focusedSheet" #componentsPane
-                 [inactive]="selectedTab !== SidebarTab.COMPONENTS"
-                 [sheet]="focusedSheet"
-                 [currentLayout]="layout"
-                 [tree]="focusedSheet.objectTree"
-                 (onCut)="cutAssembly($event)" (onCopy)="copyAssembly($event)"
-                 (onRemove)="removeAssembly($event)"
-                 (onBringToFront)="bringAssemblyToFront($event)" (onSendToBack)="sendAssemblyToBack($event)"
-                 (onClearFocusedObjects)="clearFocusedObjects()">
-               </components-pane>
-               <style-tree-pane *ngIf="focusedTab?.type == 'tableStyle'" [inactive]="selectedTab !== SidebarTab.REGIONS"
-                                [tableStyle]="asTableStyle(focusedTab)" (onOpenCustomEdit)="onOpenCustomEdit($event)"
-                                (onRemoveCustom)="updateTableStylePreview()">
-               </style-tree-pane>
-               <div *ngIf="!formatPaneDisabled && !!focusedSheet" [hidden]="selectedTab !== SidebarTab.FORMAT">
-                 <vs-formats-pane #vsFormatsPane [inactive]="selectedTab !== SidebarTab.FORMAT"
-                               [format]="layout ? layout.currentFormat : focusedViewsheet.currentFormat"
-                               [focusedAssemblies]="layout ? layoutFormatObjects : focusedSheet.focusedAssemblies | async"
-                               [variableValues]="layout ? [] : focusedViewsheet.variableNames"
-                               [vsId]="layout ? layout.runtimeID : focusedSheet.runtimeId"
-                               [layout]="!!layout"
-                               [layoutRegion]="layout ? layout.currentPrintSection : 0"
-                               (onPresenterPropertiesChange)="updatePresenterProperties($event[0], $event[1])"
-                               (onChangeFormat)="updateFormat($event)">
-                 </vs-formats-pane>
-               </div>
-               <ws-composite-table-sidebar-pane *ngIf="selectedTab === SidebarTab.WORKSHEET_COMPOSITE_TABLE_SIDEBAR && !!focusedSheetAsWorksheet"
-                                                class="d-block h-100 unhighlightable"
-                                                [worksheet]="focusedSheetAsWorksheet"
-                                                [compositeTable]="focusedSheetAsWorksheet.selectedCompositeTable"
-               ></ws-composite-table-sidebar-pane>
+               <ng-container *ngIf="!showingWiz">
+                 <composer-toolbox-pane [inactive]="selectedTab !== SidebarTab.TOOLBOX"
+                                        [focusedViewsheet]="focusedViewsheet"
+                                        [grayedOutFields]="grayedOutFields"
+                                        [deployed]="deployed"
+                                        [containerView]="tabContentEleToChild?.nativeElement">
+                 </composer-toolbox-pane>
+                 <script-tree-pane *ngIf="focusedTab?.type == 'script'" [inactive]="selectedTab !== SidebarTab.SCRIPT"
+                                   [functionTree]="scriptTreePaneModel?.functionTree">
+                 </script-tree-pane>
+                 <components-pane *ngIf="focusedSheet" #componentsPane
+                                  [inactive]="selectedTab !== SidebarTab.COMPONENTS"
+                                  [sheet]="focusedSheet"
+                                  [currentLayout]="layout"
+                                  [tree]="focusedSheet.objectTree"
+                                  (onCut)="cutAssembly($event)" (onCopy)="copyAssembly($event)"
+                                  (onRemove)="removeAssembly($event)"
+                                  (onBringToFront)="bringAssemblyToFront($event)" (onSendToBack)="sendAssemblyToBack($event)"
+                                  (onClearFocusedObjects)="clearFocusedObjects()">
+                 </components-pane>
+                 <style-tree-pane *ngIf="focusedTab?.type == 'tableStyle'" [inactive]="selectedTab !== SidebarTab.REGIONS"
+                                  [tableStyle]="asTableStyle(focusedTab)" (onOpenCustomEdit)="onOpenCustomEdit($event)"
+                                  (onRemoveCustom)="updateTableStylePreview()">
+                 </style-tree-pane>
+                 <div *ngIf="!formatPaneDisabled && !!focusedSheet" [hidden]="selectedTab !== SidebarTab.FORMAT">
+                   <vs-formats-pane #vsFormatsPane [inactive]="selectedTab !== SidebarTab.FORMAT"
+                                    [format]="layout ? layout.currentFormat : focusedViewsheet.currentFormat"
+                                    [focusedAssemblies]="layout ? layoutFormatObjects : focusedSheet.focusedAssemblies | async"
+                                    [variableValues]="layout ? [] : focusedViewsheet.variableNames"
+                                    [vsId]="layout ? layout.runtimeID : focusedSheet.runtimeId"
+                                    [layout]="!!layout"
+                                    [layoutRegion]="layout ? layout.currentPrintSection : 0"
+                                    (onPresenterPropertiesChange)="updatePresenterProperties($event[0], $event[1])"
+                                    (onChangeFormat)="updateFormat($event)">
+                   </vs-formats-pane>
+                 </div>
+                 <ws-composite-table-sidebar-pane *ngIf="selectedTab === SidebarTab.WORKSHEET_COMPOSITE_TABLE_SIDEBAR && !!focusedSheetAsWorksheet"
+                                                  class="d-block h-100 unhighlightable"
+                                                  [worksheet]="focusedSheetAsWorksheet"
+                                                  [compositeTable]="focusedSheetAsWorksheet.selectedCompositeTable"
+                 ></ws-composite-table-sidebar-pane>
+               </ng-container>
+               <ng-container *ngIf="showingWiz">
+                 <wiz-components-pane *ngIf="selectedTab === SidebarTab.VISUALIZATIONS"></wiz-components-pane>
+               </ng-container>
+
              </div>
              <ul [hidden]="navTabHidden" class="nav nav-inline nav-tabs tabs-bottom composer-bottom-tabs tabs-bottom-split">
-               <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.ASSET_TREE"
-                   [class.bt-highlight-filler]="selectedTab !== SidebarTab.ASSET_TREE"
-                   [class.bt-highlight-primary]="selectedTab === SidebarTab.ASSET_TREE">
-                 <a class="nav-link" (click)="onTabClick(SidebarTab.ASSET_TREE)">_#(Assets)</a>
-               </li>
-               <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.TOOLBOX" [class.nav-disabled]="toolboxDisabled"
-                   [class.bt-highlight-filler]="selectedTab !== SidebarTab.TOOLBOX"
-                   [class.bt-highlight-primary]="selectedTab === SidebarTab.TOOLBOX">
-                 <a class="nav-link" (click)="onTabClick(SidebarTab.TOOLBOX)">_#(Toolbox)</a>
-               </li>
-               <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.SCRIPT" [class.nav-disabled]="scriptDisabled"
-                   [class.bt-highlight-filler]="selectedTab !== SidebarTab.SCRIPT"
-                   [class.bt-highlight-primary]="selectedTab === SidebarTab.SCRIPT">
-                 <a class="nav-link" (click)="onTabClick(SidebarTab.SCRIPT)">_#(Script)</a>
-               </li>
-               <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.REGIONS" [class.nav-disabled]="regionsDisabled"
-                   [class.bt-highlight-filler]="selectedTab !== SidebarTab.REGIONS"
-                   [class.bt-highlight-primary]="selectedTab === SidebarTab.REGIONS">
-                 <a class="nav-link" (click)="onTabClick(SidebarTab.REGIONS)">_#(Regions)</a>
-               </li>
-               <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.COMPONENTS" [class.nav-disabled]="componentsPaneDisabled"
-                   [class.bt-highlight-filler]="selectedTab !== SidebarTab.COMPONENTS"
-                   [class.bt-highlight-primary]="selectedTab === SidebarTab.COMPONENTS">
-                 <a class="nav-link" (click)="onTabClick(SidebarTab.COMPONENTS)">_#(Components)</a>
-               </li>
-               <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.FORMAT" [class.nav-disabled]="formatPaneDisabled"
-                   [class.bt-highlight-filler]="selectedTab !== SidebarTab.FORMAT"
-                   [class.bt-highlight-primary]="selectedTab === SidebarTab.FORMAT">
-                 <a class="nav-link" (click)="onTabClick(SidebarTab.FORMAT)">_#(Format)</a>
-               </li>
+               <ng-container *ngIf="!showingWiz">
+                 <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.ASSET_TREE"
+                     [class.bt-highlight-filler]="selectedTab !== SidebarTab.ASSET_TREE"
+                     [class.bt-highlight-primary]="selectedTab === SidebarTab.ASSET_TREE">
+                   <a class="nav-link" (click)="onTabClick(SidebarTab.ASSET_TREE)">_#(Assets)</a>
+                 </li>
+                 <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.TOOLBOX" [class.nav-disabled]="toolboxDisabled"
+                     [class.bt-highlight-filler]="selectedTab !== SidebarTab.TOOLBOX"
+                     [class.bt-highlight-primary]="selectedTab === SidebarTab.TOOLBOX">
+                   <a class="nav-link" (click)="onTabClick(SidebarTab.TOOLBOX)">_#(Toolbox)</a>
+                 </li>
+                 <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.SCRIPT" [class.nav-disabled]="scriptDisabled"
+                     [class.bt-highlight-filler]="selectedTab !== SidebarTab.SCRIPT"
+                     [class.bt-highlight-primary]="selectedTab === SidebarTab.SCRIPT">
+                   <a class="nav-link" (click)="onTabClick(SidebarTab.SCRIPT)">_#(Script)</a>
+                 </li>
+                 <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.REGIONS" [class.nav-disabled]="regionsDisabled"
+                     [class.bt-highlight-filler]="selectedTab !== SidebarTab.REGIONS"
+                     [class.bt-highlight-primary]="selectedTab === SidebarTab.REGIONS">
+                   <a class="nav-link" (click)="onTabClick(SidebarTab.REGIONS)">_#(Regions)</a>
+                 </li>
+                 <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.COMPONENTS" [class.nav-disabled]="componentsPaneDisabled"
+                     [class.bt-highlight-filler]="selectedTab !== SidebarTab.COMPONENTS"
+                     [class.bt-highlight-primary]="selectedTab === SidebarTab.COMPONENTS">
+                   <a class="nav-link" (click)="onTabClick(SidebarTab.COMPONENTS)">_#(Components)</a>
+                 </li>
+                 <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.FORMAT" [class.nav-disabled]="formatPaneDisabled"
+                     [class.bt-highlight-filler]="selectedTab !== SidebarTab.FORMAT"
+                     [class.bt-highlight-primary]="selectedTab === SidebarTab.FORMAT">
+                   <a class="nav-link" (click)="onTabClick(SidebarTab.FORMAT)">_#(Format)</a>
+                 </li>
+               </ng-container>
+
+               <ng-container *ngIf="showingWiz">
+                 <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.ASSET_TREE" [class.nav-disabled]="formatPaneDisabled"
+                     [class.bt-highlight-filler]="selectedTab !== SidebarTab.ASSET_TREE"
+                     [class.bt-highlight-primary]="selectedTab === SidebarTab.ASSET_TREE">
+                   <a class="nav-link" (click)="onTabClick(SidebarTab.ASSET_TREE)">_#(Wiz Assets)</a>
+                 </li>
+                 <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.VISUALIZATIONS" [class.nav-disabled]="formatPaneDisabled"
+                     [class.bt-highlight-filler]="selectedTab !== SidebarTab.VISUALIZATIONS"
+                     [class.bt-highlight-primary]="selectedTab === SidebarTab.VISUALIZATIONS">
+                   <a class="nav-link" (click)="onTabClick(SidebarTab.VISUALIZATIONS)">_#(Visualizations)</a>
+                 </li>
+               </ng-container>
              </ul>
            </div>
            <span class="collapse-pane-button icon-size-small" aria-hidden="true" (click)="toggleSplitPane()">
@@ -209,6 +233,7 @@
                  (onGrayedOutFields)="setGrayedOutFields($event)"
                  (onOpenFormatPane)="openFormatPane($event)" (onOpenVSOnPortal)="openVSOnPortal($event)">
                </viewsheet-pane>
+               <wiz-pane *ngIf="_tab.type === 'wiz'"></wiz-pane>
                <viewer-app
                  *ngIf="_tab.type === 'viewsheet' && (asViewsheet(_tab).preview || asViewsheet(_tab).linkview)"
                  [preview]="asViewsheet(_tab).preview"
@@ -255,6 +280,7 @@
                </style-pane>
              </ng-template>
              <composer-empty-editor
+               [wiz]="showingWiz"
                (onOpenSheet)="openSheet($event)" (onOpenLibraryAsset)="openLibraryAsset($event)"
                *ngIf="openedTabs?.length === 0">
              </composer-empty-editor>
