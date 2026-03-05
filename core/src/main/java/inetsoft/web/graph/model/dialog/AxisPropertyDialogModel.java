@@ -112,9 +112,12 @@ public class AxisPropertyDialogModel {
             ((ChartAggregateRef) ref).isSecondaryY()) ||
          // Primary X axis when a secondary X axis exists. (Bug #74047)
          ("bottom_x_axis".equals(axisType) && hasSecondaryXAxis) ||
+         // Hide for chart types where "Labels on Opposite Side" is not meaningful
+         // or causes rendering issues.
          GraphTypes.isRadar(cInfo.getRTChartType()) ||
          GraphTypes.isMekko(cInfo.getRTChartType()) ||
-         GraphTypes.is3DBar(cInfo.getRTChartType()));
+         GraphTypes.is3DBar(cInfo.getRTChartType()) ||
+         GraphTypes.isPareto(cInfo.getRTChartType()));
 
       RotationRadioGroupModel rotationRadioGroupModel = new RotationRadioGroupModel();
       CompositeTextFormat textFormat;
