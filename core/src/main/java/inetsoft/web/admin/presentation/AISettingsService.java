@@ -71,8 +71,8 @@ public class AISettingsService {
 
       String internalUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_INTERNAL_URL);
       String serverUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_SERVER_URL);
-      return (internalUrl != null && !internalUrl.isEmpty())
-         || (serverUrl != null && !serverUrl.isEmpty());
+      return (internalUrl != null && !internalUrl.trim().isEmpty())
+         || (serverUrl != null && !serverUrl.trim().isEmpty());
    }
 
    @Audited(

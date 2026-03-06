@@ -291,7 +291,7 @@ public class AssistantWebSocketProxyHandler extends AbstractWebSocketHandler {
    }
 
    private volatile StandardWebSocketClient wsClient;
-   private ScheduledExecutorService cleanup;
+   private volatile ScheduledExecutorService cleanup;
    private final Map<String, WebSocketSession> upstreamSessions = new ConcurrentHashMap<>();
    private static final List<String> FORWARD_WS_HEADERS =
       List.of("Authorization", "x-client-id", "x-request-id");

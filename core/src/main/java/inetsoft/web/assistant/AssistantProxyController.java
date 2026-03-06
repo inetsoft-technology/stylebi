@@ -234,12 +234,18 @@ public class AssistantProxyController {
             response.setStatus(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
             response.getOutputStream().write("Request body too large".getBytes(StandardCharsets.UTF_8));
          }
+         else {
+            LOG.debug("Request body size limit exceeded after response was committed for {}", proxiedPath);
+         }
       }
       catch(IOException e) {
          if(!response.isCommitted()) {
+            LOG.warn("IOException proxying {} to upstream: {}", proxiedPath, e.getMessage());
             response.setStatus(HttpServletResponse.SC_BAD_GATEWAY);
-            response.getOutputStream().write(
-               ("Assistant unreachable: " + e.getMessage()).getBytes(StandardCharsets.UTF_8));
+            response.getOutputStream().write("Assistant service unavailable".getBytes(StandardCharsets.UTF_8));
+         }
+         else {
+            LOG.warn("IOException proxying {} after response was committed: {}", proxiedPath, e.getMessage());
          }
       }
    }
