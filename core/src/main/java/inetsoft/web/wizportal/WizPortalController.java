@@ -15,32 +15,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+package inetsoft.web.wizportal;
 
-import { Component } from "@angular/core";
-import { WizPortalService } from "./wiz-portal.service";
+import inetsoft.sree.SreeEnv;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-@Component({
-   selector: "wiz-portal-dialog",
-   templateUrl: "./wiz-portal-dialog.component.html",
-   styleUrls: ["./wiz-portal-dialog.component.scss"]
-})
-export class WizPortalDialogComponent {
-   get styleBIUrl(): string {
-      return this.wizPortalService.styleBIUrl;
+@RestController
+public class WizPortalController {
+
+   @GetMapping("/api/wiz/service-url")
+   public String getWizServiceUrl() {
+      return SreeEnv.getProperty(WIZ_SERVICE_URL);
    }
 
-   get wizServiceUrl(): string {
-      return this.wizPortalService.wizServiceUrl;
-   }
-
-   get userId(): string {
-      return this.wizPortalService.userId;
-   }
-
-   get domain(): string {
-      return this.wizPortalService.domain;
-   }
-
-   constructor(private wizPortalService: WizPortalService) {
-   }
+   private static final String WIZ_SERVICE_URL = "wiz.service.url";
 }
