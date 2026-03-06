@@ -792,17 +792,21 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       Lock lock = getLock(writeKeyName);
       lock.lock();
 
-      Integer cnt = (Integer) map.get(readKeyName);
+      try {
+         Integer cnt = (Integer) map.get(readKeyName);
 
-      if(cnt == null) {
-         cnt = 1;
-      }
-      else {
-         cnt = cnt + 1;
-      }
+         if(cnt == null) {
+            cnt = 1;
+         }
+         else {
+            cnt = cnt + 1;
+         }
 
-      map.put(readKeyName, cnt);
-      unlockLock(writeKeyName);
+         map.put(readKeyName, cnt);
+      }
+      finally {
+         unlockLock(writeKeyName);
+      }
    }
 
    @Override
@@ -815,19 +819,22 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       Lock lock = getLock(writeKeyName);
       lock.lock();
 
-      Integer cnt = (Integer) map.get(readKeyName);
+      try {
+         Integer cnt = (Integer) map.get(readKeyName);
 
-      if(cnt != null) {
-         if(cnt <= 1) {
-            map.remove(readKeyName);
-         }
-         else {
-            cnt = cnt - 1;
-            map.put(readKeyName, cnt);
+         if(cnt != null) {
+            if(cnt <= 1) {
+               map.remove(readKeyName);
+            }
+            else {
+               cnt = cnt - 1;
+               map.put(readKeyName, cnt);
+            }
          }
       }
-
-      unlockLock(writeKeyName);
+      finally {
+         unlockLock(writeKeyName);
+      }
    }
 
    @SuppressWarnings("BusyWait")
@@ -848,17 +855,27 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       // lock on write
       Lock lock = getLock(writeKeyName);
       lock.lock();
+      boolean success = false;
 
-      while(map.containsKey(readKeyName)) {
-         lock.unlock();
+      try {
+         while(map.containsKey(readKeyName)) {
+            lock.unlock();
 
-         try {
-            Thread.sleep(100);
+            try {
+               Thread.sleep(100);
+            }
+            catch(Exception ignore) {
+            }
+
+            lock.lock();
          }
-         catch(Exception ignore) {
-         }
 
-         lock.lock();
+         success = true;
+      }
+      finally {
+         if(!success) {
+            unlockLock(writeKeyName);
+         }
       }
    }
 
