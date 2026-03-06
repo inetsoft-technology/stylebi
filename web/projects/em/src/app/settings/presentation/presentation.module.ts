@@ -92,6 +92,7 @@ import { ToolbarOptionsTableViewComponent } from "./toolbar-options-table-view/t
 import { WebMapSettingsViewComponent } from "./webmap-settings-view/webmap-settings-view.component";
 import { WelcomePageSettingsViewComponent } from "./welcome-page-settings-view/welcome-page-settings-view.component";
 import { PresentationComposerMessageSettingsViewComponent } from "./presentation-composer-message-settings-view/presentation-composer-message-settings-view.component";
+import { PresentationAISettingsViewComponent } from "./presentation-ai-settings-view/presentation-ai-settings-view.component";
 import { ColorPickerModule } from "ngx-color-picker";
 
 @NgModule({
@@ -171,7 +172,8 @@ import { ColorPickerModule } from "ngx-color-picker";
       ThemePropertiesViewComponent,
       ThemeCssViewComponent,
       PresentationComposerMessageSettingsViewComponent,
-      WebMapSettingsViewComponent
+      WebMapSettingsViewComponent,
+      PresentationAISettingsViewComponent
    ],
    providers: [
       PresentationSaveGuard,

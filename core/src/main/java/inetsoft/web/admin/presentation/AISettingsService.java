@@ -1,0 +1,74 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.web.admin.presentation;
+
+import inetsoft.sree.SreeEnv;
+import inetsoft.util.audit.ActionRecord;
+import inetsoft.web.admin.presentation.model.PresentationAISettingsModel;
+import inetsoft.web.assistant.AIAssistantController;
+import inetsoft.web.viewsheet.Audited;
+import org.springframework.stereotype.Service;
+
+@Service
+public class AISettingsService {
+   public PresentationAISettingsModel getModel() {
+      String aiAssistantVisibleProp = SreeEnv.getProperty(AIAssistantController.AI_ASSISTANT_VISIBLE, "false");
+      boolean aiAssistantVisible = "true".equalsIgnoreCase(aiAssistantVisibleProp);
+      String chatAppServerUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_SERVER_URL);
+
+      return PresentationAISettingsModel.builder()
+         .aiAssistantVisible(aiAssistantVisible)
+         .chatAppServerUrl(chatAppServerUrl)
+         .build();
+   }
+
+   @Audited(
+      actionName = ActionRecord.ACTION_NAME_EDIT,
+      objectName = "Presentation-AI Integration",
+      objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
+   )
+   public void setModel(PresentationAISettingsModel model) throws Exception {
+      SreeEnv.setProperty(AIAssistantController.AI_ASSISTANT_VISIBLE, model.aiAssistantVisible() ? "true" : "false");
+
+      if(model.chatAppServerUrl() != null && !model.chatAppServerUrl().isEmpty()) {
+         SreeEnv.setProperty(AIAssistantController.CHAT_APP_SERVER_URL, model.chatAppServerUrl());
+      }
+      else {
+         SreeEnv.remove(AIAssistantController.CHAT_APP_SERVER_URL);
+      }
+
+      SreeEnv.save();
+   }
+
+   public boolean isAiAssistantVisible() {
+      String chatAppServerUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_SERVER_URL);
+      return "true".equalsIgnoreCase(SreeEnv.getProperty(AIAssistantController.AI_ASSISTANT_VISIBLE, "false")) &&
+         chatAppServerUrl != null && !chatAppServerUrl.isEmpty();
+   }
+
+   @Audited(
+      actionName = ActionRecord.ACTION_NAME_EDIT,
+      objectName = "Presentation-AI Integration",
+      objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
+   )
+   public void resetSettings() throws Exception {
+      SreeEnv.remove(AIAssistantController.AI_ASSISTANT_VISIBLE);
+      SreeEnv.remove(AIAssistantController.CHAT_APP_SERVER_URL);
+      SreeEnv.save();
+   }
+}

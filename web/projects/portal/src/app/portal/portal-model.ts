@@ -20,6 +20,7 @@ import { CurrentUser } from "./current-user";
 export interface PortalModel {
    currentUser: CurrentUser;
    helpVisible: boolean;
+   aiAssistantVisible: boolean;
    preferencesVisible: boolean;
    logoutVisible: boolean;
    homeLink: string;

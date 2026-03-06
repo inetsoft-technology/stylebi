@@ -121,6 +121,13 @@
           (modelChanged)="onModelChanged($event)"
         ></em-presentation-share-settings-view>
       </div>
+      <div id="ai-integration" emNavigationScrollableItem="ai-integration"
+           *ngIf="model?.aiSettingsModel">
+        <em-presentation-ai-settings-view
+          [model]="model?.aiSettingsModel"
+          (modelChanged)="onModelChanged($event)"
+        ></em-presentation-ai-settings-view>
+      </div>
     </div>
   </em-navigation-scrollable>
   <div class="presentation-settings-nav">

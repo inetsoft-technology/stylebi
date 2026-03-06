@@ -57,6 +57,7 @@ export enum ContextType {
 export class AiAssistantService {
    chatAppServerUrl: string = "";
    styleBIUrl: string = "";
+   aiAssistantVisible: boolean = false;
    userId: string = "";
    email: string = "";
    calcTableCellBindings: { [key: string]: CellBindingInfo } = {};
@@ -73,6 +74,7 @@ export class AiAssistantService {
       this.http.get("../api/assistant/get-stylebi-url").subscribe((url: string) => {
          this.styleBIUrl = url || "";
       });
+
    }
 
    set lastBindingObject(value: string) {
