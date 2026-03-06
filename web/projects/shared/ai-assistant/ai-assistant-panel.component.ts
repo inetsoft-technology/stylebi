@@ -98,15 +98,26 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
    @HostListener("window:resize")
    onResize(): void {
       const maxWidth = Math.floor(window.innerWidth * 0.8);
+      let sizeChanged = false;
 
       if(this.mode === "side" && this.sideWidth > maxWidth) {
          this.sideWidth = maxWidth;
+         sizeChanged = true;
       }
 
       const maxBottomHeight = window.innerHeight - TOP_OFFSET;
 
       if(this.mode === "bottom" && this.bottomHeight > maxBottomHeight) {
          this.bottomHeight = maxBottomHeight;
+         sizeChanged = true;
+      }
+
+      if(sizeChanged) {
+         try {
+            localStorage.setItem(LS_SIDE_WIDTH_KEY, String(this.sideWidth));
+            localStorage.setItem(LS_BOTTOM_HEIGHT_KEY, String(this.bottomHeight));
+         }
+         catch { /* ignore */ }
       }
    }
 
@@ -139,7 +150,7 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
       }
       else {
          const delta = this.dragStartPos - event.clientY;
-          const maxBottomHeight = window.innerHeight - TOP_OFFSET;
+         const maxBottomHeight = window.innerHeight - TOP_OFFSET;
          this.bottomHeight = Math.min(maxBottomHeight, Math.max(MIN_SIZE, this.dragStartSize + delta));
       }
    }

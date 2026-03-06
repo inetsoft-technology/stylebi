@@ -18,6 +18,7 @@
 
 :host {
   // 52px matches the navbar height in both portal and EM.
+  // Must match TOP_OFFSET in ai-assistant-panel.component.ts.
   // Override --ai-panel-top-offset in an app's global stylesheet if that ever changes.
   --ai-panel-top-offset: 52px;
   --ai-panel-background: white;
