@@ -23,6 +23,7 @@ import inetsoft.mv.fs.internal.ClusterUtil;
 import inetsoft.sree.internal.Mailer;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.SimpleMessage;
+import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.*;
@@ -461,6 +462,11 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
 
             if(principal != null) {
                ThreadContext.setContextPrincipal(principal);
+               String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
+
+               if(orgId != null) {
+                  OrganizationContextHolder.setCurrentOrgId(orgId);
+               }
             }
 
             if(isCanceled()) {
