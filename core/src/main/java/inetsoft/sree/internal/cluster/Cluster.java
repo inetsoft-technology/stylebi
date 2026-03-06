@@ -694,6 +694,9 @@ public interface Cluster extends AutoCloseable {
                      throw new RuntimeException("Failed to create cluster instance", e);
                   }
                }
+               else if("true".equals(System.getProperty("spring.aot.processing"))) {
+                  instance = new MockCluster();
+               }
                else {
                   instance = new IgniteCluster();
                }

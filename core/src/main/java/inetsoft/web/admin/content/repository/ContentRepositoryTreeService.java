@@ -124,7 +124,11 @@ public class ContentRepositoryTreeService {
       Catalog catalog = Catalog.getCatalog();
       Principal contextPrincipal = ThreadContext.getContextPrincipal();
       ExecutorService executor =
-         Executors.newFixedThreadPool(Math.min(Runtime.getRuntime().availableProcessors(), 6));
+         Executors.newFixedThreadPool(Math.min(Runtime.getRuntime().availableProcessors(), 6), r -> {
+            Thread t = new Thread(r, "ContentRepositoryTreeLoader");
+            t.setDaemon(true);
+            return t;
+         });
 
       try {
          // global viewsheets/worksheets/reports

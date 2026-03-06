@@ -21,6 +21,7 @@ import com.google.auto.service.AutoService;
 import inetsoft.mv.trans.UserInfo;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.MockCluster;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.*;
@@ -52,7 +53,7 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
       ExtensionContext.Store store = context.getStore(NAMESPACE);
 
       System.setProperty(
-         "inetsoft.sree.internal.cluster.implementation", TestCluster.class.getName());
+         "inetsoft.sree.internal.cluster.implementation", MockCluster.class.getName());
       Path clusterDir = Files.createTempDirectory("ignite-test");
       System.setProperty("inetsoftClusterDir", clusterDir.toAbsolutePath().toString());
       store.put(CLUSTER_DIR, clusterDir);

@@ -102,6 +102,11 @@ public class DeleteDependencyHandler {
       ExecutorService executors = new ThreadPoolExecutor(nthread, nthread,
          0L, TimeUnit.MILLISECONDS,
          new LinkedBlockingQueue<>(),
+         r -> {
+            Thread t = new Thread(r, "DeleteDependencyHandler");
+            t.setDaemon(true);
+            return t;
+         },
          // Too much info doesn't make much sense to the user, so discard subsequent tasks.
          new ThreadPoolExecutor.DiscardPolicy());
 

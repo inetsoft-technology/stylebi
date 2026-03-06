@@ -395,6 +395,10 @@ public class LogMonitoringService implements MessageListener {
    // CachedThreadPool allows all cluster nodes to be queried concurrently regardless of cluster
    // size. The thread count is bounded by the number of cluster nodes per request (a small,
    // operator-controlled value), so there is no unbounded thread growth risk.
-   private final ExecutorService executor = Executors.newCachedThreadPool();
+   private final ExecutorService executor = Executors.newCachedThreadPool(r -> {
+      Thread t = new Thread(r, "LogMonitoringService");
+      t.setDaemon(true);
+      return t;
+   });
    private static final Logger LOG = LoggerFactory.getLogger(LogMonitoringService.class);
 }

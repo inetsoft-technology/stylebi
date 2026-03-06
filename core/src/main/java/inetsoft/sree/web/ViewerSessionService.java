@@ -34,7 +34,11 @@ public class ViewerSessionService implements SessionLicenseManager {
    public ViewerSessionService(SessionLicenseManager manager) {
       this.manager = manager;
       this.heartbeats = new ConcurrentHashMap<>();
-      this.runner = Executors.newSingleThreadScheduledExecutor();
+      this.runner = Executors.newSingleThreadScheduledExecutor(r -> {
+         Thread t = new Thread(r, "ViewerLicenseCleaner");
+         t.setDaemon(true);
+         return t;
+      });
 
       this.runner.scheduleAtFixedRate(
          new LicenseCleaner(), 1L, 60L, TimeUnit.SECONDS);

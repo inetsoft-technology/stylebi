@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,9 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package inetsoft.test;
+package inetsoft.sree.internal.cluster;
 
-import inetsoft.sree.internal.cluster.*;
 import inetsoft.util.Tool;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.IgniteException;
@@ -40,7 +39,6 @@ import javax.cache.integration.CompletionListener;
 import javax.cache.processor.*;
 import java.io.File;
 import java.io.Serializable;
-import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -51,7 +49,7 @@ import java.util.function.*;
 import java.util.stream.Collectors;
 
 @SuppressWarnings("unused")
-public class TestCluster implements Cluster {
+public class MockCluster implements Cluster {
    @Override
    public String getId() {
       return clusterId;
@@ -644,7 +642,11 @@ public class TestCluster implements Cluster {
 
    private ExecutorService getSingletonExecutor(String serviceId) {
       synchronized(singletonExecutors) {
-         return singletonExecutors.computeIfAbsent(serviceId, k -> Executors.newSingleThreadScheduledExecutor());
+         return singletonExecutors.computeIfAbsent(serviceId, k -> Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "MockClusterSingleton-" + serviceId);
+            t.setDaemon(true);
+            return t;
+         }));
       }
    }
 
@@ -698,7 +700,11 @@ public class TestCluster implements Cluster {
    private final ConcurrentMap<String, DistributedReference<?>> references =
       new ConcurrentHashMap<>();
    private final Map<String, ExecutorService> singletonExecutors = new HashMap<>();
-   private final ExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+   private final ExecutorService executor = Executors.newSingleThreadScheduledExecutor(r -> {
+      Thread t = new Thread(r, "MockClusterExecutor");
+      t.setDaemon(true);
+      return t;
+   });
    private final DistributedScheduledExecutorService scheduledExecutor =
       new LocalDistributedScheduledExecutorService();
    private final List<MessageListener> messageListeners = new CopyOnWriteArrayList<>();
@@ -1327,7 +1333,11 @@ public class TestCluster implements Cluster {
          delegate.shutdown();
       }
 
-      private final ScheduledExecutorService delegate = Executors.newSingleThreadScheduledExecutor();
+      private final ScheduledExecutorService delegate = Executors.newSingleThreadScheduledExecutor(r -> {
+         Thread t = new Thread(r, "MockClusterScheduledExecutor");
+         t.setDaemon(true);
+         return t;
+      });
    }
 
    private static final class LocalCache<K, V> implements IgniteCache<K, V> {

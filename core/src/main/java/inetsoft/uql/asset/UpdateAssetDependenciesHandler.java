@@ -371,7 +371,11 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
     * Get a cached thread pool.
     */
    private ExecutorService newFixedThreadPool() {
-      return Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+      return Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), r -> {
+         Thread t = new Thread(r, "UpdateAssetDependencies");
+         t.setDaemon(true);
+         return t;
+      });
    }
 
    /**

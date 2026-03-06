@@ -33,7 +33,11 @@ public class IgniteScheduledExecutorServiceImpl implements IgniteScheduledExecut
 
    @Override
    public void init() throws Exception {
-      executor = Executors.newSingleThreadScheduledExecutor();
+      executor = Executors.newSingleThreadScheduledExecutor(r -> {
+         Thread t = new Thread(r, "IgniteScheduledExecutor");
+         t.setDaemon(true);
+         return t;
+      });
       Cluster cluster = Cluster.getInstance();
       map = cluster.getMap("IgniteScheduledExecutorServiceCache");
       localMemberId = cluster.getLocalMember();

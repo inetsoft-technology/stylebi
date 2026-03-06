@@ -607,7 +607,11 @@ public class UserEnv {
    private static final Set<ChangeListenerRecord> changeListenerTracker =
       ConcurrentHashMap.newKeySet();
    private static final ScheduledExecutorService changeListenerCleanupThread =
-      Executors.newSingleThreadScheduledExecutor();
+      Executors.newSingleThreadScheduledExecutor(r -> {
+         Thread t = new Thread(r, "UserEnvChangeListenerCleanup");
+         t.setDaemon(true);
+         return t;
+      });
 
    static {
       transients.add("locale");

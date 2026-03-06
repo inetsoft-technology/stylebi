@@ -391,7 +391,11 @@ public class LocalDependencyHandler implements DependencyHandler {
    @Override
    public void flushDependencyMap() {
       ExecutorService executors = Executors.newFixedThreadPool(
-         Runtime.getRuntime().availableProcessors());
+         Runtime.getRuntime().availableProcessors(), r -> {
+            Thread t = new Thread(r, "FlushDependencyMap");
+            t.setDaemon(true);
+            return t;
+         });
       DependencyStorageService service = DependencyStorageService.getInstance();
 
       for(Map.Entry<String, ?> e : depMap.entrySet()) {

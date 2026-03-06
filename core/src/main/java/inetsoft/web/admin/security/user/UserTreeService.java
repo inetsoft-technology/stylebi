@@ -1828,7 +1828,11 @@ public class UserTreeService {
       }
 
       ExecutorService executor =
-         Executors.newFixedThreadPool(DependencyTool.getThreadNumber(members.size()));
+         Executors.newFixedThreadPool(DependencyTool.getThreadNumber(members.size()), r -> {
+            Thread t = new Thread(r, "UserTreeServiceFilter");
+            t.setDaemon(true);
+            return t;
+         });
 
       List<CompletableFuture<IdentityModel>> futures = members.stream()
          .map(identityModel -> CompletableFuture.supplyAsync(() -> {

@@ -46,6 +46,10 @@ public class CacheSwapHealthService implements AutoCloseable {
 
    private final AtomicReference<CacheSwapStatus> status =
       new AtomicReference<>(new CacheSwapStatus());
-   private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+   private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(r -> {
+      Thread t = new Thread(r, "CacheSwapHealthChecker");
+      t.setDaemon(true);
+      return t;
+   });
 
 }

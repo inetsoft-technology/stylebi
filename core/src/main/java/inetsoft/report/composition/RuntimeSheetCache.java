@@ -57,7 +57,11 @@ public class RuntimeSheetCache
       this.local = new LinkedHashMap<>();
       this.cache = getCache(cluster, name);
       this.maxSheetCount = getMaxSheetCount();
-      this.executor = Executors.newSingleThreadScheduledExecutor();
+      this.executor = Executors.newSingleThreadScheduledExecutor(r -> {
+         Thread t = new Thread(r, "RuntimeSheetCacheFlusher");
+         t.setDaemon(true);
+         return t;
+      });
       this.mapper = createObjectMapper();
       this.sheetCountMap = cluster.getReplicatedMap(LOCAL_SHEET_COUNT);
 

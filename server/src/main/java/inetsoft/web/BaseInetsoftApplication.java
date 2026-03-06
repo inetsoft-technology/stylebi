@@ -21,26 +21,25 @@ package inetsoft.web;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
-import inetsoft.sree.schedule.*;
+import inetsoft.sree.schedule.ScheduleClient;
+import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
-import inetsoft.util.swap.XSwapper;
 import inetsoft.util.log.LogManager;
+import inetsoft.util.swap.XSwapper;
 import inetsoft.web.messaging.SessionConnectionService;
-import inetsoft.web.metrics.*;
 import inetsoft.web.security.*;
-import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PreDestroy;
 import jakarta.servlet.DispatcherType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.boot.*;
 import org.springframework.boot.actuate.endpoint.web.EndpointMediaTypes;
 import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
 import org.springframework.boot.web.server.WebServerFactoryCustomizer;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.core.Ordered;
@@ -57,34 +56,44 @@ public abstract class BaseInetsoftApplication {
    public void start(String[] args) {
       ApplicationArguments appArguments = new DefaultApplicationArguments(args);
 
-      // make sure aot is not enabled during process-aot phase and don't start ignite
+      // make sure aot is not enabled during process-aot phase
       if("true".equals(System.getProperty("spring.aot.processing"))) {
          System.setProperty("spring.aot.enabled", "false");
       }
-      else {
-         String home = null;
 
-         if(appArguments.containsOption("sree.home")) {
-            home = appArguments.getOptionValues("sree.home").getFirst();
-         }
+      String home = null;
 
-         configure(home);
+      if(appArguments.containsOption("sree.home")) {
+         home = appArguments.getOptionValues("sree.home").getFirst();
+      }
+
+      configure(home);
+
+      // don't trigger Ignite initialization during process-aot phase
+      if(!"true".equals(System.getProperty("spring.aot.processing"))) {
+         LogManager.initializeForStartup();
+         Tool.setServer(true);
+         Cluster.getInstance().setLocalNodeProperty("reportServer", "true");
       }
 
       SpringApplication.run(getClass(), args);
-      SreeEnv.reloadLoggingFramework();
-      SUtil.initScheduleListener();
 
-      if(isSchedulerServerAutoStart()) {
-         ThreadPool.addOnDemand(() -> {
-            try {
-               SUtil.startScheduler();
-            }
-            catch(Exception e) {
-               LoggerFactory.getLogger(InetsoftApplication.class)
-                  .error("Failed to auto-start scheduler", e);
-            }
-         });
+      // don't trigger Ignite initialization during process-aot phase
+      if(!"true".equals(System.getProperty("spring.aot.processing"))) {
+         SreeEnv.reloadLoggingFramework();
+         SUtil.initScheduleListener();
+
+         if(isSchedulerServerAutoStart()) {
+            ThreadPool.addOnDemand(() -> {
+               try {
+                  SUtil.startScheduler();
+               }
+               catch(Exception e) {
+                  LoggerFactory.getLogger(InetsoftApplication.class)
+                     .error("Failed to auto-start scheduler", e);
+               }
+            });
+         }
       }
    }
 
@@ -290,10 +299,6 @@ public abstract class BaseInetsoftApplication {
                new File(home, "derby.log").getAbsolutePath());
             ConfigurationContext.getContext().setHome(new File(home).getAbsolutePath());
          }
-
-         LogManager.initializeForStartup();
-         Tool.setServer(true);
-         Cluster.getInstance().setLocalNodeProperty("reportServer", "true");
       }
    }
 

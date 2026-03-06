@@ -92,7 +92,11 @@ public abstract class DependencyTransformer {
          // the transform assets number for each thread.
          int count = (int) Math.ceil(entries.length * 1.0 / nthread);
          final int pri = Thread.currentThread().getPriority();
-         ExecutorService executors = Executors.newFixedThreadPool(nthread);
+         ExecutorService executors = Executors.newFixedThreadPool(nthread, r -> {
+            Thread t = new Thread(r, "DependencyTransformer");
+            t.setDaemon(true);
+            return t;
+         });
 
          for(int i = 0; i < nthread; i++) {
             List<AssetObject> list = DependencyTool.getThreadAssets(i, count, entries);

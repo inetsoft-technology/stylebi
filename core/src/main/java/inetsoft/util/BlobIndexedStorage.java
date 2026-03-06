@@ -450,7 +450,11 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
    @Override
    public void migrateStorageData(String oname, String nname) throws Exception {
       int numThreads = Runtime.getRuntime().availableProcessors();
-      ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+      ExecutorService executor = Executors.newFixedThreadPool(numThreads, r -> {
+         Thread t = new Thread(r, "BlobStorageMigrateUser");
+         t.setDaemon(true);
+         return t;
+      });
       Organization currOrg = SecurityEngine.getSecurity().getSecurityProvider()
                               .getOrganization(OrganizationManager.getInstance().getCurrentOrgID());
 
@@ -589,7 +593,11 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       String nId = norg instanceof Organization ? ((Organization) norg).getId() :
          OrganizationManager.getInstance().getCurrentOrgID();
       int numThreads = Runtime.getRuntime().availableProcessors();
-      ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+      ExecutorService executor = Executors.newFixedThreadPool(numThreads, r -> {
+         Thread t = new Thread(r, "BlobStorageMigrateOrg");
+         t.setDaemon(true);
+         return t;
+      });
 
       for(String key : getKeys(null, oId)) {
          final AssetEntry entry = AssetEntry.createAssetEntry(key);
