@@ -15,25 +15,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Injectable, Injector } from "@angular/core";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { Injectable } from "@angular/core";
 import { AiAssistantService, ContextType } from "../../../../../shared/ai-assistant/ai-assistant.service";
-import { AiAssistantDialogComponent } from "../../../../../shared/ai-assistant/ai-assistant-dialog.component";
 import { getViewsheetScriptContext } from "../../binding/services/assistant/viewsheet-context-helper";
 import { getWorksheetContext, getWorksheetScriptContext } from "../../binding/services/assistant/worksheet-context-helper";
 import { Viewsheet } from "../../composer/data/vs/viewsheet";
 import { Worksheet } from "../../composer/data/ws/worksheet";
 import { TreeNodeModel } from "../../widget/tree/tree-node-model";
-import { ComponentTool } from "../util/component-tool";
 
 @Injectable({
    providedIn: "root"
 })
 export class AiAssistantDialogService {
 
-   constructor(private aiAssistantService: AiAssistantService,
-               private modalService: NgbModal)
-   {
+   constructor(private aiAssistantService: AiAssistantService) {
    }
 
    get isEnabled(): boolean {
@@ -41,17 +36,7 @@ export class AiAssistantDialogService {
    }
 
    openAiAssistantDialog(): void {
-      const injector = Injector.create({
-         providers: [
-            { provide: AiAssistantService, useValue: this.aiAssistantService }
-         ],
-      });
-
-      ComponentTool.showDialog(this.modalService, AiAssistantDialogComponent, () => {}, {
-         backdrop: true,
-         windowClass: "ai-assistant-container",
-         injector: injector
-      });
+      this.aiAssistantService.panelOpen = true;
    }
 
    setViewsheetScriptContext(vs: Viewsheet): void {

@@ -57,6 +57,7 @@ export enum ContextType {
 export class AiAssistantService {
    chatAppServerUrl: string = "";
    styleBIUrl: string = "";
+   panelOpen: boolean = false;
    userId: string = "";
    email: string = "";
    calcTableCellBindings: { [key: string]: CellBindingInfo } = {};
