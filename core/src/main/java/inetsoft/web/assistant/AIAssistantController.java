@@ -48,6 +48,11 @@ public class AIAssistantController {
       if(internalUrl != null && !internalUrl.trim().isEmpty()) {
          String styleBIUrl = LinkUriArgumentResolver.getLinkUri(request);
 
+         // Guard against Host-header injection: only return a URL with a known-safe scheme.
+         if(!styleBIUrl.startsWith("http://") && !styleBIUrl.startsWith("https://")) {
+            return ResponseEntity.noContent().build();
+         }
+
          if(styleBIUrl.endsWith("/")) {
             styleBIUrl = styleBIUrl.substring(0, styleBIUrl.length() - 1);
          }

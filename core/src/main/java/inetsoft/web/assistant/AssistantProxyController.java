@@ -76,7 +76,7 @@ public class AssistantProxyController {
    public void proxy(HttpServletRequest request, HttpMethod method, HttpServletResponse response)
       throws IOException
    {
-      String proxiedPath = extractProxiedPath(request);
+      String proxiedPath = sanitizeProxiedPath(extractProxiedPath(request));
 
       // sso-complete.html must be served as a simple static page that postMessages the auth
       // code to the opener. If forwarded to nginx (assistant-client), nginx falls back to the
@@ -101,10 +101,10 @@ public class AssistantProxyController {
       String internalBase = SreeEnv.getProperty(AIAssistantController.CHAT_APP_INTERNAL_URL);
 
       if(internalBase == null || internalBase.trim().isEmpty()) {
+         LOG.warn("Proxy request received but chat.app.internal.url is not configured");
          response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
          response.setContentType("text/plain;charset=UTF-8");
-         response.getOutputStream().write(
-            "Proxy not configured: chat.app.internal.url is not set".getBytes(StandardCharsets.UTF_8));
+         response.getOutputStream().write("Service unavailable".getBytes(StandardCharsets.UTF_8));
          return;
       }
 
@@ -113,13 +113,20 @@ public class AssistantProxyController {
       // Derive the browser-facing proxy URL from the incoming request so it works on
       // any host, not just localhost. Used to override window.__ENV__.CHAT_APP_SERVER_URL
       // in proxied HTML responses so the assistant SPA routes API calls through the proxy.
+      // Validate the scheme to guard against Host-header injection when StyleBI is not behind
+      // a properly configured reverse proxy.
       String styleBIUrl = LinkUriArgumentResolver.getLinkUri(request);
 
-      if(styleBIUrl.endsWith("/")) {
+      if(!styleBIUrl.startsWith("http://") && !styleBIUrl.startsWith("https://")) {
+         LOG.warn("Derived StyleBI URL '{}' is not an http(s):// URL; HTML rewrite will be skipped",
+            styleBIUrl);
+         styleBIUrl = null;
+      }
+      else if(styleBIUrl.endsWith("/")) {
          styleBIUrl = styleBIUrl.substring(0, styleBIUrl.length() - 1);
       }
 
-      final String proxyUrl = styleBIUrl + AIAssistantController.PROXY_PATH_PREFIX;
+      final String proxyUrl = styleBIUrl != null ? styleBIUrl + AIAssistantController.PROXY_PATH_PREFIX : null;
       UriComponentsBuilder uriBuilder = UriComponentsBuilder
          .fromUriString(normalizeBase(internalBase) + proxiedPath);
 
@@ -140,13 +147,26 @@ public class AssistantProxyController {
       // Without these the assistant only sees its internal hostname (e.g. assistant-client)
       // instead of the public StyleBI hostname, causing redirect validation to fail in
       // non-localhost production deployments.
-      String forwardedHost = request.getHeader(HttpHeaders.HOST);
+      // Prefer an X-Forwarded-Host already set by an upstream trusted proxy; only fall back to
+      // the raw Host header when StyleBI is contacted directly. This prevents a client from
+      // spoofing the forwarded host when StyleBI is behind a load balancer that sets this header.
+      String forwardedHost = request.getHeader("x-forwarded-host");
+
+      if(forwardedHost == null) {
+         forwardedHost = request.getHeader(HttpHeaders.HOST);
+      }
 
       if(forwardedHost != null) {
          proxyRequest.setHeader("x-forwarded-host", forwardedHost);
       }
 
-      proxyRequest.setHeader("x-forwarded-proto", request.getScheme());
+      String forwardedProto = request.getHeader("x-forwarded-proto");
+
+      if(forwardedProto == null) {
+         forwardedProto = request.getScheme();
+      }
+
+      proxyRequest.setHeader("x-forwarded-proto", forwardedProto);
 
       // Disable compression so the response can be streamed incrementally.
       // Gzip requires buffering the full stream before decompression.
@@ -187,7 +207,7 @@ public class AssistantProxyController {
             String contentType = upstreamHeaders.getFirst(HttpHeaders.CONTENT_TYPE);
             boolean isHtml = contentType != null && contentType.toLowerCase().contains("text/html");
 
-            if(isHtml) {
+            if(isHtml && proxyUrl != null) {
                // Buffer HTML so we can rewrite absolute asset paths to go through the proxy.
                // The assistant SPA references assets as /assets/... which would 404 at StyleBI's
                // root; rewrite them to /api/assistant/proxy/assets/... so they are proxied.
@@ -282,6 +302,28 @@ public class AssistantProxyController {
       "  if (!sent) { document.body.textContent = 'Authentication complete. You may close this window.'; }\n" +
       "</script>\n" +
       "</body></html>\n";
+
+   /**
+    * Normalizes the proxied path to remove {@code ..} traversal segments, rejecting any path
+    * that still contains {@code ..} after normalization (e.g. attempts to traverse above the
+    * upstream root).  Returns {@code "/"} for any invalid or traversal input.
+    */
+   private String sanitizeProxiedPath(String path) {
+      try {
+         String normalized = new java.net.URI(path).normalize().getPath();
+
+         if(normalized == null || !normalized.startsWith("/") || normalized.contains("..")) {
+            LOG.warn("Rejected proxied path with traversal segments: {}", path);
+            return "/";
+         }
+
+         return normalized;
+      }
+      catch(java.net.URISyntaxException e) {
+         LOG.warn("Rejected malformed proxied path: {}", path);
+         return "/";
+      }
+   }
 
    private String extractProxiedPath(HttpServletRequest request) {
       String uri = request.getRequestURI();
@@ -408,6 +450,9 @@ public class AssistantProxyController {
          // Set to "true" to use the JVM default trust store in production.
          // Changing this property requires a server restart.
          if(!AIAssistantController.isSslVerifyEnabled()) {
+            LOG.warn("SSL certificate verification is disabled for AI assistant proxy connections " +
+               "(chat.app.server.ssl.verify=false). Set to true in production when the assistant " +
+               "server uses a CA-signed certificate.");
             SSLContext sslContext = SSLContextBuilder.create()
                .loadTrustMaterial(null, (chain, authType) -> true)
                .build();

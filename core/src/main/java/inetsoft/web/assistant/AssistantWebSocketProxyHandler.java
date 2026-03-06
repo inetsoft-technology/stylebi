@@ -82,7 +82,7 @@ public class AssistantWebSocketProxyHandler extends AbstractWebSocketHandler {
       }
 
       URI browserUri = browserSession.getUri();
-      String proxiedPath = extractProxiedPath(browserUri);
+      String proxiedPath = sanitizeProxiedPath(extractProxiedPath(browserUri));
       String query = browserUri != null ? browserUri.getQuery() : null;
       String wsBase = toWsUrl(internalBase.trim());
       String upstreamUrl = wsBase + proxiedPath + (query != null ? "?" + query : "");
@@ -195,6 +195,27 @@ public class AssistantWebSocketProxyHandler extends AbstractWebSocketHandler {
       }
    }
 
+   /**
+    * Normalizes the proxied path to remove {@code ..} traversal segments, rejecting any path
+    * that still contains {@code ..} after normalization. Returns {@code "/"} for invalid input.
+    */
+   private String sanitizeProxiedPath(String path) {
+      try {
+         String normalized = new URI(path).normalize().getPath();
+
+         if(normalized == null || !normalized.startsWith("/") || normalized.contains("..")) {
+            LOG.warn("Rejected WebSocket proxied path with traversal segments: {}", path);
+            return "/";
+         }
+
+         return normalized;
+      }
+      catch(java.net.URISyntaxException e) {
+         LOG.warn("Rejected malformed WebSocket proxied path: {}", path);
+         return "/";
+      }
+   }
+
    private String extractProxiedPath(URI uri) {
       if(uri == null) {
          return "/";
@@ -248,6 +269,10 @@ public class AssistantWebSocketProxyHandler extends AbstractWebSocketHandler {
       // Set to "true" to use the JVM default trust store in production.
       // Changing this property requires a server restart.
       if(!AIAssistantController.isSslVerifyEnabled()) {
+         LOG.warn("SSL certificate verification is disabled for AI assistant WebSocket proxy " +
+            "connections (chat.app.server.ssl.verify=false). Set to true in production when the " +
+            "assistant server uses a CA-signed certificate.");
+
          try {
             SSLContext sslContext = SSLContextBuilder.create()
                .loadTrustMaterial(null, (chain, authType) -> true)
