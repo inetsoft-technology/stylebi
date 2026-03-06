@@ -387,7 +387,8 @@ public class RuntimeSheetCache
 
    @Override
    public void putAll(Map<? extends String, ? extends RuntimeSheet> m) {
-      Map<AffinityKey<String>, CompressedSheetState> states = new HashMap<>();
+      Map<AffinityKey<String>, CompressedSheetState> states =
+         new TreeMap<>(Comparator.comparing(AffinityKey::key));
 
       for(Map.Entry<? extends String, ? extends RuntimeSheet> e : m.entrySet()) {
          states.put(getAffinityKey(e.getKey()), compressState(e.getValue().saveState(mapper)));
@@ -541,7 +542,8 @@ public class RuntimeSheetCache
          return;
       }
 
-      Map<AffinityKey<String>, CompressedSheetState> changeset = new HashMap<>();
+      Map<AffinityKey<String>, CompressedSheetState> changeset =
+         new TreeMap<>(Comparator.comparing(AffinityKey::key));
 
       for(Map.Entry<AffinityKey<String>, RuntimeSheet> e : snapshot.entrySet()) {
          try {
