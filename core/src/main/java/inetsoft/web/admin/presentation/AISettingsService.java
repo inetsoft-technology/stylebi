@@ -30,10 +30,12 @@ public class AISettingsService {
       String aiAssistantVisibleProp = SreeEnv.getProperty(AIAssistantController.AI_ASSISTANT_VISIBLE, "false");
       boolean aiAssistantVisible = "true".equalsIgnoreCase(aiAssistantVisibleProp);
       String chatAppServerUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_SERVER_URL);
+      String chatAppInternalUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_INTERNAL_URL);
 
       return PresentationAISettingsModel.builder()
          .aiAssistantVisible(aiAssistantVisible)
          .chatAppServerUrl(chatAppServerUrl)
+         .chatAppInternalUrl(chatAppInternalUrl)
          .build();
    }
 
@@ -52,13 +54,25 @@ public class AISettingsService {
          SreeEnv.remove(AIAssistantController.CHAT_APP_SERVER_URL);
       }
 
+      if(model.chatAppInternalUrl() != null && !model.chatAppInternalUrl().isEmpty()) {
+         SreeEnv.setProperty(AIAssistantController.CHAT_APP_INTERNAL_URL, model.chatAppInternalUrl());
+      }
+      else {
+         SreeEnv.remove(AIAssistantController.CHAT_APP_INTERNAL_URL);
+      }
+
       SreeEnv.save();
    }
 
    public boolean isAiAssistantVisible() {
-      String chatAppServerUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_SERVER_URL);
-      return "true".equalsIgnoreCase(SreeEnv.getProperty(AIAssistantController.AI_ASSISTANT_VISIBLE, "false")) &&
-         chatAppServerUrl != null && !chatAppServerUrl.isEmpty();
+      if(!"true".equalsIgnoreCase(SreeEnv.getProperty(AIAssistantController.AI_ASSISTANT_VISIBLE, "false"))) {
+         return false;
+      }
+
+      String internalUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_INTERNAL_URL);
+      String serverUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_SERVER_URL);
+      return (internalUrl != null && !internalUrl.isEmpty())
+         || (serverUrl != null && !serverUrl.isEmpty());
    }
 
    @Audited(
@@ -69,6 +83,7 @@ public class AISettingsService {
    public void resetSettings() throws Exception {
       SreeEnv.remove(AIAssistantController.AI_ASSISTANT_VISIBLE);
       SreeEnv.remove(AIAssistantController.CHAT_APP_SERVER_URL);
+      SreeEnv.remove(AIAssistantController.CHAT_APP_INTERNAL_URL);
       SreeEnv.save();
    }
 }
