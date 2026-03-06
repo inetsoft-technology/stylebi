@@ -17,20 +17,12 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, HostBinding, Input, OnChanges, OnInit, SimpleChanges } from "@angular/core";
-import { AssetEntry } from "../../../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../../../shared/data/asset-type";
-import { Tool } from "../../../../../../../shared/util/tool";
-import { AssemblyAction } from "../../../../common/action/assembly-action";
 import { AssemblyActionGroup } from "../../../../common/action/assembly-action-group";
-import { AssetConstants } from "../../../../common/data/asset-constants";
-import { AssetEntryHelper } from "../../../../common/data/asset-entry-helper";
-import { DragEvent } from "../../../../common/data/drag-event";
-import { GuiTool } from "../../../../common/util/gui-tool";
 import { ActionsContextmenuComponent } from "../../../../widget/fixed-dropdown/actions-contextmenu.component";
 import { DropdownOptions } from "../../../../widget/fixed-dropdown/dropdown-options";
 import { FixedDropdownService } from "../../../../widget/fixed-dropdown/fixed-dropdown.service";
 import { TreeNodeModel } from "../../../../widget/tree/tree-node-model";
-import { TreeView } from "../../../../widget/tree/tree.component";
 import { WizService } from "../services/wiz.service";
 
 @Component({
@@ -175,7 +167,7 @@ export class WizComponentsPane implements OnInit, OnChanges {
       };
    }
 
-   protected openVisualization(node: TreeNodeModel) {
+   openVisualization(node: TreeNodeModel) {
       if(!node?.data?.properties || node.data.properties.isWizVisualization !== "true" || node.data.type !== AssetType.VIEWSHEET) {
          return;
       }
