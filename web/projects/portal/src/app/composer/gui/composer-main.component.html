@@ -120,7 +120,8 @@
                  ></ws-composite-table-sidebar-pane>
                </ng-container>
                <ng-container *ngIf="showingWiz">
-                 <wiz-components-pane *ngIf="selectedTab === SidebarTab.VISUALIZATIONS"></wiz-components-pane>
+                 <wiz-components-pane *ngIf="selectedTab === SidebarTab.VISUALIZATIONS"
+                                      [runtimeId]="focusedSheet?.runtimeId"></wiz-components-pane>
                </ng-container>
 
              </div>

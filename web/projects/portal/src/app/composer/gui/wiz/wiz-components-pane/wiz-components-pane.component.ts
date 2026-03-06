@@ -15,83 +15,120 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, HostBinding, Input, OnInit } from "@angular/core";
+import { HttpClient, HttpParams } from "@angular/common/http";
+import { Component, HostBinding, Input, OnChanges, OnInit, SimpleChanges } from "@angular/core";
+import { AssetEntry } from "../../../../../../../shared/data/asset-entry";
+import { AssetType } from "../../../../../../../shared/data/asset-type";
+import { Tool } from "../../../../../../../shared/util/tool";
+import { AssemblyAction } from "../../../../common/action/assembly-action";
+import { AssemblyActionGroup } from "../../../../common/action/assembly-action-group";
+import { AssetConstants } from "../../../../common/data/asset-constants";
+import { AssetEntryHelper } from "../../../../common/data/asset-entry-helper";
+import { DragEvent } from "../../../../common/data/drag-event";
+import { GuiTool } from "../../../../common/util/gui-tool";
+import { ActionsContextmenuComponent } from "../../../../widget/fixed-dropdown/actions-contextmenu.component";
+import { DropdownOptions } from "../../../../widget/fixed-dropdown/dropdown-options";
+import { FixedDropdownService } from "../../../../widget/fixed-dropdown/fixed-dropdown.service";
 import { TreeNodeModel } from "../../../../widget/tree/tree-node-model";
+import { TreeView } from "../../../../widget/tree/tree.component";
+import { WizService } from "../services/wiz.service";
 
 @Component({
    selector: "wiz-components-pane",
    templateUrl: "./wiz-components-pane.component.html",
    styleUrls: ["./wiz-components-pane.component.scss"]
 })
-export class WizComponentsPane implements OnInit {
+export class WizComponentsPane implements OnInit, OnChanges {
    @HostBinding("hidden")
    @Input() inactive: boolean;
+   @Input() runtimeId: string;
 
-   visualizations: TreeNodeModel;
-   filter: TreeNodeModel;
-   output: TreeNodeModel;
-   shape: TreeNodeModel;
+   root: TreeNodeModel;
+   private visualizations: TreeNodeModel = {
+      label: "_#(js:Visualizations)",
+      icon: "folder-toolbox-icon",
+      data: {
+         visualizationRoot: true
+      },
+      children: []
+   };
+   private filter: TreeNodeModel = {
+      label: "_#(js:Filter)",
+      icon: "condition-icon",
+      children: []
+   };
+   private output: TreeNodeModel;
+   private shape: TreeNodeModel;
+
+   constructor(private http: HttpClient, private wizService: WizService,
+               private dropdownService: FixedDropdownService)
+   {
+   }
 
    ngOnInit(): void {
-      this.visualizations = {
-         label: "_#(js:Visualizations)",
-         icon: "folder-toolbox-icon",
-         children: [
-            {
-               label: "_#(js:Visualization 1)",
-               icon: "viewsheet-icon",
-               leaf: true,
-               dragName: "dragchart"
-            },
-            {
-               label: "_#(js:Visualization 2)",
-               icon: "viewsheet-icon",
-               leaf: true,
-               dragName: "dragcrosstab"
-            },
-            {
-               label: "_#(js:Visualization 3)",
-               icon: "viewsheet-icon",
-               leaf: true,
-               dragName: "dragtable"
-            },
-            {
-               label: "_#(js:Visualization 4)",
-               icon: "viewsheet-icon",
-               leaf: true,
-               dragName: "dragfreehandtable"
-            },
-            {
-               label: "_#(js:Visualization 5)",
-               icon: "viewsheet-icon",
-               leaf: true,
-               dragName: "draggauge"
-            }
-         ]
-      };
+      this.initStaticNodes();
+      this.loadVisualizations();
+      this.loadFilters();
+      this.buildRoot();
+   }
 
-      this.filter = {
-         label: "_#(js:Filter)",
-         icon: "condition-icon",
-         children: [
-            {
-               label: "_#(js:Order Name)",
-               leaf: true
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes["runtimeId"] && !changes["runtimeId"].firstChange) {
+         this.loadVisualizations();
+         this.loadFilters();
+      }
+   }
+
+   private loadVisualizations(): void {
+      if(!this.runtimeId) {
+         this.visualizations.children = [];
+         return;
+      }
+
+      const params = new HttpParams().set("runtimeId", this.runtimeId);
+
+      this.http.get<TreeNodeModel>("../api/composer/wiz/visualizations", { params })
+         .subscribe({
+            next: (result) => {
+               this.visualizations.children = result.children || [];
             },
-            {
-               label: "_#(js:Order Number)",
-               leaf: true
-            },
-            {
-               label: "_#(js:ProductName)",
-               leaf: true
-            },
-            {
-               label: "_#(js:Product Id)",
-               leaf: true
+            error: () => {
+               this.visualizations.children = [];
             }
-         ]
+         });
+   }
+
+   private loadFilters(): void {
+      if(!this.runtimeId) {
+         this.filter.children = [];
+         return;
+      }
+
+      const params = new HttpParams().set("runtimeId", this.runtimeId);
+
+      this.http.get<TreeNodeModel>("../api/composer/wiz/filters", { params })
+         .subscribe({
+            next: (result) => {
+               this.filter.children = result.children || [];
+            },
+            error: () => {
+               this.filter.children = [];
+            }
+         });
+   }
+
+   private buildRoot(): void {
+      this.root = {
+         children: [
+            this.visualizations,
+            this.filter,
+            this.output,
+            this.shape
+         ].filter(n => !!n)
       };
+   }
+
+   private initStaticNodes(): void {
 
       this.output = {
          label: "_#(js:Output)",
@@ -136,5 +173,65 @@ export class WizComponentsPane implements OnInit {
             }
          ]
       };
+
+      this.buildRoot();
+   }
+
+   protected openVisualization(node: TreeNodeModel) {
+      if(!node?.data?.properties || node.data.properties.isWizVisualization !== "true" || node.data.type !== AssetType.VIEWSHEET) {
+         return;
+      }
+
+      this.wizService.onOpenVisualization(node.data.identifier);
+   }
+
+   hasMenuFunction(): any {
+      return (node) => this.hasMenu(node);
+   }
+
+   hasMenu(node: TreeNodeModel): boolean {
+      const actions = this.createActions([null, node, [node]]);
+      return actions.some(group => group.visible);
+   }
+
+   openContextmenu(event: [MouseEvent, TreeNodeModel, TreeNodeModel[]]) {
+      let options: DropdownOptions = {
+         position: {x: event[0].clientX, y: event[0].clientY},
+         contextmenu: true,
+      };
+
+      let contextmenu: ActionsContextmenuComponent =
+         this.dropdownService.open(ActionsContextmenuComponent, options).componentInstance;
+      contextmenu.sourceEvent = event[0];
+      contextmenu.actions = this.createActions(event);
+   }
+
+   private createActions(event: [MouseEvent, TreeNodeModel, TreeNodeModel[]]): AssemblyActionGroup[] {
+      let group = new AssemblyActionGroup([]);
+      let groups = [group];
+      let node = event[1];
+
+      if(node?.data?.visualizationRoot) {
+         group.actions.push({
+            id: () => "new-wiz-visualization",
+            label: () => "_#(js:New Visualization)",
+            icon: () => "",
+            enabled: () => true,
+            visible: () => true,
+            action: () => this.wizService.onOpenVisualization()
+         });
+      }
+      else if(node?.data?.type === AssetType.VIEWSHEET && node?.data?.properties?.isWizVisualization == "true") {
+         group.actions.push({
+            id: () => "open-wiz-visualization",
+            label: () => "_#(js:Open)",
+            icon: () => "",
+            enabled: () => true,
+            visible: () => true,
+            action: () => this.openVisualization(node)
+         });
+      }
+
+      return groups;
    }
 }
