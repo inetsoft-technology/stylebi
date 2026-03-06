@@ -18,6 +18,7 @@
 
 import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
+import { BehaviorSubject } from "rxjs";
 import { convertToKey } from "../../em/src/app/settings/security/users/identity-id";
 import { BindingModel } from "../../portal/src/app/binding/data/binding-model";
 import { ChartBindingModel } from "../../portal/src/app/binding/data/chart/chart-binding-model";
@@ -57,7 +58,10 @@ export enum ContextType {
 export class AiAssistantService {
    chatAppServerUrl: string = "";
    styleBIUrl: string = "";
-   panelOpen: boolean = false;
+   private _panelOpen$ = new BehaviorSubject<boolean>(false);
+   readonly panelOpen$ = this._panelOpen$.asObservable();
+   get panelOpen(): boolean { return this._panelOpen$.value; }
+   set panelOpen(v: boolean) { this._panelOpen$.next(v); }
    userId: string = "";
    email: string = "";
    calcTableCellBindings: { [key: string]: CellBindingInfo } = {};

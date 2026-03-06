@@ -27,7 +27,8 @@ const LS_BOTTOM_HEIGHT_KEY = "ai-assistant-panel-bottom-height";
 const DEFAULT_SIDE_WIDTH = 680;
 const DEFAULT_BOTTOM_HEIGHT = 380;
 const MIN_SIZE = 300;
-const MAX_BOTTOM_HEIGHT = 800;
+// Must match --ai-panel-top-offset in ai-assistant-panel.component.scss.
+const TOP_OFFSET = 52;
 
 @Component({
    selector: "ai-assistant-panel",
@@ -70,8 +71,9 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
          }
 
          const savedHeight = Number(localStorage.getItem(LS_BOTTOM_HEIGHT_KEY));
+         const maxBottomHeight = window.innerHeight - TOP_OFFSET;
 
-         if(savedHeight >= MIN_SIZE && savedHeight <= MAX_BOTTOM_HEIGHT) {
+         if(savedHeight >= MIN_SIZE && savedHeight <= maxBottomHeight) {
             this.bottomHeight = savedHeight;
          }
       }
@@ -99,6 +101,12 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
 
       if(this.mode === "side" && this.sideWidth > maxWidth) {
          this.sideWidth = maxWidth;
+      }
+
+      const maxBottomHeight = window.innerHeight - TOP_OFFSET;
+
+      if(this.mode === "bottom" && this.bottomHeight > maxBottomHeight) {
+         this.bottomHeight = maxBottomHeight;
       }
    }
 
@@ -131,7 +139,8 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
       }
       else {
          const delta = this.dragStartPos - event.clientY;
-         this.bottomHeight = Math.min(MAX_BOTTOM_HEIGHT, Math.max(MIN_SIZE, this.dragStartSize + delta));
+          const maxBottomHeight = window.innerHeight - TOP_OFFSET;
+         this.bottomHeight = Math.min(maxBottomHeight, Math.max(MIN_SIZE, this.dragStartSize + delta));
       }
    }
 
