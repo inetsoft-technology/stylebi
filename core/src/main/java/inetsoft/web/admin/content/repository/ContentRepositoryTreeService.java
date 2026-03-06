@@ -1586,7 +1586,15 @@ public class ContentRepositoryTreeService {
       // get data sources
       final List<ContentRepositoryTreeNode> dataSourceEntries =
          subDataSourceNames.stream()
-                           .map(registry::getDataSource)
+                           .map(dsName -> {
+                              try {
+                                 return registry.getDataSource(dsName);
+                              }
+                              catch(Exception e) {
+                                 LOG.warn("Failed to load data source '{}': {}", dsName, e.getMessage());
+                                 return null;
+                              }
+                           })
                            .filter(Objects::nonNull)
                            .map(dataSource -> ContentRepositoryTreeNode.builder()
                               .label(dataSource.getName())

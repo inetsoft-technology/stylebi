@@ -318,7 +318,9 @@ public class LocalDependencyHandler implements DependencyHandler {
                  (AssetObject) entry);
       }
 
-      xrep.updateDataSource(dataSource, dsName, false);
+      // Use registry directly to avoid expensive query re-processing in XEngine.updateDataSource()
+      // which causes severe lock contention when many worksheets are processed in parallel
+      DataSourceRegistry.getRegistry().setDataSource(dataSource, null, false, false, false, true);
    }
 
    /**
