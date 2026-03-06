@@ -813,7 +813,7 @@ public class ActionPermissionService {
 
    public static final Map<String, String[]> orgAdminExclusionFragments = Map.of(
       "settings/presentation/settings",
-               new String[]{"look-and-feel", "font-mapping", "welcome-page", "login-banner"}
+               new String[]{"look-and-feel", "font-mapping", "welcome-page", "login-banner", "ai-integration"}
       );
 
    private final ComponentAuthorizationService componentService;

@@ -61,6 +61,11 @@ public class AISettingsService {
          chatAppServerUrl != null && !chatAppServerUrl.isEmpty();
    }
 
+   @Audited(
+      actionName = ActionRecord.ACTION_NAME_DELETE,
+      objectName = "Presentation-AI Integration",
+      objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
+   )
    public void resetSettings() throws Exception {
       SreeEnv.remove(AIAssistantController.AI_ASSISTANT_VISIBLE);
       SreeEnv.remove(AIAssistantController.CHAT_APP_SERVER_URL);
