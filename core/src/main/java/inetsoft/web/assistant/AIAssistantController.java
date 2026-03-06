@@ -91,15 +91,20 @@ public class AIAssistantController {
     * by fetching the JWKS from ${styleBIUrl}/sso/jwks.
     */
    @GetMapping("/api/assistant/get-stylebi-url")
-   public String getStyleBIUrl(HttpServletRequest request) {
+   public ResponseEntity<String> getStyleBIUrl(HttpServletRequest request) {
       String url = LinkUriArgumentResolver.getLinkUri(request);
 
+      // Guard against Host-header injection: only return a URL with a known-safe scheme.
+      if(url == null || (!url.startsWith("http://") && !url.startsWith("https://"))) {
+         return ResponseEntity.noContent().build();
+      }
+
       // Remove trailing slash for consistency
-      if(url != null && url.endsWith("/")) {
+      if(url.endsWith("/")) {
          url = url.substring(0, url.length() - 1);
       }
 
-      return url;
+      return ResponseEntity.ok(url);
    }
 
    /**

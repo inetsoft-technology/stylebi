@@ -433,10 +433,10 @@ public class AssistantProxyController {
 
       html = injected;
 
-      // Rewrite absolute paths in src/href attributes.
+      // Rewrite absolute paths in src, href, action, and data-src attributes.
       // Skip protocol-relative (//) and already-proxied paths.
       return html.replaceAll(
-         "((?:src|href)=['\"])(/(?!/|api/assistant/proxy))",
+         "((?:src|href|action|data-src)=['\"])(/(?!/|api/assistant/proxy))",
          "$1" + prefix + "$2");
    }
 

@@ -60,8 +60,8 @@ public class AssistantWebSocketProxyConfig {
       WebSocketHttpRequestHandler wsHandler = new WebSocketHttpRequestHandler(handler, handshakeHandler);
 
       Map<String, Object> urlMap = new LinkedHashMap<>();
-      urlMap.put("/api/assistant/proxy", wsHandler);
-      urlMap.put("/api/assistant/proxy/**", wsHandler);
+      urlMap.put(AIAssistantController.PROXY_PATH_PREFIX, wsHandler);
+      urlMap.put(AIAssistantController.PROXY_PATH_PREFIX + "/**", wsHandler);
 
       SimpleUrlHandlerMapping mapping = new SimpleUrlHandlerMapping() {
          @Override
