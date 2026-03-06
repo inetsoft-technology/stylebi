@@ -1363,6 +1363,12 @@ public abstract class VSAQuery {
    public static void appendCalcField(TableAssembly table, String tname,
                                       boolean detail, Viewsheet vs)
    {
+      appendCalcFieldWithType(table, tname, detail, false, vs);
+   }
+
+   protected static void appendCalcFieldWithType(TableAssembly table, String tname,
+                                                 boolean detail, boolean rangeOnly, Viewsheet vs)
+   {
       if(table == null) {
          return;
       }
@@ -1378,6 +1384,12 @@ public abstract class VSAQuery {
             boolean valid = isCube ? true : (detail == calcs[i].isBaseOnDetail());
 
             if(!valid) {
+               continue;
+            }
+
+            // Only append Range@ calc fields in the cube path to avoid double-appending
+            // detail calc fields that are already merged via SQL (Bug #73963 / Bug #73410).
+            if(rangeOnly && !calcs[i].getName().startsWith("Range@")) {
                continue;
             }
 
