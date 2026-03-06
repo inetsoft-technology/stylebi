@@ -901,6 +901,11 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
       TableLens data;
       TableLens base;
 
+      // Declare outside synchronized so they are accessible during query execution below
+      TableAssembly table2;
+      AssetQueryCacheNormalizer cacheNormalizer;
+      AssetQuery query;
+
       synchronized(table) {
          ColumnSelection columns = table.getColumnSelection(pub);
          // check if in cache
@@ -913,56 +918,67 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
 
          // don't clone embedded table, so any changes (from vs script) on the table
          // won't be lost
-         TableAssembly table2 = table instanceof EmbeddedTableAssembly ? table
+         table2 = table instanceof EmbeddedTableAssembly ? table
             : (TableAssembly) table.clone();
 
-         AssetQueryCacheNormalizer cacheNormalizer = new AssetQueryCacheNormalizer(table2, this, mode);
+         cacheNormalizer = new AssetQueryCacheNormalizer(table2, this, mode);
          long touchTime = vsbox != null ? vsbox.getTouchTimestamp() : -1L;
-         AssetQuery query = AssetQuery.createAssetQuery(
+         query = AssetQuery.createAssetQuery(
             table2, mode, this, false, touchTime, true, false);
+      }
 
-         try {
-            VariableTable vars2;
-            // set assemblyName for WS userMessages
-            Tool.setUserMessageAssemblyName(name);
+      // For cloned tables (non-EmbeddedTableAssembly), table2 is per-thread so query
+      // execution is safe outside synchronized(table), eliminating lock contention on
+      // concurrent worksheet opens (Bug #73971). For EmbeddedTableAssembly, table2 == table
+      // (intentionally not cloned so VS script changes persist), so re-acquire the lock to
+      // protect mutations made to table by replaceVariables() during execution. Java's
+      // re-entrant synchronized handles the nested synchronized(table) write-back below.
+      final Object queryLock = (table2 == table) ? table : new Object();
 
-            // @by larryl, if variable table is passed in, use the variable table
-            // so any changes make in the variable table is persistent. This cause
-            // be used if the script in worksheet or VPM changes the parameters
-            // and the changes should be carried to query generation. The regular
-            // query generation and model binding all pass through the variables
-            // to VPM and thus keep the changes from the VPM scripts.
-            if(vars != null) {
-               vars2 = vars;
-               vars.removeBaseTable(CachedVariableTable.class);
-               vars.addBaseTable(this.vars);
-            }
-            else if(this.vars != null) {
-               vars2 = this.vars.clone();
-            }
-            else {
-               vars2 = new VariableTable();
-               addMessageAttributes(vars2);
-            }
+      synchronized(queryLock) {
+      try {
+         VariableTable vars2;
+         // set assemblyName for WS userMessages
+         Tool.setUserMessageAssemblyName(name);
 
-            XUtil.copyDBCredentials((XPrincipal) getUser(), vars2);
-            Object omaxrows = vars2.get(XQuery.HINT_MAX_ROWS);
-            vars2.put(XQuery.HINT_PREVIEW, isLiveMode(mode) + "");
-            base = cacheNormalizer.transformTableLens(query.getTableLens(vars2));
+         // @by larryl, if variable table is passed in, use the variable table
+         // so any changes make in the variable table is persistent. This cause
+         // be used if the script in worksheet or VPM changes the parameters
+         // and the changes should be carried to query generation. The regular
+         // query generation and model binding all pass through the variables
+         // to VPM and thus keep the changes from the VPM scripts.
+         if(vars != null) {
+            vars2 = vars;
+            vars.removeBaseTable(CachedVariableTable.class);
+            vars.addBaseTable(this.vars);
+         }
+         else if(this.vars != null) {
+            vars2 = this.vars.clone();
+         }
+         else {
+            vars2 = new VariableTable();
+            addMessageAttributes(vars2);
+         }
 
-            if(table.isLiveData()) {
-               base =  getColumnLimitTableLens(base, table instanceof UnpivotTableAssembly);
-            }
+         XUtil.copyDBCredentials((XPrincipal) getUser(), vars2);
+         Object omaxrows = vars2.get(XQuery.HINT_MAX_ROWS);
+         vars2.put(XQuery.HINT_PREVIEW, isLiveMode(mode) + "");
+         base = cacheNormalizer.transformTableLens(query.getTableLens(vars2));
 
-            if(base != null) {
-               base = new TextSizeLimitTableLens(base, Util.getOrganizationMaxCellSize());
-            }
+         if(table.isLiveData()) {
+            base =  getColumnLimitTableLens(base, table instanceof UnpivotTableAssembly);
+         }
 
-            if(vars != null) {
-               vars.removeBaseTable(this.vars);
-            }
+         if(base != null) {
+            base = new TextSizeLimitTableLens(base, Util.getOrganizationMaxCellSize());
+         }
 
-            // validate column selection
+         if(vars != null) {
+            vars.removeBaseTable(this.vars);
+         }
+
+         // validate column selection — brief re-lock only for the write-back
+         synchronized(table) {
             table.setColumnSelection(table2.getColumnSelection());
             resetTableLens(table.getName(), DESIGN_MODE);
 
@@ -972,21 +988,22 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
             {
                table.setColumnSelection(table2.getColumnSelection(true), true);
             }
+         }
 
-            // restore in case changed by query
-            vars2.put(XQuery.HINT_MAX_ROWS, omaxrows);
-            data = base;
-         }
-         catch(ConfirmException | CancelledException ex) {
-            throw ex;
-         }
-         catch(SQLException ex) {
-            throw new ExpressionFailedException(-1, null, table.getName(), ex);
-         }
-         finally {
-            Tool.clearUserMessageAssemblyName();
-         }
+         // restore in case changed by query
+         vars2.put(XQuery.HINT_MAX_ROWS, omaxrows);
+         data = base;
       }
+      catch(ConfirmException | CancelledException ex) {
+         throw ex;
+      }
+      catch(SQLException ex) {
+         throw new ExpressionFailedException(-1, null, table.getName(), ex);
+      }
+      finally {
+         Tool.clearUserMessageAssemblyName();
+      }
+      } // end synchronized(queryLock)
 
       // cache the table for reuse
       putTableLens0(name, mode, table.isAggregate(), data, table.getColumnSelection(pub).hashCode());
