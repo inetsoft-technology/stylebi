@@ -108,7 +108,6 @@ public class EmNavBarController {
 
    @GetMapping("/api/em/navbar/isSiteAdmin")
    public boolean isSiteAdmin(Principal principal) {
-      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       return OrganizationManager.getInstance().isSiteAdmin(principal);
    }
 
@@ -119,5 +118,5 @@ public class EmNavBarController {
    }
 
    private final AISettingsService aiSettingsService;
-   private static String DEFAULT_LOGOUT_URI = "../logout?fromEm=true";
+   private static final String DEFAULT_LOGOUT_URI = "../logout?fromEm=true";
 }
