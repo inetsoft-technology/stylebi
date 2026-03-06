@@ -21,7 +21,7 @@ import { Injectable } from "@angular/core";
  * Thin wrapper around {@code setTimeout} that can be replaced in tests with a
  * synchronous implementation, allowing tests to avoid fake timers.
  */
-@Injectable()
+@Injectable({ providedIn: 'root' })
 export class TimerService {
    defer(fn: () => void, ms = 0): void {
       setTimeout(fn, ms);
