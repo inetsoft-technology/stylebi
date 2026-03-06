@@ -62,7 +62,7 @@ public class AISettingsService {
    }
 
    @Audited(
-      actionName = ActionRecord.ACTION_NAME_DELETE,
+      actionName = ActionRecord.ACTION_NAME_EDIT,
       objectName = "Presentation-AI Integration",
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
