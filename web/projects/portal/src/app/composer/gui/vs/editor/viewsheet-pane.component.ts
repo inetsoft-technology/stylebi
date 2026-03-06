@@ -142,6 +142,8 @@ import { UpdateZIndexesCommand } from "../command/update-zindexes-command";
 import { ComposerObjectService } from "../composer-object.service";
 import { NewViewsheetEvent } from "../event/new-viewsheet-event";
 import { AssemblyChangedCommand } from "../../../../vs-wizard/model/command/assembly-changed-command";
+import { AddVisualizationEvent } from "../../wiz/event/add-visualization-event";
+import { AddFilterEvent } from "../../wiz/event/add-filter-event";
 import { RefreshVsAssemblyEvent } from "../../../../vsobjects/event/refresh-vs-assembly-event";
 import { ResizeHandlerService } from "../../resize-handler.service";
 import { ComposerVsSearchService } from "../composer-vs-search.service";
@@ -1504,6 +1506,29 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
 
          const x = Math.max(0, vsevent.x);
          const y = Math.max(0, vsevent.y);
+
+         if(dragName === "dragVisualization") {
+            const vizEntry = data["dragVisualization"]?.[0];
+
+            if(vizEntry) {
+               const vizEvent = new AddVisualizationEvent(vizEntry, x, y, this.vs.scale);
+               this.viewsheetClient.sendEvent("/events/composer/wiz/addVisualization", vizEvent);
+            }
+
+            return;
+         }
+
+         if(dragName === "dragFilter") {
+            const filterEntry = data["dragFilter"]?.[0];
+
+            if(filterEntry) {
+               const filterEvent = new AddFilterEvent(filterEntry, x, y, this.vs.scale);
+               this.viewsheetClient.sendEvent("/events/composer/wiz/addFilter", filterEvent);
+            }
+
+            return;
+         }
+
          this.composerObjectService.addNewObject(this.vs, dragName, x, y,
             entry && entry.length > 0 ? entry[0] : null);
          return;

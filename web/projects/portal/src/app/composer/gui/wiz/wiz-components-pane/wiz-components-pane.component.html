@@ -16,16 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div class="wiz-components-pane">
-  <tree *ngIf="visualizations" [root]="visualizations" [showRoot]="true"
-        [initExpanded]="true">
-  </tree>
-  <tree *ngIf="filter" [root]="filter" [showRoot]="true"
-        [initExpanded]="true">
-  </tree>
-  <tree *ngIf="output" [root]="output" [showRoot]="true"
-        [initExpanded]="true">
-  </tree>
-  <tree *ngIf="shape" [root]="shape" [showRoot]="true"
-        [initExpanded]="true">
+  <tree *ngIf="root" [root]="root" [showRoot]="false" [draggable]="true" [contextmenu]="true" [hasMenuFunction]="hasMenuFunction()"
+        [initExpanded]="true" [nodeSelectable]="false" (onContextmenu)="openContextmenu($event)" (dblclickNode)="openVisualization($event)">
   </tree>
 </div>

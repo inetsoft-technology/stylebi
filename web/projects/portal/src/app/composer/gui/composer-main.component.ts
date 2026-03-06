@@ -1661,12 +1661,12 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       }
    }
 
-   openNewViewsheet(baseEntry: AssetEntry, gettingStarted?: boolean, wiz?: boolean): void {
+   openNewViewsheet(baseEntry: AssetEntry, gettingStarted?: boolean): void {
       if(baseEntry && baseEntry.folder && baseEntry.type === AssetType.FOLDER) {
          baseEntry = null;
       }
 
-      const vs: Viewsheet = wiz ? new WizDashboard(this.fontService) : new Viewsheet(this.fontService);
+      const vs: Viewsheet = this.showingWiz ? new WizDashboard(this.fontService) : new Viewsheet(this.fontService);
       vs.localId = sheetCounter++;
       vs.newSheet = true;
       vs.label = "";
@@ -3164,7 +3164,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    createNewWiz(): void {
-      this.openNewViewsheet(null, false, true);
+      this.openNewViewsheet(null, false);
 
    }
 
