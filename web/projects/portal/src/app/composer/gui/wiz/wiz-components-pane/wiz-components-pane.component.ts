@@ -173,8 +173,6 @@ export class WizComponentsPane implements OnInit, OnChanges {
             }
          ]
       };
-
-      this.buildRoot();
    }
 
    protected openVisualization(node: TreeNodeModel) {
