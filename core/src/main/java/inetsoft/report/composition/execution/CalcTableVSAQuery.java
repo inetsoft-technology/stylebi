@@ -153,8 +153,7 @@ public class CalcTableVSAQuery extends DataVSAQuery {
 
                try {
                   CrosstabVSAQuery cquery = new CrosstabVSAQuery(box, cname, false, false);
-                  TableLens ctlens = cquery.getTableLens(false);
-                  datas.add(ctlens);
+                  datas.add(cquery.getTableLens(false));
                }
                finally {
                   vs.removeAssembly(crosstabChild.getName(), false);
@@ -957,12 +956,12 @@ public class CalcTableVSAQuery extends DataVSAQuery {
                value = value + "." + dup;
             }
 
-            // Do not modify binding.getValue() here. getRuntimeCellName() produces the same
-            // result with the stored base column name (e.g., 'CalcField1') as it would with
-            // the full date range name (e.g., 'Year(CalcField1)'), since the date option is
-            // already encoded in the binding's OrderInfo. Mutating the binding would corrupt
-            // the stored value and cause script expressions to use the wrong column name.
+            // for cell value changed, the runtime cell name will be
+            // changed, so here make sure the name is same before and
+            // after cell value changed
+            binding.setValue(value);
             String cellname = layout.getRuntimeCellName(binding);
+            // binding.setCellName(cellname);
             names.add(cellname);
          }
 
