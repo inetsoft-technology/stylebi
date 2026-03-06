@@ -19,7 +19,7 @@
      AiAssistantDialogComponent always re-reads the current context, user email, and
      createNewChat flag from AiAssistantService. This ensures the AI assistant receives
      up-to-date binding/script context from whatever viewsheet or worksheet is active. -->
-<div *ngIf="panelOpen"
+<div *ngIf="panelOpen$ | async"
      class="ai-assistant-panel"
      [class.side-mode]="mode === 'side'"
      [class.bottom-mode]="mode === 'bottom'"

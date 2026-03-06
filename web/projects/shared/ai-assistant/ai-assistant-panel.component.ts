@@ -40,17 +40,15 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
    sideWidth: number = DEFAULT_SIDE_WIDTH;
    bottomHeight: number = DEFAULT_BOTTOM_HEIGHT;
 
+   readonly panelOpen$ = this.aiAssistantService.panelOpen$;
+
    private dragging = false;
    private dragStartPos = 0;
    private dragStartSize = 0;
    private unlisten: (() => void)[] = [];
 
-   get panelOpen(): boolean {
-      return this.aiAssistantService.panelOpen;
-   }
-
    constructor(
-      public aiAssistantService: AiAssistantService,
+      private aiAssistantService: AiAssistantService,
       private renderer: Renderer2,
       private zone: NgZone
    ) {}
@@ -114,8 +112,12 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
 
       if(sizeChanged) {
          try {
-            localStorage.setItem(LS_SIDE_WIDTH_KEY, String(this.sideWidth));
-            localStorage.setItem(LS_BOTTOM_HEIGHT_KEY, String(this.bottomHeight));
+            if(this.mode === "side") {
+               localStorage.setItem(LS_SIDE_WIDTH_KEY, String(this.sideWidth));
+            }
+            else {
+               localStorage.setItem(LS_BOTTOM_HEIGHT_KEY, String(this.bottomHeight));
+            }
          }
          catch { /* ignore */ }
       }
