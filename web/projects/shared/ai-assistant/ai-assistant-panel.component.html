@@ -32,11 +32,11 @@
       <button class="panel-action-btn"
               (click)="toggleMode()"
               [title]="mode === 'side' ? '_#(Move to bottom)' : '_#(Move to side)'">
-        <svg *ngIf="mode === 'side'" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+        <svg *ngIf="mode === 'side'" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
           <rect x="1" y="1" width="14" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
           <rect x="1" y="11" width="14" height="4" rx="1"/>
         </svg>
-        <svg *ngIf="mode === 'bottom'" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+        <svg *ngIf="mode === 'bottom'" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
           <rect x="1" y="1" width="9" height="14" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
           <rect x="11" y="1" width="4" height="14" rx="1"/>
         </svg>
