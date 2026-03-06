@@ -219,7 +219,7 @@ export class WizComponentsPane implements OnInit, OnChanges {
             action: () => this.wizService.onOpenVisualization()
          });
       }
-      else if(node?.data?.type === AssetType.VIEWSHEET && node?.data?.properties?.isWizVisualization == "true") {
+      else if(node?.data?.type === AssetType.VIEWSHEET && node?.data?.properties?.isWizVisualization === "true") {
          group.actions.push({
             id: () => "open-wiz-visualization",
             label: () => "_#(js:Open)",
