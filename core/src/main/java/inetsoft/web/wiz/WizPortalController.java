@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.wizportal;
+package inetsoft.web.wiz;
 
 import inetsoft.sree.SreeEnv;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,5 +29,5 @@ public class WizPortalController {
       return SreeEnv.getProperty(WIZ_SERVICE_URL);
    }
 
-   private static final String WIZ_SERVICE_URL = "wiz.service.url";
+   public static final String WIZ_SERVICE_URL = "wiz.service.url";
 }
