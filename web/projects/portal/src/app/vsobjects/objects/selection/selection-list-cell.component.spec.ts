@@ -497,6 +497,74 @@ describe("Selection List Cell Test", () => {
 
          expect((selectionListCell as any).touchTimeout).toBeNull();
       });
+
+      describe("hover delegation (onMouseEnter / onMouseLeave)", () => {
+         beforeEach(() => {
+            selectionListCell.contextProvider = viewerContext();
+            (vsSelectionComponent.setQuickSwitchHover as jest.Mock).mockClear();
+            (vsSelectionComponent.clearQuickSwitchHoverIfOwner as jest.Mock).mockClear();
+            (vsSelectionComponent.isQuickSwitchRetainTarget as jest.Mock).mockClear();
+         });
+
+         it("should hide overlay on enter when quickSwitchAllowed is false", () => {
+            vsSelectionComponent.model.quickSwitchAllowed = false;
+            selectionListCell.ngOnInit();
+
+            selectionListCell.onMouseEnter();
+
+            expect(vsSelectionComponent.setQuickSwitchHover).toHaveBeenCalledWith(null, false, null);
+         });
+
+         it("should show overlay with cell element and callback on enter when quickSwitchAllowed is true", () => {
+            vsSelectionComponent.model.quickSwitchAllowed = true;
+            selectionListCell.ngOnInit();
+            expect(selectionListCell.quickSwitchAllowed).toBe(true);
+
+            selectionListCell.onMouseEnter();
+
+            const [cellArg, singleArg, callbackArg] =
+               (vsSelectionComponent.setQuickSwitchHover as jest.Mock).mock.calls[0];
+            expect(cellArg).not.toBeNull();
+            expect(singleArg).toBe(selectionListCell.singleSelection);
+            expect(typeof callbackArg).toBe("function");
+         });
+
+         it("should invoke the quick-switch callback when the callback from onMouseEnter is called", () => {
+            vsSelectionComponent.model.quickSwitchAllowed = true;
+            selectionListCell.ngOnInit();
+            const emitSpy = jest.spyOn(selectionListCell.selectionStateChanged, "emit");
+
+            selectionListCell.onMouseEnter();
+
+            const callbackArg =
+               (vsSelectionComponent.setQuickSwitchHover as jest.Mock).mock.calls[0][2];
+            callbackArg();
+
+            expect(emitSpy).toHaveBeenCalledWith({ toggle: true, toggleAll: false });
+         });
+
+         it("should retain overlay on leave when relatedTarget is in the retain zone", () => {
+            vsSelectionComponent.isQuickSwitchRetainTarget.mockReturnValue(true);
+
+            selectionListCell.onMouseLeave(new MouseEvent("mouseleave"));
+
+            expect(vsSelectionComponent.setQuickSwitchHover).not.toHaveBeenCalled();
+         });
+
+         it("should hide overlay on leave when relatedTarget is outside the retain zone", () => {
+            vsSelectionComponent.isQuickSwitchRetainTarget.mockReturnValue(false);
+
+            selectionListCell.onMouseLeave(new MouseEvent("mouseleave"));
+
+            expect(vsSelectionComponent.setQuickSwitchHover).toHaveBeenCalledWith(null, false, null);
+         });
+
+         it("should clear overlay ownership on destroy", () => {
+            selectionListCell.ngOnDestroy();
+
+            expect(vsSelectionComponent.clearQuickSwitchHoverIfOwner).toHaveBeenCalled();
+         });
+      });
    });
 
    //Bug #18841 should apply border on selection tree

@@ -410,10 +410,6 @@ export class SelectionListCell implements OnInit, OnChanges, OnDestroy {
    }
 
    onMouseLeave(event: MouseEvent): void {
-      if(!this.quickSwitchAllowed) {
-         return;
-      }
-
       if(this.vsSelectionComponent.isQuickSwitchRetainTarget(event.relatedTarget as Node | null)) {
          return;
       }
