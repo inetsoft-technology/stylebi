@@ -201,11 +201,18 @@ public class AssistantWebSocketProxyHandler extends AbstractWebSocketHandler {
       }
 
       String path = uri.getPath();
-      int idx = path.indexOf(AIAssistantController.PROXY_PATH_PREFIX);
+      String prefix = AIAssistantController.PROXY_PATH_PREFIX;
+      int idx = path.indexOf(prefix);
 
-      if(idx >= 0) {
-         String rest = path.substring(idx + AIAssistantController.PROXY_PATH_PREFIX.length());
-         return rest.isEmpty() ? "/" : rest;
+      // Verify the match starts on a path-segment boundary (the char before the prefix is '/'
+      // or the prefix is at position 0) and is followed by '/' or end-of-string.
+      // This prevents a spurious match if the prefix string appears inside a path segment.
+      if(idx >= 0 && (idx == 0 || path.charAt(idx - 1) == '/')) {
+         String rest = path.substring(idx + prefix.length());
+
+         if(rest.isEmpty() || rest.startsWith("/")) {
+            return rest.isEmpty() ? "/" : rest;
+         }
       }
 
       return "/";

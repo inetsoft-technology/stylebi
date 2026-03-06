@@ -47,15 +47,19 @@ public class AISettingsService {
    public void setModel(PresentationAISettingsModel model) throws Exception {
       SreeEnv.setProperty(AIAssistantController.AI_ASSISTANT_VISIBLE, model.aiAssistantVisible() ? "true" : "false");
 
-      if(model.chatAppServerUrl() != null && !model.chatAppServerUrl().isEmpty()) {
-         SreeEnv.setProperty(AIAssistantController.CHAT_APP_SERVER_URL, model.chatAppServerUrl());
+      String chatAppServerUrl = model.chatAppServerUrl() != null ? model.chatAppServerUrl().trim() : "";
+
+      if(!chatAppServerUrl.isEmpty()) {
+         SreeEnv.setProperty(AIAssistantController.CHAT_APP_SERVER_URL, chatAppServerUrl);
       }
       else {
          SreeEnv.remove(AIAssistantController.CHAT_APP_SERVER_URL);
       }
 
-      if(model.chatAppInternalUrl() != null && !model.chatAppInternalUrl().isEmpty()) {
-         SreeEnv.setProperty(AIAssistantController.CHAT_APP_INTERNAL_URL, model.chatAppInternalUrl());
+      String chatAppInternalUrl = model.chatAppInternalUrl() != null ? model.chatAppInternalUrl().trim() : "";
+
+      if(!chatAppInternalUrl.isEmpty()) {
+         SreeEnv.setProperty(AIAssistantController.CHAT_APP_INTERNAL_URL, chatAppInternalUrl);
       }
       else {
          SreeEnv.remove(AIAssistantController.CHAT_APP_INTERNAL_URL);
