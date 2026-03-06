@@ -72,7 +72,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
     * @return the viewsheet engine.
     */
    public static ViewsheetService getViewsheetEngine() {
-      return SingletonManager.getInstance(ViewsheetService.class);
+      return ViewsheetService.getInstance();
    }
 
    /**

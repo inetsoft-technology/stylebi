@@ -17,6 +17,7 @@
  */
 package inetsoft.storage;
 
+import com.github.benmanes.caffeine.cache.*;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,13 +25,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.Serializable;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 /**
  * Manages the pool of {@link KeyValueStorage} instances keyed by store ID.
  * In a Spring context, constructor-injecting {@link KeyValueEngine} ensures the engine is
  * started before any storage is accessed. In non-Spring environments the no-arg constructor
  * is used by {@code SingletonManager}.
+ *
+ * <p>At most {@value #MAX_SIZE} stores are held open simultaneously. When the limit is
+ * reached the least-recently-used store is closed and evicted. This bounds memory use and
+ * prevents stale references to stores for organizations that have been removed.</p>
  */
 @Service
 public class KeyValueStorageManager implements AutoCloseable {
@@ -58,10 +63,8 @@ public class KeyValueStorageManager implements AutoCloseable {
     *
     * @return the storage instance.
     */
-   @SuppressWarnings("unchecked")
    public <T extends Serializable> KeyValueStorage<T> getInstance(String id) {
-      return (KeyValueStorage<T>) storages.computeIfAbsent(
-         id, storeId -> KeyValueStorage.newInstance(storeId));
+      return get(id, KeyValueStorage::newInstance);
    }
 
    /**
@@ -74,18 +77,16 @@ public class KeyValueStorageManager implements AutoCloseable {
     *
     * @return the storage instance.
     */
-   @SuppressWarnings("unchecked")
    public <T extends Serializable> KeyValueStorage<T> getInstance(
       String id, LoadKeyValueTask<T> task)
    {
-      return (KeyValueStorage<T>) storages.computeIfAbsent(
-         id, storeId -> KeyValueStorage.newInstance(storeId, task));
+      return get(id, storeId -> KeyValueStorage.newInstance(storeId, task));
    }
 
    @Override
    @PreDestroy
    public void close() {
-      storages.values().forEach(s -> {
+      storages.asMap().values().forEach(s -> {
          try {
             s.close();
          }
@@ -93,9 +94,44 @@ public class KeyValueStorageManager implements AutoCloseable {
             LOG.error("Failed to close KeyValueStorage", e);
          }
       });
-      storages.clear();
+      storages.invalidateAll();
    }
 
-   private final ConcurrentHashMap<String, KeyValueStorage<?>> storages = new ConcurrentHashMap<>();
+   /**
+    * Gets or creates the storage for the given ID, retrying if the cached instance has been
+    * closed externally (e.g., by {@code BlobStorage.close()}).
+    */
+   @SuppressWarnings("unchecked")
+   private <T extends Serializable> KeyValueStorage<T> get(
+      String id, Function<String, KeyValueStorage<?>> loader)
+   {
+      while(true) {
+         KeyValueStorage<T> storage = (KeyValueStorage<T>) storages.get(id, loader);
+
+         if(!storage.isClosed()) {
+            return storage;
+         }
+
+         // Storage was closed externally; evict it so the next iteration creates a fresh one.
+         storages.asMap().remove(id, storage);
+      }
+   }
+
+   private static final int MAX_SIZE = 50;
+
+   private final Cache<String, KeyValueStorage<?>> storages = Caffeine.newBuilder()
+      .maximumSize(MAX_SIZE)
+      .removalListener((String id, KeyValueStorage<?> storage, RemovalCause cause) -> {
+         if(storage != null && !storage.isClosed()) {
+            try {
+               storage.close();
+            }
+            catch(Exception e) {
+               LOG.error("Failed to close evicted KeyValueStorage '{}'", id, e);
+            }
+         }
+      })
+      .build();
+
    private static final Logger LOG = LoggerFactory.getLogger(KeyValueStorageManager.class);
 }

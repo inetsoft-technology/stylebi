@@ -18,6 +18,7 @@
 package inetsoft.uql;
 
 import inetsoft.uql.service.*;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.SingletonManager;
 
 import java.rmi.RemoteException;
@@ -35,14 +36,14 @@ public class XFactory {
     * Get a specific repository object.
     */
    public static synchronized XRepository getRepository() throws RemoteException {
-      return SingletonManager.getInstance(XRepository.class);
+      return ConfigurationContext.getContext().getSpringBean(XRepository.class);
    }
 
    /**
     * Get a specific runtime query engine object.
     */
    public static synchronized XDataService getDataService() throws RemoteException {
-      return SingletonManager.getInstance(XRepository.class);
+      return ConfigurationContext.getContext().getSpringBean(XRepository.class);
    }
 
    /**

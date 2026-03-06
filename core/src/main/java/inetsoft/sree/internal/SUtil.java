@@ -179,7 +179,7 @@ public class SUtil {
     * @return the repository.
     */
    public static AnalyticRepository getRepletRepository() {
-      return SingletonManager.getInstance(AnalyticRepository.class);
+      return ConfigurationContext.getContext().getSpringBean(AnalyticRepository.class);
    }
 
    /**

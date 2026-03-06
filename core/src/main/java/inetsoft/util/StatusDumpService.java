@@ -118,7 +118,7 @@ public class StatusDumpService {
    }
 
    private List<ViewsheetModel> getDashboards() {
-      ViewsheetService service = SingletonManager.getInstance(ViewsheetService.class);
+      ViewsheetService service = ViewsheetService.getInstance();
       return Arrays.stream(service.getRuntimeViewsheets(null))
          .filter(rvs -> rvs.getID() != null && !rvs.getID().isEmpty())
          .map(rvs -> createModel(rvs, service))

@@ -17,6 +17,7 @@
  */
 package inetsoft.storage;
 
+import com.github.benmanes.caffeine.cache.*;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,13 +25,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Manages the pool of {@link BlobStorage} instances keyed by store ID.
  * Constructor-injecting {@link BlobEngine} and {@link KeyValueStorageManager} ensures proper
  * startup ordering in a Spring context. In non-Spring environments the no-arg constructor is
  * used by {@code SingletonManager}.
+ *
+ * <p>At most {@value #MAX_SIZE} stores are held open simultaneously. When the limit is
+ * reached the least-recently-used store is closed and evicted. This bounds memory use and
+ * prevents stale references to stores for organizations that have been removed.</p>
  */
 @Service
 public class BlobStorageManager implements AutoCloseable {
@@ -45,8 +49,8 @@ public class BlobStorageManager implements AutoCloseable {
     * Spring constructor — ensures {@link BlobEngine} and {@link KeyValueStorageManager} are
     * initialized before this manager.
     *
-    * @param blobEngine          the blob engine (injected for startup-ordering).
-    * @param kvStorageManager    the key-value storage manager (injected for startup-ordering).
+    * @param blobEngine       the blob engine (injected for startup-ordering).
+    * @param kvStorageManager the key-value storage manager (injected for startup-ordering).
     */
    @Autowired
    public BlobStorageManager(BlobEngine blobEngine, KeyValueStorageManager kvStorageManager) {
@@ -61,7 +65,6 @@ public class BlobStorageManager implements AutoCloseable {
     *
     * @return the storage instance.
     */
-   @SuppressWarnings("unchecked")
    public <T extends Serializable> BlobStorage<T> getInstance(String storeId, boolean preload) {
       return getInstance(storeId, preload, null);
    }
@@ -81,29 +84,37 @@ public class BlobStorageManager implements AutoCloseable {
    public <T extends Serializable> BlobStorage<T> getInstance(
       String storeId, boolean preload, BlobStorage.Listener<T> listener)
    {
-      boolean[] created = { false };
-      BlobStorage<T> storage = (BlobStorage<T>) storages.computeIfAbsent(storeId, id -> {
-         created[0] = true;
+      while(true) {
+         boolean[] created = { false };
+         BlobStorage<T> storage = (BlobStorage<T>) storages.get(storeId, id -> {
+            created[0] = true;
 
-         try {
-            return BlobStorage.createBlobStorage(id, preload);
-         }
-         catch(IOException e) {
-            throw new UncheckedIOException(e);
-         }
-      });
+            try {
+               return BlobStorage.createBlobStorage(id, preload);
+            }
+            catch(IOException e) {
+               throw new UncheckedIOException(e);
+            }
+         });
 
-      if(created[0] && listener != null) {
-         storage.addListener(listener);
+         if(storage.isClosed()) {
+            // Storage was closed externally; evict it so the next iteration creates a fresh one.
+            storages.asMap().remove(storeId, storage);
+            continue;
+         }
+
+         if(created[0] && listener != null) {
+            storage.addListener(listener);
+         }
+
+         return storage;
       }
-
-      return storage;
    }
 
    @Override
    @PreDestroy
    public void close() {
-      storages.values().forEach(s -> {
+      storages.asMap().values().forEach(s -> {
          try {
             s.close();
          }
@@ -111,9 +122,24 @@ public class BlobStorageManager implements AutoCloseable {
             LOG.error("Failed to close BlobStorage", e);
          }
       });
-      storages.clear();
+      storages.invalidateAll();
    }
 
-   private final ConcurrentHashMap<String, BlobStorage<?>> storages = new ConcurrentHashMap<>();
+   private static final int MAX_SIZE = 50;
+
+   private final Cache<String, BlobStorage<?>> storages = Caffeine.newBuilder()
+      .maximumSize(MAX_SIZE)
+      .removalListener((String id, BlobStorage<?> storage, RemovalCause cause) -> {
+         if(storage != null && !storage.isClosed()) {
+            try {
+               storage.close();
+            }
+            catch(Exception e) {
+               LOG.error("Failed to close evicted BlobStorage '{}'", id, e);
+            }
+         }
+      })
+      .build();
+
    private static final Logger LOG = LoggerFactory.getLogger(BlobStorageManager.class);
 }

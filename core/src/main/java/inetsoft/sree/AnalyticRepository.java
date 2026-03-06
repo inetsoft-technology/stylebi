@@ -20,12 +20,11 @@ package inetsoft.sree;
 import inetsoft.sree.internal.AnalyticEngine;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.Scheduler;
-import inetsoft.uql.XQuery;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.XLogicalModel;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.SingletonManager;
 
-import java.io.Serializable;
 import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.concurrent.locks.Lock;
@@ -39,6 +38,16 @@ import java.util.concurrent.locks.Lock;
  */
 @SingletonManager.Singleton(AnalyticRepository.Reference.class)
 public interface AnalyticRepository extends RepletRepository {
+   /**
+    * Gets the shared instance of the analytic repository.
+    *
+    * @return the analytic repository.
+    */
+   static AnalyticRepository getInstance() {
+      return ConfigurationContext.getContext().getSpringBean(AnalyticRepository.class);
+   }
+
+
    /**
     * Get a data model with the specified name. The actual data model returned
     * may be a virtual private model that provides a view to the data model for

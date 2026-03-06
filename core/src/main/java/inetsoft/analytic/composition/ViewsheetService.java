@@ -23,6 +23,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.VSSnapshot;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.vslayout.AbstractLayout;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.SingletonManager;
 
 import java.io.Serializable;
@@ -40,6 +41,16 @@ import java.util.List;
  */
 @SingletonManager.Singleton(ViewsheetService.Reference.class)
 public interface ViewsheetService extends WorksheetService {
+   /**
+    * Gets the shared instance of the viewsheet service.
+    *
+    * @return the viewsheet service.
+    */
+   static ViewsheetService getInstance() {
+      return ConfigurationContext.getContext().getSpringBean(ViewsheetService.class);
+   }
+
+
    /**
     * Preview viewsheet.
     */

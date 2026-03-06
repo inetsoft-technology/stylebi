@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.datatype.guava.GuavaModule;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.web.adhoc.DecodeArgumentResolver;
 import inetsoft.web.factory.DecodePathVariableResolver;
 import inetsoft.web.factory.RemainingPathResolver;
@@ -81,6 +82,12 @@ public class WebConfig implements WebMvcConfigurer, ApplicationContextAware {
    @Override
    public void setApplicationContext(ApplicationContext applicationContext) {
       this.applicationContext = applicationContext;
+      // Set early — before any @Service beans are initialized — so that
+      // KeyValueTask.getEngine() can resolve the Spring-managed KeyValueEngine
+      // singleton instead of falling back to SingletonManager and creating a
+      // second MapDBKeyValueEngine instance that would conflict with the Spring
+      // bean's file locks.
+      ConfigurationContext.getContext().setApplicationContext(applicationContext);
    }
 
    @Override

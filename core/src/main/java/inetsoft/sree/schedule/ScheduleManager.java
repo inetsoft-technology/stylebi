@@ -27,9 +27,13 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.web.RecycleUtils;
+import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.rmi.RemoteException;
@@ -48,13 +52,15 @@ import java.util.stream.Collectors;
  * @version 7.0
  * @author InetSoft Technology Corp
  */
+@Service
+@Lazy
 @SingletonManager.Singleton(ScheduleManager.Reference.class)
 public class ScheduleManager {
    /**
     * Get the schedule manager.
     */
    public static ScheduleManager getScheduleManager() {
-      return SingletonManager.getInstance(ScheduleManager.class);
+      return ConfigurationContext.getContext().getSpringBean(ScheduleManager.class);
    }
 
    public static boolean isInternalTask(String taskName) {
@@ -100,10 +106,28 @@ public class ScheduleManager {
    }
 
    /**
-    * Create a schedule manager.
+    * Spring-injected constructor — enforces SecurityEngine startup ordering.
+    */
+   @Autowired
+   public ScheduleManager(SecurityEngine securityEngine) {
+      this();
+   }
+
+   /**
+    * Create a schedule manager. No-arg fallback for SingletonManager in non-Spring environments.
     */
    public ScheduleManager() {
       initMap();
+   }
+
+   @PostConstruct
+   public void initInternalTasks() {
+      try {
+         new InternalScheduledTaskService(this).initInternalTasks();
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to initialize internal schedule tasks", ex);
+      }
    }
 
    /**

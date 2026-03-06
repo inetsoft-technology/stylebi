@@ -1376,8 +1376,11 @@ public class DataCycleManager
    {
       @Override
       public DataCycleManager get(Object... parameters) {
-         // prevent deadlock caused by scheduler manager and replet engine initialization
-         SingletonManager.getInstance(ScheduleManager.class);
+         // Ensure ScheduleManager is fully initialized before acquiring INIT_LOCK.
+         // In Spring environments this waits for the Spring bean; in non-Spring environments
+         // it falls back to SingletonManager. Either way the lock below will not re-enter
+         // ScheduleManager initialization, preventing a deadlock with Scheduler.loadTasks().
+         ScheduleManager.getScheduleManager();
 
          if(manager == null) {
             Lock lock = Cluster.getInstance().getLock(Scheduler.INIT_LOCK);
