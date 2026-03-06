@@ -27,10 +27,6 @@
     height: 100%;
     margin-left: 2px;
 
-    &:hover .switch-mode-btn{
-      display: flex;
-    }
-
     .label-container {
       display: table-cell;
       height: auto;
@@ -65,6 +61,8 @@
           .selection-value {
             display: flex;
             align-items: center;
+            min-width: 0;
+            overflow: hidden;
           }
         }
       }
@@ -150,16 +148,4 @@
   vertical-align: middle;
   text-align: center;
   padding: 2px;
-}
-
-.switch-mode-btn {
-  display: none;
-  margin-left: auto;
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  font: inherit;
-  font-weight: bold;
-  color: inherit;
 }

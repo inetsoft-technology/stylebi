@@ -62,6 +62,7 @@ export class AiAssistantService {
    readonly panelOpen$ = this._panelOpen$.asObservable();
    get panelOpen(): boolean { return this._panelOpen$.value; }
    set panelOpen(v: boolean) { this._panelOpen$.next(v); }
+   aiAssistantVisible: boolean = false;
    userId: string = "";
    email: string = "";
    calcTableCellBindings: { [key: string]: CellBindingInfo } = {};
@@ -78,6 +79,7 @@ export class AiAssistantService {
       this.http.get("../api/assistant/get-stylebi-url").subscribe((url: string) => {
          this.styleBIUrl = url || "";
       });
+
    }
 
    set lastBindingObject(value: string) {

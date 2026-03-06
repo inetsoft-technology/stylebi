@@ -26,7 +26,9 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.data.CommonKVModel;
+import inetsoft.web.admin.presentation.AISettingsService;
 import inetsoft.web.admin.security.SSOType;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
@@ -34,6 +36,11 @@ import java.security.Principal;
 
 @RestController
 public class EmNavBarController {
+   @Autowired
+   public EmNavBarController(AISettingsService aiSettingsService) {
+      this.aiSettingsService = aiSettingsService;
+   }
+
    @GetMapping("/api/em/navbar/get-navbar-model")
    public EmNavBarModel getNavBarModel(Principal principal) throws Exception {
       String logoutUri = SreeEnv.getProperty("sso.logout.url");
@@ -74,10 +81,14 @@ public class EmNavBarController {
       }
 
       String homeLink = SreeEnv.getProperty("em.home.link", "..");
+      boolean aiAssistantVisible = aiSettingsService.isAiAssistantVisible() &&
+         SecurityEngine.getSecurity().checkPermission(
+            principal, ResourceType.AI_ASSISTANT, "*", ResourceAction.ACCESS);
 
       return new EmNavBarModel(logoutUri,
                                manager.hasCustomLogo(OrganizationManager.getInstance().getCurrentOrgID()),
-                               enterprise, ssoUser, elasticLicenseExhausted, homeLink);
+                               enterprise, ssoUser, elasticLicenseExhausted, homeLink,
+                               aiAssistantVisible);
    }
 
    @GetMapping("/api/em/navbar/organization")
@@ -97,7 +108,6 @@ public class EmNavBarController {
 
    @GetMapping("/api/em/navbar/isSiteAdmin")
    public boolean isSiteAdmin(Principal principal) {
-      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       return OrganizationManager.getInstance().isSiteAdmin(principal);
    }
 
@@ -107,5 +117,6 @@ public class EmNavBarController {
       return new CommonKVModel(manager.getCurrentOrgID(), manager.isSiteAdmin(principal));
    }
 
-   private static String DEFAULT_LOGOUT_URI = "../logout?fromEm=true";
+   private final AISettingsService aiSettingsService;
+   private static final String DEFAULT_LOGOUT_URI = "../logout?fromEm=true";
 }

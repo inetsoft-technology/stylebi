@@ -31,8 +31,8 @@ export class AiAssistantDialogService {
    constructor(private aiAssistantService: AiAssistantService) {
    }
 
-   get isEnabled(): boolean {
-      return !!this.aiAssistantService.chatAppServerUrl;
+   get aiAssistantVisible(): boolean {
+      return this.aiAssistantService.aiAssistantVisible && !!this.aiAssistantService.chatAppServerUrl;
    }
 
    openAiAssistantDialog(): void {

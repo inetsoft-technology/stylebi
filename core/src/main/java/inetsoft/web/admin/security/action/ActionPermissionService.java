@@ -196,6 +196,15 @@ public class ActionPermissionService {
               .build());
 
       root.addFilteredChildren(ActionTreeNode.builder()
+                          .label(catalog.getString("AI Assistant"))
+                          .resource("*")
+                          .folder(false)
+                          .type(ResourceType.AI_ASSISTANT)
+                          .grant(true)
+                          .actions(EnumSet.of(ResourceAction.ACCESS))
+                          .build());
+
+      root.addFilteredChildren(ActionTreeNode.builder()
                           .label(catalog.getString("Cross Join"))
                           .resource("*")
                           .folder(false)
@@ -804,7 +813,7 @@ public class ActionPermissionService {
 
    public static final Map<String, String[]> orgAdminExclusionFragments = Map.of(
       "settings/presentation/settings",
-               new String[]{"look-and-feel", "font-mapping", "welcome-page", "login-banner"}
+               new String[]{"look-and-feel", "font-mapping", "welcome-page", "login-banner", "ai-integration"}
       );
 
    private final ComponentAuthorizationService componentService;

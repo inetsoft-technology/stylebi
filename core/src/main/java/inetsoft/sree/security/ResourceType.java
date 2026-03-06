@@ -43,6 +43,7 @@ public enum ResourceType {
          return new Resource(ASSET, "/");
       }
    },
+   AI_ASSISTANT(false),
    CHART_TYPE(true) {
       @Override
       public Resource getParent(String path) {

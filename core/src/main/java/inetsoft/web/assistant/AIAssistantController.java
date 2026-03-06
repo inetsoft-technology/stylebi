@@ -51,4 +51,5 @@ public class AIAssistantController {
    }
 
    public static final String CHAT_APP_SERVER_URL = "chat.app.server.url";
+   public static final String AI_ASSISTANT_VISIBLE = "portal.ai.assistant.visible";
 }
