@@ -17,6 +17,7 @@
  */
 import { HttpClient } from "@angular/common/http";
 import {
+   AfterViewInit,
    ChangeDetectionStrategy,
    ChangeDetectorRef,
    Component,
@@ -96,7 +97,7 @@ export enum FocusRegions {
    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
-   implements OnInit, OnDestroy
+   implements OnInit, OnDestroy, AfterViewInit
 {
    @Output() onTitleResizeMove = new EventEmitter<number>();
    @Output() onTitleResizeEnd = new EventEmitter<void>();
@@ -136,6 +137,8 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    @ViewChild("clearSearch") clearSearch: ElementRef;
    @ViewChild("dropdownToggleRef", { read: ElementRef }) dropdownToggleRef: ElementRef;
    @ViewChild("cellContent") cellContent: ElementRef;
+   @ViewChild("quickSwitchOverlay") quickSwitchOverlay: ElementRef<HTMLButtonElement>;
+
    _controller: SelectionBaseController<any>;
    listSelectedString: string = null;
    resizeColumns: Array<number> = [];
@@ -196,6 +199,14 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    public static LIST_INDENT: number = 4;
    public static TREE_INDENT: number = 16;
 
+   private _quickSwitchClickCallback: (() => void) | null = null;
+   private _overlayMouseLeaveUnlisten: (() => void) | null = null;
+   private _overlayWheelUnlisten: (() => void) | null = null;
+   private _scrollbarMouseLeaveUnlisten: (() => void) | null = null;
+   private _currentHoverElement: Element | null = null;
+   private _currentSingleSelection: boolean = false;
+   private _columnShiftCleanup: (() => void) | null = null;
+
    get topPosition(): number {
       if((this.viewer || this.embeddedVS) && !this.model.maxMode && !this.inContainer) {
          if(this.atBottom && this.model.dropdown &&
@@ -245,7 +256,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
                private adhocFilterService: AdhocFilterService,
                private elementRef: ElementRef,
                protected changeDetectorRef: ChangeDetectorRef,
-               zone: NgZone,
+               private zone: NgZone,
                private scaleService: ScaleService,
                protected context: ContextProvider,
                protected dataTipService: DataTipService,
@@ -595,6 +606,28 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       }
    }
 
+   ngAfterViewInit(): void {
+      this.zone.runOutsideAngular(() => {
+         const btn = this.quickSwitchOverlay.nativeElement;
+
+         this._overlayMouseLeaveUnlisten = this.renderer.listen(
+            btn, "mouseleave", (event: MouseEvent) => {
+               if(!this.isQuickSwitchRetainTarget(event.relatedTarget as Node | null)) {
+                  this._hideOverlay();
+               }
+            }
+         );
+
+         // The button (z-index 200, pointer-events: auto) sits above scrollBody and consumes
+         // wheel events before they reach the (wheel) binding on scrollBody.
+         this._overlayWheelUnlisten = this.renderer.listen(
+            btn, "wheel", (event: WheelEvent) => {
+               this.wheelScrollHandler(event);
+            }
+         );
+      });
+   }
+
    ngOnInit() {
       if(!!this.globalSubmitService) {
          this.subscriptions.add(this.globalSubmitService.globalSubmit()
@@ -630,9 +663,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
          this.actionSubscription = null;
       }
 
-      if(this.adhocFilterListener) {
-         this.adhocFilterListener();
-      }
+      this.adhocFilterListener?.();
 
       if(this.subscriptions) {
          this.subscriptions.unsubscribe();
@@ -644,7 +675,241 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
          this.unApplySubscription = null;
       }
 
+      this._overlayMouseLeaveUnlisten?.();
+      this._overlayMouseLeaveUnlisten = null;
+      this._overlayWheelUnlisten?.();
+      this._overlayWheelUnlisten = null;
+      this._scrollbarMouseLeaveUnlisten?.();
+      this._scrollbarMouseLeaveUnlisten = null;
+      this._columnShiftCleanup?.();
+
       super.ngOnDestroy();
+   }
+
+   public setQuickSwitchHover(
+      cellElement: Element | null,
+      singleSelection: boolean,
+      clickCallback: (() => void) | null
+   ): void {
+      this.zone.runOutsideAngular(() => {
+         if(!cellElement) {
+            this._hideOverlay();
+            return;
+         }
+
+         const btn = this.quickSwitchOverlay?.nativeElement;
+
+         if(!btn) {
+            return;
+         }
+
+         this._quickSwitchClickCallback = clickCallback;
+         this._currentHoverElement = cellElement;
+         this._currentSingleSelection = singleSelection;
+
+         btn.textContent = singleSelection ? "_#(js:multi.switch)" : "_#(js:single.switch)";
+         this.renderer.setAttribute(btn, "title",
+            singleSelection ? "_#(js:multi.switchTip)" : "_#(js:single.switchTip)");
+
+         // Render button at natural width so offsetWidth can be measured.
+         this.renderer.setStyle(btn, "display", "flex");
+
+         const listEl = (this.elementRef.nativeElement as Element)
+            .querySelector(".selection-list");
+
+         if(!listEl) {
+            this._columnShiftCleanup?.();
+            return;
+         }
+
+         // Reset before measuring — re-entry from the overlay button leaves the list expanded
+         // and columns shifted, so without this reset the measurement would be wrong.
+         this.renderer.removeStyle(listEl, "width");
+         this._columnShiftCleanup?.();
+
+         const listRect = listEl.getBoundingClientRect();
+         const cellRect = cellElement.getBoundingClientRect();
+         const btnWidth = btn.offsetWidth;
+         // getBoundingClientRect() returns viewport px; offsetWidth returns CSS layout px.
+         // Divide by scale to convert viewport px → CSS px when setting inline styles.
+         const scale = this.scale || 1;
+
+         // Determine which column index is being hovered so adjacent columns can be shifted.
+         const colEl = cellElement.closest(".selection-list-cell-column") as HTMLElement | null;
+         const rowEl = colEl?.parentElement as HTMLElement | null;
+         const colIndex = (rowEl && colEl) ? Array.from(rowEl.children).indexOf(colEl) : -1;
+         const numColumnsInRow = rowEl ? rowEl.children.length : 1;
+         const isLastColumn = colIndex < 0 || colIndex >= numColumnsInRow - 1;
+
+         if(!isLastColumn) {
+            this._positionOverlayNonLastColumn(btn, listEl, listRect, cellRect, btnWidth, colIndex, scale);
+         } else {
+            this._positionOverlayLastColumn(btn, listEl, listRect, cellRect, cellElement, btnWidth, scale);
+         }
+
+         this.renderer.setStyle(btn, "top", (cellRect.top - listRect.top) / scale + "px");
+         this.renderer.setStyle(btn, "height", cellRect.height / scale + "px");
+
+         // Hide the overlay when the mouse leaves the scrollbar to outside the list.
+         this._scrollbarMouseLeaveUnlisten?.();
+         const scrollbarEl = this.verticalScrollWrapper?.nativeElement;
+
+         if(scrollbarEl) {
+            this._scrollbarMouseLeaveUnlisten = this.renderer.listen(
+               scrollbarEl, "mouseleave", (ev: MouseEvent) => {
+                  if(!this.isQuickSwitchRetainTarget(ev.relatedTarget as Node | null)) {
+                     this._hideOverlay();
+                  }
+               }
+            );
+         }
+      });
+   }
+
+   private _hideOverlay(): void {
+      const btn = this.quickSwitchOverlay?.nativeElement;
+
+      if(!btn) {
+         return;
+      }
+
+      this.renderer.removeStyle(btn, "display");
+      this.renderer.removeStyle(btn, "top");
+      this.renderer.removeStyle(btn, "height");
+      this.renderer.removeStyle(btn, "left");
+      this.renderer.removeStyle(btn, "right");
+      const listEl = (this.elementRef.nativeElement as Element).querySelector(".selection-list");
+
+      if(listEl) {
+         this.renderer.removeStyle(listEl, "width");
+      }
+
+      this._columnShiftCleanup?.();
+      this._quickSwitchClickCallback = null;
+      this._currentHoverElement = null;
+      this._currentSingleSelection = false;
+      this._scrollbarMouseLeaveUnlisten?.();
+      this._scrollbarMouseLeaveUnlisten = null;
+   }
+
+   // Body and row widths must be expanded so overflow-x:hidden does not clip the
+   // shifted column, and flex does not shrink items when margin-left is added.
+   private _positionOverlayNonLastColumn(
+      btn: HTMLElement,
+      listEl: Element,
+      listRect: DOMRect,
+      cellRect: DOMRect,
+      btnWidth: number,
+      colIndex: number,
+      scale: number
+   ): void {
+      const bodyEl = listEl.querySelector<HTMLElement>(".selection-list-body");
+      const bodyWidthCss = (bodyEl?.getBoundingClientRect().width ?? listRect.width) / scale;
+      const expandedBodyWidthCss = bodyWidthCss + btnWidth;
+
+      const cellRight = (cellRect.right - listRect.left) / scale;
+      this.renderer.setStyle(btn, "left", cellRight + "px");
+      this.renderer.setStyle(btn, "right", "auto");
+      this.renderer.setStyle(listEl, "width", (listRect.width / scale + btnWidth) + "px");
+
+      if(bodyEl) {
+         this.renderer.setStyle(bodyEl, "width", expandedBodyWidthCss + "px");
+      }
+
+      const shiftedCols: HTMLElement[] = [];
+      const expandedRows: HTMLElement[] = [];
+      const allRows = listEl.querySelectorAll<HTMLElement>(
+         ".selection-list-cell-row:not(.others-container)"
+      );
+      allRows.forEach(row => {
+         this.renderer.setStyle(row, "width", expandedBodyWidthCss + "px");
+         expandedRows.push(row);
+         const nextCol = row.children[colIndex + 1] as HTMLElement | undefined;
+
+         if(nextCol) {
+            this.renderer.setStyle(nextCol, "margin-left", btnWidth + "px");
+            shiftedCols.push(nextCol);
+         }
+      });
+
+      this._columnShiftCleanup = () => {
+         // Restore rather than removeStyle: removeStyle erases Angular's binding before the
+         // next CD cycle, causing the next hover measurement to see a collapsed DOM.
+         if(bodyEl) {
+            this.renderer.setStyle(bodyEl, "width", bodyWidthCss + "px");
+         }
+
+         expandedRows.forEach(row => this.renderer.setStyle(row, "width", bodyWidthCss + "px"));
+         shiftedCols.forEach(col => this.renderer.removeStyle(col, "margin-left"));
+         this._columnShiftCleanup = null;
+      };
+   }
+
+   // Last (or only) column: anchor to the right edge with optional list expansion
+   // so the button doesn't overlap the rendered text.
+   private _positionOverlayLastColumn(
+      btn: HTMLElement,
+      listEl: Element,
+      listRect: DOMRect,
+      cellRect: DOMRect,
+      cellElement: Element,
+      btnWidth: number,
+      scale: number
+   ): void {
+      this.renderer.removeStyle(btn, "left");
+      // listRect/cellRect are viewport px; divide by scale to get CSS px for right offset.
+      const dynamicRight = Math.max(0, Math.round((listRect.right - cellRect.right) / scale));
+      this.renderer.setStyle(btn, "right", dynamicRight + "px");
+
+      // Use .selection-value (the text wrapper, flex: 0 1 auto), not .selection-list-cell-label
+      // (a fixed-width container whose right edge always fills the cell regardless of text length).
+      const valueEl = cellElement.querySelector(".selection-value") as HTMLElement | null;
+
+      if(valueEl) {
+         // textRight is viewport px; convert btnWidth to viewport px for the comparison,
+         // then convert the result to CSS px when setting the inline style.
+         const textRight = valueEl.getBoundingClientRect().right - listRect.left;
+         const neededViewportWidth = textRight + btnWidth * scale;
+
+         if(neededViewportWidth > listRect.width) {
+            this.renderer.setStyle(listEl, "width", neededViewportWidth / scale + "px");
+         }
+      } else {
+         this.renderer.setStyle(listEl, "width", (listRect.width / scale + btnWidth) + "px");
+      }
+   }
+
+   public clearQuickSwitchHoverIfOwner(cellElement: Element | null): void {
+      if(cellElement && cellElement === this._currentHoverElement) {
+         this._hideOverlay();
+      }
+   }
+
+   // Returns true when a mouseleave relatedTarget should keep the overlay visible
+   // (moved to the overlay button, a list cell, or the scrollbar).
+   public isQuickSwitchRetainTarget(node: Node | null): boolean {
+      if(!node) {
+         return false;
+      }
+
+      return (this.quickSwitchOverlay?.nativeElement?.contains(node) ?? false)
+          || (this.scrollBody?.nativeElement?.contains(node) ?? false)
+          || (this.verticalScrollWrapper?.nativeElement?.contains(node) ?? false);
+   }
+
+   public onQuickSwitchClick(event: MouseEvent): void {
+      event.stopPropagation();
+
+      if(this._quickSwitchClickCallback) {
+         this._quickSwitchClickCallback();
+         // Refresh the button optimistically with the toggled state. model.singleSelection is
+         // only updated after the server responds, so we cannot read it here.
+         if(this._currentHoverElement) {
+            this.setQuickSwitchHover(
+               this._currentHoverElement, !this._currentSingleSelection, this._quickSwitchClickCallback
+            );
+         }
+      }
    }
 
    // Get the hidden state if the selection is being displayed as a dropdown
@@ -1932,10 +2197,18 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
     *              that's not listed in the typescript definition
     */
    public verticalScrollHandler(event: number) {
+      if(this._currentHoverElement) {
+         this._hideOverlay();
+      }
+
       this.scrollBody.nativeElement.scrollTop = this.verticalScrollWrapper.nativeElement.scrollTop;
    }
 
    public touchVScroll(delta: number) {
+      if(this._currentHoverElement) {
+         this._hideOverlay();
+      }
+
       this.scrollBody.nativeElement.scrollTop = Math.max(0, this.scrollBody.nativeElement.scrollTop - delta);
 
       if(!!this.verticalScrollWrapper && !!this.verticalScrollWrapper.nativeElement) {
@@ -1948,6 +2221,10 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
     * @param event
     */
    public wheelScrollHandler(event: any): void {
+      if(this._currentHoverElement) {
+         this._hideOverlay();
+      }
+
       if(!!this.verticalScrollWrapper && !!this.verticalScrollWrapper.nativeElement) {
          this.verticalScrollWrapper.nativeElement.scrollTop += event.deltaY;
       }

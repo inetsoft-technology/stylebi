@@ -261,6 +261,11 @@
              [style.left.px]="resizeCellWidth / 2 - 20">{{resizeCellHeight}}</div>
       </div>
     </div>
+    <button #quickSwitchOverlay
+            type="button"
+            class="quick-switch-overlay-btn"
+            (click)="onQuickSwitchClick($event)">
+    </button>
   </div>
 
   <ng-template [ngIf]="resizeColumns.length > 0" ngFor let-column [ngForOf]="resizeColumns">
