@@ -140,6 +140,7 @@ export class PortalAppComponent implements OnInit, OnDestroy {
          .subscribe((model) => {
             this.model = model;
             this.portalModelService.model = model;
+            this.aiAssistantService.aiAssistantVisible = model.aiAssistantVisible;
             this.updateAccessibility();
             this.checkDefaultTab();
 

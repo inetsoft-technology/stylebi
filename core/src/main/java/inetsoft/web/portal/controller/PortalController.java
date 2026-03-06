@@ -35,6 +35,7 @@ import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.web.admin.pageheader.EmPageHeaderModel;
+import inetsoft.web.admin.presentation.AISettingsService;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.portal.GlobalParameterProvider;
 import inetsoft.web.portal.model.*;
@@ -67,10 +68,12 @@ import java.util.stream.Collectors;
 public class PortalController {
    @Autowired
    public PortalController(SecurityEngine securityEngine,
-                           AnalyticRepository analyticRepository)
+                           AnalyticRepository analyticRepository,
+                           AISettingsService aiSettingsService)
    {
       this.securityEngine = securityEngine;
       this.analyticRepository = analyticRepository;
+      this.aiSettingsService = aiSettingsService;
    }
 
    @GetMapping("/api/portal/get-portal-model")
@@ -115,10 +118,13 @@ public class PortalController {
       }
 
       PortalCreationPermisisons creationModel = refreshPortalCreationPermissions(principal);
+      boolean aiAssistantVisible = aiSettingsService.isAiAssistantVisible() &&
+         securityEngine.checkPermission(principal, ResourceType.AI_ASSISTANT, "*", ResourceAction.ACCESS);
 
       return PortalModel.builder()
          .currentUser(getCurrentUser(principal))
          .helpVisible(manager.isButtonVisible(PortalThemesManager.HELP_BUTTON))
+         .aiAssistantVisible(aiAssistantVisible)
          .preferencesVisible(manager.isButtonVisible(PortalThemesManager.PREFERENCES_BUTTON))
          .logoutVisible(manager.isButtonVisible(PortalThemesManager.LOGOUT_BUTTON))
          .homeLink(homeLink)
@@ -335,5 +341,6 @@ public class PortalController {
 
    private final SecurityEngine securityEngine;
    private final AnalyticRepository analyticRepository;
+   private final AISettingsService aiSettingsService;
    private static final Logger LOG = LoggerFactory.getLogger(PortalController.class);
 }

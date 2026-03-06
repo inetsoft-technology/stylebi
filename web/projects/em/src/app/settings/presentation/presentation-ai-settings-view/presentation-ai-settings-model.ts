@@ -15,10 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.admin.navbar;
-
-import java.util.List;
-
-public record EmNavBarModel(String logoutUrl, boolean customLogo, boolean enterprise, boolean ssoUser, boolean elasticLicenseExhausted, String homeLink, boolean aiAssistantVisible)
-{
+export interface PresentationAISettingsModel {
+   aiAssistantVisible: boolean;
+   chatAppServerUrl?: string;
 }

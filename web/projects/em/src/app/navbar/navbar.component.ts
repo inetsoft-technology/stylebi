@@ -141,12 +141,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
       ["export-menu", "_#(js:Export Menu)"],
       ["dashboard-settings", "_#(js:Dashboard Settings)"],
       ["viewsheet-toolbar", "_#(js:Viewsheet Toolbar)"],
-      ["sharing", "_#(js:Social Sharing)"]
+      ["sharing", "_#(js:Social Sharing)"],
+      ["ai-integration", "_#(js:AI Integration)"]
    ]);
-
-   get aiAssistantEnabled(): boolean {
-      return !!this.aiAssistantService.chatAppServerUrl;
-   }
 
    constructor(private favoritesService: FavoritesService,
                private helpService: HelpService,
@@ -190,6 +187,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
       this.http.get("../api/em/navbar/get-navbar-model").subscribe((result: EmNavbarModel) => {
          this.model = result;
          this.logoutService.setLogoutUrl(this.model.logoutUrl);
+         this.aiAssistantService.aiAssistantVisible = result.aiAssistantVisible;
       });
 
       this.logoutService.inGracePeriod

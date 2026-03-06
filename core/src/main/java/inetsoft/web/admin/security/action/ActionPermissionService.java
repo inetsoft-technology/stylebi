@@ -196,6 +196,15 @@ public class ActionPermissionService {
               .build());
 
       root.addFilteredChildren(ActionTreeNode.builder()
+                          .label(catalog.getString("AI Assistant"))
+                          .resource("*")
+                          .folder(false)
+                          .type(ResourceType.AI_ASSISTANT)
+                          .grant(true)
+                          .actions(EnumSet.of(ResourceAction.ACCESS))
+                          .build());
+
+      root.addFilteredChildren(ActionTreeNode.builder()
                           .label(catalog.getString("Cross Join"))
                           .resource("*")
                           .folder(false)

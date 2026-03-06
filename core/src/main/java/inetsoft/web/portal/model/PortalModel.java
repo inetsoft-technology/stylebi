@@ -27,6 +27,7 @@ import org.immutables.value.Value;
 public abstract class PortalModel {
    public abstract CurrentUserModel currentUser();
    public abstract boolean helpVisible();
+   public abstract boolean aiAssistantVisible();
    public abstract boolean preferencesVisible();
    public abstract boolean logoutVisible();
    public abstract boolean homeVisible();
