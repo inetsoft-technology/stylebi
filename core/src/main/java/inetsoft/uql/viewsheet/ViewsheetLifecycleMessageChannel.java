@@ -17,12 +17,19 @@
  */
 package inetsoft.uql.viewsheet;
 
+import inetsoft.util.ConfigurationContext;
+
 import java.util.*;
 
 /**
  * Message channel for viewsheet lifecycle events
  */
 public class ViewsheetLifecycleMessageChannel {
+   public static ViewsheetLifecycleMessageChannel getInstance() {
+      return ConfigurationContext.getContext()
+         .getSpringBean(ViewsheetLifecycleMessageChannel.class);
+   }
+
    public ViewsheetLifecycleMessageChannel() {
       listeners = new ArrayList<>();
    }

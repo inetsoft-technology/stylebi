@@ -1205,7 +1205,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
     * Get the worksheet service.
     */
    public static WorksheetService getWorksheetService() {
-      return SingletonManager.getInstance(WorksheetService.class);
+      return ConfigurationContext.getContext().getSpringBean(WorksheetService.class);
    }
 
    /**

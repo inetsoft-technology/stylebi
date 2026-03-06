@@ -17,12 +17,17 @@
  */
 package inetsoft.analytic.composition;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.SingletonManager;
 
 import java.security.Principal;
 
 @SingletonManager.Singleton(SheetLibraryService.Reference.class)
 public interface SheetLibraryService {
+   static SheetLibraryService getInstance() {
+      return ConfigurationContext.getContext().getSpringBean(SheetLibraryService.class);
+   }
+
    AssetEntry getTemporaryAssetEntry(Principal user, AssetEntry.Type type);
 
    final class Reference extends SingletonManager.Reference<SheetLibraryService> {

@@ -715,6 +715,13 @@ public class ScheduleClient {
     * @return a singleton of this class
     */
    public static ScheduleClient getScheduleClient() {
+      ScheduleClient springBean =
+         ConfigurationContext.getContext().getSpringBean(ScheduleClient.class);
+
+      if(springBean != null) {
+         return springBean;
+      }
+
       if(client == null) {
          if(InetsoftConfig.getInstance().getCloudRunner() == null) {
             client = new ScheduleClient();

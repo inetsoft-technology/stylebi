@@ -19,6 +19,7 @@ package inetsoft.analytic;
 
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.internal.*;
+import inetsoft.util.ConfigurationContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +41,10 @@ public class AnalyticAssistant extends SreeAssistant {
     * Get singleton analytic assistant.
     */
    public static AnalyticAssistant getAnalyticAssistant() {
+      if(ConfigurationContext.getContext().getApplicationContext() != null) {
+         return ConfigurationContext.getContext().getSpringBean(AnalyticAssistant.class);
+      }
+
       if(analyticAssistant == null) {
          analyticAssistant = new AnalyticAssistant();
       }

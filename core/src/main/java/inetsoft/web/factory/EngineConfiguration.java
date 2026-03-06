@@ -17,14 +17,22 @@
  */
 package inetsoft.web.factory;
 
+import inetsoft.analytic.AnalyticAssistant;
+import inetsoft.analytic.composition.SheetLibraryEngine;
+import inetsoft.analytic.composition.SheetLibraryService;
 import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.WorksheetEngine;
+import inetsoft.report.composition.WorksheetService;
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.internal.AnalyticEngine;
+import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.service.XEngine;
+import inetsoft.uql.viewsheet.ViewsheetLifecycleMessageChannel;
+import inetsoft.web.cluster.ServerClusterClient;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.context.annotation.*;
 
@@ -35,6 +43,15 @@ import java.rmi.RemoteException;
  */
 @Configuration
 public class EngineConfiguration {
+
+   /**
+    * Analytic assistant — front-end to the analytic repository for non-distributed callers.
+    */
+   @Bean
+   @Lazy
+   public AnalyticAssistant analyticAssistant(@Lazy AnalyticRepository analyticRepository) {
+      return new AnalyticAssistant(analyticRepository);
+   }
 
    /**
     * The central asset repository. Backed by AnalyticEngine → RepletEngine.
@@ -72,5 +89,47 @@ public class EngineConfiguration {
       catch(RemoteException e) {
          throw new BeanCreationException("viewsheetService", "Failed to create ViewsheetEngine", e);
       }
+   }
+
+   /**
+    * Worksheet composition engine. Depends on AnalyticRepository for its asset store.
+    */
+   @Bean("worksheetService")
+   @Lazy
+   @Primary
+   public WorksheetService worksheetService(@Lazy AnalyticRepository analyticRepository) {
+      try {
+         return new WorksheetEngine(analyticRepository.unwrap(AssetRepository.class));
+      }
+      catch(RemoteException e) {
+         throw new BeanCreationException("worksheetService", "Failed to create WorksheetEngine", e);
+      }
+   }
+
+   /** Library engine — base class for worksheet composition. No external dependencies. */
+   @Bean
+   @Lazy
+   public SheetLibraryService sheetLibraryService() {
+      return new SheetLibraryEngine();
+   }
+
+   /** Pub/sub channel for viewsheet lifecycle events (open/close/execute). */
+   @Bean
+   @Lazy
+   public ViewsheetLifecycleMessageChannel viewsheetLifecycleMessageChannel() {
+      return new ViewsheetLifecycleMessageChannel();
+   }
+
+   /** Client stub used to submit tasks to the ScheduleServer. */
+   @Bean
+   @Lazy
+   public ScheduleClient scheduleClient() {
+      return new ScheduleClient();
+   }
+
+   /** Cluster client for server-to-server communication. */
+   @Bean
+   public ServerClusterClient serverClusterClient() {
+      return new ServerClusterClient(false);
    }
 }

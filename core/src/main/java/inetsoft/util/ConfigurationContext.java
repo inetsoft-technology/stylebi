@@ -20,6 +20,7 @@ package inetsoft.util;
 import inetsoft.util.config.InetsoftConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.context.ApplicationContext;
 
 import java.beans.PropertyChangeListener;
@@ -184,6 +185,24 @@ public class ConfigurationContext implements AutoCloseable {
       }
 
       return applicationContext.getBean(type);
+   }
+
+   /**
+    * Gets an optional Spring bean by type. Returns {@code null} if the bean is not registered
+    * (e.g., the providing {@code @Configuration} was excluded by a {@code @Conditional}).
+    * Falls back to {@link SingletonManager#getInstance(Class)} when not running in Spring.
+    */
+   public <T> T getOptionalSpringBean(Class<T> type) {
+      if(applicationContext == null) {
+         return SingletonManager.getInstance(type);
+      }
+
+      try {
+         return applicationContext.getBean(type);
+      }
+      catch(NoSuchBeanDefinitionException e) {
+         return null;
+      }
    }
 
    public Object getSpringBean(String name) {
