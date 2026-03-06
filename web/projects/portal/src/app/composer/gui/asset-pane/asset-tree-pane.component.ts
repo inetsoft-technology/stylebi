@@ -518,7 +518,7 @@ export class AssetTreePane implements OnChanges, OnInit {
 
    private createNewWizAction(entry: AssetEntry): AssemblyAction {
       return {
-         id: () => "asset-tree new-table-style",
+         id: () => "wiz-new",
          label: () => "_#(js:New Wiz)",
          icon: () => "",
          enabled: () => true,
