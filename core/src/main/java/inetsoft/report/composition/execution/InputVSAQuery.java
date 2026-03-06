@@ -629,19 +629,13 @@ public class InputVSAQuery extends VSAQuery {
          lattr = Tool.equals(lattr, vattr) ? null : lattr;
          TableLens table = getTableLens(tassembly);
 
-         if(table == null) {
-            return null;
-         }
-
-         // @by stephenwebster, For Bug #10259
-         // Apply distinct table lens after getting input assembly result
-         // so we can create a distinct list based on the original order of the
-         // data.
-         table = new DistinctTableLens(table, null, true);
-
          // roll back runtime condition list, since the base table is shared
          if(base != null) {
             base.setPreRuntimeConditionList(conds);
+         }
+
+         if(table == null) {
+            return null;
          }
 
          int index = vattr == null ? -1 : AssetUtil.findColumn(table, vattr);
@@ -657,6 +651,15 @@ public class InputVSAQuery extends VSAQuery {
          }
 
          int lindex = lattr == null ? -1 : AssetUtil.findColumn(table, lattr);
+
+         // @by stephenwebster, For Bug #10259
+         // Apply distinct table lens after getting input assembly result
+         // so we can create a distinct list based on the original order of the
+         // data. Bug #74016 Restrict distinctness to value/label columns only so that
+         // extraneous hidden columns (e.g. from dynamic column tables) do not
+         // prevent deduplication.
+         int[] distinctCols = lindex < 0 ? new int[]{ index } : new int[]{ lindex, index };
+         table = new DistinctTableLens(table, distinctCols, true);
 
          if(table instanceof TableLens) {
             table = new TextSizeLimitTableLens(table, Util.getOrganizationMaxCellSize());
