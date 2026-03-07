@@ -431,8 +431,14 @@ public class ColumnSelection implements XMLSerializable, Cloneable, Serializable
     * Get the attributes as a stream.
     */
    public Stream<DataRef> stream() {
-      // avoid concurrent modification
-      return new ArrayList<>(attrs).stream();
+      // avoid concurrent modification; hold read lock to ensure visibility of concurrent writes
+      try {
+         lock.readLock().lock();
+         return new ArrayList<>(attrs).stream();
+      }
+      finally {
+         lock.readLock().unlock();
+      }
    }
 
    /*
