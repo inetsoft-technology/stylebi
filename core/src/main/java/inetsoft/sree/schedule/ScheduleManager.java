@@ -37,6 +37,7 @@ import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 /**
@@ -103,7 +104,6 @@ public class ScheduleManager {
     */
    public ScheduleManager() {
       initMap();
-      extensionLock = Cluster.getInstance().getLock(EXTENSION_LOCK);
    }
 
    /**
@@ -1697,11 +1697,15 @@ public class ScheduleManager {
    private final Vector<ScheduleExt> extensions = new Vector<>();
    private final Map<ExtTaskKey, ScheduleTask> extensionTasks = new ConcurrentHashMap<>();
    private final Set<String> extensionTasksLoadedOrgs = ConcurrentHashMap.newKeySet();
-   private final Lock extensionLock;
+   // Local lock — intentionally NOT a distributed Ignite lock. The state it guards
+   // (extensions, extensionTasks, extensionTasksLoadedOrgs) is per-node local data.
+   // Using an Ignite distributed lock here caused GridDhtPartitionsExchangeFuture to
+   // stall waiting for the lock's volatile-DS-group transaction, blocking TRANSACTIONAL
+   // cache writes (including the runtime-sheet cache) and causing ExpiredSheetException
+   // under concurrent load when a topology change coincided with a getScheduleTasks() call.
+   private final Lock extensionLock = new ReentrantLock();
 
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleManager.class);
-   private static final String EXTENSION_LOCK =
-      ScheduleManager.class.getName() + ".extensionLock";
 
    private record ExtTaskKey(String name, String orgId) { }
 
