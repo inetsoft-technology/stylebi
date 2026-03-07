@@ -143,7 +143,14 @@ public class DistributedTableCacheStore {
             tx.commit();
          }
          catch(IOException ex) {
-            LOG.error("Failed to write to the blob storage: {}", key, ex);
+            // TimeoutException during cluster partition exchange (e.g. pod restart) is transient;
+            // log as WARN since the table will be recomputed on the next cache miss.
+            if(ex.getCause() instanceof java.util.concurrent.TimeoutException) {
+               LOG.warn("Timed out writing to blob storage (cluster rebalancing?): {}", key, ex);
+            }
+            else {
+               LOG.error("Failed to write to the blob storage: {}", key, ex);
+            }
          }
          finally {
             ThreadContext.setContextPrincipal(null);
