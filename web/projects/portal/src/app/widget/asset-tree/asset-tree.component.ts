@@ -146,11 +146,18 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
       forkJoin({
          org: this.http.get<string>("../api/em/navbar/organization"),
          orgIDList: this.http.get<string[]>("../api/em/security/users/get-all-organization-ids/")
-      }).subscribe(({ org, orgIDList }) => {
+      }).subscribe({
+         next: ({ org, orgIDList }) => {
             this.currOrgID = org;
             this.organizations = orgIDList;
             this.loadAssetTree();
-         });
+         },
+         error: () => {
+            // If org-info calls fail (e.g. during AKS pod restart / cluster rebalancing),
+            // fall through with defaults so the tree still renders.
+            this.loadAssetTree();
+         }
+      });
    }
 
    loadAssetTree() {

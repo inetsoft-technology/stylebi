@@ -96,6 +96,13 @@ public class LogMonitoringService implements MessageListener {
             List<String> content = response.getContent();
             return content != null ? content : List.of();
          }
+         catch(InterruptedException e) {
+            // Expected during AKS pod restarts: the target node has left the cluster or
+            // timed out responding. Log at WARN (no stack trace) since this is a normal
+            // transient condition and the caller already receives an empty list.
+            LOG.warn("Failed to get log file {} from {}: {}", logFileName, clusterNode,
+                     e.getMessage());
+         }
          catch(Exception e) {
             LOG.error("Failed to get log file {} from {}", logFileName, clusterNode, e);
          }
