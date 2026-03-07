@@ -665,7 +665,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
       this.model.conditions.push(copy);
       this.conditionIndex = this.model.conditions.length - 1;
       this.selectedConditions = [this.conditionIndex];
-      this.listView = true;
+      this.editCondition();
    }
 
    public deleteCondition(): void {
