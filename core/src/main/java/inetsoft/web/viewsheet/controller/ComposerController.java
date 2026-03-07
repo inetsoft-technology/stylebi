@@ -27,6 +27,7 @@ import inetsoft.web.composer.vs.event.EditViewsheetEvent;
 import inetsoft.web.portal.data.EditWorksheetEvent;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CommandDispatcherService;
 import inetsoft.web.viewsheet.service.ComposerClientService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -42,11 +43,11 @@ import static inetsoft.web.viewsheet.service.ComposerClientService.COMMANDS_TOPI
 @Controller
 public class ComposerController {
    @Autowired
-   public ComposerController(SimpMessagingTemplate simpMessagingTemplate,
+   public ComposerController(CommandDispatcherService commandDispatcherService,
                              ComposerClientService composerClientService,
                              SecurityProvider securityProvider)
    {
-      this.simpMessagingTemplate = simpMessagingTemplate;
+      this.commandDispatcherService = commandDispatcherService;
       this.composerClientService = composerClientService;
       this.securityProvider = securityProvider;
    }
@@ -79,9 +80,9 @@ public class ComposerController {
          .assetId(event.getVsId())
          .viewsheet(true)
          .build();
-      simpMessagingTemplate
-         .convertAndSendToUser(simpSessionId, COMMANDS_TOPIC, composerAssetCommand,
-                               msgHeaderAccessor.getMessageHeaders());
+      commandDispatcherService.convertAndSendToUser(
+         simpSessionId, COMMANDS_TOPIC, composerAssetCommand,
+         msgHeaderAccessor.getMessageHeaders());
    }
 
    @MessageMapping("/composer/editWorksheet")
@@ -115,9 +116,9 @@ public class ComposerController {
          .assetId(event.getWsId())
          .viewsheet(false)
          .build();
-      simpMessagingTemplate
-         .convertAndSendToUser(simpSessionId, COMMANDS_TOPIC, composerAssetCommand,
-                               msgHeaderAccessor.getMessageHeaders());
+      commandDispatcherService.convertAndSendToUser(
+         simpSessionId, COMMANDS_TOPIC, composerAssetCommand,
+         msgHeaderAccessor.getMessageHeaders());
    }
 
    @MessageMapping("/composer/ws/query/create")
@@ -148,9 +149,9 @@ public class ComposerController {
          .viewsheet(false)
          .wsWizard(true)
          .build();
-      simpMessagingTemplate
-         .convertAndSendToUser(simpSessionId, COMMANDS_TOPIC, composerAssetCommand,
-                               msgHeaderAccessor.getMessageHeaders());
+      commandDispatcherService.convertAndSendToUser(
+         simpSessionId, COMMANDS_TOPIC, composerAssetCommand,
+         msgHeaderAccessor.getMessageHeaders());
    }
 
    @MessageMapping(COMMANDS_TOPIC + "/leave")
@@ -158,7 +159,7 @@ public class ComposerController {
       composerClientService.removeFromSessionList(stompHeaderAccessor);
    }
 
-   private final SimpMessagingTemplate simpMessagingTemplate;
+   private final CommandDispatcherService commandDispatcherService;
    private final ComposerClientService composerClientService;
    private final SecurityProvider securityProvider;
 }
