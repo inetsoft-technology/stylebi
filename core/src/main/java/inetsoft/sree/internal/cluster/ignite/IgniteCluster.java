@@ -1968,6 +1968,18 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          Throwable error = null;
 
          try {
+            // If the Spring application context has not been initialized yet (race between
+            // Ignite cluster join and Spring startup on a newly scaled pod), wait for it
+            // before executing the callable.  The affinity caller's own timeout (5 min) bounds
+            // the end-to-end wait, so 2 minutes here gives Spring plenty of time to start
+            // without risking an indefinite hang.
+            CompletableFuture<Void> ready = ConfigurationContext.getContext().getSpringContextReady();
+
+            if(!ready.isDone()) {
+               LOG.warn("Affinity request waiting for Spring context to initialize: {}", request);
+               ready.get(2L, TimeUnit.MINUTES);
+            }
+
             result = request.getCallable().call();
          }
          catch(Exception e) {
