@@ -328,13 +328,10 @@ public class SreeEnv {
    }
 
    public static boolean isInitialized() {
-      try {
-         return PropertiesEngine.getInstance().getProperties() != null;
-      }
-      catch(SingletonManager.ResurrectException ex) {
-         //fix bug#43719 when resurrectException is caught, the isInitialized should be false.
-         return false;
-      }
+      // Use a non-initializing presence check to avoid triggering PropertiesEngine
+      // initialization from Ignite internal threads (e.g. sys-stripe during transaction
+      // commit callbacks), which can block partition exchange under high concurrency.
+      return SingletonManager.isPresent(PropertiesEngine.class);
    }
 
    private static final Map<String, Object> cache = new ConcurrentHashMap<>(); // cached objects
