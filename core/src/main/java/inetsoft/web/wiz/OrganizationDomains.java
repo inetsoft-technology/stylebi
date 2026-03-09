@@ -31,7 +31,6 @@ import java.util.List;
  * {@code AppDomains} contains the organization application domains.
  */
 @Validated
-@Schema(description = "The organization application domains.")
 public class OrganizationDomains {
    private String id;
    private List<String> subDomainIds = Collections.emptyList();
@@ -42,7 +41,6 @@ public class OrganizationDomains {
     * @return the application domain.
     */
    @NotNull
-   @Schema(description = "The application domain.")
    public String getId() {
       return id;
    }
