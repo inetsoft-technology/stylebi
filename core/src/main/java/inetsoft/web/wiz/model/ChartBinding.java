@@ -230,6 +230,7 @@ public class ChartBinding implements BindingInfo {
    private List<SimpleFieldInfo> latitude;
    private List<SimpleFieldInfo> geo;
 
+   @JsonIgnoreProperties(ignoreUnknown = true)
    public static class NodeBinding {
       public SimpleFieldInfo getColor() {
          return color;
@@ -247,16 +248,7 @@ public class ChartBinding implements BindingInfo {
          this.size = size;
       }
 
-      public SimpleFieldInfo getText() {
-         return text;
-      }
-
-      public void setText(SimpleFieldInfo text) {
-         this.text = text;
-      }
-
       private SimpleFieldInfo color;
       private SimpleFieldInfo size;
-      private SimpleFieldInfo text;
    }
 }
