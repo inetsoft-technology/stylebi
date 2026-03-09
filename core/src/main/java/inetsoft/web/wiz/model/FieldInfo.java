@@ -54,7 +54,7 @@ public class FieldInfo {
    }
 
    private String field;
-    private String type;
-    private String title;
-    private String format;
+   private String type;
+   private String title;
+   private String format;
 }

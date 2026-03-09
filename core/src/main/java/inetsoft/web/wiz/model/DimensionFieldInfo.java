@@ -17,6 +17,9 @@
  */
 package inetsoft.web.wiz.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class DimensionFieldInfo extends SimpleFieldInfo {
    public String getDateGroupLevel() {
       return dateGroupLevel;

@@ -77,6 +77,10 @@ public class CreateVsService {
 
       WSAssembly primaryAssembly = worksheet.getPrimaryAssembly();
 
+      if(primaryAssembly == null) {
+         throw new Exception("Worksheet has no primary assembly");
+      }
+
       Viewsheet vs = new Viewsheet();
       VSAssembly assembly = createAssembly(vs, model.getVisualizationType(), title, config, primaryAssembly.getName());
 

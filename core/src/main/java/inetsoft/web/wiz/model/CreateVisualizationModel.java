@@ -18,6 +18,9 @@
 
 package inetsoft.web.wiz.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class CreateVisualizationModel {
    public String getVisualizationType() {
       return visualizationType;
