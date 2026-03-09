@@ -36,6 +36,7 @@ public class SecurityFilterChain extends DelegatingFilterChain {
          new SecurityHeaderFilter(sessionLicenseServiceProvider, authenticationService),
          new PauseClusterFilter(sessionLicenseServiceProvider, authenticationService),
          createFilterProxy("invalidateSessionFilter"),
+         createFilterProxy("wizServiceAuthenticationFilter"),
          new AuthenticationFilterChain(),
          new CSRFFilter(sessionLicenseServiceProvider, authenticationService),
          new RequestPrincipalFilter(sessionLicenseServiceProvider, authenticationService))
