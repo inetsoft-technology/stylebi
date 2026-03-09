@@ -183,7 +183,7 @@ public class AssistantProxyController {
          proxyRequest.setEntity(new InputStreamEntity(bodyStream, contentLength, null));
       }
 
-      CloseableHttpClient client = proxiedPath.contains("/api/chat")
+      CloseableHttpClient client = proxiedPath.startsWith("/api/chat")
          ? getChatClient() : getDefaultClient();
 
       // Capture a final copy of internalBase for use inside the response-handler lambda.
@@ -358,6 +358,14 @@ public class AssistantProxyController {
             values.stream()
                .map(v -> rewriteLocation(v, internalBase))
                .forEach(v -> out.add(name, v));
+         }
+         else if("content-security-policy".equalsIgnoreCase(name)
+            || "content-security-policy-report-only".equalsIgnoreCase(name))
+         {
+            // Strip the upstream CSP: in proxy mode all content is served from StyleBI's
+            // origin, so the assistant's CSP (which references its own internal origin, e.g.
+            // connect-src https://assistant:3002) would block API calls from the browser.
+            // StyleBI's own CSP governs the proxied content instead.
          }
          else if(!HOP_BY_HOP.contains(name.toLowerCase())) {
             out.put(name, values);
