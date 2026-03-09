@@ -17,6 +17,9 @@
  */
 package inetsoft.web.wiz.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class MeasureFieldInfo extends SimpleFieldInfo {
    public String getAggregateFormula() {
       return aggregateFormula;
