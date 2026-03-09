@@ -109,6 +109,10 @@ public class BlobCache {
    }
 
    public void remove(String storeId, String digest) throws IOException {
+      if(digest == null) {
+         return;
+      }
+
       String dir = digest.substring(0, 2);
       String file = digest.substring(2);
       Path path = baseDir.resolve(storeId).resolve(dir).resolve(file);
