@@ -24,8 +24,10 @@ import inetsoft.web.admin.content.dataspace.DataSpaceContentSettingsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.ByteArrayInputStream;
 import java.io.OutputStream;
@@ -45,6 +47,10 @@ public class ChartAddShapeController {
       DataSpace space = DataSpace.getDataSpace();
 
       for(MultipartFile file : files) {
+         if(file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Upload failed: file is empty");
+         }
+
          String fileName = file.getOriginalFilename();
          byte[] fileData = file.getBytes();
 
