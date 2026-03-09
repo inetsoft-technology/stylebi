@@ -45,14 +45,17 @@
 
 .vs-input-label {
   white-space: nowrap;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
   margin: 0;
   padding: 0;
 }
 
 .vs-input-content {
   flex: 1;
-  min-width: 0;
+  min-width: 20px;
   min-height: 0;
   position: relative;
   align-self: stretch;
