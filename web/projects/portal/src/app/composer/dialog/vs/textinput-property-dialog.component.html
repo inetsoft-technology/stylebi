@@ -54,7 +54,8 @@
       <ng-template ngbNavContent>
         <input-label-pane [model]="model.inputLabelPaneModel"
                           [variableValues]="variableValues"
-                          [vsId]="runtimeId"></input-label-pane>
+                          [vsId]="runtimeId"
+                          (isInputValid)="onValidChanged($event)"></input-label-pane>
       </ng-template>
     </ng-container>
     <ng-container [ngbNavItem]="scriptTab">
@@ -70,9 +71,9 @@
   <div [ngbNavOutlet]="nav"></div>
 </div>
 <div class="modal-footer">
-  <apply-button (onApply)="apply($event)" [disabled]="!form.valid"></apply-button>
+  <apply-button (onApply)="apply($event)" [disabled]="!form.valid || !valid"></apply-button>
   <button type="button" class="btn btn-default" data-dismiss="modal"
           (click)="close()">_#(Cancel)</button>
   <button type="button" class="btn btn-primary" (click)="ok()"
-          [disabled]="!form.valid" #okButton>_#(OK)</button>
+          [disabled]="!form.valid || !valid" #okButton>_#(OK)</button>
 </div>

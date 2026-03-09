@@ -33,7 +33,8 @@ export class TextInputPropertyDialog extends PropertyDialog implements OnInit {
    form: UntypedFormGroup;
    generalTab: string = "textinput-property-dialog-general-tab";
    scriptTab: string = "textinput-property-dialog-script-tab";
-   formValid = () => this.model && this.form && this.form.valid;
+   valid: boolean = true;
+   formValid = () => this.model && this.form && this.form.valid && this.valid;
 
    public constructor(protected uiContextService: UIContextService,
                       protected propertyDialogService: PropertyDialogService)
@@ -58,6 +59,10 @@ export class TextInputPropertyDialog extends PropertyDialog implements OnInit {
    protected getScripts(): string[] {
       return [this.model.clickableScriptPaneModel.scriptExpression,
               this.model.clickableScriptPaneModel.onClickExpression];
+   }
+
+   onValidChanged(valid: boolean) {
+      this.valid = valid;
    }
 
    protected closing(isApply: boolean, collapse: boolean = false) {

@@ -23,7 +23,8 @@
       <div class="checkbox col-auto">
         <div class="form-check">
           <input type="checkbox" class="form-check-input"
-                 [(ngModel)]="model.showLabel" id="showLabel">
+                 [(ngModel)]="model.showLabel" id="showLabel"
+                 (ngModelChange)="onShowLabelChange()">
           <label class="form-check-label" for="showLabel">
             _#(Show Label)
           </label>
@@ -52,7 +53,8 @@
       </div>
       <div class="col-6 form-floating mb-2">
         <input class="form-control" type="number" [(ngModel)]="model.labelGap"
-               placeholder="_#(Gap)" id="labelGap" min="0" #gap="ngModel">
+               placeholder="_#(Gap)" id="labelGap" min="0" #gap="ngModel"
+               (ngModelChange)="onGapChange()">
         <label for="labelGap"><span>_#(Gap px)</span></label>
       </div>
         <div class="col form-floating">
