@@ -15,11 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.wiz;
+package inetsoft.web.wiz.controller;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.Tool;
+import inetsoft.web.wiz.OrganizationDomains;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.extensions.Extension;
 import io.swagger.v3.oas.annotations.extensions.ExtensionProperty;
