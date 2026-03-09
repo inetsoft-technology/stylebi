@@ -19,6 +19,7 @@
   <label *ngIf="showLabel"
          class="vs-input-label"
          [class.bd-selected-cell]="labelSelected"
+         [class.disable-actions-fade]="disabled"
          [style.color]="labelColor"
          [style.background]="labelFormat?.background"
          [safeFont]="labelFormat?.font"
