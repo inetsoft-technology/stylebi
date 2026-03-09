@@ -59,9 +59,15 @@ public class DatasourceMetaApiController {
     * @return the child nodes.
     */
    @PostMapping("/datasets/asset_tree")
-   public TreeNodeModel getNodes(@RequestBody LoadAssetTreeNodesEvent event, Principal principal)
+   public TreeNodeModel getNodes(
+      @RequestBody(required = false) LoadAssetTreeNodesEvent event,
+      Principal principal)
       throws Exception
    {
+      if(event == null) {
+         event = LoadAssetTreeNodesEvent.builder().build();
+      }
+
       return metadataService.getNodes(event, principal).treeNodeModel();
    }
 
