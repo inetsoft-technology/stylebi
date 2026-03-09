@@ -416,8 +416,6 @@ public class CreateVsService {
          if(binding.getOpen() != null) {
             candleInfo.setOpenField(createVSChartAggregateRef(binding.getOpen()));
          }
-
-         return;
       }
 
       // TreeMap group: Tree Map, Sun Burst, Circle Packing, ICircle
