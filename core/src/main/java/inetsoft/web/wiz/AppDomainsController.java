@@ -37,11 +37,11 @@ import java.security.Principal;
  * {@code AppDomainsController} provides the web API endpoints for getting/setting organization application domains.
  */
 @RestController
+@RequestMapping("/api/wiz")
 @Tag(
    name = "Application Domains",
    description = "The Application domains APIs allow you to get/set organization application domains.")
 @Validated
-@SecurityRequirement(name = "api-token")
 public class AppDomainsController {
    /**
     * Get application domains
@@ -52,16 +52,7 @@ public class AppDomainsController {
     *
     * @since 2025
     */
-   @GetMapping(value = "/api/public/appDomains", produces = MediaType.APPLICATION_JSON_VALUE)
-   @Operation(
-      summary = "Get application domains",
-      description = "Get organization application domains.",
-      extensions = @Extension(properties = @ExtensionProperty(name = "x-since", value = "1.0")))
-   @ApiResponses({
-      @ApiResponse(
-         responseCode = "200",
-         description = "Get organization application domains..")
-   })
+   @GetMapping(value = "/appDomains", produces = MediaType.APPLICATION_JSON_VALUE)
    public OrganizationDomains getAppDomains(Principal user) throws Exception {
       String value = SreeEnv.getProperty(getOrgAppDomainPropKey(user), false, true);
 
@@ -81,16 +72,7 @@ public class AppDomainsController {
     *
     * @since 2025
     */
-   @PostMapping(value = "/api/public/appDomains", produces = MediaType.APPLICATION_JSON_VALUE)
-   @Operation(
-      summary = "Set application domains",
-      description = "Set organization application domains.",
-      extensions = @Extension(properties = @ExtensionProperty(name = "x-since", value = "1.0")))
-   @ApiResponses({
-      @ApiResponse(
-         responseCode = "200",
-         description = "Get organization application domains.")
-   })
+   @PostMapping(value = "/appDomains", produces = MediaType.APPLICATION_JSON_VALUE)
    public void setAppDomains(@RequestBody @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "The organization application domains.", required = true) OrganizationDomains appDomains,
                              Principal user) throws Exception
    {

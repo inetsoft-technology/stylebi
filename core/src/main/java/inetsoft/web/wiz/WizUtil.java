@@ -15,19 +15,25 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 package inetsoft.web.wiz;
 
-import inetsoft.sree.SreeEnv;
-import org.springframework.web.bind.annotation.*;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 
-@RestController
-@RequestMapping("/api/wiz")
-public class WizPortalController {
+public class WizUtil {
+   public static String decodeId(String id) {
+      String decodedId;
 
-   @GetMapping("/service-url")
-   public String getWizServiceUrl() {
-      return SreeEnv.getProperty(WIZ_SERVICE_URL);
+      if(id == null || id.isEmpty()) {
+         decodedId = null;
+      }
+      else {
+         decodedId = new String(Base64.getDecoder().decode(id), StandardCharsets.UTF_8);
+      }
+
+      return decodedId;
    }
 
-   public static final String WIZ_SERVICE_URL = "wiz.service.url";
+   public static final String ANNOTATION_RAW_DATA_MAX_ROW = "annotation.rawdata.maxrow";
 }

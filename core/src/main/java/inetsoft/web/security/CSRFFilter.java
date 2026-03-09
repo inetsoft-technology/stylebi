@@ -181,7 +181,16 @@ public class CSRFFilter extends AbstractSecurityFilter {
     *         otherwise.
     */
    private boolean isCsrfProtectionRequired(HttpServletRequest request) {
-      return isApi(request) && !isPublicApi(request) && !isApiImage(request) && !isApiTableExport(request);
+      return isApi(request) && !isPublicApi(request) && !isApiImage(request) &&
+         !isApiTableExport(request) && !isWizApi(request);
+   }
+
+   /**
+    * Determines if an HTTP request is for the WIZ API endpoint.
+    * WIZ API uses JWT authentication, so CSRF protection is not needed.
+    */
+   private boolean isWizApi(HttpServletRequest request) {
+      return isPageRequested("/api/wiz/**", request);
    }
 
    private boolean isEnabled() {

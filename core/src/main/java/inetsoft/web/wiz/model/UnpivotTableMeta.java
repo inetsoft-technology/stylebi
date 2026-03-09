@@ -15,19 +15,31 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.wiz;
 
-import inetsoft.sree.SreeEnv;
-import org.springframework.web.bind.annotation.*;
+package inetsoft.web.wiz.model;
 
-@RestController
-@RequestMapping("/api/wiz")
-public class WizPortalController {
+public class UnpivotTableMeta extends WorksheetTableMeta{
+   private String sourceTable;
+   private int headerColumns;
 
-   @GetMapping("/service-url")
-   public String getWizServiceUrl() {
-      return SreeEnv.getProperty(WIZ_SERVICE_URL);
+   public String getSourceTable() {
+      return sourceTable;
    }
 
-   public static final String WIZ_SERVICE_URL = "wiz.service.url";
+   public void setSourceTable(String sourceTable) {
+      this.sourceTable = sourceTable;
+   }
+
+   public int getHeaderColumns() {
+      return headerColumns;
+   }
+
+   public void setHeaderColumns(int headerColumns) {
+      this.headerColumns = headerColumns;
+   }
+
+   @Override
+   public String getTableType() {
+      return "unpivotTable";
+   }
 }
