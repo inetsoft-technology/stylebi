@@ -19,7 +19,6 @@
 package inetsoft.web.wiz;
 
 import inetsoft.util.Tool;
-import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.validation.annotation.Validated;
 
