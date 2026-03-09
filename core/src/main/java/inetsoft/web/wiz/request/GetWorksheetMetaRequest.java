@@ -15,19 +15,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.wiz.controller;
 
-import inetsoft.sree.SreeEnv;
-import org.springframework.web.bind.annotation.*;
+package inetsoft.web.wiz.request;
 
-@RestController
-@RequestMapping("/api/wiz")
-public class WizPortalController {
-
-   @GetMapping("/service-url")
-   public String getWizServiceUrl() {
-      return SreeEnv.getProperty(WIZ_SERVICE_URL);
+public class GetWorksheetMetaRequest {
+   public String getWorksheetId() {
+      return worksheetId;
    }
 
-   public static final String WIZ_SERVICE_URL = "wiz.service.url";
+   public void setWorksheetId(String worksheetId) {
+      this.worksheetId = worksheetId;
+   }
+
+   private String worksheetId;
 }

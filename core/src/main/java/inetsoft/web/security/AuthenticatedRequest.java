@@ -24,8 +24,8 @@ import jakarta.servlet.http.HttpServletRequestWrapper;
 import java.security.Principal;
 import java.util.Arrays;
 
-final class AuthenticatedRequest extends HttpServletRequestWrapper {
-   AuthenticatedRequest(HttpServletRequest request, Principal principal) {
+public final class AuthenticatedRequest extends HttpServletRequestWrapper {
+   public AuthenticatedRequest(HttpServletRequest request, Principal principal) {
       super(request);
       this.principal = principal;
    }
