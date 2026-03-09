@@ -120,10 +120,13 @@ public class CreateVsService {
       else if(vsAssembly instanceof OutputVSAssembly outputVSAssembly && config.getBindingInfo() instanceof OutputBinding outputBinding) {
          ScalarBindingInfo sbinfo = outputVSAssembly.getScalarBindingInfo();
          sbinfo.setTableName(tname);
-         sbinfo.setColumnValue(outputBinding.getField().getField());
 
-         if(outputBinding.getField().getAggregateFormula() != null) {
-            sbinfo.setAggregateValue(outputBinding.getField().getAggregateFormula());
+         if(outputBinding.getField() != null) {
+            sbinfo.setColumnValue(outputBinding.getField().getField());
+
+            if(outputBinding.getField().getAggregateFormula() != null) {
+               sbinfo.setAggregateValue(outputBinding.getField().getAggregateFormula());
+            }
          }
       }
 
@@ -180,7 +183,7 @@ public class CreateVsService {
       chart.setVSChartInfo(chartInfo);
 
       if(config != null && config.getBindingInfo() instanceof ChartBinding binding) {
-         applyChartBinding(chartInfo, binding);
+         applyChartBinding(chartInfo, binding, chartType);
       }
 
       return chart;
@@ -202,58 +205,202 @@ public class CreateVsService {
       };
    }
 
-   private void applyChartBinding(VSChartInfo chartInfo, ChartBinding binding) {
-      // X fields (longitude for map)
-      if(binding.getX() != null) {
-         for(SimpleFieldInfo field : binding.getX()) {
-            chartInfo.addXField(createChartRef(field));
+   private void applyChartBinding(VSChartInfo chartInfo, ChartBinding binding, int chartType) {
+      // Relation charts: Tree, Network, Circular Network
+      if(chartInfo instanceof RelationVSChartInfo relationInfo) {
+         if(binding.getX() != null) {
+            for(SimpleFieldInfo f : binding.getX()) {
+               chartInfo.addXField(createChartRef(f));
+            }
+         }
+
+         if(binding.getY() != null) {
+            for(SimpleFieldInfo f : binding.getY()) {
+               chartInfo.addYField(createChartRef(f));
+            }
+         }
+
+         // Edge aesthetics: color, shape, size
+         if(binding.getColor() != null) {
+            chartInfo.setColorField(createAestheticRef(binding.getColor()));
+         }
+
+         if(binding.getShape() != null) {
+            chartInfo.setShapeField(createAestheticRef(binding.getShape()));
+         }
+
+         if(binding.getSize() != null) {
+            chartInfo.setSizeField(createAestheticRef(binding.getSize()));
+         }
+
+         // Source / target node fields
+         if(binding.getSource() != null) {
+            relationInfo.setSourceField(createVSChartDimensionRef(binding.getSource()));
+         }
+
+         if(binding.getTarget() != null) {
+            relationInfo.setTargetField(createVSChartDimensionRef(binding.getTarget()));
+         }
+
+         // Node aesthetics: color, size
+         if(binding.getNode() != null) {
+            ChartBinding.NodeBinding node = binding.getNode();
+
+            if(node.getColor() != null) {
+               relationInfo.setNodeColorField(createAestheticRef(node.getColor()));
+            }
+
+            if(node.getSize() != null) {
+               relationInfo.setNodeSizeField(createAestheticRef(node.getSize()));
+            }
+         }
+      }
+      // Map charts: Map, Contour Map (x=longitude, y=latitude)
+      else if(chartInfo instanceof VSMapInfo mapInfo) {
+         if(binding.getLongitude() != null) {
+            for(SimpleFieldInfo f : binding.getLongitude()) {
+               chartInfo.addXField(createChartRef(f));
+            }
+         }
+
+         if(binding.getLatitude() != null) {
+            for(SimpleFieldInfo f : binding.getLatitude()) {
+               chartInfo.addYField(createChartRef(f));
+            }
+         }
+
+         if(binding.getGeo() != null) {
+            for(SimpleFieldInfo f : binding.getGeo()) {
+               VSChartGeoRef geoRef = new VSChartGeoRef();
+               geoRef.setGroupColumnValue(f.getField());
+               mapInfo.addGeoField(geoRef);
+            }
+         }
+
+         if(binding.getGroup() != null) {
+            for(SimpleFieldInfo f : binding.getGroup()) {
+               chartInfo.addGroupField(createChartRef(f));
+            }
+         }
+
+         if(binding.getColor() != null) {
+            chartInfo.setColorField(createAestheticRef(binding.getColor()));
+         }
+
+         if(binding.getShape() != null) {
+            chartInfo.setShapeField(createAestheticRef(binding.getShape()));
+         }
+
+         if(binding.getSize() != null) {
+            chartInfo.setSizeField(createAestheticRef(binding.getSize()));
+         }
+
+         if(binding.getText() != null) {
+            chartInfo.setTextField(createAestheticRef(binding.getText()));
+         }
+
+         if(binding.getPath() != null) {
+            chartInfo.setPathField(createChartRef(binding.getPath()));
          }
       }
 
-      // Y fields (latitude for map)
-      if(binding.getY() != null) {
-         for(SimpleFieldInfo field : binding.getY()) {
-            chartInfo.addYField(createChartRef(field));
+      // Gantt chart: x/y are dimensions; start/end/milestone are date aesthetics
+      else if(chartInfo instanceof GanttVSChartInfo ganttInfo) {
+         if(binding.getX() != null) {
+            for(SimpleFieldInfo f : binding.getX()) {
+               chartInfo.addXField(createChartRef(f));
+            }
+         }
+
+         if(binding.getY() != null) {
+            for(SimpleFieldInfo f : binding.getY()) {
+               chartInfo.addYField(createChartRef(f));
+            }
+         }
+
+         if(binding.getStart() != null) {
+            ganttInfo.setStartField(createVSChartDimensionRef(binding.getStart()));
+         }
+
+         if(binding.getEnd() != null) {
+            ganttInfo.setEndField(createVSChartDimensionRef(binding.getEnd()));
+         }
+
+         if(binding.getMilestone() != null) {
+            ganttInfo.setMilestoneField(createVSChartDimensionRef(binding.getMilestone()));
          }
       }
 
-      // Group fields
-      if(binding.getGroup() != null) {
-         for(SimpleFieldInfo field : binding.getGroup()) {
-            chartInfo.addGroupField(createChartRef(field));
+      // Stock chart: x/y + high/low/close/open + color/text only (no shape/size)
+      // Must be checked before Candle since StockVSChartInfo extends CandleVSChartInfo
+      else if(chartInfo instanceof StockVSChartInfo stockInfo) {
+         if(binding.getX() != null) {
+            for(SimpleFieldInfo f : binding.getX()) {
+               chartInfo.addXField(createChartRef(f));
+            }
+         }
+
+         if(binding.getY() != null) {
+            for(SimpleFieldInfo f : binding.getY()) {
+               chartInfo.addYField(createChartRef(f));
+            }
+         }
+
+         if(binding.getColor() != null) {
+            chartInfo.setColorField(createAestheticRef(binding.getColor()));
+         }
+
+         if(binding.getText() != null) {
+            chartInfo.setTextField(createAestheticRef(binding.getText()));
+         }
+
+         if(binding.getHigh() != null) {
+            stockInfo.setHighField(createVSChartAggregateRef(binding.getHigh()));
+         }
+
+         if(binding.getLow() != null) {
+            stockInfo.setLowField(createVSChartAggregateRef(binding.getLow()));
+         }
+
+         if(binding.getClose() != null) {
+            stockInfo.setCloseField(createVSChartAggregateRef(binding.getClose()));
+         }
+
+         if(binding.getOpen() != null) {
+            stockInfo.setOpenField(createVSChartAggregateRef(binding.getOpen()));
          }
       }
 
-      // T fields (tree dimension for TreeMap charts)
-      if(binding.getT() != null) {
-         for(DimensionFieldInfo field : binding.getT()) {
-            chartInfo.addXField(createVSChartDimensionRef(field));
+      // Candle chart: x/y + high/low/close/open + color/shape/size/text
+      else if(chartInfo instanceof CandleVSChartInfo candleInfo) {
+         if(binding.getX() != null) {
+            for(SimpleFieldInfo f : binding.getX()) {
+               chartInfo.addXField(createChartRef(f));
+            }
          }
-      }
 
-      // Aesthetic fields
-      if(binding.getColor() != null) {
-         chartInfo.setColorField(createAestheticRef(binding.getColor()));
-      }
+         if(binding.getY() != null) {
+            for(SimpleFieldInfo f : binding.getY()) {
+               chartInfo.addYField(createChartRef(f));
+            }
+         }
 
-      if(binding.getShape() != null) {
-         chartInfo.setShapeField(createAestheticRef(binding.getShape()));
-      }
+         if(binding.getColor() != null) {
+            chartInfo.setColorField(createAestheticRef(binding.getColor()));
+         }
 
-      if(binding.getSize() != null) {
-         chartInfo.setSizeField(createAestheticRef(binding.getSize()));
-      }
+         if(binding.getShape() != null) {
+            chartInfo.setShapeField(createAestheticRef(binding.getShape()));
+         }
 
-      if(binding.getText() != null) {
-         chartInfo.setTextField(createAestheticRef(binding.getText()));
-      }
+         if(binding.getSize() != null) {
+            chartInfo.setSizeField(createAestheticRef(binding.getSize()));
+         }
 
-      if(binding.getPath() != null) {
-         chartInfo.setPathField(createChartRef(binding.getPath()));
-      }
+         if(binding.getText() != null) {
+            chartInfo.setTextField(createAestheticRef(binding.getText()));
+         }
 
-      // Stock / Candle specific fields
-      if(chartInfo instanceof CandleVSChartInfo candleInfo) {
          if(binding.getHigh() != null) {
             candleInfo.setHighField(createVSChartAggregateRef(binding.getHigh()));
          }
@@ -269,56 +416,100 @@ public class CreateVsService {
          if(binding.getOpen() != null) {
             candleInfo.setOpenField(createVSChartAggregateRef(binding.getOpen()));
          }
+
+         return;
       }
 
-      // Gantt specific fields
-      if(chartInfo instanceof GanttVSChartInfo ganttInfo) {
-         if(binding.getStart() != null) {
-            ganttInfo.setStartField(createVSChartDimensionRef(binding.getStart()));
-         }
-
-         if(binding.getEnd() != null) {
-            ganttInfo.setEndField(createVSChartDimensionRef(binding.getEnd()));
-         }
-
-         if(binding.getMilestone() != null) {
-            ganttInfo.setMilestoneField(createVSChartDimensionRef(binding.getMilestone()));
-         }
-      }
-
-      // Tree / Network / CircularNetwork specific fields
-      if(chartInfo instanceof RelationVSChartInfo relationInfo) {
-         if(binding.getSource() != null) {
-            relationInfo.setSourceField(createVSChartDimensionRef(binding.getSource()));
-         }
-
-         if(binding.getTarget() != null) {
-            relationInfo.setTargetField(createVSChartDimensionRef(binding.getTarget()));
-         }
-
-         if(binding.getNode() != null) {
-            ChartBinding.NodeBinding node = binding.getNode();
-
-            if(node.getColor() != null) {
-               relationInfo.setNodeColorField(createAestheticRef(node.getColor()));
-            }
-
-            if(node.getSize() != null) {
-               relationInfo.setNodeSizeField(createAestheticRef(node.getSize()));
+      // TreeMap group: Tree Map, Sun Burst, Circle Packing, ICircle
+      // x (dimension), y (measure), t (dimension hierarchy → added to X)
+      else if(isTreeMapChartType(chartType)) {
+         if(binding.getX() != null) {
+            for(SimpleFieldInfo f : binding.getX()) {
+               chartInfo.addXField(createChartRef(f));
             }
          }
-      }
 
-      // Map specific fields (geo)
-      if(chartInfo instanceof VSMapInfo mapInfo) {
-         if(binding.getGeo() != null) {
-            for(SimpleFieldInfo field : binding.getGeo()) {
-               VSChartGeoRef geoRef = new VSChartGeoRef();
-               geoRef.setGroupColumnValue(field.getField());
-               mapInfo.addGeoField(geoRef);
+         if(binding.getY() != null) {
+            for(SimpleFieldInfo f : binding.getY()) {
+               chartInfo.addYField(createChartRef(f));
             }
          }
+
+         if(binding.getT() != null) {
+            for(DimensionFieldInfo f : binding.getT()) {
+               chartInfo.addXField(createVSChartDimensionRef(f));
+            }
+         }
+
+         if(binding.getColor() != null) {
+            chartInfo.setColorField(createAestheticRef(binding.getColor()));
+         }
+
+         if(binding.getShape() != null) {
+            chartInfo.setShapeField(createAestheticRef(binding.getShape()));
+         }
+
+         if(binding.getSize() != null) {
+            chartInfo.setSizeField(createAestheticRef(binding.getSize()));
+         }
+
+         if(binding.getText() != null) {
+            chartInfo.setTextField(createAestheticRef(binding.getText()));
+         }
+
+         if(binding.getPath() != null) {
+            chartInfo.setPathField(createChartRef(binding.getPath()));
+         }
       }
+      else {
+         // Default: Bar, 3D Bar, Area, Point, Step Area, Interval, Line, Step Line, Jump Line,
+         //          Pie, 3D Pie, Donut, Radar, Filled Radar, Boxplot, Waterfall, Pareto,
+         //          Marimekko, Funnel, Scatter Contour
+         if(binding.getX() != null) {
+            for(SimpleFieldInfo f : binding.getX()) {
+               chartInfo.addXField(createChartRef(f));
+            }
+         }
+
+         if(binding.getY() != null) {
+            for(SimpleFieldInfo f : binding.getY()) {
+               chartInfo.addYField(createChartRef(f));
+            }
+         }
+
+         if(binding.getGroup() != null) {
+            for(SimpleFieldInfo f : binding.getGroup()) {
+               chartInfo.addGroupField(createChartRef(f));
+            }
+         }
+
+         if(binding.getColor() != null) {
+            chartInfo.setColorField(createAestheticRef(binding.getColor()));
+         }
+
+         if(binding.getShape() != null) {
+            chartInfo.setShapeField(createAestheticRef(binding.getShape()));
+         }
+
+         if(binding.getSize() != null) {
+            chartInfo.setSizeField(createAestheticRef(binding.getSize()));
+         }
+
+         if(binding.getText() != null) {
+            chartInfo.setTextField(createAestheticRef(binding.getText()));
+         }
+
+         if(binding.getPath() != null) {
+            chartInfo.setPathField(createChartRef(binding.getPath()));
+         }
+      }
+   }
+
+   private boolean isTreeMapChartType(int chartType) {
+      return chartType == GraphTypes.CHART_TREEMAP ||
+             chartType == GraphTypes.CHART_SUNBURST ||
+             chartType == GraphTypes.CHART_CIRCLE_PACKING ||
+             chartType == GraphTypes.CHART_ICICLE;
    }
 
    private AestheticRef createAestheticRef(SimpleFieldInfo field) {
