@@ -109,6 +109,7 @@ public class BlobCache {
    }
 
    public void remove(String storeId, String digest) throws IOException {
+      // A null digest indicates a directory blob, which has no corresponding cache file.
       if(digest == null) {
          return;
       }
