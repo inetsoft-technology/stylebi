@@ -292,6 +292,10 @@ export class AssetTreePane implements OnChanges, OnInit {
       else if(AssetEntryHelper.isRoot(entry) && entry.scope !== AssetConstants.QUERY_SCOPE &&
          !AssetEntryHelper.isScriptFolder(entry) && !AssetEntryHelper.isLibraryFolder(entry))
       {
+         if(this.wizAssets) {
+            group.actions.push(this.createNewWizAction(entry));
+         }
+
          group.actions.push(this.createNewFolderAction(entry));
       }
       else if(AssetEntryHelper.isViewsheet(entry) || AssetEntryHelper.isVSSnapshot(entry)) {
@@ -345,6 +349,10 @@ export class AssetTreePane implements OnChanges, OnInit {
             group.actions.push(this.createNewScriptAction(entry));
          }
          else if(AssetEntryHelper.isFolder(entry)) {
+            if(this.wizAssets) {
+               group.actions.push(this.createNewWizAction(entry));
+            }
+
             group.actions.push(this.createNewFolderAction(entry));
             group.actions.push(this.createRenameFolderAction(node));
             group.actions.push(this.createDeleteFolderAction(entries));
@@ -505,6 +513,17 @@ export class AssetTreePane implements OnChanges, OnInit {
          enabled: () => !Tool.isAuditNode(node),
          visible: () => true,
          action: () => this.onNewScript.emit()
+      };
+   }
+
+   private createNewWizAction(entry: AssetEntry): AssemblyAction {
+      return {
+         id: () => "wiz-new",
+         label: () => "_#(js:New Wiz)",
+         icon: () => "",
+         enabled: () => true,
+         visible: () => true,
+         action: () => this.onNewViewsheet.emit(entry)
       };
    }
 
