@@ -645,7 +645,7 @@ public class VSInputService {
       TextInputColumnOptionPaneModel textInputColumnOptionPaneModel = result.getTextInputColumnOptionPaneModel();
       InputLabelPaneModel inputLabelPaneModel = result.getInputLabelPaneModel();
       ClickableScriptPaneModel.Builder clickableScriptPaneModel = ClickableScriptPaneModel.builder();
-      String defaultText = textInputGeneralPaneModel.getDefaultText();
+      String defaultText = textInputAssemblyInfo.getDefaultTextValue();
       defaultText = StringUtils.isBlank(defaultText) ? null : defaultText;
 
       generalPropPaneModel.setShowEnabledGroup(true);
