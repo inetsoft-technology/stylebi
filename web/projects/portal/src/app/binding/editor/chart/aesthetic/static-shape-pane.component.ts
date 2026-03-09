@@ -125,9 +125,11 @@ export class StaticShapePane implements OnInit {
                      this.loadShapes(recentFile, this.getAssetOrgId());
                   }
                },
-               error: () => {
-                  ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
-                     "_#(js:viewer.shape.uploadFailed)");
+               error: (err) => {
+                  const msg = err?.status === 400
+                     ? "_#(js:viewer.shape.uploadFailed)"
+                     : "_#(js:common.uploadFailed)";
+                  ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", msg);
                }
             });
       }
