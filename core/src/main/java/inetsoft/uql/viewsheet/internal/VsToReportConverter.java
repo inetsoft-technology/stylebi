@@ -640,10 +640,12 @@ public class VsToReportConverter {
             break;
          case AbstractSheet.SLIDER_ASSET:
          case AbstractSheet.SPINNER_ASSET:
+            addInputLabel(assembly, sectionName);
             text = ((NumericRangeVSAssemblyInfo) info).getValueLabel() + "";
             addTextBoxElement(assembly, text, sectionName);
             break;
          case AbstractSheet.COMBOBOX_ASSET:
+            addInputLabel(assembly, sectionName);
             ComboBoxVSAssemblyInfo cinfo = (ComboBoxVSAssemblyInfo) info;
             String label = cinfo.getSelectedLabel();
             // for editable combobox, if the input value isn't in the dropdown
@@ -658,6 +660,7 @@ public class VsToReportConverter {
             addCheckBox((CheckBoxVSAssembly) assembly, sectionName);
             break;
          case AbstractSheet.TEXTINPUT_ASSET:
+            addInputLabel(assembly, sectionName);
             Object value = ((TextInputVSAssemblyInfo) info).getValue();
 
             if(value != null) {
@@ -1694,6 +1697,70 @@ public class VsToReportConverter {
     * @param text content of the textbox element.
     * @param sectionName add the textbox element to this section.
     */
+   /**
+    * Add a label text box for input assemblies that have a visible LabelInfo.
+    * The label is placed at the appropriate edge of the assembly bounds based
+    * on the label position (left, right, top, bottom).
+    */
+   private void addInputLabel(VSAssembly assembly, String sectionName) {
+      VSAssemblyInfo info = (VSAssemblyInfo) assembly.getInfo();
+
+      if(!(info instanceof InputVSAssemblyInfo)) {
+         return;
+      }
+
+      LabelInfo labelInfo = ((InputVSAssemblyInfo) info).getLabelInfo();
+
+      if(labelInfo == null || !labelInfo.isLabelVisible()) {
+         return;
+      }
+
+      String labelText = labelInfo.getLabelText();
+
+      if(labelText == null || labelText.isEmpty()) {
+         return;
+      }
+
+      Rectangle bounds = getPixelBounds(assembly);
+      String position = labelInfo.getLabelPosition();
+      int gap = (int) (labelInfo.getLabelGap() * scalefont);
+      int labelH = Math.round(AssetUtil.defh * scalefont);
+
+      DefaultTextLens textlens = new DefaultTextLens(labelText);
+      TextBoxElementDef textbox = new TextBoxElementDef(report, textlens);
+
+      VSCompositeFormat labelFormat = labelInfo.getLabelFormat();
+      applyFormat(textbox, labelFormat, null, info, false);
+      textbox.setZIndex(info.getZIndex());
+      textbox.setBorders(new Insets(0, 0, 0, 0));
+      textbox.setBorder(StyleConstants.NO_BORDER);
+
+      Font fn = textbox.getFont();
+      int labelW = (int) Common.stringWidth(labelText, fn) + 6;
+
+      Rectangle labelBounds;
+
+      switch(position) {
+         case LabelInfo.TOP:
+            labelBounds = new Rectangle(bounds.x, bounds.y, bounds.width, labelH);
+            break;
+         case LabelInfo.BOTTOM:
+            labelBounds = new Rectangle(bounds.x, bounds.y + bounds.height - labelH,
+                                        bounds.width, labelH);
+            break;
+         case LabelInfo.RIGHT:
+            labelBounds = new Rectangle(bounds.x + bounds.width - labelW + gap,
+                                        bounds.y, labelW, bounds.height);
+            break;
+         case LabelInfo.LEFT:
+         default:
+            labelBounds = new Rectangle(bounds.x, bounds.y, labelW, bounds.height);
+            break;
+      }
+
+      addElement0(labelBounds, textbox, sectionName);
+   }
+
    private void addTextBoxElement(VSAssembly assembly, String text,
                                   String sectionName)
    {
