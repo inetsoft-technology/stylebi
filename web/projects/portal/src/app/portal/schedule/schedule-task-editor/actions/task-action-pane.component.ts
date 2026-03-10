@@ -401,7 +401,7 @@ export class TaskActionPane implements OnInit {
       this.model.actions.push(copy);
       this.actionIndex = this.model.actions.length - 1;
       this.selectedActions = [this.actionIndex];
-      this.listView = true;
+      this.editAction();
    }
 
    public deleteAction(): void {
