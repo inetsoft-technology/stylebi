@@ -18,8 +18,8 @@
 package inetsoft.report.composition.graph;
 
 import inetsoft.graph.AxisSpec;
-import inetsoft.graph.visual.ElementVO;
 import inetsoft.graph.GraphConstants;
+import inetsoft.graph.visual.ElementVO;
 import inetsoft.graph.aesthetic.TextFrame;
 import inetsoft.graph.coord.*;
 import inetsoft.graph.data.DataSet;
@@ -309,6 +309,9 @@ public class SeparateGraphGenerator extends GraphGenerator {
 
                   // When x and y bind the same measure, clone xscale so x and y axes
                   // can have independent AxisSpec settings (e.g. labelOnSecondaryAxis). (Bug #74012)
+                  // The clone is intentionally not re-inserted into the scales map — it is only
+                  // used locally for coordinate construction (fixCoordProperties reads from
+                  // rect.getXScale(), not from the map).
                   if(xscale == yscale) {
                      xscale = xscale.clone();
                   }

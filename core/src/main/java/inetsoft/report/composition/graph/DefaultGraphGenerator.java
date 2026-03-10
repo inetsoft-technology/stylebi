@@ -100,6 +100,8 @@ public class DefaultGraphGenerator extends GraphGenerator {
     * Get the axis descriptor for a scale, with axis type context.
     * When x and y bind the same measure, x axis should use the x ref's own descriptor
     * to avoid inheriting y-axis-only settings (e.g. labelOnSecondaryAxis).
+    * Y axis intentionally falls through to super, which resolves via getAxisDescriptor(col) →
+    * getAxisDescriptor0() — matching ChartRegionHandler's behavior for non-separated charts.
     */
    @Override
    protected AxisDescriptor getAxisDescriptor(Scale scale, String axisType) {
@@ -280,6 +282,9 @@ public class DefaultGraphGenerator extends GraphGenerator {
 
                // When x and y bind the same measure, clone xscale so x and y axes
                // can have independent AxisSpec settings (e.g. labelOnSecondaryAxis). (Bug #74012)
+               // The clone is intentionally not re-inserted into the scales map — it is only
+               // used locally for coordinate construction (fixCoordProperties reads from
+               // rect.getXScale(), not from the map).
                if(xscale == yscale) {
                   xscale = xscale.clone();
                }
