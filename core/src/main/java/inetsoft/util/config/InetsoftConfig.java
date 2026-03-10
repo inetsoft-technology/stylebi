@@ -210,7 +210,7 @@ public class InetsoftConfig implements Serializable {
     * @return the config instance.
     */
    public static InetsoftConfig getInstance() {
-      return SingletonManager.getInstance(InetsoftConfig.class);
+      return ConfigurationContext.getContext().getSpringBean(InetsoftConfig.class);
    }
 
    /**
@@ -382,6 +382,18 @@ public class InetsoftConfig implements Serializable {
       return file;
    }
 
+   /**
+    * The bootstrap instance loaded before the Spring context starts. Set by the application
+    * bootstrap code before {@code SpringApplication.run()} is called so that all beans in
+    * {@code StorageConfiguration} can receive it as an injected dependency rather than calling
+    * {@code getInstance()} inside {@code @Bean} methods.
+    *
+    * <p>In non-Spring environments (tests, CloudRunner) this field is populated lazily by
+    * {@link Reference#get()} on first access, preserving the previous {@link SingletonManager}
+    * behaviour.</p>
+    */
+   public static volatile InetsoftConfig BOOTSTRAP_INSTANCE;
+
    private String version;
    private ClusterConfig cluster;
    private String pluginDirectory;
@@ -398,25 +410,23 @@ public class InetsoftConfig implements Serializable {
    @SingletonManager.ShutdownOrder(after = FileSystemService.class)
    public static final class Reference extends SingletonManager.Reference<InetsoftConfig> {
       @Override
-      public InetsoftConfig get(Object... parameters) {
-         if(config == null) {
+      public synchronized InetsoftConfig get(Object... parameters) {
+         if(BOOTSTRAP_INSTANCE == null) {
             File file = getConfigFile();
             boolean save = !file.exists();
-            config = load(file.toPath());
+            BOOTSTRAP_INSTANCE = load(file.toPath());
 
             if(save) {
-               save(config, file.toPath());
+               save(BOOTSTRAP_INSTANCE, file.toPath());
             }
          }
 
-         return config;
+         return BOOTSTRAP_INSTANCE;
       }
 
       @Override
-      public void dispose() {
-         config = null;
+      public synchronized void dispose() {
+         BOOTSTRAP_INSTANCE = null;
       }
-
-      private InetsoftConfig config;
    }
 }

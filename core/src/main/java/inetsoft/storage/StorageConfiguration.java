@@ -36,8 +36,12 @@ import java.util.ServiceLoader;
 public class StorageConfiguration {
 
    @Bean
-   public KeyValueEngine keyValueEngine() {
-      InetsoftConfig config = InetsoftConfig.getInstance();
+   public InetsoftConfig inetsoftConfig() {
+      return InetsoftConfig.BOOTSTRAP_INSTANCE;
+   }
+
+   @Bean
+   public KeyValueEngine keyValueEngine(InetsoftConfig config) {
       String type = config.getKeyValue().getType();
 
       for(KeyValueEngineFactory factory : ServiceLoader.load(KeyValueEngineFactory.class)) {
@@ -50,8 +54,7 @@ public class StorageConfiguration {
    }
 
    @Bean
-   public BlobEngine blobEngine() {
-      InetsoftConfig config = InetsoftConfig.getInstance();
+   public BlobEngine blobEngine(InetsoftConfig config) {
       String type = "local".equals(config.getBlob().getType())
          ? "filesystem" : config.getBlob().getType();
 
@@ -66,10 +69,10 @@ public class StorageConfiguration {
    }
 
    @Bean
-   public BlobCache blobCache(BlobEngine blobEngine) {
-      BlobConfig config = InetsoftConfig.getInstance().getBlob();
-      Path baseDir = Paths.get(Objects.requireNonNull(config.getCacheDirectory()));
-      Long maxSize = config.getCacheMaxSize();
+   public BlobCache blobCache(InetsoftConfig config, BlobEngine blobEngine) {
+      BlobConfig blobConfig = config.getBlob();
+      Path baseDir = Paths.get(Objects.requireNonNull(blobConfig.getCacheDirectory()));
+      Long maxSize = blobConfig.getCacheMaxSize();
 
       if(maxSize != null && maxSize > 0) {
          return new BoundedBlobCache(baseDir, blobEngine, maxSize);

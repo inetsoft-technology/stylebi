@@ -137,9 +137,10 @@ public class CloudRunner implements Callable<Integer> {
             ignite.getOrCreateCache("cloud.runner.config");
          InetsoftConfig config = cache.get("config");
 
-         // save inetsoft.yaml file
+         // save inetsoft.yaml file and update the bootstrap instance so all subsequent
+         // InetsoftConfig.getInstance() calls in this process return the fetched config
          InetsoftConfig.save(config, Paths.get(home, "inetsoft.yaml"));
-         SingletonManager.reset(InetsoftConfig.class);
+         InetsoftConfig.BOOTSTRAP_INSTANCE = config;
       }
    }
 

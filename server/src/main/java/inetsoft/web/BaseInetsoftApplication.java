@@ -298,6 +298,18 @@ public abstract class BaseInetsoftApplication {
                "derby.stream.error.file",
                new File(home, "derby.log").getAbsolutePath());
             ConfigurationContext.getContext().setHome(new File(home).getAbsolutePath());
+
+            // Eagerly load InetsoftConfig so it is available before SpringApplication.run()
+            // starts creating beans. StorageConfiguration.inetsoftConfig() returns this
+            // instance directly, ensuring all downstream @Bean methods receive a
+            // non-null InetsoftConfig without going through SingletonManager.
+            File configFile = InetsoftConfig.getConfigFile();
+            boolean saveConfig = !configFile.exists();
+            InetsoftConfig.BOOTSTRAP_INSTANCE = InetsoftConfig.load(configFile.toPath());
+
+            if(saveConfig) {
+               InetsoftConfig.save(InetsoftConfig.BOOTSTRAP_INSTANCE, configFile.toPath());
+            }
          }
       }
    }
