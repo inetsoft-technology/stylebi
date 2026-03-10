@@ -69,6 +69,7 @@ public class VisualizationConfig {
    private BindingInfo bindingInfo;
    private List<Layer> layers;
 
+   @JsonIgnoreProperties(ignoreUnknown = true)
    public static class DataSource {
       public String getSource() {
          return source;
