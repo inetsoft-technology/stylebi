@@ -159,7 +159,13 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
       InputStream input;
 
       try {
-         input = getInputStream(getBlob(path));
+         Blob<T> blob = getBlob(path);
+
+         if(blob.getDigest() == null) {
+            throw new IOException("Cannot open input stream for directory blob: " + path);
+         }
+
+         input = getInputStream(blob);
       }
       catch(IOException e) {
          lock.unlock();
@@ -202,7 +208,13 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
       BlobChannel channel;
 
       try {
-         channel = getReadChannel(getBlob(path));
+         Blob<T> blob = getBlob(path);
+
+         if(blob.getDigest() == null) {
+            throw new IOException("Cannot open read channel for directory blob: " + path);
+         }
+
+         channel = getReadChannel(blob);
       }
       catch(IOException e) {
          lock.unlock();
