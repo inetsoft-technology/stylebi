@@ -25,7 +25,9 @@ import {
    Output,
    ViewChild
 } from "@angular/core";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { createAssetEntry } from "../../../../../../../shared/data/asset-entry";
+import { ComponentTool } from "../../../../common/util/component-tool";
 import { ChartConfig } from "../../../../common/util/chart-config";
 import { StyleConstants } from "../../../../common/util/style-constants";
 import { ModelService } from "../../../../widget/services/model.service";
@@ -58,7 +60,8 @@ export class StaticShapePane implements OnInit {
    }
 
    constructor(private http: HttpClient,
-               private modelService: ModelService)
+               private modelService: ModelService,
+               private modalService: NgbModal)
    {
    }
 
@@ -116,9 +119,17 @@ export class StaticShapePane implements OnInit {
          }
 
          this.http.post("../api/chart/shape/upload", formData)
-            .subscribe(result => {
-               if(result) {
-                  this.loadShapes(recentFile, this.getAssetOrgId());
+            .subscribe({
+               next: result => {
+                  if(result) {
+                     this.loadShapes(recentFile, this.getAssetOrgId());
+                  }
+               },
+               error: (err) => {
+                  const msg = err?.status === 400
+                     ? "_#(js:viewer.shape.uploadFailed)"
+                     : "_#(js:common.uploadFailed)";
+                  ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", msg);
                }
             });
       }
