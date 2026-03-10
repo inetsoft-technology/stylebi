@@ -26,6 +26,7 @@ import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
 import inetsoft.storage.KeyValueStorage;
+import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.uql.XFactory;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.sync.DependencyStorageService;
@@ -60,7 +61,8 @@ public class UserTreeService {
                           LocalizationSettingsService localizationSettingsService,
                           SecurityEngine securityEngine,
                           IdentityThemeService themeService,
-                          SimpMessagingTemplate messagingTemplate)
+                          SimpMessagingTemplate messagingTemplate,
+                          KeyValueStorageManager keyValueStorageManager)
    {
       this.authenticationProviderService = authenticationProviderService;
       this.systemAdminService = systemAdminService;
@@ -70,6 +72,7 @@ public class UserTreeService {
       this.themeService = themeService;
       this.messagingTemplate = messagingTemplate;
       this.editOrganizationListener = new EditOrganizationListener(messagingTemplate);
+      this.keyValueStorageManager = keyValueStorageManager;
    }
 
    public List<String> getOrganizationTree(String providerName, Principal principal) {
@@ -1797,7 +1800,7 @@ public class UserTreeService {
       MVManager mvManager = MVManager.getManager();
       DataCycleManager cycleManager = DataCycleManager.getDataCycleManager();
       KeyValueStorage<FavoriteList> favorites =
-         SingletonManager.getInstance(KeyValueStorage.class, "emFavorites");
+         keyValueStorageManager.getInstance("emFavorites");
 
       if(favorites != null && oldID != null && newID != null &&
          favorites.contains(oldID.convertToKey()))
@@ -1905,5 +1908,6 @@ public class UserTreeService {
    private final IdentityThemeService themeService;
    private final SimpMessagingTemplate messagingTemplate;
    private final EditOrganizationListener editOrganizationListener;
+   private final KeyValueStorageManager keyValueStorageManager;
    private final Set<String> propertyNames = Set.of("max.row.count", "max.col.count", "max.cell.size", "max.user.count");
 }

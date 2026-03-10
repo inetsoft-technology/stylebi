@@ -40,6 +40,8 @@ import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.dep.*;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 import inetsoft.web.admin.deploy.*;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -67,6 +69,8 @@ import java.util.stream.Collectors;
  * @version 10.2
  * @author InetSoft Technology Corp
  */
+@Service
+@Lazy
 public class DeployManagerService {
    /**
     * Create a DeployManagerService.
@@ -79,7 +83,7 @@ public class DeployManagerService {
     * Get the deploy manager service.
     */
    public static DeployManagerService getService() {
-      return SingletonManager.getInstance(DeployManagerService.class);
+      return ConfigurationContext.getContext().getSpringBean(DeployManagerService.class);
    }
 
    /**

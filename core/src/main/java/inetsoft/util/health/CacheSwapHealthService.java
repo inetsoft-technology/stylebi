@@ -17,18 +17,23 @@
  */
 package inetsoft.util.health;
 
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
+import jakarta.annotation.PreDestroy;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
+@Service
+@Lazy
 public class CacheSwapHealthService implements AutoCloseable {
    public CacheSwapHealthService() {
       executor.scheduleAtFixedRate(this::checkHealth, 180L, 30L, TimeUnit.SECONDS);
    }
 
    public static CacheSwapHealthService getInstance() {
-      return SingletonManager.getInstance(CacheSwapHealthService.class);
+      return ConfigurationContext.getContext().getSpringBean(CacheSwapHealthService.class);
    }
 
    public CacheSwapStatus getStatus() {
@@ -36,6 +41,7 @@ public class CacheSwapHealthService implements AutoCloseable {
    }
 
    @Override
+   @PreDestroy
    public void close() throws Exception {
       executor.shutdown();
    }

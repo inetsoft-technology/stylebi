@@ -150,7 +150,7 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
     * @return the plugin manager instance.
     */
    public static Plugins getInstance() {
-      Plugins plugins = SingletonManager.getInstance(Plugins.class);
+      Plugins plugins = ConfigurationContext.getContext().getSpringBean(Plugins.class);
 
       if(!plugins.initialized) {
          synchronized(plugins) {

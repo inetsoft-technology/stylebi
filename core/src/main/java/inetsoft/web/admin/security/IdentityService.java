@@ -74,12 +74,16 @@ public class IdentityService {
    public IdentityService(SecurityEngine securityEngine,
                           SecurityProvider securityProvider,
                           IdentityThemeService themeService,
-                          AuthenticationService authenticationService)
+                          AuthenticationService authenticationService,
+                          BlobStorageManager blobStorageManager,
+                          KeyValueStorageManager keyValueStorageManager)
    {
       this.securityEngine = securityEngine;
       this.securityProvider = securityProvider;
       this.themeService = themeService;
       this.authenticationService = authenticationService;
+      this.blobStorageManager = blobStorageManager;
+      this.keyValueStorageManager = keyValueStorageManager;
    }
 
    private AuthenticationProvider getProvider(String providerName) {
@@ -610,7 +614,7 @@ public class IdentityService {
       IdentityID[] groups = eprovider.getGroups();
       IdentityID[] roles = eprovider.getRoles();
       KeyValueStorage<FavoriteList> favorites =
-         SingletonManager.getInstance(KeyValueStorage.class, "emFavorites");
+         keyValueStorageManager.getInstance("emFavorites");
 
       for(int i = 0; i < users.length; i++) {
          FSUser user = (FSUser) eprovider.getUser(users[i]);
@@ -680,7 +684,7 @@ public class IdentityService {
 
       AuthorizationChain authoc = ((AuthorizationChain) securityProvider.getAuthorizationProvider());
       KeyValueStorage<FavoriteList> favorites =
-         SingletonManager.getInstance(KeyValueStorage.class, "emFavorites");
+         keyValueStorageManager.getInstance("emFavorites");
 
       for(int i = 0; i < users.length; i++) {
          FSUser user = (FSUser) eprovider.getUser(users[i]);
@@ -1031,7 +1035,7 @@ public class IdentityService {
                                                            Class<T> type) throws Exception
    {
       BlobStorage<T> storage =
-         SingletonManager.getInstance(BlobStorage.class, orgID.toLowerCase() + suffix, false);
+         blobStorageManager.getInstance(orgID.toLowerCase() + suffix, false);
       storage.deleteBlobStorage();
    }
 
@@ -1133,9 +1137,9 @@ public class IdentityService {
                                                                Class<T> type, boolean copy) throws Exception
    {
       BlobStorage<T> oStorage =
-         SingletonManager.getInstance(BlobStorage.class, oId.toLowerCase() + suffix, false);
+         blobStorageManager.getInstance(oId.toLowerCase() + suffix, false);
       BlobStorage<T> nStorage =
-         SingletonManager.getInstance(BlobStorage.class, id.toLowerCase() + suffix, false);
+         blobStorageManager.getInstance(id.toLowerCase() + suffix, false);
 
       List<String> paths = oStorage.paths().collect(Collectors.toList());
 
@@ -1156,9 +1160,9 @@ public class IdentityService {
 
    private void updateLibraryStorage(String oId, String id, boolean copy) throws Exception {
       try(BlobStorage<LibManager.Metadata> oStorage =
-             SingletonManager.getInstance(BlobStorage.class, oId.toLowerCase() + "__library", false);
+             blobStorageManager.getInstance(oId.toLowerCase() + "__library", false);
           BlobStorage<LibManager.Metadata> nStorage =
-             SingletonManager.getInstance(BlobStorage.class, id.toLowerCase() + "__library", false))
+             blobStorageManager.getInstance(id.toLowerCase() + "__library", false))
       {
          List<String> paths = oStorage.paths().collect(Collectors.toList());
 
@@ -2598,4 +2602,6 @@ public class IdentityService {
    private final IdentityThemeService themeService;
    private final Logger LOG = LoggerFactory.getLogger(IdentityService.class);
    private final AuthenticationService authenticationService;
+   private final BlobStorageManager blobStorageManager;
+   private final KeyValueStorageManager keyValueStorageManager;
 }

@@ -21,15 +21,19 @@ package inetsoft.util.health;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.db.DatabaseAuthenticationProvider;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.util.*;
 
+@Service
+@Lazy
 public class SecurityProviderHealthService {
    public static SecurityProviderHealthService getInstance() {
-      return SingletonManager.getInstance(SecurityProviderHealthService.class);
+      return ConfigurationContext.getContext().getSpringBean(SecurityProviderHealthService.class);
    }
 
    public SecurityProviderStatus getStatus() {

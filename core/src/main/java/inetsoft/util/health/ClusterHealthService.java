@@ -19,16 +19,20 @@ package inetsoft.util.health;
 
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedMap;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 /**
  * {@code ClusterHealthService} provides health status for the cluster.
  */
+@Service
+@Lazy
 public class ClusterHealthService {
    public static ClusterHealthService getInstance() {
-      return SingletonManager.getInstance(ClusterHealthService.class);
+      return ConfigurationContext.getContext().getSpringBean(ClusterHealthService.class);
    }
 
    /**

@@ -20,9 +20,9 @@ package inetsoft.web.admin.upload;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.storage.BlobStorage;
+import inetsoft.storage.BlobStorageManager;
 import inetsoft.storage.BlobTransaction;
 import inetsoft.util.FileSystemService;
-import inetsoft.util.SingletonManager;
 import jakarta.annotation.PreDestroy;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -37,9 +37,10 @@ import java.util.stream.Collectors;
 
 @Component
 public class UploadService {
-   public UploadService(MavenClientService mavenClient) {
+   public UploadService(MavenClientService mavenClient, BlobStorageManager blobStorageManager) {
       this.mavenClient = mavenClient;
       this.uploads = Cluster.getInstance().getMap(getClass().getName() + ".uploads");
+      this.blobStorage = blobStorageManager.getInstance("fileUploads", false);
    }
 
    @PreDestroy
@@ -160,7 +161,7 @@ public class UploadService {
       info.blob = id + "/" + file.fileName();
 
       if(file.multipartFile() != null) {
-         FileSystemService fsService = SingletonManager.getInstance(FileSystemService.class);
+         FileSystemService fsService = FileSystemService.getInstance();
          File localFile = fsService.getCacheTempFile("upload-" + id, ".dat");
 
          try {
@@ -238,9 +239,7 @@ public class UploadService {
 
    private final MavenClientService mavenClient;
    private final DistributedMap<String, Upload> uploads;
-   @SuppressWarnings("unchecked")
-   private final BlobStorage<Metadata> blobStorage =
-      SingletonManager.getInstance(BlobStorage.class, "fileUploads", false);
+   private final BlobStorage<Metadata> blobStorage;
    private static final Logger LOG = LoggerFactory.getLogger(UploadService.class);
 
    public static final class Metadata implements Serializable {

@@ -47,13 +47,14 @@ import java.security.Principal;
 import java.util.Enumeration;
 import java.util.List;
 
-@SingletonManager.Singleton
+@org.springframework.stereotype.Service
+@org.springframework.context.annotation.Lazy
 public class ScheduleViewsheetService {
    /**
     * Get the schedule viewsheet service.
     */
    public static ScheduleViewsheetService getInstance() {
-      return SingletonManager.getInstance(ScheduleViewsheetService.class);
+      return ConfigurationContext.getContext().getSpringBean(ScheduleViewsheetService.class);
    }
 
    public ScheduleViewsheetService() {

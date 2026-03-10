@@ -19,8 +19,11 @@ package inetsoft.sree.portal;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.*;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 import org.w3c.dom.*;
 
 import java.io.*;
@@ -33,10 +36,11 @@ import java.util.concurrent.TimeUnit;
  * @version 14.0, 05/15/2024
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(CustomThemesManager.Reference.class)
+@Service
+@Lazy
 public class CustomThemesManager implements XMLSerializable, AutoCloseable {
    public static synchronized CustomThemesManager getManager() {
-      return SingletonManager.getInstance(CustomThemesManager.class);
+      return ConfigurationContext.getContext().getSpringBean(CustomThemesManager.class);
    }
 
    public CustomThemesManager() {
@@ -132,6 +136,7 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
    }
 
    @Override
+   @PreDestroy
    public void close() throws Exception {
       impl.close();
    }

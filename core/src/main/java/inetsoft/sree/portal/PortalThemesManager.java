@@ -22,8 +22,12 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.*;
 import inetsoft.util.gui.GuiTool;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 import org.w3c.dom.*;
 
 import javax.xml.xpath.*;
@@ -43,7 +47,8 @@ import java.util.stream.Collectors;
  * @version 8.5, 07/12/2006
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(PortalThemesManager.Reference.class)
+@Service
+@Lazy
 public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    /**
     * Help button.
@@ -86,7 +91,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
     * Return a portal themes manager.
     */
    public static synchronized PortalThemesManager getManager() {
-      return SingletonManager.getInstance(PortalThemesManager.class);
+      return ConfigurationContext.getContext().getSpringBean(PortalThemesManager.class);
    }
 
    /**
@@ -493,6 +498,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    }
 
    @Override
+   @PreDestroy
    public void close() throws Exception {
       dmgr.clear();
    }
@@ -904,6 +910,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    /**
     * Build up the portal manager by parse a .xml file.
     */
+   @PostConstruct
    public void loadThemes() {
       DataSpace space = DataSpace.getDataSpace();
       String name = SreeEnv.getPath("portal.themes.file", "portalthemes.xml");
@@ -968,7 +975,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    }
 
    private void initUserFonts() {
-      for(FontFaceModel fontFace : PortalThemesManager.getManager().getUserFontFaces()) {
+      for(FontFaceModel fontFace : getUserFontFaces()) {
          Font font = GuiTool.getUserFont(fontFace.fontName(), fontFace.getFileNamePrefix());
 
          if(font != null) {

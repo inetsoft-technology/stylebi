@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.util;
 
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.SingletonManager;
 
 import java.util.HashMap;
@@ -82,7 +83,7 @@ public class XSessionService {
     * @return the session service.
     */
    private static XSessionService getService() {
-      return SingletonManager.getInstance(XSessionService.class);
+      return ConfigurationContext.getContext().getSpringBean(XSessionService.class);
    }
 
    /**

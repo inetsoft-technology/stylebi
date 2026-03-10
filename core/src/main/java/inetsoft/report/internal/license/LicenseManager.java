@@ -21,7 +21,9 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.MessageEvent;
 import inetsoft.sree.internal.cluster.MessageListener;
 import inetsoft.sree.security.IdentityID;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
+import jakarta.annotation.PreDestroy;
+import org.springframework.context.ConfigurableApplicationContext;
 
 import java.util.*;
 
@@ -60,7 +62,34 @@ public class LicenseManager implements AutoCloseable, MessageListener {
     * @return the manager instance.
     */
    public static LicenseManager getInstance() {
-      return SingletonManager.getInstance(LicenseManager.class);
+      return ConfigurationContext.getContext().getSpringBean(LicenseManager.class);
+   }
+
+   /**
+    * Returns {@code true} if CPU affinity is configured in the license, or {@code false} if the
+    * {@code LicenseManager} bean is not yet available in the Spring context.
+    *
+    * <p>This method is safe to call from threads that may run while Spring is still initializing
+    * beans (e.g. {@link inetsoft.util.GroupedThread} tasks submitted by cluster services). Calling
+    * {@link #getInstance()} from such threads can deadlock because Spring's singleton creation lock
+    * may be held by the thread that spawned the cluster task. This method avoids that by checking
+    * whether the bean is already in the singleton cache before attempting to retrieve it.</p>
+    */
+   public static boolean isAffinityEnabledSafe() {
+      try {
+         var ctx = ConfigurationContext.getContext().getApplicationContext();
+
+         if(ctx instanceof ConfigurableApplicationContext cac &&
+            !cac.getBeanFactory().containsSingleton("licenseManager"))
+         {
+            return false;
+         }
+
+         return getInstance().isAffinitySet();
+      }
+      catch(Exception ignore) {
+         return false;
+      }
    }
 
    /**
@@ -305,6 +334,7 @@ public class LicenseManager implements AutoCloseable, MessageListener {
    }
 
    @Override
+   @PreDestroy
    public void close() throws Exception {
       strategy.close();
    }

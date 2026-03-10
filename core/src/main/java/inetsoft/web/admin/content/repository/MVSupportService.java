@@ -54,7 +54,7 @@ import java.util.stream.Collectors;
 @Service
 public class MVSupportService {
    public static MVSupportService getInstance() {
-      return SingletonManager.getInstance(MVSupportService.class);
+      return ConfigurationContext.getContext().getSpringBean(MVSupportService.class);
    }
 
    /**

@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 
 public class Drivers {
    public static Drivers getInstance() {
-      return SingletonManager.getInstance(Drivers.class);
+      return ConfigurationContext.getContext().getSpringBean(Drivers.class);
    }
 
    /**

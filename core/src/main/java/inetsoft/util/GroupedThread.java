@@ -145,7 +145,7 @@ public class GroupedThread extends Thread {
    @Override
    public final void run() {
       // update the affinity for every thread we create (POSIX)
-      if(!Platform.isWindows() && !Platform.isMac() && LicenseManager.getInstance().isAffinitySet())
+      if(!Platform.isWindows() && !Platform.isMac() && LicenseManager.isAffinityEnabledSafe())
       {
          final AffinitySupport affinitySupport = AffinitySupport.FACTORY.getInstance();
 

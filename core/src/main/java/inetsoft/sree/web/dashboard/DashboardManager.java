@@ -21,10 +21,14 @@ import inetsoft.sree.ClientInfo;
 import inetsoft.sree.security.*;
 import inetsoft.storage.*;
 import inetsoft.uql.util.*;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.SingletonManager;
 import inetsoft.util.Tool;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.io.Serializable;
 import java.security.Principal;
@@ -40,6 +44,8 @@ import java.util.function.Supplier;
  * @author InetSoft Technology Corp
  */
 @SuppressWarnings("WeakerAccess")
+@Service
+@Lazy
 public class DashboardManager implements AutoCloseable {
    /**
     * Construct.
@@ -48,6 +54,7 @@ public class DashboardManager implements AutoCloseable {
    }
 
    @Override
+   @PreDestroy
    public synchronized void close() throws Exception {
       getDashboardStorage().close();
    }
@@ -68,7 +75,7 @@ public class DashboardManager implements AutoCloseable {
     * Return a dashboard manager.
     */
    public static DashboardManager getManager() {
-      return SingletonManager.getInstance(DashboardManager.class);
+      return ConfigurationContext.getContext().getSpringBean(DashboardManager.class);
    }
 
    /**

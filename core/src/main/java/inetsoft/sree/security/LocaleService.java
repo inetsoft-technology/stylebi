@@ -21,7 +21,9 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.UserEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.util.Catalog;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
@@ -29,6 +31,8 @@ import java.util.*;
 /**
  * Class that supports user locale registration.
  */
+@Service
+@Lazy
 public class LocaleService {
 
    /**
@@ -43,7 +47,7 @@ public class LocaleService {
     * @return the shared service.
     */
    public static LocaleService getInstance() {
-      return SingletonManager.getInstance(LocaleService.class);
+      return ConfigurationContext.getContext().getSpringBean(LocaleService.class);
    }
 
    /**

@@ -18,12 +18,16 @@
 package inetsoft.util.health;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.FileSystemService;
-import inetsoft.util.SingletonManager;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.time.Instant;
 
+@Service
+@Lazy
 public class OutOfMemoryHealthService {
    public OutOfMemoryHealthService() {
       String path = SreeEnv.getProperty("health.outOfMemory.file", "./oom");
@@ -31,7 +35,7 @@ public class OutOfMemoryHealthService {
    }
 
    public static OutOfMemoryHealthService getInstance() {
-      return SingletonManager.getInstance(OutOfMemoryHealthService.class);
+      return ConfigurationContext.getContext().getSpringBean(OutOfMemoryHealthService.class);
    }
 
    public OutOfMemoryStatus getStatus() {

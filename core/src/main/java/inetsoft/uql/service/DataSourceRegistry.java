@@ -31,6 +31,7 @@ import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.util.*;
 import inetsoft.uql.xmla.Domain;
 import inetsoft.util.*;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -64,7 +65,12 @@ public class DataSourceRegistry implements MessageListener {
     * @return data source registry if any, null otherwise.
     */
    public static DataSourceRegistry getRegistry() {
-      return SingletonManager.getInstance(DataSourceRegistry.class);
+      return ConfigurationContext.getContext().getSpringBean(DataSourceRegistry.class);
+   }
+
+   @PreDestroy
+   public void shutdown() {
+      Cluster.getInstance().removeMessageListener(this);
    }
 
    /**

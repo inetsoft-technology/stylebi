@@ -19,11 +19,13 @@
 package inetsoft.util.health;
 
 import inetsoft.sree.SreeEnv;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.config.InetsoftConfig;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -31,9 +33,11 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
 
+@Service
+@Lazy
 public class FileSystemHealthService {
    public static FileSystemHealthService getInstance() {
-      return SingletonManager.getInstance(FileSystemHealthService.class);
+      return ConfigurationContext.getContext().getSpringBean(FileSystemHealthService.class);
    }
 
    public FileSystemStatus getStatus() {

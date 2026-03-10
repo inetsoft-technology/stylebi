@@ -18,20 +18,24 @@
 
 package inetsoft.util.credential;
 
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.SingletonManager;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.util.*;
 
-@SingletonManager.Singleton(CredentialService.Reference.class)
+@Service
+@Lazy
 public class CredentialService {
-   private CredentialService() {
+   CredentialService() {
       for(CredentialFactory factory : ServiceLoader.load(CredentialFactory.class)) {
          factories.put(factory.getType(), factory);
       }
    }
 
    public static synchronized CredentialService getInstance() {
-      return SingletonManager.getInstance(CredentialService.class);
+      return ConfigurationContext.getContext().getSpringBean(CredentialService.class);
    }
 
    public static Credential newCredential(CredentialType type) {

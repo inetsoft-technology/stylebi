@@ -24,14 +24,21 @@ import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.WorksheetService;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.internal.AnalyticEngine;
 import inetsoft.sree.schedule.ScheduleClient;
+import inetsoft.storage.BlobStorageManager;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.service.XEngine;
+import inetsoft.uql.util.Drivers;
+import inetsoft.uql.util.XSessionService;
+import inetsoft.uql.viewsheet.BookmarkLockManager;
 import inetsoft.uql.viewsheet.ViewsheetLifecycleMessageChannel;
+import inetsoft.util.Plugins;
 import inetsoft.web.cluster.ServerClusterClient;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.context.annotation.*;
@@ -131,5 +138,47 @@ public class EngineConfiguration {
    @Bean
    public ServerClusterClient serverClusterClient() {
       return new ServerClusterClient(false);
+   }
+
+   /** Plugin manager — loads and manages installed plugins from blob storage. */
+   @Bean
+   @Lazy
+   public Plugins plugins(@Lazy BlobStorageManager blobStorageManager) {
+      return new Plugins(blobStorageManager.getInstance("plugins", true));
+   }
+
+   /** Session ID counter service. */
+   @Bean
+   @Lazy
+   public XSessionService xSessionService() {
+      return new XSessionService();
+   }
+
+   /** JDBC/tabular driver registry. */
+   @Bean
+   @Lazy
+   public Drivers drivers() {
+      return new Drivers();
+   }
+
+   /** Data source registry — manages configured data source definitions. */
+   @Bean
+   @Lazy
+   public DataSourceRegistry dataSourceRegistry() throws Exception {
+      return new DataSourceRegistry();
+   }
+
+   /** License manager — validates installed license keys and enforces limits. */
+   @Bean
+   @Lazy
+   public LicenseManager licenseManager() {
+      return new LicenseManager();
+   }
+
+   /** Bookmark lock manager — tracks distributed bookmark edit locks. */
+   @Bean
+   @Lazy
+   public BookmarkLockManager bookmarkLockManager() {
+      return new BookmarkLockManager();
    }
 }

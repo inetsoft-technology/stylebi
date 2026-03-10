@@ -19,8 +19,10 @@ package inetsoft.uql.viewsheet;
 
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.MultiMap;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.SingletonManager;
 import inetsoft.util.Tool;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,7 +39,7 @@ public class BookmarkLockManager implements AutoCloseable {
     * Return a bookmark lock manager.
     */
    public static synchronized BookmarkLockManager getManager() {
-      return SingletonManager.getInstance(BookmarkLockManager.class);
+      return ConfigurationContext.getContext().getSpringBean(BookmarkLockManager.class);
    }
 
    public void lock(String key, String user, String runtimeId) {
@@ -101,6 +103,7 @@ public class BookmarkLockManager implements AutoCloseable {
    }
 
    @Override
+   @PreDestroy
    public void close() throws Exception {
       lockMap.clear();
       Cluster.getInstance().destroyMap(BOOKMARK_LOCK_MAP_NAME);

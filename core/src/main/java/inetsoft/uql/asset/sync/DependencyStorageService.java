@@ -23,8 +23,11 @@ import inetsoft.storage.KeyValueStorage;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.util.*;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.concurrent.*;
@@ -34,16 +37,17 @@ import java.util.stream.Collectors;
 /**
  * Provides storage for asset dependencies info.
  */
-@SingletonManager.Singleton(DependencyStorageService.Reference.class)
+@Service
+@Lazy
 public final class DependencyStorageService {
-   private DependencyStorageService() {
+   DependencyStorageService() {
    }
 
    /**
     * Get DependencyStorageService instance.
     */
    public static DependencyStorageService getInstance() {
-      return SingletonManager.getInstance(DependencyStorageService.class);
+      return ConfigurationContext.getContext().getSpringBean(DependencyStorageService.class);
    }
 
    /**
@@ -230,7 +234,8 @@ public final class DependencyStorageService {
          .collect(Collectors.toSet());
    }
 
-   private void initStorage() {
+   @PostConstruct
+   void initStorage() {
       getDependencyStorage();
    }
 
