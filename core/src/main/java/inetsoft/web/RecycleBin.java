@@ -25,8 +25,11 @@ import inetsoft.storage.KeyValuePair;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
@@ -39,6 +42,8 @@ import java.util.stream.Collectors;
 /**
  * Class that encapsulates a recycle bin.
  */
+@Service
+@Lazy
 public class RecycleBin implements XMLSerializable, AutoCloseable {
    /**
     * Creates a new instance of <tt>RecycleBin</tt>.
@@ -53,7 +58,7 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
     * @return the recycle bin.
     */
    public static RecycleBin getRecycleBin() {
-      return SingletonManager.getInstance(RecycleBin.class);
+      return ConfigurationContext.getContext().getSpringBean(RecycleBin.class);
    }
 
    /**
@@ -328,6 +333,7 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
       writer.println("</recycleBin>");
    }
 
+   @PreDestroy
    @Override
    public void close() throws Exception {
       getStorage().close();

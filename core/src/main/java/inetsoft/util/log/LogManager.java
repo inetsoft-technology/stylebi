@@ -23,8 +23,11 @@ import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.util.*;
 import inetsoft.web.admin.logviewer.*;
+import jakarta.annotation.PreDestroy;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.*;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -46,6 +49,8 @@ import java.util.zip.ZipOutputStream;
  * @author InetSoft Technology
  * @since 10.1
  */
+@Service
+@Lazy
 public final class LogManager implements AutoCloseable, MessageListener {
    /**
     * Creates a new instance of <tt>LogManager</tt>.
@@ -57,7 +62,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
    }
 
    public static LogManager getInstance() {
-      return SingletonManager.getInstance(LogManager.class);
+      return ConfigurationContext.getContext().getSpringBean(LogManager.class);
    }
 
    public static void initializeForStartup() {
@@ -72,6 +77,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
       Cluster.getInstance().addMessageListener(this);
    }
 
+   @PreDestroy
    @Override
    public void close()  {
       useInitializer(LogInitializer::reset);

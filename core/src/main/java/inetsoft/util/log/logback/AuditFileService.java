@@ -19,13 +19,19 @@ package inetsoft.util.log.logback;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.Appender;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
+import jakarta.annotation.PreDestroy;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
+@Service
+@Lazy
 public class AuditFileService implements AutoCloseable {
    public static AuditFileService getInstance() {
-      return SingletonManager.getInstance(AuditFileService.class);
+      return ConfigurationContext.getContext().getSpringBean(AuditFileService.class);
    }
 
+   @PreDestroy
    @Override
    public void close() throws Exception {
       if(appender != null) {

@@ -72,11 +72,7 @@ import java.util.*;
       "inetsoft.web",
       "inetsoft.storage",
       "inetsoft.util",
-      "inetsoft.sree.security",
-      "inetsoft.sree.schedule",
-      "inetsoft.sree.portal",
-      "inetsoft.sree.web",
-      "inetsoft.sree.internal",
+      "inetsoft.sree",
       "inetsoft.uql.asset.sync"
    },
    lazyInit = true)

@@ -39,6 +39,8 @@ import inetsoft.web.session.IgniteSessionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -53,6 +55,8 @@ import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+@Service
+@Lazy
 public class StatusDumpService {
    public StatusDumpService() {
       mapper = new ObjectMapper();
@@ -60,7 +64,7 @@ public class StatusDumpService {
    }
 
    public static StatusDumpService getInstance() {
-      return SingletonManager.getInstance(StatusDumpService.class);
+      return ConfigurationContext.getContext().getSpringBean(StatusDumpService.class);
    }
 
    public void dumpStatus() {

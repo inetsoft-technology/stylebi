@@ -33,6 +33,8 @@ import inetsoft.util.script.JavaScriptEngine;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.awt.*;
 import java.beans.PropertyChangeListener;
@@ -45,6 +47,8 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 
+@Service
+@Lazy
 public class PropertiesEngine {
    /**
     * Gets the singleton instance of {@code PropertiesEngine}.
@@ -52,7 +56,7 @@ public class PropertiesEngine {
     * @return the PropertiesEngine instance.
     */
    public static PropertiesEngine getInstance() {
-      return SingletonManager.getInstance(PropertiesEngine.class);
+      return ConfigurationContext.getContext().getSpringBean(PropertiesEngine.class);
    }
 
    /**
@@ -604,7 +608,7 @@ public class PropertiesEngine {
          // @by stephenwebster, For Bug #29148
          // Whenever SreeEnv is cleared, we must reset the log manager prior to a re-initialization
          // of SreeEnv.
-         SingletonManager.reset(LogManager.class);
+         LogManager.getInstance().close();
          ConfigurationContext.getContext().remove(PROPERTIES_KEY);
          ConfigurationContext.getContext().remove(DEFAULTS_PROPERTIES_KEY);
          ConfigurationContext.getContext().remove(EARLY_LOADED_PROPERTIES_KEY);
