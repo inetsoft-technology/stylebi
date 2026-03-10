@@ -183,6 +183,14 @@ export class ResourcePermissionComponent implements OnInit, OnChanges, OnDestroy
    }
 
    pastePermissions(): void {
+      if(this.pasteCount === 0) {
+         this.snackBar.open("_#(js:em.security.pastePermissions.incompatible)", null, {
+            duration: Tool.SNACKBAR_DURATION
+         });
+
+         return;
+      }
+
       this.dialog.open(MessageDialog, {
          width: "350px",
          data: {
