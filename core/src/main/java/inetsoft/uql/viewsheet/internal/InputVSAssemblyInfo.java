@@ -696,6 +696,18 @@ public abstract class InputVSAssemblyInfo extends VSAssemblyInfo {
       this.labelInfo = labelInfo;
    }
 
+   /**
+    * Reset runtime values so bookmark restore applies cleanly.
+    */
+   @Override
+   public void resetRuntimeValues() {
+      super.resetRuntimeValues();
+
+      if(labelInfo != null) {
+         labelInfo.resetRuntimeValues();
+      }
+   }
+
    // input data
    private String table;
    private DynamicValue columnValue;
