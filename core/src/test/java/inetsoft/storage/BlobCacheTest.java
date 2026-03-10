@@ -22,6 +22,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 
@@ -63,6 +64,19 @@ class BlobCacheTest {
    }
 
    /**
+    * Directory blobs have no binary data. Verify that put(storeId, Blob, Path) throws an
+    * IOException rather than passing a null digest down to the engine.
+    */
+   @Test
+   void put_throwsIOException_forDirectoryBlob() throws Exception {
+      Path tempFile = Files.createTempFile(tempDir, "blob", ".dat");
+      IOException thrown = assertThrows(IOException.class,
+                                        () -> cache.put("test-store", directoryBlob, tempFile));
+      assertTrue(thrown.getMessage().contains("directory blob"),
+                 "Expected message to mention 'directory blob', got: " + thrown.getMessage());
+   }
+
+   /**
     * Directory blobs have a null digest. Verify that get(storeId, Blob) throws an IOException
     * with a meaningful message rather than causing an NPE on digest.substring().
     */
@@ -70,7 +84,7 @@ class BlobCacheTest {
    void get_throwsIOException_forDirectoryBlob() {
       IOException thrown = assertThrows(IOException.class,
                                         () -> cache.get("test-store", directoryBlob));
-      assertTrue(thrown.getMessage().contains("has no digest"),
-                 "Expected message to mention 'has no digest', got: " + thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("directory blob"),
+                 "Expected message to mention 'directory blob', got: " + thrown.getMessage());
    }
 }

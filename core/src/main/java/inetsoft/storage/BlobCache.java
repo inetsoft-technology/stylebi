@@ -46,7 +46,7 @@ public class BlobCache {
       String digest = blob.getDigest();
 
       if(digest == null) {
-         throw new IOException("Blob at " + blob.getPath() + " has no digest");
+         throw new IOException("Cannot read directory blob from cache: " + blob.getPath());
       }
 
       return copyToCache(storeId, digest);
@@ -88,9 +88,9 @@ public class BlobCache {
    }
 
    public void put(String storeId, Blob<?> blob, Path tempFile) throws IOException {
-      // A null digest indicates a directory blob, which has no corresponding cache file.
+      // Directory blobs have no binary data; writing one to the cache is a caller error.
       if(blob.getDigest() == null) {
-         throw new IOException("Cannot write a directory blob to the cache: " + blob.getPath());
+         throw new IOException("Cannot write directory blob to cache: " + blob.getPath());
       }
 
       Path path = getPath(storeId, blob, baseDir);
@@ -143,7 +143,7 @@ public class BlobCache {
 
    private Path getPath(String storeId, Blob<?> blob, Path base) throws IOException {
       if(blob.getDigest() == null) {
-         throw new IOException("The blob at " + blob.getPath() + " is a directory");
+         throw new IOException("Cannot resolve path for directory blob: " + blob.getPath());
       }
 
       return getPath(storeId, blob.getDigest(), base);
