@@ -243,6 +243,9 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
             }, 0);
          });
       }
+      else if(!this.isEditorElementDisplayed()) {
+         this.viewChecked = false;
+      }
    }
 
    ngOnDestroy(): void {
