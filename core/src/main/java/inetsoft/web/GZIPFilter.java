@@ -100,8 +100,9 @@ public class GZIPFilter implements Filter {
     */
    private boolean isCompressibleEndpoint(HttpServletRequest request) {
       String path = request.getServletPath();
-      return !path.contains("/api/public") && !path.endsWith("/xhr_send") &&
-         !path.endsWith("/xhr_streaming") || whiteList.contains(path);
+      return (!path.contains("/api/public") && !path.endsWith("/xhr_send") &&
+         !path.endsWith("/xhr_streaming") &&
+         !path.startsWith("/api/assistant/proxy")) || whiteList.contains(path);
    }
 
    @Override
