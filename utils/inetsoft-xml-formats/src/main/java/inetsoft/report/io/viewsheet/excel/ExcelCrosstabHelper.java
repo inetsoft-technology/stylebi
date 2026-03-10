@@ -79,14 +79,14 @@ public class ExcelCrosstabHelper extends VSCrosstabHelper {
       excelRows = new int[rowPixelHLength];
 
       for(int i = 0; i < rowPixelH.length; i++) {
-         excelRows[i] = (int) Math.round(((double)rowPixelH[i]) / AssetUtil.defh);
+         excelRows[i] = (int) Math.ceil(((double)rowPixelH[i]) / AssetUtil.defh);
          excelRows[i] = Math.max(1, excelRows[i]);
       }
 
       int titleH = PoiExcelVSUtil.getExcelTitleHeight(info);
       int viewHeight = info.getPixelSize().height;
       int dataHeight = viewHeight - titleH;
-      int allExcelRows = dataHeight / AssetUtil.defh;
+      int allExcelRows = (int) Math.ceil((double) dataHeight / AssetUtil.defh);
       int count = 0;
       dataRowCount = 0;
 
@@ -131,7 +131,7 @@ public class ExcelCrosstabHelper extends VSCrosstabHelper {
    {
       Dimension titleBounds = new Dimension(bounds);
       bounds.width = columnPixelW.length;
-      bounds.height = (int) Math.round((double) bounds.height / AssetUtil.defh);
+      bounds.height = (int) Math.ceil((double) bounds.height / AssetUtil.defh);
       titleBounds.height = PoiExcelVSUtil.getTableTitleHeight(titleBounds.height);
       startY = PoiExcelVSUtil.ceilY(startY);
       PoiExcelVSUtil.writeTableCell(startX, startY, bounds, irow, icol, format,
