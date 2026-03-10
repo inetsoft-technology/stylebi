@@ -207,7 +207,13 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
 
    ngOnInit(): void {
       this.helpService.getScriptHelpUrl().subscribe((url) => this.helpURL = url);
-      this.scriptSettingsService.isCursorTop().subscribe((val) => this.cursorTop = val);
+      this.scriptSettingsService.isCursorTop().subscribe((val) => {
+         this.cursorTop = val;
+
+         if(val && this.codemirrorInstance) {
+            this.codemirrorInstance.setCursor({line: 0, ch: 0});
+         }
+      });
    }
 
    ngOnChanges(changes: SimpleChanges): void {
