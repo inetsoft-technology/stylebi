@@ -118,7 +118,7 @@ public abstract class CubeVSAQuery extends DataVSAQuery {
       }
 
       appendAggCalcField(table, tname);
-      appendDetailCalcField(table, tname);
+      appendCalcFieldWithType(table, tname, true, true, getViewsheet());
 
       if(!analysis) {
          ChartVSAssembly chart = box.getBrushingChart(vname);
