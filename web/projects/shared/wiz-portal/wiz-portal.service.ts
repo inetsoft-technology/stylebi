@@ -48,7 +48,7 @@ export class WizPortalService {
          this.userId = convertToKey(user.name);
       });
 
-      this.http.get<OrganizationDomains>("../api/public/appDomains").subscribe((domains) => {
+      this.http.get<OrganizationDomains>("../api/wiz/appDomains").subscribe((domains) => {
          if(domains?.id) {
             this.domain = JSON.stringify({
                domain: domains.id,
