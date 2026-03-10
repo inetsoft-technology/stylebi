@@ -68,7 +68,7 @@
           _#(Copy Permissions)
         </button>
         <button mat-stroked-button *ngIf="showCopyPaste && copyPasteContext" (click)="pastePermissions()"
-                [disabled]="!canPaste || pasteCount === 0">
+                [disabled]="!canPaste">
           _#(Paste Permissions){{pasteBadgeLabel}}
         </button>
       </mat-card-actions>
