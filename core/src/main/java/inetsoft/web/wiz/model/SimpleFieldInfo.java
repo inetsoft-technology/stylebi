@@ -19,10 +19,11 @@ package inetsoft.web.wiz.model;
 
 import com.fasterxml.jackson.annotation.*;
 
-@JsonTypeInfo(use = JsonTypeInfo.Id.DEDUCTION)
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "fieldType", defaultImpl = SimpleFieldInfo.class)
 @JsonSubTypes({
-    @JsonSubTypes.Type(DimensionFieldInfo.class),
-    @JsonSubTypes.Type(MeasureFieldInfo.class)
+    @JsonSubTypes.Type(value = SimpleFieldInfo.class, name = "simple"),
+    @JsonSubTypes.Type(value = DimensionFieldInfo.class, name = "dimension"),
+    @JsonSubTypes.Type(value = MeasureFieldInfo.class, name = "measure")
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SimpleFieldInfo extends FieldInfo {

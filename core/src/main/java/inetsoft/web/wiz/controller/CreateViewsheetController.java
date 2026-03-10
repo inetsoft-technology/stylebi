@@ -26,12 +26,13 @@ import org.springframework.web.bind.annotation.*;
 import java.security.Principal;
 
 @RestController
+@RequestMapping("/api/wiz")
 public class CreateViewsheetController {
    public CreateViewsheetController(CreateVsService createVsService) {
       this.createVsService = createVsService;
    }
 
-   @PostMapping(value = "/api/public/viewsheet/create/vs", produces = MediaType.APPLICATION_JSON_VALUE)
+   @PostMapping(value = "/viewsheet/create/vs", produces = MediaType.APPLICATION_JSON_VALUE)
    public void createViewsheet(@RequestBody CreateVisualizationModel model, Principal user)
       throws Exception
    {
