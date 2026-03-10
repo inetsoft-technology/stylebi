@@ -18,6 +18,7 @@
 package inetsoft.uql.viewsheet.vslayout;
 
 import inetsoft.storage.*;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.SingletonManager;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
@@ -50,7 +51,7 @@ public final class DeviceRegistry {
     * @return the registry.
     */
    public static synchronized DeviceRegistry getRegistry() {
-      return SingletonManager.getInstance(DeviceRegistry.class);
+      return ConfigurationContext.getContext().getSpringBean(DeviceRegistry.class);
    }
 
 

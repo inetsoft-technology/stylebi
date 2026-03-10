@@ -21,6 +21,7 @@ import inetsoft.util.config.BlobConfig;
 import inetsoft.util.config.InetsoftConfig;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -66,6 +67,22 @@ public class StorageConfiguration {
 
       throw new RuntimeException(
          "No BlobEngineFactory found for type: " + config.getBlob().getType());
+   }
+
+   /** External storage service — routes writes/reads to the configured storage backend. */
+   @Bean
+   @Lazy
+   public ExternalStorageService externalStorageService(InetsoftConfig config) {
+      String type = config.getExternalStorage() == null ?
+         "filesystem" : config.getExternalStorage().getType();
+
+      for(ExternalStorageServiceFactory factory : ServiceLoader.load(ExternalStorageServiceFactory.class)) {
+         if(factory.getType().equals(type)) {
+            return factory.createExternalStorageService(config);
+         }
+      }
+
+      throw new RuntimeException("No ExternalStorageServiceFactory found for type: " + type);
    }
 
    @Bean

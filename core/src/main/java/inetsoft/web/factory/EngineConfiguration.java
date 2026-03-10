@@ -24,7 +24,9 @@ import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.WorksheetService;
-import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.report.internal.LocalMVInfoClient;
+import inetsoft.report.internal.MVInfoClient;
+import inetsoft.report.internal.license.*;
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.internal.AnalyticEngine;
 import inetsoft.sree.internal.cluster.Cluster;
@@ -33,6 +35,8 @@ import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityProvider;
 import inetsoft.util.BlobIndexedStorage;
 import inetsoft.storage.BlobStorageManager;
+import inetsoft.uql.asset.UpdateAssetDependenciesHandler;
+import inetsoft.uql.viewsheet.vslayout.DeviceRegistry;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -52,6 +56,7 @@ import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.*;
 
 import java.rmi.RemoteException;
+import java.util.ServiceLoader;
 
 /**
  * Spring configuration for the core engine beans.
@@ -219,4 +224,50 @@ public class EngineConfiguration {
    public SecurityProvider securityProvider(@Lazy SecurityEngine engine) {
       return engine.getSecurityProvider();
    }
+
+   /** Device registry — persists mobile device descriptors in key-value storage. */
+   @Bean
+   @Lazy
+   public DeviceRegistry deviceRegistry() {
+      return new DeviceRegistry();
+   }
+
+   /** Asset dependency updater — schedules and runs asset dependency refresh. */
+   @Bean
+   @Lazy
+   public UpdateAssetDependenciesHandler updateAssetDependenciesHandler() {
+      return new UpdateAssetDependenciesHandler();
+   }
+
+   /** MV info client — provides materialized-view refresh timestamps to callers. */
+   @Bean
+   @Lazy
+   public MVInfoClient mvInfoClient() {
+      return new LocalMVInfoClient();
+   }
+
+   /** Elastic license service — loaded via ServiceLoader; falls back to no-op. */
+   @Bean
+   @Lazy
+   public ElasticLicenseService elasticLicenseService() {
+      try {
+         return ServiceLoader.load(ElasticLicenseService.class).iterator().next();
+      }
+      catch(Exception e) {
+         return new NoopElasticLicenseService();
+      }
+   }
+
+   /** Hosted license service — loaded via ServiceLoader; falls back to no-op. */
+   @Bean
+   @Lazy
+   public HostedLicenseService hostedLicenseService() {
+      try {
+         return ServiceLoader.load(HostedLicenseService.class).iterator().next();
+      }
+      catch(Exception e) {
+         return new NoopHostedLicenseService();
+      }
+   }
+
 }

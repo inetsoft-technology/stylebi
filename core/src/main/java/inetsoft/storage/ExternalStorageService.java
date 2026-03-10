@@ -19,6 +19,7 @@ package inetsoft.storage;
 
 import inetsoft.sree.internal.SUtil;
 import inetsoft.util.Catalog;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.SingletonManager;
 import inetsoft.util.config.InetsoftConfig;
 
@@ -75,7 +76,7 @@ public interface ExternalStorageService {
    }
 
    static ExternalStorageService getInstance() {
-      return SingletonManager.getInstance(ExternalStorageService.class);
+      return ConfigurationContext.getContext().getSpringBean(ExternalStorageService.class);
    }
 
    class Reference extends SingletonManager.Reference<ExternalStorageService> {

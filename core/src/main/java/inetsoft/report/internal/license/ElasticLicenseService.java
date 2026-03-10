@@ -18,6 +18,7 @@
 
 package inetsoft.report.internal.license;
 
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.SingletonManager;
 
 import java.util.*;
@@ -37,7 +38,7 @@ public interface ElasticLicenseService {
    void removeNotificationListener(NotificationListener listener);
 
    static ElasticLicenseService getInstance() {
-      return SingletonManager.getInstance(ElasticLicenseService.class);
+      return ConfigurationContext.getContext().getSpringBean(ElasticLicenseService.class);
    }
 
    final class NotificationEvent extends EventObject {

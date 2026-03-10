@@ -17,6 +17,7 @@
  */
 package inetsoft.sree.security;
 
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.SingletonManager;
 
 import java.util.ServiceLoader;
@@ -28,7 +29,7 @@ public interface OrganizationCache {
    void clear();
 
    static OrganizationCache getInstance() {
-      return SingletonManager.getInstance(OrganizationCache.class);
+      return ConfigurationContext.getContext().getOptionalSpringBean(OrganizationCache.class);
    }
 
    final class Reference extends SingletonManager.Reference<OrganizationCache> {

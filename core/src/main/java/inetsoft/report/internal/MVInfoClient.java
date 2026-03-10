@@ -18,6 +18,7 @@
 package inetsoft.report.internal;
 
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.SingletonManager;
 
 import java.util.Date;
@@ -44,7 +45,7 @@ public interface MVInfoClient {
     * @return the singleton instance.
     */
    static MVInfoClient getInstance() {
-      return SingletonManager.getInstance(MVInfoClient.class);
+      return ConfigurationContext.getContext().getSpringBean(MVInfoClient.class);
    }
 
    class Reference extends SingletonManager.Reference<MVInfoClient> {

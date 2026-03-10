@@ -19,6 +19,7 @@
 package inetsoft.report.internal.license;
 
 import inetsoft.sree.security.SRPrincipal;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.SingletonManager;
 
 import java.util.*;
@@ -40,7 +41,7 @@ public interface HostedLicenseService {
    void removeNotificationListener(NotificationListener listener);
 
    static HostedLicenseService getInstance() {
-      return SingletonManager.getInstance(HostedLicenseService.class);
+      return ConfigurationContext.getContext().getSpringBean(HostedLicenseService.class);
    }
 
    final class NotificationEvent extends EventObject {

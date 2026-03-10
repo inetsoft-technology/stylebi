@@ -31,6 +31,7 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.*;
 import inetsoft.util.dep.*;
+import jakarta.annotation.PreDestroy;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,6 +54,7 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
       lock = cluster.getLock(LOCK_NAME);
    }
 
+   @PreDestroy
    @Override
    public void close() {
       lock.lock();
@@ -74,7 +76,7 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
     * Get UpdateAssetDependenciesHandler instance.
     */
    public static UpdateAssetDependenciesHandler getInstance() {
-      return SingletonManager.getInstance(UpdateAssetDependenciesHandler.class);
+      return ConfigurationContext.getContext().getSpringBean(UpdateAssetDependenciesHandler.class);
    }
 
    /**
