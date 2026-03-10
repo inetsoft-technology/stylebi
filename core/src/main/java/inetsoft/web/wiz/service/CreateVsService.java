@@ -220,6 +220,7 @@ public class CreateVsService {
                   geoOption.setLayerValue(String.valueOf(layerId));
                }
                catch(Exception ignored) {
+                  throw new RuntimeException("Invalid layer " + layerConfig.getLayer());
                }
             }
 
@@ -694,12 +695,7 @@ public class CreateVsService {
          return XConstants.NONE_DATE_GROUP;
       }
 
-      try {
-         return DateRangeRef.getDateRangeOption(level);
-      }
-      catch(RuntimeException e) {
-         return XConstants.NONE_DATE_GROUP;
-      }
+      return DateRangeRef.getDateRangeOption(level);
    }
 
    private final ViewsheetService viewsheetService;
