@@ -20,7 +20,7 @@ package inetsoft.web.wiz.model;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "bindingType", defaultImpl = OutputBinding.class)
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "bindingType")
 @JsonSubTypes({
    @JsonSubTypes.Type(value = ChartBinding.class, name = "chart"),
    @JsonSubTypes.Type(value = TableBinding.class, name = "table"),

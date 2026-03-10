@@ -53,6 +53,12 @@ public class CreateVsService {
          throw new Exception("Runtime Viewsheet not found");
       }
 
+      if(viewsheet.getViewsheet() == null || viewsheet.getViewsheet().getWizInfo() == null ||
+         !viewsheet.getViewsheet().getWizInfo().isWizVisualization())
+      {
+         throw new IllegalArgumentException("Runtime Viewsheet is Invalid");
+      }
+
       VisualizationConfig config = model.getConfig();
       String title = config != null && config.getTitle() != null && !config.getTitle().isEmpty()
          ? config.getTitle()
@@ -61,14 +67,14 @@ public class CreateVsService {
       AssetEntry sourceWs = null;
 
       if(config == null || config.getData() == null) {
-         throw new IllegalArgumentException ("Invalid configuration, missing source");
+         throw new IllegalArgumentException("Invalid configuration, missing source");
       }
 
       try {
          sourceWs = AssetEntry.createAssetEntry(config.getData().getSource());
       }
       catch(Exception e) {
-         throw new IllegalArgumentException ("Datasource is invalid", e);
+         throw new IllegalArgumentException("Datasource is invalid", e);
       }
 
       AbstractSheet sheet = engine.getSheet(sourceWs, user, true, AssetContent.ALL);
@@ -324,7 +330,7 @@ public class CreateVsService {
             }
          }
 
-         if(binding.getShape() != null) {
+         if(binding.getShape() != null && chartType == GraphTypes.CHART_MAP) {
             chartInfo.setShapeField(createAestheticRef(binding.getShape()));
          }
 
@@ -336,11 +342,11 @@ public class CreateVsService {
             chartInfo.setTextField(createAestheticRef(binding.getText()));
          }
 
-         if(binding.getPath() != null) {
+         if(binding.getPath() != null && chartType == GraphTypes.CHART_MAP) {
             chartInfo.setPathField(createChartRef(binding.getPath()));
          }
 
-         if(binding.getColor() != null && chartType == GraphTypes.CHART_MAP) {
+         if(binding.getColor() != null) {
             chartInfo.setColorField(createAestheticRef(binding.getColor()));
          }
       }
@@ -415,7 +421,7 @@ public class CreateVsService {
             candleInfo.setOpenField(createVSChartAggregateRef(binding.getOpen()));
          }
 
-         if(chartType == GraphTypes.CHART_STOCK) {
+         if(chartType == GraphTypes.CHART_CANDLE) {
             if(binding.getShape() != null) {
                chartInfo.setShapeField(createAestheticRef(binding.getShape()));
             }
@@ -688,15 +694,12 @@ public class CreateVsService {
          return XConstants.NONE_DATE_GROUP;
       }
 
-      return switch(level) {
-         case "Year" -> XConstants.YEAR_DATE_GROUP;
-         case "Quarter" -> XConstants.QUARTER_DATE_GROUP;
-         case "Month" -> XConstants.MONTH_DATE_GROUP;
-         case "Week" -> XConstants.WEEK_DATE_GROUP;
-         case "Day" -> XConstants.DAY_DATE_GROUP;
-         case "Hour" -> XConstants.HOUR_DATE_GROUP;
-         default -> XConstants.NONE_DATE_GROUP;
-      };
+      try {
+         return DateRangeRef.getDateRangeOption(level);
+      }
+      catch(RuntimeException e) {
+         return XConstants.NONE_DATE_GROUP;
+      }
    }
 
    private final ViewsheetService viewsheetService;
