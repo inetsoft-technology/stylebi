@@ -86,7 +86,6 @@
     <module>core</module>
     <module>server</module>
     <module>schedule-server</module>
-    <module>cloud-runner</module>
     <module>connectors</module>
     <module>web</module>
     <module>docker</module>
