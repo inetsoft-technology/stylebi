@@ -130,13 +130,14 @@ public class BatikSVGSupport implements SVGSupport {
          imageTranscoder.addTranscodingHint(SVGImageTranscoder.KEY_WIDTH, finalSize.width);
          imageTranscoder.addTranscodingHint(SVGImageTranscoder.KEY_HEIGHT, finalSize.height);
       }
+      SVGUtil.fixPNG(doc);
+
       try {
          imageTranscoder.transcode(new TranscoderInput(doc), null);
          return imageTranscoder.getImage();
       }
       catch(TranscoderException ex) {
          if(ex.getException() instanceof BridgeException) {
-            SVGUtil.fixPNG(doc);
             SVGUtil.fixGradientStops(doc);
             imageTranscoder.transcode(new TranscoderInput(doc), null);
             return imageTranscoder.getImage();
