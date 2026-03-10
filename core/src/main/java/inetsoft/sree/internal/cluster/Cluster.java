@@ -18,6 +18,7 @@
 package inetsoft.sree.internal.cluster;
 
 import inetsoft.sree.internal.cluster.ignite.IgniteCluster;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.SingletonManager;
 import org.apache.ignite.services.Service;
 
@@ -43,7 +44,7 @@ public interface Cluster extends AutoCloseable {
     * @return the cluster instance.
     */
    static Cluster getInstance() {
-      return SingletonManager.getInstance(Cluster.class);
+      return ConfigurationContext.getContext().getSpringBean(Cluster.class);
    }
 
    /**

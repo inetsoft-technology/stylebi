@@ -27,6 +27,7 @@ import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.internal.AnalyticEngine;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.storage.BlobStorageManager;
 import inetsoft.uql.XRepository;
@@ -39,6 +40,8 @@ import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.viewsheet.BookmarkLockManager;
 import inetsoft.uql.viewsheet.ViewsheetLifecycleMessageChannel;
 import inetsoft.util.Plugins;
+import inetsoft.util.SingletonManager;
+import inetsoft.util.config.InetsoftConfig;
 import inetsoft.web.cluster.ServerClusterClient;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.context.annotation.*;
@@ -132,6 +135,18 @@ public class EngineConfiguration {
    @Lazy
    public ScheduleClient scheduleClient() {
       return new ScheduleClient();
+   }
+
+   /**
+    * The distributed cluster. In the normal server startup path this wraps the instance
+    * pre-created by {@code BaseInetsoftApplication.start()} (before Spring runs). The
+    * {@code InetsoftConfig} parameter ensures the config bean is resolved first.
+    * {@code destroyMethod=""} prevents Spring from auto-calling {@code close()} — lifecycle
+    * is managed by {@code SingletonManager.reset()} in {@code BaseInetsoftApplication.shutdownInetsoft()}.
+    */
+   @Bean(destroyMethod = "")
+   public Cluster cluster(InetsoftConfig config) {
+      return SingletonManager.getInstance(Cluster.class);
    }
 
    /** Cluster client for server-to-server communication. */
