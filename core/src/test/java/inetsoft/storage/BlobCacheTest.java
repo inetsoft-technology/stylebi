@@ -17,19 +17,30 @@
  */
 package inetsoft.storage;
 
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.nio.file.Path;
 import java.time.Instant;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 
 class BlobCacheTest {
    @TempDir
    Path tempDir;
+
+   private BlobCache cache;
+   private Blob<Serializable> directoryBlob;
+
+   @BeforeEach
+   void setUp() {
+      BlobEngine engine = mock(BlobEngine.class);
+      cache = new BlobCache(tempDir, engine);
+      directoryBlob = new Blob<>("some/dir", null, 0L, Instant.now(), null);
+   }
 
    /**
     * Directory blobs have a null digest. Verify that calling remove(storeId, String) with a
@@ -38,8 +49,6 @@ class BlobCacheTest {
     */
    @Test
    void remove_withNullDigest_returnsCleanlyWithoutNPE() {
-      BlobEngine engine = mock(BlobEngine.class);
-      BlobCache cache = new BlobCache(tempDir, engine);
       assertDoesNotThrow(() -> cache.remove("test-store", (String) null));
    }
 
@@ -50,9 +59,18 @@ class BlobCacheTest {
     */
    @Test
    void remove_withDirectoryBlob_returnsCleanlyWithoutException() {
-      BlobEngine engine = mock(BlobEngine.class);
-      BlobCache cache = new BlobCache(tempDir, engine);
-      Blob<Serializable> directoryBlob = new Blob<>("some/dir", null, 0L, Instant.now(), null);
       assertDoesNotThrow(() -> cache.remove("test-store", directoryBlob));
+   }
+
+   /**
+    * Directory blobs have a null digest. Verify that get(storeId, Blob) throws an IOException
+    * with a meaningful message rather than causing an NPE on digest.substring().
+    */
+   @Test
+   void get_throwsIOException_forDirectoryBlob() {
+      IOException thrown = assertThrows(IOException.class,
+                                        () -> cache.get("test-store", directoryBlob));
+      assertTrue(thrown.getMessage().contains("has no digest"),
+                 "Expected message to mention 'has no digest', got: " + thrown.getMessage());
    }
 }

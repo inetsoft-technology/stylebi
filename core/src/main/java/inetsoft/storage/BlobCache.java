@@ -88,6 +88,11 @@ public class BlobCache {
    }
 
    public void put(String storeId, Blob<?> blob, Path tempFile) throws IOException {
+      // A null digest indicates a directory blob, which has no corresponding cache file.
+      if(blob.getDigest() == null) {
+         throw new IOException("Cannot write a directory blob to the cache: " + blob.getPath());
+      }
+
       Path path = getPath(storeId, blob, baseDir);
       engine.write(storeId, blob.getDigest(), tempFile);
       if(path.toFile().exists()) {
