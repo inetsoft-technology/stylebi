@@ -1,0 +1,162 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2025  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+:host {
+  // 52px matches the navbar height in both portal and EM.
+  // Must match TOP_OFFSET in ai-assistant-panel.component.ts.
+  // Override --ai-panel-top-offset in an app's global stylesheet if that ever changes.
+  --ai-panel-top-offset: 52px;
+  --ai-panel-background: white;
+}
+
+.ai-assistant-panel {
+  position: fixed;
+  // Sit above normal page content but below navbar (navbar handles its own z-index,
+  // and we start the panel below it via --ai-panel-top-offset).
+  z-index: 1045;
+  display: flex;
+  flex-direction: column;
+  background: var(--ai-panel-background);
+  overflow: hidden;
+
+  &.side-mode {
+    top: var(--ai-panel-top-offset, 52px);
+    right: 0;
+    bottom: 0;
+    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.18);
+    border-left: 1px solid rgba(0, 0, 0, 0.12);
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
+  &.bottom-mode {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.18);
+    border-top: 1px solid rgba(0, 0, 0, 0.12);
+  }
+}
+
+.resize-handle {
+  position: absolute;
+  z-index: 1;
+  background: transparent;
+
+  // Visible highlight strip rendered via ::after so the hit area can be wider
+  // than the visual indicator without looking thick.
+  &::after {
+    content: '';
+    position: absolute;
+    background: transparent;
+    transition: background 0.15s;
+  }
+
+  &:hover::after {
+    background: rgba(0, 0, 0, 0.08);
+  }
+
+  .side-mode & {
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 12px; // wider hit area for easier grabbing
+    cursor: ew-resize;
+
+    &::after {
+      top: 0;
+      left: 4px;
+      bottom: 0;
+      width: 4px;
+    }
+  }
+
+  .bottom-mode & {
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 12px; // wider hit area for easier grabbing
+    cursor: ns-resize;
+
+    &::after {
+      left: 0;
+      top: 4px;
+      right: 0;
+      height: 4px;
+    }
+  }
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px 6px 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+  min-height: 40px;
+  user-select: none;
+}
+
+.panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.panel-action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  opacity: 0.7;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.08);
+    opacity: 1;
+  }
+}
+
+.panel-close-btn {
+  margin-left: 2px;
+}
+
+.panel-body {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+// ::ng-deep is required here because #assistant-root lives inside the <ai-assistant>
+// custom element (web component), which uses its own shadow-like encapsulation that
+// Angular's view encapsulation cannot pierce with normal scoped selectors.
+::ng-deep #assistant-root {
+  border-radius: 0 !important;
+}

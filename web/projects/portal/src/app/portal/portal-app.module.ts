@@ -366,7 +366,7 @@ import { RouteSourceResolver } from "./services/route-source-resolver.service";
       DynamicComboBoxModule,
       SimpleTableModule,
       CkeditorWrapperModule,
-      AiAssistantModule
+      AiAssistantModule,
    ],
    bootstrap: [
       PortalAppComponent
