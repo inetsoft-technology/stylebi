@@ -94,7 +94,7 @@ export class LogMonitoringPageComponent implements OnInit, OnDestroy {
 
                if(!this.fluentdLogging) {
                   if(this.isLogSelected()) {
-                     this.updateSubscription();
+                     this.refreshLog();
                   }
                   else {
                      setTimeout(() => this.reloadLogFiles(), 5000);
