@@ -15,19 +15,29 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.wiz;
 
-import inetsoft.sree.SreeEnv;
+package inetsoft.web.wiz.controller;
+
+import inetsoft.web.wiz.model.CreateVisualizationModel;
+import inetsoft.web.wiz.service.CreateVsService;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+
+import java.security.Principal;
 
 @RestController
 @RequestMapping("/api/wiz")
-public class WizPortalController {
-
-   @GetMapping("/service-url")
-   public String getWizServiceUrl() {
-      return SreeEnv.getProperty(WIZ_SERVICE_URL);
+public class CreateViewsheetController {
+   public CreateViewsheetController(CreateVsService createVsService) {
+      this.createVsService = createVsService;
    }
 
-   public static final String WIZ_SERVICE_URL = "wiz.service.url";
+   @PostMapping(value = "/viewsheet/create/vs", produces = MediaType.APPLICATION_JSON_VALUE)
+   public void createViewsheet(@RequestBody CreateVisualizationModel model, Principal user)
+      throws Exception
+   {
+      createVsService.createViewsheet(model, user);
+   }
+
+   private final CreateVsService createVsService;
 }
