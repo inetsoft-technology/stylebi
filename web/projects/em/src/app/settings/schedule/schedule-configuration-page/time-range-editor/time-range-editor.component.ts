@@ -27,6 +27,7 @@ import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
 import { TimeRange } from "../../../../../../../shared/schedule/model/time-condition-model";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../../../shared/util/tool";
+import { COPY_PASTE_CONTEXT_SECURITY_ACTIONS } from "../../../security/resource-permission/copy-paste-context";
 import { ResourcePermissionModel } from "../../../security/resource-permission/resource-permission-model";
 
 export interface TimeRangeData {
@@ -43,6 +44,7 @@ export interface TimeRangeData {
 export class TimeRangeEditorComponent implements OnInit {
    form: UntypedFormGroup;
    permissions: ResourcePermissionModel;
+   readonly copyPasteContext = COPY_PASTE_CONTEXT_SECURITY_ACTIONS;
 
    constructor(private dialogRef: MatDialogRef<TimeRangeEditorComponent>,
                @Inject(MAT_DIALOG_DATA) data: TimeRangeData,
