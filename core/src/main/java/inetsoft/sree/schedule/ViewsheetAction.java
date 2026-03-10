@@ -155,7 +155,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
    public int getScope() {
       AssetEntry entry0 = AssetEntry.createAssetEntry(getViewsheetName());
 
-      return entry0.getScope();
+      return entry0 == null ? AssetRepository.GLOBAL_SCOPE : entry0.getScope();
    }
 
    @Override
@@ -167,6 +167,11 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
    public AssetEntry buildAssetEntry(Principal principal) {
       // fix bug1324521198560, keep the vs's scope and user information.
       AssetEntry entry0 = AssetEntry.createAssetEntry(getViewsheetName());
+
+      if(entry0 == null) {
+         return null;
+      }
+
       return new AssetEntry(entry0.getScope(),
          AssetEntry.Type.VIEWSHEET, entry0.getPath(), entry0.getUser(), entry0.getOrgID());
    }
@@ -174,7 +179,10 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
    @Override
    public AssetEntry getViewsheetEntry() {
       AssetEntry entry = buildAssetEntry(null);
-      setViewsheetName(entry.toIdentifier());
+
+      if(entry != null) {
+         setViewsheetName(entry.toIdentifier());
+      }
 
       return entry;
    }

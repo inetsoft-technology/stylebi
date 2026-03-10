@@ -81,7 +81,9 @@ public class EmNavBarController {
       }
 
       String homeLink = SreeEnv.getProperty("em.home.link", "..");
-      boolean aiAssistantVisible = aiSettingsService.isAiAssistantVisible();
+      boolean aiAssistantVisible = aiSettingsService.isAiAssistantVisible() &&
+         SecurityEngine.getSecurity().checkPermission(
+            principal, ResourceType.AI_ASSISTANT, "*", ResourceAction.ACCESS);
 
       return new EmNavBarModel(logoutUri,
                                manager.hasCustomLogo(OrganizationManager.getInstance().getCurrentOrgID()),
@@ -106,7 +108,6 @@ public class EmNavBarController {
 
    @GetMapping("/api/em/navbar/isSiteAdmin")
    public boolean isSiteAdmin(Principal principal) {
-      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       return OrganizationManager.getInstance().isSiteAdmin(principal);
    }
 
@@ -117,5 +118,5 @@ public class EmNavBarController {
    }
 
    private final AISettingsService aiSettingsService;
-   private static String DEFAULT_LOGOUT_URI = "../logout?fromEm=true";
+   private static final String DEFAULT_LOGOUT_URI = "../logout?fromEm=true";
 }

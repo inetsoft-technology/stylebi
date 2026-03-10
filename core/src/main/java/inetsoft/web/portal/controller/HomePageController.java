@@ -19,6 +19,7 @@ package inetsoft.web.portal.controller;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.portal.CustomThemesManager;
+import inetsoft.web.assistant.AIAssistantController;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -102,12 +103,12 @@ public class HomePageController {
 
       addAdditionalStyles(model, linkUri);
       addAdditionalScripts(model, linkUri);
-      addChatAppScript(model);
       addDataSpaceTags(model, linkUri);
       addOpenGraphTags(model, linkUri, request.getRequestURI(), request.getHeader("User-Agent"));
 
       return model;
    }
+
 
    @PostMapping({"/app/portal/**", "/app/viewer/**", "/app/reportviewer/**"})
    public ModelAndView postHomePage(HttpServletRequest request, HttpServletResponse response,
@@ -226,23 +227,38 @@ public class HomePageController {
    }
 
    /**
-    * When {@code chat.app.server.url} is configured, injects the AI assistant web component
-    * script so that the {@code <ai-assistant>} custom element is available in the portal.
-    * The script is served by the assistant-client at
-    * {@code {chatAppServerUrl}/web-component/ai-assistant.umd.js}.
+    * Injects the AI assistant web component script into the portal page.
+    *
+    * <ul>
+    *   <li><b>Proxy mode</b> ({@code chat.app.internal.url} is set): the script is loaded via
+    *       StyleBI's reverse proxy at
+    *       {@code {linkUri}/api/assistant/proxy/web-component/ai-assistant.umd.js}.</li>
+    *   <li><b>Direct mode</b> (only {@code chat.app.server.url} is set): the script is loaded
+    *       directly from the assistant server at
+    *       {@code {chat.app.server.url}/web-component/ai-assistant.umd.js}.</li>
+    * </ul>
     */
    @SuppressWarnings("unchecked")
-   private void addChatAppScript(ModelAndView model) {
-      String chatAppUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_SERVER_URL);
+   private void addChatAppScript(ModelAndView model, String linkUri) {
+      String internalUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_INTERNAL_URL);
+      String chatAppUrl;
 
-      if(chatAppUrl == null || chatAppUrl.trim().isEmpty()) {
-         return;
+      if(internalUrl != null && !internalUrl.trim().isEmpty()) {
+         // Proxy mode: serve web component through StyleBI's proxy.
+         String base = linkUri.endsWith("/") ? linkUri.substring(0, linkUri.length() - 1) : linkUri;
+         chatAppUrl = base + AIAssistantController.PROXY_PATH_PREFIX;
       }
+      else {
+         // Direct mode: serve web component directly from the assistant server.
+         String serverUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_SERVER_URL);
 
-      chatAppUrl = chatAppUrl.trim();
+         if(serverUrl == null || serverUrl.trim().isEmpty()) {
+            return;
+         }
 
-      if(chatAppUrl.endsWith("/")) {
-         chatAppUrl = chatAppUrl.substring(0, chatAppUrl.length() - 1);
+         chatAppUrl = serverUrl.trim().endsWith("/")
+            ? serverUrl.trim().substring(0, serverUrl.trim().length() - 1)
+            : serverUrl.trim();
       }
 
       List<String> scripts = (List<String>) model.getModel()

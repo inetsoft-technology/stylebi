@@ -357,7 +357,7 @@ import { PortalTabsService } from "./services/portal-tabs.service";
       DynamicComboBoxModule,
       SimpleTableModule,
       CkeditorWrapperModule,
-      AiAssistantModule
+      AiAssistantModule,
    ],
    bootstrap: [
       PortalAppComponent

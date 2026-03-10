@@ -110,11 +110,13 @@ public class PortalController {
       }
 
       PortalCreationPermisisons creationModel = refreshPortalCreationPermissions(principal);
-      boolean aiAssistantVisible = aiSettingsService.isAiAssistantVisible();
+      boolean aiAssistantVisible = aiSettingsService.isAiAssistantVisible() &&
+         securityEngine.checkPermission(principal, ResourceType.AI_ASSISTANT, "*", ResourceAction.ACCESS);
 
       return PortalModel.builder()
          .currentUser(getCurrentUser(principal))
          .helpVisible(manager.isButtonVisible(PortalThemesManager.HELP_BUTTON))
+         .aiAssistantVisible(aiAssistantVisible)
          .aiAssistantVisible(aiAssistantVisible)
          .preferencesVisible(manager.isButtonVisible(PortalThemesManager.PREFERENCES_BUTTON))
          .logoutVisible(manager.isButtonVisible(PortalThemesManager.LOGOUT_BUTTON))

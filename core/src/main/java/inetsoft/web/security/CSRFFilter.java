@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.web.util.WebUtils;
 
 import java.io.IOException;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -181,8 +182,22 @@ public class CSRFFilter extends AbstractSecurityFilter {
     *         otherwise.
     */
    private boolean isCsrfProtectionRequired(HttpServletRequest request) {
+      if(SAFE_METHODS.contains(request.getMethod().toUpperCase())) {
+         return false;
+      }
+
+      // The assistant proxy path is exempt: the assistant SPA makes JSON fetch calls
+      // without CSRF tokens and the proxy is already protected by StyleBI's session auth.
+      if(isPageRequested(ASSISTANT_PROXY_PATH, request)) {
+         return false;
+      }
+
       return isApi(request) && !isPublicApi(request) && !isApiImage(request) && !isApiTableExport(request);
    }
+
+   private static final String ASSISTANT_PROXY_PATH = "/api/assistant/proxy/**"; // NOSONAR not applicable
+
+   private static final Set<String> SAFE_METHODS = Set.of("GET", "HEAD", "OPTIONS", "TRACE");
 
    private boolean isEnabled() {
       return "true".equals(csrfFilterEnabled.get());

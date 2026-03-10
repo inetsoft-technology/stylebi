@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2026  InetSoft Technology
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,5 +17,6 @@
  */
 export interface PresentationAISettingsModel {
    aiAssistantVisible: boolean;
+   chatAppInternalUrl?: string;
    chatAppServerUrl?: string;
 }

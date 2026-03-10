@@ -200,7 +200,7 @@ public class PresentationSettingsController {
             webMapSettingsService.setModel(model.webMapSettingsModel(), principal, globalSettings);
          }
 
-         if(model.aiSettingsModel() != null) {
+         if(globalSettings && model.aiSettingsModel() != null) {
             aiSettingsService.setModel(model.aiSettingsModel());
          }
       }
@@ -274,6 +274,5 @@ public class PresentationSettingsController {
    private final WebMapSettingsService webMapSettingsService;
    private final DataSpaceContentSettingsService dataSpaceContentSettingsService;
    private final AISettingsService aiSettingsService;
-
-   private static final String SETTINGS_LOCK = PresentationSettingsController.class.getName() + ".settingsLock";
+   private final ReentrantLock settingsLock = new ReentrantLock();
 }
