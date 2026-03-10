@@ -21,6 +21,8 @@ package inetsoft.web.wiz.controller;
 import inetsoft.web.wiz.model.GenerateWsResponse;
 import inetsoft.web.wiz.model.WorksheetConstructionModel;
 import inetsoft.web.wiz.service.GenerateWsService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
@@ -51,10 +53,12 @@ public class WorksheetGenerateController {
       catch(Exception e) {
          GenerateWsResponse generateWsResponse = new GenerateWsResponse();
          generateWsResponse.setErrorMessage(e.getMessage());
-
+         LOG.error("Failed to generate worksheet", e);
          return generateWsResponse;
       }
    }
 
    private final GenerateWsService generateWsService;
+   private static final Logger LOG =
+      LoggerFactory.getLogger(WorksheetGenerateController.class);
 }

@@ -126,10 +126,18 @@ public class MetadataApiService {
          columnMeta.setLength((Integer) columnNode.getAttribute("length"));
          columnMeta.setComment((String) columnNode.getAttribute("comment"));
 
-         if(columnNode.getAttribute("ForeignKey") != null) {
-            Vector<String[]> foreignKeys = (Vector<String[]>) columnNode.getAttribute("ForeignKey");
-            List<String[]> foreignKeyList = new ArrayList<>(foreignKeys);
-            columnMeta.setForeignKeys(foreignKeyList);
+         Object attr = columnNode.getAttribute("ForeignKey");
+
+         if(attr instanceof Vector<?> vector) {
+            List<String[]> foreignKeys = new ArrayList<>();
+
+            for(Object item : vector) {
+               if(item instanceof String[] arr) {
+                  foreignKeys.add(arr);
+               }
+            }
+
+            columnMeta.setForeignKeys(foreignKeys);
          }
 
          columns.add(columnMeta);

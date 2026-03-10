@@ -88,7 +88,7 @@ public class GenerateWsService {
       GenerateWsResponse generateWsResponse = new GenerateWsResponse();
 
       if(model.getFields() == null || model.getFields().isEmpty()) {
-         throw new RuntimeException("do not select any filed!");
+         throw new RuntimeException("Doesn't select any field!");
       }
 
       Worksheet worksheet = originWs;
@@ -143,7 +143,8 @@ public class GenerateWsService {
             table = joinTable;
          }
       }
-      else if(model.getTableSetOperations() != null) {
+
+      if(model.getTableSetOperations() != null) {
          List<WorksheetConstructionModel.TableSetOperation> tableSetOperations = model.getTableSetOperations();
          List<WorksheetConstructionModel.QueryField> fields = model.getFields();
          Map<String, String> tableMapping = new HashMap<>();
@@ -166,8 +167,14 @@ public class GenerateWsService {
       }
 
       worksheet.setPrimaryAssembly(table.getName());
-      applyCondition(table, model.getFilters());
-      applyOrderBy(table, model.getOrderBy());
+
+      if(model.getFilters() != null) {
+         applyCondition(table, model.getFilters());
+      }
+      if(model.getOrderBy() != null) {
+         applyOrderBy(table, model.getOrderBy());
+      }
+
       layoutGraph(worksheet);
       AssetEntry assetEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, model.getName(), null);
       viewsheetService.setWorksheet(worksheet, assetEntry, user, true, true);
@@ -229,7 +236,7 @@ public class GenerateWsService {
       TableAssemblyOperator tableAssemblyOperator = new TableAssemblyOperator();
       tableAssemblyOperator.addOperator(operator);
 
-      String tableName = Tool.buildString(leftTable.getName(), "_concatenated_", rightTable);
+      String tableName = Tool.buildString(leftTable.getName(), "_concatenated_", rightTable.getName());
       tableMapping.put(getTableInfoKey(tableSetOperation.getLeftTable()), tableName);
       tableMapping.put(getTableInfoKey(tableSetOperation.getRightTable()), tableName);
       ConcatenatedTableAssembly table = new ConcatenatedTableAssembly(worksheet, tableName,
@@ -432,7 +439,7 @@ public class GenerateWsService {
       String tableName = tableMapping.get(baseTableName);
 
       if(!Tool.isEmptyString(tableName)) {
-         return getBaseTableName0(baseTableName, tableMapping);
+         return getBaseTableName0(tableName, tableMapping);
       }
 
       return baseTableName;

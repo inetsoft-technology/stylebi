@@ -98,6 +98,7 @@ public class RawDataService {
       UniformSQL sql = new UniformSQL();
       query.setSQLDefinition(sql);
       query.setDataSource(dataSource);
+      query.setMaxRows(RAW_DATA_MAX_ROW);
 
       AssetEntry tableEntry = requestData.getTable();
       setupTable(query, tableEntry, principal);
@@ -122,14 +123,13 @@ public class RawDataService {
 
    private void setupTable(JDBCQuery query, AssetEntry table, XPrincipal principal) throws Exception {
       JDBCDataSource dataSource = (JDBCDataSource) query.getDataSource();
-      String session = System.getProperty("user.name");
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
       String name = table.getProperty("source_with_no_quote");
       SelectTable selectTable = sql.addTable(name);
       selectTable.setCatalog(table.getProperty(XSourceInfo.CATALOG));
       selectTable.setSchema(table.getProperty(XSourceInfo.SCHEMA));
       sql.removeAllFields();
-      JDBCUtil.fixUniformSQLInfo(sql, xrepository, session, dataSource, principal);
+      JDBCUtil.fixUniformSQLInfo(sql, xrepository, principal.getName(), dataSource, principal);
    }
 
    private void setupColumns(JDBCQuery query, AssetEntry[] entries) {
@@ -198,4 +198,5 @@ public class RawDataService {
 
    private final XRepository xrepository;
    private final AssetRepository assetRepository;
+   private final static int RAW_DATA_MAX_ROW = 10000;
 }
