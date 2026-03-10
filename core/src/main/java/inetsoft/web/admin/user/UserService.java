@@ -94,7 +94,13 @@ public class UserService
          sessions = getSessionInfo();
       }
       catch(Exception e) {
-         LOG.warn("Failed to update user status", e);
+         if(isCacheStoppedException(e)) {
+            LOG.debug("Cache stopped, skipping user status update", e);
+         }
+         else {
+            LOG.warn("Failed to update user status", e);
+         }
+
          sessions = Collections.emptyList();
       }
 
@@ -102,7 +108,13 @@ public class UserService
          topUsers = calculateTopNUsers();
       }
       catch(Exception e) {
-         LOG.warn("Failed to update user status", e);
+         if(isCacheStoppedException(e)) {
+            LOG.debug("Cache stopped, skipping user status update", e);
+         }
+         else {
+            LOG.warn("Failed to update user status", e);
+         }
+
          topUsers = Collections.emptyList();
       }
 
@@ -400,6 +412,16 @@ public class UserService
    private final MonitoringDataService monitoringDataService;
    private final IgniteSessionRepository sessionRepository;
    private Cluster cluster;
+
+   private static boolean isCacheStoppedException(Throwable t) {
+      for(Throwable cause = t; cause != null; cause = cause.getCause()) {
+         if("CacheStoppedException".equals(cause.getClass().getSimpleName())) {
+            return true;
+         }
+      }
+
+      return false;
+   }
 
    private static final String[] lowAttrs = {"sessionCount", "sessionInfo", "quotaInfo"};
    private static final String[] medAttrs = {"lastAccess"};
