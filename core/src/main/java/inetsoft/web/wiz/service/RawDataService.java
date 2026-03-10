@@ -160,40 +160,39 @@ public class RawDataService {
 
       lens.moreRows(loadRows);
 
-      int start = 0;
       int rowCount = lens.getRowCount();
       int colCount = lens.getColCount();
 
-      BufferedWriter writer =
-         new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
+      try(BufferedWriter writer =
+             new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8))) {
+         for(int row = 0; row < rowCount; row++) {
+            for(int col = 0; col < colCount; col++) {
+               if(col > 0) {
+                  writer.write(',');
+               }
 
-      for(int row = start; row < rowCount; row++) {
-         for(int col = 0; col < colCount; col++) {
-            if(col > 0) {
-               writer.write(',');
+               Object value = lens.getObject(row, col);
+               writeCsvCell(writer, Tool.toString(value));
             }
 
-            Object value = lens.getObject(row, col);
-            String cell = Tool.toString(value);
+            writer.write('\n');
 
-            if(cell.contains(",") || cell.contains("\"") || cell.contains("\n")) {
-               writer.write('"');
-               writer.write(cell.replace("\"", "\"\""));
-               writer.write('"');
+            if(row % 1000 == 999) {
+               writer.flush();
             }
-            else {
-               writer.write(cell);
-            }
-         }
-
-         writer.write('\n');
-
-         if(row > 0 && row % 1000 == 0) {
-            writer.flush();
          }
       }
+   }
 
-      writer.flush();
+   private void writeCsvCell(BufferedWriter writer, String cell) throws IOException {
+      if(cell.contains(",") || cell.contains("\"") || cell.contains("\n")) {
+         writer.write('"');
+         writer.write(cell.replace("\"", "\"\""));
+         writer.write('"');
+      }
+      else {
+         writer.write(cell);
+      }
    }
 
    private final XRepository xrepository;
