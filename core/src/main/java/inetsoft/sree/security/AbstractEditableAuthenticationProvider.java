@@ -454,14 +454,14 @@ public abstract class AbstractEditableAuthenticationProvider
             if(replace) {
                SreeEnv.remove(pName);
             }
-         }
-      }
 
-      try {
-         SreeEnv.save();
-      }
-      catch(IOException e) {
-         LOG.error("Unable to save properties to new organization", e);
+            try {
+               SreeEnv.save();
+            }
+            catch(IOException e) {
+               LOG.error("Unable to save properties to new organization", e);
+            }
+         }
       }
    }
 
