@@ -178,7 +178,7 @@ public interface PasswordEncryption {
     * @return a new instance.
     */
    static PasswordEncryption newInstance() {
-      return SingletonManager.getInstance(PasswordEncryption.class);
+      return ConfigurationContext.getContext().getSpringBean(PasswordEncryption.class);
    }
 
    static PasswordEncryption newLocalInstance(boolean encrypt) {

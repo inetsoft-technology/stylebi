@@ -22,8 +22,13 @@ import inetsoft.analytic.composition.SheetLibraryEngine;
 import inetsoft.analytic.composition.SheetLibraryService;
 import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.mv.MVManager;
+import inetsoft.mv.MVWorksheetStorage;
+import inetsoft.mv.data.MVStorage;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.WorksheetService;
+import inetsoft.report.composition.execution.AssetDataCache;
+import inetsoft.report.composition.execution.DistributedTableCacheStore;
 import inetsoft.report.internal.LocalMVInfoClient;
 import inetsoft.report.internal.MVInfoClient;
 import inetsoft.report.internal.license.*;
@@ -33,9 +38,10 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityProvider;
-import inetsoft.util.BlobIndexedStorage;
 import inetsoft.storage.BlobStorageManager;
+import inetsoft.uql.asset.EmbeddedTableStorage;
 import inetsoft.uql.asset.UpdateAssetDependenciesHandler;
+import inetsoft.uql.util.Config;
 import inetsoft.uql.viewsheet.vslayout.DeviceRegistry;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.AssetRepository;
@@ -46,10 +52,9 @@ import inetsoft.uql.util.Drivers;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.viewsheet.BookmarkLockManager;
 import inetsoft.uql.viewsheet.ViewsheetLifecycleMessageChannel;
-import inetsoft.util.IndexedStorage;
-import inetsoft.util.Plugins;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
+import inetsoft.util.config.SecretsConfig;
 import inetsoft.web.cluster.ServerClusterClient;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
@@ -268,6 +273,75 @@ public class EngineConfiguration {
       catch(Exception e) {
          return new NoopHostedLicenseService();
       }
+   }
+
+   /** Materialized-view manager — tracks MV definitions and their refresh state. */
+   @Bean
+   @Lazy
+   public MVManager mvManager() {
+      return new MVManager();
+   }
+
+   /** Materialized-view worksheet storage — persists MV worksheet definitions. */
+   @Bean
+   @Lazy
+   public MVWorksheetStorage mvWorksheetStorage() {
+      return new MVWorksheetStorage();
+   }
+
+   /** Materialized-view data storage — manages MV data files in blob storage. */
+   @Bean
+   @Lazy
+   public MVStorage mvStorage() {
+      return new MVStorage();
+   }
+
+   /** Distributed table cache store — blob-backed cross-node query result cache. */
+   @Bean
+   @Lazy
+   public DistributedTableCacheStore distributedTableCacheStore() {
+      return new DistributedTableCacheStore();
+   }
+
+   /** In-process asset data cache — caches query results for the local node. */
+   @Bean
+   @Lazy
+   public AssetDataCache assetDataCache() {
+      return new AssetDataCache();
+   }
+
+   /** UQL configuration — holds data source connection defaults and query limits. */
+   @Bean
+   @Lazy
+   public Config config() {
+      return new Config();
+   }
+
+   /** Embedded table storage — persists embedded table data in blob storage. */
+   @Bean
+   @Lazy
+   public EmbeddedTableStorage embeddedTableStorage() {
+      return new EmbeddedTableStorage();
+   }
+
+   /**
+    * Password encryption service — loaded via ServiceLoader keyed by the configured
+    * secrets type (local, AWS Secrets Manager, Vault, etc.).
+    */
+   @Bean
+   @Lazy
+   public PasswordEncryption passwordEncryption(InetsoftConfig inetsoftConfig) {
+      SecretsConfig secretsConfig = inetsoftConfig.getSecrets();
+      String type = secretsConfig.getType();
+
+      for(PasswordEncryptionFactory factory : ServiceLoader.load(PasswordEncryptionFactory.class)) {
+         if(factory.getType().equals(type)) {
+            return factory.createPasswordEncryption(secretsConfig);
+         }
+      }
+
+      throw new BeanCreationException("passwordEncryption",
+         "No PasswordEncryptionFactory found for type: " + type);
    }
 
 }

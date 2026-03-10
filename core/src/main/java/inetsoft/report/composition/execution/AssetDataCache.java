@@ -35,6 +35,8 @@ import inetsoft.uql.util.QueryManager;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.util.script.ScriptEnv;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import inetsoft.web.admin.monitoring.MonitorLevelService;
 import inetsoft.web.messaging.MessageAttributes;
 import inetsoft.web.messaging.MessageContextHolder;
@@ -448,8 +450,25 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
     * @return the data cache.
     */
    public static synchronized AssetDataCache getCache() {
-      return SingletonManager.getInstance(AssetDataCache.class);
+      return ConfigurationContext.getContext().getSpringBean(AssetDataCache.class);
    }
+
+   @PostConstruct
+   public void initAfterCreate() {
+      DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      registry.addRefreshedListener(registryListener);
+      registry.addModifiedListener(registryListener);
+   }
+
+   @PreDestroy
+   public void closeCache() {
+      DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      registry.removeRefreshedListener(registryListener);
+      registry.removeModifiedListener(registryListener);
+      clear();
+   }
+
+   private final java.beans.PropertyChangeListener registryListener = evt -> clearCache();
 
    /**
     * <p>This method should be invoked prior to executing a query if the cache is active.
@@ -664,7 +683,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
    /**
     * Create an asset data cache.
     */
-   private AssetDataCache() {
+   public AssetDataCache() {
       super();
       String prop = SreeEnv.getProperty("query.cache.limit", "100");
 

@@ -47,10 +47,7 @@ import java.util.stream.Collectors;
  */
 @SingletonManager.Singleton(Config.Reference.class)
 public class Config implements Serializable {
-   /**
-    * Config is a singleton and can not be instantiated explicitly.
-    */
-   private Config() {
+   public Config() {
       try {
          InputStream input = XNode.class.getResourceAsStream("/inetsoft/uql/config.xml");
          Document doc = Tool.parseXML(input);
@@ -87,7 +84,7 @@ public class Config implements Serializable {
    }
 
    public static Config getConfig() {
-      return SingletonManager.getInstance(Config.class);
+      return ConfigurationContext.getContext().getSpringBean(Config.class);
    }
 
    private boolean isDriverMissing(String className) {

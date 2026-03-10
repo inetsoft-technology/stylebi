@@ -71,7 +71,7 @@ public final class MVManager implements MessageListener {
     * Get the mv manager.
     */
    public static MVManager getManager() {
-      return SingletonManager.getInstance(MVManager.class);
+      return ConfigurationContext.getContext().getSpringBean(MVManager.class);
    }
 
    /**

@@ -20,7 +20,9 @@ package inetsoft.uql.asset;
 import inetsoft.sree.security.*;
 import inetsoft.storage.BlobStorage;
 import inetsoft.storage.BlobTransaction;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.SingletonManager;
+import jakarta.annotation.PreDestroy;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -158,9 +160,10 @@ public class EmbeddedTableStorage implements AutoCloseable {
    }
 
    public static EmbeddedTableStorage getInstance() {
-      return SingletonManager.getInstance(EmbeddedTableStorage.class);
+      return ConfigurationContext.getContext().getSpringBean(EmbeddedTableStorage.class);
    }
 
+   @PreDestroy
    @Override
    public void close() throws Exception {
       getStorage().close();

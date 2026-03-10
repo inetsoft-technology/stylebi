@@ -43,7 +43,7 @@ public class DistributedTableCacheStore {
     * Get the distributed table cache store instance
     */
    public static DistributedTableCacheStore getInstance() {
-      return SingletonManager.getInstance(DistributedTableCacheStore.class);
+      return ConfigurationContext.getContext().getSpringBean(DistributedTableCacheStore.class);
    }
 
    public DistributedTableCacheStore() {

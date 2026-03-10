@@ -23,6 +23,7 @@ import inetsoft.storage.BlobStorage;
 import inetsoft.storage.BlobTransaction;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.util.*;
+import jakarta.annotation.PreDestroy;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
@@ -35,7 +36,7 @@ public class MVWorksheetStorage implements AutoCloseable {
    }
 
    public static MVWorksheetStorage getInstance() {
-      return SingletonManager.getInstance(MVWorksheetStorage.class);
+      return ConfigurationContext.getContext().getSpringBean(MVWorksheetStorage.class);
    }
 
    public Worksheet getWorksheet(String path, String orgID) throws Exception {
@@ -78,6 +79,7 @@ public class MVWorksheetStorage implements AutoCloseable {
       getStorage().delete(path);
    }
 
+   @PreDestroy
    @Override
    public void close() throws Exception {
       getStorage().close();

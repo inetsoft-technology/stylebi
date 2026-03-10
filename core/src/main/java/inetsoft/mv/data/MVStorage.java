@@ -20,8 +20,10 @@ package inetsoft.mv.data;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.storage.*;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.SingletonManager;
 import inetsoft.util.Tool;
+import jakarta.annotation.PreDestroy;
 import org.apache.commons.io.IOUtils;
 
 import java.io.*;
@@ -42,7 +44,7 @@ public class MVStorage implements AutoCloseable {
    }
 
    public static MVStorage getInstance() {
-      return SingletonManager.getInstance(MVStorage.class);
+      return ConfigurationContext.getContext().getSpringBean(MVStorage.class);
    }
 
    public static String getFile(String name) {
@@ -218,6 +220,7 @@ public class MVStorage implements AutoCloseable {
       return new BlobChannelProvider(name, getStorage(orgId), n -> new Metadata());
    }
 
+   @PreDestroy
    @Override
    public void close() throws Exception {
       getStorage().close();

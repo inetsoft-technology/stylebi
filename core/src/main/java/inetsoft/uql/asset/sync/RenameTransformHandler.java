@@ -21,8 +21,12 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.XPartition;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.SingletonManager;
 import inetsoft.util.Tool;
+import jakarta.annotation.PreDestroy;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,6 +35,8 @@ import java.util.List;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+@Service
+@Lazy
 @SingletonManager.Singleton(RenameTransformHandler.Reference.class)
 public class RenameTransformHandler implements AutoCloseable {
    /**
@@ -39,9 +45,10 @@ public class RenameTransformHandler implements AutoCloseable {
     * @return the rename transform handler.
     */
    public static RenameTransformHandler getTransformHandler() {
-      return SingletonManager.getInstance(RenameTransformHandler.class);
+      return ConfigurationContext.getContext().getSpringBean(RenameTransformHandler.class);
    }
 
+   @PreDestroy
    @Override
    public synchronized void close() throws Exception {
    }
