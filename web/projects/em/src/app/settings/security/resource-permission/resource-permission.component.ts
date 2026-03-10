@@ -172,8 +172,10 @@ export class ResourcePermissionComponent implements OnInit, OnChanges, OnDestroy
       this.tableSelected = selection.length > 0 && this.model.permissions.length > 0;
    }
 
-   copyPermissions(): void {
-      this.clipboardService.copy(this.model.permissions, this.model.requiresBoth,
+   copyPermissions(table: PermissionsTableComponent): void {
+      const selected = table.selection.selected;
+      const permissionsToCopy = selected.length > 0 ? selected : this.model.permissions;
+      this.clipboardService.copy(permissionsToCopy, this.model.requiresBoth,
          this.orgDropdownService.getProvider(), this.copyPasteContext);
       this.snackBar.open("_#(js:em.security.permissionsCopied)", null, {
          duration: Tool.SNACKBAR_DURATION

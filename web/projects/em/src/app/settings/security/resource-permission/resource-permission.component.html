@@ -63,7 +63,7 @@
       <mat-card-actions>
         <button mat-stroked-button (click)="addPermission(table)">_#(Add)</button>
         <button mat-stroked-button (click)="removePermission(table)" [disabled]="!tableSelected">_#(Remove)</button>
-        <button mat-stroked-button *ngIf="showCopyPaste && copyPasteContext" (click)="copyPermissions()"
+        <button mat-stroked-button *ngIf="showCopyPaste && copyPasteContext" (click)="copyPermissions(table)"
                 [disabled]="!model?.permissions?.length">
           _#(Copy Permissions)
         </button>
