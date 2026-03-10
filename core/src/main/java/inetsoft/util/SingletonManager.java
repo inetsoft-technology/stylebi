@@ -49,6 +49,19 @@ public final class SingletonManager {
       return INSTANCE.doGetInstance(type, parameters);
    }
 
+   /**
+    * Returns {@code true} if a singleton of the specified type has already been created and
+    * is still active. Unlike {@link #getInstance}, this method never triggers initialization.
+    *
+    * @param type the service class.
+    *
+    * @return {@code true} if the singleton exists and has not been disposed.
+    */
+   public static boolean isPresent(Class<?> type) {
+      Reference<?> reference = INSTANCE.instances.get(type);
+      return reference != null && !reference.disposed;
+   }
+
    @SuppressWarnings({ "unchecked", "SynchronizationOnLocalVariableOrMethodParameter", "rawtypes" })
    private <T> T doGetInstance(Class<T> type, Object... parameters) {
       Reference<T> reference = (Reference<T>) instances.get(type);
