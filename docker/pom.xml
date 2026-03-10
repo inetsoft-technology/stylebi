@@ -47,6 +47,13 @@
 
     <dependency>
       <groupId>com.inetsoft.stylebi</groupId>
+      <artifactId>inetsoft-cloud-runner</artifactId>
+      <version>${project.version}</version>
+      <scope>compile</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi</groupId>
       <artifactId>inetsoft-server</artifactId>
       <version>${project.version}</version>
       <scope>compile</scope>
