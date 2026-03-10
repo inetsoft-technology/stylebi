@@ -975,6 +975,39 @@ public class ResourcePermissionService {
       return path.substring(0, index) + "::" + path.substring(index + 1);
    }
 
+   /**
+    * Checks which identities from the given list do not exist in the current organization.
+    *
+    * @param identities the identities to validate.
+    *
+    * @return the list of identities that were not found.
+    */
+   public List<ResourcePermissionTableModel> findMissingIdentities(
+      List<ResourcePermissionTableModel> identities)
+   {
+      AuthenticationProvider provider = securityProvider.getAuthenticationProvider();
+      List<ResourcePermissionTableModel> missing = new ArrayList<>();
+
+      for(ResourcePermissionTableModel identity : identities) {
+         IdentityID id = identity.identityID();
+
+         boolean exists = switch(identity.type()) {
+            case USER -> provider.getUser(id) != null;
+            case GROUP -> provider.getGroup(id) != null;
+            case ROLE -> provider.getRole(id) != null;
+            case ORGANIZATION -> provider.getOrganization(
+               id.getOrgID() != null ? id.getOrgID() : id.getName()) != null;
+            default -> true;
+         };
+
+         if(!exists) {
+            missing.add(identity);
+         }
+      }
+
+      return missing;
+   }
+
    static final EnumSet<ResourceAction> ADMIN_ACTIONS = EnumSet.of(
       ResourceAction.READ, ResourceAction.WRITE, ResourceAction.DELETE, ResourceAction.ADMIN);
    static final EnumSet<ResourceAction> ADMIN_SHARE_ACTIONS = EnumSet.of(
