@@ -85,6 +85,7 @@ public class DataSpaceProtocolResolver implements ProtocolResolver {
 
       @Override
       public boolean isReadable() {
+         // DataSpace.getPath() never returns null, so no null guard is needed here.
          return exists() && !dataSpace.isDirectory(dataSpace.getPath(dir, file));
       }
 

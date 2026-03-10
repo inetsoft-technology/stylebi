@@ -19,7 +19,7 @@ package inetsoft.storage;
 
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedLong;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
@@ -32,6 +32,23 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 class BlobStorageTest {
+   private Cluster mockCluster;
+   private KeyValueStorage<Blob<Serializable>> mockStorage;
+   private Blob<Serializable> directoryBlob;
+
+   @BeforeEach
+   @SuppressWarnings("unchecked")
+   void setUp() {
+      mockCluster = mock(Cluster.class);
+      DistributedLong mockLong = mock(DistributedLong.class);
+      when(mockCluster.getLong(anyString())).thenReturn(mockLong);
+      when(mockCluster.getLocalMember()).thenReturn("localhost:1234");
+
+      mockStorage = mock(KeyValueStorage.class);
+      directoryBlob = new Blob<>("some/dir", null, 0L, Instant.now(), null);
+      when(mockStorage.get("some/dir")).thenReturn(directoryBlob);
+   }
+
    /**
     * A directory blob has a null digest. Verify that getInputStream(String) throws an
     * IOException with an appropriate message rather than passing a null digest down to the
@@ -39,16 +56,6 @@ class BlobStorageTest {
     */
    @Test
    void getInputStream_throwsIOException_forDirectoryBlob() {
-      Cluster mockCluster = mock(Cluster.class);
-      DistributedLong mockLong = mock(DistributedLong.class);
-      when(mockCluster.getLong(anyString())).thenReturn(mockLong);
-      when(mockCluster.getLocalMember()).thenReturn("localhost:1234");
-
-      @SuppressWarnings("unchecked")
-      KeyValueStorage<Blob<Serializable>> mockStorage = mock(KeyValueStorage.class);
-      Blob<Serializable> directoryBlob = new Blob<>("some/dir", null, 0L, Instant.now(), null);
-      when(mockStorage.get("some/dir")).thenReturn(directoryBlob);
-
       try (MockedStatic<Cluster> clusterStatic = Mockito.mockStatic(Cluster.class)) {
          clusterStatic.when(Cluster::getInstance).thenReturn(mockCluster);
 
@@ -66,16 +73,6 @@ class BlobStorageTest {
     */
    @Test
    void getReadChannel_throwsIOException_forDirectoryBlob() {
-      Cluster mockCluster = mock(Cluster.class);
-      DistributedLong mockLong = mock(DistributedLong.class);
-      when(mockCluster.getLong(anyString())).thenReturn(mockLong);
-      when(mockCluster.getLocalMember()).thenReturn("localhost:1234");
-
-      @SuppressWarnings("unchecked")
-      KeyValueStorage<Blob<Serializable>> mockStorage = mock(KeyValueStorage.class);
-      Blob<Serializable> directoryBlob = new Blob<>("some/dir", null, 0L, Instant.now(), null);
-      when(mockStorage.get("some/dir")).thenReturn(directoryBlob);
-
       try (MockedStatic<Cluster> clusterStatic = Mockito.mockStatic(Cluster.class)) {
          clusterStatic.when(Cluster::getInstance).thenReturn(mockCluster);
 

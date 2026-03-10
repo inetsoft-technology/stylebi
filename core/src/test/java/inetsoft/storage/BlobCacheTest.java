@@ -20,7 +20,9 @@ package inetsoft.storage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.Serializable;
 import java.nio.file.Path;
+import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.Mockito.mock;
@@ -30,13 +32,27 @@ class BlobCacheTest {
    Path tempDir;
 
    /**
-    * Directory blobs have a null digest. Verify that calling remove with a null digest returns
-    * cleanly rather than throwing a NullPointerException on digest.substring(0, 2).
+    * Directory blobs have a null digest. Verify that calling remove(storeId, String) with a
+    * null digest returns cleanly rather than throwing a NullPointerException on
+    * digest.substring(0, 2).
     */
    @Test
    void remove_withNullDigest_returnsCleanlyWithoutNPE() {
       BlobEngine engine = mock(BlobEngine.class);
       BlobCache cache = new BlobCache(tempDir, engine);
       assertDoesNotThrow(() -> cache.remove("test-store", (String) null));
+   }
+
+   /**
+    * Directory blobs have a null digest. Verify that calling remove(storeId, Blob) with a
+    * directory blob also returns cleanly — consistent with the String overload — rather than
+    * throwing an IOException from the internal getPath() helper.
+    */
+   @Test
+   void remove_withDirectoryBlob_returnsCleanlyWithoutException() {
+      BlobEngine engine = mock(BlobEngine.class);
+      BlobCache cache = new BlobCache(tempDir, engine);
+      Blob<Serializable> directoryBlob = new Blob<>("some/dir", null, 0L, Instant.now(), null);
+      assertDoesNotThrow(() -> cache.remove("test-store", directoryBlob));
    }
 }
