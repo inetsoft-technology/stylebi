@@ -30,10 +30,15 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.apache.commons.lang3.StringUtils;
 import org.owasp.encoder.Encode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 import org.w3c.dom.*;
 
 import java.beans.PropertyChangeEvent;
@@ -50,6 +55,8 @@ import java.util.function.Consumer;
  * @since 7.0
  * @author InetSoft Technology Corp
  */
+@Service
+@Lazy
 @SingletonManager.Singleton(DataCycleManager.Reference.class)
 public class DataCycleManager
    implements ScheduleExt, PropertyChangeListener, StorageRefreshListener, AutoCloseable
@@ -60,13 +67,22 @@ public class DataCycleManager
    public static final String TASK_PREFIX = "DataCycle Task: ";
 
    /**
-    * Creates a new instance of DataCycleManager.
+    * Creates a new instance of DataCycleManager (non-Spring path, used by Reference.get()).
     */
    public DataCycleManager() {
-      ScheduleManager.getScheduleManager().addScheduleExt(this);
+      this(ScheduleManager.getScheduleManager(), IndexedStorage.getIndexedStorage());
+   }
+
+   /**
+    * Spring constructor — ScheduleManager and IndexedStorage are injected, ensuring correct
+    * initialization order without requiring the distributed INIT_LOCK.
+    */
+   @Autowired
+   public DataCycleManager(ScheduleManager scheduleManager, IndexedStorage indexedStorage) {
+      scheduleManager.addScheduleExt(this);
       loadOldConfig();
       init();
-      IndexedStorage.getIndexedStorage().addStorageRefreshListener(this);
+      indexedStorage.addStorageRefreshListener(this);
    }
 
    /**
@@ -75,9 +91,29 @@ public class DataCycleManager
     * @return the DataCycleManager instance.
     */
    public static DataCycleManager getDataCycleManager() {
-      return SingletonManager.getInstance(DataCycleManager.class);
+      return ConfigurationContext.getContext().getSpringBean(DataCycleManager.class);
    }
 
+   /**
+    * Spring post-construction: finalize initialization that requires ScheduleManager and
+    * RepletRegistry to be fully operational. In the non-Spring path this is done by
+    * Reference.get() after acquiring INIT_LOCK.
+    */
+   @PostConstruct
+   public void initAfterCreate() {
+      ScheduleManager.getScheduleManager().initialize();
+
+      try {
+         RepletRegistry.getRegistry().addPropertyChangeListener(this);
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to add property change listener to replet registry", ex);
+      }
+
+      MVManager.getManager().addPropertyChangeListener(this);
+   }
+
+   @PreDestroy
    @Override
    public void close() throws Exception {
       IndexedStorage.getIndexedStorage().removeStorageRefreshListener(this);

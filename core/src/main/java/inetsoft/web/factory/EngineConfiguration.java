@@ -29,6 +29,9 @@ import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.internal.AnalyticEngine;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.ScheduleClient;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityProvider;
+import inetsoft.util.BlobIndexedStorage;
 import inetsoft.storage.BlobStorageManager;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.AssetRepository;
@@ -39,11 +42,13 @@ import inetsoft.uql.util.Drivers;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.viewsheet.BookmarkLockManager;
 import inetsoft.uql.viewsheet.ViewsheetLifecycleMessageChannel;
+import inetsoft.util.IndexedStorage;
 import inetsoft.util.Plugins;
 import inetsoft.util.SingletonManager;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.web.cluster.ServerClusterClient;
 import org.springframework.beans.factory.BeanCreationException;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.*;
 
 import java.rmi.RemoteException;
@@ -195,5 +200,23 @@ public class EngineConfiguration {
    @Lazy
    public BookmarkLockManager bookmarkLockManager() {
       return new BookmarkLockManager();
+   }
+
+   /** Indexed storage — blob-backed asset store used by RepletEngine and DataCycleManager. */
+   @Bean
+   @Lazy
+   public IndexedStorage indexedStorage() {
+      return new BlobIndexedStorage();
+   }
+
+   /**
+    * Security provider — PROTOTYPE scoped so each injection site gets the current provider
+    * via the scoped proxy. This replaces SecurityProviderFactory.
+    */
+   @Bean
+   @Lazy
+   @Scope(scopeName = ConfigurableBeanFactory.SCOPE_PROTOTYPE, proxyMode = ScopedProxyMode.TARGET_CLASS)
+   public SecurityProvider securityProvider(@Lazy SecurityEngine engine) {
+      return engine.getSecurityProvider();
    }
 }

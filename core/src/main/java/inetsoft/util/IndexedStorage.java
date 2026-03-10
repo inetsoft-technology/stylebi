@@ -388,7 +388,7 @@ public interface IndexedStorage {
     * @return the storage instance.
     */
    static IndexedStorage getIndexedStorage() {
-      return SingletonManager.getInstance(IndexedStorage.class);
+      return ConfigurationContext.getContext().getSpringBean(IndexedStorage.class);
    }
 
    /**
