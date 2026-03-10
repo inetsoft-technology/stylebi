@@ -92,7 +92,7 @@ public class ExcelTableHelper extends VSTableHelper {
       int titleH = PoiExcelVSUtil.getExcelTitleHeight(info);
       int viewHeight = info.getPixelSize().height;
       int dataHeight = viewHeight - titleH;
-      int allExcelRows = dataHeight / AssetUtil.defh;
+      int allExcelRows = (int) Math.ceil((double) dataHeight / AssetUtil.defh);
       int count = 0;
       dataRowCount = 0;
 
@@ -139,7 +139,7 @@ public class ExcelTableHelper extends VSTableHelper {
          bounds.width;
       bounds.width = shrink ? columnPixelW.length :
          (int) Math.round((double) bounds.width / AssetUtil.defw);
-      bounds.height = (int) Math.round((double) bounds.height / AssetUtil.defh);
+      bounds.height = (int) Math.ceil((double) bounds.height / AssetUtil.defh);
       titleBounds.height = PoiExcelVSUtil.getTableTitleHeight(titleBounds.height);
       titleBounds.width = width;
       startY = PoiExcelVSUtil.ceilY(startY);
