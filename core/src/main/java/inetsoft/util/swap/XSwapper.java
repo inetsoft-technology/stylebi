@@ -971,18 +971,43 @@ public final class XSwapper {
    public static final class XSwappableReference extends Cleaner.Reference<XSwappable> {
       public XSwappableReference(XSwappable referent, File[] files) {
          super(referent);
-         Cluster cluster = Cluster.getInstance();
-         Map<String, Integer> map = cluster.getMap(SWAP_FILE_MAP);
          this.files = Arrays.stream(files).map(File::getAbsolutePath).toArray(String[]::new);
+         boolean tracked = false;
 
-         for(String file : this.files) {
-            int count = map.getOrDefault(file, 0) + 1;
-            map.put(file, count);
+         try {
+            Cluster cluster = Cluster.getInstance();
+            Map<String, Integer> map = cluster.getMap(SWAP_FILE_MAP);
+
+            for(String file : this.files) {
+               int count = map.getOrDefault(file, 0) + 1;
+               map.put(file, count);
+            }
+
+            tracked = true;
          }
+         catch(Exception e) {
+            LOG.debug("Unable to register swap files in cluster map, cluster may be stopped", e);
+         }
+
+         this.clusterTracked = tracked;
       }
 
       @Override
       public void close() throws Exception {
+         if(!clusterTracked) {
+            // Cluster was unavailable when this reference was created; delete files directly.
+            // Swap files are node-local, so no cluster coordination is needed.
+            for(String file : files) {
+               boolean result = new File(file).delete();
+
+               if(!result) {
+                  FileSystemService.getInstance().remove(new File(file), 30000);
+               }
+            }
+
+            return;
+         }
+
          Cluster cluster = Cluster.getInstance();
          Lock lock = cluster.getLock(SWAP_FILE_MAP_LOCK);
          lock.lock();
@@ -1012,5 +1037,6 @@ public final class XSwapper {
       }
 
       private final String[] files;
+      private final boolean clusterTracked;
    }
 }
