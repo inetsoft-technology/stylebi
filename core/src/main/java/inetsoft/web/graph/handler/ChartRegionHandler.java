@@ -45,7 +45,9 @@ public class ChartRegionHandler {
       linear.set(ref instanceof ChartAggregateRef);
       // if measures on both x and y, x axis descriptor is from aggregateRef.
       // see DefaultGraphGenerator.getAxisDescriptor().
-      boolean asDim = "bottom_x_axis".equals(axisType) &&
+      // top_x_axis is included because "Labels on Opposite Side" can move x-measure labels
+      // to the top; that axis represents the same ref and must use the same descriptor. (Bug #74046)
+      boolean asDim = ("bottom_x_axis".equals(axisType) || "top_x_axis".equals(axisType)) &&
          Arrays.stream(info.getRTYFields())
             .anyMatch(a -> a instanceof ChartAggregateRef && !((ChartAggregateRef) a).isDiscrete());
 
