@@ -338,7 +338,9 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
       response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
       response.setContentType("application/json");
       response.setCharacterEncoding("UTF-8");
-      response.getWriter().write("{\"error\":\"" + message + "\"}");
+      // Escape special characters to prevent JSON injection
+      String escaped = message.replace("\\", "\\\\").replace("\"", "\\\"");
+      response.getWriter().write("{\"error\":\"" + escaped + "\"}");
    }
 
    private KeyPair ssoKeyPair;
@@ -347,7 +349,6 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
    private static final String AUTHORIZATION_HEADER = "Authorization";
    private static final String BEARER_PREFIX = "Bearer ";
    private static final String WIZ_API_PATTERN = "/api/wiz/**";
-   private static final String COMPOSER_WIZ_API_PATTERN = "/api/composer/wiz/**";
    private static final String WIZ_AUTH_ENABLED_PROPERTY = "wiz.auth.enabled";
 
    // Valid audiences for WIZ service tokens

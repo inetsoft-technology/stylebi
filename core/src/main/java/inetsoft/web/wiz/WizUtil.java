@@ -29,7 +29,12 @@ public class WizUtil {
          decodedId = null;
       }
       else {
-         decodedId = new String(Base64.getDecoder().decode(id), StandardCharsets.UTF_8);
+         try {
+            decodedId = new String(Base64.getDecoder().decode(id), StandardCharsets.UTF_8);
+         }
+         catch(IllegalArgumentException e) {
+            decodedId = null;
+         }
       }
 
       return decodedId;
