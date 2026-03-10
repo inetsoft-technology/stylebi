@@ -65,6 +65,7 @@ class BlobStorageTest {
                                            () -> storage.getInputStream("some/dir"));
          assertTrue(thrown.getMessage().contains("directory"),
                     "Expected message to mention 'directory', got: " + thrown.getMessage());
+         verify(mockCluster).unlockRead(anyString());
       }
    }
 
@@ -82,6 +83,7 @@ class BlobStorageTest {
                                            () -> storage.getReadChannel("some/dir"));
          assertTrue(thrown.getMessage().contains("directory"),
                     "Expected message to mention 'directory', got: " + thrown.getMessage());
+         verify(mockCluster).unlockRead(anyString());
       }
    }
 
