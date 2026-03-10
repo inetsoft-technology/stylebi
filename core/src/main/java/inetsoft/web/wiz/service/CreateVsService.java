@@ -19,7 +19,9 @@
 package inetsoft.web.wiz.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.internal.graph.MapData;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
@@ -42,7 +44,7 @@ public class CreateVsService {
 
    public void createViewsheet(CreateVisualizationModel model, Principal user) throws Exception {
       if(Tool.isEmptyString(model.getRuntimeId())) {
-         throw new Exception("Runtime Viewsheet is empty");
+         throw new IllegalArgumentException("Runtime Viewsheet is empty");
       }
 
       RuntimeViewsheet viewsheet = viewsheetService.getViewsheet(model.getRuntimeId(), user);
@@ -59,14 +61,14 @@ public class CreateVsService {
       AssetEntry sourceWs = null;
 
       if(config == null || config.getData() == null) {
-         throw new Exception("Invalid configuration, missing source");
+         throw new IllegalArgumentException ("Invalid configuration, missing source");
       }
 
       try {
          sourceWs = AssetEntry.createAssetEntry(config.getData().getSource());
       }
       catch(Exception e) {
-         throw new Exception("Datasource is invalid", e);
+         throw new IllegalArgumentException ("Datasource is invalid", e);
       }
 
       AbstractSheet sheet = engine.getSheet(sourceWs, user, true, AssetContent.ALL);
@@ -186,11 +188,42 @@ public class CreateVsService {
       chartInfo.setChartType(chartType);
       chart.setVSChartInfo(chartInfo);
 
+      createGeoFields(config, chartInfo);
+
       if(config != null && config.getBindingInfo() instanceof ChartBinding binding) {
          applyChartBinding(chartInfo, binding, chartType);
       }
 
       return chart;
+   }
+
+   private void createGeoFields(VisualizationConfig config, VSChartInfo chartInfo) {
+      if(config != null && config.getLayers() != null) {
+         for(Layer layerConfig : config.getLayers()) {
+            if(layerConfig.getField() == null) {
+               continue;
+            }
+
+            VSChartGeoRef geoRef = new VSChartGeoRef();
+            geoRef.setGroupColumnValue(layerConfig.getField());
+            GeographicOption geoOption = geoRef.getGeographicOption();
+
+            if(layerConfig.getLayer() != null) {
+               try {
+                  int layerId = MapData.getLayer(layerConfig.getLayer());
+                  geoOption.setLayerValue(String.valueOf(layerId));
+               }
+               catch(Exception ignored) {
+               }
+            }
+
+            if(layerConfig.getMap() != null) {
+               geoOption.getMapping().setType(layerConfig.getMap());
+            }
+
+            chartInfo.getGeoColumns().addAttribute(geoRef);
+         }
+      }
    }
 
    /**
@@ -257,6 +290,10 @@ public class CreateVsService {
             if(node.getSize() != null) {
                relationInfo.setNodeSizeField(createAestheticRef(node.getSize()));
             }
+
+            if(node.getText() != null) {
+               relationInfo.setTextField(createAestheticRef(node.getText()));
+            }
          }
       }
       // Map charts: Map, Contour Map (x=longitude, y=latitude)
@@ -287,10 +324,6 @@ public class CreateVsService {
             }
          }
 
-         if(binding.getColor() != null) {
-            chartInfo.setColorField(createAestheticRef(binding.getColor()));
-         }
-
          if(binding.getShape() != null) {
             chartInfo.setShapeField(createAestheticRef(binding.getShape()));
          }
@@ -305,6 +338,10 @@ public class CreateVsService {
 
          if(binding.getPath() != null) {
             chartInfo.setPathField(createChartRef(binding.getPath()));
+         }
+
+         if(binding.getColor() != null && chartType == GraphTypes.CHART_MAP) {
+            chartInfo.setColorField(createAestheticRef(binding.getColor()));
          }
       }
 
@@ -332,49 +369,14 @@ public class CreateVsService {
 
          if(binding.getMilestone() != null) {
             ganttInfo.setMilestoneField(createVSChartDimensionRef(binding.getMilestone()));
+            AggregateInfo ainfo = chartInfo.getAggregateInfo();
+            AttributeRef attr = new AttributeRef(null, binding.getMilestone().getField());
+            ainfo.addGroup(new GroupRef(attr));
+            VSEventUtil.fixAggInfoByConvertRef(ainfo, VSEventUtil.CONVERT_TO_MEASURE,
+                                               binding.getMilestone().getField());
          }
       }
-
       // Stock chart: x/y + high/low/close/open + color/text only (no shape/size)
-      // Must be checked before Candle since StockVSChartInfo extends CandleVSChartInfo
-      else if(chartInfo instanceof StockVSChartInfo stockInfo) {
-         if(binding.getX() != null) {
-            for(SimpleFieldInfo f : binding.getX()) {
-               chartInfo.addXField(createChartRef(f));
-            }
-         }
-
-         if(binding.getY() != null) {
-            for(SimpleFieldInfo f : binding.getY()) {
-               chartInfo.addYField(createChartRef(f));
-            }
-         }
-
-         if(binding.getColor() != null) {
-            chartInfo.setColorField(createAestheticRef(binding.getColor()));
-         }
-
-         if(binding.getText() != null) {
-            chartInfo.setTextField(createAestheticRef(binding.getText()));
-         }
-
-         if(binding.getHigh() != null) {
-            stockInfo.setHighField(createVSChartAggregateRef(binding.getHigh()));
-         }
-
-         if(binding.getLow() != null) {
-            stockInfo.setLowField(createVSChartAggregateRef(binding.getLow()));
-         }
-
-         if(binding.getClose() != null) {
-            stockInfo.setCloseField(createVSChartAggregateRef(binding.getClose()));
-         }
-
-         if(binding.getOpen() != null) {
-            stockInfo.setOpenField(createVSChartAggregateRef(binding.getOpen()));
-         }
-      }
-
       // Candle chart: x/y + high/low/close/open + color/shape/size/text
       else if(chartInfo instanceof CandleVSChartInfo candleInfo) {
          if(binding.getX() != null) {
@@ -391,14 +393,6 @@ public class CreateVsService {
 
          if(binding.getColor() != null) {
             chartInfo.setColorField(createAestheticRef(binding.getColor()));
-         }
-
-         if(binding.getShape() != null) {
-            chartInfo.setShapeField(createAestheticRef(binding.getShape()));
-         }
-
-         if(binding.getSize() != null) {
-            chartInfo.setSizeField(createAestheticRef(binding.getSize()));
          }
 
          if(binding.getText() != null) {
@@ -420,8 +414,17 @@ public class CreateVsService {
          if(binding.getOpen() != null) {
             candleInfo.setOpenField(createVSChartAggregateRef(binding.getOpen()));
          }
-      }
 
+         if(chartType == GraphTypes.CHART_STOCK) {
+            if(binding.getShape() != null) {
+               chartInfo.setShapeField(createAestheticRef(binding.getShape()));
+            }
+
+            if(binding.getSize() != null) {
+               chartInfo.setSizeField(createAestheticRef(binding.getSize()));
+            }
+         }
+      }
       // TreeMap group: Tree Map, Sun Burst, Circle Packing, ICircle
       // x (dimension), y (measure), t (dimension hierarchy → added to X)
       else if(isTreeMapChartType(chartType)) {
@@ -479,7 +482,10 @@ public class CreateVsService {
             }
          }
 
-         if(binding.getGroup() != null) {
+         if(binding.getGroup() != null && chartType != GraphTypes.CHART_FUNNEL &&
+            chartType != GraphTypes.CHART_BOXPLOT && chartType != GraphTypes.CHART_WATERFALL &&
+            chartType != GraphTypes.CHART_PARETO)
+         {
             for(SimpleFieldInfo f : binding.getGroup()) {
                chartInfo.addGroupField(createChartRef(f));
             }
@@ -489,11 +495,11 @@ public class CreateVsService {
             chartInfo.setColorField(createAestheticRef(binding.getColor()));
          }
 
-         if(binding.getShape() != null) {
+         if(binding.getShape() != null && chartType != GraphTypes.CHART_SCATTER_CONTOUR) {
             chartInfo.setShapeField(createAestheticRef(binding.getShape()));
          }
 
-         if(binding.getSize() != null) {
+         if(binding.getSize() != null && chartType != GraphTypes.CHART_MEKKO) {
             chartInfo.setSizeField(createAestheticRef(binding.getSize()));
          }
 
@@ -501,7 +507,9 @@ public class CreateVsService {
             chartInfo.setTextField(createAestheticRef(binding.getText()));
          }
 
-         if(binding.getPath() != null) {
+         if(binding.getPath() != null && (chartType == GraphTypes.CHART_LINE ||
+            chartType == GraphTypes.CHART_STEP || chartType == GraphTypes.CHART_JUMP))
+         {
             chartInfo.setPathField(createChartRef(binding.getPath()));
          }
       }
@@ -509,9 +517,9 @@ public class CreateVsService {
 
    private boolean isTreeMapChartType(int chartType) {
       return chartType == GraphTypes.CHART_TREEMAP ||
-             chartType == GraphTypes.CHART_SUNBURST ||
-             chartType == GraphTypes.CHART_CIRCLE_PACKING ||
-             chartType == GraphTypes.CHART_ICICLE;
+         chartType == GraphTypes.CHART_SUNBURST ||
+         chartType == GraphTypes.CHART_CIRCLE_PACKING ||
+         chartType == GraphTypes.CHART_ICICLE;
    }
 
    private AestheticRef createAestheticRef(SimpleFieldInfo field) {

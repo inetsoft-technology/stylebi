@@ -248,7 +248,16 @@ public class ChartBinding implements BindingInfo {
          this.size = size;
       }
 
+      public SimpleFieldInfo getText() {
+         return text;
+      }
+
+      public void setText(SimpleFieldInfo text) {
+         this.text = text;
+      }
+
       private SimpleFieldInfo color;
       private SimpleFieldInfo size;
+      private SimpleFieldInfo text;
    }
 }

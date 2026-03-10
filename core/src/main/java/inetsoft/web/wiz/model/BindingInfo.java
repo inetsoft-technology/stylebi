@@ -20,13 +20,13 @@ package inetsoft.web.wiz.model;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
-@JsonTypeInfo(use = JsonTypeInfo.Id.DEDUCTION)
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "bindingType", defaultImpl = OutputBinding.class)
 @JsonSubTypes({
-   @JsonSubTypes.Type(ChartBinding.class),
-   @JsonSubTypes.Type(TableBinding.class),
-   @JsonSubTypes.Type(CrosstabBinding.class),
-   @JsonSubTypes.Type(OutputBinding.class),
-   @JsonSubTypes.Type(ImageBinding.class)
+   @JsonSubTypes.Type(value = ChartBinding.class, name = "chart"),
+   @JsonSubTypes.Type(value = TableBinding.class, name = "table"),
+   @JsonSubTypes.Type(value = CrosstabBinding.class, name = "crosstab"),
+   @JsonSubTypes.Type(value = OutputBinding.class, name = "output"),
+   @JsonSubTypes.Type(value = ImageBinding.class, name = "image")
 })
 public interface BindingInfo {
 }
