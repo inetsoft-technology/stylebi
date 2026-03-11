@@ -25,7 +25,7 @@ export class NewViewsheetEvent extends OpenViewsheetEvent {
    /**
     * The asset entry id of the data source.
     */
-   public dataSource: AssetEntry;
+   public dataSources: AssetEntry[];
 
    /**
     * Creates a new instance of <tt>NewViewsheetEvent</tt>.
@@ -42,6 +42,6 @@ export class NewViewsheetEvent extends OpenViewsheetEvent {
    {
       super(entryId, width, height, mobile, userAgent, false, false, wizSheet, wizVisualization, visualizationSheet);
 
-      this.dataSource = dataSource;
+      this.dataSources = [dataSource];
    }
 }

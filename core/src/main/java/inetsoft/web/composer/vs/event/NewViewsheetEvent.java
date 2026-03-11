@@ -20,6 +20,8 @@ package inetsoft.web.composer.vs.event;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 
+import java.util.List;
+
 /**
  * Class that encapsulates the parameters for opening a viewsheet.
  *
@@ -27,28 +29,28 @@ import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
  */
 public class NewViewsheetEvent extends OpenViewsheetEvent {
    /**
-    * Gets the asset entry of the data source.
+    * Gets the assets entry of the data sources.
     *
     * @return the entry identifier.
     */
-   public AssetEntry getDataSource() {
-      return dataSource;
+   public List<AssetEntry> getDataSources() {
+      return dataSources;
    }
 
    /**
-    * Sets the asset entry of the data source.
+    * Sets the assets entry of the data sources.
     *
-    * @param dataSource the data source entry.
+    * @param dataSources the data source entry.
     */
-   public void setDataSource(AssetEntry dataSource) {
-      this.dataSource = dataSource;
+   public void setDataSource(List<AssetEntry> dataSources) {
+      this.dataSources = dataSources;
    }
 
    @Override
    public String toString() {
       return "OpenViewsheetEvent{" +
-         "dataSource='" + dataSource + "\'}";
+         "dataSources='" + dataSources + "\'}";
    }
 
-   private AssetEntry dataSource;
+   private List<AssetEntry> dataSources;
 }

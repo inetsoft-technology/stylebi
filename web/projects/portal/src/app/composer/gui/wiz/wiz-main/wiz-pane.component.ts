@@ -1,5 +1,11 @@
 import { Component, Input, OnDestroy, OnInit } from "@angular/core";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { ComponentTool } from "../../../../common/util/component-tool";
 import { WizDashboard } from "../../../data/vs/wizDashboard";
+import {
+   NewVisualizationDialog,
+   NewVisualizationDialogModel
+} from "../new-visualization-dialog/new-visualization-dialog.component";
 import { WizService } from "../services/wiz.service";
 import { FontService } from "../../../../widget/services/font.service";
 import { Subscription } from "rxjs";
@@ -29,10 +35,10 @@ export class WizPane implements OnInit, OnDestroy {
       return this._currentVisualization;
    }
 
-   constructor(private wizService: WizService, private fontService: FontService) {
-      wizService.openVisualization.subscribe((value: string) => {
+   constructor(private wizService: WizService, private fontService: FontService, private modalService: NgbModal) {
+      this.subscriptions.add(wizService.openVisualization.subscribe((value: string) => {
          this.createVisualization(value);
-      });
+      }));
    }
 
    ngOnInit(): void {
@@ -59,12 +65,15 @@ export class WizPane implements OnInit, OnDestroy {
       }
       else {
          // create new visualization
-         vs.id = "";
-         vs.newSheet = true;
+         ComponentTool.showDialog(this.modalService, NewVisualizationDialog,
+            (model: NewVisualizationDialogModel) => {
+               vs.baseEntries = model?.baseEntries;
+               vs.id = "";
+               vs.newSheet = true;
+               vs.visualization = true;
+               vs.visualizationSheet = this.currentDashboard?.id;
+               this._currentVisualization = vs;
+            }, {});
       }
-
-      vs.visualization = true;
-      vs.visualizationSheet = this.currentDashboard?.id;
-      this._currentVisualization = vs;
    }
 }

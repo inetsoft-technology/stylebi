@@ -21,6 +21,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.*;
 import inetsoft.web.composer.vs.event.CloseSheetEvent;
@@ -81,15 +82,19 @@ public class ComposerViewsheetController {
       }
 
       Viewsheet.WizInfo wizInfo = null;
+      AssetEntry datasource = null;
 
       if(event.isWizSheet()) {
          wizInfo = new Viewsheet.WizInfo(true);
       }
       else if(event.isWizVisualization()) {
-         wizInfo = new Viewsheet.WizInfo(true, event.getVisualizationSheet());
+         wizInfo = new Viewsheet.WizInfo(true, event.getVisualizationSheet(), event.getDataSources());
+      }
+      else if(event.getDataSources() != null && !event.getDataSources().isEmpty()) {
+         datasource = event.getDataSources().get(0);
       }
 
-      String runtimeId = viewsheetService.openTemporaryViewsheet(null, event.getDataSource(), principal, wizInfo);
+      String runtimeId = viewsheetService.openTemporaryViewsheet(null, datasource, principal, wizInfo);
       runtimeViewsheetRef.setRuntimeId(runtimeId);
 
       composerViewsheetService.newViewsheet(runtimeId, event, principal, commandDispatcher, linkUri);
