@@ -66,6 +66,7 @@ export class WizPane implements OnInit, OnDestroy {
          vs.id = value;
          vs.newSheet = false;
          vs.localId = wizDashboardCounter++;
+         this._currentVisualization = vs;
       }
       else {
          // create new visualization
