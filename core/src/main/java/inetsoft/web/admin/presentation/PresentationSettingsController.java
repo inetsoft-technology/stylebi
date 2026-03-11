@@ -136,6 +136,7 @@ public class PresentationSettingsController {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
+      Lock settingsLock = Cluster.getInstance().getLock(SETTINGS_LOCK);
       settingsLock.lock();
 
       try {
@@ -224,6 +225,7 @@ public class PresentationSettingsController {
          globalSettings = provider.checkPermission(principal,  ResourceType.EM, "*", ResourceAction.ACCESS);
       }
 
+      Lock settingsLock = Cluster.getInstance().getLock(SETTINGS_LOCK);
       settingsLock.lock();
 
       try {
