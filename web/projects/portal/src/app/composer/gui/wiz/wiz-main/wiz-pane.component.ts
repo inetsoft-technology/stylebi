@@ -59,13 +59,13 @@ export class WizPane implements OnInit, OnDestroy {
       }
 
       const vs = new WizDashboard(this.fontService);
-      vs.localId = wizDashboardCounter++;
       vs.label = "";
 
       if(value) {
          // open existing visualization
          vs.id = value;
          vs.newSheet = false;
+         vs.localId = wizDashboardCounter++;
       }
       else {
          // create new visualization
@@ -73,6 +73,7 @@ export class WizPane implements OnInit, OnDestroy {
             (model: NewVisualizationDialogModel) => {
                vs.baseEntries = model?.baseEntries;
                vs.id = "";
+               vs.localId = wizDashboardCounter++;
                vs.newSheet = true;
                vs.visualization = true;
                vs.visualizationSheet = this.currentDashboard?.id;
