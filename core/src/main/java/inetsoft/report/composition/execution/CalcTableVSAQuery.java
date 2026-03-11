@@ -956,12 +956,12 @@ public class CalcTableVSAQuery extends DataVSAQuery {
                value = value + "." + dup;
             }
 
-            // for cell value changed, the runtime cell name will be
-            // changed, so here make sure the name is same before and
-            // after cell value changed
+            // setValue must be called before getRuntimeCellName so the runtime cell name
+            // reflects the full column name (e.g. 'Year(OrderDate)'). This is safe because
+            // createCrosstabHeaders() now calls dim.setDataRef(column), ensuring getFullName()
+            // returns the correct, non-empty column name for all date levels.
             binding.setValue(value);
             String cellname = layout.getRuntimeCellName(binding);
-            // binding.setCellName(cellname);
             names.add(cellname);
          }
 
