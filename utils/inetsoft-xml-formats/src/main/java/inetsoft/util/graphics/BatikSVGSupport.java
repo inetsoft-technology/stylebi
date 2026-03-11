@@ -137,6 +137,7 @@ public class BatikSVGSupport implements SVGSupport {
       catch(TranscoderException ex) {
          if(ex.getException() instanceof BridgeException) {
             SVGUtil.fixPNG(doc);
+            SVGUtil.fixGradientStops(doc);
             imageTranscoder.transcode(new TranscoderInput(doc), null);
             return imageTranscoder.getImage();
          }
