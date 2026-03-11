@@ -5971,7 +5971,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       Object result;
 
+      // query.getData() submits to the AssetData thread pool and blocks in Processor.join()
+      // until the query completes. If the caller (e.g. refreshViewsheet) holds the sandbox
+      // write lock, that write lock is held for the full duration of the data fetch — blocking
+      // background threads (e.g. TableMetaDataRepository.shrink) from acquiring a read lock.
+      // Assembly mutations have already been done above under lockWrite(); the data fetch
+      // itself does not mutate assembly state, so it is safe to release outer locks here.
+      // This mirrors the same pattern used in getVGraphPair() for chart init. (74001)
       try {
+         thisLock.unlockAll();
+
          if(assembly instanceof ListInputVSAssembly ||
             assembly instanceof TableVSAssembly &&
                ((TableVSAssemblyInfo) assembly.getInfo()).isForm())
@@ -5989,6 +5998,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
       finally {
          getVariableTable().remove("_FORM_");
+         thisLock.restoreLocks();
       }
 
       return result;
@@ -7638,6 +7648,30 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // see above
       if(!AssetDataCache.isProcessorThread()) {
          thisLock.unlockRead();
+      }
+   }
+
+   /**
+    * Temporarily release all held locks. Must be paired with restoreLocks().
+    * Use when calling long-running operations (e.g. getData()) while a write lock is held,
+    * to prevent blocking background threads that need a read lock.
+    *
+    * <p>Not safe for re-entrant use: if a nested call to unlockAll() occurs on the
+    * same thread before restoreLocks() is called, the outer saved state will be lost.</p>
+    */
+   public void unlockAll() {
+      if(!AssetDataCache.isProcessorThread()) {
+         thisLock.unlockAll();
+      }
+   }
+
+   /**
+    * Restore locks previously released by {@link #unlockAll()}.
+    * Must be called on the same thread that called unlockAll().
+    */
+   public void restoreLocks() {
+      if(!AssetDataCache.isProcessorThread()) {
+         thisLock.restoreLocks();
       }
    }
 

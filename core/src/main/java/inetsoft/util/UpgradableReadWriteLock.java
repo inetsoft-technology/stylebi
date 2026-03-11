@@ -76,8 +76,12 @@ public class UpgradableReadWriteLock {
    }
 
    /**
-    * Unlock all currently locked locks, and stored the current lock states to be restored
-    * in restoreLocks().
+    * Unlock all currently locked locks, and store the current lock states to be restored
+    * in {@link #restoreLocks()}.
+    *
+    * <p>Not safe for re-entrant use: if a nested call to unlockAll() occurs on the
+    * same thread before restoreLocks() is called, the outer saved state will be lost
+    * because thisOldLocks is a single-slot per-thread store.</p>
     */
    public void unlockAll() {
       List<Integer> olocks = thisOldLocks.get();
