@@ -18,6 +18,7 @@
 package inetsoft.web.viewsheet.controller;
 
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.web.admin.presentation.AISettingsService;
 import inetsoft.web.viewsheet.command.SetPrincipalCommand;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -29,8 +30,9 @@ import java.security.Principal;
 @Controller
 public class PrincipalController {
    @Autowired
-   public PrincipalController(SecurityEngine securityEngine) {
+   public PrincipalController(SecurityEngine securityEngine, AISettingsService aiSettingsService) {
       this.securityEngine = securityEngine;
+      this.aiSettingsService = aiSettingsService;
    }
 
    @GetMapping("/api/viewsheet/get-principal")
@@ -40,8 +42,9 @@ public class PrincipalController {
          return null;
       }
 
-      return new SetPrincipalCommand(securityEngine, principal);
+      return new SetPrincipalCommand(securityEngine, aiSettingsService, principal);
    }
 
    private final SecurityEngine securityEngine;
+   private final AISettingsService aiSettingsService;
 }

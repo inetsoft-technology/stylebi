@@ -20,6 +20,7 @@ package inetsoft.web.viewsheet.command;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.web.AutoSaveUtils;
+import inetsoft.web.admin.presentation.AISettingsService;
 import inetsoft.web.assistant.AIAssistantController;
 
 import java.security.Principal;
@@ -32,7 +33,9 @@ import java.util.List;
  * @since 12.3
  */
 public class SetPrincipalCommand implements ViewsheetCommand {
-   public SetPrincipalCommand(SecurityEngine securityEngine, Principal principal) throws Exception {
+   public SetPrincipalCommand(SecurityEngine securityEngine, AISettingsService aiSettingsService,
+                              Principal principal) throws Exception
+   {
       this.principalKey = principal.getName();
 
       if(securityEngine != null) {
@@ -47,11 +50,9 @@ public class SetPrincipalCommand implements ViewsheetCommand {
          this.scriptPermission = securityEngine.checkPermission(
             principal, ResourceType.CREATE_SCRIPT, "*", ResourceAction.ACCESS);
 
-         String chatAppServerUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_SERVER_URL);
-         boolean aiAssistantVisible = chatAppServerUrl != null && !chatAppServerUrl.isEmpty() &&
-            "true".equalsIgnoreCase(SreeEnv.getProperty(AIAssistantController.AI_ASSISTANT_VISIBLE, "false"));
-         this.aiAssistantPermission = aiAssistantVisible && securityEngine.checkPermission(
-            principal, ResourceType.AI_ASSISTANT, "*", ResourceAction.ACCESS);
+         this.aiAssistantPermission = aiSettingsService.isAiAssistantVisible() &&
+            securityEngine.checkPermission(principal, ResourceType.AI_ASSISTANT, "*",
+            ResourceAction.ACCESS);
 
          autoSaveFiles = new ArrayList<>();
          initAutoSaveFiles(principal);
