@@ -16,10 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import { AssetEntry } from "../../../../../../shared/data/asset-entry";
 import { FontService } from "../../../widget/services/font.service";
 import { Viewsheet } from "./viewsheet";
 
 export class WizDashboard extends Viewsheet {
+   baseEntries: AssetEntry[];
+
    constructor(fontService: FontService = null, sheet: Viewsheet = null, public visualization: boolean = false, public visualizationSheet?: string) {
       super(fontService, sheet);
       this.type = "wiz";
