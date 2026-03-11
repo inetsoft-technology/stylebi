@@ -126,6 +126,11 @@ year-calendar, month-calendar {
   justify-content: center;
   border-radius: 50%;
   flex-shrink: 0;
+  cursor: pointer;
+
+  &:hover {
+    background-color: var(--inet-hover-secondary-bg-color);
+  }
 }
 
 .vs-calendar:hover .selection-list__header-buttons {

@@ -20,7 +20,6 @@ package inetsoft.uql.viewsheet.internal;
 import inetsoft.report.StyleConstants;
 import inetsoft.report.TableDataPath;
 import inetsoft.uql.CompositeValue;
-import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AbstractDataRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
