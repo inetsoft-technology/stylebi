@@ -1406,7 +1406,11 @@ public abstract class VSAQuery {
             changed = true;
          }
 
-         changed = VSUtil.addCalcBaseRefs(columns, null, Arrays.asList(calcs)) || changed;
+         List<CalculateRef> calcsToProcess = rangeOnly
+            ? Arrays.stream(calcs).filter(c -> c.getName().startsWith("Range@"))
+               .collect(Collectors.toList())
+            : Arrays.asList(calcs);
+         changed = VSUtil.addCalcBaseRefs(columns, null, calcsToProcess) || changed;
 
          if(changed) {
             table.resetColumnSelection();
