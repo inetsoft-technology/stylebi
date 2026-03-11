@@ -44,7 +44,7 @@ export interface TimeRangeData {
 export class TimeRangeEditorComponent implements OnInit {
    form: UntypedFormGroup;
    permissions: ResourcePermissionModel;
-   readonly copyPasteContext = COPY_PASTE_CONTEXT_SECURITY_ACTIONS;
+   protected readonly copyPasteContext = COPY_PASTE_CONTEXT_SECURITY_ACTIONS;
 
    constructor(private dialogRef: MatDialogRef<TimeRangeEditorComponent>,
                @Inject(MAT_DIALOG_DATA) data: TimeRangeData,
