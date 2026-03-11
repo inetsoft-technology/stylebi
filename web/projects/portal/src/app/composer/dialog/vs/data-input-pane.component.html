@@ -85,7 +85,8 @@
       <div class="form-row-float-label row" *ngIf="comboBox">
         <div class="col">
           <div class="form-check">
-            <input type="checkbox" class="form-check-input" [(ngModel)]="model.queryDateFormat" id="queryDateFormat">
+            <input type="checkbox" class="form-check-input" [(ngModel)]="model.queryDateFormat" id="queryDateFormat"
+                   (ngModelChange)="onQueryDateFormatToggle($event)">
             <label class="form-check-label" for="queryDateFormat">
               _#(Format Date Values Sent to Query)
             </label>

@@ -347,6 +347,12 @@ export class DataInputPane implements OnInit {
       return Tool.formatCatalogString("_#(js:nOfTotal)", ["", this.popupTable.numPages]);
    }
 
+   onQueryDateFormatToggle(checked: boolean): void {
+      if(!checked) {
+         this.setDateFormatInvalid(false);
+      }
+   }
+
    validateDateFormat(format: string) {
       try {
          // Allow known date tokens, separators, and quoted literals
