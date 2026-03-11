@@ -168,9 +168,10 @@ public class ConfigurationContext implements AutoCloseable {
    }
 
    /**
-    * Returns a future that completes when the Spring application context has been initialized.
-    * Callers running in non-Spring threads (e.g. Ignite affinity executors) can await this future
-    * to avoid racing against Spring startup on a newly joined cluster node.
+    * Returns a future that completes the first time the Spring application context is initialized.
+    * This future is never reset, so it remains done even if the context is later refreshed or
+    * replaced. Callers running in non-Spring threads (e.g. Ignite affinity executors) can await
+    * this future to avoid racing against Spring startup on a newly joined cluster node.
     */
    public CompletableFuture<Void> getSpringContextReady() {
       return springContextReady;

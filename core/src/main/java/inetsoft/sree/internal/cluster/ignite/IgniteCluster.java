@@ -1982,6 +1982,10 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
             result = request.getCallable().call();
          }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            error = e;
+         }
          catch(Exception e) {
             error = e;
          }
