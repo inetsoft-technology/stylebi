@@ -119,11 +119,15 @@ class BlobStorageTest {
       }
 
       @Override
-      protected Path createTempFile(String prefix, String suffix) {
+      protected void deleteByDigest(String digest) throws IOException {
          throw new UnsupportedOperationException();
       }
 
       @Override
+      protected Path createTempFile(String prefix, String suffix) {
+         throw new UnsupportedOperationException();
+      }
+
       protected boolean isLocal() {
          return false;
       }
