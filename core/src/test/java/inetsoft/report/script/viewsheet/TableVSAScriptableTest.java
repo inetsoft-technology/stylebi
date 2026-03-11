@@ -85,7 +85,7 @@ public class TableVSAScriptableTest {
 
    @ParameterizedTest
    @ValueSource(strings = {"insert", "del", "edit", "wrapping", "shrink",
-                           "titleVisible", "flyOnClick", "keepRowHeightOnPrint"})
+                           "titleVisible", "flyOnClick", "tipOnClick", "keepRowHeightOnPrint"})
    void testAddProperties(String propertyName) {
       tableVSAScriptable.addProperties();
       assert tableVSAScriptable.get(propertyName, tableVSAScriptable) instanceof Boolean;
@@ -100,6 +100,7 @@ public class TableVSAScriptableTest {
       "shrink, true, true",
       "titleVisible, false, false",
       "flyOnClick, true, true",
+      "tipOnClick, true, true",
       "keepRowHeightOnPrint, false, false"
    })
    void testSetProperty(String propertyName, Object propertyValue, Object expectedValue) {
