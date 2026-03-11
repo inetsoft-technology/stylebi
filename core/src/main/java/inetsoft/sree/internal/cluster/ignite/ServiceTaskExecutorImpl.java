@@ -77,6 +77,15 @@ public class ServiceTaskExecutorImpl implements Service {
          }
          catch(Exception e) {
             LOG.error("Error processing service task for {}", serviceId, e);
+
+            // Backoff to avoid tight retry loop under cluster instability
+            try {
+               Thread.sleep(1000L);
+            }
+            catch(InterruptedException ie) {
+               Thread.currentThread().interrupt();
+               break;
+            }
          }
       }
    }

@@ -24,6 +24,8 @@ import java.io.Serializable;
  * the caller's {@code CompletableFuture}.
  */
 class ServiceTaskResult implements Serializable {
+   private static final long serialVersionUID = 1L;
+
    static ServiceTaskResult success(String taskId, Serializable result) {
       return new ServiceTaskResult(taskId, result, null);
    }

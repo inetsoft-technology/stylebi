@@ -28,6 +28,8 @@ import java.util.UUID;
  * enough metadata for the executor to send the result back to the originating node.
  */
 class ServiceTaskRequest implements Serializable {
+   private static final long serialVersionUID = 1L;
+
    ServiceTaskRequest(String taskId, UUID callerNodeId, SingletonCallableTask<?> task) {
       this.taskId = taskId;
       this.callerNodeId = callerNodeId;

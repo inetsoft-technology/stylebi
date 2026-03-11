@@ -1364,7 +1364,13 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       pendingServiceTasks.put(taskId, future);
       BlockingQueue<ServiceTaskRequest> queue =
          getQueue(ServiceTaskExecutorImpl.QUEUE_PREFIX + serviceId);
-      queue.offer(new ServiceTaskRequest(taskId, ignite.cluster().localNode().id(), task));
+
+      if(!queue.offer(new ServiceTaskRequest(taskId, ignite.cluster().localNode().id(), task))) {
+         pendingServiceTasks.remove(taskId);
+         future.completeExceptionally(
+            new IllegalStateException("Task queue full for service: " + serviceId));
+      }
+
       //noinspection unchecked
       return (CompletableFuture<T>) future;
    }
@@ -1379,7 +1385,13 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       pendingServiceTasks.put(taskId, future);
       BlockingQueue<ServiceTaskRequest> queue =
          getQueue(ServiceTaskExecutorImpl.QUEUE_PREFIX + serviceId);
-      queue.offer(new ServiceTaskRequest(taskId, ignite.cluster().localNode().id(), task));
+
+      if(!queue.offer(new ServiceTaskRequest(taskId, ignite.cluster().localNode().id(), task))) {
+         pendingServiceTasks.remove(taskId);
+         future.completeExceptionally(
+            new IllegalStateException("Task queue full for service: " + serviceId));
+      }
+
       return future;
    }
 
