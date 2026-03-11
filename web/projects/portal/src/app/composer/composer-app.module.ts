@@ -19,6 +19,7 @@ import { CommonModule } from "@angular/common";
 import { HttpClient } from "@angular/common/http";
 import { NgModule } from "@angular/core";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { AiAssistantModule } from "../../../../shared/ai-assistant/ai-assistant.module";
 import { DownloadModule } from "../../../../shared/download/download.module";
 import { AngularResizeEventModule } from "../../../../shared/resize-event/angular-resize-event.module";
 import { BindingModule } from "../binding/binding.module";
@@ -456,7 +457,8 @@ import { ScrollingModule } from "@angular/cdk/scrolling";
       ScriptModule,
       VSObjectDirectivesModule,
       CodemirrorModule,
-      ScrollingModule ,
+      ScrollingModule,
+      AiAssistantModule,
    ],
    declarations: [
       ComposerAppComponent,
