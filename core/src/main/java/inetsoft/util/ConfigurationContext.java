@@ -26,6 +26,7 @@ import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
@@ -156,10 +157,24 @@ public class ConfigurationContext implements AutoCloseable {
 
    public void setApplicationContext(ApplicationContext applicationContext) {
       this.applicationContext = applicationContext;
+
+      if(applicationContext != null) {
+         springContextReady.complete(null);
+      }
    }
 
    public ApplicationContext getApplicationContext() {
       return applicationContext;
+   }
+
+   /**
+    * Returns a future that completes the first time the Spring application context is initialized.
+    * This future is never reset, so it remains done even if the context is later refreshed or
+    * replaced. Callers running in non-Spring threads (e.g. Ignite affinity executors) can await
+    * this future to avoid racing against Spring startup on a newly joined cluster node.
+    */
+   public CompletableFuture<Void> getSpringContextReady() {
+      return springContextReady;
    }
 
    public <T> T getSpringBean(Class<T> type) {
@@ -216,5 +231,6 @@ public class ConfigurationContext implements AutoCloseable {
    private final PropertyChangeSupport support = new PropertyChangeSupport(this);
    private volatile String home = ".";
    private ApplicationContext applicationContext;
+   private final CompletableFuture<Void> springContextReady = new CompletableFuture<>();
    private static final Logger LOG = LoggerFactory.getLogger(ConfigurationContext.class);
 }
