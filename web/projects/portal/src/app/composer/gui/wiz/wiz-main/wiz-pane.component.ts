@@ -54,6 +54,10 @@ export class WizPane implements OnInit, OnDestroy {
    }
 
    createVisualization(value: string) {
+      if(!this.currentDashboard) {
+         return;
+      }
+
       const vs = new WizDashboard(this.fontService);
       vs.localId = wizDashboardCounter++;
       vs.label = "";

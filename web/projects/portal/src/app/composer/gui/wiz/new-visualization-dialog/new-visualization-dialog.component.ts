@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, NgZone, OnInit, Output } from "@angular/core";
+import { Component, EventEmitter, OnInit, Output } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { AssetEntry } from "../../../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../../../shared/data/asset-type";
@@ -34,11 +34,10 @@ export interface NewVisualizationDialogModel {
 export class NewVisualizationDialog implements OnInit {
    @Output() onCommit = new EventEmitter<NewVisualizationDialogModel>();
    @Output() onCancel = new EventEmitter<null>();
-   @Output() onIgnore = new EventEmitter<null>();
 
    model: NewVisualizationDialogModel;
 
-   constructor(private zone: NgZone, private modalService: NgbModal) {
+   constructor(private modalService: NgbModal) {
    }
 
    ngOnInit(): void {
@@ -47,29 +46,23 @@ export class NewVisualizationDialog implements OnInit {
 
    changeSources(sourceNodes: TreeNodeModel[]): void {
       this.model.baseEntries = sourceNodes
-         .filter(node => {
-            const isFolder = node.data && (node.data.type == AssetType.FOLDER ||
-               node.data.type == AssetType.DATA_SOURCE ||
-               node.data.type == AssetType.PHYSICAL_FOLDER ||
-               node.data.type == AssetType.DATA_SOURCE_FOLDER ||
-               node.data.type == AssetType.QUERY_FOLDER);
-            return !isFolder;
-         })
+         .filter(node => !this.isFolder(node.data))
          .map(node => node.data);
    }
 
    doubleclickNode(sourceNode: TreeNodeModel): void {
-      if(!!sourceNode && sourceNode.leaf) {
-         const isFolder = sourceNode.data && (sourceNode.data.type == AssetType.FOLDER ||
-            sourceNode.data.type == AssetType.DATA_SOURCE ||
-            sourceNode.data.type == AssetType.PHYSICAL_FOLDER ||
-            sourceNode.data.type == AssetType.DATA_SOURCE_FOLDER ||
-            sourceNode.data.type == AssetType.QUERY_FOLDER);
-         if(!isFolder) {
-            this.model.baseEntries = [sourceNode.data];
-            this.doSubmit();
-         }
+      if(!!sourceNode && sourceNode.leaf && !this.isFolder(sourceNode.data)) {
+         this.model.baseEntries = [sourceNode.data];
+         this.doSubmit();
       }
+   }
+
+   private isFolder(entry: AssetEntry): boolean {
+      return entry && (entry.type == AssetType.FOLDER ||
+         entry.type == AssetType.DATA_SOURCE ||
+         entry.type == AssetType.PHYSICAL_FOLDER ||
+         entry.type == AssetType.DATA_SOURCE_FOLDER ||
+         entry.type == AssetType.QUERY_FOLDER);
    }
 
    doSubmit(): void {
@@ -91,14 +84,13 @@ export class NewVisualizationDialog implements OnInit {
    }
 
    ignore(): void {
+      //support do not selected any sources
       this.model.baseEntries = [];
       this.ok();
    }
 
    ok(): void {
-      this.zone.run(() => {
-         this.doSubmit();
-      });
+      this.doSubmit();
    }
 
    get okDisable(): boolean {

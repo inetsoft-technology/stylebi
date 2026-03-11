@@ -42,7 +42,7 @@ public class NewViewsheetEvent extends OpenViewsheetEvent {
     *
     * @param dataSources the data source entry.
     */
-   public void setDataSource(List<AssetEntry> dataSources) {
+   public void setDataSources(List<AssetEntry> dataSources) {
       this.dataSources = dataSources;
    }
 

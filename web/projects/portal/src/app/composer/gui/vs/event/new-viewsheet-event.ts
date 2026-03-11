@@ -42,6 +42,6 @@ export class NewViewsheetEvent extends OpenViewsheetEvent {
    {
       super(entryId, width, height, mobile, userAgent, false, false, wizSheet, wizVisualization, visualizationSheet);
 
-      this.dataSources = [dataSource];
+      this.dataSources = !!dataSource ? [dataSource] : [];
    }
 }
