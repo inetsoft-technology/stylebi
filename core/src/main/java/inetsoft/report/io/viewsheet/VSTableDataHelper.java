@@ -26,11 +26,12 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
-import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.awt.geom.Rectangle2D;
@@ -331,17 +332,11 @@ public abstract class VSTableDataHelper extends ExporterHelper {
 
          // Bug #73999, apply table.output.maxcol limit during export (same as web display)
          int ccount = lens.getColCount();
-         String maxColProp = SreeEnv.getProperty("table.output.maxcol");
-         int maxCols = 500;
-
-         try {
-            maxCols = Math.min(Integer.parseInt(maxColProp), 500);
-            maxCols = Math.max(maxCols, 1);
-         }
-         catch(NumberFormatException ignored) {
-         }
+         int maxCols = VSTableLens.getConfiguredMaxCols();
 
          if(ccount > maxCols) {
+            LOG.warn("Table '{}' column count {} exceeds table.output.maxcol limit {}, truncating export.",
+               assembly.getName(), ccount, maxCols);
             lens.setMaxCols(maxCols);
          }
       }
@@ -824,6 +819,8 @@ public abstract class VSTableDataHelper extends ExporterHelper {
       return null;
    }
 
+   private static final Logger LOG =
+      LoggerFactory.getLogger(VSTableDataHelper.class);
    public static final int DEFAULT_COLWIDTH = ExcelVSUtil.DEFAULT_COLWIDTH;
    protected VSAssembly assembly;
    private Map<String, List<VSAssemblyInfo>> annotationMap = null;
