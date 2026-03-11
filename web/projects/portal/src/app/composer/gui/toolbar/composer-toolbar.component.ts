@@ -139,6 +139,7 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
    @Input() scriptPermission: boolean;
    @Input() vpmToolbarButtonsVisible: boolean = false;
    @Input() tableStylePermission: boolean;
+   @Input() aiAssistantPermission: boolean;
    @Input() showHelpButton = false;
    @Input() wsWizard: boolean;
    @Input() focusedTab: ComposerTabModel;
