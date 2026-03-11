@@ -505,6 +505,9 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
             LOG.error("Failed to create MV: {}", mv.getName(), ex);
             throw new Exception("MV Creation failed: " + mv.getName() + " [" + ex + "]");
          }
+         finally {
+            OrganizationContextHolder.clear();
+         }
       }
 
       private boolean isCanceled() {
