@@ -55,7 +55,7 @@ import java.io.Serializable;
 import java.security.Principal;
 import java.sql.SQLException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
 import java.util.function.BiFunction;
 
 /**
@@ -899,43 +899,107 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
       boolean pub = isRuntimeMode(mode) ||
          (isLiveMode(mode) && (table.isAggregate() || ainfo.isEmpty()));
       TableLens data;
-      TableLens base;
 
-      // Declare outside synchronized so they are accessible during query execution below
-      TableAssembly table2;
-      AssetQueryCacheNormalizer cacheNormalizer;
-      AssetQuery query;
+      // For EmbeddedTableAssembly, keep the entire setup+execution atomic under
+      // synchronized(table) to prevent state mutation between setup and execution.
+      // For cloned tables (non-EmbeddedTableAssembly), table2 is per-thread so query
+      // execution runs outside synchronized(table), eliminating lock contention on
+      // concurrent worksheet opens (Bug #73971).
+      if(table instanceof EmbeddedTableAssembly) {
+         synchronized(table) {
+            ColumnSelection columns = table.getColumnSelection(pub);
+            data = getTableLens0(name, mode, table.isAggregate(), columns.hashCode());
+            int ncol = columns.getAttributeCount();
 
-      synchronized(table) {
-         ColumnSelection columns = table.getColumnSelection(pub);
-         // check if in cache
-         data = getTableLens0(name, mode, table.isAggregate(), columns.hashCode());
-         int ncol = columns.getAttributeCount();
+            if(data != null && data.getColCount() == ncol) {
+               return data;
+            }
 
-         if(data != null && data.getColCount() == ncol) {
-            return data;
+            data = executeQuery(table, table, name, mode, pub, vars);
+         }
+      }
+      else {
+         // Single-flight pattern: prevent thundering herd when N concurrent threads
+         // all detect a cache miss for the same table. The first thread creates a
+         // CompletableFuture and executes the query; subsequent threads await its result
+         // instead of each running the same expensive query independently.
+         String flightKey = name + ":" + mode + ":" + table.isAggregate();
+         CompletableFuture<TableLens> future = new CompletableFuture<>();
+         CompletableFuture<TableLens> existing = inFlightQueries.putIfAbsent(flightKey, future);
+
+         if(existing != null) {
+            // Another thread is already executing this query — wait for its result
+            try {
+               return existing.get();
+            }
+            catch(InterruptedException ex) {
+               Thread.currentThread().interrupt();
+               throw new RuntimeException("Interrupted waiting for query result", ex);
+            }
+            catch(ExecutionException ex) {
+               Throwable cause = ex.getCause();
+
+               if(cause instanceof Exception) {
+                  throw (Exception) cause;
+               }
+
+               throw new RuntimeException(cause);
+            }
          }
 
-         // don't clone embedded table, so any changes (from vs script) on the table
-         // won't be lost
-         table2 = table instanceof EmbeddedTableAssembly ? table
-            : (TableAssembly) table.clone();
+         try {
+            TableAssembly table2;
 
-         cacheNormalizer = new AssetQueryCacheNormalizer(table2, this, mode);
-         long touchTime = vsbox != null ? vsbox.getTouchTimestamp() : -1L;
-         query = AssetQuery.createAssetQuery(
-            table2, mode, this, false, touchTime, true, false);
+            synchronized(table) {
+               ColumnSelection columns = table.getColumnSelection(pub);
+               data = getTableLens0(name, mode, table.isAggregate(), columns.hashCode());
+               int ncol = columns.getAttributeCount();
+
+               if(data != null && data.getColCount() == ncol) {
+                  future.complete(data);
+                  return data;
+               }
+
+               table2 = (TableAssembly) table.clone();
+            }
+
+            data = executeQuery(table, table2, name, mode, pub, vars);
+            future.complete(data);
+         }
+         catch(Throwable ex) {
+            future.completeExceptionally(ex);
+
+            if(ex instanceof Exception) {
+               throw (Exception) ex;
+            }
+
+            throw new RuntimeException(ex);
+         }
+         finally {
+            inFlightQueries.remove(flightKey);
+         }
       }
 
-      // For cloned tables (non-EmbeddedTableAssembly), table2 is per-thread so query
-      // execution is safe outside synchronized(table), eliminating lock contention on
-      // concurrent worksheet opens (Bug #73971). For EmbeddedTableAssembly, table2 == table
-      // (intentionally not cloned so VS script changes persist), so re-acquire the lock to
-      // protect mutations made to table by replaceVariables() during execution. Java's
-      // re-entrant synchronized handles the nested synchronized(table) write-back below.
-      final Object queryLock = (table2 == table) ? table : new Object();
+      return data;
+   }
 
-      synchronized(queryLock) {
+   /**
+    * Execute a table query: setup, run, write-back column selection, and cache the result.
+    * For EmbeddedTableAssembly, table == table2 and the caller holds synchronized(table).
+    * For cloned tables, table2 is a per-thread clone safe to use without locking.
+    */
+   private TableLens executeQuery(TableAssembly table, TableAssembly table2,
+                                  String name, int mode, boolean pub,
+                                  VariableTable vars)
+      throws Exception
+   {
+      AssetQueryCacheNormalizer cacheNormalizer = new AssetQueryCacheNormalizer(table2, this, mode);
+      long touchTime = vsbox != null ? vsbox.getTouchTimestamp() : -1L;
+      AssetQuery query = AssetQuery.createAssetQuery(
+         table2, mode, this, false, touchTime, true, false);
+
+      TableLens base;
+
       try {
          VariableTable vars2;
          // set assemblyName for WS userMessages
@@ -966,7 +1030,7 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
          base = cacheNormalizer.transformTableLens(query.getTableLens(vars2));
 
          if(table.isLiveData()) {
-            base =  getColumnLimitTableLens(base, table instanceof UnpivotTableAssembly);
+            base = getColumnLimitTableLens(base, table instanceof UnpivotTableAssembly);
          }
 
          if(base != null) {
@@ -977,7 +1041,8 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
             vars.removeBaseTable(this.vars);
          }
 
-         // validate column selection — brief re-lock only for the write-back
+         // validate column selection — brief re-lock for the write-back (for cloned tables;
+         // for EmbeddedTableAssembly the caller already holds synchronized(table))
          synchronized(table) {
             table.setColumnSelection(table2.getColumnSelection());
             resetTableLens(table.getName(), DESIGN_MODE);
@@ -992,7 +1057,6 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
 
          // restore in case changed by query
          vars2.put(XQuery.HINT_MAX_ROWS, omaxrows);
-         data = base;
       }
       catch(ConfirmException | CancelledException ex) {
          throw ex;
@@ -1003,10 +1067,15 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
       finally {
          Tool.clearUserMessageAssemblyName();
       }
-      } // end synchronized(queryLock)
 
       // cache the table for reuse
-      putTableLens0(name, mode, table.isAggregate(), data, table.getColumnSelection(pub).hashCode());
+      int chash;
+
+      synchronized(table) {
+         chash = table.getColumnSelection(pub).hashCode();
+      }
+
+      putTableLens0(name, mode, table.isAggregate(), base, chash);
 
       return base;
    }
@@ -1896,6 +1965,10 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
    private final Set<String> nolimit; // tables to ignore time limit
    private QueryManager queryMgr; // track pending queries
    private final Object lock = new Object(); // script lock
+   // Single-flight map: prevents thundering herd when concurrent threads all miss
+   // the cache for the same table query. First thread executes; others await its result.
+   private final ConcurrentHashMap<String, CompletableFuture<TableLens>> inFlightQueries =
+      new ConcurrentHashMap<>();
    private String wsname = null; // the name of the worksheet
    private AssetEntry wsEntry = null;
    private VariableProvider vprovider2; // additional variable provider
