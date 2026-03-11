@@ -380,6 +380,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          this.scriptPermission = this.setPrincipalCommand.scriptPermission;
          this.tableStylePermission = this.setPrincipalCommand.tableStylePermission;
          this.aiAssistantPermission = this.setPrincipalCommand.aiAssistantPermission;
+         this.aiAssistantService.aiAssistantVisible = this.setPrincipalCommand.aiAssistantPermission;
 
          if(!this.vsWizard && this.setPrincipalCommand.autoSaveFiles != null &&
             !this.wsWizard && this.worksheetPermission &&
