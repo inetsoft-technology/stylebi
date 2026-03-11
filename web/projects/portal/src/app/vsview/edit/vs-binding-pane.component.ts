@@ -208,7 +208,7 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
    @Output() onRenamed = new EventEmitter<string>();
    private _runtimeId;
    private _oldRuntimeId: string;
-   private _aiAssistantPermission: boolean;
+   private _aiAssistantPermission: boolean = false;
    private useMeta: boolean = true;
    loading: boolean = false;
 
