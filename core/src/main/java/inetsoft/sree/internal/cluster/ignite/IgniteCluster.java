@@ -1366,7 +1366,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          getQueue(ServiceTaskExecutorImpl.QUEUE_PREFIX + serviceId);
 
       if(!queue.offer(new ServiceTaskRequest(taskId, ignite.cluster().localNode().id(), task))) {
-         pendingServiceTasks.remove(taskId);
+         // completeExceptionally triggers the whenComplete callback which removes from
+         // pendingServiceTasks, so no explicit remove is needed here.
          future.completeExceptionally(
             new IllegalStateException("Task queue full for service: " + serviceId));
       }
@@ -1387,7 +1388,6 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          getQueue(ServiceTaskExecutorImpl.QUEUE_PREFIX + serviceId);
 
       if(!queue.offer(new ServiceTaskRequest(taskId, ignite.cluster().localNode().id(), task))) {
-         pendingServiceTasks.remove(taskId);
          future.completeExceptionally(
             new IllegalStateException("Task queue full for service: " + serviceId));
       }
