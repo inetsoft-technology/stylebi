@@ -17,11 +17,9 @@
  */
 package inetsoft.web.viewsheet.command;
 
-import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.admin.presentation.AISettingsService;
-import inetsoft.web.assistant.AIAssistantController;
 
 import java.security.Principal;
 import java.util.ArrayList;
