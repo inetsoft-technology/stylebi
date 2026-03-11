@@ -1357,6 +1357,10 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       ensureServiceDeployed(serviceId);
       String taskId = UUID.randomUUID().toString();
       CompletableFuture<Serializable> future = new CompletableFuture<>();
+      // Timeout prevents futures from hanging forever if the executor node dies mid-task
+      // and the result message is never delivered.
+      future.orTimeout(SERVICE_TASK_TIMEOUT_MINUTES, TimeUnit.MINUTES)
+         .whenComplete((r, ex) -> pendingServiceTasks.remove(taskId));
       pendingServiceTasks.put(taskId, future);
       BlockingQueue<ServiceTaskRequest> queue =
          getQueue(ServiceTaskExecutorImpl.QUEUE_PREFIX + serviceId);
@@ -1370,6 +1374,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       ensureServiceDeployed(serviceId);
       String taskId = UUID.randomUUID().toString();
       CompletableFuture<Serializable> future = new CompletableFuture<>();
+      future.orTimeout(SERVICE_TASK_TIMEOUT_MINUTES, TimeUnit.MINUTES)
+         .whenComplete((r, ex) -> pendingServiceTasks.remove(taskId));
       pendingServiceTasks.put(taskId, future);
       BlockingQueue<ServiceTaskRequest> queue =
          getQueue(ServiceTaskExecutorImpl.QUEUE_PREFIX + serviceId);
@@ -1389,26 +1395,6 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          getQueue(ServiceTaskExecutorImpl.QUEUE_PREFIX + serviceId);
          ignite.services().deployClusterSingleton(serviceId, new ServiceTaskExecutorImpl(serviceId));
       }
-   }
-
-   private static ServiceTaskExecutor deployAndGetService(Ignite ignite, String serviceId) {
-      Collection<ServiceDescriptor> services = ignite.services().serviceDescriptors();
-      boolean deployed = false;
-
-      for(ServiceDescriptor service : services) {
-         if(service.name().equals(serviceId)) {
-            // service found, no need to do anything
-            deployed = true;
-            break;
-         }
-      }
-
-      // deploy a new service
-      if(!deployed) {
-         ignite.services().deployClusterSingleton(serviceId, new ServiceTaskExecutorImpl(serviceId));
-      }
-
-      return ignite.services().serviceProxy(serviceId, ServiceTaskExecutor.class, false);
    }
 
    @Override
@@ -1854,6 +1840,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private static final ThreadLocal<Integer> TASK_EXECUTE_LEVEL = new ThreadLocal<>();
    private static final String IGNITE_EXECUTE_POOL = "IGNITE_EXECUTE_POOL";
    private static final int IGNITE_EXECUTE_POOL_COUNT = 2;
+   private static final long SERVICE_TASK_TIMEOUT_MINUTES = 5;
    private static final Map<String, DistributedLockProxy> DISTRIBUTED_LOCK_MAP = new ConcurrentHashMap<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(IgniteCluster.class);

@@ -42,11 +42,25 @@ class ServiceTaskRequest implements Serializable {
       this.runnableTask = task;
    }
 
-   String getTaskId() { return taskId; }
-   UUID getCallerNodeId() { return callerNodeId; }
-   SingletonCallableTask<?> getCallableTask() { return callableTask; }
-   SingletonRunnableTask getRunnableTask() { return runnableTask; }
-   boolean isCallable() { return callableTask != null; }
+   String getTaskId() {
+      return taskId;
+   }
+
+   UUID getCallerNodeId() {
+      return callerNodeId;
+   }
+
+   SingletonCallableTask<?> getCallableTask() {
+      return callableTask;
+   }
+
+   SingletonRunnableTask getRunnableTask() {
+      return runnableTask;
+   }
+
+   boolean isCallable() {
+      return callableTask != null;
+   }
 
    private final String taskId;
    private final UUID callerNodeId;

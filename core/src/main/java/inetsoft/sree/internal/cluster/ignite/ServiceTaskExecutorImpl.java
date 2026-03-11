@@ -17,17 +17,15 @@
  */
 package inetsoft.sree.internal.cluster.ignite;
 
-import inetsoft.sree.internal.cluster.SingletonCallableTask;
-import inetsoft.sree.internal.cluster.SingletonRunnableTask;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.resources.IgniteInstanceResource;
 import org.apache.ignite.services.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.ignite.IgniteQueue;
+
 import java.io.Serializable;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Ignite singleton service that consumes tasks from a distributed {@link org.apache.ignite.IgniteQueue}
@@ -35,12 +33,11 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>Tasks are submitted non-blocking by the caller side ({@link IgniteCluster#submit(String,
  * SingletonCallableTask)}) and survive the failure of any single node because the queue is
- * backed by the distributed Ignite data grid.  Only the task that is <em>actively executing</em>
- * at the moment of an executor-node crash can be lost (at-most-once semantics); all enqueued
- * but not-yet-dequeued tasks remain in the queue and are processed by the newly-elected
- * service owner.
+ * backed by the distributed Ignite data grid.  Uses peek/remove (at-least-once semantics):
+ * if the executor node crashes mid-task, the task remains in the queue and is re-processed
+ * by the newly-elected service owner. Callers must ensure tasks are idempotent.
  */
-public class ServiceTaskExecutorImpl implements ServiceTaskExecutor, Service {
+public class ServiceTaskExecutorImpl implements Service {
    public ServiceTaskExecutorImpl(String serviceId) {
       this.serviceId = serviceId;
    }
@@ -49,10 +46,7 @@ public class ServiceTaskExecutorImpl implements ServiceTaskExecutor, Service {
    public void init() {
       // The queue is created by IgniteCluster.ensureServiceDeployed() before this service is
       // started, so passing null here retrieves the existing distributed queue.
-      @SuppressWarnings("unchecked")
-      BlockingQueue<ServiceTaskRequest> q =
-         (BlockingQueue<ServiceTaskRequest>) ignite.queue(QUEUE_PREFIX + serviceId, 0, null);
-      this.queue = q;
+      this.queue = ignite.queue(QUEUE_PREFIX + serviceId, 0, null);
    }
 
    @Override
@@ -63,10 +57,18 @@ public class ServiceTaskExecutorImpl implements ServiceTaskExecutor, Service {
 
       while(running) {
          try {
-            ServiceTaskRequest request = queue.poll(1L, TimeUnit.SECONDS);
+            // Use peek() + remove() for at-least-once semantics: if the node crashes
+            // after peek() but before remove(), the task stays in the queue and is
+            // re-processed by the new singleton owner on failover. This is safe because
+            // the service is a cluster singleton — only one consumer exists at a time.
+            ServiceTaskRequest request = queue.peek();
 
             if(request != null) {
                processRequest(request, loader);
+               queue.remove();
+            }
+            else {
+               Thread.sleep(1000L);
             }
          }
          catch(InterruptedException e) {
@@ -129,7 +131,7 @@ public class ServiceTaskExecutorImpl implements ServiceTaskExecutor, Service {
    private transient Ignite ignite;
 
    private volatile boolean running;
-   private transient BlockingQueue<ServiceTaskRequest> queue;
+   private transient IgniteQueue<ServiceTaskRequest> queue;
    private final String serviceId;
 
    private static final Logger LOG = LoggerFactory.getLogger(ServiceTaskExecutorImpl.class);

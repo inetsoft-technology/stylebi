@@ -43,10 +43,21 @@ class ServiceTaskResult implements Serializable {
       this.exception = exception;
    }
 
-   String getTaskId() { return taskId; }
-   Serializable getResult() { return result; }
-   Exception getException() { return exception; }
-   boolean isSuccess() { return exception == null; }
+   String getTaskId() {
+      return taskId;
+   }
+
+   Serializable getResult() {
+      return result;
+   }
+
+   Exception getException() {
+      return exception;
+   }
+
+   boolean isSuccess() {
+      return exception == null;
+   }
 
    private final String taskId;
    private final Serializable result;
