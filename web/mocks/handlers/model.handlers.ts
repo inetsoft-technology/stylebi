@@ -45,4 +45,10 @@ export const modelHandlers = [
    http.post("*/api/composer/vs/binding/:id", () => {
       return HttpResponse.json({ message: "Saved successfully" });
    }),
+
+   // AI assistant endpoints — ModalHeaderComponent requests these on init.
+   // Return null for all of them so the feature is gracefully disabled in tests.
+   http.get("*/api/assistant/*", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
 ];
