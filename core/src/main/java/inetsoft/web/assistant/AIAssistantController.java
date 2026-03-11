@@ -84,12 +84,6 @@ public class AIAssistantController {
          || (serverUrl != null && !serverUrl.trim().isEmpty());
    }
 
-   @GetMapping("/api/assistant/ai-assistant-visible")
-   public boolean isAiAssistantVisible() {
-      String value = SreeEnv.getProperty(AI_ASSISTANT_VISIBLE, "false");
-      return "true".equalsIgnoreCase(value);
-   }
-
    /**
     * Returns the full StyleBI server URL.
     * This URL is used as the JWT issuer for SSO tokens and should be passed
