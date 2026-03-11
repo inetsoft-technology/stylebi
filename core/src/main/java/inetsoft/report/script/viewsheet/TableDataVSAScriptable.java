@@ -412,6 +412,8 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
                   String[].class, info.getClass(), info);
       addProperty("flyOnClick", "isFlyOnClick", "setFlyOnClick", boolean.class,
                   info.getClass(), info);
+      addProperty("tipOnClick", "isTipOnClick", "setTipOnClick", boolean.class,
+                  info.getClass(), info);
       addProperty("keepRowHeightOnPrint", "isKeepRowHeightOnPrint", "setKeepRowHeightOnPrint",
                   boolean.class, info.getClass(), info);
 
