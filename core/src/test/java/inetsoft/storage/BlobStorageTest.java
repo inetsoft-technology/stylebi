@@ -120,7 +120,7 @@ class BlobStorageTest {
 
       @Override
       protected void deleteByDigest(String digest) throws IOException {
-
+         throw new UnsupportedOperationException();
       }
 
       @Override
