@@ -20,6 +20,7 @@ package inetsoft.uql.viewsheet.internal;
 import inetsoft.report.StyleConstants;
 import inetsoft.report.TableDataPath;
 import inetsoft.uql.CompositeValue;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AbstractDataRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
@@ -73,7 +74,7 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
       super();
 
       dates = new String[0];
-      setPixelSize(new Dimension(300, 200));
+      setPixelSize(new Dimension(300, 300));
    }
 
    /**
@@ -81,8 +82,9 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
     */
    @Override
    public void initDefaultFormat() {
-      setFormatInfo((FormatInfo) normalDefault.clone());
+      setFormatInfo(normalDefault.clone());
       setCSSDefaults();
+      titleInfo.setTitleHeightValue(36);
    }
 
    /**
@@ -1410,6 +1412,7 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
       format.getDefaultFormat().setBordersValue(borders);
       format.getDefaultFormat().setBorderColorsValue(bcolors);
       format.getDefaultFormat().setFontValue(getDefaultFont(Font.BOLD, 10));
+      format.getDefaultFormat().setRoundCornerValue(10);
       format.getCSSFormat().setCSSType(CSSConstants.CALENDAR);
       tformat.getDefaultFormat().setFontValue(getDefaultFont(Font.BOLD, 11));
       tformat.getDefaultFormat().setBordersValue(new Insets(0, 0, StyleConstants.THIN_LINE, 0));
@@ -1440,6 +1443,7 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
 
       VSCompositeFormat monthFormat = new VSCompositeFormat();
       monthFormat.getCSSFormat().setCSSType(CSSConstants.CALENDAR_DAYS);
+      monthFormat.getDefaultFormat().setAlignmentValue(StyleConstants.H_CENTER | StyleConstants.V_CENTER);
       normalDefault.setFormat(CALENDAR_MONTH_PATH, monthFormat);
 
       format = new VSCompositeFormat();

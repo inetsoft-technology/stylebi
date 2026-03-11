@@ -19,6 +19,7 @@
   position: absolute;
   display: table;
   table-layout: fixed;
+  overflow: hidden;
 }
 
 .dropdown-calendar {
@@ -38,7 +39,7 @@
   .non-editable-text.title-text {
     display: table;
     width: 100%;
-    padding-left: 2px;
+    padding-left: 16px;
     top: 0;
     left: 0;
     text-decoration: inherit;
@@ -85,6 +86,17 @@ year-calendar, month-calendar {
 .calendar-navBtn {
   cursor: pointer;
   opacity: 1;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  &:hover {
+    background-color: var(--inet-hover-secondary-bg-color);
+  }
 }
 
 .calendar-navBtn.btn-disabled {
@@ -106,9 +118,14 @@ year-calendar, month-calendar {
 }
 
 .calendar-mode-btn {
-  height: 20px;
+  width: 32px;
+  height: 32px;
   z-index: 3;
-  display: inline-block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .vs-calendar:hover .selection-list__header-buttons {
@@ -136,7 +153,7 @@ year-calendar, month-calendar {
 .day-table {
   display: flex;
   width: calc(100% - 2px);
-  height: calc(100% - 18px);
+  height: calc(100% - 36px);
 }
 
 .day-column {
@@ -149,8 +166,10 @@ year-calendar, month-calendar {
   .day-title-cell {
     flex-grow: 1;
     border: 0;
-    padding-left: 2px;
+    padding: 0;
     display: flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 
@@ -162,10 +181,11 @@ year-calendar, month-calendar {
 .month-cell {
   display: flex;
   flex-basis: 25%;
-  line-height: 33px;
+  align-items: center;
+  justify-content: center;
   text-align: center;
-  font-size: 18px;
-  font-weight: bold;
+  font-size: 14px;
+  font-weight: 500;
   font-style: normal;
   white-space: nowrap;
   cursor: pointer;
@@ -193,7 +213,8 @@ year-calendar, month-calendar {
 
 .calendar-title-label-container {
   position: relative;
-  width: calc(100% - 26px);
+  flex: 1;
+  min-width: 0;
   height: 100%;
 
   .calendar-title-label {
@@ -206,7 +227,7 @@ year-calendar, month-calendar {
 }
 
 .child-calendar-title {
-  height: 21px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
