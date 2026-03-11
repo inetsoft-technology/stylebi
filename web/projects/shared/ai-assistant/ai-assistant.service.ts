@@ -135,7 +135,6 @@ export class AiAssistantService {
 
    setContextTypeFieldValue(contextType: string): void {
       this.setContextField("contextType", contextType)
-      console.trace("======set context type==========",contextType);
    }
 
    setCalcTableBindingContext(layout: CalcTableLayout): void {
