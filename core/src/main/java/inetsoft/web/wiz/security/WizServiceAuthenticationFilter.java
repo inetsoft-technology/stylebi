@@ -260,6 +260,7 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
 
       // Set locale if available
       try {
+         principal.setProperty("wiz", "true");
          String localeStr = claims.getStringClaim("locale");
 
          if(localeStr != null && !localeStr.isEmpty()) {

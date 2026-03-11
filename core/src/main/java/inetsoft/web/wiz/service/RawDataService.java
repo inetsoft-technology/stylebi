@@ -185,6 +185,10 @@ public class RawDataService {
    }
 
    private void writeCsvCell(BufferedWriter writer, String cell) throws IOException {
+      if(cell == null) {
+         return;
+      }
+
       if(cell.contains(",") || cell.contains("\"") || cell.contains("\n")) {
          writer.write('"');
          writer.write(cell.replace("\"", "\"\""));

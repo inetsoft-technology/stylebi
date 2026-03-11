@@ -49,35 +49,27 @@ public class RawDataController {
       response.setBufferSize(8192);
       ServletOutputStream outputStream = response.getOutputStream();
       rawDataService.writeDataSourceTableCsvStream(data, principal, outputStream);
-      outputStream.flush();
    }
 
    @GetMapping(
       value = "/profiling/rawdata/export/worksheet/{identifier}",
       produces = "text/csv"
    )
-   public ResponseEntity<StreamingResponseBody> exportWorksheetTableToCsv(
+   public void exportWorksheetTableToCsv(
       @PathVariable("identifier") String worksheetId,
       @RequestParam("tableName") String tableName,
-      XPrincipal principal) throws Exception
+      XPrincipal principal,
+      HttpServletResponse response) throws Exception
    {
-      StreamingResponseBody stream = outputStream -> {
-         try {
-            rawDataService.writeWorksheetTableCsvStream(
-               WizUtil.decodeId(worksheetId),
-               tableName,
-               principal,
-               outputStream
-            );
-         }
-         catch(Exception e) {
-            throw new RuntimeException(e);
-         }
-      };
-
-      return ResponseEntity.ok()
-         .contentType(MediaType.parseMediaType("text/csv"))
-         .body(stream);
+      response.setContentType("text/csv");
+      response.setBufferSize(8192);
+      ServletOutputStream outputStream = response.getOutputStream();
+      rawDataService.writeWorksheetTableCsvStream(
+         WizUtil.decodeId(worksheetId),
+         tableName,
+         principal,
+         outputStream
+      );
    }
 
    private final RawDataService rawDataService;
