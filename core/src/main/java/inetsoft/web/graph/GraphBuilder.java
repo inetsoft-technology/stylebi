@@ -26,6 +26,8 @@ import inetsoft.graph.coord.Coordinate;
 import inetsoft.graph.coord.GeoCoord;
 import inetsoft.graph.data.BoxDataSet;
 import inetsoft.graph.element.GraphElement;
+import inetsoft.graph.element.IntervalElement;
+import inetsoft.graph.geometry.ElementGeometry;
 import inetsoft.graph.geometry.Geometry;
 import inetsoft.graph.geometry.ParaboxPointGeometry;
 import inetsoft.graph.internal.Donut;
@@ -1321,6 +1323,8 @@ public class GraphBuilder {
       }
 
       int[] selectRows = null;
+      Double cornerRadius = null;
+      Integer barDirection = null;
 
       if(childArea instanceof VisualObjectArea) {
          Visualizable vobj = childArea.getVisualizable();
@@ -1330,6 +1334,29 @@ public class GraphBuilder {
 
             if(gobj instanceof ParaboxPointGeometry) {
                selectRows = ((ParaboxPointGeometry) gobj).getRowIndexes();
+            }
+         }
+
+         if(vobj instanceof BarVO) {
+            BarVO barVO = (BarVO) vobj;
+            IntervalElement elem = (IntervalElement) ((ElementGeometry) barVO.getGeometry()).getElement();
+            double r = elem.getCornerRadius();
+
+            if(r > 0 && !(barVO instanceof Bar3DVO) && !elem.isStack()) {
+               cornerRadius = r;
+
+               if(!elem.isRoundAllCorners()) {
+                  // GTool.isHorizontal() returns true for standard (vertical bar) orientation,
+                  // false for the rotated coordinate system used by horizontal bar charts.
+                  boolean stdOrientation = GTool.isHorizontal(barVO.getScreenTransform());
+                  boolean neg = barVO.isNegative();
+                  // Note: direction values are the inverse of BarVO's assignments because
+                  // BarVO operates in Y-up screen space (after transformShape) while the
+                  // frontend canvas uses standard Y-down coordinates.
+                  barDirection = stdOrientation ? (neg ? 1 : 0) : (neg ? 3 : 2);
+               }
+               // barDirection stays null when roundAllCorners=true so the frontend
+               // draws all four corners rounded (direction==null path in drawRoundedBar)
             }
          }
       }
@@ -1362,6 +1389,8 @@ public class GraphBuilder {
          .legendItemIdx(legendItemIndex < 0 ? null : legendItemIndex)
          .period(isPeriod ? true : null)
          .selectRows(selectRows)
+         .cornerRadius(cornerRadius)
+         .barDirection(barDirection)
          .build();
    }
 

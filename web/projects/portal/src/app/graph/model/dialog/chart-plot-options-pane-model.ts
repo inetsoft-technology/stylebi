@@ -81,4 +81,7 @@ export interface ChartPlotOptionsPaneModel {
    wordCloudFontScale?: number;
    mapPolygon?: boolean;
    pieRatio?: number;
+   barCornerRadius?: number;
+   barCornerRadiusVisible?: boolean;
+   barRoundAllCorners?: boolean;
 }

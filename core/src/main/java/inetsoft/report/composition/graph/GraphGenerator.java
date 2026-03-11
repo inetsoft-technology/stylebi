@@ -3717,6 +3717,8 @@ public abstract class GraphGenerator {
             element.setStackNegative(false);
          }
 
+         element.setCornerRadius(desc.getPlotDescriptor().getBarCornerRadius());
+         element.setRoundAllCorners(desc.getPlotDescriptor().isBarRoundAllCorners());
          elements.add(element);
       }
 

@@ -211,6 +211,27 @@ public class BarVO extends ElementVO {
          }
 
          path0 = transformShape(path0, getScreenTransform());
+
+         IntervalElement ielem = (IntervalElement) ((ElementGeometry) getGeometry()).getElement();
+         double r = ielem.getCornerRadius();
+
+         if(r > 0 && !(this instanceof Bar3DVO) && !ielem.isStack()) {
+            boolean stdOrientation = GTool.isHorizontal(getScreenTransform());
+            int direction;
+
+            if(stdOrientation) {
+               // Y-up screen space (after transformShape): y+h is the visual top, y is the visual bottom.
+               // GraphBuilder uses the inverse (neg ? 1 : 0) because the frontend canvas is Y-down.
+               direction = negative ? 0 : 1; // 1=open end at top (y+h), 0=open end at bottom (y)
+            }
+            else {
+               direction = negative ? 3 : 2; // 2=right, 3=left; same mapping as GraphBuilder (no Y-flip for horizontal)
+            }
+
+            path0 = buildRoundedBarShape(path0.getBounds2D(), r, direction,
+                                         ielem.isRoundAllCorners());
+         }
+
          this.cachedShape = new SoftReference<>(new CachedShape(trans0, path0));
       }
 
@@ -1275,6 +1296,93 @@ public class BarVO extends ElementVO {
 
       AffineTransform trans; // transform as of last path0
       Shape path; // transformed shape ready for drawing
+   }
+
+   /**
+    * Return true if this bar extends in the negative direction (below/left of baseline).
+    */
+   public boolean isNegative() {
+      return negative;
+   }
+
+   /**
+    * Build a rounded-corner bar shape.
+    *
+    * @param bounds          screen-space bounding rectangle of the bar
+    * @param radiusFraction  fraction of bar width (or height for horizontal) to use as arc radius
+    * @param direction       open-end direction (Y-up coords): 0=bottom (y), 1=top (y+h), 2=right (x+w), 3=left (x)
+    * @param roundAllCorners true to round all four corners equally via RoundRectangle2D;
+    *                        false to round only the open (value) end corners
+    */
+   static Shape buildRoundedBarShape(Rectangle2D bounds, double radiusFraction,
+                                      int direction, boolean roundAllCorners)
+   {
+      double x = bounds.getX();
+      double y = bounds.getY();
+      double w = bounds.getWidth();
+      double h = bounds.getHeight();
+      // Use the shorter dimension as the fraction base so the radius scales consistently
+      // for both vertical bars (w < h) and horizontal bars (h < w).
+      double shortDim = Math.min(w, h);
+      double arc = Math.min(radiusFraction * shortDim, shortDim / 2);
+
+      if(roundAllCorners) {
+         // RoundRectangle2D takes arc width/height as diameters
+         return new RoundRectangle2D.Double(x, y, w, h, arc * 2, arc * 2);
+      }
+
+      GeneralPath path = new GeneralPath();
+
+      switch(direction) {
+         case 0: // open end at bottom (y); round bottom-left, bottom-right (Y-up coords: y=visual bottom)
+            path.moveTo(x + arc, y);
+            path.lineTo(x + w - arc, y);
+            path.quadTo(x + w, y, x + w, y + arc);   // bottom-right
+            path.lineTo(x + w, y + h);
+            path.lineTo(x, y + h);
+            path.lineTo(x, y + arc);
+            path.quadTo(x, y, x + arc, y);            // bottom-left
+            break;
+
+         case 1: // open end at top (y+h); round top-left, top-right (Y-up coords: y+h=visual top)
+            path.moveTo(x, y);
+            path.lineTo(x + w, y);
+            path.lineTo(x + w, y + h - arc);
+            path.quadTo(x + w, y + h, x + w - arc, y + h); // top-right
+            path.lineTo(x + arc, y + h);
+            path.quadTo(x, y + h, x, y + h - arc);          // top-left
+            path.lineTo(x, y);
+            break;
+
+         case 2: // right — open end at right; round top-right, bottom-right
+            // for horizontal bars the "width" dimension driving the fraction is h
+            arc = Math.min(radiusFraction * h, w / 2);
+            path.moveTo(x, y);
+            path.lineTo(x + w - arc, y);
+            path.quadTo(x + w, y, x + w, y + arc);          // top-right
+            path.lineTo(x + w, y + h - arc);
+            path.quadTo(x + w, y + h, x + w - arc, y + h);  // bottom-right
+            path.lineTo(x, y + h);
+            path.lineTo(x, y);
+            break;
+
+         case 3: // left — open end at left; round top-left, bottom-left
+            arc = Math.min(radiusFraction * h, w / 2);
+            path.moveTo(x + arc, y);
+            path.lineTo(x + w, y);
+            path.lineTo(x + w, y + h);
+            path.lineTo(x + arc, y + h);
+            path.quadTo(x, y + h, x, y + h - arc);  // bottom-left
+            path.lineTo(x, y + arc);
+            path.quadTo(x, y, x + arc, y);           // top-left
+            break;
+
+         default:
+            return new RoundRectangle2D.Double(x, y, w, h, arc * 2, arc * 2);
+      }
+
+      path.closePath();
+      return path;
    }
 
    private static final int BAR_MIN_WIDTH = 10;
