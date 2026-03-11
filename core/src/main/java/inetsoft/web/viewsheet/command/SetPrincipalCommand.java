@@ -47,8 +47,9 @@ public class SetPrincipalCommand implements ViewsheetCommand {
          this.scriptPermission = securityEngine.checkPermission(
             principal, ResourceType.CREATE_SCRIPT, "*", ResourceAction.ACCESS);
 
-         boolean aiAssistantVisible = "true".equalsIgnoreCase(SreeEnv.getProperty(
-            AIAssistantController.AI_ASSISTANT_VISIBLE));
+         String chatAppServerUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_SERVER_URL);
+         boolean aiAssistantVisible = chatAppServerUrl != null && !chatAppServerUrl.isEmpty() &&
+            "true".equalsIgnoreCase(SreeEnv.getProperty(AIAssistantController.AI_ASSISTANT_VISIBLE, "false"));
          this.aiAssistantPermission = aiAssistantVisible && securityEngine.checkPermission(
             principal, ResourceType.AI_ASSISTANT, "*", ResourceAction.ACCESS);
 
