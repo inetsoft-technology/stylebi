@@ -5978,9 +5978,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // Assembly mutations have already been done above under lockWrite(); the data fetch
       // itself does not mutate assembly state, so it is safe to release outer locks here.
       // This mirrors the same pattern used in getVGraphPair() for chart init. (74001)
-      thisLock.unlockAll();
-
       try {
+         thisLock.unlockAll();
+
          if(assembly instanceof ListInputVSAssembly ||
             assembly instanceof TableVSAssembly &&
                ((TableVSAssemblyInfo) assembly.getInfo()).isForm())
@@ -7655,6 +7655,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * Temporarily release all held locks. Must be paired with restoreLocks().
     * Use when calling long-running operations (e.g. getData()) while a write lock is held,
     * to prevent blocking background threads that need a read lock.
+    *
+    * <p>Not safe for re-entrant use: if a nested call to unlockAll() occurs on the
+    * same thread before restoreLocks() is called, the outer saved state will be lost.</p>
     */
    public void unlockAll() {
       if(!AssetDataCache.isProcessorThread()) {
@@ -7663,7 +7666,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
-    * Restore locks previously released by unlockAll().
+    * Restore locks previously released by {@link #unlockAll()}.
+    * Must be called on the same thread that called unlockAll().
     */
    public void restoreLocks() {
       if(!AssetDataCache.isProcessorThread()) {
