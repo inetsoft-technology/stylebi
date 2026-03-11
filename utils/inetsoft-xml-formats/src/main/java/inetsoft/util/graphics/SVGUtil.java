@@ -270,6 +270,19 @@ public class SVGUtil {
       return factory.createDocument("file://", svgStream);
    }
 
+   // batik requires the offset attribute on <stop> elements, add a default if missing
+   public static void fixGradientStops(Document doc) {
+      NodeList stops = doc.getElementsByTagName("stop");
+
+      for(int i = 0; i < stops.getLength(); i++) {
+         Element stop = (Element) stops.item(i);
+
+         if(!stop.hasAttribute("offset")) {
+            stop.setAttribute("offset", "0");
+         }
+      }
+   }
+
    // batik has trouble with some png file, convert to jpeg to work around it
    public static void fixPNG(Document doc) {
       try {
