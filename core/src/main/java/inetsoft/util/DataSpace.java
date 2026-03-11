@@ -89,7 +89,7 @@ public class DataSpace implements AutoCloseable {
     * Clear the cached data space.
     */
    public static void clear() {
-      SingletonManager.reset(DataSpace.class);
+      // no-op: DataSpace is a Spring-managed singleton; state is refreshed on demand
    }
 
    /**

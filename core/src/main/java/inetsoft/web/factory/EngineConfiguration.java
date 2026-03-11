@@ -25,10 +25,13 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.mv.MVManager;
 import inetsoft.mv.MVWorksheetStorage;
 import inetsoft.mv.data.MVStorage;
+import inetsoft.mv.fs.internal.BlockFileStorage;
+import inetsoft.report.XSessionManager;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.report.composition.execution.DistributedTableCacheStore;
+import inetsoft.report.internal.DesignSession;
 import inetsoft.report.internal.LocalMVInfoClient;
 import inetsoft.report.internal.MVInfoClient;
 import inetsoft.report.internal.license.*;
@@ -39,7 +42,9 @@ import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityProvider;
 import inetsoft.storage.BlobStorageManager;
+import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.asset.EmbeddedTableStorage;
+import inetsoft.uql.asset.LocalDependencyHandler;
 import inetsoft.uql.asset.UpdateAssetDependenciesHandler;
 import inetsoft.uql.util.Config;
 import inetsoft.uql.viewsheet.vslayout.DeviceRegistry;
@@ -322,6 +327,39 @@ public class EngineConfiguration {
    @Lazy
    public EmbeddedTableStorage embeddedTableStorage() {
       return new EmbeddedTableStorage();
+   }
+
+   /** Asset dependency handler — routes rename/delete dependency operations to the local impl. */
+   @Bean
+   @Lazy
+   public DependencyHandler dependencyHandler() {
+      return new LocalDependencyHandler();
+   }
+
+   /** Block file storage — manages raw MV block files in blob storage. */
+   @Bean
+   @Lazy
+   public BlockFileStorage blockFileStorage() {
+      return new BlockFileStorage();
+   }
+
+   /**
+    * Session manager for query execution. Initialized at startup via {@code @PostConstruct}.
+    * {@code @Primary} resolves ambiguity when {@code XSessionManager.class} is requested
+    * (DesignSession also extends XSessionManager).
+    */
+   @Bean
+   @Lazy
+   @Primary
+   public XSessionManager xSessionManager() throws RemoteException {
+      return new XSessionManager();
+   }
+
+   /** Design session — XSessionManager variant used by AnalyticEngine for design-time queries. */
+   @Bean
+   @Lazy
+   public DesignSession designSession() throws RemoteException {
+      return new DesignSession();
    }
 
    /**

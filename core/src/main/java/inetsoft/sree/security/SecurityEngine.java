@@ -345,7 +345,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
    }
 
    public static void clear() {
-      SingletonManager.reset(SecurityEngine.class);
+      ConfigurationContext.getContext().getSpringBean(SecurityEngine.class).init();
    }
 
    /**

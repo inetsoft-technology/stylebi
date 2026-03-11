@@ -51,8 +51,8 @@ public class XFactory {
     * will instantiate a new service object.
     */
    public static synchronized void clear() {
-      SingletonManager.reset(XRepository.class);
-      SingletonManager.reset(DataSourceRegistry.class);
+      // XRepository and DataSourceRegistry are Spring-managed singletons; callers of
+      // DataSourceRegistry will receive change events automatically via registered listeners.
    }
 
    public static final class Reference extends SingletonManager.Reference<XRepository>

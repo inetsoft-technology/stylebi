@@ -51,7 +51,7 @@ public interface Cluster extends AutoCloseable {
     * Shuts down and disposes of the singleton cluster instance.
     */
    static void clear() {
-      SingletonManager.reset(Cluster.class);
+      // no-op: Cluster is a Spring-managed singleton
    }
 
    /**

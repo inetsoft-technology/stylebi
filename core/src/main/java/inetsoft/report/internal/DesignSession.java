@@ -50,7 +50,7 @@ public class DesignSession extends XSessionManager {
     * Get design session.
     */
    public static DesignSession getDesignSession() throws RemoteException {
-      return SingletonManager.getInstance(DesignSession.class);
+      return ConfigurationContext.getContext().getSpringBean(DesignSession.class);
    }
 
    /**

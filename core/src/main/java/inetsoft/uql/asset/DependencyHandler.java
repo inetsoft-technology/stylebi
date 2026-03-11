@@ -26,6 +26,7 @@ import inetsoft.uql.erm.XLogicalModel;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.xmla.XMLADataSource;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.SingletonManager;
 import inetsoft.util.Tool;
 import inetsoft.util.dep.*;
@@ -36,7 +37,7 @@ import java.util.List;
 @SingletonManager.Singleton(DependencyHandler.Reference.class)
 public interface DependencyHandler {
    static DependencyHandler getInstance() {
-      return SingletonManager.getInstance(DependencyHandler.class);
+      return ConfigurationContext.getContext().getSpringBean(DependencyHandler.class);
    }
 
    void renameDependencies(AssetObject oentry, AssetObject nentry);

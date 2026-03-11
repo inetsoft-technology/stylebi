@@ -35,9 +35,12 @@ import inetsoft.util.*;
 import inetsoft.util.script.ExpressionFailedException;
 import inetsoft.web.admin.monitoring.MonitorLevelService;
 import inetsoft.web.composer.model.BrowseDataModel;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.beans.PropertyChangeListener;
 import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
@@ -68,22 +71,29 @@ public class XSessionManager {
     * session. The bind() method does not need to be called.
     */
    public static XSessionManager getSessionManager() {
-      return SingletonManager.getInstance(XSessionManager.class);
+      return ConfigurationContext.getContext().getSpringBean(XSessionManager.class);
    }
 
    /**
-    * Clears the cached session manager.
+    * Clears the query cache on the singleton session manager.
     */
    public static void clear() {
-      SingletonManager.reset(XSessionManager.class);
+      getSessionManager().clearCache();
    }
 
    /**
-    * Restarts the session manager.
+    * Restarts the session manager by tearing down and re-binding.
     */
    public static void restart() {
-      clear();
-      getSessionManager();
+      XSessionManager mgr = getSessionManager();
+      mgr.tearDown();
+
+      try {
+         mgr.rebind();
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to restart the session manager", ex);
+      }
    }
 
    /**
@@ -100,6 +110,60 @@ public class XSessionManager {
    public XSessionManager(XDataService service, Object session) {
       this.service = service;
       this.session = session;
+   }
+
+   /**
+    * Initializes cache settings, registers DataSourceRegistry listeners, and binds the session.
+    * Called by Spring after construction and by {@link #restart()} after a {@link #tearDown()}.
+    */
+   @PostConstruct
+   public void initAfterCreate() throws RemoteException {
+      String prop = SreeEnv.getProperty("query.cache.limit");
+
+      if(prop != null) {
+         dataCache.setLimit(Integer.parseInt(prop));
+      }
+
+      prop = SreeEnv.getProperty("query.cache.timeout");
+
+      if(prop != null) {
+         dataCache.setTimeout(Long.parseLong(prop));
+      }
+
+      prop = SreeEnv.getProperty("query.cache.data");
+
+      if(prop == null) {
+         setCacheData(true);
+         dataCache.setTimeout(30000);
+      }
+      else {
+         setCacheData(prop.equalsIgnoreCase("true"));
+      }
+
+      DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      registry.addRefreshedListener(refreshedListener);
+      registry.addModifiedListener(modifiedListener);
+
+      bind(System.getProperty("user.name"));
+   }
+
+   /**
+    * Removes DataSourceRegistry listeners and tears down the session.
+    */
+   @PreDestroy
+   public void destroyInstance() {
+      DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      registry.removeRefreshedListener(refreshedListener);
+      registry.removeModifiedListener(modifiedListener);
+      tearDown();
+   }
+
+   /**
+    * Re-acquires the data service and re-binds the session after a {@link #tearDown()}.
+    */
+   public void rebind() throws RemoteException {
+      service = XFactory.getDataService();
+      bind(System.getProperty("user.name"));
    }
 
    /**
@@ -898,6 +962,24 @@ public class XSessionManager {
    private final DataCache<String, CEntry> dataCache = new DataCache<>();
    private boolean useCache = false;
    private static final Set<QueryExecutionListener> queryExecutionListeners = new HashSet<>();
+
+   private final PropertyChangeListener refreshedListener = evt -> {
+      try {
+         clearCache();
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to clear the cache after the data source registry was refreshed", ex);
+      }
+   };
+
+   private final PropertyChangeListener modifiedListener = evt -> {
+      try {
+         clearCache();
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to clear the cache after the data source registry was modified", ex);
+      }
+   };
 
    private static final Logger LOG =
       LoggerFactory.getLogger(XSessionManager.class);

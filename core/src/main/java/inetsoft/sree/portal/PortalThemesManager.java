@@ -504,7 +504,9 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    }
 
    public static void clear() {
-      SingletonManager.reset(PortalThemesManager.class);
+      PortalThemesManager manager = getManager();
+      manager.dmgr.clear();
+      manager.loadThemes();
    }
 
    /**

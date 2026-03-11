@@ -23,6 +23,7 @@ import inetsoft.mv.util.TransactionChannel;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.storage.*;
 import inetsoft.util.*;
+import jakarta.annotation.PreDestroy;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -33,7 +34,7 @@ public class BlockFileStorage implements AutoCloseable {
    }
 
    public static BlockFileStorage getInstance() {
-      return SingletonManager.getInstance(BlockFileStorage.class);
+      return ConfigurationContext.getContext().getSpringBean(BlockFileStorage.class);
    }
 
    public BlobChannel openReadChannel(String name) throws IOException {
@@ -122,6 +123,7 @@ public class BlockFileStorage implements AutoCloseable {
       }
    }
 
+   @PreDestroy
    @Override
    public void close() throws Exception {
       getStorage().close();
