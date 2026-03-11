@@ -986,6 +986,15 @@ public abstract class RuntimeSheet {
       }
 
       private void _swap() {
+         // Guard against null sheet before opening the file. This can happen if validate()
+         // sets valid=true at the start of loading but the load fails (IOException, OOM,
+         // parse error), leaving sheet=null while getSwapPriority() returns 100 — causing
+         // XSwapper to call swap() again on a null sheet.
+         if(sheet == null) {
+            LOG.warn("Skipping swap: sheet is unexpectedly null (disposed={})", disposed);
+            return;
+         }
+
          File file = getFile(prefix + ".tdat");
          OutputStream output = null;
 
