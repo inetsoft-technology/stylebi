@@ -55,7 +55,7 @@ import java.io.Serializable;
 import java.security.Principal;
 import java.sql.SQLException;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 
 /**
@@ -919,65 +919,24 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
          }
       }
       else {
-         // Single-flight pattern: prevent thundering herd when N concurrent threads
-         // all detect a cache miss for the same table. The first thread creates a
-         // CompletableFuture and executes the query; subsequent threads await its result
-         // instead of each running the same expensive query independently.
-         String flightKey = name + ":" + mode + ":" + table.isAggregate();
-         CompletableFuture<TableLens> future = new CompletableFuture<>();
-         CompletableFuture<TableLens> existing = inFlightQueries.putIfAbsent(flightKey, future);
+         // Clone the table so each thread gets its own copy. The synchronized(table) block
+         // is kept short (cache check + clone only) so concurrent users are not blocked
+         // during the expensive query execution / I/O phase. (Bug #73971)
+         TableAssembly table2;
 
-         if(existing != null) {
-            // Another thread is already executing this query — wait for its result
-            try {
-               return existing.get();
-            }
-            catch(InterruptedException ex) {
-               Thread.currentThread().interrupt();
-               throw new RuntimeException("Interrupted waiting for query result", ex);
-            }
-            catch(ExecutionException ex) {
-               Throwable cause = ex.getCause();
+         synchronized(table) {
+            ColumnSelection columns = table.getColumnSelection(pub);
+            data = getTableLens0(name, mode, table.isAggregate(), columns.hashCode());
+            int ncol = columns.getAttributeCount();
 
-               if(cause instanceof Exception) {
-                  throw (Exception) cause;
-               }
-
-               throw new RuntimeException(cause);
+            if(data != null && data.getColCount() == ncol) {
+               return data;
             }
+
+            table2 = (TableAssembly) table.clone();
          }
 
-         try {
-            TableAssembly table2;
-
-            synchronized(table) {
-               ColumnSelection columns = table.getColumnSelection(pub);
-               data = getTableLens0(name, mode, table.isAggregate(), columns.hashCode());
-               int ncol = columns.getAttributeCount();
-
-               if(data != null && data.getColCount() == ncol) {
-                  future.complete(data);
-                  return data;
-               }
-
-               table2 = (TableAssembly) table.clone();
-            }
-
-            data = executeQuery(table, table2, name, mode, pub, vars);
-            future.complete(data);
-         }
-         catch(Throwable ex) {
-            future.completeExceptionally(ex);
-
-            if(ex instanceof Exception) {
-               throw (Exception) ex;
-            }
-
-            throw new RuntimeException(ex);
-         }
-         finally {
-            inFlightQueries.remove(flightKey);
-         }
+         data = executeQuery(table, table2, name, mode, pub, vars);
       }
 
       return data;
@@ -1965,10 +1924,6 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
    private final Set<String> nolimit; // tables to ignore time limit
    private QueryManager queryMgr; // track pending queries
    private final Object lock = new Object(); // script lock
-   // Single-flight map: prevents thundering herd when concurrent threads all miss
-   // the cache for the same table query. First thread executes; others await its result.
-   private final ConcurrentHashMap<String, CompletableFuture<TableLens>> inFlightQueries =
-      new ConcurrentHashMap<>();
    private String wsname = null; // the name of the worksheet
    private AssetEntry wsEntry = null;
    private VariableProvider vprovider2; // additional variable provider
