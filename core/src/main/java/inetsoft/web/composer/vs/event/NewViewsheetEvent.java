@@ -48,7 +48,7 @@ public class NewViewsheetEvent extends OpenViewsheetEvent {
 
    @Override
    public String toString() {
-      return "OpenViewsheetEvent{" +
+      return "NewViewsheetEvent{" +
          "dataSources='" + dataSources + "\'}";
    }
 
