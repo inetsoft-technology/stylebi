@@ -30,6 +30,8 @@ import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.awt.geom.Rectangle2D;
@@ -327,6 +329,16 @@ public abstract class VSTableDataHelper extends ExporterHelper {
          double[] colWidths = BaseTableService.getColWidths(assembly, lens);
          lens.initTableGrid(info);
          lens.setColWidths(colWidths);
+
+         // Bug #73999, apply table.output.maxcol limit during export (same as web display)
+         int ccount = lens.getColCount();
+         int maxCols = VSTableLens.getConfiguredMaxCols();
+
+         if(ccount > maxCols) {
+            LOG.warn("Table '{}' column count {} exceeds table.output.maxcol limit {}, truncating export.",
+               assembly.getName(), ccount, maxCols);
+            lens.setMaxCols(maxCols);
+         }
       }
 
       int infoWidth = CoordinateHelper.getAssemblySize(
@@ -807,6 +819,8 @@ public abstract class VSTableDataHelper extends ExporterHelper {
       return null;
    }
 
+   private static final Logger LOG =
+      LoggerFactory.getLogger(VSTableDataHelper.class);
    public static final int DEFAULT_COLWIDTH = ExcelVSUtil.DEFAULT_COLWIDTH;
    protected VSAssembly assembly;
    private Map<String, List<VSAssemblyInfo>> annotationMap = null;
