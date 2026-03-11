@@ -3168,8 +3168,20 @@ public class SUtil {
 
    public static IdentityID getOwnerForNewTask(IdentityID user) {
       OrganizationManager organizationManager = OrganizationManager.getInstance();
-      String currOrgId = user != null && !Tool.isEmptyString(user.getOrgID()) ?
-         user.getOrgID() : organizationManager.getCurrentOrgID();
+      // Prefer the OrganizationContextHolder org (set when a site admin creates tasks for another
+      // org) over the user's own org, so the task owner belongs to the target organization.
+      String contextOrgId = OrganizationContextHolder.getCurrentOrgId();
+      String currOrgId;
+
+      if(!Tool.isEmptyString(contextOrgId)) {
+         currOrgId = contextOrgId;
+      }
+      else if(user != null && !Tool.isEmptyString(user.getOrgID())) {
+         currOrgId = user.getOrgID();
+      }
+      else {
+         currOrgId = organizationManager.getCurrentOrgID();
+      }
 
       if(user != null && !Tool.equals(user.getOrgID(), currOrgId)) {
          SecurityEngine security = SecurityEngine.getSecurity();
