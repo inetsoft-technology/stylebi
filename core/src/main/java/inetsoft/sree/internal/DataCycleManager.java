@@ -69,7 +69,9 @@ public class DataCycleManager
     * Creates a new instance of DataCycleManager (non-Spring path, used by Reference.get()).
     */
    public DataCycleManager() {
-      this(ScheduleManager.getScheduleManager(), IndexedStorage.getIndexedStorage());
+      this(ScheduleManager.getScheduleManager(), IndexedStorage.getIndexedStorage(),
+           SecurityEngine.getSecurity(), Cluster.getInstance(), MVManager.getManager());
+      initAfterCreate();
    }
 
    /**
@@ -77,9 +79,13 @@ public class DataCycleManager
     * initialization order without requiring the distributed INIT_LOCK.
     */
    @Autowired
-   public DataCycleManager(ScheduleManager scheduleManager, IndexedStorage indexedStorage) {
+   public DataCycleManager(ScheduleManager scheduleManager, IndexedStorage indexedStorage,
+                           SecurityEngine securityEngine, Cluster cluster, MVManager mvManager)
+   {
+      this.securityEngine = securityEngine;
+      this.cluster = cluster;
+      this.mvManager = mvManager;
       scheduleManager.addScheduleExt(this);
-      loadOldConfig();
       init();
       indexedStorage.addStorageRefreshListener(this);
    }
@@ -100,6 +106,7 @@ public class DataCycleManager
     */
    @PostConstruct
    public void initAfterCreate() {
+      loadOldConfig();
       ScheduleManager.getScheduleManager().initialize();
 
       try {
@@ -109,7 +116,7 @@ public class DataCycleManager
          LOG.error("Failed to add property change listener to replet registry", ex);
       }
 
-      MVManager.getManager().addPropertyChangeListener(this);
+      mvManager.addPropertyChangeListener(this);
    }
 
    @PreDestroy
@@ -269,7 +276,7 @@ public class DataCycleManager
       IndexedStorage storage = IndexedStorage.getIndexedStorage();
       List<ScheduleTask> tasks = new ArrayList<>();
 
-      for(String orgId : SecurityEngine.getSecurity().getSecurityProvider().getOrganizationIDs()) {
+      for(String orgId : securityEngine.getSecurityProvider().getOrganizationIDs()) {
          Set<String> assetIds = storage.getKeys(key -> {
             AssetEntry entry = AssetEntry.createAssetEntry(key);
             return entry != null && entry.getType() == AssetEntry.Type.DATA_CYCLE;
@@ -354,7 +361,7 @@ public class DataCycleManager
    private void generateMVActions(ScheduleTask task, String cycle, List<ScheduleTask> tasks,
                                   String orgId)
    {
-      MVManager manager = MVManager.getManager();
+      MVManager manager = mvManager;
       MVDef[] mvs = null;
 
       if(orgId == null) {
@@ -397,7 +404,7 @@ public class DataCycleManager
    }
 
    private String[] getNewOrgIds(String oldId, String newId) {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
       List<String> orgIds = new ArrayList<>();
 
       for(String orgId : provider.getOrganizationIDs()) {
@@ -467,7 +474,6 @@ public class DataCycleManager
    }
 
    private void loadOldConfig() {
-      Cluster cluster = Cluster.getInstance();
       Lock lock = cluster.getLock(getClass().getName() + ".loadOldConfig");
       lock.lock();
 
@@ -686,9 +692,8 @@ public class DataCycleManager
          return false;
       }
 
-      MVManager manager = MVManager.getManager();
       String orgid = OrganizationManager.getInstance().getCurrentOrgID();
-      MVDef[] mvs = manager.list(false);
+      MVDef[] mvs = mvManager.list(false);
 
       for(MVDef mv : mvs) {
          if(cycle.equals(mv.getCycle()) && orgid.equals(mv.getEntry().getOrgID())) {
@@ -726,7 +731,7 @@ public class DataCycleManager
    private Set<DataCycleId> getDataCycleIds() {
       Set<DataCycleId> ids = new HashSet<>();
 
-      for(String orgId : SecurityEngine.getSecurity().getOrganizations()) {
+      for(String orgId : securityEngine.getOrganizations()) {
          ids.addAll(getDataCycleIds(orgId));
       }
 
@@ -968,7 +973,7 @@ public class DataCycleManager
     */
    public void refresh() {
       init();
-      MVManager.getManager().setDefaultCycle(getDefaultCycle());
+      mvManager.setDefaultCycle(getDefaultCycle());
    }
 
    /**
@@ -1030,6 +1035,9 @@ public class DataCycleManager
       }
    }
 
+   private final SecurityEngine securityEngine;
+   private final Cluster cluster;
+   private final MVManager mvManager;
    private final Map<String, Boolean> orgPregeneratedTaskLoadedStatus = new ConcurrentHashMap<>();
    private final Map<String, Vector<ScheduleTask>> pregeneratedTasksMap = new HashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(DataCycleManager.class);

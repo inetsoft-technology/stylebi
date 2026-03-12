@@ -25,6 +25,7 @@ import inetsoft.sree.internal.cluster.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.*;
 import inetsoft.util.*;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,16 +55,24 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
     * Create a <code>SecurityEngine</code> object (used in non-Spring contexts, e.g., unit tests).
     */
    public SecurityEngine() {
-      this(AuthenticationService.getInstance());
+      this(AuthenticationService.getInstance(), LicenseManager.getInstance());
+      postConstruct();
    }
 
    /**
     * Create a <code>SecurityEngine</code> object with Spring-injected dependencies.
     */
    @Autowired
-   public SecurityEngine(AuthenticationService authenticationService) {
-      init();
+   public SecurityEngine(AuthenticationService authenticationService,
+                         LicenseManager licenseManager)
+   {
       this.authenticationService = authenticationService;
+      this.licenseManager = licenseManager;
+   }
+
+   @PostConstruct
+   public void postConstruct() {
+      init();
       authenticationService.addSessionListener(this);
       clusterInstance = Cluster.getInstance();
       clusterInstance.addMessageListener(this);
@@ -88,7 +97,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
    private void doInit() {
       XUtil.setXIdentityFinder(new SRIdentityFinder());
       boolean secEnabled = isSecurityEnabled();
-      int userCount = LicenseManager.getInstance().getNamedUserCount();
+      int userCount = licenseManager.getNamedUserCount();
 
       if(provider != null) {
          provider.tearDown();
@@ -1779,13 +1788,14 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
    private SecurityProvider provider = null;
    private SecurityProvider vprovider = null;
    private SecurityProvider vpm_provider = null;
-   private final Map<ClientInfo, SRPrincipal> users;
+   private Map<ClientInfo, SRPrincipal> users;
    private final Set<LoginListener> loginListeners = new LinkedHashSet<>();
    private final Set<AuthenticationChangeListener> authenticationChangeListeners =
       new LinkedHashSet<>();
    private final Lock initLock = new ReentrantLock();
    private final AuthenticationService authenticationService;
-   private final Cluster clusterInstance;
+   private final LicenseManager licenseManager;
+   private Cluster clusterInstance;
    private final ScheduledExecutorService retryExecutor =
       Executors.newSingleThreadScheduledExecutor(r -> {
          Thread t = new Thread(r, "SecurityEngine-Retry");
