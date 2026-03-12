@@ -159,19 +159,19 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
     * @param wentry the specified base worksheet entry.
     */
    public Viewsheet(AssetEntry wentry) {
-      this(wentry, false, false, null);
+      this(wentry, false, false, null, null);
    }
 
    /**
     * Constructor.
     * @param wentry the specified base worksheet entry.
     */
-   public Viewsheet(AssetEntry wentry, boolean wizSheet, boolean wizVisualization, String visualizationSheet) {
+   public Viewsheet(AssetEntry wentry, boolean wizSheet, boolean wizVisualization, String visualizationSheet, List<AssetEntry> sources) {
       this();
       this.wentry = wentry;
 
       if(wizSheet || wizVisualization) {
-         this.wizInfo = wizSheet ? new WizInfo(true) : new WizInfo(true, visualizationSheet);
+         this.wizInfo = wizSheet ? new WizInfo(true) : new WizInfo(true, visualizationSheet, sources);
       }
    }
 
@@ -5502,13 +5502,18 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          this.wizSheet = wizSheet;
       }
 
-      public WizInfo(boolean wizVisualization, String visualizationSheet) {
+      public WizInfo(boolean wizVisualization, String visualizationSheet, List<AssetEntry> sources) {
          this.wizVisualization = wizVisualization;
          this.visualizationSheet = visualizationSheet;
+         this.sources = sources;
       }
 
       public boolean isWizSheet() {
          return wizSheet;
+      }
+
+      public List<AssetEntry> getSources() {
+         return sources;
       }
 
       public boolean isWizVisualization() {
@@ -5527,7 +5532,20 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
             writer.print(" visualizationSheet=\"" + byteEncode(visualizationSheet) + "\"");
          }
 
-         writer.println("/>");
+         if(sources != null && !sources.isEmpty()) {
+            writer.println(">");
+            writer.println("<sources>");
+
+            for(AssetEntry source : sources) {
+               source.writeXML(writer);
+            }
+
+            writer.println("</sources>");
+            writer.println("</wizInfo>");
+         }
+         else {
+            writer.println("/>");
+         }
       }
 
       private static WizInfo parseXML(Element elem) {
@@ -5540,12 +5558,37 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
             info.visualizationSheet = visualizationSheet;
          }
 
+         Element sourcesNode = Tool.getChildNodeByTagName(elem, "sources");
+
+         if(sourcesNode != null) {
+            NodeList entryNodes = sourcesNode.getChildNodes();
+            List<AssetEntry> sources = new ArrayList<>();
+
+            for(int i = 0; i < entryNodes.getLength(); i++) {
+               Node node = entryNodes.item(i);
+
+               if(node instanceof Element entryElem) {
+                  try {
+                     AssetEntry entry = new AssetEntry();
+                     entry.parseXML(entryElem);
+                     sources.add(entry);
+                  }
+                  catch(Exception e) {
+                     LOG.warn("Failed to parse source AssetEntry in WizInfo", e);
+                  }
+               }
+            }
+
+            info.sources = sources;
+         }
+
          return info;
       }
 
       private boolean wizSheet;
       private boolean wizVisualization;
       private String visualizationSheet;
+      private List<AssetEntry> sources;
    }
 
    private ActionListener listener = new VSChangeListener(this);
