@@ -21,7 +21,7 @@ package inetsoft.web.session;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import inetsoft.util.audit.SessionRecord;
 import inetsoft.web.admin.server.NodeProtectionService;
 import org.slf4j.Logger;
@@ -685,7 +685,7 @@ public class IgniteSessionRepository
 
       @Override
       public void run() {
-         Cluster.getInstance().destroyReplicatedMap(name);
+         ConfigurationContext.getContext().getSpringBean(Cluster.class).destroyReplicatedMap(name);
       }
 
       private final String name;

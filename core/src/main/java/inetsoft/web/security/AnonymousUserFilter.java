@@ -38,6 +38,10 @@ import java.security.Principal;
  * @since 12.3
  */
 public class AnonymousUserFilter extends AbstractSecurityFilter {
+   public AnonymousUserFilter(LicenseManager licenseManager) {
+      this.licenseManager = licenseManager;
+   }
+
    @Override
    public void doFilter(ServletRequest request, ServletResponse response,
                         FilterChain chain) throws IOException, ServletException
@@ -105,6 +109,8 @@ public class AnonymousUserFilter extends AbstractSecurityFilter {
    }
 
    private boolean hasSessionKey() {
-      return LicenseManager.getInstance().getConcurrentSessionCount() > 0;
+      return licenseManager.getConcurrentSessionCount() > 0;
    }
+
+   private final LicenseManager licenseManager;
 }
