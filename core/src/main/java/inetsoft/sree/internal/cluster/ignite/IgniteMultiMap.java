@@ -20,6 +20,8 @@ package inetsoft.sree.internal.cluster.ignite;
 import inetsoft.sree.internal.cluster.MultiMap;
 import inetsoft.util.Tool;
 import org.apache.ignite.IgniteCache;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.cache.CacheException;
 import java.util.*;
@@ -248,10 +250,27 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
 
    @Override
    public void lock(K key, long leaseTime, TimeUnit timeUnit) {
-      try {
-         getLock(key).tryLock(leaseTime, timeUnit);
-      }
-      catch(InterruptedException e) {
+      long deadlineNs = System.nanoTime() + timeUnit.toNanos(leaseTime);
+      Lock lock = getLock(key);
+
+      // Use tryLock() (zero timeout) in a polling loop instead of tryLock(time, unit).
+      // tryLock(time > 0) creates a GridDhtLockFuture with a LockTimeoutObject whose
+      // onTimeout() has a NullPointerException bug in Ignite 2.17.0 when tx is null
+      // (i.e., no active transaction). The NPE prevents the timeout from being handled
+      // properly, leaving the waiting thread blocked indefinitely.
+      while(!lock.tryLock()) {
+         if(System.nanoTime() >= deadlineNs) {
+            LOG.warn("Lock acquisition timed out for key: {}", key);
+            return;
+         }
+
+         try {
+            Thread.sleep(LOCK_POLL_INTERVAL_MS);
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return;
+         }
       }
    }
 
@@ -262,7 +281,22 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
 
    @Override
    public boolean tryLock(K key, long time, TimeUnit timeunit) throws InterruptedException {
-      return getLock(key).tryLock(time, timeunit);
+      long deadlineNs = System.nanoTime() + timeunit.toNanos(time);
+      Lock lock = getLock(key);
+
+      while(!lock.tryLock()) {
+         if(System.nanoTime() >= deadlineNs) {
+            return false;
+         }
+
+         if(Thread.interrupted()) {
+            throw new InterruptedException();
+         }
+
+         Thread.sleep(LOCK_POLL_INTERVAL_MS);
+      }
+
+      return true;
    }
 
    @Override
@@ -318,4 +352,6 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
    private final IgniteCache<K, Collection<V>> cache;
    private final ThreadLocal<Map<K, Lock>> lockMap = ThreadLocal.withInitial(HashMap::new);
    private static final int MAX_RETRIES = 5;
+   private static final long LOCK_POLL_INTERVAL_MS = 50L;
+   private static final Logger LOG = LoggerFactory.getLogger(IgniteMultiMap.class);
 }
