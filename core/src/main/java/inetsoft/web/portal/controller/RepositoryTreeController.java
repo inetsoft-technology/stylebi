@@ -68,11 +68,13 @@ public class RepositoryTreeController {
    @Autowired
    public RepositoryTreeController(AnalyticRepository analyticRepository,
       RepositoryEntryModelFactoryService repositoryEntryModelFactoryService,
-      RepositoryTreeService repositoryTreeService)
+      RepositoryTreeService repositoryTreeService,
+      ScheduleManager scheduleManager)
    {
       this.analyticRepository = analyticRepository;
       this.repositoryEntryModelFactoryService = repositoryEntryModelFactoryService;
       this.repositoryTreeService = repositoryTreeService;
+      this.scheduleManager = scheduleManager;
    }
 
    /**
@@ -850,8 +852,7 @@ public class RepositoryTreeController {
                return messageCommand;
             }
 
-            ScheduleManager manager = ScheduleManager.getScheduleManager();
-            manager.viewSheetRenamed(assetEntry.toIdentifier(),
+            scheduleManager.viewSheetRenamed(assetEntry.toIdentifier(),
                nentry.toIdentifier(), nentry.getName(), OrganizationManager.getInstance().getCurrentOrgID(principal));
             assetRepository.changeSheet(assetEntry, nentry, principal, event.confirmed());
             newPath = nentry.getDescription();
@@ -919,5 +920,6 @@ public class RepositoryTreeController {
    private final AnalyticRepository analyticRepository;
    private final RepositoryEntryModelFactoryService repositoryEntryModelFactoryService;
    private final RepositoryTreeService repositoryTreeService;
+   private final ScheduleManager scheduleManager;
    private static final Logger LOG = LoggerFactory.getLogger(RepositoryTreeController.class);
 }

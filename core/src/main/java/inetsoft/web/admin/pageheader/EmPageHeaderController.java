@@ -39,12 +39,14 @@ import java.util.stream.Collectors;
 public class EmPageHeaderController {
    @Autowired
    public EmPageHeaderController(SecurityEngine securityEngine, Cluster cluster,
-                                 DataSourceRegistry dataSourceRegistry, MVManager mvManager)
+                                 DataSourceRegistry dataSourceRegistry, MVManager mvManager,
+                                 IndexedStorage indexedStorage)
    {
       this.securityEngine = securityEngine;
       this.cluster = cluster;
       this.dataSourceRegistry = dataSourceRegistry;
       this.mvManager = mvManager;
+      this.indexedStorage = indexedStorage;
    }
 
    @GetMapping("/api/em/pageheader/get-pageheader-model")
@@ -111,7 +113,6 @@ public class EmPageHeaderController {
 
       String orgID = model.currOrgID();
       String providerName = model.providerName();
-      IndexedStorage indexedStorage = IndexedStorage.getIndexedStorage();
       ((XPrincipal) principal).setProperty("curr_org_id", orgID);
       ((XPrincipal) principal).setProperty("curr_provider_name", providerName);
       SecurityProvider provider = securityEngine.getSecurityProvider();
@@ -133,4 +134,5 @@ public class EmPageHeaderController {
    private final Cluster cluster;
    private final DataSourceRegistry dataSourceRegistry;
    private final MVManager mvManager;
+   private final IndexedStorage indexedStorage;
 }

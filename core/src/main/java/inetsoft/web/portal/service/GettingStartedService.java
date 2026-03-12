@@ -39,11 +39,13 @@ import java.util.Objects;
 public class GettingStartedService {
    public GettingStartedService(AssetRepository assetRepository,
                                 AnalyticRepository analyticRepository,
-                                SecurityEngine securityEngine)
+                                SecurityEngine securityEngine,
+                                IndexedStorage indexedStorage)
    {
       this.assetRepository = assetRepository;
       this.analyticRepository = analyticRepository;
       this.securityEngine = securityEngine;
+      this.indexedStorage = indexedStorage;
    }
 
    public boolean hasCreateWSPermission(Principal principal) {
@@ -101,7 +103,6 @@ public class GettingStartedService {
    }
 
    public boolean hasCreatedAssets(Principal principal) {
-      final IndexedStorage indexedStorage = IndexedStorage.getIndexedStorage();
       String userName = IdentityID.getIdentityIDFromKey(principal.getName()).getName();
 
       return indexedStorage.getKeys(Objects::nonNull)
@@ -166,5 +167,6 @@ public class GettingStartedService {
    private final AssetRepository assetRepository;
    private final AnalyticRepository analyticRepository;
    private final SecurityEngine securityEngine;
+   private final IndexedStorage indexedStorage;
    private static final Logger LOG = LoggerFactory.getLogger(GettingStartedService.class);
 }

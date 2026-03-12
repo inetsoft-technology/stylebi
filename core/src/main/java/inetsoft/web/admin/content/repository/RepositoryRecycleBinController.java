@@ -45,12 +45,14 @@ public class RepositoryRecycleBinController {
    public RepositoryRecycleBinController(RepositoryObjectService repositoryObjectService,
                                          ContentRepositoryTreeService contentRepositoryTreeService,
                                          SecurityProvider securityProvider,
-                                         RepletRegistryManager registryManager)
+                                         RepletRegistryManager registryManager,
+                                         IndexedStorage indexedStorage)
    {
       this.repositoryObjectService = repositoryObjectService;
       this.contentRepositoryTreeService = contentRepositoryTreeService;
       this.securityProvider = securityProvider;
       this.registryManager = registryManager;
+      this.indexedStorage = indexedStorage;
    }
 
    @GetMapping("/api/em/content/repository/folder/recycleBin")
@@ -114,7 +116,7 @@ public class RepositoryRecycleBinController {
    }
 
    private List<AssetEntry> getAssetsInTrash() throws Exception {
-      return IndexedStorage.getIndexedStorage()
+      return indexedStorage
          .getKeys(key -> true)
          .stream()
          .map(AssetEntry::createAssetEntry)
@@ -322,5 +324,6 @@ public class RepositoryRecycleBinController {
    private final ContentRepositoryTreeService contentRepositoryTreeService;
    private final SecurityProvider securityProvider;
    private final RepletRegistryManager registryManager;
+   private final IndexedStorage indexedStorage;
    private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 }
