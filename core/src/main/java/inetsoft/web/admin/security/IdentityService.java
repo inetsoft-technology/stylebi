@@ -82,7 +82,8 @@ public class IdentityService {
                           DataCycleManager dataCycleManager,
                           DataSourceRegistry dataSourceRegistry,
                           LogManager logManager,
-                          LicenseManager licenseManager)
+                          LicenseManager licenseManager,
+                          ScheduleManager scheduleManager)
    {
       this.securityEngine = securityEngine;
       this.securityProvider = securityProvider;
@@ -96,6 +97,7 @@ public class IdentityService {
       this.dataSourceRegistry = dataSourceRegistry;
       this.logManager = logManager;
       this.licenseManager = licenseManager;
+      this.scheduleManager = scheduleManager;
    }
 
    private AuthenticationProvider getProvider(String providerName) {
@@ -397,7 +399,7 @@ public class IdentityService {
       IdentityID identityId = identity.getIdentityID();
       int type = identity.getType();
       DashboardManager dmanager = DashboardManager.getManager();
-      ScheduleManager smanager = ScheduleManager.getScheduleManager();
+      ScheduleManager smanager = scheduleManager;
       LibManager manager = null;
 
       if(identityId.orgID != null) {
@@ -1000,7 +1002,7 @@ public class IdentityService {
 
       try {
          scheduleTasks = OrganizationManager.runInOrgScope(orgId,
-            () -> ScheduleManager.getScheduleManager().getScheduleTasks(orgId));
+            () -> scheduleManager.getScheduleTasks(orgId));
       }
       catch(Exception e) {
          LOG.warn("Could not get tasks from: "+ orgId);
@@ -1020,7 +1022,6 @@ public class IdentityService {
    private void removeOldOrgTaskFormScheduleServer(String oorgId)
       throws RemoteException
    {
-      ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
       Vector<ScheduleTask> scheduleTasks = scheduleManager.getScheduleTasks(oorgId);
       ScheduleServer scheduleServer = ScheduleServer.getInstance();
 
@@ -2620,4 +2621,5 @@ public class IdentityService {
    private final DataSourceRegistry dataSourceRegistry;
    private final LogManager logManager;
    private final LicenseManager licenseManager;
+   private final ScheduleManager scheduleManager;
 }

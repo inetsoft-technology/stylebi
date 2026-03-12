@@ -52,11 +52,13 @@ public class ScheduleTaskController {
    @Autowired
    public ScheduleTaskController(ScheduleTaskService scheduleTaskService,
                                  ScheduleTaskFolderService scheduleTaskFolderService,
-                                 SecurityEngine securityEngine)
+                                 SecurityEngine securityEngine,
+                                 ScheduleManager scheduleManager)
    {
       this.scheduleTaskService = scheduleTaskService;
       this.scheduleTaskFolderService = scheduleTaskFolderService;
       this.securityEngine = securityEngine;
+      this.scheduleManager = scheduleManager;
    }
 
    /**
@@ -180,7 +182,6 @@ public class ScheduleTaskController {
       throws Exception
    {
       taskName = Tool.byteDecode(taskName);
-      ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
       ScheduleTask task = scheduleManager.getScheduleTask(taskName);
 
       if(!(securityEngine.checkPermission(principal, ResourceType.SCHEDULE_TASK, taskName,
@@ -196,6 +197,7 @@ public class ScheduleTaskController {
    private final ScheduleTaskService scheduleTaskService;
    private final ScheduleTaskFolderService scheduleTaskFolderService;
    private final SecurityEngine securityEngine;
+   private final ScheduleManager scheduleManager;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(ScheduleTaskController.class);

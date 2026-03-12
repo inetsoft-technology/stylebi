@@ -50,11 +50,13 @@ public class EMScheduleTaskController {
    @Autowired
    public EMScheduleTaskController(ScheduleTaskService scheduleTaskService,
                                    ScheduleTaskFolderService scheduleTaskFolderService,
-                                   SecurityEngine securityEngine)
+                                   SecurityEngine securityEngine,
+                                   ScheduleManager scheduleManager)
    {
       this.scheduleTaskService = scheduleTaskService;
       this.scheduleTaskFolderService = scheduleTaskFolderService;
       this.securityEngine = securityEngine;
+      this.scheduleManager = scheduleManager;
    }
 
    /**
@@ -185,8 +187,6 @@ public class EMScheduleTaskController {
       throws Exception
    {
       final ToggleTaskResponse.Builder builder = ToggleTaskResponse.builder();
-      ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
-
       for(String name : list.taskNames()) {
          ScheduleTask task = scheduleManager.getScheduleTask(name);
 
@@ -230,4 +230,5 @@ public class EMScheduleTaskController {
    private final ScheduleTaskService scheduleTaskService;
    private final ScheduleTaskFolderService scheduleTaskFolderService;
    private final SecurityEngine securityEngine;
+   private final ScheduleManager scheduleManager;
 }

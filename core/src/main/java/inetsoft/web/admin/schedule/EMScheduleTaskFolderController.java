@@ -44,12 +44,14 @@ public class EMScheduleTaskFolderController {
    public EMScheduleTaskFolderController(ScheduleTaskFolderService scheduleTaskFolderService,
                                          ScheduleService scheduleService,
                                          ScheduleTaskService scheduleTaskService,
-                                         SecurityEngine securityEngine)
+                                         SecurityEngine securityEngine,
+                                         ScheduleManager scheduleManager)
    {
       this.scheduleTaskFolderService = scheduleTaskFolderService;
       this.scheduleService = scheduleService;
       this.scheduleTaskService = scheduleTaskService;
       this.securityEngine = securityEngine;
+      this.scheduleManager = scheduleManager;
    }
 
    @PostMapping("/api/em/schedule/add/checkDuplicate")
@@ -185,8 +187,6 @@ public class EMScheduleTaskFolderController {
            throws Exception
    {
       ScheduleTaskModel[] taskModels = request.getTasks();
-      ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
-
       if(taskModels != null) {
          for(ScheduleTaskModel taskModel : taskModels) {
             ScheduleTask task = scheduleManager.getScheduleTask(taskModel.name());
@@ -252,6 +252,7 @@ public class EMScheduleTaskFolderController {
    private final ScheduleService scheduleService;
 
    private final ScheduleTaskService scheduleTaskService;
+   private final ScheduleManager scheduleManager;
 
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleTaskChangeController.class);
 

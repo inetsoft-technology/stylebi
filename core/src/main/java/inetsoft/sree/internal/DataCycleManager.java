@@ -82,6 +82,7 @@ public class DataCycleManager
    public DataCycleManager(ScheduleManager scheduleManager, IndexedStorage indexedStorage,
                            SecurityEngine securityEngine, Cluster cluster, MVManager mvManager)
    {
+      this.scheduleManager = scheduleManager;
       this.securityEngine = securityEngine;
       this.cluster = cluster;
       this.mvManager = mvManager;
@@ -107,7 +108,7 @@ public class DataCycleManager
    @PostConstruct
    public void initAfterCreate() {
       loadOldConfig();
-      ScheduleManager.getScheduleManager().initialize();
+      getScheduleManager().initialize();
 
       try {
          RepletRegistry.getRegistry().addPropertyChangeListener(this);
@@ -351,7 +352,7 @@ public class DataCycleManager
       }
 
       if(reloadExtensions) {
-         ScheduleManager.getScheduleManager().reloadExtensions(currOrgID);
+         getScheduleManager().reloadExtensions(currOrgID);
       }
    }
 
@@ -1035,6 +1036,11 @@ public class DataCycleManager
       }
    }
 
+   private ScheduleManager getScheduleManager() {
+      return scheduleManager != null ? scheduleManager : ScheduleManager.getScheduleManager();
+   }
+
+   private ScheduleManager scheduleManager;
    private final SecurityEngine securityEngine;
    private final Cluster cluster;
    private final MVManager mvManager;

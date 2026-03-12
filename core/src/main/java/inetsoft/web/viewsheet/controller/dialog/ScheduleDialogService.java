@@ -69,13 +69,15 @@ public class ScheduleDialogService {
                                 SecurityProvider securityProvider,
                                 SecurityEngine securityEngine,
                                 ScheduleService scheduleService,
-                                VSBookmarkService vsBookmarkService)
+                                VSBookmarkService vsBookmarkService,
+                                ScheduleManager scheduleManager)
    {
       this.viewsheetService = viewsheetService;
       this.securityProvider = securityProvider;
       this.securityEngine = securityEngine;
       this.scheduleService = scheduleService;
       this.vsBookmarkService = vsBookmarkService;
+      this.scheduleManager = scheduleManager;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -114,16 +116,15 @@ public class ScheduleDialogService {
          }
       }
 
-      ScheduleManager manager = ScheduleManager.getScheduleManager();
       AssetEntry entry = rvs.getEntry();
       String taskName = !Tool.isEmptyString(entry.getAlias()) ? entry.getAlias() : entry.getName();
       taskName = principal != null ? principal.getName() + ":" + taskName : taskName;
 
-      if(manager.getScheduleTask(taskName) != null) {
+      if(scheduleManager.getScheduleTask(taskName) != null) {
          String oname = taskName;
 
          for(int i = 1; i < Integer.MAX_VALUE; i++) {
-            if(manager.getScheduleTask(oname + "_" + i) == null) {
+            if(scheduleManager.getScheduleTask(oname + "_" + i) == null) {
                taskName = oname + "_" + i;
                break;
             }
@@ -302,7 +303,6 @@ public class ScheduleDialogService {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       AssetEntry entry = rvs.getEntry();
-      ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
       SimpleScheduleDialogModel simpleScheduleDialogModel = value.simpleScheduleDialogModel();
 
       if(!(simpleScheduleDialogModel.actionModel() instanceof ViewsheetActionModel)) {
@@ -552,6 +552,7 @@ public class ScheduleDialogService {
    private final SecurityEngine securityEngine;
    private final ScheduleService scheduleService;
    private VSBookmarkService vsBookmarkService;
+   private final ScheduleManager scheduleManager;
    private static final Logger LOG =
       LoggerFactory.getLogger(ScheduleDialogService.class);
 }

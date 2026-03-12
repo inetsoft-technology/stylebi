@@ -171,10 +171,8 @@ public class ScheduleService {
          AssetEntry.Type.SCHEDULE_TASK, "/" + oname, null);
       String oldKey = oentry.toIdentifier();
       List<AssetObject> entries = DependencyTransformer.getDependencies(oldKey);
-      ScheduleManager manager = ScheduleManager.getScheduleManager();
-
       if(oldFolder == newFolder && oldFolder == null) {
-         String path = manager.getScheduleTask(oname).getPath();
+         String path = ScheduleManager.getScheduleManager().getScheduleTask(oname).getPath();
          oldFolder = path;
          newFolder = path;
       }
