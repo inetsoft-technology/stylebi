@@ -64,7 +64,7 @@ public class AppDomainsController {
     * @since 2025
     */
    @PostMapping(value = "/appDomains", produces = MediaType.APPLICATION_JSON_VALUE)
-   public void setAppDomains(@RequestBody @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "The organization application domains.", required = true) OrganizationDomains appDomains,
+   public void setAppDomains(@RequestBody OrganizationDomains appDomains,
                              Principal user) throws Exception
    {
       String value = appDomains.toString();
@@ -72,12 +72,12 @@ public class AppDomainsController {
    }
 
    private String getOrgAppDomainPropKey(Principal user) {
-      if(user != null && ((XPrincipal) user).getOrgId() != null) {
+      if(user instanceof XPrincipal xp && xp.getOrgId() != null) {
          return Tool.buildString(APP_DOMAIN, ".", ((XPrincipal) user).getOrgId());
       }
 
       return APP_DOMAIN;
    }
 
-   private final static String APP_DOMAIN = "app.domains";
+   private static final String APP_DOMAIN = "app.domains";
 }
