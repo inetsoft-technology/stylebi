@@ -81,7 +81,7 @@ public class AdminPageController {
 
       if(OrganizationManager.getInstance().getCurrentOrgID() != null) {
          String orgId = OrganizationManager.getInstance().getCurrentOrgID();
-         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider provider = securityEngine.getSecurityProvider();
 
          if(provider.getOrganization(orgId) != null &&
             !Tool.isEmptyString(provider.getOrganization(orgId).getTheme())

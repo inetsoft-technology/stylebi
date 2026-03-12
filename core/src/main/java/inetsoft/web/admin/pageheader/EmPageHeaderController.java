@@ -28,6 +28,7 @@ import inetsoft.uql.util.XUtil;
 import inetsoft.util.IndexedStorage;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.security.IdentityChangedMessage;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -36,6 +37,16 @@ import java.util.stream.Collectors;
 
 @RestController
 public class EmPageHeaderController {
+   @Autowired
+   public EmPageHeaderController(SecurityEngine securityEngine, Cluster cluster,
+                                 DataSourceRegistry dataSourceRegistry, MVManager mvManager)
+   {
+      this.securityEngine = securityEngine;
+      this.cluster = cluster;
+      this.dataSourceRegistry = dataSourceRegistry;
+      this.mvManager = mvManager;
+   }
+
    @GetMapping("/api/em/pageheader/get-pageheader-model")
    public EmPageHeaderModel getPageHeaderModel(@RequestParam("provider") String providerName,
                                                @RequestParam(value = "propertyChanged", required = false) boolean propertyChanged,
@@ -47,10 +58,10 @@ public class EmPageHeaderController {
       String currOrgID = null;
       boolean isMultiTenant = SUtil.isMultiTenant();
 
-      if(SecurityEngine.getSecurity().isSecurityEnabled() &&
+      if(securityEngine.isSecurityEnabled() &&
          OrganizationManager.getInstance().isSiteAdmin(principal))
       {
-         SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider securityProvider = securityEngine.getSecurityProvider();
          providerName = !Tool.isEmptyString(providerName) ?
             providerName : ((XPrincipal) principal).getProperty("curr_provider_name");
          AuthenticationProvider provider = XUtil.getSecurityProvider(providerName);
@@ -94,7 +105,7 @@ public class EmPageHeaderController {
    @PostMapping("/api/em/pageheader/organization")
    public void setCurrOrg(@RequestBody EmPageHeaderModel model, Principal principal) throws Exception {
       // User must be a site administrator to access organizations
-      if(SecurityEngine.getSecurity().isSecurityEnabled() && !OrganizationManager.getInstance().isSiteAdmin(principal)) {
+      if(securityEngine.isSecurityEnabled() && !OrganizationManager.getInstance().isSiteAdmin(principal)) {
          return;
       }
 
@@ -103,14 +114,14 @@ public class EmPageHeaderController {
       IndexedStorage indexedStorage = IndexedStorage.getIndexedStorage();
       ((XPrincipal) principal).setProperty("curr_org_id", orgID);
       ((XPrincipal) principal).setProperty("curr_provider_name", providerName);
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
       String orgName = provider.getOrgNameFromID(orgID);
-      Cluster.getInstance().sendMessage(
+      cluster.sendMessage(
          new IdentityChangedMessage(new IdentityID(orgName, orgID), ((XPrincipal) principal).getSessionID()));
 
       if(!indexedStorage.isInitialized(orgID)) {
-         DataSourceRegistry.getRegistry().init();
-         MVManager.getManager().initMVDefMap();
+         dataSourceRegistry.init();
+         mvManager.initMVDefMap();
 
          indexedStorage.setInitialized(orgID);
       }
@@ -118,4 +129,8 @@ public class EmPageHeaderController {
       ConnectionProcessor.getInstance().setAdditionalDatasource((XPrincipal) principal);
    }
 
+   private final SecurityEngine securityEngine;
+   private final Cluster cluster;
+   private final DataSourceRegistry dataSourceRegistry;
+   private final MVManager mvManager;
 }

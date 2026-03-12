@@ -49,9 +49,12 @@ import java.util.stream.Collectors;
 @Service
 public class PluginsService {
    @Autowired
-   public PluginsService(UploadService uploadService, SecurityEngine securityEngine) {
+   public PluginsService(UploadService uploadService, SecurityEngine securityEngine,
+                         DataSourceRegistry dataSourceRegistry)
+   {
       this.uploadService = uploadService;
       this.securityEngine = securityEngine;
+      this.dataSourceRegistry = dataSourceRegistry;
       plugins = Plugins.getInstance();
    }
 
@@ -135,7 +138,7 @@ public class PluginsService {
 
       if(installedPlugins > 0) {
          plugins.validatePlugins();
-         DataSourceRegistry.getRegistry().clearCache();
+         dataSourceRegistry.clearCache();
       }
 
       if(installedPlugins < pluginFiles.size()) {
@@ -233,7 +236,7 @@ public class PluginsService {
             try(InputStream input = Files.newInputStream(pluginFile.toPath())) {
                plugins.installPlugin(input, request.pluginId() + "-" +
                   request.pluginVersion() + ".zip", false);
-               DataSourceRegistry.getRegistry().clearCache();
+               dataSourceRegistry.clearCache();
             }
          }
          finally {
@@ -271,5 +274,6 @@ public class PluginsService {
    private final Plugins plugins;
    private final UploadService uploadService;
    private final SecurityEngine securityEngine;
+   private final DataSourceRegistry dataSourceRegistry;
    private static final Logger LOG = LoggerFactory.getLogger(PluginsService.class);
 }

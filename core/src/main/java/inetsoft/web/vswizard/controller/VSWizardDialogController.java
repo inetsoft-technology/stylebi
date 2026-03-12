@@ -38,12 +38,14 @@ public class VSWizardDialogController {
    public VSWizardDialogController(ViewsheetService viewsheetService,
                                    RuntimeViewsheetManager runtimeViewsheetManager,
                                    RuntimeViewsheetRef runtimeViewsheetRef,
-                                   VSWizardDialogServiceProxy vsWizardDialogServiceProxy)
+                                   VSWizardDialogServiceProxy vsWizardDialogServiceProxy,
+                                   SecurityEngine securityEngine)
    {
       this.viewsheetService = viewsheetService;
       this.runtimeViewsheetManager = runtimeViewsheetManager;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.vsWizardDialogServiceProxy =vsWizardDialogServiceProxy;
+      this.vsWizardDialogServiceProxy = vsWizardDialogServiceProxy;
+      this.securityEngine = securityEngine;
    }
 
    @LoadingMask
@@ -54,7 +56,7 @@ public class VSWizardDialogController {
                                   Principal principal)
       throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.VIEWSHEET,
+      if(!securityEngine.checkPermission(principal, ResourceType.VIEWSHEET,
                                                        "*", ResourceAction.ACCESS))
       {
          throw new SecurityException(Catalog.getCatalog().getString(
@@ -107,6 +109,7 @@ public class VSWizardDialogController {
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final SecurityEngine securityEngine;
    private final VSWizardDialogServiceProxy vsWizardDialogServiceProxy;
    private final RuntimeViewsheetManager runtimeViewsheetManager;
    private final ViewsheetService viewsheetService;

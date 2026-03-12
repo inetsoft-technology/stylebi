@@ -60,11 +60,12 @@ public class MVSupportService {
 
    @Autowired
    public MVSupportService(MVManager mvManager, SecurityEngine securityEngine,
-                           ScheduleManager scheduleManager)
+                           ScheduleManager scheduleManager, Cluster cluster)
    {
       this.mvManager = mvManager;
       this.securityEngine = securityEngine;
       this.scheduleManager = scheduleManager;
+      this.cluster = cluster;
    }
 
    /**
@@ -285,14 +286,14 @@ public class MVSupportService {
       // base MV to generate
       views.sort(new MVComparator());
 
-      Map<String, String> statusMap = Cluster.getInstance().getMap("inetsoft.mv.status.map");
+      Map<String, String> statusMap = cluster.getMap("inetsoft.mv.status.map");
 
       for(MVStatus status : views) {
          statusMap.put(status.getDefinition().getName(), "Pending");
       }
 
       if(background) {
-         if(Cluster.getInstance().isSchedulerRunning()) {
+         if(cluster.isSchedulerRunning()) {
             createMVBackground(views, principal);
          }
          else {
@@ -471,7 +472,7 @@ public class MVSupportService {
       AnalysisStatus status = new AnalysisStatus(result.getCandidates(), result.getExceptions(),
                                                  result.getPlans(), result.getStatus(),
                                                  result.getError());
-      Map<String, AnalysisStatus> map = Cluster.getInstance().getMap(ANALYSIS_STATUS_MAP);
+      Map<String, AnalysisStatus> map = cluster.getMap(ANALYSIS_STATUS_MAP);
       map.put(result.getId(), status);
       mvManager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
    }
@@ -713,7 +714,7 @@ public class MVSupportService {
 
    @Scheduled(initialDelay = ANALYSIS_STATUS_MAP_CLEANUP_INTERVAL, fixedDelay = ANALYSIS_STATUS_MAP_CLEANUP_INTERVAL)
    public void removeExpiredAnalysis() {
-      Map<String, AnalysisStatus> map = Cluster.getInstance().getMap(ANALYSIS_STATUS_MAP);
+      Map<String, AnalysisStatus> map = cluster.getMap(ANALYSIS_STATUS_MAP);
 
       long limit = System.currentTimeMillis() - ANALYSIS_STATUS_MAP_CLEANUP_INTERVAL;
       map.entrySet().stream()
@@ -1513,6 +1514,7 @@ public class MVSupportService {
    private final MVManager mvManager;
    private final SecurityEngine securityEngine;
    private final ScheduleManager scheduleManager;
+   private final Cluster cluster;
 
    private final ExecutorService analyzePool =
       Executors.newFixedThreadPool(4, new GroupedThreadFactory());
