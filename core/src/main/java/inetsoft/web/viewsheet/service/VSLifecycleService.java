@@ -259,7 +259,7 @@ public class VSLifecycleService {
          entry.setProperty("_device_mobile", Boolean.toString(event.isMobile()));
          entry.setProperty("_device_user_agent", event.getUserAgent());
 
-         if(logManager.isDebugEnabled(LOG.getName())) {
+         if(getLogManager().isDebugEnabled(LOG.getName())) {
             LOG.debug(
                "Browser: userAgent=" + event.getUserAgent() + ", displayWidth=" +
                   event.getWidth() + ", mobile=" + event.isMobile());
@@ -433,6 +433,10 @@ public class VSLifecycleService {
       }
 
       private final Principal user;
+   }
+
+   private LogManager getLogManager() {
+      return logManager != null ? logManager : LogManager.getInstance();
    }
 
    private final ViewsheetService viewsheetService;

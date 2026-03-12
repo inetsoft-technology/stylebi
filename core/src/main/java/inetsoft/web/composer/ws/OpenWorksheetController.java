@@ -226,7 +226,7 @@ public class OpenWorksheetController extends WorksheetController {
                else if(source.getType() == SourceInfo.CUBE) {
                   String resource = source.getPrefix() + "::" + source.getSource();
 
-                  if(!security.checkPermission(
+                  if(!securityEngine.checkPermission(
                      user, ResourceType.CUBE, resource, ResourceAction.READ))
                   {
                      forbiddenMsg = Catalog.getCatalog().getString("composer.ws.boundPhysicalTableForbidden");
@@ -246,7 +246,7 @@ public class OpenWorksheetController extends WorksheetController {
                {
                   String resource = mirrorEntry.getPath();
 
-                  if(!security.checkPermission(
+                  if(!securityEngine.checkPermission(
                      user, ResourceType.ASSET, resource, ResourceAction.READ))
                   {
                      forbiddenMsg = Catalog.getCatalog().getString("composer.ws.boundAssetSourcesForbidden");

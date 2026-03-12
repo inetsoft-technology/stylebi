@@ -50,42 +50,50 @@ public class RuntimeViewsheetManager {
       openSheets = cluster.getReplicatedMap(OPEN_SHEETS_MAP);
    }
 
+   private DistributedMap<String, Set<String>> getOpenSheets() {
+      if(openSheets == null) {
+         openSheets = (cluster != null ? cluster : Cluster.getInstance()).getReplicatedMap(OPEN_SHEETS_MAP);
+      }
+
+      return openSheets;
+   }
+
    public void sheetOpened(Principal user, String runtimeId) {
       String sessionId = getSessionId(user);
 
-      openSheets.lock(sessionId);
+      getOpenSheets().lock(sessionId);
 
       try {
-         Set<String> sheets = openSheets.computeIfAbsent(sessionId, k -> new HashSet<>());
+         Set<String> sheets = getOpenSheets().computeIfAbsent(sessionId, k -> new HashSet<>());
          sheets.add(runtimeId);
-         openSheets.put(sessionId, sheets);
+         getOpenSheets().put(sessionId, sheets);
       }
       finally {
-         openSheets.unlock(sessionId);
+         getOpenSheets().unlock(sessionId);
       }
    }
 
    public void sheetClosed(Principal user, String runtimeId) {
       String sessionId = getSessionId(user);
 
-      openSheets.lock(sessionId);
+      getOpenSheets().lock(sessionId);
 
       try {
-         Set<String> sheets = openSheets.get(sessionId);
+         Set<String> sheets = getOpenSheets().get(sessionId);
 
          if(sheets != null) {
             sheets.remove(runtimeId);
 
             if(sheets.isEmpty()) {
-               openSheets.remove(sessionId);
+               getOpenSheets().remove(sessionId);
             }
             else {
-               openSheets.put(sessionId, sheets);
+               getOpenSheets().put(sessionId, sheets);
             }
          }
       }
       finally {
-         openSheets.unlock(sessionId);
+         getOpenSheets().unlock(sessionId);
       }
    }
 
@@ -97,13 +105,13 @@ public class RuntimeViewsheetManager {
       String sessionId = getSessionId(user);
       Set<String> sheetsToClose;
 
-      openSheets.lock(sessionId);
+      getOpenSheets().lock(sessionId);
 
       try {
-         sheetsToClose = openSheets.remove(sessionId);
+         sheetsToClose = getOpenSheets().remove(sessionId);
       }
       finally {
-         openSheets.unlock(sessionId);
+         getOpenSheets().unlock(sessionId);
       }
 
       if(sheetsToClose != null) {

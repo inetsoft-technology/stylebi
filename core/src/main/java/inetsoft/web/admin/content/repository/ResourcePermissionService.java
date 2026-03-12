@@ -873,7 +873,7 @@ public class ResourcePermissionService {
    public static String getDataSourceResourceName(String resourcePath) {
       if(resourcePath.contains("/")) {
          // may be additional connection
-         for(String ds : dataSourceRegistry.getDataSourceFullNames()) {
+         for(String ds : DataSourceRegistry.getRegistry().getDataSourceFullNames()) {
             if(resourcePath.startsWith(ds + "/")) {
                resourcePath = ds + "::" + resourcePath.substring(ds.length() + 1);
                break;

@@ -66,7 +66,7 @@ class EmPageHeaderControllerTest {
 
    @Test
    void checkDiffUserForPageHeader() throws Exception {
-      EmPageHeaderController emPageHeaderController = new EmPageHeaderController();
+      EmPageHeaderController emPageHeaderController = new EmPageHeaderController(engine, null, null, null);
 
       SRPrincipal org_admin = new SRPrincipal(new IdentityID("org_admin", "org0"), new IdentityID[] {new IdentityID("Organization Administrator", null)},
                                               new String[0], "org0",

@@ -18,6 +18,7 @@
 package inetsoft.web.viewsheet.service;
 
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.CloseableTimer;
 import inetsoft.util.ConfigurationContext;
 import inetsoft.web.messaging.MessageAttributes;
@@ -281,7 +282,7 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
       // Save the previous message attributes so we can restore them
       MessageAttributes previousAttributes = MessageContextHolder.getMessageAttributes();
       MessageContextHolder.setMessageAttributes(messageAttributes);
-      CommandDispatcherService service = new CommandDispatcherService(messagingTemplate) {
+      CommandDispatcherService service = new CommandDispatcherService(messagingTemplate, Cluster.getInstance()) {
          @Override
          public void convertAndSendToUser(String user, String destination, Object payload,
                                           Map<String, Object> headers) throws MessagingException

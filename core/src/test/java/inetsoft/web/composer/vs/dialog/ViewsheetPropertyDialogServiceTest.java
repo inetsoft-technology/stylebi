@@ -53,7 +53,7 @@ public class ViewsheetPropertyDialogServiceTest {
    public void setup() throws Exception {
       service = new ViewsheetPropertyDialogService(coreLifecycleService, viewsheetService,
                                                    layoutService, viewsheetSettingsService,
-                                                   vsAssemblyInfoHandler);
+                                                   vsAssemblyInfoHandler, null, null, null);
    }
 
    // Bug #16756 Update layout info if it has same id as incoming layout

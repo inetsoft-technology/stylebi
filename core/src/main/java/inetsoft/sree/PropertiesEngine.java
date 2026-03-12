@@ -51,12 +51,25 @@ import java.util.function.Supplier;
 @Service
 @Lazy
 public class PropertiesEngine {
+   // For non-Spring environments (tests, non-Spring processes)
+   public PropertiesEngine() {
+      this(null, null, null);
+   }
+
    public PropertiesEngine(SecurityEngine securityEngine, LicenseManager licenseManager,
                            LogManager logManager)
    {
       this.securityEngine = securityEngine;
       this.licenseManager = licenseManager;
       this.logManager = logManager;
+   }
+
+   private LogManager getLogManager() {
+      return logManager != null ? logManager : LogManager.getInstance();
+   }
+
+   private LicenseManager getLicenseManager() {
+      return licenseManager != null ? licenseManager : LicenseManager.getInstance();
    }
 
    /**
@@ -305,11 +318,11 @@ public class PropertiesEngine {
       String property;
 
       if(context == LogContext.CATEGORY) {
-         logManager.setLevel(name, level);
+         getLogManager().setLevel(name, level);
          property = "log.level." + name;
       }
       else {
-         logManager.setContextLevel(context, name, level);
+         getLogManager().setContextLevel(context, name, level);
          property = "log." + context.name() + ".level." + name;
       }
 
@@ -617,7 +630,7 @@ public class PropertiesEngine {
          // @by stephenwebster, For Bug #29148
          // Whenever SreeEnv is cleared, we must reset the log manager prior to a re-initialization
          // of SreeEnv.
-         logManager.close();
+         getLogManager().close();
          ConfigurationContext.getContext().remove(PROPERTIES_KEY);
          ConfigurationContext.getContext().remove(DEFAULTS_PROPERTIES_KEY);
          ConfigurationContext.getContext().remove(EARLY_LOADED_PROPERTIES_KEY);
@@ -686,18 +699,18 @@ public class PropertiesEngine {
     * Initializes logging.
     */
    private void initLogging() {
-      logManager.setLevel("inetsoft.scheduler_test", LogLevel.OFF);
-      logManager.setLevel("inetsoft.mv_debug", LogLevel.OFF);
-      logManager.setLevel("inetsoft.swap_data", LogLevel.OFF);
-      logManager.setLevel(SUtil.MAC_LOG_NAME, LogLevel.OFF);
-      logManager.setLevel(LogUtil.PERFORMANCE_LOGGER_NAME, LogLevel.OFF);
+      getLogManager().setLevel("inetsoft.scheduler_test", LogLevel.OFF);
+      getLogManager().setLevel("inetsoft.mv_debug", LogLevel.OFF);
+      getLogManager().setLevel("inetsoft.swap_data", LogLevel.OFF);
+      getLogManager().setLevel(SUtil.MAC_LOG_NAME, LogLevel.OFF);
+      getLogManager().setLevel(LogUtil.PERFORMANCE_LOGGER_NAME, LogLevel.OFF);
 
-      if(licenseManager.isEnterprise()) {
-         logManager.setLevel("inetsoft.storage.aws.com.amazonaws", LogLevel.WARN);
-         logManager.setLevel("inetsoft.storage.aws.org.apache", LogLevel.WARN);
+      if(getLicenseManager().isEnterprise()) {
+         getLogManager().setLevel("inetsoft.storage.aws.com.amazonaws", LogLevel.WARN);
+         getLogManager().setLevel("inetsoft.storage.aws.org.apache", LogLevel.WARN);
       }
 
-      logManager.setLevel("org.apache.ignite", LogLevel.WARN);
+      getLogManager().setLevel("org.apache.ignite", LogLevel.WARN);
 
       reloadLoggingFramework();
 
@@ -732,18 +745,18 @@ public class PropertiesEngine {
 
    private void applyLogProperty(String prop, String val) {
       if("log.detail.level".equals(prop)) {
-         logManager.setLevel(logManager.parseLevel(val));
+         getLogManager().setLevel(getLogManager().parseLevel(val));
       }
       else if(prop.startsWith("log.level.")) {
          try {
-            LogLevel level = logManager.parseLevel(val);
+            LogLevel level = getLogManager().parseLevel(val);
             prop = prop.substring(10);
 
             if(prop.isEmpty()) {
                throw new IllegalArgumentException("Empty logger name");
             }
 
-            logManager.setLevel(prop, level);
+            getLogManager().setLevel(prop, level);
          }
          catch(IllegalArgumentException exc) {
             // log is not initialized yet, use standard error
@@ -755,8 +768,8 @@ public class PropertiesEngine {
             LogContext context = LogContext.valueOf(
                prop.substring(4, prop.indexOf('.', 4)));
             String contextName = prop.substring(prop.indexOf('.', 4) + 7);
-            LogLevel level = logManager.parseLevel(val);
-            logManager.setContextLevel(context, contextName, level);
+            LogLevel level = getLogManager().parseLevel(val);
+            getLogManager().setContextLevel(context, contextName, level);
          }
          catch(IllegalArgumentException exc) {
             // log is not initialized yet, use standard error
@@ -790,8 +803,8 @@ public class PropertiesEngine {
       int maxCount = Integer.parseInt(Objects.toString(getProperty("report.log.count"), "10"));
       boolean performance = performanceLevel != null &&
          !LogLevel.OFF.level().equalsIgnoreCase(performanceLevel) &&
-         logManager.parseLevel(prop) != null;
-      logManager.initialize(
+         getLogManager().parseLevel(prop) != null;
+      getLogManager().initialize(
          logFile, discriminator, console, maxSize, maxCount, performance);
    }
 
@@ -1148,7 +1161,7 @@ public class PropertiesEngine {
          }
 
          // reload licenses
-         licenseManager.reload();
+         getLicenseManager().reload();
       }
 
       private final List<PropertyChange> changes;

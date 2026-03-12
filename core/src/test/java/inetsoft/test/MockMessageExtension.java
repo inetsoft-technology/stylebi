@@ -79,7 +79,7 @@ public abstract class MockMessageExtension implements BeforeEachCallback, AfterE
             return true;
          }
       });
-      CommandDispatcherService dispatcherService = new CommandDispatcherService(messagingTemplate) {
+      CommandDispatcherService dispatcherService = new CommandDispatcherService(messagingTemplate, null) {
          @Override
          public void convertAndSendToUser(String user, String destination, Object payload,
                                           Map<String, Object> headers) throws MessagingException

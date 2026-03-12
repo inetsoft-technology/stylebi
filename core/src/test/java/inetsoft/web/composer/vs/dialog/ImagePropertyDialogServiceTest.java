@@ -95,7 +95,8 @@ class ImagePropertyDialogServiceTest {
       };
       CoreLifecycleService coreLifecycleService = new CoreLifecycleService(
          objectModelService, viewsheetEngine, vsLayoutService, parameterService,
-         vsCompositionService, dataRefModelFactoryService, null, eventPublisher);
+         vsCompositionService, dataRefModelFactoryService, null, eventPublisher,
+         null, null, null);
       temporaryInfoService = new VSWizardTemporaryInfoService(viewsheetService);
       VSObjectPropertyService vsObjectPropertyService = spy(new VSObjectPropertyService(coreLifecycleService,
                                                                                         vsColumnHandler,

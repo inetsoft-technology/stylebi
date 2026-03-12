@@ -45,6 +45,11 @@ import java.util.stream.Stream;
  */
 @Service
 public class FileSystemService {
+   // For non-Spring environments (tests, non-Spring processes)
+   public FileSystemService() {
+      this(null);
+   }
+
    public FileSystemService(Cluster cluster) {
       this.cluster = cluster;
    }
@@ -585,7 +590,8 @@ public class FileSystemService {
                }
 
 
-               Cluster cluster = this.cluster;
+               Cluster cluster = FileSystemService.this.cluster != null
+                  ? FileSystemService.this.cluster : Cluster.getInstance();
                Lock lock = cluster.getLock(XSwapper.SWAP_FILE_MAP_LOCK);
                lock.lock();
 

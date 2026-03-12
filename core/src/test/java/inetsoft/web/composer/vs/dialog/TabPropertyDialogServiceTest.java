@@ -56,7 +56,7 @@ class TabPropertyDialogServiceTest {
          vsObjectPropertyService,
          vsObjectTreeService,
          coreLifecycleService,
-         new VSDialogService(),      // real service — we test its interaction with the service
+         new VSDialogService(null),      // real service — we test its interaction with the service
          viewsheetService);
 
       // Build a minimal viewsheet with one Tab containing one Text child.

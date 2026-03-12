@@ -77,6 +77,11 @@ public class DeployManagerService {
    /**
     * Create a DeployManagerService.
     */
+   // For non-Spring environments (tests, non-Spring processes)
+   public DeployManagerService() {
+      this(null, null, null, null, null);
+   }
+
    @Autowired
    public DeployManagerService(SecurityEngine securityEngine, MVManager mvManager,
                                DependencyHandler dependencyHandler,

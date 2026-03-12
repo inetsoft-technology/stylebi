@@ -57,6 +57,11 @@ public class AuthenticationService {
    /**
     * Creates a new instance of <tt>AuthenticationService</tt>.
     */
+   // For non-Spring environments (tests, non-Spring processes)
+   public AuthenticationService() {
+      this(null, null, null);
+   }
+
    public AuthenticationService(SecurityEngine securityEngine, MVManager mvManager,
                                 DataSourceRegistry dataSourceRegistry)
    {

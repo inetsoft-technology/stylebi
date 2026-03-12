@@ -223,7 +223,7 @@ public class NodeProtectionService implements MembershipListener, MapChangeListe
       // no-op
    }
 
-   private final Cluster cluster;
+   private Cluster cluster;
    private Duration minUptime = null;
    private NodeProtector nodeProtector;
    private boolean sessionProtected = false;

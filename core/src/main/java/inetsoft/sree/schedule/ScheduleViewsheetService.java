@@ -21,7 +21,9 @@ package inetsoft.sree.schedule;
 import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.RepletRequest;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.AssetEntry;
@@ -129,7 +131,10 @@ public class ScheduleViewsheetService {
       return new CoreLifecycleService(objectModelFactoryService, engine, vsLayoutService,
                                       parameterService, vsCompositionService,
                                       dataRefModelFactoryService, null,
-                                      this::publishProcessBookmarkEvent);
+                                      this::publishProcessBookmarkEvent,
+                                      LicenseManager.getInstance(),
+                                      SecurityEngine.getSecurity(),
+                                      Cluster.getInstance());
 
    }
 
@@ -138,7 +143,8 @@ public class ScheduleViewsheetService {
       SharedFilterService sharedFilterService = new SharedFilterService(messagingTemplate, engine);
       SecurityEngine security = SecurityEngine.getSecurity();
       VSObjectService vsObjectService = new VSObjectService(coreLifecycleService, engine, security, sharedFilterService);
-      return new VSBookmarkService(vsObjectService, engine, security, coreLifecycleService);
+      return new VSBookmarkService(vsObjectService, engine, security, coreLifecycleService,
+                                   ScheduleManager.getScheduleManager(), Cluster.getInstance());
    }
 
    public String openViewsheet(AssetEntry entry, RepletRequest repletRequest, Principal principal)

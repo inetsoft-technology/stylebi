@@ -90,7 +90,7 @@ public class ControllersExtension extends MockMessageExtension {
          }
       };
 
-      runtimeViewsheetManager = new RuntimeViewsheetManager(viewsheetService);
+      runtimeViewsheetManager = new RuntimeViewsheetManager(viewsheetService, null);
       List<VSObjectModelFactory<?, ?>> modelFactories = Arrays.asList(
          new VSCalcTableModel.VSCalcTableModelFactory(),
          new VSCheckBoxModel.VSCheckBoxModelFactory(),
@@ -133,7 +133,8 @@ public class ControllersExtension extends MockMessageExtension {
       coreLifecycleService =
          new CoreLifecycleService(objectModelFactoryService, viewsheetService,
                                   vsLayoutService, parameterService, vsCompositionService,
-                                  dataRefModelFactoryService, null, eventPublisher);
+                                  dataRefModelFactoryService, null, eventPublisher,
+                                  null, null, null);
       BaseTableLoadDataServiceProxy tableLoadDataServiceProxy = new BaseTableLoadDataServiceProxy();
       assetRepository = (AssetRepository) SUtil.getRepletRepository();
       objectTreeService = new VSObjectTreeService(objectModelFactoryService);
@@ -143,7 +144,7 @@ public class ControllersExtension extends MockMessageExtension {
       objectService = new VSObjectService(coreLifecycleService, viewsheetService, securityEngine,
                                           sharedFilterService);
       bookmarkService = new VSBookmarkService(
-         objectService, viewsheetService, securityEngine, coreLifecycleService);
+         objectService, viewsheetService, securityEngine, coreLifecycleService, null, null);
       List<DataRefModelFactory<?, ?>> dataRefModelFactories = Arrays.asList(
          new AggregateRefModel.AggregateRefModelFactory(),
          new AliasDataRefModel.AliasDataRefModelFactory(),
@@ -163,12 +164,12 @@ public class ControllersExtension extends MockMessageExtension {
       dataRefModelFactoryService = new DataRefModelFactoryService(dataRefModelFactories);
       vsLifecycleService = new VSLifecycleService(
          viewsheetService, assetRepository, coreLifecycleService,
-         parameterService, new VSLifecycleControllerServiceProxy());
+         parameterService, new VSLifecycleControllerServiceProxy(), null);
       viewsheetController = new ViewsheetController(runtimeViewsheetRef, new ViewsheetControllerServiceProxy());
-      licenseService = new LicenseService();
+      licenseService = new LicenseService(null);
       openViewsheetController = new OpenViewsheetController(
          runtimeViewsheetRef, runtimeViewsheetManager, vsLifecycleService, licenseService,
-         new OpenViewsheetServiceProxy(), viewsheetService);
+         new OpenViewsheetServiceProxy(), viewsheetService, null);
       baseTableLoadDataController =
          new BaseTableLoadDataController(runtimeViewsheetRef, tableLoadDataServiceProxy);
       selectionService = new VSSelectionService(coreLifecycleService, viewsheetService,

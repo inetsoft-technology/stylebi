@@ -55,6 +55,11 @@ public final class LogManager implements AutoCloseable, MessageListener {
    /**
     * Creates a new instance of <tt>LogManager</tt>.
     */
+   // For non-Spring environments (tests, non-Spring processes)
+   public LogManager() {
+      this(null, null);
+   }
+
    public LogManager(SecurityEngine securityEngine, Cluster cluster) {
       this.securityEngine = securityEngine;
       this.cluster = cluster;
@@ -77,14 +82,20 @@ public final class LogManager implements AutoCloseable, MessageListener {
    {
       useInitializer(i -> i.initialize(
          logFile, logFileDiscriminator, console, maxFileSize, maxFileCount, performance));
-      cluster.addMessageListener(this);
+
+      if(cluster != null) {
+         cluster.addMessageListener(this);
+      }
    }
 
    @PreDestroy
    @Override
    public void close()  {
       useInitializer(LogInitializer::reset);
-      cluster.removeMessageListener(this);
+
+      if(cluster != null) {
+         cluster.removeMessageListener(this);
+      }
    }
 
    private static void useInitializer(Consumer<LogInitializer> fn) {

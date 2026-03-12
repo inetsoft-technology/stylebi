@@ -267,7 +267,7 @@ public class CoreLifecycleService {
             infoMap.put("viewsheetBackground", Tool.getVSCSSBgColorHexString());
          }
 
-         LicenseManager licenseManager = this.licenseManager;
+         LicenseManager licenseManager = getLicenseManager();
 
          if(licenseManager.isElasticLicense() && licenseManager.getElasticRemainingHours() == 0) {
             infoMap.put("hasWatermark", true);
@@ -2395,7 +2395,7 @@ public class CoreLifecycleService {
       Set<String> permissions = new HashSet<>();
 
       if(rvs.isRuntime()) {
-         final SecurityEngine engine = securityEngine;
+         final SecurityEngine engine = getSecurityEngine();
 
          if(Boolean.parseBoolean(SreeEnv.getProperty("Viewsheet Toolbar Hidden"))) {
             permissions.add("Toolbar");
@@ -2502,7 +2502,7 @@ public class CoreLifecycleService {
          }
 
          boolean profiling = user instanceof XPrincipal xUser && xUser.isProfiling() &&
-            securityEngine.checkPermission(user, ResourceType.PROFILE, "*", ResourceAction.ACCESS);
+            getSecurityEngine().checkPermission(user, ResourceType.PROFILE, "*", ResourceAction.ACCESS);
 
          if(profiling) {
             permissions.add("Profiling");
@@ -3272,6 +3272,14 @@ public class CoreLifecycleService {
    private final ViewsheetService viewsheetService;
    private final VSLayoutService vsLayoutService;
    private final ParameterService parameterService;
+   private SecurityEngine getSecurityEngine() {
+      return securityEngine != null ? securityEngine : SecurityEngine.getSecurity();
+   }
+
+   private LicenseManager getLicenseManager() {
+      return licenseManager != null ? licenseManager : LicenseManager.getInstance();
+   }
+
    private final VSCompositionService vsCompositionService;
    private final DataRefModelFactoryService dataRefModelFactoryService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;

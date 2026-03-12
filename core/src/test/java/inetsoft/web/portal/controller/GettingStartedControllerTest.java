@@ -46,7 +46,7 @@ class GettingStartedControllerTest {
 
       AssetRepository assetRepository = Mockito.mock(AssetRepository.class);
       GettingStartedService gettingStartedService = new GettingStartedService(assetRepository, new AnalyticEngine(), securityEngine);
-      gettingStartedController = new GettingStartedController(gettingStartedService);
+      gettingStartedController = new GettingStartedController(gettingStartedService, securityEngine);
 
       admin = new SRPrincipal(new IdentityID("admin", Organization.getDefaultOrganizationID()), new IdentityID[] { new IdentityID("Everyone",Organization.getDefaultOrganizationID())}, new String[0], Organization.getDefaultOrganizationID(),
                               Tool.getSecureRandom().nextLong());

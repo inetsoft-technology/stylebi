@@ -24,6 +24,7 @@ import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.util.IndexedStorage;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.schedule.ScheduleService;
 import inetsoft.web.admin.schedule.ScheduleTaskFolderService;
@@ -51,7 +52,8 @@ class ScheduleTaskFolderControllerTest {
       SUtil.setMultiTenant(true);
 
       scheduleTaskFolderService = new ScheduleTaskFolderService(
-         ScheduleManager.getScheduleManager(), securityEngine, securityEngine.getSecurityProvider());
+         ScheduleManager.getScheduleManager(), securityEngine, securityEngine.getSecurityProvider(),
+         IndexedStorage.getIndexedStorage());
       ScheduleService scheduleService = Mockito.mock(ScheduleService.class);
       scheduleTaskFolderController = new ScheduleTaskFolderController(scheduleTaskFolderService, scheduleService);
 

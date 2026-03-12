@@ -51,7 +51,7 @@ class SignupControllerTest {
 
       ObjectMapper objectMapper = Mockito.mock(ObjectMapper.class);
       AuthenticationProviderService authenticationProviderService =
-         new AuthenticationProviderService(securityEngine, objectMapper, messagingTemplate);
+         new AuthenticationProviderService(securityEngine, objectMapper, messagingTemplate, null, null);
       UserSignupService userSignupService = new UserSignupService(authenticationProviderService);
       signupController = new SignupController(userSignupService);
    }

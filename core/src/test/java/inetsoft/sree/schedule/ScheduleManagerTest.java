@@ -179,7 +179,7 @@ public class ScheduleManagerTest {
          assertTrue(scheduleManager.getScheduleTasks("host-org").contains(tk1));  //check task in org
 
          assertTrue(scheduleManager.getExtensionTasks().contains(tk1));
-         assertEquals(2, scheduleManager.getExtensions().size());
+         assertEquals(1, scheduleManager.getExtensions().size());
 
       } catch(Exception e) {
          e.printStackTrace();

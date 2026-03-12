@@ -50,8 +50,34 @@ import java.util.stream.Collectors;
 @Service
 @Lazy
 public class PortalThemesManager implements XMLSerializable, AutoCloseable {
+   // For non-Spring environments (tests, non-Spring processes)
+   public PortalThemesManager() {
+      this(null);
+   }
+
    public PortalThemesManager(Cluster cluster) {
       this.cluster = cluster;
+      this.changeListener = e -> {
+         LOG.debug(e.toString());
+
+         // Hold the same distributed lock used by save() so that a concurrent save
+         // on any pod cannot interleave with reset() + loadThemes() on this pod,
+         // and vice versa. The lock's per-thread reentrancy means the nested
+         // save() call inside loadThemes() acquires safely.
+         Lock lock = cluster.getLock(DISTRIBUTED_LOCK_NAME);
+         lock.lock();
+
+         try {
+            reset();
+            loadThemes();
+         }
+         catch(Exception ex) {
+            LOG.error("Failed to load portal themes", ex);
+         }
+         finally {
+            lock.unlock();
+         }
+      };
    }
 
    /**
@@ -990,30 +1016,12 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
       }
    }
 
+   private final Cluster cluster;
+
    /**
     * Data change listener.
     */
-   private final DataChangeListener changeListener = e -> {
-      LOG.debug(e.toString());
-
-      // Hold the same distributed lock used by save() so that a concurrent save
-      // on any pod cannot interleave with reset() + loadThemes() on this pod,
-      // and vice versa. The lock's per-thread reentrancy means the nested
-      // save() call inside loadThemes() acquires safely.
-      Lock lock = cluster.getLock(DISTRIBUTED_LOCK_NAME);
-      lock.lock();
-
-      try {
-         reset();
-         loadThemes();
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to load portal themes", ex);
-      }
-      finally {
-         lock.unlock();
-      }
-   };
+   private final DataChangeListener changeListener;
 
    /**
     * Reset variables before reload.
@@ -1057,7 +1065,6 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    private List<PortalTab> portalTabs = new ArrayList<>();
    private String copyright;
    private final DataChangeListenerManager dmgr = new DataChangeListenerManager();
-   private final Cluster cluster;
 
    private static final Logger LOG = LoggerFactory.getLogger(PortalThemesManager.class);
 
