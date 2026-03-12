@@ -190,6 +190,8 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       else {
          if(document.body.className.indexOf("app-loaded") == -1) {
             document.body.className += " app-loaded";
+            const splash = document.querySelector<HTMLElement>(".loading-splash");
+            splash?.addEventListener("transitionend", () => splash.style.display = "none", { once: true });
          }
 
          this.subscriptions.add(

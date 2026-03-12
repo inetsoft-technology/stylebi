@@ -35,6 +35,8 @@ export class ViewerRootComponent implements OnInit, OnDestroy {
    ngOnInit(): void {
       if(document.body.className.indexOf("app-loaded") == -1) {
          document.body.className += " app-loaded";
+         const splash = document.querySelector<HTMLElement>(".loading-splash");
+         splash?.addEventListener("transitionend", () => splash.style.display = "none", { once: true });
       }
 
       this.socket.connect("../vs-events").subscribe((connection) => {
