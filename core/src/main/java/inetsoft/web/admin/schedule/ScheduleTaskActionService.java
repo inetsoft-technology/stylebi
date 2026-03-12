@@ -67,7 +67,8 @@ public class ScheduleTaskActionService {
                                     ScheduleManager scheduleManager,
                                     ScheduleService scheduleService,
                                     ViewsheetService viewsheetService, XRepository xRepository,
-                                    SecurityEngine securityEngine)
+                                    SecurityEngine securityEngine,
+                                    IndexedStorage indexedStorage)
    {
       this.analyticRepository = analyticRepository;
       this.scheduleManager = scheduleManager;
@@ -75,6 +76,7 @@ public class ScheduleTaskActionService {
       this.viewsheetService = viewsheetService;
       this.xRepository = xRepository;
       this.securityEngine = securityEngine;
+      this.indexedStorage = indexedStorage;
    }
 
    public ScheduleActionModel getTaskAction(String taskName, int index,
@@ -429,7 +431,7 @@ public class ScheduleTaskActionService {
    public ViewsheetTreeListModel getViewsheetTree(Principal user) throws Exception {
       ViewsheetTreeListModel.Builder builder = ViewsheetTreeListModel.builder();
       LinkedHashMap<AssetEntry, ModifiableViewsheetTreeModel> tree = new LinkedHashMap<>();
-      Set<String> keys = IndexedStorage.getIndexedStorage().getKeys(this::isViewsheetTreeEntry);
+      Set<String> keys = indexedStorage.getKeys(this::isViewsheetTreeEntry);
       boolean myReportsAvailable = user != null &&
          securityEngine.checkPermission(user, ResourceType.MY_DASHBOARDS, "*", ResourceAction.READ);
       List<AssetEntry> entries = new ArrayList<>();
@@ -652,6 +654,7 @@ public class ScheduleTaskActionService {
    private final ViewsheetService viewsheetService;
    private final XRepository xRepository;
    private final SecurityEngine securityEngine;
+   private final IndexedStorage indexedStorage;
    private final RepletRegistryManager registryManager = new RepletRegistryManager();
 
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleTaskActionService.class);

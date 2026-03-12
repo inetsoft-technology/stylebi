@@ -83,6 +83,7 @@ public class DataCycleManager
                            SecurityEngine securityEngine, Cluster cluster, MVManager mvManager)
    {
       this.scheduleManager = scheduleManager;
+      this.indexedStorage = indexedStorage;
       this.securityEngine = securityEngine;
       this.cluster = cluster;
       this.mvManager = mvManager;
@@ -123,7 +124,7 @@ public class DataCycleManager
    @PreDestroy
    @Override
    public void close() throws Exception {
-      IndexedStorage.getIndexedStorage().removeStorageRefreshListener(this);
+      getIndexedStorage().removeStorageRefreshListener(this);
    }
 
    /**
@@ -274,7 +275,7 @@ public class DataCycleManager
             return;
          }
 
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
       List<ScheduleTask> tasks = new ArrayList<>();
 
       for(String orgId : securityEngine.getSecurityProvider().getOrganizationIDs()) {
@@ -428,7 +429,7 @@ public class DataCycleManager
     */
    @Override
    public boolean setEnable(String name, String orgId, boolean enable) {
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
       String entry = getCycleEntry(name, orgId).toIdentifier();
 
       if(storage.contains(entry, orgId)) {
@@ -450,7 +451,7 @@ public class DataCycleManager
     */
    @Override
    public boolean isEnable(String name, String orgId) {
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
       String entry = getCycleEntry(name, orgId).toIdentifier();
 
       if(storage.contains(entry, orgId)) {
@@ -496,7 +497,7 @@ public class DataCycleManager
             doc = Tool.parseXML(fis);
          }
 
-         IndexedStorage storage = IndexedStorage.getIndexedStorage();
+         IndexedStorage storage = getIndexedStorage();
          space.rename(afile, "cycle.xml.old");
 
          Element dcycleNode = (Element) doc.getElementsByTagName("dcycle").item(0);
@@ -562,7 +563,7 @@ public class DataCycleManager
             asset.setConditions(conds);
             asset.setInfo(cycleInfo);
 
-            IndexedStorage.getIndexedStorage()
+            getIndexedStorage()
                .putXMLSerializable(getCycleEntry(name, orgId).toIdentifier(), asset);
          }
       }
@@ -601,7 +602,7 @@ public class DataCycleManager
     * Add condition to specified data cycle.
     */
    public void addCondition(String name, String orgId, ScheduleCondition sc) {
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
       String entry = getCycleEntry(name, orgId).toIdentifier();
       DataCycleAsset asset;
 
@@ -636,7 +637,7 @@ public class DataCycleManager
     * Set conditions to specified data cycle.
     */
    public void setConditions(String name, String orgId, Vector<ScheduleCondition> conds) {
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
       String entry = getCycleEntry(name, orgId).toIdentifier();
       DataCycleAsset asset;
 
@@ -672,7 +673,7 @@ public class DataCycleManager
     * Remove the data cycle with specified name from the data cycle map.
     */
    public void removeDataCycle(String name, String orgId) {
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
       String entry = getCycleEntry(name, orgId).toIdentifier();
 
       if(storage.contains(entry, orgId)) {
@@ -740,7 +741,7 @@ public class DataCycleManager
    }
 
    private Set<DataCycleId> getDataCycleIds(String orgId) {
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
       Set<DataCycleId> ids = new HashSet<>();
       Set<String> assetIds = storage.getKeys(key -> {
          AssetEntry entry = AssetEntry.createAssetEntry(key);
@@ -760,7 +761,7 @@ public class DataCycleManager
     * Get the time conditions of the specified data cycle.
     */
    public Vector<ScheduleCondition> getConditions(String name, String orgId) {
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
       String entry = getCycleEntry(name, orgId).toIdentifier();
 
       if(storage.contains(entry, orgId)) {
@@ -814,7 +815,7 @@ public class DataCycleManager
     * Get the specified cycle info.
     */
    public CycleInfo getCycleInfo(String name, String orgId) {
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
       String entry = getCycleEntry(name, orgId).toIdentifier();
 
       if(storage.contains(entry, orgId)) {
@@ -834,7 +835,7 @@ public class DataCycleManager
     * Set cycle info for a cycle.
     */
    public void setCycleInfo(String name, String orgId, CycleInfo cycleInfo) {
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
       String entry = getCycleEntry(name, orgId).toIdentifier();
 
       try {
@@ -864,7 +865,7 @@ public class DataCycleManager
    public void migrateDataCycles(Organization oorg, Organization norg, boolean replace)
       throws Exception
    {
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
       Set<DataCycleId> oldIds = getDataCycleIds(oorg.getId());
       boolean idChanged = !Tool.equals(oorg.getId(), norg.getId());
 
@@ -958,7 +959,7 @@ public class DataCycleManager
    }
 
    public void clearDataCycles(String orgId) {
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
 
       for(DataCycleId id : getDataCycleIds(orgId)) {
          String entry = getCycleEntry(id.name(), id.orgId()).toIdentifier();
@@ -1040,7 +1041,12 @@ public class DataCycleManager
       return scheduleManager != null ? scheduleManager : ScheduleManager.getScheduleManager();
    }
 
+   private IndexedStorage getIndexedStorage() {
+      return indexedStorage != null ? indexedStorage : IndexedStorage.getIndexedStorage();
+   }
+
    private ScheduleManager scheduleManager;
+   private IndexedStorage indexedStorage;
    private final SecurityEngine securityEngine;
    private final Cluster cluster;
    private final MVManager mvManager;

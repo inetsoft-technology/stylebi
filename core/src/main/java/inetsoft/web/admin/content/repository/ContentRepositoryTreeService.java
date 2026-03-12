@@ -67,7 +67,8 @@ public class ContentRepositoryTreeService {
                                        SecurityEngine securityEngine,
                                        ScheduleManager scheduleManager,
                                        DataSourceRegistry dataSourceRegistry,
-                                       DashboardManager dashboardManager)
+                                       DashboardManager dashboardManager,
+                                       IndexedStorage indexedStorage)
    {
       this.securityProvider = securityProvider;
       this.repository = repository;
@@ -79,6 +80,7 @@ public class ContentRepositoryTreeService {
       this.scheduleManager = scheduleManager;
       this.dataSourceRegistry = dataSourceRegistry;
       this.dashboardManager = dashboardManager;
+      this.indexedStorage = indexedStorage;
    }
 
    public LicensedComponents getLicensedComponents() {
@@ -266,7 +268,7 @@ public class ContentRepositoryTreeService {
          return getOrgUsers(principal, org);
       }
 
-      Set<String> keys = IndexedStorage.getIndexedStorage().getKeys(null);
+      Set<String> keys = indexedStorage.getKeys(null);
 
       if(keys == null || keys.isEmpty()) {
          return new ArrayList<>();
@@ -836,7 +838,7 @@ public class ContentRepositoryTreeService {
    }
 
    private IndexedStorage getIndexStorage() {
-      return IndexedStorage.getIndexedStorage();
+      return indexedStorage;
    }
 
    private ContentRepositoryTreeNode createTreeNode(RepositoryEntry entry,
@@ -928,7 +930,6 @@ public class ContentRepositoryTreeService {
       final AssetRepository assetRepository = AssetUtil.getAssetRepository(false);
       assetRepository.syncFolders(null);
       final RepletRegistry registry = RepletRegistry.getRegistry();
-      final IndexedStorage indexedStorage = IndexedStorage.getIndexedStorage();
       final AssetEntry[] entries = indexedStorage.getKeys(Objects::nonNull)
          .stream()
          .filter(key -> key != null && !key.contains("^" + Tool.MY_DASHBOARD + "/"))
@@ -1016,7 +1017,6 @@ public class ContentRepositoryTreeService {
       final int type;
       String name = entry.getName();
       String icon = null;
-      IndexedStorage indexedStorage = IndexedStorage.getIndexedStorage();
       long lastModifiedTime = indexedStorage.lastModified(entry.toIdentifier());
 
       // worksheets are just folders, viewsheets are repository folders
@@ -1390,8 +1390,7 @@ public class ContentRepositoryTreeService {
    }
 
    private static Stream<AssetEntry> streamEntries() {
-      final IndexedStorage indexedStorage = IndexedStorage.getIndexedStorage();
-      return indexedStorage.getKeys(Objects::nonNull)
+      return IndexedStorage.getIndexedStorage().getKeys(Objects::nonNull)
          .stream()
          .map(AssetEntry::createAssetEntry)
          .filter(Objects::nonNull);
@@ -2055,6 +2054,7 @@ public class ContentRepositoryTreeService {
    private final ScheduleManager scheduleManager;
    private final DataSourceRegistry dataSourceRegistry;
    private final DashboardManager dashboardManager;
+   private final IndexedStorage indexedStorage;
    private final Comparator<ContentRepositoryTreeNode> nodeComparator = getNodeComparator();
 
    public static final String RECYCLE_BIN_FOLDER = "Recycle Bin";

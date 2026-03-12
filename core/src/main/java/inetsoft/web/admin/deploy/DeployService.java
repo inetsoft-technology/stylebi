@@ -57,11 +57,13 @@ public class DeployService {
    @Autowired
    public DeployService(ContentRepositoryTreeService contentRepositoryTreeService,
                         SecurityEngine securityEngine,
-                        DataSourceRegistry dataSourceRegistry)
+                        DataSourceRegistry dataSourceRegistry,
+                        IndexedStorage indexedStorage)
    {
       this.contentRepositoryTreeService = contentRepositoryTreeService;
       this.securityEngine = securityEngine;
       this.dataSourceRegistry = dataSourceRegistry;
+      this.indexedStorage = indexedStorage;
    }
 
    public ImportJarProperties setJarFile(String fpath, boolean gzipped) throws Exception {
@@ -1216,8 +1218,6 @@ public class DeployService {
       Pattern pattern = Pattern.compile(convertToReg(assetPath));
 
       try {
-         final IndexedStorage indexedStorage = IndexedStorage.getIndexedStorage();
-
          assets = indexedStorage.getKeys(Objects::nonNull)
             .stream()
             .map(AssetEntry::createAssetEntry)
@@ -1484,6 +1484,7 @@ public class DeployService {
    private final ContentRepositoryTreeService contentRepositoryTreeService;
    private final SecurityEngine securityEngine;
    private final DataSourceRegistry dataSourceRegistry;
+   private final IndexedStorage indexedStorage;
    private final RepletRegistryManager registryManager = new RepletRegistryManager();
    private static final Logger LOG = LoggerFactory.getLogger(DeployService.class);
 }

@@ -65,7 +65,8 @@ public class UserTreeService {
                           KeyValueStorageManager keyValueStorageManager,
                           DataCycleManager dataCycleManager,
                           LicenseManager licenseManager,
-                          MVManager mvManager)
+                          MVManager mvManager,
+                          IndexedStorage indexedStorage)
    {
       this.authenticationProviderService = authenticationProviderService;
       this.systemAdminService = systemAdminService;
@@ -79,6 +80,7 @@ public class UserTreeService {
       this.dataCycleManager = dataCycleManager;
       this.licenseManager = licenseManager;
       this.mvManager = mvManager;
+      this.indexedStorage = indexedStorage;
    }
 
    public List<String> getOrganizationTree(String providerName, Principal principal) {
@@ -668,7 +670,7 @@ public class UserTreeService {
       identityService.setIdentity(oldGroup, model, provider, principal);
       identityService.setIdentityPermissions(oldID, newID, ResourceType.SECURITY_GROUP,
                                              principal, permittedIdentities, "");
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = indexedStorage;
       DataCycleManager cycleManager = dataCycleManager;
       storage.migrateStorageData(oldID.getName(), newID.getName());
       cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), false);
@@ -1802,7 +1804,7 @@ public class UserTreeService {
          return;
       }
 
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = indexedStorage;
       MVManager mvManager = this.mvManager;
       DataCycleManager cycleManager = this.dataCycleManager;
       KeyValueStorage<FavoriteList> favorites =
@@ -1918,5 +1920,6 @@ public class UserTreeService {
    private final DataCycleManager dataCycleManager;
    private final LicenseManager licenseManager;
    private final MVManager mvManager;
+   private final IndexedStorage indexedStorage;
    private final Set<String> propertyNames = Set.of("max.row.count", "max.col.count", "max.cell.size", "max.user.count");
 }

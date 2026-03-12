@@ -83,7 +83,8 @@ public class IdentityService {
                           DataSourceRegistry dataSourceRegistry,
                           LogManager logManager,
                           LicenseManager licenseManager,
-                          ScheduleManager scheduleManager)
+                          ScheduleManager scheduleManager,
+                          IndexedStorage indexedStorage)
    {
       this.securityEngine = securityEngine;
       this.securityProvider = securityProvider;
@@ -98,6 +99,7 @@ public class IdentityService {
       this.logManager = logManager;
       this.licenseManager = licenseManager;
       this.scheduleManager = scheduleManager;
+      this.indexedStorage = indexedStorage;
    }
 
    private AuthenticationProvider getProvider(String providerName) {
@@ -961,7 +963,7 @@ public class IdentityService {
       DashboardManager.getManager().removeDashboardStorage(orgID);
       DependencyStorageService.getInstance().removeDependencyStorage(orgID);
       RecycleBin.getRecycleBin().removeStorage(orgID);
-      IndexedStorage.getIndexedStorage().removeStorage(orgID);
+      indexedStorage.removeStorage(orgID);
       LibManager.getManager(orgID).close();
 
       removeBlobStorage("__mv", orgID, MVStorage.Metadata.class);
@@ -980,8 +982,8 @@ public class IdentityService {
          DependencyStorageService.getInstance().copyStorageData(oOrg, nOrg);
          RecycleBin.getRecycleBin().copyStorageData(oOrg.getId(), nOrg.getId());
          updateLibraryStorage(oOrg.getId(), nOrg.getId(), true);
-         IndexedStorage.getIndexedStorage().copyStorageData(oOrg, nOrg, rename);
-         IndexedStorage.getIndexedStorage().setInitialized(nOrg.getId());
+         indexedStorage.copyStorageData(oOrg, nOrg, rename);
+         indexedStorage.setInitialized(nOrg.getId());
 
          //FSService.copyServerNode(oOrg.getId(), nOrg.getId(), true);
          updateBlobStorageName("__mvws", oOrg.getId(), nOrg.getId(), MVWorksheetStorage.Metadata.class, true);
@@ -2161,14 +2163,12 @@ public class IdentityService {
       }
 
       final IdentityID identityID = identity.getIdentityID();
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
-
       IndexedStorage.Filter filter = key -> {
          AssetEntry entry = AssetEntry.createAssetEntry(key);
          return entry != null && Tool.equals(entry.getUser(), identityID);
       };
-      Set<String> keys = storage.getKeys(filter, identityID.getOrgID());
-      keys.stream().forEach(key -> storage.remove(key));
+      Set<String> keys = indexedStorage.getKeys(filter, identityID.getOrgID());
+      keys.stream().forEach(key -> indexedStorage.remove(key));
    }
 
 
@@ -2622,4 +2622,5 @@ public class IdentityService {
    private final LogManager logManager;
    private final LicenseManager licenseManager;
    private final ScheduleManager scheduleManager;
+   private final IndexedStorage indexedStorage;
 }
