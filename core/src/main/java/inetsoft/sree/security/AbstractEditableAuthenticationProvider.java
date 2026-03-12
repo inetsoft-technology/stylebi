@@ -400,6 +400,13 @@ public abstract class AbstractEditableAuthenticationProvider
             }
          }
       }
+
+      try {
+         SreeEnv.save();
+      }
+      catch(IOException e) {
+         LOG.error("Unable to save properties to new organization", e);
+      }
    }
 
    private void copyRootPermittedIdentities(Organization fromOrganization, String newOrgName, String newOrgID,
