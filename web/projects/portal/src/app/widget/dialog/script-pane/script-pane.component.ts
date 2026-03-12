@@ -211,6 +211,10 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
       this.helpService.getScriptHelpUrl().subscribe((url) => this.helpURL = url);
       this.scriptSettingsService.isCursorTop().subscribe((val) => {
          this.cursorTop = val;
+
+         if(val && this.codemirrorInstance) {
+            this.codemirrorInstance.setCursor({line: 0, ch: 0});
+         }
          this.cursorTopLoaded = true;
          this.applyCursorPosition();
       });
