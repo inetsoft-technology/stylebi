@@ -78,7 +78,8 @@ public class ServerMonitoringController {
                                      SchedulerMonitoringService schedulerMonitoringService,
                                      ServerClusterClient client,
                                      UsageHistoryService usageHistoryService,
-                                     ClusterCacheUsageService clusterCacheUsageService)
+                                     ClusterCacheUsageService clusterCacheUsageService,
+                                     Cluster cluster)
    {
       this.serverService = serverService;
       this.monitoringDataService = monitoringDataService;
@@ -89,6 +90,7 @@ public class ServerMonitoringController {
       this.client = client;
       this.usageHistoryService = usageHistoryService;
       this.clusterCacheUsageService = clusterCacheUsageService;
+      this.cluster = cluster;
       this.externalStorageService = ExternalStorageService.getInstance();
       this.scheduleCluster = "server_cluster".equals(SreeEnv.getProperty("server.type")) ||
          ScheduleClient.getScheduleClient().isCluster();
@@ -213,7 +215,6 @@ public class ServerMonitoringController {
    }
 
    private boolean writeSchedulerThreadDump(String clusterNode, HttpServletResponse response) {
-      final Cluster cluster = Cluster.getInstance();
 
       for(String node : cluster.getClusterNodes()) {
          boolean isScheduleNode = Boolean.TRUE.equals(cluster.getClusterNodeProperty(node, "scheduler"));
@@ -239,7 +240,7 @@ public class ServerMonitoringController {
    public void getThreadDump(@RequestParam(value = "clusterNode", required = false) String clusterNode,
                              HttpServletResponse response) throws Exception
    {
-      String node = clusterNode == null ? Cluster.getInstance().getLocalMember() :
+      String node = clusterNode == null ? cluster.getLocalMember() :
          SUtil.computeServerClusterNode(clusterNode);
 
       // try the scheduler if there is no such server
@@ -295,7 +296,6 @@ public class ServerMonitoringController {
    private boolean writeSchedulerHeapDump(String clusterNode)
       throws Exception
    {
-      final Cluster cluster = Cluster.getInstance();
 
       for(String node : cluster.getClusterNodes()) {
          boolean isScheduleNode = Boolean.TRUE.equals(cluster.getClusterNodeProperty(node, "scheduler"));
@@ -313,7 +313,7 @@ public class ServerMonitoringController {
    @DeniedMultiTenancyOrgUser
    @PostMapping("/api/em/monitoring/server/get-heap-dump")
    public void getHeapDump(@RequestBody HeapDumpRequest request) {
-      String node = request.clusterNode() == null ? Cluster.getInstance().getLocalMember() :
+      String node = request.clusterNode() == null ? cluster.getLocalMember() :
          SUtil.computeServerClusterNode(request.clusterNode());
 
       ThreadPool.addOnDemand(new Runnable() {
@@ -498,7 +498,7 @@ public class ServerMonitoringController {
             return clusterNode;
          }
 
-         String node = Cluster.getInstance().getLocalMember();
+         String node = cluster.getLocalMember();
          int index = node.indexOf(':');
 
          if(index >= 0) {
@@ -620,7 +620,7 @@ public class ServerMonitoringController {
       counter = 0;
 
       if(!clusterEnabled || clusterNodes.isEmpty()) {
-         clusterNodes = Collections.singleton(Cluster.getInstance().getLocalMember());
+         clusterNodes = Collections.singleton(cluster.getLocalMember());
       }
 
       for(String node: clusterNodes) {
@@ -990,7 +990,7 @@ public class ServerMonitoringController {
    {
       Object[][] grid = new Object[history.size() + 1][];
       grid[0] = new Object[] {
-         "Time", node == null ? Cluster.getInstance().getLocalMember() : node
+         "Time", node == null ? cluster.getLocalMember() : node
       };
 
       for(int i = 0; i < history.size(); i++) {
@@ -1206,6 +1206,7 @@ public class ServerMonitoringController {
    private final UsageHistoryService usageHistoryService;
    private final ClusterCacheUsageService clusterCacheUsageService;
    private final ExternalStorageService externalStorageService;
+   private final Cluster cluster;
    private final boolean scheduleCluster;
    private static final String[] COLOR_PALETTE = {
       "#5a9bd4", "#f15a60", "#7ac36a",

@@ -24,6 +24,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -39,6 +40,11 @@ import java.util.concurrent.locks.ReentrantLock;
 @Service
 @Lazy(false)
 public class NodeProtectionService implements MembershipListener, MapChangeListener<String, Boolean> {
+   @Autowired
+   public NodeProtectionService(Cluster cluster) {
+      this.cluster = cluster;
+   }
+
    /**
     * Initializes the service by choosing which NodeProtector implementation to use depending on the config
     */
@@ -55,7 +61,6 @@ public class NodeProtectionService implements MembershipListener, MapChangeListe
          }
 
          ClusterConfig clusterConfig = InetsoftConfig.getInstance().getCluster();
-         cluster = Cluster.getInstance();
 
          if(clusterConfig != null && !clusterConfig.isClientMode()) {
             cluster.addReplicatedMapListener(NODE_PROTECTION_MAP, this);
@@ -218,7 +223,7 @@ public class NodeProtectionService implements MembershipListener, MapChangeListe
       // no-op
    }
 
-   private Cluster cluster = null;
+   private final Cluster cluster;
    private Duration minUptime = null;
    private NodeProtector nodeProtector;
    private boolean sessionProtected = false;

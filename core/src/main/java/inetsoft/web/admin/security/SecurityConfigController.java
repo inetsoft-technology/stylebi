@@ -41,9 +41,15 @@ import java.util.*;
 
 @RestController
 public class SecurityConfigController {
-   public SecurityConfigController(SecurityEngine securityEngine, ActionPermissionService actionPermissionService) {
+   public SecurityConfigController(SecurityEngine securityEngine,
+                                    ActionPermissionService actionPermissionService,
+                                    LicenseManager licenseManager,
+                                    DataSourceRegistry dataSourceRegistry)
+   {
       this.securityEngine = securityEngine;
       this.actionPermissionService = actionPermissionService;
+      this.licenseManager = licenseManager;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    @Audited(
@@ -90,7 +96,7 @@ public class SecurityConfigController {
       if(event.enable()) {
          SUtil.setMultiTenant(true);
 
-         if(LicenseManager.getInstance().hasNamedUserKeys()) {
+         if(licenseManager.hasNamedUserKeys()) {
             warning = Catalog.getCatalog().getString("em.security.namedUserKeyError");
          }
       }
@@ -114,7 +120,7 @@ public class SecurityConfigController {
    }
 
    private boolean hasAddedOrganizations() {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
 
       for(String orgID : provider.getOrganizationIDs()) {
          if(!orgID.equals(Organization.getDefaultOrganizationID()) &&
@@ -127,7 +133,7 @@ public class SecurityConfigController {
    }
 
    private boolean selfOrganizationHasUsers() {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
 
       return Arrays.stream(provider.getUsers())
          .anyMatch(u -> Tool.equals(u.orgID, Organization.getSelfOrganizationID()));
@@ -181,7 +187,7 @@ public class SecurityConfigController {
       }
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
 
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
 
       return CurrentUserModel.builder()
          .anonymous(principal == null || principal.getName().equals(XPrincipal.ANONYMOUS))
@@ -231,7 +237,7 @@ public class SecurityConfigController {
    @GetMapping("/api/em/security/get-api-key")
    public String getOpenSourceLicenseKey()
    {
-      if(!LicenseManager.getInstance().isEnterprise()) {
+      if(!licenseManager.isEnterprise()) {
          return SreeEnv.getProperty("license.key");
       }
       return null;
@@ -240,7 +246,7 @@ public class SecurityConfigController {
    @PostMapping("/api/em/security/set-api-key")
    public void setOpenSourceLicenseKey(@RequestBody(required = false) String key)
    {
-      if(!LicenseManager.getInstance().isEnterprise()) {
+      if(!licenseManager.isEnterprise()) {
          SreeEnv.setProperty("license.key", key);
       }
    }
@@ -271,7 +277,7 @@ public class SecurityConfigController {
 
    private String getDataSourceResourceName(String resourcePath) {
       if(resourcePath.contains("/")) {
-         for(String ds : DataSourceRegistry.getRegistry().getDataSourceFullNames()) {
+         for(String ds : dataSourceRegistry.getDataSourceFullNames()) {
             if(resourcePath.startsWith(ds + "/")) {
                resourcePath = ds + "::" + resourcePath.substring(ds.length() + 1);
                break;
@@ -282,7 +288,9 @@ public class SecurityConfigController {
       return resourcePath;
    }
 
-   private SecurityEngine securityEngine;
-   private ActionPermissionService actionPermissionService;
+   private final SecurityEngine securityEngine;
+   private final ActionPermissionService actionPermissionService;
+   private final LicenseManager licenseManager;
+   private final DataSourceRegistry dataSourceRegistry;
    private final Logger LOG = LoggerFactory.getLogger(SecurityConfigController.class);
 }

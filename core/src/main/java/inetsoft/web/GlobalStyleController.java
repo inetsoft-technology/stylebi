@@ -30,6 +30,7 @@ import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.core.io.Resource;
@@ -50,6 +51,11 @@ import java.util.concurrent.TimeUnit;
 @SuppressWarnings("deprecation")
 @Controller
 public class GlobalStyleController implements ApplicationContextAware {
+   @Autowired
+   public GlobalStyleController(SecurityEngine securityEngine) {
+      this.securityEngine = securityEngine;
+   }
+
    @GetMapping({ "/app/global.css", "/em/theme.css", "/app/assets/**", "/em/assets/**",
                  "/app/theme-variables.css", "/em/theme-variables.css",
                  "/em/theme-dark.css"})
@@ -100,7 +106,7 @@ public class GlobalStyleController implements ApplicationContextAware {
 
       if(SUtil.isMultiTenant()) {
          String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
-         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider provider = securityEngine.getSecurityProvider();
 
          if(currOrgID != null && provider.getOrganization(currOrgID) != null &&
             provider.getOrganization(currOrgID).getTheme() != null)
@@ -187,6 +193,7 @@ public class GlobalStyleController implements ApplicationContextAware {
    }
 
    private ApplicationContext context;
+   private final SecurityEngine securityEngine;
    private final Map<String, LoadingCache<ResourceKey, StyleResource>> resources = new HashMap<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(GlobalStyleController.class);

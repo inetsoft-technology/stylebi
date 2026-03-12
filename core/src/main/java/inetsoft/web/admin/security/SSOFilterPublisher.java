@@ -22,22 +22,26 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.ApplicationEventPublisherAware;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SSOFilterPublisher implements ApplicationEventPublisherAware, MessageListener {
+   @Autowired
+   public SSOFilterPublisher(Cluster cluster) {
+      this.cluster = cluster;
+   }
+
    @PostConstruct
    public void addListener() {
-      cluster = Cluster.getInstance();
       cluster.addMessageListener(this);
    }
 
    @PreDestroy
    public void removeListener() {
       cluster.removeMessageListener(this);
-      cluster = null;
    }
 
    @Override
@@ -68,6 +72,6 @@ public class SSOFilterPublisher implements ApplicationEventPublisherAware, Messa
    }
 
    private ApplicationEventPublisher publisher;
-   private Cluster cluster;
+   private final Cluster cluster;
    private static final Logger LOG = LoggerFactory.getLogger(SSOFilterPublisher.class);
 }
