@@ -45,6 +45,10 @@ import java.util.stream.Stream;
  */
 @Service
 public class FileSystemService {
+   public FileSystemService(Cluster cluster) {
+      this.cluster = cluster;
+   }
+
    public static FileSystemService getInstance() {
       return ConfigurationContext.getContext().getSpringBean(FileSystemService.class);
    }
@@ -581,7 +585,7 @@ public class FileSystemService {
                }
 
 
-               Cluster cluster = Cluster.getInstance();
+               Cluster cluster = this.cluster;
                Lock lock = cluster.getLock(XSwapper.SWAP_FILE_MAP_LOCK);
                lock.lock();
 
@@ -758,6 +762,7 @@ public class FileSystemService {
    private String SREE_CACHE = null;
    private String CACHE = null;
    private LocalizationService localizationService;
+   private final Cluster cluster;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(FileSystemService.class);

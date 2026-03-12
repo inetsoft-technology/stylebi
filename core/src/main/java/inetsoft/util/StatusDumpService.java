@@ -58,7 +58,8 @@ import java.util.zip.ZipOutputStream;
 @Service
 @Lazy
 public class StatusDumpService {
-   public StatusDumpService() {
+   public StatusDumpService(LogManager logManager) {
+      this.logManager = logManager;
       mapper = new ObjectMapper();
       mapper.registerModule(new JavaTimeModule());
    }
@@ -307,7 +308,7 @@ public class StatusDumpService {
    }
 
    private void writeLogs(ZipOutputStream zip) throws IOException {
-      LogManager.getInstance().zipLogs(zip);
+      logManager.zipLogs(zip);
    }
 
    private void writeMetrics(ZipOutputStream zip) {
@@ -381,6 +382,7 @@ public class StatusDumpService {
    }
 
    private ApplicationContext applicationContext;
+   private final LogManager logManager;
    private final ObjectMapper mapper;
    private static final Logger LOG = LoggerFactory.getLogger(StatusDumpService.class);
 

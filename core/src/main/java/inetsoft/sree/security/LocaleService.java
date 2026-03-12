@@ -38,7 +38,8 @@ public class LocaleService {
    /**
     * Creates a new instance of {@code LocaleService}.
     */
-   public LocaleService() {
+   public LocaleService(SecurityEngine securityEngine) {
+      this.securityEngine = securityEngine;
    }
 
    /**
@@ -95,7 +96,7 @@ public class LocaleService {
          locale = localeMap.get(localeName);
       }
       else if(SUtil.MY_LOCALE.equals(localeName)) {
-         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider provider = securityEngine.getSecurityProvider();
          User user = provider.getUser(userId);
 
          if(user != null) {
@@ -159,5 +160,6 @@ public class LocaleService {
    }
 
    private String localeAvailable = null;
+   private final SecurityEngine securityEngine;
    private final Map<String, String> localeMap = new HashMap<>();
 }

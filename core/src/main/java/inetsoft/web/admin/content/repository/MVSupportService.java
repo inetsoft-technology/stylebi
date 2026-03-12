@@ -836,7 +836,7 @@ public class MVSupportService {
        * Update the exist/hasData status.
        */
       public void updateStatus() {
-         MVManager manager = MVManager.getManager();
+         MVManager manager = ConfigurationContext.getContext().getSpringBean(MVManager.class);
          setExists(manager.get(mvDef.getName()) != null);
          setDataPresent(mvDef.hasData());
       }

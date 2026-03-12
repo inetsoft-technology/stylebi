@@ -50,6 +50,10 @@ import java.util.stream.Collectors;
 @Service
 @Lazy
 public class PortalThemesManager implements XMLSerializable, AutoCloseable {
+   public PortalThemesManager(Cluster cluster) {
+      this.cluster = cluster;
+   }
+
    /**
     * Help button.
     */
@@ -515,7 +519,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    public void save() {
       // Ignite reentrant lock is reentrant per thread, so nested calls from the same
       // thread (e.g. changeListener -> loadThemes -> save) acquire safely.
-      Lock lock = Cluster.getInstance().getLock(DISTRIBUTED_LOCK_NAME);
+      Lock lock = cluster.getLock(DISTRIBUTED_LOCK_NAME);
       lock.lock();
 
       try {
@@ -996,7 +1000,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
       // on any pod cannot interleave with reset() + loadThemes() on this pod,
       // and vice versa. The lock's per-thread reentrancy means the nested
       // save() call inside loadThemes() acquires safely.
-      Lock lock = Cluster.getInstance().getLock(DISTRIBUTED_LOCK_NAME);
+      Lock lock = cluster.getLock(DISTRIBUTED_LOCK_NAME);
       lock.lock();
 
       try {
@@ -1053,6 +1057,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    private List<PortalTab> portalTabs = new ArrayList<>();
    private String copyright;
    private final DataChangeListenerManager dmgr = new DataChangeListenerManager();
+   private final Cluster cluster;
 
    private static final Logger LOG = LoggerFactory.getLogger(PortalThemesManager.class);
 

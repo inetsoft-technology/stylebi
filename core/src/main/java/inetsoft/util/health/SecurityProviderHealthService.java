@@ -32,6 +32,10 @@ import java.util.*;
 @Service
 @Lazy
 public class SecurityProviderHealthService {
+   public SecurityProviderHealthService(SecurityEngine securityEngine) {
+      this.securityEngine = securityEngine;
+   }
+
    public static SecurityProviderHealthService getInstance() {
       return ConfigurationContext.getContext().getSpringBean(SecurityProviderHealthService.class);
    }
@@ -41,7 +45,7 @@ public class SecurityProviderHealthService {
       boolean enabled = "true".equals(SreeEnv.getProperty("health.securityProviders.enabled"));
 
       if(enabled) {
-         SecurityEngine engine = SecurityEngine.getSecurity();
+         SecurityEngine engine = securityEngine;
          Optional<AuthenticationChain> chain = engine.getAuthenticationChain();
 
          if(chain.isPresent()) {
@@ -84,5 +88,6 @@ public class SecurityProviderHealthService {
       return status;
    }
 
+   private final SecurityEngine securityEngine;
    private static final Logger LOG = LoggerFactory.getLogger(SecurityProviderHealthService.class);
 }

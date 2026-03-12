@@ -31,6 +31,10 @@ import org.springframework.stereotype.Service;
 @Service
 @Lazy
 public class ClusterHealthService {
+   public ClusterHealthService(Cluster cluster) {
+      this.cluster = cluster;
+   }
+
    public static ClusterHealthService getInstance() {
       return ConfigurationContext.getContext().getSpringBean(ClusterHealthService.class);
    }
@@ -42,8 +46,6 @@ public class ClusterHealthService {
     */
    public ClusterHealthStatus getStatus() {
       try {
-         Cluster cluster = Cluster.getInstance();
-
          if(cluster == null) {
             return new ClusterHealthStatus(false, "Cluster not initialized");
          }
@@ -97,6 +99,7 @@ public class ClusterHealthService {
       }
    }
 
+   private final Cluster cluster;
    private static final String SREE_PROPERTIES_MAP = "inetsoft.storage.kv.sreeProperties";
    private static final Logger LOG = LoggerFactory.getLogger(ClusterHealthService.class);
 }

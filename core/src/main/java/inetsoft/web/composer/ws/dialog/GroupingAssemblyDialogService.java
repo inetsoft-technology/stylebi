@@ -48,10 +48,12 @@ import java.util.*;
 public class GroupingAssemblyDialogService extends WorksheetControllerService {
 
    public GroupingAssemblyDialogService(ViewsheetService viewsheetService,
-                                        DataRefModelFactoryService dataRefModelFactoryService)
+                                        DataRefModelFactoryService dataRefModelFactoryService,
+                                        DataSourceRegistry dataSourceRegistry)
    {
       super(viewsheetService);
       this.dataRefModelFactoryService = dataRefModelFactoryService;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -78,7 +80,7 @@ public class GroupingAssemblyDialogService extends WorksheetControllerService {
             String folder = info.getProperty(SourceInfo.QUERY_FOLDER);
 
             if(info.getType() == SourceInfo.MODEL) {
-               DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+               DataSourceRegistry registry = dataSourceRegistry;
                XDataModel ds = registry.getDataModel(info.getPrefix());
                XLogicalModel lg = ds.getLogicalModel(info.getSource());
                folder = lg == null ? null : lg.getFolder();
@@ -232,4 +234,5 @@ public class GroupingAssemblyDialogService extends WorksheetControllerService {
    }
 
    private DataRefModelFactoryService dataRefModelFactoryService;
+   private final DataSourceRegistry dataSourceRegistry;
 }
