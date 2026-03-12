@@ -57,12 +57,14 @@ import java.util.stream.Collectors;
 @ClusterProxy
 public class SQLQueryDialogService {
    public SQLQueryDialogService(ViewsheetService wsEngine, QueryManagerService queryManagerService,
-                                QueryGraphModelService queryGraphService, XRepository xrepository)
+                                QueryGraphModelService queryGraphService, XRepository xrepository,
+                                SecurityEngine securityEngine)
    {
       this.wsEngine = wsEngine;
       this.queryManagerService = queryManagerService;
       this.queryGraphService = queryGraphService;
       this.xrepository = xrepository;
+      this.securityEngine = securityEngine;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -70,7 +72,7 @@ public class SQLQueryDialogService {
                                        String dataSource, Principal principal)
       throws Exception
    {
-      boolean sqlEnabled = SecurityEngine.getSecurity().checkPermission(
+      boolean sqlEnabled = securityEngine.checkPermission(
          principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS);
 
       if(!sqlEnabled) {
@@ -566,4 +568,5 @@ public class SQLQueryDialogService {
    private final QueryManagerService queryManagerService;
    private final QueryGraphModelService queryGraphService;
    private final XRepository xrepository;
+   private final SecurityEngine securityEngine;
 }

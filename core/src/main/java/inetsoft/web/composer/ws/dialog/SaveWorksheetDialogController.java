@@ -38,9 +38,11 @@ import java.security.Principal;
 @Controller
 public class SaveWorksheetDialogController extends WorksheetController {
 
-   public SaveWorksheetDialogController(SaveWorksheetDialogServiceProxy dialogServiceProxy)
+   public SaveWorksheetDialogController(SaveWorksheetDialogServiceProxy dialogServiceProxy,
+                                        SecurityEngine securityEngine)
    {
       this.dialogServiceProxy = dialogServiceProxy;
+      this.securityEngine = securityEngine;
    }
 
    @GetMapping("api/composer/ws/dialog/save-worksheet-dialog-model/{runtimeId}")
@@ -79,8 +81,8 @@ public class SaveWorksheetDialogController extends WorksheetController {
       @Payload SaveWorksheetDialogModel model, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.WORKSHEET,
-                                                       "*", ResourceAction.ACCESS))
+      if(!securityEngine.checkPermission(principal, ResourceType.WORKSHEET,
+                                         "*", ResourceAction.ACCESS))
       {
          throw new SecurityException(Catalog.getCatalog().getString(
             "composer.authorization.permissionDenied"));
@@ -95,8 +97,8 @@ public class SaveWorksheetDialogController extends WorksheetController {
       @Payload SaveWorksheetDialogModel model, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.WORKSHEET,
-                                                       "*", ResourceAction.ACCESS))
+      if(!securityEngine.checkPermission(principal, ResourceType.WORKSHEET,
+                                         "*", ResourceAction.ACCESS))
       {
          throw new SecurityException(Catalog.getCatalog().getString(
             "composer.authorization.permissionDenied"));
@@ -107,4 +109,5 @@ public class SaveWorksheetDialogController extends WorksheetController {
    }
 
    private SaveWorksheetDialogServiceProxy dialogServiceProxy;
+   private final SecurityEngine securityEngine;
 }
