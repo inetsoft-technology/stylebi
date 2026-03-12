@@ -46,9 +46,11 @@ public class ModifyCalculateFieldController {
    @Autowired
    public ModifyCalculateFieldController(
       RuntimeViewsheetRef runtimeViewsheetRef,
+      SecurityEngine securityEngine,
       ModifyCalculateFieldServiceProxy modifyCalculateFieldService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.securityEngine = securityEngine;
       this.modifyCalculateFieldService = modifyCalculateFieldService;
    }
 
@@ -59,7 +61,7 @@ public class ModifyCalculateFieldController {
       Principal principal, CommandDispatcher dispatcher, @LinkUri String linkUri)
       throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(
+      if(!securityEngine.checkPermission(
          principal, ResourceType.VIEWSHEET_CALCULATED_FIELD, "*", ResourceAction.ACCESS))
       {
          throw new SecurityException("You do not have permission to modify calculated fields.");
@@ -107,5 +109,6 @@ public class ModifyCalculateFieldController {
 
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final SecurityEngine securityEngine;
    private final ModifyCalculateFieldServiceProxy modifyCalculateFieldService;
 }

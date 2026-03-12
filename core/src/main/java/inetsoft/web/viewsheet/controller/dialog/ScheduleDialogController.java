@@ -46,10 +46,12 @@ public class ScheduleDialogController {
    @Autowired
    public ScheduleDialogController(RuntimeViewsheetRef runtimeViewsheetRef,
                                    SecurityProvider securityProvider,
+                                   SecurityEngine securityEngine,
                                    ScheduleDialogServiceProxy scheduleDialogServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.securityProvider = securityProvider;
+      this.securityEngine = securityEngine;
       this.scheduleDialogServiceProxy = scheduleDialogServiceProxy;
    }
 
@@ -65,7 +67,7 @@ public class ScheduleDialogController {
       throws Exception
    {
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-      boolean bookmarkEnabled = SecurityEngine.getSecurity().checkPermission(
+      boolean bookmarkEnabled = securityEngine.checkPermission(
          principal, ResourceType.VIEWSHEET_ACTION, "Bookmark", ResourceAction.READ) &&
          !"anonymous".equals(pId.name);
 
@@ -166,5 +168,6 @@ public class ScheduleDialogController {
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final SecurityProvider securityProvider;
+   private final SecurityEngine securityEngine;
    private final ScheduleDialogServiceProxy scheduleDialogServiceProxy;
 }

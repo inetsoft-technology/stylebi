@@ -67,11 +67,13 @@ public class ScheduleDialogService {
 
    public ScheduleDialogService(ViewsheetService viewsheetService,
                                 SecurityProvider securityProvider,
+                                SecurityEngine securityEngine,
                                 ScheduleService scheduleService,
                                 VSBookmarkService vsBookmarkService)
    {
       this.viewsheetService = viewsheetService;
       this.securityProvider = securityProvider;
+      this.securityEngine = securityEngine;
       this.scheduleService = scheduleService;
       this.vsBookmarkService = vsBookmarkService;
    }
@@ -250,7 +252,7 @@ public class ScheduleDialogService {
             SreeEnv.getBooleanProperty("schedule.options.emailDelivery", "true", "CHECKED") &&
                scheduleService.checkPermission(principal,
                                                ResourceType.SCHEDULE_OPTION, "emailDelivery"))
-         .expandEnabled(SecurityEngine.getSecurity().checkPermission(
+         .expandEnabled(securityEngine.checkPermission(
             principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ScheduleExpandComponents",
             ResourceAction.READ))
          .timeRanges(ranges)
@@ -287,9 +289,9 @@ public class ScheduleDialogService {
    public Void scheduleVS(@ClusterProxyKey String id, ScheduleDialogModel value,
                           Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(
+      if(!securityEngine.checkPermission(
          principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Schedule", ResourceAction.READ) ||
-         !SecurityEngine.getSecurity().checkPermission(
+         !securityEngine.checkPermission(
             principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS))
       {
          Catalog catalog = Catalog.getCatalog();
@@ -313,7 +315,7 @@ public class ScheduleDialogService {
       TimeConditionModel timeConditionModel = simpleScheduleDialogModel.timeConditionModel();
       String taskName = Optional.ofNullable(simpleScheduleDialogModel.taskName()).orElse("");
 
-      if(emailInfoModel != null && !emailInfoModel.matchLayout() && !SecurityEngine.getSecurity().checkPermission(
+      if(emailInfoModel != null && !emailInfoModel.matchLayout() && !securityEngine.checkPermission(
          principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ScheduleExpandComponents", ResourceAction.READ))
       {
          Catalog catalog = Catalog.getCatalog(principal);
@@ -326,7 +328,7 @@ public class ScheduleDialogService {
 
       if(emailInfoModel != null && (!emailInfoModel.matchLayout() ||
          emailInfoModel.expandSelections() || emailInfoModel.onlyDataComponents())
-         && !SecurityEngine.getSecurity().checkPermission(
+         && !securityEngine.checkPermission(
          principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ScheduleExpandComponents",
          ResourceAction.READ))
       {
@@ -494,7 +496,7 @@ public class ScheduleDialogService {
     */
    private boolean isSecurityEnabled() {
       try {
-         return !SecurityEngine.getSecurity().getSecurityProvider().isVirtual();
+         return !securityEngine.getSecurityProvider().isVirtual();
       }
       catch(Exception ex) {
          LOG.warn("Failed to determine if security is enabled",
@@ -547,6 +549,7 @@ public class ScheduleDialogService {
 
    private final ViewsheetService viewsheetService;
    private final SecurityProvider securityProvider;
+   private final SecurityEngine securityEngine;
    private final ScheduleService scheduleService;
    private VSBookmarkService vsBookmarkService;
    private static final Logger LOG =

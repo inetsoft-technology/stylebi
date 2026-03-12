@@ -40,7 +40,8 @@ import java.util.List;
 
 @Service
 public class VSDialogService {
-   public VSDialogService() {
+   public VSDialogService(SecurityEngine securityEngine) {
+      this.securityEngine = securityEngine;
    }
 
    public Point getAssemblyPosition(VSAssemblyInfo info, Viewsheet viewsheet) {
@@ -164,7 +165,6 @@ public class VSDialogService {
    public TreeNodeModel getStyleTree(RuntimeViewsheet rvs, Principal principal, boolean freehand) {
       Viewsheet viewsheet = rvs.getViewsheet();
       Catalog catalog = Catalog.getCatalog();
-      SecurityEngine securityEngine = SecurityEngine.getSecurity();
       LibManager mgr = LibManager.getManager(principal);
 
       if(viewsheet == null) {
@@ -185,7 +185,6 @@ public class VSDialogService {
 
    public TreeNodeModel getStyleTree(Principal principal) throws Exception {
       Catalog catalog = Catalog.getCatalog();
-      SecurityEngine securityEngine = SecurityEngine.getSecurity();
       LibManager mgr = LibManager.getManager(principal);
 
       TreeNodeModel root = TreeNodeModel.builder()
@@ -315,6 +314,7 @@ public class VSDialogService {
    }
 
 
+   private final SecurityEngine securityEngine;
    private static final Logger LOG =
       LoggerFactory.getLogger(VSDialogService.class);
 }
