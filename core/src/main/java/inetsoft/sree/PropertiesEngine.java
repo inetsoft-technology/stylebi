@@ -51,6 +51,14 @@ import java.util.function.Supplier;
 @Service
 @Lazy
 public class PropertiesEngine {
+   public PropertiesEngine(SecurityEngine securityEngine, LicenseManager licenseManager,
+                           LogManager logManager)
+   {
+      this.securityEngine = securityEngine;
+      this.licenseManager = licenseManager;
+      this.logManager = logManager;
+   }
+
    /**
     * Gets the singleton instance of {@code PropertiesEngine}.
     *
@@ -297,11 +305,11 @@ public class PropertiesEngine {
       String property;
 
       if(context == LogContext.CATEGORY) {
-         LogManager.getInstance().setLevel(name, level);
+         logManager.setLevel(name, level);
          property = "log.level." + name;
       }
       else {
-         LogManager.getInstance().setContextLevel(context, name, level);
+         logManager.setContextLevel(context, name, level);
          property = "log." + context.name() + ".level." + name;
       }
 
@@ -609,7 +617,7 @@ public class PropertiesEngine {
          // @by stephenwebster, For Bug #29148
          // Whenever SreeEnv is cleared, we must reset the log manager prior to a re-initialization
          // of SreeEnv.
-         LogManager.getInstance().close();
+         logManager.close();
          ConfigurationContext.getContext().remove(PROPERTIES_KEY);
          ConfigurationContext.getContext().remove(DEFAULTS_PROPERTIES_KEY);
          ConfigurationContext.getContext().remove(EARLY_LOADED_PROPERTIES_KEY);
@@ -678,14 +686,13 @@ public class PropertiesEngine {
     * Initializes logging.
     */
    private void initLogging() {
-      LogManager logManager = LogManager.getInstance();
       logManager.setLevel("inetsoft.scheduler_test", LogLevel.OFF);
       logManager.setLevel("inetsoft.mv_debug", LogLevel.OFF);
       logManager.setLevel("inetsoft.swap_data", LogLevel.OFF);
       logManager.setLevel(SUtil.MAC_LOG_NAME, LogLevel.OFF);
       logManager.setLevel(LogUtil.PERFORMANCE_LOGGER_NAME, LogLevel.OFF);
 
-      if(LicenseManager.getInstance().isEnterprise()) {
+      if(licenseManager.isEnterprise()) {
          logManager.setLevel("inetsoft.storage.aws.com.amazonaws", LogLevel.WARN);
          logManager.setLevel("inetsoft.storage.aws.org.apache", LogLevel.WARN);
       }
@@ -724,8 +731,6 @@ public class PropertiesEngine {
    }
 
    private void applyLogProperty(String prop, String val) {
-      LogManager logManager = LogManager.getInstance();
-
       if("log.detail.level".equals(prop)) {
          logManager.setLevel(logManager.parseLevel(val));
       }
@@ -750,7 +755,7 @@ public class PropertiesEngine {
             LogContext context = LogContext.valueOf(
                prop.substring(4, prop.indexOf('.', 4)));
             String contextName = prop.substring(prop.indexOf('.', 4) + 7);
-            LogLevel level = LogManager.getInstance().parseLevel(val);
+            LogLevel level = logManager.parseLevel(val);
             logManager.setContextLevel(context, contextName, level);
          }
          catch(IllegalArgumentException exc) {
@@ -785,8 +790,8 @@ public class PropertiesEngine {
       int maxCount = Integer.parseInt(Objects.toString(getProperty("report.log.count"), "10"));
       boolean performance = performanceLevel != null &&
          !LogLevel.OFF.level().equalsIgnoreCase(performanceLevel) &&
-         LogManager.getInstance().parseLevel(prop) != null;
-      LogManager.getInstance().initialize(
+         logManager.parseLevel(prop) != null;
+      logManager.initialize(
          logFile, discriminator, console, maxSize, maxCount, performance);
    }
 
@@ -1133,9 +1138,7 @@ public class PropertiesEngine {
          // reinitialize security provider if changed
          if(!Tool.equals(instance.getProperty("security.provider"), security)) {
             try {
-               SecurityEngine engine = SecurityEngine.getSecurity();
-
-               if(engine != null) {
+               if(securityEngine != null) {
                   SecurityEngine.clear();
                }
             }
@@ -1145,12 +1148,15 @@ public class PropertiesEngine {
          }
 
          // reload licenses
-         LicenseManager.getInstance().reload();
+         licenseManager.reload();
       }
 
       private final List<PropertyChange> changes;
    }
 
+   private final SecurityEngine securityEngine;
+   private final LicenseManager licenseManager;
+   private final LogManager logManager;
    private final Set<String> changedProps = new TreeSet<>();
    private final PropertyChangeSupport support = new PropertyChangeSupport(PropertiesEngine.class);
    private static final String EARLY_LOADED_PROPERTIES_KEY = PropertiesEngine.class.getName() + "_early_loaded_properties";

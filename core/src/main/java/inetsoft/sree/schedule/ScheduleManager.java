@@ -130,11 +130,13 @@ public class ScheduleManager {
    }
 
    /**
-    * Spring-injected constructor — enforces SecurityEngine startup ordering.
+    * Spring-injected constructor — enforces SecurityEngine and Cluster startup ordering.
     */
    @Autowired
-   public ScheduleManager(SecurityEngine securityEngine) {
+   public ScheduleManager(SecurityEngine securityEngine, Cluster cluster) {
       this();
+      this.securityEngine = securityEngine;
+      this.cluster = cluster;
    }
 
    /**
@@ -196,7 +198,7 @@ public class ScheduleManager {
 
       try {
          XPrincipal siteAdminPrincipal = getSiteAdminPrincipal();
-         String[] organizations = SecurityEngine.getSecurity().getOrganizations();
+         String[] organizations = getSecurityEngine().getOrganizations();
          Principal oldContextPrincipal = ThreadContext.getContextPrincipal();
 
          try {
@@ -233,7 +235,7 @@ public class ScheduleManager {
    }
 
    private XPrincipal getSiteAdminPrincipal() {
-      IdentityID[] users = SecurityEngine.getSecurity().getUsers();
+      IdentityID[] users = getSecurityEngine().getUsers();
 
       for(IdentityID user : users) {
          if(OrganizationManager.getInstance().isSiteAdmin(user)) {
@@ -289,7 +291,7 @@ public class ScheduleManager {
                      ScheduleTaskMessage.Action.ADDED : ScheduleTaskMessage.Action.MODIFIED);
 
                   try {
-                     Cluster.getInstance().sendMessage(message);
+                     getCluster().sendMessage(message);
                   }
                   catch(Exception e) {
                      LOG.debug("Failed to send task message", e);
@@ -408,7 +410,7 @@ public class ScheduleManager {
       message.setTaskName(task.getTaskId());
       message.setTask(task);
       message.setAction(action);
-      Cluster.getInstance().sendMessage(message);
+      getCluster().sendMessage(message);
       return false;
    }
 
@@ -743,7 +745,7 @@ public class ScheduleManager {
       message.setTaskName(taskId);
       message.setTask(task);
       message.setAction(action);
-      Cluster.getInstance().sendMessage(message);
+      getCluster().sendMessage(message);
 
       IdentityID owner = task.getOwner();
 
@@ -821,7 +823,7 @@ public class ScheduleManager {
 
          boolean isSiteAdminInOtherOrg = isSiteAdminOtherOrg(task.getOwner());
 
-         boolean adminPermission = SecurityEngine.getSecurity().checkPermission(
+         boolean adminPermission = getSecurityEngine().checkPermission(
             principal, ResourceType.SECURITY_USER, task.getOwner(), ResourceAction.ADMIN);
 
          if(!isSiteAdminInOtherOrg && !engine.checkPermission(
@@ -865,7 +867,7 @@ public class ScheduleManager {
          // owner key prefix), allowing the message to reach the correct org's subscribers.
          message.setTask(task);
          message.setAction(ScheduleTaskMessage.Action.REMOVED);
-         Cluster.getInstance().sendMessage(message);
+         getCluster().sendMessage(message);
       }
 
       try {
@@ -882,10 +884,10 @@ public class ScheduleManager {
 
    //return true if user does not actually exist and a site admin of the same name exists
    private boolean isSiteAdminOtherOrg(IdentityID principalID) {
-      if(SecurityEngine.getSecurity().isSecurityEnabled() &&
-         SecurityEngine.getSecurity().getSecurityProvider().getUser(principalID) == null)
+      if(getSecurityEngine().isSecurityEnabled() &&
+         getSecurityEngine().getSecurityProvider().getUser(principalID) == null)
       {
-         for(IdentityID user : SecurityEngine.getSecurity().getUsers()) {
+         for(IdentityID user : getSecurityEngine().getUsers()) {
             if(Tool.equals(principalID.name,user.name) && OrganizationManager.getInstance().isSiteAdmin(user)) {
                return true;
             }
@@ -902,7 +904,7 @@ public class ScheduleManager {
          return null;
       }
 
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = getSecurityEngine().getSecurityProvider();
 
       IdentityID taskUser = IdentityID.getIdentityIDFromKey(taskId.substring(0,index));
 
@@ -1154,7 +1156,7 @@ public class ScheduleManager {
       int type = identity.getType();
       String name = identity.getName();
       IdentityID id = identity.getIdentityID();
-      SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider securityProvider = getSecurityEngine().getSecurityProvider();
       String orgID = identity instanceof FSOrganization ? oname.orgID :
                identity.getOrganizationID() == null ? null : identity.getOrganizationID();
 
@@ -1241,7 +1243,7 @@ public class ScheduleManager {
             ScheduleTaskMessage removeMessage = new ScheduleTaskMessage();
             removeMessage.setTaskName(oldTaskId);
             removeMessage.setAction(ScheduleTaskMessage.Action.REMOVED);
-            Cluster.getInstance().sendMessage(removeMessage);
+            getCluster().sendMessage(removeMessage);
          }
          catch(Exception e) {
             LOG.error("Failed to send task removed message after user rename: {}", oldTaskId, e);
@@ -1746,6 +1748,16 @@ public class ScheduleManager {
       return getScheduleTask(InternalScheduledTaskService.BALANCE_TASKS, Organization.getDefaultOrganizationID());
    }
 
+   private SecurityEngine getSecurityEngine() {
+      return securityEngine != null ? securityEngine : SecurityEngine.getSecurity();
+   }
+
+   private Cluster getCluster() {
+      return cluster != null ? cluster : Cluster.getInstance();
+   }
+
+   private SecurityEngine securityEngine;
+   private Cluster cluster;
    private final Map<String, ScheduleTaskMap> taskMap = new HashMap<>();
    private final Vector<ScheduleExt> extensions = new Vector<>();
    private final Map<ExtTaskKey, ScheduleTask> extensionTasks = new ConcurrentHashMap<>();

@@ -55,7 +55,10 @@ public final class LogManager implements AutoCloseable, MessageListener {
    /**
     * Creates a new instance of <tt>LogManager</tt>.
     */
-   public LogManager() {
+   public LogManager(SecurityEngine securityEngine, Cluster cluster) {
+      this.securityEngine = securityEngine;
+      this.cluster = cluster;
+
       for(LogContext context : LogContext.values()) {
          contextLevels.put(context, new ConcurrentHashMap<>());
       }
@@ -74,14 +77,14 @@ public final class LogManager implements AutoCloseable, MessageListener {
    {
       useInitializer(i -> i.initialize(
          logFile, logFileDiscriminator, console, maxFileSize, maxFileCount, performance));
-      Cluster.getInstance().addMessageListener(this);
+      cluster.addMessageListener(this);
    }
 
    @PreDestroy
    @Override
    public void close()  {
       useInitializer(LogInitializer::reset);
-      Cluster.getInstance().removeMessageListener(this);
+      cluster.removeMessageListener(this);
    }
 
    private static void useInitializer(Consumer<LogInitializer> fn) {
@@ -209,7 +212,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
     */
    public List<LogLevelSetting> getContextLevels() {
       List<LogLevelSetting> result = new ArrayList<>();
-      final SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      final SecurityProvider provider = securityEngine.getSecurityProvider();
 
       for(Map.Entry<LogContext, Map<String, LogLevel>> entry : contextLevels.entrySet()) {
          entry.getValue().entrySet().stream()
@@ -511,13 +514,13 @@ public final class LogManager implements AutoCloseable, MessageListener {
     * Output logs to zip output stream. Outputs all logs.
     */
    public void zipLogs(ZipOutputStream output, String server) throws Exception {
-      String localMember = Cluster.getInstance().getLocalMember();
+      String localMember = cluster.getLocalMember();
 
       if(Tool.equals(localMember, server) || Tool.isEmptyString(server)) {
          zipLogs(output);
       }
       else {
-         GetLogFilesResponse response = Cluster.getInstance().exchangeMessages(
+         GetLogFilesResponse response = cluster.exchangeMessages(
             server, new GetLogFilesRequest(), GetLogFilesResponse.class);
 
          response.getLogFiles().forEach(p -> addEntry(output, p));
@@ -530,7 +533,6 @@ public final class LogManager implements AutoCloseable, MessageListener {
          zip.putNextEntry(entry);
          int offset = 0;
          int length = 500;
-         Cluster cluster = Cluster.getInstance();
 
          try {
             GetLogRequest request = new GetLogRequest(file.getLogFile(), offset, length);
@@ -744,7 +746,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
          try {
             RotateLogCompleteMessage message = new RotateLogCompleteMessage();
             message.setId(((RotateLogMessage) event.getMessage()).getId());
-            Cluster.getInstance().sendMessage(event.getSender(), message);
+            cluster.sendMessage(event.getSender(), message);
          }
          catch(Exception e) {
             LOG.warn("Failed to send rotate log complete message", e);
@@ -764,7 +766,6 @@ public final class LogManager implements AutoCloseable, MessageListener {
 
       boolean scheduler =
          logFileProvider.isRotateSupported(getBaseLogFile(true), fileName);
-      Cluster cluster = Cluster.getInstance();
       List<String> selectedNodes = cluster.getClusterNodes().stream()
          .filter((node) -> (!scheduler && !Boolean.TRUE.equals(cluster.getClusterNodeProperty(node, "scheduler")))
             || (scheduler && Boolean.TRUE.equals(cluster.getClusterNodeProperty(node, "scheduler"))))
@@ -862,6 +863,8 @@ public final class LogManager implements AutoCloseable, MessageListener {
       this.logFileProvider = provider;
    }
 
+   private final SecurityEngine securityEngine;
+   private final Cluster cluster;
    private LogFileProvider logFileProvider;
    private final Map<LogContext, Map<String, LogLevel>> contextLevels = new ConcurrentHashMap<>();
    private final Map<LogMessageListener, Boolean> messageListeners = new ConcurrentHashMap<>();
