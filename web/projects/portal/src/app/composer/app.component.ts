@@ -72,6 +72,8 @@ export class ComposerAppComponent implements OnInit, OnDestroy {
    ngOnInit() {
       if(document.body.className.indexOf("app-loaded") == -1) {
          document.body.className += " app-loaded";
+         const splash = document.querySelector<HTMLElement>(".loading-splash");
+         splash?.addEventListener("transitionend", () => splash.style.display = "none", { once: true });
       }
 
       this.dragService.initListeners(document);

@@ -30,8 +30,8 @@
   <meta name="format-detection" content="telephone=no,email=no,address=no">
   <link rel="icon" type="image/x-icon" href="/sree/portal/favicon" data-th-href="${linkUri + 'portal/favicon'}">
   <link rel="stylesheet" type="text/css" href="global.css">
-  <link th:if="${customTheme} == true" rel="stylesheet" type="text/css" href="theme-variables.css">
-  <link th:if="${not #strings.isEmpty(customCss)}" rel="stylesheet" type="text/css" th:href="${customCss}">
+  <link data-th-if="${customTheme} == true" rel="stylesheet" type="text/css" href="theme-variables.css">
+  <link data-th-if="${not #strings.isEmpty(customCss)}" rel="stylesheet" type="text/css" data-th-href="${customCss}">
   <link rel="stylesheet" type="text/css" href="../codemirror-eclipse.css" data-th-href="${scriptThemeCssPath}">
   <link rel="stylesheet" type="text/css" href="/sree/portal/font.css" data-th-href="${linkUri + 'portal/font.css'}">
   <link data-th-each="style : ${additionalStyles}" rel="stylesheet" type="text/css" data-th-href="${style}">
@@ -42,10 +42,10 @@
 </head>
 <body oncontextmenu="return false">
   <div class="loading-splash is-loading">
-    <img th:if="${not #strings.isEmpty(customLoadingLogo)}"
+    <img data-th-if="${not #strings.isEmpty(customLoadingLogo)}"
          class="loading-splash__logo"
-         th:src="${customLoadingLogo}" src="" alt=""/>
-    <div th:unless="${not #strings.isEmpty(customLoadingLogo)}"
+         data-th-src="${customLoadingLogo}" alt=""/>
+    <div data-th-if="${#strings.isEmpty(customLoadingLogo)}"
          class="loading-splash__indicator" role="progressbar" aria-label="Loading">
       <svg class="loading-splash__logo-svg" viewBox="0 0 217.797 96.879" xmlns="http://www.w3.org/2000/svg">
         <path class="ls-el ls-wave ls-wave--3" d="M169.03,68.018c-2.276-4.178-25.649,12.536-51.972,12.149C94.109,79.829,83.31,52.83,60.699,52.83C38.762,53.168-2.073,76.117,0.627,80.504c2.7,4.388,18.586-9.928,52.31-10.461c24.317-0.385,30.039,25.816,59.06,26.322C132.244,96.719,172.877,75.072,169.03,68.018z"/>
@@ -56,8 +56,8 @@
         <polygon class="ls-el" points="162.618,31.907 126.508,38.319 126.508,80.167 155.929,80.167 162.618,76.305"/>
       </svg>
     </div>
-    <span th:if="${#strings.isEmpty(customLoadingLogo)}" data-th-text="#{app.loading}">Loading...</span>
-    <span th:if="${not #strings.isEmpty(customLoadingText)}" data-th-text="${customLoadingText}"></span>
+    <span data-th-if="${#strings.isEmpty(customLoadingLogo)}" data-th-text="#{app.loading}">Loading...</span>
+    <span data-th-if="${not #strings.isEmpty(customLoadingText)}" data-th-text="${customLoadingText}"></span>
   </div>
   <app-root></app-root>
 </body>

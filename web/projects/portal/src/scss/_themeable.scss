@@ -1007,7 +1007,7 @@ binding-editor {
 .loading-splash {
   position: fixed;
   inset: 0;
-  background: #fff;
+  background: var(--inet-splash-bg, #fff);
   display: none;
   flex-direction: column;
   align-items: center;
@@ -1049,6 +1049,7 @@ binding-editor {
   .ls-wave--2 { animation: loading-splash-wave 1.75s ease-in-out infinite; animation-delay: 0.18s; }
   .ls-wave--3 { animation: loading-splash-wave 1.75s ease-in-out infinite; animation-delay: 0.36s; }
   .ls-accent        { animation: loading-splash-fade 1.75s ease-in-out infinite; animation-delay: 0.5s; }
+  // .ls-accent--wave also matches .ls-accent above; wave wins because it is declared last
   .ls-accent--wave  { animation: loading-splash-wave 1.75s ease-in-out infinite; animation-delay: 0.5s; }
 
   > span {
