@@ -56,7 +56,8 @@ public class OpenViewsheetController {
                                   VSLifecycleService vsLifecycleService,
                                   LicenseService licenseService,
                                   OpenViewsheetServiceProxy serviceProxy,
-                                  ViewsheetService viewsheetService)
+                                  ViewsheetService viewsheetService,
+                                  SecurityEngine securityEngine)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.runtimeViewsheetManager = runtimeViewsheetManager;
@@ -64,6 +65,7 @@ public class OpenViewsheetController {
       this.licenseService = licenseService;
       this.serviceProxy = serviceProxy;
       this.viewsheetService = viewsheetService;
+      this.securityEngine = securityEngine;
    }
 
    @GetMapping("api/vs/route-data")
@@ -129,8 +131,8 @@ public class OpenViewsheetController {
       throws Exception
    {
       if(!event.isViewer() &&
-         !SecurityEngine.getSecurity().checkPermission(principal,
-                                                       ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS))
+         !securityEngine.checkPermission(principal,
+                                          ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS))
       {
          throw new MessageException(Catalog.getCatalog().getString(
             "composer.dashboard.authorization.permissionDenied"));
@@ -184,4 +186,5 @@ public class OpenViewsheetController {
    private final LicenseService licenseService;
    private final OpenViewsheetServiceProxy serviceProxy;
    private final ViewsheetService viewsheetService;
+   private final SecurityEngine securityEngine;
 }

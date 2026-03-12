@@ -51,12 +51,14 @@ public class OpenWorksheetController extends WorksheetController {
    public OpenWorksheetController(RuntimeViewsheetManager runtimeViewsheetManager,
                                   AssetRepository assetRepository,
                                   WorksheetEventService eventService,
-                                  OpenWorksheetControllerServiceProxy openService)
+                                  OpenWorksheetControllerServiceProxy openService,
+                                  SecurityEngine securityEngine)
    {
       this.runtimeViewsheetManager = runtimeViewsheetManager;
       this.assetRepository = assetRepository;
       this.eventService = eventService;
       this.openService = openService;
+      this.securityEngine = securityEngine;
    }
 
    @PostMapping("api/ws/open")
@@ -64,7 +66,7 @@ public class OpenWorksheetController extends WorksheetController {
    public OpenSheetEventValidator validateOpen(
       @RequestBody OpenWorksheetEvent event, Principal principal) throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.WORKSHEET,
+      if(!securityEngine.checkPermission(principal, ResourceType.WORKSHEET,
                                                        "*", ResourceAction.ACCESS))
       {
          throw new SecurityException(Catalog.getCatalog().getString(
@@ -93,7 +95,7 @@ public class OpenWorksheetController extends WorksheetController {
       @Payload OpenWorksheetEvent event, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.WORKSHEET,
+      if(!securityEngine.checkPermission(principal, ResourceType.WORKSHEET,
                                                        "*", ResourceAction.ACCESS))
       {
          throw new SecurityException(Catalog.getCatalog().getString(
@@ -150,7 +152,7 @@ public class OpenWorksheetController extends WorksheetController {
    public void newWorksheet(
       Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.WORKSHEET,
+      if(!securityEngine.checkPermission(principal, ResourceType.WORKSHEET,
                                                        "*", ResourceAction.ACCESS))
       {
          throw new SecurityException(Catalog.getCatalog().getString(
@@ -169,7 +171,7 @@ public class OpenWorksheetController extends WorksheetController {
       String forbiddenMsg = "";
 
       try {
-         if(!SecurityEngine.getSecurity().checkPermission(
+         if(!securityEngine.checkPermission(
             user, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS))
          {
             return Catalog.getCatalog().getString("composer.ws.noPermission");
@@ -187,8 +189,6 @@ public class OpenWorksheetController extends WorksheetController {
             notUndoable.set(true);
             return "";
          }
-
-         SecurityEngine security = SecurityEngine.getSecurity();
 
          for(Assembly assembly : sheet.getAssemblies()) {
             if(assembly instanceof BoundTableAssembly) {
@@ -216,7 +216,7 @@ public class OpenWorksheetController extends WorksheetController {
                      break;
                   }
 
-                  if(!security.checkPermission(
+                  if(!securityEngine.checkPermission(
                      user, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS))
                   {
                      forbiddenMsg = Catalog.getCatalog().getString("composer.ws.boundPhysicalTableForbidden");
@@ -268,5 +268,6 @@ public class OpenWorksheetController extends WorksheetController {
    private final AssetRepository assetRepository;
    private final WorksheetEventService eventService;
    private final OpenWorksheetControllerServiceProxy openService;
+   private final SecurityEngine securityEngine;
    private static final Logger LOG = LoggerFactory.getLogger(OpenWorksheetController.class);
 }
