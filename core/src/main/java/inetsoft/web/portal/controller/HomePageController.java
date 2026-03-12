@@ -52,8 +52,9 @@ import java.util.stream.Collectors;
 @Controller
 public class HomePageController {
    @Autowired
-   public HomePageController(DataSpace dataSpace) {
+   public HomePageController(DataSpace dataSpace, SecurityEngine securityEngine) {
       this.dataSpace = dataSpace;
+      this.securityEngine = securityEngine;
       this.webAssetsExist = dataSpace.isDirectory("web-assets");
    }
 
@@ -82,7 +83,7 @@ public class HomePageController {
 
       if(OrganizationManager.getInstance().getCurrentOrgID() != null) {
          String orgId = OrganizationManager.getInstance().getCurrentOrgID();
-         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider provider = securityEngine.getSecurityProvider();
 
          if(provider.getOrganization(orgId) != null &&
             !Tool.isEmptyString(provider.getOrganization(orgId).getTheme()) &&
@@ -371,6 +372,7 @@ public class HomePageController {
 
 
    private final DataSpace dataSpace;
+   private final SecurityEngine securityEngine;
    private final boolean webAssetsExist;
    private final Lock imageLock = new ReentrantLock();
    private volatile OpenGraphImage cachedImage;

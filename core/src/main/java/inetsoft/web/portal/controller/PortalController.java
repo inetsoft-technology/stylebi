@@ -60,12 +60,14 @@ public class PortalController {
    public PortalController(SecurityEngine securityEngine,
                            AnalyticRepository analyticRepository,
                            ComposerClientService composerClientService,
-                           AISettingsService aiSettingsService)
+                           AISettingsService aiSettingsService,
+                           LicenseManager licenseManager)
    {
       this.securityEngine = securityEngine;
       this.analyticRepository = analyticRepository;
       this.composerClientService = composerClientService;
       this.aiSettingsService = aiSettingsService;
+      this.licenseManager = licenseManager;
    }
 
    @GetMapping("/api/portal/get-portal-model")
@@ -88,11 +90,9 @@ public class PortalController {
       }
 
       boolean porfile =
-         SecurityEngine
-            .getSecurity().checkPermission(principal, ResourceType.PROFILE, "*", ResourceAction.ACCESS);
+         securityEngine.checkPermission(principal, ResourceType.PROFILE, "*", ResourceAction.ACCESS);
 
       boolean profiling = porfile && ((XPrincipal) principal).isProfiling();
-      LicenseManager licenseManager = LicenseManager.getInstance();
       boolean elasticLicenseExhausted = false;
 
       if(licenseManager.isElasticLicense() && licenseManager.getElasticRemainingHours() == 0) {
@@ -335,5 +335,6 @@ public class PortalController {
    private final AnalyticRepository analyticRepository;
    private final ComposerClientService composerClientService;
    private final AISettingsService aiSettingsService;
+   private final LicenseManager licenseManager;
    private static final Logger LOG = LoggerFactory.getLogger(PortalController.class);
 }

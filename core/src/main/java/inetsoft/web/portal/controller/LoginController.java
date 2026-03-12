@@ -32,6 +32,7 @@ import inetsoft.web.viewsheet.service.LinkUri;
 import jakarta.servlet.http.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Controller;
@@ -47,6 +48,12 @@ import java.util.*;
 
 @Controller
 public class LoginController {
+   @Autowired
+   public LoginController(SecurityEngine securityEngine, LicenseManager licenseManager) {
+      this.securityEngine = securityEngine;
+      this.licenseManager = licenseManager;
+   }
+
    /**
     * Shows the login page.
     *
@@ -121,13 +128,12 @@ public class LoginController {
 
       }
 
-      SecurityEngine security = SecurityEngine.getSecurity();
       model.addObject("locales", localeModels);
 
       model.addObject("loginAs", "on".equals(SreeEnv.getProperty("login.loginAs")));
       model.addObject("selfSignUpEnabled",
-                      security.isSecurityEnabled() && security.isSelfSignupEnabled() &&
-                      LicenseManager.getInstance().isEnterprise());
+                      securityEngine.isSecurityEnabled() && securityEngine.isSelfSignupEnabled() &&
+                      licenseManager.isEnterprise());
       model.addObject("isNotTenantServer", isNotTenantServer(request));
 
       boolean googleSignInEnabled = SreeEnv.getBooleanProperty("security.googleSignIn.enabled");
@@ -169,7 +175,7 @@ public class LoginController {
 
    private boolean isNotTenantServer(HttpServletRequest request) {
       String recordedOrgID = getRecordedOrgId(request);
-      String recordedOrgName = recordedOrgID == null ? null : SecurityEngine.getSecurity().getSecurityProvider().getOrgNameFromID(recordedOrgID);
+      String recordedOrgName = recordedOrgID == null ? null : securityEngine.getSecurityProvider().getOrgNameFromID(recordedOrgID);
 
       return recordedOrgName == null  || Tool.equals(recordedOrgName, Organization.getDefaultOrganizationName());
    }
@@ -196,6 +202,8 @@ public class LoginController {
       return SreeEnv.getProperty("styleBI.google.openid.scopes", "openid email profile");
    }
 
+   private final SecurityEngine securityEngine;
+   private final LicenseManager licenseManager;
    private static final String ORG_COOKIE = "X-INETSOFT-ORGID";
    public static final String LOGIN_ONLOAD_ERROR = "LOGIN_ONLOAD_ERROR";
    private static final Logger LOG = LoggerFactory.getLogger(LoginController.class);
