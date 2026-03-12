@@ -22,6 +22,8 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.request.ExportDatabaseTableToCsvRequest;
 import inetsoft.web.wiz.service.RawDataService;
+import jakarta.servlet.ServletOutputStream;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -38,50 +40,34 @@ public class RawDataController {
       value = "/profiling/rawdata/export/datasource",
       produces = "text/csv"
    )
-   public ResponseEntity<StreamingResponseBody> exportDataSourceTableToCsv(
-      @RequestBody ExportDatabaseTableToCsvRequest data, XPrincipal principal)
-      throws Exception
+   public void exportDataSourceTableToCsv(
+      @RequestBody ExportDatabaseTableToCsvRequest data,
+      XPrincipal principal,
+      HttpServletResponse response) throws Exception
    {
-      StreamingResponseBody stream = outputStream -> {
-         try {
-            rawDataService.writeDataSourceTableCsvStream(data, principal, outputStream);
-         }
-         catch(Exception e) {
-            throw new RuntimeException(e);
-         }
-      };
-
-      return ResponseEntity.ok()
-         .contentType(MediaType.parseMediaType("text/csv"))
-         .body(stream);
+      response.setContentType("text/csv");
+      ServletOutputStream outputStream = response.getOutputStream();
+      rawDataService.writeDataSourceTableCsvStream(data, principal, outputStream);
    }
 
    @GetMapping(
       value = "/profiling/rawdata/export/worksheet/{identifier}",
       produces = "text/csv"
    )
-   public ResponseEntity<StreamingResponseBody> exportWorksheetTableToCsv(
+   public void exportWorksheetTableToCsv(
       @PathVariable("identifier") String worksheetId,
       @RequestParam("tableName") String tableName,
-      XPrincipal principal) throws Exception
+      XPrincipal principal,
+      HttpServletResponse response) throws Exception
    {
-      StreamingResponseBody stream = outputStream -> {
-         try {
-            rawDataService.writeWorksheetTableCsvStream(
-               WizUtil.decodeId(worksheetId),
-               tableName,
-               principal,
-               outputStream
-            );
-         }
-         catch(Exception e) {
-            throw new RuntimeException(e);
-         }
-      };
-
-      return ResponseEntity.ok()
-         .contentType(MediaType.parseMediaType("text/csv"))
-         .body(stream);
+      response.setContentType("text/csv");
+      ServletOutputStream outputStream = response.getOutputStream();
+      rawDataService.writeWorksheetTableCsvStream(
+         WizUtil.decodeId(worksheetId),
+         tableName,
+         principal,
+         outputStream
+      );
    }
 
    private final RawDataService rawDataService;

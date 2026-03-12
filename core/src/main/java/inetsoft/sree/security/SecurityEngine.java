@@ -1426,7 +1426,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       if(principal instanceof SRPrincipal) {
          SRPrincipal srPrincipal = (SRPrincipal) principal;
 
-         if(srPrincipal.isIgnoreLogin()) {
+         if(srPrincipal.isIgnoreLogin() || "true".equalsIgnoreCase(srPrincipal.getProperty("wiz"))) {
             return true;
          }
 
