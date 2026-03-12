@@ -99,6 +99,8 @@ public class HomePageController {
       model.addObject("customTheme", themes.isCustomThemeApplied() || hasOrgTheme);
       model.addObject("scriptThemeCssPath", themes.getScriptThemeCssPath(true));
       model.addObject("customLoadingText", customLoadingText);
+      model.addObject("customLoadingLogo", SreeEnv.getProperty("portal.customLoadingLogo"));
+      model.addObject("customCss", SreeEnv.getProperty("portal.customCss"));
 
       addAdditionalStyles(model, linkUri);
       addAdditionalScripts(model, linkUri);
