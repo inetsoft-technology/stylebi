@@ -178,8 +178,9 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
       // properly, leaving the waiting thread blocked indefinitely.
       while(!lock.tryLock()) {
          if(System.nanoTime() >= deadlineNs) {
-            LOG.warn("Lock acquisition timed out for key: {}", key);
-            return;
+            throw new RuntimeException(
+               "Lock acquisition timed out after " + leaseTime + " " + timeUnit +
+               " for key: " + key);
          }
 
          try {
@@ -187,7 +188,7 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
          }
          catch(InterruptedException e) {
             Thread.currentThread().interrupt();
-            return;
+            throw new RuntimeException("Lock acquisition interrupted for key: " + key, e);
          }
       }
    }
@@ -203,10 +204,6 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
       while(!lock.tryLock()) {
          if(System.nanoTime() >= deadlineNs) {
             return false;
-         }
-
-         if(Thread.interrupted()) {
-            throw new InterruptedException();
          }
 
          Thread.sleep(LOCK_POLL_INTERVAL_MS);
@@ -349,6 +346,6 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
    private final IgniteCache<K, V> cache;
    private final ThreadLocal<Map<K, Lock>> lockMap = ThreadLocal.withInitial(HashMap::new);
    private static final int MAX_RETRIES = 5;
-   private static final long LOCK_POLL_INTERVAL_MS = 50L;
+   private static final long LOCK_POLL_INTERVAL_MS = 200L;
    private static final Logger LOG = LoggerFactory.getLogger(IgniteDistributedMap.class);
 }
