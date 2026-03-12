@@ -517,6 +517,38 @@ public class IntervalElement extends StackableElement {
    }
 
    /**
+    * Get the corner radius fraction for bar rounding (0 = disabled, 0.5 = maximum).
+    */
+   public double getCornerRadius() {
+      return cornerRadius;
+   }
+
+   /**
+    * Set the corner radius fraction for bar rounding.
+    * @param cornerRadius fraction in [0, 0.5]; 0 disables rounding.
+    */
+   public void setCornerRadius(double cornerRadius) {
+      this.cornerRadius = cornerRadius;
+   }
+
+   /**
+    * Check whether all four corners of bars should be rounded.
+    * When {@code false} (default), only the open (value) end is rounded.
+    * When {@code true}, all four corners are rounded equally.
+    */
+   public boolean isRoundAllCorners() {
+      return roundAllCorners;
+   }
+
+   /**
+    * Set whether all four corners of bars should be rounded.
+    * @param roundAllCorners {@code true} to round all corners; {@code false} for open-end only.
+    */
+   public void setRoundAllCorners(boolean roundAllCorners) {
+      this.roundAllCorners = roundAllCorners;
+   }
+
+   /**
     * Set whether the intervals are visually stacked. A bar may be stacked in value but
     * not visually stacked (e.g. waterfall).
     */
@@ -554,7 +586,8 @@ public class IntervalElement extends StackableElement {
       if(obj instanceof IntervalElement) {
          IntervalElement elem = (IntervalElement) obj;
          return bases.equals(elem.bases) && zeroHeight == elem.zeroHeight &&
-            Objects.equals(visualStacked, elem.visualStacked);
+            Objects.equals(visualStacked, elem.visualStacked) &&
+            cornerRadius == elem.cornerRadius && roundAllCorners == elem.roundAllCorners;
       }
 
       return false;
@@ -562,6 +595,8 @@ public class IntervalElement extends StackableElement {
 
    private List<String> bases = new Vector<>(); // interval base columns
    private int zeroHeight = 0;
+   private double cornerRadius = 0;
+   private boolean roundAllCorners = false;
    private Boolean visualStacked;
    private static final long serialVersionUID = 1L;
 }

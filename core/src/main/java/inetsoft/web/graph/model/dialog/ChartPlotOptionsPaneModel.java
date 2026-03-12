@@ -113,6 +113,13 @@ public class ChartPlotOptionsPaneModel {
       this.wordCloud = GraphTypeUtil.isWordCloud(info);
       this.fillGapWithDashVisible = isFillGapWithDashVisible(info, plotDesc);
       this.pieRatio = plotDesc.getPieRatio() > 0 ? plotDesc.getPieRatio() : null;
+      this.barCornerRadius = plotDesc.getBarCornerRadius() > 0
+         ? plotDesc.getBarCornerRadius() : null;
+      this.barCornerRadiusVisible = GraphTypeUtil.checkType(info, ctype ->
+         GraphTypes.isBar(ctype) && !GraphTypes.isStack(ctype) && !GraphTypes.is3DBar(ctype) &&
+         !GraphTypes.isPareto(ctype) && !GraphTypes.isWaterfall(ctype) &&
+         !GraphTypes.isFunnel(ctype) && !GraphTypes.isInterval(ctype));
+      this.barRoundAllCorners = plotDesc.isBarRoundAllCorners();
 
       try {
          if(MapInfo.MAPBOX.equals(SreeEnv.getProperty("webmap.service"))) {
@@ -185,6 +192,8 @@ public class ChartPlotOptionsPaneModel {
       plotDesc.setIncludeParentLabels(includeParentLabels);
       plotDesc.setApplyAestheticsToSource(applyAestheticsToSource);
       plotDesc.setPieRatio(pieRatio != null ? pieRatio : 0);
+      plotDesc.setBarCornerRadius(barCornerRadius != null ? barCornerRadius : 0);
+      plotDesc.setBarRoundAllCorners(barRoundAllCorners);
       plotDesc.setOneLine(oneLine);
    }
 
@@ -881,6 +890,30 @@ public class ChartPlotOptionsPaneModel {
       this.pieRatio = pieRatio;
    }
 
+   public Double getBarCornerRadius() {
+      return barCornerRadius;
+   }
+
+   public void setBarCornerRadius(Double barCornerRadius) {
+      this.barCornerRadius = barCornerRadius;
+   }
+
+   public boolean isBarCornerRadiusVisible() {
+      return barCornerRadiusVisible;
+   }
+
+   public void setBarCornerRadiusVisible(boolean barCornerRadiusVisible) {
+      this.barCornerRadiusVisible = barCornerRadiusVisible;
+   }
+
+   public boolean isBarRoundAllCorners() {
+      return barRoundAllCorners;
+   }
+
+   public void setBarRoundAllCorners(boolean barRoundAllCorners) {
+      this.barRoundAllCorners = barRoundAllCorners;
+   }
+
    public boolean isOneLine() {
       return oneLine;
    }
@@ -951,6 +984,9 @@ public class ChartPlotOptionsPaneModel {
    private boolean wordCloud = false;
    private Double wordCloudFontScale;
    private Double pieRatio;
+   private Double barCornerRadius;
+   private boolean barCornerRadiusVisible;
+   private boolean barRoundAllCorners;
    private boolean oneLine;
    private final static Logger LOG = LoggerFactory.getLogger(ChartPlotOptionsPaneModel.class);
 }
