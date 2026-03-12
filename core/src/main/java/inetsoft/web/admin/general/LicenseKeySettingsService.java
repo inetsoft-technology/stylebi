@@ -20,6 +20,7 @@ package inetsoft.web.admin.general;
 import inetsoft.report.internal.license.License;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.internal.cluster.Cluster;
+import org.springframework.beans.factory.annotation.Autowired;
 import inetsoft.sree.security.AuthenticationService;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.general.model.LicenseKeyModel;
@@ -38,6 +39,11 @@ import java.util.stream.Collectors;
 
 @Service
 public class LicenseKeySettingsService {
+   @Autowired
+   public LicenseKeySettingsService(LicenseManager licenseManager, Cluster cluster) {
+      this.licenseManager = licenseManager;
+      this.cluster = cluster;
+   }
 
    public LicenseKeySettingsModel getModel() {
       return LicenseKeySettingsModel.builder()
@@ -55,17 +61,17 @@ public class LicenseKeySettingsService {
       throws Exception
    {
       setServerKeys(model.serverKeys());
-      Cluster.getInstance().submitAll(new LicenseKeyResetCallable());
+      cluster.submitAll(new LicenseKeyResetCallable());
    }
 
    private List<LicenseKeyModel> getServerLicenseData() {
-      return LicenseManager.getInstance().getInstalledLicenses().stream()
+      return licenseManager.getInstalledLicenses().stream()
          .map(this::createLicenseKeyModel)
          .collect(Collectors.toList());
    }
 
    private Map<String, String> getClusterLicenseData() {
-      return LicenseManager.getInstance().getClaimedNodeLicenses();
+      return licenseManager.getClaimedNodeLicenses();
    }
 
    private LicenseKeyModel createLicenseKeyModel(License license) {
@@ -73,7 +79,7 @@ public class LicenseKeySettingsService {
    }
 
    private void setServerKeys(List<LicenseKeyModel> licenses) {
-      LicenseManager manager = LicenseManager.getInstance();
+      LicenseManager manager = licenseManager;
       Set<License> installed = manager.getInstalledLicenses();
       updateKeys(
          licenses, installed, manager::addLicense, manager::replaceLicense, manager::removeLicense);
@@ -111,8 +117,11 @@ public class LicenseKeySettingsService {
    }
 
    LicenseKeyModel getSingleServerLicenseKey(String requestedKey) {
-      return createLicenseKeyModel(LicenseManager.getInstance().parseLicense(requestedKey));
+      return createLicenseKeyModel(licenseManager.parseLicense(requestedKey));
    }
+
+   private final LicenseManager licenseManager;
+   private final Cluster cluster;
 
    private static final class LicenseKeyResetCallable implements Callable<Void>, Serializable {
       @Override

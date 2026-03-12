@@ -36,6 +36,7 @@ import inetsoft.web.admin.general.model.DataSpaceSettingsModel;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -48,12 +49,17 @@ import java.util.concurrent.locks.ReentrantLock;
 
 @Service
 public class DataSpaceSettingsService extends BackupSupport {
+   @Autowired
+   public DataSpaceSettingsService(SecurityEngine securityEngine) {
+      this.securityEngine = securityEngine;
+   }
+
    public DataSpaceSettingsModel getModel(Principal principal) throws Exception {
       InetsoftConfig config = InetsoftConfig.getInstance();
 
-      boolean assetWritePermission = SecurityEngine.getSecurity().checkPermission(
+      boolean assetWritePermission = securityEngine.checkPermission(
          principal, ResourceType.SCHEDULE_TASK, InternalScheduledTaskService.ASSET_FILE_BACKUP,
-         ResourceAction.WRITE) && SecurityEngine.getSecurity().checkPermission(
+         ResourceAction.WRITE) && securityEngine.checkPermission(
          principal, ResourceType.EM_COMPONENT, "settings/schedule/tasks",
          ResourceAction.ACCESS);
       String assetName = assetWritePermission ? InternalScheduledTaskService.ASSET_FILE_BACKUP : "";
@@ -207,6 +213,8 @@ public class DataSpaceSettingsService extends BackupSupport {
    }
 
    // Backups are in a fixed folder to ensure that we exclude backup files on our second backup.
+   private final SecurityEngine securityEngine;
+
    private static final String BACKUP_FOLDER = "backup";
    private static final String BACKUP_PATH_SPLIT = "-";
 

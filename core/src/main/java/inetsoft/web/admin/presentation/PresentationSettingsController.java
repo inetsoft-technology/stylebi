@@ -55,7 +55,8 @@ public class PresentationSettingsController {
       PresentationDataSourceVisibilitySettingsService dataSourceVisibilitySettingsService,
       WebMapSettingsService webMapSettingsService,
       DataSpaceContentSettingsService dataSpaceContentSettingsService,
-      AISettingsService aiSettingsService)
+      AISettingsService aiSettingsService,
+      Cluster cluster)
    {
       this.lookAndFeelService = lookAndFeelService;
       this.welcomePageService = welcomePageService;
@@ -75,6 +76,7 @@ public class PresentationSettingsController {
       this.webMapSettingsService = webMapSettingsService;
       this.dataSpaceContentSettingsService = dataSpaceContentSettingsService;
       this.aiSettingsService = aiSettingsService;
+      this.cluster = cluster;
    }
 
    @GetMapping("/api/em/settings/presentation/model")
@@ -82,12 +84,12 @@ public class PresentationSettingsController {
       @RequestParam(name = "orgSettings", defaultValue = "false") boolean orgSettings)
    {
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-      boolean securityEnabled = !SecurityEngine.getSecurity().getSecurityProvider().isVirtual();
+      boolean securityEnabled = !securityEngine.getSecurityProvider().isVirtual();
       boolean globalProperty = (OrganizationManager.getInstance().isSiteAdmin(principal) && !orgSettings)
          || !securityEnabled || securityEnabled && !SUtil.isMultiTenant();
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -125,17 +127,17 @@ public class PresentationSettingsController {
    public PresentationSettingsModel applySettings(@RequestBody() PresentationSettingsModel model,
                                                   Principal principal) throws Exception
    {
-      boolean securityEnabled = !SecurityEngine.getSecurity().getSecurityProvider().isVirtual();
+      boolean securityEnabled = !securityEngine.getSecurityProvider().isVirtual();
       boolean globalSettings = OrganizationManager.getInstance().isSiteAdmin(principal) &&
          (model.orgSettings() != null && !model.orgSettings()) || !securityEnabled ||
          !SUtil.isMultiTenant();
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
-      Lock settingsLock = Cluster.getInstance().getLock(SETTINGS_LOCK);
+      Lock settingsLock = cluster.getLock(SETTINGS_LOCK);
       settingsLock.lock();
 
       try {
@@ -215,7 +217,7 @@ public class PresentationSettingsController {
    public PresentationSettingsModel resetSettings(@RequestBody() PresentationSettingsModel model,
                                                   Principal principal) throws Exception
    {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
       boolean securityEnabled = !provider.isVirtual();
       boolean globalSettings = OrganizationManager.getInstance().isSiteAdmin(principal) &&
             (model.orgSettings() != null && !model.orgSettings()) || !securityEnabled;
@@ -224,7 +226,7 @@ public class PresentationSettingsController {
          globalSettings = provider.checkPermission(principal,  ResourceType.EM, "*", ResourceAction.ACCESS);
       }
 
-      Lock settingsLock = Cluster.getInstance().getLock(SETTINGS_LOCK);
+      Lock settingsLock = cluster.getLock(SETTINGS_LOCK);
       settingsLock.lock();
 
       try {
@@ -274,5 +276,6 @@ public class PresentationSettingsController {
    private final WebMapSettingsService webMapSettingsService;
    private final DataSpaceContentSettingsService dataSpaceContentSettingsService;
    private final AISettingsService aiSettingsService;
+   private final Cluster cluster;
    private static final String SETTINGS_LOCK = PresentationSettingsController.class.getName() + ".settingsLock";
 }

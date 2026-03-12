@@ -31,10 +31,12 @@ import java.security.Principal;
 public class SecurityTreeController {
    @Autowired
    public SecurityTreeController(AuthenticationProviderService service,
-                                 IdentityThemeService themeService)
+                                 IdentityThemeService themeService,
+                                 SecurityEngine securityEngine)
    {
       this.service = service;
       this.themeService = themeService;
+      this.securityEngine = securityEngine;
    }
 
    @GetMapping("/api/em/security/providers/{provider}/identities/{type}")
@@ -46,7 +48,7 @@ public class SecurityTreeController {
 
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -73,4 +75,5 @@ public class SecurityTreeController {
 
    private final AuthenticationProviderService service;
    private final IdentityThemeService themeService;
+   private final SecurityEngine securityEngine;
 }
