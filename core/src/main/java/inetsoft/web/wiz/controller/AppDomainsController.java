@@ -15,18 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.wiz;
+package inetsoft.web.wiz.controller;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.Tool;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.extensions.Extension;
-import io.swagger.v3.oas.annotations.extensions.ExtensionProperty;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
-import io.swagger.v3.oas.annotations.tags.Tag;
+import inetsoft.web.wiz.OrganizationDomains;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -38,9 +32,6 @@ import java.security.Principal;
  */
 @RestController
 @RequestMapping("/api/wiz")
-@Tag(
-   name = "Application Domains",
-   description = "The Application domains APIs allow you to get/set organization application domains.")
 @Validated
 public class AppDomainsController {
    /**
