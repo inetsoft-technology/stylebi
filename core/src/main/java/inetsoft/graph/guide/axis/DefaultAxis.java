@@ -1088,10 +1088,19 @@ public class DefaultAxis extends Axis {
       double lx = 0;
       double ly = 0;
       double[] tlocs = getTickLocations(null);
+      int skip = 0;
+
+      // optimization, avoid layout large number of labels
+      // if some labels are hidden by user, don't skip since the overlapping is
+      // a little unpredictable in this case
+      if(visibleLabelCnt > vlabels.length * 0.6 && pos1.distance(pos2) / visibleLabelCnt < 10) {
+         skip = (int) (visibleLabelCnt * 10 / pos1.distance(pos2));
+      }
 
       for(int i = 0; i < vlabels.length; i++) {
          if(!isMinTickVisible() && i == 0 ||
-            !isMaxTickVisible() && i == vlabels.length - 1)
+            !isMaxTickVisible() && i == vlabels.length - 1 ||
+            skip > 0 && i % skip != 0 && i < vlabels.length - 1)
          {
             vlabels[i].setZIndex(-1);
             updateAnchor(vlabels, i);
