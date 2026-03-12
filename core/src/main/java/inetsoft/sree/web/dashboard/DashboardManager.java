@@ -49,7 +49,8 @@ public class DashboardManager implements AutoCloseable {
    /**
     * Construct.
     */
-   public DashboardManager() {
+   public DashboardManager(SecurityEngine securityEngine) {
+      this.securityEngine = securityEngine;
    }
 
    @Override
@@ -367,7 +368,7 @@ public class DashboardManager implements AutoCloseable {
       IdentityID[] roles = user.getRoles();
       boolean empty = (groups == null || groups.length == 0) &&
          (roles == null || roles.length == 0);
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
 
       if(provider.isVirtual() || (provider.getUser(userIdentityID) != null && empty)) {
          return getUserDashboards(userIdentityID);
@@ -429,7 +430,7 @@ public class DashboardManager implements AutoCloseable {
     */
    public synchronized String[] getUserDashboards(IdentityID userName) {
       init();
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
       Identity user;
 
       // treat user anonymous as a special role
@@ -483,7 +484,7 @@ public class DashboardManager implements AutoCloseable {
       visitedGroups.add(group.getName());
 
       for(String dashboard : getDashboards(group)) {
-         if(!list.contains(dashboard) && SecurityEngine.getSecurity().checkPermission(
+         if(!list.contains(dashboard) && securityEngine.checkPermission(
             principal, ResourceType.DASHBOARD, dashboard, ResourceAction.ACCESS))
          {
             list.add(dashboard);
@@ -517,7 +518,7 @@ public class DashboardManager implements AutoCloseable {
       visitedRoles.add(role.getIdentityID());
 
       for(String dashboard : getDashboards(role)) {
-         if(!list.contains(dashboard) && SecurityEngine.getSecurity().checkPermission(
+         if(!list.contains(dashboard) && securityEngine.checkPermission(
             principal, ResourceType.DASHBOARD, dashboard, ResourceAction.ACCESS))
          {
             list.add(dashboard);
@@ -882,6 +883,7 @@ public class DashboardManager implements AutoCloseable {
       return identity.getType() + ":" + identity.getName();
    }
 
+   private final SecurityEngine securityEngine;
    private String orgID = null;
    private final Set<DashboardChangeListener> changeListeners = new HashSet<>();
    private static final Logger LOG = LoggerFactory.getLogger(DashboardManager.class);
@@ -931,7 +933,8 @@ public class DashboardManager implements AutoCloseable {
 
       @Override
       protected void validate(Map<String, DashboardData> map) throws Exception {
-         SecurityProvider security = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider security = ConfigurationContext.getContext()
+            .getSpringBean(SecurityEngine.class).getSecurityProvider();
 
          for(Map.Entry<String, DashboardData> e : map.entrySet()) {
             int index = e.getKey().indexOf(':');

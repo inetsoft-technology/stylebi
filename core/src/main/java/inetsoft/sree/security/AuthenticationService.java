@@ -57,7 +57,12 @@ public class AuthenticationService {
    /**
     * Creates a new instance of <tt>AuthenticationService</tt>.
     */
-   public AuthenticationService() {
+   public AuthenticationService(SecurityEngine securityEngine, MVManager mvManager,
+                                DataSourceRegistry dataSourceRegistry)
+   {
+      this.securityEngine = securityEngine;
+      this.mvManager = mvManager;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    /**
@@ -209,7 +214,7 @@ public class AuthenticationService {
             Audit.getInstance().auditSession(sessionRecord, principal);
          }
          else if(principal == null && userId != null) {
-            User u = SecurityEngine.getSecurity().getSecurityProvider().getUser(userId);
+            User u = securityEngine.getSecurityProvider().getUser(userId);
 
             if(u != null) {
                sessionRecord.setUserGroup(Arrays.asList(u.getGroups()));
@@ -288,10 +293,9 @@ public class AuthenticationService {
       Principal principal = null;
 
       try {
-         SecurityEngine engine = SecurityEngine.getSecurity();
-         SecurityProvider provider = engine.getSecurityProvider();
+         SecurityProvider provider = securityEngine.getSecurityProvider();
          principal =
-            SecurityEngine.getSecurity().authenticate(user, credential, provider);
+            securityEngine.authenticate(user, credential, provider);
       }
       catch(Exception e) {
          LOG.error("An error prevented user from being authenticated: " + user, e);
@@ -593,8 +597,8 @@ public class AuthenticationService {
       IndexedStorage indexedStorage = IndexedStorage.getIndexedStorage();
 
       if(!indexedStorage.isInitialized(orgID)) {
-         DataSourceRegistry.getRegistry().init();
-         MVManager.getManager().initMVDefMap();
+         dataSourceRegistry.init();
+         mvManager.initMVDefMap();
 
          indexedStorage.setInitialized(orgID);
       }
@@ -602,6 +606,9 @@ public class AuthenticationService {
       ConnectionProcessor.getInstance().setAdditionalDatasource(principal);
    }
 
+   private final SecurityEngine securityEngine;
+   private final MVManager mvManager;
+   private final DataSourceRegistry dataSourceRegistry;
    private final List<SessionListener> listeners = new CopyOnWriteArrayList<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(AuthenticationService.class);
