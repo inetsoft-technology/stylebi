@@ -37,6 +37,10 @@ import java.util.concurrent.TimeUnit;
 @Service
 @Lazy
 public class RenameTransformHandler implements AutoCloseable {
+   public RenameTransformHandler(Cluster cluster) {
+      this.cluster = cluster;
+   }
+
    /**
     * Gets the shared instance of the RenameTransformHandler.
     *
@@ -167,7 +171,7 @@ public class RenameTransformHandler implements AutoCloseable {
       }
    }
 
-   private final Cluster cluster = Cluster.getInstance();
+   private final Cluster cluster;
    private static final Logger LOG = LoggerFactory.getLogger(RenameTransformHandler.class);
 
 }
