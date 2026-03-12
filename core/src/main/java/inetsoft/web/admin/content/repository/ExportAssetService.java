@@ -28,6 +28,7 @@ import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.deploy.*;
 import inetsoft.web.service.BinaryTransferService;
 import org.apache.commons.io.output.DeferredFileOutputStream;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import java.io.*;
 import java.security.Principal;
@@ -41,12 +42,14 @@ import java.util.stream.Collectors;
 @Component
 public class ExportAssetService {
 
-   public ExportAssetService(DeployService deployService, BinaryTransferService binaryTransferService) {
+   @Autowired
+   public ExportAssetService(DeployService deployService, BinaryTransferService binaryTransferService,
+                             Cluster cluster)
+   {
       this.deployService = deployService;
       this.binaryTransferService = binaryTransferService;
-
+      this.cluster = cluster;
       this.contextCache = new ConcurrentHashMap<>();
-      Cluster cluster = Cluster.getInstance();
       cluster.registerSpringProxyPartitionedCache(FILE_LOCATION_CACHE_NAME);
       this.fileLocationMap = cluster.getMap(FILE_LOCATION_CACHE_NAME);
       this.filePathMap = new ConcurrentHashMap<>();
@@ -65,7 +68,7 @@ public class ExportAssetService {
 
       contextCache.put(exportID, properties);
 
-      String localNodeAddress = Cluster.getInstance().getLocalMember();
+      String localNodeAddress = cluster.getLocalMember();
 
       fileLocationMap.put(exportID, localNodeAddress);
 
@@ -183,6 +186,7 @@ public class ExportAssetService {
       return asset;
    }
 
+   private final Cluster cluster;
    private final Map<String, ExportJarProperties> contextCache;
    private final Map<String, String> fileLocationMap;
    private final Map<String, String> filePathMap;

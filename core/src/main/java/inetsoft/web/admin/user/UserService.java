@@ -186,7 +186,7 @@ public class UserService
    {
       boolean lastAccessEnabled = isLevelQualified("lastAccess");
       String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
 
       return getModelData(address, u -> u.sessions().stream()
          .filter(i -> i.user() != null)
@@ -236,7 +236,7 @@ public class UserService
    }
 
    private boolean isIdentityMising(IdentityID name, Function<SecurityProvider, IdentityID[]> fn) {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
 
       if(provider != null) {
          for(IdentityID identity : fn.apply(provider)) {
@@ -264,7 +264,7 @@ public class UserService
    }
 
    private SecurityEngine getSecurityEngine() {
-      return SecurityEngine.getSecurity();
+      return securityEngine;
    }
 
    /**

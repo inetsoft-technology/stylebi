@@ -45,10 +45,12 @@ import java.util.stream.Collectors;
 public class ResourcePermissionService {
    @Autowired
    public ResourcePermissionService(SecurityProvider securityProvider,
-                                    SecurityEngine securityEngine)
+                                    SecurityEngine securityEngine,
+                                    DataSourceRegistry dataSourceRegistry)
    {
       this.securityProvider = securityProvider;
       this.securityEngine = securityEngine;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    public ResourcePermissionModel getTableModel(String path, ResourceType type,
@@ -600,7 +602,7 @@ public class ResourcePermissionService {
          return false;
       }
 
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
 
       String orgId = OrganizationManager.getInstance().getCurrentOrgID();
 
@@ -628,7 +630,7 @@ public class ResourcePermissionService {
       try {
          ThreadContext.setContextPrincipal(principal);
          // Only show users from the same organization and site admins (if permission allows)
-         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider provider = securityEngine.getSecurityProvider();
          String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
          String org = Arrays.stream(provider.getOrganizationIDs())
             .map(provider::getOrganization)
@@ -871,7 +873,7 @@ public class ResourcePermissionService {
    public static String getDataSourceResourceName(String resourcePath) {
       if(resourcePath.contains("/")) {
          // may be additional connection
-         for(String ds : DataSourceRegistry.getRegistry().getDataSourceFullNames()) {
+         for(String ds : dataSourceRegistry.getDataSourceFullNames()) {
             if(resourcePath.startsWith(ds + "/")) {
                resourcePath = ds + "::" + resourcePath.substring(ds.length() + 1);
                break;
@@ -1023,5 +1025,6 @@ public class ResourcePermissionService {
 
    private final Catalog catalog = Catalog.getCatalog();
    private final SecurityEngine securityEngine;
+   private final DataSourceRegistry dataSourceRegistry;
    private final SecurityProvider securityProvider;
 }

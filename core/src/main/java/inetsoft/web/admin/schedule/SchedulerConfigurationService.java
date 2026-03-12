@@ -54,11 +54,13 @@ import static inetsoft.sree.internal.SUtil.isSecurityOn;
 public class SchedulerConfigurationService {
    @Autowired
    public SchedulerConfigurationService(ScheduleClient scheduleClient,
-                                        ResourcePermissionService permissionService)
+                                        ResourcePermissionService permissionService,
+                                        Cluster cluster)
    {
       this.scheduleClient = scheduleClient;
       this.permissionService = permissionService;
       this.externalStorageService = ExternalStorageService.getInstance();
+      this.cluster = cluster;
    }
 
    public ScheduleConfigurationModel getConfiguration(Principal principal) throws Exception {
@@ -146,7 +148,7 @@ public class SchedulerConfigurationService {
       SreeEnv.save();
 
       if(InetsoftConfig.getInstance().getCloudRunner() != null) {
-         Cluster.getInstance().sendMessage(new RestartSchedulerMessage());
+         cluster.sendMessage(new RestartSchedulerMessage());
       }
    }
 
@@ -363,6 +365,7 @@ public class SchedulerConfigurationService {
    private final ScheduleClient scheduleClient;
    private final ResourcePermissionService permissionService;
    private final ExternalStorageService externalStorageService;
+   private final Cluster cluster;
 
    private static final Logger LOG = LoggerFactory.getLogger(SchedulerConfigurationService.class);
 }

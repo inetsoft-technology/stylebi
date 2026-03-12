@@ -38,6 +38,7 @@ import inetsoft.web.security.auth.MissingResourceException;
 import inetsoft.web.viewsheet.DatasourceIgnoreGlobalShare;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -53,11 +54,14 @@ import java.util.zip.GZIPInputStream;
 
 @Service
 public class DeployService {
+   @Autowired
    public DeployService(ContentRepositoryTreeService contentRepositoryTreeService,
-                        SecurityEngine securityEngine)
+                        SecurityEngine securityEngine,
+                        DataSourceRegistry dataSourceRegistry)
    {
       this.contentRepositoryTreeService = contentRepositoryTreeService;
       this.securityEngine = securityEngine;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    public ImportJarProperties setJarFile(String fpath, boolean gzipped) throws Exception {
@@ -121,7 +125,7 @@ public class DeployService {
                .dateFormat(Tool.getDateFormatPattern())
                .user(entry.getUser());
 
-            if(!SecurityEngine.getSecurity().isSecurityEnabled() &&
+            if(!securityEngine.isSecurityEnabled() &&
                (Tool.equals(entry.getType(), WSAutoSaveAsset.AUTOSAVEWS) ||
                Tool.equals(entry.getType(), VSAutoSaveAsset.AUTOSAVEVS)))
             {
@@ -401,7 +405,7 @@ public class DeployService {
          }
       }
 
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
       boolean noUsers = users.isEmpty() ||
          users.size() == 1 &&
          users.stream().anyMatch(id -> id != null && ("anonymous".equals(id.getName()) || "_NULL_".equals(id.getName()))) ||
@@ -412,7 +416,7 @@ public class DeployService {
             // if auto save has administrator, support import auto save assets.
             // if no security, only can login em by admin.
          }
-         else if(!noUsers && !SecurityEngine.getSecurity().isSecurityEnabled()) {
+         else if(!noUsers && !securityEngine.isSecurityEnabled()) {
             throw new Exception(
                Catalog.getCatalog().getString("em.import.userNoSecurity"));
          }
@@ -505,7 +509,7 @@ public class DeployService {
          }
 
          if(targetFolderAsset == null) {
-            final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+            final DataSourceRegistry registry = dataSourceRegistry;
 
             if(registry.getDataSourceFolder(targetFolder) != null) {
                targetFolderAsset = new AssetEntry(AssetRepository.QUERY_SCOPE,
@@ -992,7 +996,7 @@ public class DeployService {
             principal, ResourceType.ASSET, unscopedPath, ResourceAction.ADMIN);
       }
       else if(xasset.getUser() != null) {
-         return principal.getName().equals(xasset.getUser().convertToKey()) || SecurityEngine.getSecurity().checkPermission(
+         return principal.getName().equals(xasset.getUser().convertToKey()) || securityEngine.checkPermission(
             principal, ResourceType.SECURITY_USER, xasset.getUser(), ResourceAction.ADMIN);
       }
       else {
@@ -1288,7 +1292,7 @@ public class DeployService {
    private XAsset getModelXAsset(AssetEntry entry) {
       AssetEntry.Type type = entry.getType();
       String path = entry.getPath();
-      DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      DataSourceRegistry registry = dataSourceRegistry;
       String[] dsNames = registry.getDataSourceFullNames();
 
       if(type == AssetEntry.Type.LOGIC_MODEL ||
@@ -1479,6 +1483,7 @@ public class DeployService {
    private static final String USER_ASSET_PATTERN = "/user/([^/]+)/([^/]+)/(.+)";
    private final ContentRepositoryTreeService contentRepositoryTreeService;
    private final SecurityEngine securityEngine;
+   private final DataSourceRegistry dataSourceRegistry;
    private final RepletRegistryManager registryManager = new RepletRegistryManager();
    private static final Logger LOG = LoggerFactory.getLogger(DeployService.class);
 }

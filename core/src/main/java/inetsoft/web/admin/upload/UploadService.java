@@ -27,6 +27,7 @@ import jakarta.annotation.PreDestroy;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -37,9 +38,12 @@ import java.util.stream.Collectors;
 
 @Component
 public class UploadService {
-   public UploadService(MavenClientService mavenClient, BlobStorageManager blobStorageManager) {
+   @Autowired
+   public UploadService(MavenClientService mavenClient, BlobStorageManager blobStorageManager,
+                        Cluster cluster)
+   {
       this.mavenClient = mavenClient;
-      this.uploads = Cluster.getInstance().getMap(getClass().getName() + ".uploads");
+      this.uploads = cluster.getMap(getClass().getName() + ".uploads");
       this.blobStorage = blobStorageManager.getInstance("fileUploads", false);
    }
 

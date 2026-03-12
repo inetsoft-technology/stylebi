@@ -71,7 +71,8 @@ public class ComposerViewsheetService {
                                       VSRefreshController refreshController,
                                       VSLayoutService vsLayoutService,
                                       VSObjectModelFactoryService objectModelService,
-                                      VSCompositionService vsCompositionService)
+                                      VSCompositionService vsCompositionService,
+                                      MVManager mvManager)
    {
       this.runtimeViewsheetManager = runtimeViewsheetManager;
       this.coreLifecycleService = coreLifecycleService;
@@ -81,6 +82,7 @@ public class ComposerViewsheetService {
       this.vsLayoutService = vsLayoutService;
       this.objectModelService = objectModelService;
       this.vsCompositionService = vsCompositionService;
+      this.mvManager = mvManager;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -498,7 +500,7 @@ public class ComposerViewsheetService {
       }
 
       try {
-         if(MVManager.getManager().containsMV(entry)) {
+         if(mvManager.containsMV(entry)) {
             // mv is not enabled? don't warn user the message, but set the
             // status to warn
             return Catalog.getCatalog().getString("vs.mv.exist");
@@ -523,7 +525,7 @@ public class ComposerViewsheetService {
          return null;
       }
 
-      MVManager mgr = MVManager.getManager();
+      MVManager mgr = mvManager;
       boolean required = "true".equals(SreeEnv.getProperty("mv.required"));
       boolean metadata = "true".equals(SreeEnv.getProperty("mv.metadata"));
       AssetEntry entry = AssetEntry.createAssetEntry(event.getEntryId());
@@ -669,5 +671,6 @@ public class ComposerViewsheetService {
    private final VSLayoutService vsLayoutService;
    private final VSObjectModelFactoryService objectModelService;
    private final VSCompositionService vsCompositionService;
+   private final MVManager mvManager;
    private final Logger LOG = LoggerFactory.getLogger(ComposerViewsheetService.class);
 }

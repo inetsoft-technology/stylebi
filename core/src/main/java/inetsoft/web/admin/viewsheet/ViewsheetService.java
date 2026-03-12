@@ -55,19 +55,20 @@ public class ViewsheetService
    public ViewsheetService(inetsoft.analytic.composition.ViewsheetService engine,
                            ServerClusterClient client,
                            ViewsheetLifecycleMessageChannel viewsheetLifecycleMessageChannel,
-                           MonitoringDataService monitoringDataService)
+                           MonitoringDataService monitoringDataService,
+                           Cluster cluster)
    {
       super(lowAttrs, medAttrs, new String[0]);
       this.engine = engine;
       this.client = client;
       this.viewsheetLifecycleMessageChannel = viewsheetLifecycleMessageChannel;
       this.monitoringDataService = monitoringDataService;
+      this.cluster = cluster;
       listener = this::onViewsheetLifecycle;
    }
 
    @PostConstruct
    public void addListener() {
-      cluster = Cluster.getInstance();
       cluster.addMessageListener(this);
       viewsheetLifecycleMessageChannel.subscribe(listener);
    }
@@ -75,9 +76,7 @@ public class ViewsheetService
    @PreDestroy
    public void removeListener() {
       try {
-         if(cluster != null) {
-            cluster.removeMessageListener(this);
-         }
+         cluster.removeMessageListener(this);
 
          viewsheetLifecycleMessageChannel.unsubscribe(listener);
       }
@@ -505,7 +504,7 @@ public class ViewsheetService
    private final ViewsheetLifecycleMessageChannel viewsheetLifecycleMessageChannel;
    private final ViewsheetLifecycleEventListener listener;
    private final MonitoringDataService monitoringDataService;
-   private Cluster cluster;
+   private final Cluster cluster;
    private final Map<String, Integer> executingViewsheets = new HashMap<>();
 
    private static final String[] medAttrs = { "dateAccessed" };

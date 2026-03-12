@@ -51,24 +51,27 @@ public class SessionConnectionService {
    public SessionConnectionService(IgniteSessionRepository sessionRepository,
                                    AuthenticationService authenticationService,
                                    ApplicationEventPublisher eventPublisher,
-                                   NodeProtectionService nodeProtectionService)
+                                   NodeProtectionService nodeProtectionService,
+                                   SecurityEngine securityEngine,
+                                   Cluster cluster)
    {
       this.sessionRepository = sessionRepository;
       this.authenticationService = authenticationService;
       this.eventPublisher = eventPublisher;
       this.nodeProtectionService = nodeProtectionService;
+      this.securityEngine = securityEngine;
+      this.cluster = cluster;
    }
 
    @PostConstruct
    public void addSessionListener() {
-      SecurityEngine.getSecurity().addAuthenticationChangeListener(authenticationChangeListener);
-      cluster = Cluster.getInstance();
+      securityEngine.addAuthenticationChangeListener(authenticationChangeListener);
       cluster.addMessageListener(listener);
    }
 
    @PreDestroy
    public void removeSessionListener() {
-      SecurityEngine.getSecurity().removeAuthenticationChangeListener(authenticationChangeListener);
+      securityEngine.removeAuthenticationChangeListener(authenticationChangeListener);
    }
 
    public void webSocketConnected(WebSocketSession session) {
@@ -215,7 +218,7 @@ public class SessionConnectionService {
 
    private void authenticationChanged(AuthenticationChangeEvent event) {
       if(event.getType() == Identity.ORGANIZATION) {
-         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider provider = securityEngine.getSecurityProvider();
          String oldOrgName = event.getOldID() == null ? null : event.getOldID().name;
          String newOrgName = event.getNewID() == null ? null : event.getNewID().name;
          String oldOrgId = event.getOldOrgID();
@@ -251,7 +254,8 @@ public class SessionConnectionService {
       }
    }
 
-   private Cluster cluster;
+   private final Cluster cluster;
+   private final SecurityEngine securityEngine;
    private final MessageListener listener = this::messageReceived;
    private final AuthenticationService authenticationService;
    private final NodeProtectionService nodeProtectionService;

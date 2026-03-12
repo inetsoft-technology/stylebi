@@ -26,6 +26,7 @@ import inetsoft.util.Tool;
 import inetsoft.web.admin.security.*;
 import inetsoft.web.service.BaseSubscribeChangeHandler;
 import jakarta.annotation.PreDestroy;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.MessageHeaders;
@@ -44,16 +45,18 @@ import java.util.concurrent.TimeUnit;
 @Service
 @Lazy(false)
 public class ScheduleUsersChangeService extends BaseSubscribeChangeHandler implements MessageListener {
-   public ScheduleUsersChangeService(SimpMessagingTemplate messageTemplate) {
+   @Autowired
+   public ScheduleUsersChangeService(SimpMessagingTemplate messageTemplate, Cluster cluster) {
       super(messageTemplate);
-      Cluster.getInstance().addMessageListener(this);
+      this.cluster = cluster;
+      cluster.addMessageListener(this);
    }
 
    @PreDestroy
    public void destroyInstance() {
       try {
          this.debouncer.close();
-         Cluster.getInstance().removeMessageListener(this);
+         cluster.removeMessageListener(this);
       }
       catch(Exception e) {
          LOG.debug("Failed to clean up during shutdown", e);
@@ -115,6 +118,7 @@ public class ScheduleUsersChangeService extends BaseSubscribeChangeHandler imple
       }
    }
 
+   private final Cluster cluster;
    private final DefaultDebouncer<String> debouncer = new DefaultDebouncer<>();
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleUsersChangeService.class);
 }
