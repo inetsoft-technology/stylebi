@@ -19,10 +19,12 @@ package inetsoft.web.portal.service.datasource;
 
 import inetsoft.report.TableLens;
 import inetsoft.report.XSessionManager;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.erm.AttributeRef;
@@ -51,10 +53,13 @@ import java.util.stream.Collectors;
 
 @Service
 public class XmlaDatasourceService extends DatasourcesBaseService {
+   @org.springframework.beans.factory.annotation.Autowired
    public XmlaDatasourceService(XRepository repository, SecurityEngine securityEngine,
-                                DataSourceStatusService dataSourceStatusService)
+                                DataSourceStatusService dataSourceStatusService,
+                                DataSourceRegistry dataSourceRegistry,
+                                LicenseManager licenseManager)
    {
-      super(repository, securityEngine, dataSourceStatusService);
+      super(repository, securityEngine, dataSourceStatusService, dataSourceRegistry, licenseManager);
    }
 
    public DataSourceXmlaDefinition getNewDataSourceModel(String parentPath) throws Exception {

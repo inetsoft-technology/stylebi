@@ -17,9 +17,11 @@
  */
 package inetsoft.web.portal.data;
 
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.util.Config;
 import inetsoft.web.portal.service.datasource.DataSourceStatusService;
@@ -32,10 +34,12 @@ import org.springframework.stereotype.Service;
 public class DatasourcesService extends DatasourcesBaseService {
    @Autowired
    public DatasourcesService(XRepository repository,
-                             SecurityEngine SecurityEngine,
-                             DataSourceStatusService dataSourceStatusService)
+                             SecurityEngine securityEngine,
+                             DataSourceStatusService dataSourceStatusService,
+                             DataSourceRegistry dataSourceRegistry,
+                             LicenseManager licenseManager)
    {
-      super(repository, SecurityEngine, dataSourceStatusService);
+      super(repository, securityEngine, dataSourceStatusService, dataSourceRegistry, licenseManager);
    }
 
    /**

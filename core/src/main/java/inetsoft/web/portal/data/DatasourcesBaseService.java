@@ -52,11 +52,15 @@ import java.util.stream.Collectors;
 public abstract class DatasourcesBaseService {
    public DatasourcesBaseService(XRepository repository,
                                  SecurityEngine securityEngine,
-                                 DataSourceStatusService dataSourceStatusService)
+                                 DataSourceStatusService dataSourceStatusService,
+                                 DataSourceRegistry dataSourceRegistry,
+                                 LicenseManager licenseManager)
    {
       this.repository = repository;
       this.securityEngine = securityEngine;
       this.dataSourceStatusService = dataSourceStatusService;
+      this.dataSourceRegistry = dataSourceRegistry;
+      this.licenseManager = licenseManager;
    }
 
    protected XRepository getRepository() {
@@ -145,7 +149,7 @@ public abstract class DatasourcesBaseService {
       TabularOAuthParams.Builder builder = TabularOAuthParams.builder()
          .license(license);
 
-      if(!LicenseManager.getInstance().isEnterprise() && (license == null || license.isEmpty())) {
+      if(!licenseManager.isEnterprise() && (license == null || license.isEmpty())) {
          return builder.error(Catalog.getCatalog().getString("em.license.communityAPIKeyMissing"))
             .build();
       }
@@ -555,7 +559,7 @@ public abstract class DatasourcesBaseService {
     * @return the asset entry from the repository.
     */
    public AssetEntry getDataSourceAssetEntry(AssetEntry oldEntry) {
-      DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      DataSourceRegistry registry = dataSourceRegistry;
       AssetEntry[] entries = registry.getEntries(oldEntry.getPath(), AssetEntry.Type.DATA_SOURCE);
 
       for(AssetEntry newEntry : entries) {
@@ -574,7 +578,7 @@ public abstract class DatasourcesBaseService {
     */
    private void updateDataSourceAssetEntry(AssetEntry entry) {
       try {
-         DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+         DataSourceRegistry registry = dataSourceRegistry;
          registry.setObject(entry, registry.getObject(entry, true));
       }
       catch(Exception e) {
@@ -631,5 +635,7 @@ public abstract class DatasourcesBaseService {
    private final XRepository repository;
    private final SecurityEngine securityEngine;
    private final DataSourceStatusService dataSourceStatusService;
+   private final DataSourceRegistry dataSourceRegistry;
+   private final LicenseManager licenseManager;
    private static final Logger LOG = LoggerFactory.getLogger(DatasourcesBaseService.class);
 }

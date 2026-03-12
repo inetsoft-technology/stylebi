@@ -63,13 +63,15 @@ public class PhysicalModelManagerService {
                                       PhysicalModelService physicalModelService,
                                       RuntimePartitionService runtimePartitionService,
                                       PhysicalGraphService graphService,
-                                      XRepository repository)
+                                      XRepository repository,
+                                      DataSourceRegistry dataSourceRegistry)
    {
       this.dataSourceService = dataSourceService;
       this.physicalModelService = physicalModelService;
       this.runtimePartitionService = runtimePartitionService;
       this.graphService = graphService;
       this.repository = repository;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    /**
@@ -379,7 +381,7 @@ public class PhysicalModelManagerService {
          type = AssetEntry.Type.LOGIC_MODEL;
       }
 
-      DataSourceRegistry.getRegistry().updateObject(path, path, type, logicalModel);
+      dataSourceRegistry.updateObject(path, path, type, logicalModel);
    }
 
    private void updateAndSaveModel(XDataModel dataModel,
@@ -1570,4 +1572,5 @@ public class PhysicalModelManagerService {
    private final RuntimePartitionService runtimePartitionService;
    private final PhysicalGraphService graphService;
    private final XRepository repository;
+   private final DataSourceRegistry dataSourceRegistry;
 }
