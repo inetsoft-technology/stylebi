@@ -25,6 +25,7 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.MessageListener;
 import inetsoft.sree.security.*;
 import inetsoft.storage.BlobStorage;
+import inetsoft.storage.BlobStorageManager;
 import inetsoft.uql.asset.sync.RenameInfo;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
 import inetsoft.util.*;
@@ -36,7 +37,6 @@ import java.io.*;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -51,7 +51,6 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author InetSoft Technology Corp
  */
 @SuppressWarnings("WeakerAccess")
-@SingletonManager.Singleton(LibManager.Reference.class)
 public class LibManager implements AutoCloseable {
    /**
     * Action event ID if style is removed.
@@ -113,7 +112,7 @@ public class LibManager implements AutoCloseable {
 
    private synchronized BlobStorage<Metadata> getStorage() {
       if(storage == null || storage.isClosed()) {
-         storage = SingletonManager.getInstance(BlobStorage.class, getStorageId(orgID), false);
+         storage = BlobStorageManager.getStorage(getStorageId(orgID), false);
 
          try {
             storage.addListener(changeListener);
@@ -145,7 +144,21 @@ public class LibManager implements AutoCloseable {
    }
 
    public static LibManager getManager(String orgID) {
-      return SingletonManager.getInstance(LibManager.class, orgID);
+      MANAGER_LOCK.lock();
+      LibManager manager = ORG_MANAGERS.get(orgID);
+      try {
+         if(manager == null) {
+            manager = new LibManager(new NoopLibrarySecurity(), orgID);
+            ORG_MANAGERS.put(orgID, manager);
+         }
+         else {
+            manager.getStorage();
+         }
+      }
+      finally {
+         MANAGER_LOCK.unlock();
+      }
+      return manager;
    }
 
    /**
@@ -162,7 +175,16 @@ public class LibManager implements AutoCloseable {
     * Clears the cached library manager.
     */
    public static void clear() {
-      SingletonManager.reset(LibManager.class);
+      MANAGER_LOCK.lock();
+      try {
+         for(LibManager manager : ORG_MANAGERS.values()) {
+            manager.tearDown();
+         }
+         ORG_MANAGERS.clear();
+      }
+      finally {
+         MANAGER_LOCK.unlock();
+      }
    }
 
    /**
@@ -177,7 +199,7 @@ public class LibManager implements AutoCloseable {
                loadLibrary(storage);
             }
             else {
-               storage = SingletonManager.getInstance(BlobStorage.class, storageId, false);
+               storage = BlobStorageManager.getStorage(storageId, false);
                loadLibrary(storage);
             }
 
@@ -778,7 +800,7 @@ public class LibManager implements AutoCloseable {
 
    private synchronized void reloadLibrary() {
       String storeID = getStorageId(orgID);
-      BlobStorage<Metadata> storage = SingletonManager.getInstance(BlobStorage.class, storeID, false);
+      BlobStorage<Metadata> storage = BlobStorageManager.getStorage(storeID, false);
 
       try {
          storage.addListener(changeListener);
@@ -811,55 +833,6 @@ public class LibManager implements AutoCloseable {
       }
    };
 
-   public static final class Reference extends SingletonManager.Reference<LibManager> {
-      @Override
-      public LibManager get(Object ... parameters) {
-         lock.lock();
-
-         String orgID = OrganizationManager.getInstance().getCurrentOrgID();
-
-         if(parameters != null && parameters.length > 0 && parameters[0] != null) {
-            orgID = (String) parameters[0];
-         }
-
-         LibManager manager = orgManagers.get(orgID);
-         try {
-            if(manager == null) {
-               manager = new LibManager(new NoopLibrarySecurity(), orgID);
-               orgManagers.put(orgID, manager);
-            }
-            else {
-               // Init storage for org if it isn't initialized yet
-               manager.getStorage();
-            }
-         }
-         finally {
-            lock.unlock();
-         }
-
-         return manager;
-      }
-
-      @Override
-      public void dispose() {
-         lock.lock();
-
-         try {
-            if(!orgManagers.isEmpty()) {
-               for(LibManager manager : orgManagers.values()) {
-                  manager.tearDown();
-               }
-            }
-         }
-         finally {
-            lock.unlock();
-         }
-      }
-
-      private final Lock lock = new ReentrantLock();
-      private final Map<String, LibManager> orgManagers = new HashMap<>();
-   }
-
    // current library version
    private static final String CURR_VERSION = "version11.3";
 
@@ -880,6 +853,8 @@ public class LibManager implements AutoCloseable {
    private final Debouncer<String> debouncer;
 
    private static final Logger LOG = LoggerFactory.getLogger(LibManager.class);
+   private static final ReentrantLock MANAGER_LOCK = new ReentrantLock();
+   private static final Map<String, LibManager> ORG_MANAGERS = new HashMap<>();
 
    public static final class Metadata implements Serializable {
       public String getPath() {

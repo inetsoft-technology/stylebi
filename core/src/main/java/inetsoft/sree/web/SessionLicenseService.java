@@ -24,13 +24,16 @@ import inetsoft.sree.ClientInfo;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.util.Catalog;
-import inetsoft.util.SingletonManager;
 import inetsoft.util.profile.Profile;
 
 import java.util.*;
 import java.util.function.Supplier;
 
 public abstract class SessionLicenseService implements SessionLicenseManager {
+
+   private static volatile SessionLicenseManager sessionLicenseManager;
+   private static volatile ViewerSessionService viewerSessionService;
+
    /**
     * Gets an instance of a session license service, depending on the server
     * runtime license key. Returns null if the license is not a session license.
@@ -38,7 +41,36 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
     * cannot be provided.
     */
    public static SessionLicenseManager getSessionLicenseService() {
-      return SingletonManager.getInstance(SessionLicenseManager.class);
+      SessionLicenseManager m = sessionLicenseManager;
+      if(m == null) {
+         synchronized(SessionLicenseService.class) {
+            m = sessionLicenseManager;
+            if(m == null) {
+               LicenseManager licenseManager = LicenseManager.getInstance();
+               if(licenseManager.isHostedLicense()) {
+                  m = new HostedSessionService();
+               }
+               else {
+                  final int sessions = licenseManager.getConcurrentSessionCount()
+                     + licenseManager.getViewerSessionCount();
+                  final Set<IdentityID> namedUsers = licenseManager.getNamedUsers();
+                  if(sessions > 0) {
+                     if(SUtil.isCluster()) {
+                        m = new ConcurrentSessionClusterService(Reference::getAllowedViewerInstances);
+                     }
+                     else {
+                        m = new ConcurrentSessionService(Reference::getAllowedViewerInstances);
+                     }
+                  }
+                  else if(namedUsers != null) {
+                     m = new NamedSessionService();
+                  }
+               }
+               sessionLicenseManager = m;
+            }
+         }
+      }
+      return m;
    }
 
    /**
@@ -46,12 +78,44 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
     * null if the server does not have a viewer 'W' key.
     */
    public static SessionLicenseManager getViewerLicenseService() {
-      return SingletonManager.getInstance(ViewerSessionService.class);
+      ViewerSessionService s = viewerSessionService;
+      if(s == null) {
+         synchronized(SessionLicenseService.class) {
+            s = viewerSessionService;
+            if(s == null) {
+               if(ViewerReference.getAllowedVCInstances() > 0 || ViewerReference.isViewerOnlyLicense()) {
+                  SessionLicenseManager m;
+                  if(SUtil.isCluster()) {
+                     m = new ConcurrentSessionClusterService(
+                        ViewerReference::getAllowedVCInstances, false,
+                        ViewerSessionService.class.getName() + ".licenseMap");
+                  }
+                  else {
+                     m = new ConcurrentSessionService(ViewerReference::getAllowedVCInstances, false);
+                  }
+                  s = new ViewerSessionService(m);
+               }
+               else if(LicenseManager.getInstance().getNamedUserViewerSessionCount() > 0) {
+                  SessionLicenseManager m = new NamedSessionService(
+                     ViewerReference::getAllowedVCNamedUsers, false);
+                  s = new ViewerSessionService(m);
+               }
+               viewerSessionService = s;
+            }
+         }
+      }
+      return s;
    }
 
    public static void resetServices() {
-      SingletonManager.reset(SessionLicenseManager.class);
-      SingletonManager.reset(ViewerSessionService.class);
+      synchronized(SessionLicenseService.class) {
+         SessionLicenseManager m = sessionLicenseManager;
+         sessionLicenseManager = null;
+         if(m != null) { m.dispose(); }
+         ViewerSessionService v = viewerSessionService;
+         viewerSessionService = null;
+         if(v != null) { v.dispose(); }
+      }
    }
 
    /**
@@ -475,97 +539,15 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
       private final Set<SRPrincipal> principals;
    }
 
-   public static final class Reference
-      extends SingletonManager.Reference<SessionLicenseManager>
-   {
-      @Override
-      public synchronized SessionLicenseManager get(Object ... parameters) {
-         if(manager == null) {
-            LicenseManager licenseManager = LicenseManager.getInstance();
-
-            if(licenseManager.isHostedLicense()) {
-               manager = new HostedSessionService();
-            }
-            else {
-               final int sessions =
-                  licenseManager.getConcurrentSessionCount() +
-                  licenseManager.getViewerSessionCount();
-               final Set<IdentityID> namedUsers = licenseManager.getNamedUsers();
-
-               if(sessions > 0) {
-                  if(SUtil.isCluster()) {
-                     manager =
-                        new ConcurrentSessionClusterService(Reference::getAllowedViewerInstances);
-                  }
-                  else {
-                     manager = new ConcurrentSessionService(Reference::getAllowedViewerInstances);
-                  }
-               }
-               else if(namedUsers != null) {
-                  manager = new NamedSessionService();
-               }
-            }
-         }
-
-         return manager;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(manager != null) {
-            manager.dispose();
-            manager = null;
-         }
-      }
-
+   public static final class Reference {
       private static int getAllowedViewerInstances() {
          LicenseManager licenseManager = LicenseManager.getInstance();
          return licenseManager.getConcurrentSessionCount() + licenseManager.getViewerSessionCount()
                  + licenseManager.getNamedUserViewerSessionCount();
       }
-
-      private SessionLicenseManager manager;
    }
 
-   public static final class ViewerReference
-      extends SingletonManager.Reference<ViewerSessionService>
-   {
-      @Override
-      public synchronized ViewerSessionService get(Object ... parameters) {
-         if(service == null) {
-            if(getAllowedVCInstances() > 0 || isViewerOnlyLicense()) {
-               SessionLicenseManager manager;
-
-               if(SUtil.isCluster()) {
-                  manager = new ConcurrentSessionClusterService(
-                     ViewerReference::getAllowedVCInstances, false,
-                     ViewerSessionService.class.getName() + ".licenseMap");
-               }
-               else {
-                  manager = new ConcurrentSessionService(
-                     ViewerReference::getAllowedVCInstances, false);
-               }
-
-               service = new ViewerSessionService(manager);
-            }
-            else if(LicenseManager.getInstance().getNamedUserViewerSessionCount() > 0) {
-               SessionLicenseManager manager = new NamedSessionService(
-                  ViewerReference::getAllowedVCNamedUsers, false);
-               service = new ViewerSessionService(manager);
-            }
-         }
-
-         return service;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(service != null) {
-            service.dispose();
-            service = null;
-         }
-      }
-
+   public static final class ViewerReference {
       private static int getAllowedVCInstances() {
          return LicenseManager.getInstance().getConcurrentSessionCount();
       }
@@ -586,7 +568,5 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
 
          return sessions == 0 && viewerSessions > 0;
       }
-
-      private ViewerSessionService service;
    }
 }

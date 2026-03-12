@@ -53,16 +53,14 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
             return;
          }
 
-         roleStorage = SingletonManager.getInstance(KeyValueStorage.class,
-           "defaultSecurityRoles",
-           (Supplier<LoadRolesTask>) (() -> new LoadRolesTask("defaultSecurityRoles")));
-         userStorage = SingletonManager.getInstance(KeyValueStorage.class,
-           "defaultSecurityUsers",
-           (Supplier<LoadUsersTask>) (() -> new LoadUsersTask("defaultSecurityUsers")));
-         groupStorage = SingletonManager.getInstance(KeyValueStorage.class, "defaultSecurityGroups");
-         organizationStorage = SingletonManager.getInstance(KeyValueStorage.class,
-                                                 "defaultSecurityOrganizations",
-                                                 (Supplier<LoadOrganizationsTask>) (() -> new LoadOrganizationsTask("defaultSecurityOrganizations")));
+         roleStorage = KeyValueStorageManager.getStorage(
+            "defaultSecurityRoles", new LoadRolesTask("defaultSecurityRoles"));
+         userStorage = KeyValueStorageManager.getStorage(
+            "defaultSecurityUsers", new LoadUsersTask("defaultSecurityUsers"));
+         groupStorage = KeyValueStorageManager.getStorage("defaultSecurityGroups");
+         organizationStorage = KeyValueStorageManager.getStorage(
+            "defaultSecurityOrganizations",
+            new LoadOrganizationsTask("defaultSecurityOrganizations"));
       }
    }
 

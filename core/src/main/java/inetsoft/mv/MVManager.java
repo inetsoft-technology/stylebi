@@ -58,7 +58,6 @@ import java.util.stream.Stream;
  * @author InetSoft Technology
  * @version 10.2
  */
-@SingletonManager.Singleton
 public final class MVManager implements MessageListener {
    /**
     * Change event, per-transaction event, which should be fired after the

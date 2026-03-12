@@ -18,11 +18,9 @@
 package inetsoft.sree.web;
 
 import inetsoft.sree.security.SRPrincipal;
-import inetsoft.util.SingletonManager;
 
 import java.util.Set;
 
-@SingletonManager.Singleton(SessionLicenseService.Reference.class)
 public interface SessionLicenseManager extends AutoCloseable {
    /**
     * Acquires a new session license from the session license pool for the given

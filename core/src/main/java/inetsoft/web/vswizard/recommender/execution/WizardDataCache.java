@@ -217,26 +217,6 @@ public class WizardDataCache extends DataCache<String, WizardDataMap> {
       return new WizardDataMap();
    }
 
-   public static final class Reference extends SingletonManager.Reference<WizardDataCache> {
-      @Override
-      public synchronized WizardDataCache get(Object ... parameters) {
-         if(cache == null) {
-            cache = new WizardDataCache();
-         }
-
-         return cache;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(cache != null) {
-            cache = null;
-         }
-      }
-
-      private WizardDataCache cache;
-   }
-
    private long fileTimeout = 3600000 * 24L * 7; // expiration period, ms
    private final Lock swapLock = new ReentrantLock();
    private static final Logger LOG = LoggerFactory.getLogger(WizardDataCache.class);

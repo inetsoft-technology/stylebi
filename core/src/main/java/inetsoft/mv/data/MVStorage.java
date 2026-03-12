@@ -21,7 +21,6 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.storage.*;
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.SingletonManager;
 import inetsoft.util.Tool;
 import jakarta.annotation.PreDestroy;
 import org.apache.commons.io.IOUtils;
@@ -246,7 +245,7 @@ public class MVStorage implements AutoCloseable {
          orgId = OrganizationManager.getInstance().getCurrentOrgID();
       }
 
-      return SingletonManager.getInstance(BlobStorage.class, orgId.toLowerCase() + "__mv", true);
+      return BlobStorageManager.getStorage(orgId.toLowerCase() + "__mv", true);
    }
 
    private final Map<String, MV> cache = new ConcurrentHashMap<>();

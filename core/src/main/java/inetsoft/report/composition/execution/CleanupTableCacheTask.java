@@ -21,7 +21,7 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityProvider;
 import inetsoft.storage.BlobStorage;
-import inetsoft.util.SingletonManager;
+import inetsoft.storage.BlobStorageManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,7 +52,7 @@ public class CleanupTableCacheTask implements Runnable, Serializable {
          for(String orgId : orgIds) {
             String storeId = orgId.toLowerCase() + "__tableCacheStore";
             BlobStorage<DistributedTableCacheStore.Metadata> storage =
-               SingletonManager.getInstance(BlobStorage.class, storeId, false);
+               BlobStorageManager.getStorage(storeId, false);
 
             Set<String> keysToRemove = new HashSet<>();
             storage.paths().forEach(key -> {

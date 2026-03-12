@@ -36,7 +36,6 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -44,7 +43,6 @@ import java.util.stream.Stream;
  *
  * @param <T> the extended metadata type.
  */
-@SingletonManager.Singleton(BlobStorage.Reference.class)
 public abstract class BlobStorage<T extends Serializable> implements AutoCloseable {
    /**
     * Creates a new instance of {@code BlobStorage}.
@@ -601,9 +599,7 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
                                                                            boolean preload)
       throws IOException
    {
-      KeyValueStorage<Blob<T>> storage =
-         SingletonManager.getInstance(KeyValueStorage.class, id,
-                                      (Supplier<LoadBlobsTask<?>>) () -> new LoadBlobsTask<>(id));
+      KeyValueStorage<Blob<T>> storage = KeyValueStorageManager.getStorage(id, new LoadBlobsTask<>(id));
       InetsoftConfig config = InetsoftConfig.getInstance();
       String type = config.getBlob().getType();
 
@@ -916,24 +912,4 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
       private final BlobLock lock;
    }
 
-   public static final class Reference extends SingletonManager.Reference<BlobStorage<?>> {
-      @Override
-      public BlobStorage<?> get(Object... parameters) {
-         if(parameters.length < 2 || parameters.length > 3) {
-            return null;
-         }
-
-         String storeID = (String) parameters[0];
-         boolean preload = (Boolean) parameters[1];
-         Listener<?> listener = parameters.length == 3 ? (Listener<?>) parameters[2] : null;
-         BlobStorageManager manager =
-            ConfigurationContext.getContext().getSpringBean(BlobStorageManager.class);
-         return manager.getInstance(storeID, preload, (Listener) listener);
-      }
-
-      @Override
-      public void dispose() {
-         // lifecycle is managed by BlobStorageManager
-      }
-   }
 }

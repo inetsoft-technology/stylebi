@@ -51,7 +51,7 @@ import java.util.concurrent.locks.ReentrantLock;
 @Service
 public class SecurityEngine implements SessionListener, MessageListener, AutoCloseable {
    /**
-    * Create a <code>SecurityEngine</code> object (used by SingletonManager in non-Spring contexts).
+    * Create a <code>SecurityEngine</code> object (used in non-Spring contexts, e.g., unit tests).
     */
    public SecurityEngine() {
       this(AuthenticationService.getInstance());

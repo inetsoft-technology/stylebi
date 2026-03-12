@@ -837,7 +837,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
    private static final int NEED_SHRINK_COUNT = 100;
    private static final Logger LOG = LoggerFactory.getLogger(ViewsheetEngine.class);
    private final ViewsheetLifecycleMessageChannel lifecycleMessageService =
-      SingletonManager.getInstance(ViewsheetLifecycleMessageChannel.class);
+      ViewsheetLifecycleMessageChannel.getInstance();
    private int dataChangeCount;
    private final Map<AssetEntry, Long> dataChangeMap = new HashMap<>();
 

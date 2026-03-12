@@ -61,7 +61,6 @@ import java.util.stream.Collectors;
  * @version 8.5
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(AssetDataCache.Reference.class)
 public class AssetDataCache extends DataCache<DataKey, TableLens> {
    /**
     * Get the data. If the data doesn't exist, execute the query and add to
@@ -1316,34 +1315,4 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       ThreadLocal.withInitial(() -> Boolean.FALSE);
    private static final Logger LOG = LoggerFactory.getLogger(AssetDataCache.class);
 
-   public static final class Reference extends SingletonManager.Reference<AssetDataCache> {
-      @Override
-      public synchronized AssetDataCache get(Object ... parameters) {
-         if(cache == null) {
-            cache = new AssetDataCache();
-
-            dataSourceRegistry = DataSourceRegistry.getRegistry();
-            dataSourceRegistry.addRefreshedListener(listener);
-            dataSourceRegistry.addModifiedListener(listener);
-         }
-
-         return cache;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(cache != null) {
-            dataSourceRegistry.removeRefreshedListener(listener);
-            dataSourceRegistry.removeModifiedListener(listener);
-            dataSourceRegistry = null;
-
-            cache.clear();
-            cache = null;
-         }
-      }
-
-      private AssetDataCache cache;
-      private DataSourceRegistry dataSourceRegistry;
-      private final PropertyChangeListener listener = evt -> clearCache();
-   }
 }

@@ -2417,7 +2417,7 @@ public class AssetUtil {
       }
 
       if(rep == null) {
-         rep = (AssetRepository) SingletonManager.getInstance(AnalyticRepository.class);
+         rep = (AssetRepository) AnalyticRepository.getInstance();
       }
 
       return rep;

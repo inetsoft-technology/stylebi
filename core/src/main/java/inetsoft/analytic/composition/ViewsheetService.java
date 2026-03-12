@@ -24,12 +24,13 @@ import inetsoft.uql.viewsheet.VSSnapshot;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.vslayout.AbstractLayout;
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.SingletonManager;
+import org.springframework.context.ApplicationContext;
 
 import java.io.Serializable;
 import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Viewsheet service, includes a viewsheet repository to be the server
@@ -39,15 +40,35 @@ import java.util.List;
  * @version 8.5
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(ViewsheetService.Reference.class)
 public interface ViewsheetService extends WorksheetService {
+   /** Holds the non-Spring bootstrap instance (thread-safe via AtomicReference). */
+   AtomicReference<ViewsheetService> NON_SPRING_INSTANCE = new AtomicReference<>();
+
    /**
     * Gets the shared instance of the viewsheet service.
     *
     * @return the viewsheet service.
     */
    static ViewsheetService getInstance() {
-      return ConfigurationContext.getContext().getSpringBean(ViewsheetService.class);
+      ApplicationContext ctx = ConfigurationContext.getContext().getApplicationContext();
+
+      if(ctx != null) {
+         return ctx.getBean(ViewsheetService.class);
+      }
+
+      return NON_SPRING_INSTANCE.updateAndGet(existing -> {
+         if(existing != null) {
+            return existing;
+         }
+
+         try {
+            return (ViewsheetService) Class.forName("inetsoft.analytic.composition.ViewsheetEngine")
+               .getDeclaredConstructor().newInstance();
+         }
+         catch(Exception e) {
+            throw new RuntimeException("Failed to create ViewsheetEngine for non-Spring context", e);
+         }
+      });
    }
 
 
@@ -198,32 +219,6 @@ public interface ViewsheetService extends WorksheetService {
    void updateBookmarks(AssetEntry viewsheet);
 
    boolean switchToHostOrgForGlobalShareAsset(String sheetRuntimeId, Principal principal);
-
-   final class Reference extends SingletonManager.Reference<ViewsheetService> {
-      @Override
-      public synchronized ViewsheetService get(Object ... parameters) {
-         if(engine == null) {
-            try {
-               engine = new ViewsheetEngine();
-            }
-            catch(RemoteException e) {
-               throw new RuntimeException("Failed to create viewsheet engine", e);
-            }
-         }
-
-         return engine;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(engine != null) {
-            engine.dispose();
-            engine = null;
-         }
-      }
-
-      private ViewsheetEngine engine;
-   }
 
    @FunctionalInterface
    interface Task<T extends Serializable> extends Serializable {

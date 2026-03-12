@@ -52,13 +52,10 @@ import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 import java.security.Principal;
 import java.util.*;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 @Service
 @Lazy
-@SingletonManager.Singleton(ScheduleServer.Reference.class)
 public class ScheduleServer extends UnicastRemoteObject implements Schedule {
    /**
     * Default constructor.
@@ -455,52 +452,6 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
       catch(RemoteException e) {
          LOG.error("Failed to stop schedule server during shutdown", e);
       }
-   }
-
-   public static final class Reference extends SingletonManager.Reference<ScheduleServer> {
-      @Override
-      public ScheduleServer get(Object... parameters) {
-         if(instance == null) {
-            lock.lock();
-
-            try {
-               if(instance == null) {
-                  try {
-                     instance = new ScheduleServer();
-                  }
-                  catch(RemoteException e) {
-                     LOG.error("Failed to initialize Schedule", e);
-                  }
-               }
-            }
-            finally {
-               lock.unlock();
-            }
-         }
-
-         return instance;
-      }
-
-      @Override
-      public void dispose() {
-         lock.lock();
-
-         try {
-            if(instance != null) {
-               instance.stop();
-               instance = null;
-            }
-         }
-         catch(RemoteException e) {
-            LOG.error("Failed to stop Schedule", e);
-         }
-         finally {
-            lock.unlock();
-         }
-      }
-
-      private ScheduleServer instance;
-      private final Lock lock = new ReentrantLock();
    }
 
    private ServerMetricsCalculator metricsCalculator =

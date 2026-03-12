@@ -158,34 +158,5 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
    private CustomThemesImpl impl;
    private static final Logger LOG = LoggerFactory.getLogger(CustomThemesManager.class);
 
-   @SingletonManager.ShutdownOrder()
-   public static final class Reference extends SingletonManager.Reference<CustomThemesManager> {
-      @Override
-      public synchronized CustomThemesManager get(Object... parameters) {
-         if(manager == null) {
-            manager = new CustomThemesManager();
-            manager.loadThemes();
-         }
-
-         return manager;
-      }
-
-      @Override
-      public void dispose() {
-         if(manager != null) {
-            try {
-               manager.close();
-            }
-            catch(Exception e) {
-               LOG.warn("Failed to close theme manager", e);
-            }
-
-            manager = null;
-         }
-      }
-
-      private CustomThemesManager manager;
-   }
-
    private final Debouncer<String> debouncer = new DefaultDebouncer<>();
 }

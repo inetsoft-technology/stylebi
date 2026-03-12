@@ -18,6 +18,7 @@
 package inetsoft.storage;
 
 import com.github.benmanes.caffeine.cache.*;
+import inetsoft.util.ConfigurationContext;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,7 +32,7 @@ import java.util.function.Function;
  * Manages the pool of {@link KeyValueStorage} instances keyed by store ID.
  * In a Spring context, constructor-injecting {@link KeyValueEngine} ensures the engine is
  * started before any storage is accessed. In non-Spring environments the no-arg constructor
- * is used by {@code SingletonManager}.
+ * is used in non-Spring environments.
  *
  * <p>At most {@value #MAX_SIZE} stores are held open simultaneously. When the limit is
  * reached the least-recently-used store is closed and evicted. This bounds memory use and
@@ -41,7 +42,7 @@ import java.util.function.Function;
 public class KeyValueStorageManager implements AutoCloseable {
 
    /**
-    * No-arg constructor used by {@code SingletonManager} in non-Spring environments.
+    * No-arg constructor used in non-Spring environments (e.g., unit tests).
     */
    public KeyValueStorageManager() {
    }
@@ -81,6 +82,24 @@ public class KeyValueStorageManager implements AutoCloseable {
       String id, LoadKeyValueTask<T> task)
    {
       return get(id, storeId -> KeyValueStorage.newInstance(storeId, task));
+   }
+
+   /**
+    * Gets or creates the {@link KeyValueStorage} with the given store ID. Static bridge.
+    */
+   public static <T extends Serializable> KeyValueStorage<T> getStorage(String id) {
+      return ConfigurationContext.getContext().getSpringBean(KeyValueStorageManager.class)
+         .getInstance(id);
+   }
+
+   /**
+    * Gets or creates the {@link KeyValueStorage} with the given store ID and load task. Static bridge.
+    */
+   public static <T extends Serializable> KeyValueStorage<T> getStorage(
+      String id, LoadKeyValueTask<T> task)
+   {
+      return ConfigurationContext.getContext().getSpringBean(KeyValueStorageManager.class)
+         .getInstance(id, task);
    }
 
    @Override

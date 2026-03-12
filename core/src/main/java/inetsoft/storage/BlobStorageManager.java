@@ -18,6 +18,7 @@
 package inetsoft.storage;
 
 import com.github.benmanes.caffeine.cache.*;
+import inetsoft.util.ConfigurationContext;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,7 +31,7 @@ import java.io.*;
  * Manages the pool of {@link BlobStorage} instances keyed by store ID.
  * Constructor-injecting {@link BlobEngine} and {@link KeyValueStorageManager} ensures proper
  * startup ordering in a Spring context. In non-Spring environments the no-arg constructor is
- * used by {@code SingletonManager}.
+ * used in non-Spring environments.
  *
  * <p>At most {@value #MAX_SIZE} stores are held open simultaneously. When the limit is
  * reached the least-recently-used store is closed and evicted. This bounds memory use and
@@ -40,7 +41,7 @@ import java.io.*;
 public class BlobStorageManager implements AutoCloseable {
 
    /**
-    * No-arg constructor used by {@code SingletonManager} in non-Spring environments.
+    * No-arg constructor used in non-Spring environments (e.g., unit tests).
     */
    public BlobStorageManager() {
    }
@@ -109,6 +110,25 @@ public class BlobStorageManager implements AutoCloseable {
 
          return storage;
       }
+   }
+
+   /**
+    * Gets or creates the {@link BlobStorage} with the given store ID. Static bridge for
+    * non-managed callers; delegates to the Spring bean.
+    */
+   public static <T extends Serializable> BlobStorage<T> getStorage(String storeId, boolean preload) {
+      return ConfigurationContext.getContext().getSpringBean(BlobStorageManager.class)
+         .getInstance(storeId, preload);
+   }
+
+   /**
+    * Gets or creates the {@link BlobStorage} with the given store ID and listener. Static bridge.
+    */
+   public static <T extends Serializable> BlobStorage<T> getStorage(
+      String storeId, boolean preload, BlobStorage.Listener<T> listener)
+   {
+      return ConfigurationContext.getContext().getSpringBean(BlobStorageManager.class)
+         .getInstance(storeId, preload, listener);
    }
 
    @Override

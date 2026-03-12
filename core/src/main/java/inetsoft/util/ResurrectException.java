@@ -15,17 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.analytic.composition;
-import inetsoft.uql.asset.AssetEntry;
-import inetsoft.util.ConfigurationContext;
+package inetsoft.util;
 
-import java.security.Principal;
-
-public interface SheetLibraryService {
-   static SheetLibraryService getInstance() {
-      return ConfigurationContext.getContext().getSpringBean(SheetLibraryService.class);
+/**
+ * Exception thrown when a singleton has been disposed and a new instance must be created.
+ */
+public class ResurrectException extends IllegalStateException {
+   public ResurrectException() {
+      super("Singleton has been disposed");
    }
-
-   AssetEntry getTemporaryAssetEntry(Principal user, AssetEntry.Type type);
-
 }

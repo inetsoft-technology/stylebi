@@ -53,7 +53,6 @@ import java.util.stream.Collectors;
  * @since 12.3
  */
 @Service
-@SingletonManager.ShutdownOrder(after = InetsoftConfig.Reference.class)
 public class AuthenticationService {
    /**
     * Creates a new instance of <tt>AuthenticationService</tt>.

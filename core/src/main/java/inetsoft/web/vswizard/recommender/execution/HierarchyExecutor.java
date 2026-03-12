@@ -22,7 +22,6 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.util.SingletonManager;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import inetsoft.web.vswizard.recommender.execution.data.HierarchyData;
@@ -34,7 +33,6 @@ import org.slf4j.LoggerFactory;
  * @version 13.2
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(HierarchyExecutor.Reference.class)
 public class HierarchyExecutor extends WizardDataExecutor {
    /**
     * @param  box       the viewsheet sandbox.
@@ -167,28 +165,6 @@ public class HierarchyExecutor extends WizardDataExecutor {
       }
 
       return true;
-   }
-
-   public static final class Reference
-      extends SingletonManager.Reference<HierarchyExecutor>
-   {
-      @Override
-      public synchronized HierarchyExecutor get(Object ... parameters) {
-         if(executor == null) {
-            executor = new HierarchyExecutor();
-         }
-
-         return executor;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(executor != null) {
-            executor = null;
-         }
-      }
-
-      private HierarchyExecutor executor;
    }
 
    private static final String FILED_PREIX = "Hierarchy";

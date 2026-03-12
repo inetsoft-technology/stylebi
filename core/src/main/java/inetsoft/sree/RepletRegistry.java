@@ -47,7 +47,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * @author InetSoft Technology Corp
  * @version 7.0
  */
-@SingletonManager.Singleton(RepletRegistry.Reference.class)
 public class RepletRegistry implements Serializable {
    /**
     * Add replet event.
@@ -131,6 +130,7 @@ public class RepletRegistry implements Serializable {
     */
    public static RepletRegistry getRegistry(String orgID, boolean create) throws Exception {
       try {
+         isolateOrgRegistryFiles();
          String key = getRegistryKey(null, orgID);
          ResourceCache<String, RepletRegistry> registryCache = getRegistryCache();
 
@@ -140,7 +140,7 @@ public class RepletRegistry implements Serializable {
             return null;
          }
 
-         return SingletonManager.getInstance(RepletRegistry.class, key, create);
+         return registryCache.get(key);
       }
       catch(Exception ex) {
          if(create) {
@@ -159,6 +159,7 @@ public class RepletRegistry implements Serializable {
     */
    public static RepletRegistry getRegistry(IdentityID userName, boolean create) throws Exception {
       try {
+         isolateOrgRegistryFiles();
          String key = getRegistryKey(userName == null ? null : userName.convertToKey(), null);
          ResourceCache<String, RepletRegistry> registryCache = getRegistryCache();
 
@@ -168,7 +169,7 @@ public class RepletRegistry implements Serializable {
             return null;
          }
 
-         return SingletonManager.getInstance(RepletRegistry.class, key, create);
+         return registryCache.get(key);
       }
       catch(Exception ex) {
          if(create) {
@@ -1608,30 +1609,6 @@ public class RepletRegistry implements Serializable {
       private final StringBuffer buffer = new StringBuffer();
       private final StringBuffer cdatabuf = new StringBuffer();
       private final ArrayList<RepletRequest> list = new ArrayList<>();
-   }
-
-   public static final class Reference extends SingletonManager.Reference<RepletRegistry> {
-      @Override
-      public RepletRegistry get(Object ... parameters) {
-         isolateOrgRegistryFiles();
-         ResourceCache<String, RepletRegistry> registryCache = getRegistryCache();
-         boolean create = parameters.length < 2 || (Boolean) parameters[1];
-
-         try {
-            return registryCache.get((String) parameters[0]);
-         }
-         catch(Exception e) {
-            if(create) {
-               LOG.error("Failed to create replet registry: " + parameters[0], e);
-            }
-
-            return null;
-         }
-      }
-
-      @Override
-      public void dispose() {
-      }
    }
 
    private boolean noMyreports = false; // true to disable My Reports

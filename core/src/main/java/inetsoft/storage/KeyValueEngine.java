@@ -24,17 +24,16 @@ import com.fasterxml.jackson.datatype.guava.GuavaModule;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.SingletonManager;
 import inetsoft.util.config.InetsoftConfig;
-import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationContext;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 /**
  * {@code KeyValueEngine} is an interface for classes that handle storing key-value pairs.
  */
-@SingletonManager.Singleton(KeyValueEngine.Reference.class)
 public interface KeyValueEngine extends AutoCloseable {
    /**
     * Determines if a store contains the specified key.
@@ -171,54 +170,40 @@ public interface KeyValueEngine extends AutoCloseable {
       return mapper;
    }
 
+   /** Holds the non-Spring bootstrap instance (thread-safe via AtomicReference). */
+   AtomicReference<KeyValueEngine> NON_SPRING_INSTANCE = new AtomicReference<>();
+
    /**
     * Gets the shared instance of the key value storage engine.
     *
     * @return the singleton instance.
     */
    static KeyValueEngine getInstance() {
-      return ConfigurationContext.getContext().getSpringBean(KeyValueEngine.class);
+      ApplicationContext ctx = ConfigurationContext.getContext().getApplicationContext();
+
+      if(ctx != null) {
+         return ctx.getBean(KeyValueEngine.class);
+      }
+
+      // Non-Spring fallback: load via ServiceLoader using InetsoftConfig.
+      return NON_SPRING_INSTANCE.updateAndGet(existing -> {
+         if(existing != null) {
+            return existing;
+         }
+
+         InetsoftConfig config = InetsoftConfig.getInstance();
+         String type = config.getKeyValue().getType();
+
+         for(KeyValueEngineFactory factory : ServiceLoader.load(KeyValueEngineFactory.class)) {
+            if(factory.getType().equals(type)) {
+               return factory.createEngine(config);
+            }
+         }
+
+         throw new RuntimeException("No KeyValueEngineFactory found for type: " + type);
+      });
    }
 
    String ENCODE_PROPERTY_NAMES = KeyValueEngine.class.getName() + ".encodePropertyNames";
 
-   final class Reference extends SingletonManager.Reference<KeyValueEngine> {
-      @Override
-      public synchronized KeyValueEngine get(Object... parameters) {
-         if(engine == null) {
-            InetsoftConfig config = InetsoftConfig.getInstance();
-            String type = config.getKeyValue().getType();
-
-            for(KeyValueEngineFactory factory : ServiceLoader.load(KeyValueEngineFactory.class)) {
-               if(factory.getType().equals(type)) {
-                  engine = factory.createEngine(config);
-                  break;
-               }
-            }
-
-            if(engine == null) {
-               throw new RuntimeException("Failed to get key value engine of type '" + type + "'");
-            }
-         }
-
-         return engine;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(engine != null) {
-            try {
-               engine.close();
-            }
-            catch(Exception e) {
-               LoggerFactory.getLogger(KeyValueEngine.class)
-                  .warn("Failed to close key value engine", e);
-            }
-
-            engine = null;
-         }
-      }
-
-      private KeyValueEngine engine;
-   }
 }

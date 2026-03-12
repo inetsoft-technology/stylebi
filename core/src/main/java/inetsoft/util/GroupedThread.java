@@ -226,7 +226,7 @@ public class GroupedThread extends Thread {
       try {
          LogContext.setUser(user);
       }
-      catch(SingletonManager.ResurrectException ignore) {
+      catch(ResurrectException ignore) {
          // server is shutting down, ignore
       }
    }

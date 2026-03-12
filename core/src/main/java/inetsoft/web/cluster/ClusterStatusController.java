@@ -248,7 +248,6 @@ public class ClusterStatusController implements MessageListener {
 
       // block incoming traffic
       try {
-         //TODO SingletonManager.reset();
          RepletRegistry.clear();
 
          XSessionManager.restart();

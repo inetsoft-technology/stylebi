@@ -18,7 +18,7 @@
 package inetsoft.web.admin.favorites;
 
 import inetsoft.storage.KeyValueStorage;
-import inetsoft.util.SingletonManager;
+import inetsoft.storage.KeyValueStorageManager;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.springframework.web.bind.annotation.*;
@@ -58,7 +58,7 @@ public class FavoritesController {
 
    @PostConstruct
    public void initStorage() {
-      favorites = SingletonManager.getInstance(KeyValueStorage.class,"emFavorites");
+      favorites = KeyValueStorageManager.getStorage("emFavorites");
    }
 
    @PreDestroy

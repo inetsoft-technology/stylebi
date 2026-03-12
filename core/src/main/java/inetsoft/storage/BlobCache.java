@@ -19,20 +19,13 @@
 package inetsoft.storage;
 
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.SingletonManager;
-import inetsoft.util.config.BlobConfig;
-import inetsoft.util.config.InetsoftConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.*;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
-@SingletonManager.Singleton(BlobCache.Reference.class)
 public class BlobCache {
    BlobCache(Path baseDir, BlobEngine engine) {
       this.baseDir = baseDir;
@@ -171,46 +164,4 @@ public class BlobCache {
    private final BlobEngine engine;
    private static final Logger LOG = LoggerFactory.getLogger(BlobCache.class);
 
-   public static final class Reference extends SingletonManager.Reference<BlobCache> {
-      @Override
-      public BlobCache get(Object... parameters) {
-         lock.lock();
-
-         try {
-            if(cache == null) {
-               BlobConfig config = InetsoftConfig.getInstance().getBlob();
-               Path baseDir = Paths.get(Objects.requireNonNull(config.getCacheDirectory()));
-               BlobEngine engine = BlobEngine.getInstance();
-               Long maxSize = config.getCacheMaxSize();
-
-               if(maxSize != null && maxSize > 0) {
-                  cache = new BoundedBlobCache(baseDir, engine, maxSize);
-               }
-               else {
-                  cache = new BlobCache(baseDir, engine);
-               }
-            }
-
-            return cache;
-         }
-         finally {
-            lock.unlock();
-         }
-      }
-
-      @Override
-      public void dispose() {
-
-         lock.lock();
-         try {
-            cache = null;
-         }
-         finally {
-            lock.unlock();
-         }
-      }
-
-      private BlobCache cache = null;
-      private final Lock lock = new ReentrantLock();
-   }
 }

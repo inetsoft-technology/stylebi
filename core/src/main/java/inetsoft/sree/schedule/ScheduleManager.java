@@ -54,13 +54,37 @@ import java.util.stream.Collectors;
  */
 @Service
 @Lazy
-@SingletonManager.Singleton(ScheduleManager.Reference.class)
 public class ScheduleManager {
+   /** Holds the non-Spring bootstrap instance (thread-safe via AtomicReference). */
+   private static final java.util.concurrent.atomic.AtomicReference<ScheduleManager>
+      NON_SPRING_INSTANCE = new java.util.concurrent.atomic.AtomicReference<>();
+
+   /** Resets the non-Spring singleton instance. Used in tests between test runs. */
+   public static void resetNonSpringInstance() {
+      NON_SPRING_INSTANCE.set(null);
+   }
+
    /**
     * Get the schedule manager.
     */
    public static ScheduleManager getScheduleManager() {
-      return ConfigurationContext.getContext().getSpringBean(ScheduleManager.class);
+      org.springframework.context.ApplicationContext ctx =
+         ConfigurationContext.getContext().getApplicationContext();
+
+      if(ctx != null) {
+         return ctx.getBean(ScheduleManager.class);
+      }
+
+      // Non-Spring fallback: create and init internal tasks exactly once.
+      return NON_SPRING_INSTANCE.updateAndGet(existing -> {
+         if(existing != null) {
+            return existing;
+         }
+
+         ScheduleManager manager = new ScheduleManager();
+         manager.initInternalTasks();
+         return manager;
+      });
    }
 
    public static boolean isInternalTask(String taskName) {
@@ -114,7 +138,7 @@ public class ScheduleManager {
    }
 
    /**
-    * Create a schedule manager. No-arg fallback for SingletonManager in non-Spring environments.
+    * Create a schedule manager. No-arg fallback for non-Spring environments (e.g., unit tests).
     */
    public ScheduleManager() {
       initMap();
@@ -1738,41 +1762,4 @@ public class ScheduleManager {
 
    private record ExtTaskKey(String name, String orgId) { }
 
-   public static final class Reference
-      extends SingletonManager.Reference<ScheduleManager>
-   {
-      @Override
-      public ScheduleManager get(Object... parameters) {
-         if(manager == null) {
-            Lock lock = Cluster.getInstance().getLock(Scheduler.INIT_LOCK);
-            lock.lock();
-
-            try {
-               if(manager == null) {
-                  manager = new ScheduleManager();
-
-                  try {
-                     new InternalScheduledTaskService(manager).initInternalTasks();
-                  }
-                  catch(Exception ex) {
-                     LOG.error("Failed to initialize internal tasks.");
-                  }
-               }
-            }
-            finally {
-               lock.unlock();
-            }
-
-         }
-
-         return manager;
-      }
-
-      @Override
-      public void dispose() {
-         manager = null;
-      }
-
-      private ScheduleManager manager;
-   }
 }

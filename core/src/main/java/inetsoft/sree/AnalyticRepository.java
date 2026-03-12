@@ -17,17 +17,13 @@
  */
 package inetsoft.sree;
 
-import inetsoft.sree.internal.AnalyticEngine;
-import inetsoft.sree.internal.cluster.Cluster;
-import inetsoft.sree.schedule.Scheduler;
-import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.XLogicalModel;
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.SingletonManager;
+import org.springframework.context.ApplicationContext;
 
 import java.rmi.RemoteException;
 import java.security.Principal;
-import java.util.concurrent.locks.Lock;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * This defines the server interface for the analytic component of the report
@@ -36,15 +32,35 @@ import java.util.concurrent.locks.Lock;
  * @author InetSoft Technology Corp.
  * @version 7.0
  */
-@SingletonManager.Singleton(AnalyticRepository.Reference.class)
 public interface AnalyticRepository extends RepletRepository {
+   /** Holds the non-Spring bootstrap instance (thread-safe via AtomicReference). */
+   AtomicReference<AnalyticRepository> NON_SPRING_INSTANCE = new AtomicReference<>();
+
    /**
     * Gets the shared instance of the analytic repository.
     *
     * @return the analytic repository.
     */
    static AnalyticRepository getInstance() {
-      return ConfigurationContext.getContext().getSpringBean(AnalyticRepository.class);
+      ApplicationContext ctx = ConfigurationContext.getContext().getApplicationContext();
+
+      if(ctx != null) {
+         return ctx.getBean(AnalyticRepository.class);
+      }
+
+      return NON_SPRING_INSTANCE.updateAndGet(existing -> {
+         if(existing != null) {
+            return existing;
+         }
+
+         try {
+            return (AnalyticRepository) Class.forName("inetsoft.sree.internal.AnalyticEngine")
+               .getDeclaredConstructor().newInstance();
+         }
+         catch(Exception e) {
+            throw new RuntimeException("Failed to create AnalyticEngine for non-Spring context", e);
+         }
+      });
    }
 
 
@@ -83,40 +99,4 @@ public interface AnalyticRepository extends RepletRepository {
       throw new IllegalArgumentException("Not a wrapper for " + iface.getName());
    }
 
-   /**
-    * Factory that handles creating the shared instance of <tt>AnalyticRepository</tt>.
-    */
-   class Reference extends SingletonManager.Reference<AnalyticRepository> {
-      @Override
-      public AnalyticRepository get(Object ... parameters) {
-         if(engine == null) {
-            // avoid deadlock. (50572)
-            Lock lock = Cluster.getInstance().getLock(Scheduler.INIT_LOCK);
-            lock.lock();
-
-            try {
-               if(engine == null) {
-                  engine = new AnalyticEngine();
-                  AssetUtil.setAssetRepository(false, engine);
-                  engine.init();
-               }
-            }
-            finally {
-               lock.unlock();
-            }
-         }
-
-         return engine;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(engine != null) {
-            engine.dispose();
-            engine = null;
-         }
-      }
-
-      private AnalyticEngine engine;
-   }
 }

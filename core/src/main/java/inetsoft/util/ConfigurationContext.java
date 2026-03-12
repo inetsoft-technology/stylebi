@@ -17,7 +17,6 @@
  */
 package inetsoft.util;
 
-import inetsoft.util.config.InetsoftConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
@@ -35,7 +34,6 @@ import java.util.function.Function;
  * Class that stores information that is specific configuration home directory.
  */
 @SuppressWarnings("unchecked")
-@SingletonManager.ShutdownOrder(after = InetsoftConfig.class)
 public class ConfigurationContext implements AutoCloseable {
    /**
     * Gets the shared instance of the configuration context.
@@ -43,7 +41,61 @@ public class ConfigurationContext implements AutoCloseable {
     * @return the configuration context.
     */
    public static ConfigurationContext getContext() {
-      return SingletonManager.getInstance(ConfigurationContext.class);
+      if(INSTANCE == null) {
+         synchronized(ConfigurationContext.class) {
+            if(INSTANCE == null) {
+               INSTANCE = new ConfigurationContext();
+            }
+         }
+      }
+
+      return INSTANCE;
+   }
+
+   /**
+    * Resets the shared instance and clears any non-Spring cached instances.
+    * Used in tests to clean up between test runs.
+    */
+   public static void reset() {
+      // Close and evict non-Spring reflection instances
+      NON_SPRING_INSTANCES.values().forEach(v -> {
+         if(v instanceof AutoCloseable) {
+            try {
+               ((AutoCloseable) v).close();
+            }
+            catch(Exception ignored) {
+            }
+         }
+      });
+      NON_SPRING_INSTANCES.clear();
+
+      // Reset interface-level non-Spring singletons
+      inetsoft.sree.internal.cluster.Cluster.PRE_SPRING_INSTANCE.set(null);
+      inetsoft.storage.KeyValueEngine.NON_SPRING_INSTANCE.set(null);
+      inetsoft.storage.BlobEngine.NON_SPRING_INSTANCE.set(null);
+      inetsoft.util.IndexedStorage.NON_SPRING_INSTANCE.set(null);
+      inetsoft.sree.AnalyticRepository.NON_SPRING_INSTANCE.set(null);
+      inetsoft.uql.asset.DependencyHandler.NON_SPRING_INSTANCE.set(null);
+      inetsoft.analytic.composition.ViewsheetService.NON_SPRING_INSTANCE.set(null);
+      inetsoft.sree.schedule.ScheduleManager.resetNonSpringInstance();
+      inetsoft.util.Plugins.resetNonSpringInstance();
+      inetsoft.util.config.InetsoftConfig.BOOTSTRAP_INSTANCE = null;
+
+      ConfigurationContext old;
+
+      synchronized(ConfigurationContext.class) {
+         old = INSTANCE;
+         INSTANCE = null;
+      }
+
+      if(old != null) {
+         try {
+            old.close();
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to close ConfigurationContext during reset", e);
+         }
+      }
    }
 
    /**
@@ -180,8 +232,9 @@ public class ConfigurationContext implements AutoCloseable {
 
    public <T> T getSpringBean(Class<T> type) {
       if(applicationContext == null) {
-         // Fallback during migration: support non-Spring environments (unit tests, schedule server)
-         return SingletonManager.getInstance(type);
+         // Non-Spring fallback: create or retrieve a cached instance via reflection.
+         // Used in unit-test environments that do not start a Spring context.
+         return getNonSpringInstance(type);
       }
 
       return applicationContext.getBean(type);
@@ -190,11 +243,16 @@ public class ConfigurationContext implements AutoCloseable {
    /**
     * Gets an optional Spring bean by type. Returns {@code null} if the bean is not registered
     * (e.g., the providing {@code @Configuration} was excluded by a {@code @Conditional}).
-    * Falls back to {@link SingletonManager#getInstance(Class)} when not running in Spring.
+    * Falls back to reflection-based instantiation when not running in Spring.
     */
    public <T> T getOptionalSpringBean(Class<T> type) {
       if(applicationContext == null) {
-         return SingletonManager.getInstance(type);
+         try {
+            return getNonSpringInstance(type);
+         }
+         catch(Exception e) {
+            return null;
+         }
       }
 
       try {
@@ -202,6 +260,36 @@ public class ConfigurationContext implements AutoCloseable {
       }
       catch(NoSuchBeanDefinitionException e) {
          return null;
+      }
+   }
+
+   @SuppressWarnings("unchecked")
+   private <T> T getNonSpringInstance(Class<T> type) {
+      // Avoid ConcurrentHashMap.computeIfAbsent() — it throws "Recursive update" in Java 9+
+      // when the mapping function itself calls computeIfAbsent on the same map (e.g. when
+      // constructing SecurityEngine requires AuthenticationService, which also needs getNonSpringInstance).
+      Object existing = NON_SPRING_INSTANCES.get(type);
+
+      if(existing != null) {
+         return (T) existing;
+      }
+
+      @SuppressWarnings("unchecked")
+      T newInstance = (T) createInstance(type);
+      @SuppressWarnings("unchecked")
+      T previous = (T) NON_SPRING_INSTANCES.putIfAbsent(type, newInstance);
+      return previous != null ? previous : newInstance;
+   }
+
+   private Object createInstance(Class<?> type) {
+      try {
+         java.lang.reflect.Constructor<?> ctor = type.getDeclaredConstructor();
+         ctor.setAccessible(true);
+         return ctor.newInstance();
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(
+            "No Spring context and cannot reflectively create " + type.getName(), e);
       }
    }
 
@@ -246,5 +334,9 @@ public class ConfigurationContext implements AutoCloseable {
    private volatile String home = ".";
    private ApplicationContext applicationContext;
    private final CompletableFuture<Void> springContextReady = new CompletableFuture<>();
+   private static volatile ConfigurationContext INSTANCE;
+   // Cache of non-Spring instances created by reflection for test/non-Spring environments
+   private static final ConcurrentHashMap<Class<?>, Object> NON_SPRING_INSTANCES =
+      new ConcurrentHashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(ConfigurationContext.class);
 }

@@ -18,7 +18,6 @@
 package inetsoft.util.audit;
 
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.SingletonManager;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 

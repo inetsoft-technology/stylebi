@@ -24,6 +24,7 @@ import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.storage.KeyValueStorage;
+import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.jdbc.SQLHelper;
 import inetsoft.util.*;
@@ -493,7 +494,7 @@ public class PropertiesEngine {
             storage = ConfigurationContext.getContext().get(STORAGE_KEY);
 
             if(storage == null) {
-               storage = SingletonManager.getInstance(KeyValueStorage.class, "sreeProperties");
+               storage = KeyValueStorageManager.getStorage("sreeProperties");
                ConfigurationContext.getContext().put(STORAGE_KEY, storage);
             }
          }

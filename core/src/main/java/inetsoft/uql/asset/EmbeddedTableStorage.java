@@ -19,9 +19,9 @@ package inetsoft.uql.asset;
 
 import inetsoft.sree.security.*;
 import inetsoft.storage.BlobStorage;
+import inetsoft.storage.BlobStorageManager;
 import inetsoft.storage.BlobTransaction;
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.SingletonManager;
 import jakarta.annotation.PreDestroy;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -31,7 +31,6 @@ import java.io.*;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
-@SingletonManager.Singleton(EmbeddedTableStorage.Reference.class)
 public class EmbeddedTableStorage implements AutoCloseable {
    public EmbeddedTableStorage() {
    }
@@ -43,7 +42,7 @@ public class EmbeddedTableStorage implements AutoCloseable {
    private BlobStorage<Metadata> getStorage(String orgId) {
       orgId = orgId == null ? OrganizationManager.getInstance().getCurrentOrgID() : orgId;
       String storeID = orgId.toLowerCase() + "__pdata";
-      return SingletonManager.getInstance(BlobStorage.class, storeID, true);
+      return BlobStorageManager.getStorage(storeID, true);
    }
 
    public boolean tableExists(String path) {
@@ -179,24 +178,6 @@ public class EmbeddedTableStorage implements AutoCloseable {
       }
 
       private final boolean temp;
-   }
-
-   public static final class Reference extends SingletonManager.Reference<EmbeddedTableStorage> {
-      @Override
-      public EmbeddedTableStorage get(Object... parameters) {
-         if(instance == null) {
-            instance = new EmbeddedTableStorage();
-         }
-
-         return instance;
-      }
-
-      @Override
-      public void dispose() {
-
-      }
-
-      private EmbeddedTableStorage instance;
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(EmbeddedTableStorage.class);

@@ -22,7 +22,6 @@ import inetsoft.sree.security.*;
 import inetsoft.storage.*;
 import inetsoft.uql.util.*;
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.SingletonManager;
 import inetsoft.util.Tool;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -735,8 +734,7 @@ public class DashboardManager implements AutoCloseable {
       }
 
       String storeID = orgID.toLowerCase() + "__dashboards";
-      Supplier<LoadDashboardsTask> supplier = () -> new LoadDashboardsTask(storeID);
-      return SingletonManager.getInstance(KeyValueStorage.class, storeID, supplier);
+      return KeyValueStorageManager.getStorage(storeID, new LoadDashboardsTask(storeID));
    }
 
    private synchronized void syncUserDashboards() throws Exception {

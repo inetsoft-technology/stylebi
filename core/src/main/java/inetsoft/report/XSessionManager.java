@@ -59,7 +59,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * @version 9.1
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(XSessionManager.Reference.class)
 public class XSessionManager {
    /**
     * Cached data hint.
@@ -984,81 +983,4 @@ public class XSessionManager {
    private static final Logger LOG =
       LoggerFactory.getLogger(XSessionManager.class);
 
-   public static final class Reference
-      extends SingletonManager.Reference<XSessionManager>
-   {
-      @Override
-      public synchronized XSessionManager get(Object ... parameters) {
-         if(manager == null) {
-            try {
-               manager = new XSessionManager();
-               String prop = SreeEnv.getProperty("query.cache.limit");
-
-               if(prop != null) {
-                  manager.dataCache.setLimit(Integer.parseInt(prop));
-               }
-
-               prop = SreeEnv.getProperty("query.cache.timeout");
-
-               if(prop != null) {
-                  manager.dataCache.setTimeout(Long.parseLong(prop));
-               }
-
-               prop = SreeEnv.getProperty("query.cache.data");
-
-               // @by larryl, defaults to cache with short timeout so at least a
-               // query used multiple times in one report is cached
-               if(prop == null) {
-                  manager.setCacheData(true);
-                  manager.dataCache.setTimeout(30000);
-               }
-               else {
-                  manager.setCacheData(prop.equalsIgnoreCase("true"));
-               }
-
-               DataSourceRegistry.getRegistry().addRefreshedListener(
-                  evt -> {
-                     try {
-                        XSessionManager.getSessionManager().clearCache();
-                     }
-                     catch(Exception ex) {
-                        LOG.warn("Failed to clear the cache " +
-                           "after the data source registry was refreshed", ex);
-                     }
-                  }
-               );
-
-               DataSourceRegistry.getRegistry().addModifiedListener(
-                  evt -> {
-                     try {
-                        XSessionManager.getSessionManager().clearCache();
-                     }
-                     catch(Exception ex) {
-                        LOG.warn("Failed to clear the cache " +
-                           "after the data source registry was modified", ex);
-                     }
-                  }
-               );
-
-               manager.bind(System.getProperty("user.name"));
-            }
-            catch(Exception ex) {
-               LOG.error("Failed to initialize the session manager", ex);
-               throw new RuntimeException("Failed to initialize the session manager", ex);
-            }
-         }
-
-         return manager;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(manager != null) {
-            manager.tearDown();
-            manager = null;
-         }
-      }
-
-      private XSessionManager manager;
-   }
 }

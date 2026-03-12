@@ -22,7 +22,6 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.util.SingletonManager;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import inetsoft.web.vswizard.recommender.execution.data.CardinalityData;
@@ -34,7 +33,6 @@ import org.slf4j.LoggerFactory;
  * @version 13.2
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(CardinalityExecutor.Reference.class)
 public class CardinalityExecutor extends WizardDataExecutor {
    /**
     * Return the CardinalityData for the target binding field.
@@ -126,28 +124,6 @@ public class CardinalityExecutor extends WizardDataExecutor {
       }
 
       return null;
-   }
-
-   public static final class Reference
-      extends SingletonManager.Reference<CardinalityExecutor>
-   {
-      @Override
-      public synchronized CardinalityExecutor get(Object ... parameters) {
-         if(executor == null) {
-            executor = new CardinalityExecutor();
-         }
-
-         return executor;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(executor != null) {
-            executor = null;
-         }
-      }
-
-      private CardinalityExecutor executor;
    }
 
    private static final String FILED_PREIX = "Cardinality";

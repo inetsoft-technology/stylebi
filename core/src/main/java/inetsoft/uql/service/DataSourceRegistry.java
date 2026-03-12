@@ -58,7 +58,6 @@ import java.util.concurrent.locks.ReentrantLock;
  * @version 7.0
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(DataSourceRegistry.Reference.class)
 public class DataSourceRegistry implements MessageListener {
    /**
     * Get data source registry.
@@ -1987,36 +1986,4 @@ public class DataSourceRegistry implements MessageListener {
       DataSourceRegistry::matchesDataSourceFilter;
    public static ThreadLocal<Boolean> IGNORE_GLOBAL_SHARE = ThreadLocal.withInitial(() -> false);
 
-   public static final class Reference // NOSONAR this is an inner class that is only referenced in the annotation
-      extends SingletonManager.Reference<DataSourceRegistry>
-   {
-      @Override
-      public synchronized DataSourceRegistry get(Object... parameters) {
-         if(registry == null) {
-            try {
-               registry = new DataSourceRegistry();
-            }
-            catch(SAXParseException e) {
-               LOG.error(
-                  "Parsing error: line {} column {}, {}",
-                  e.getLineNumber(), e.getColumnNumber(), e.getMessage());
-            }
-            catch(Exception e) {
-               LOG.error("Failed to load data source registry file", e);
-            }
-         }
-
-         return registry;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(registry != null) {
-            Cluster.getInstance().removeMessageListener(registry);
-            registry = null;
-         }
-      }
-
-      private DataSourceRegistry registry;
-   }
 }

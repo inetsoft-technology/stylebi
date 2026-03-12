@@ -741,7 +741,7 @@ public final class XSwapper {
                      doGC();
                   }
                }
-               catch(SingletonManager.ResurrectException ignore) {
+               catch(ResurrectException ignore) {
                   // server is shutting down, ignore
                }
                catch(Throwable ex) {

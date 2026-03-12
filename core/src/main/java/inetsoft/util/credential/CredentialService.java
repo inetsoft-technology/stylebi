@@ -19,7 +19,6 @@
 package inetsoft.util.credential;
 
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.SingletonManager;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
@@ -52,26 +51,6 @@ public class CredentialService {
 
    private Credential createCredential(CredentialType type, boolean forceLocal) {
       return factories.get(type).createCredential(forceLocal);
-   }
-
-   public static final class Reference extends SingletonManager.Reference<CredentialService> {
-      @Override
-      public synchronized CredentialService get(Object ... parameters) {
-         if(service == null) {
-            service = new CredentialService();
-         }
-
-         return service;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(service != null) {
-            service = null;
-         }
-      }
-
-      private CredentialService service;
    }
 
    private Map<CredentialType, CredentialFactory> factories = new HashMap<>();

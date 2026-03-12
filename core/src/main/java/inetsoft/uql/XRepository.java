@@ -21,8 +21,6 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.sync.RenameDependencyInfo;
 import inetsoft.uql.asset.sync.RenameInfo;
 import inetsoft.uql.erm.XDataModel;
-import inetsoft.util.SingletonManager;
-
 import java.rmi.RemoteException;
 import java.util.List;
 import java.util.concurrent.Future;
@@ -37,7 +35,6 @@ import java.util.concurrent.Future;
  * @version 5.1, 9/20/2003
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(XFactory.Reference.class)
 public interface XRepository extends XDataService, XQueryRepository {
    /**
     * Get the names of data sources in this repository.

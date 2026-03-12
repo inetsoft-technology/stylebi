@@ -19,10 +19,12 @@ package inetsoft.test;
 
 import com.google.auto.service.AutoService;
 import inetsoft.mv.trans.UserInfo;
+import inetsoft.report.LibManager;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.MockCluster;
 import inetsoft.sree.security.*;
+import inetsoft.sree.web.SessionLicenseService;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
@@ -47,7 +49,7 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
    public void beforeAll(ExtensionContext context) throws Exception {
       if(deadlockThreadDump != null) {
          throw new Exception(
-            "SingletonManager.reset() is stalled. Thread dump:\n" + deadlockThreadDump);
+            "Cleanup is stalled. Thread dump:\n" + deadlockThreadDump);
       }
 
       ExtensionContext.Store store = context.getStore(NAMESPACE);
@@ -148,7 +150,11 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
          mvSupport.dispose(mvNames);
       }
 
-      Thread thread = new Thread(SingletonManager::reset);
+      Thread thread = new Thread(() -> {
+         LibManager.clear();
+         SessionLicenseService.resetServices();
+         ConfigurationContext.reset();
+      });
       thread.setDaemon(true);
       thread.start();
       thread.join(120000L);
@@ -163,7 +169,7 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
          deadlockThreadDump = getThreadDump();
          thread.interrupt();
          throw new Exception(
-            "SingletonManager.reset() is stalled. Thread dump:\n" + deadlockThreadDump);
+            "Cleanup is stalled. Thread dump:\n" + deadlockThreadDump);
       }
    }
 

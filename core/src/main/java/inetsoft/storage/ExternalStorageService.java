@@ -20,7 +20,6 @@ package inetsoft.storage;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.SingletonManager;
 import inetsoft.util.config.InetsoftConfig;
 
 import java.io.IOException;
@@ -33,7 +32,6 @@ import java.util.ServiceLoader;
  * {@code ExternalStorageService} provides the interface for classes that handle saving files to
  * some external storage.
  */
-@SingletonManager.Singleton(ExternalStorageService.Reference.class)
 public interface ExternalStorageService {
    /**
     * Writes a file to external storage.
@@ -79,39 +77,4 @@ public interface ExternalStorageService {
       return ConfigurationContext.getContext().getSpringBean(ExternalStorageService.class);
    }
 
-   class Reference extends SingletonManager.Reference<ExternalStorageService> {
-      @Override
-      public ExternalStorageService get(Object... parameters) {
-         if(service == null) {
-            InetsoftConfig config = InetsoftConfig.getInstance();
-            String type = config.getExternalStorage() == null ?
-               "filesystem" : config.getExternalStorage().getType();
-
-            for(ExternalStorageServiceFactory factory : ServiceLoader.load(ExternalStorageServiceFactory.class)) {
-               if(factory.getType().equals(type)) {
-                  service = factory.createExternalStorageService(config);
-                  break;
-               }
-            }
-         }
-
-         return service;
-      }
-
-      @Override
-      public void dispose() {
-         if(service != null && service instanceof AutoCloseable closeable) {
-            try {
-               closeable.close();
-            }
-            catch(Exception ignore) {
-            }
-            finally {
-               service = null;
-            }
-         }
-      }
-
-      private ExternalStorageService service;
-   }
 }

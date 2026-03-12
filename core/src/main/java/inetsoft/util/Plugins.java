@@ -45,16 +45,26 @@ import java.security.Principal;
 import java.sql.Timestamp;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 /**
  * Utility class used to access extensions defined in plugins.
  */
-@SingletonManager.Singleton(Plugins.Reference.class)
 public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoCloseable {
+   /**
+    * Creates a minimal no-op instance for non-Spring environments (e.g., unit tests).
+    */
+   Plugins() {
+      this.blobStorage = null;
+      this.pluginDirectory = null;
+      this.plugins = new ConcurrentHashMap<>();
+      this.blobChangeLock = null;
+      this.initialized = true;
+   }
+
    /**
     * Creates a new instance of <tt>Plugins</tt>.
     */
@@ -144,24 +154,42 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
       }
    }
 
+   /** Holds the non-Spring bootstrap instance (thread-safe via AtomicReference). */
+   private static final AtomicReference<Plugins> NON_SPRING_INSTANCE = new AtomicReference<>();
+
    /**
     * Gets the singleton instance of <tt>Plugins</tt>.
     *
     * @return the plugin manager instance.
     */
    public static Plugins getInstance() {
-      Plugins plugins = ConfigurationContext.getContext().getSpringBean(Plugins.class);
+      org.springframework.context.ApplicationContext ctx =
+         ConfigurationContext.getContext().getApplicationContext();
 
-      if(!plugins.initialized) {
-         synchronized(plugins) {
-            if(!plugins.initialized) {
-               plugins.init();
-               plugins.initialized = true;
+      if(ctx != null) {
+         Plugins plugins = ctx.getBean(Plugins.class);
+
+         if(!plugins.initialized) {
+            synchronized(plugins) {
+               if(!plugins.initialized) {
+                  plugins.init();
+                  plugins.initialized = true;
+               }
             }
          }
+
+         return plugins;
       }
 
-      return plugins;
+      // Non-Spring fallback: return an empty no-op instance for tests.
+      return NON_SPRING_INSTANCE.updateAndGet(existing -> existing != null ? existing : new Plugins());
+   }
+
+   /**
+    * Resets the non-Spring singleton instance. Used in tests between test runs.
+    */
+   public static void resetNonSpringInstance() {
+      NON_SPRING_INSTANCE.set(null);
    }
 
    /**
@@ -761,54 +789,6 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
             ((DatabaseAuthenticationProvider) provider).resetConnection();
          }
       }
-   }
-
-   public static final class Reference extends SingletonManager.Reference<Plugins> {
-      @SuppressWarnings("unchecked")
-      @Override
-      public Plugins get(Object... parameters) {
-         if(plugins == null) {
-            lock.lock();
-
-            try {
-               if(plugins == null) {
-                  try {
-                     plugins = new Plugins(
-                        SingletonManager.getInstance(BlobStorage.class, "plugins", true));
-                  }
-                  catch(Exception e) {
-                     LOG.error("Failed to initialize plugins", e);
-                  }
-               }
-            }
-            finally {
-               lock.unlock();
-            }
-         }
-
-         return plugins;
-      }
-
-      @Override
-      public void dispose() {
-         lock.lock();
-
-         try {
-            if(plugins != null) {
-               plugins.close();
-            }
-         }
-         catch(Exception e) {
-            LOG.warn("Failed to close plugins", e);
-         }
-         finally {
-            plugins = null;
-            lock.unlock();
-         }
-      }
-
-      private Plugins plugins;
-      private final Lock lock = new ReentrantLock();
    }
 
    private final BlobStorage<Plugin.Descriptor> blobStorage;

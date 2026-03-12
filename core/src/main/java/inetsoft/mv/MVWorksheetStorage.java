@@ -20,6 +20,7 @@ package inetsoft.mv;
 import inetsoft.report.composition.WorksheetWrapper;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.storage.BlobStorage;
+import inetsoft.storage.BlobStorageManager;
 import inetsoft.storage.BlobTransaction;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.util.*;
@@ -91,7 +92,7 @@ public class MVWorksheetStorage implements AutoCloseable {
 
    private BlobStorage<Metadata> getStorage(String orgID) {
       String storeID =  Tool.buildString(orgID.toLowerCase(), "__", "mvws");
-      return SingletonManager.getInstance(BlobStorage.class, storeID, false);
+      return BlobStorageManager.getStorage(storeID, false);
    }
 
    private final TransformListener transformListener;

@@ -22,7 +22,6 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.XPartition;
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.SingletonManager;
 import inetsoft.util.Tool;
 import jakarta.annotation.PreDestroy;
 import org.springframework.context.annotation.Lazy;
@@ -37,7 +36,6 @@ import java.util.concurrent.TimeUnit;
 
 @Service
 @Lazy
-@SingletonManager.Singleton(RenameTransformHandler.Reference.class)
 public class RenameTransformHandler implements AutoCloseable {
    /**
     * Gets the shared instance of the RenameTransformHandler.
@@ -172,29 +170,4 @@ public class RenameTransformHandler implements AutoCloseable {
    private final Cluster cluster = Cluster.getInstance();
    private static final Logger LOG = LoggerFactory.getLogger(RenameTransformHandler.class);
 
-   public static final class Reference extends SingletonManager.Reference<RenameTransformHandler> {
-      @Override
-      public RenameTransformHandler get(Object... parameters) {
-         if(renameTransformHandler == null) {
-            renameTransformHandler = new RenameTransformHandler();
-         }
-
-         return renameTransformHandler;
-      }
-
-      @Override
-      public void dispose() {
-         if(renameTransformHandler != null) {
-            try {
-               renameTransformHandler.close();
-               renameTransformHandler = null;
-            }
-            catch(Exception e) {
-               throw new RuntimeException("Failed to close the RenameTransformHandler", e);
-            }
-         }
-      }
-
-      private RenameTransformHandler renameTransformHandler;
-   }
 }

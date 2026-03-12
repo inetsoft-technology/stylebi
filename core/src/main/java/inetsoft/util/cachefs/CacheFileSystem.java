@@ -19,7 +19,7 @@
 package inetsoft.util.cachefs;
 
 import inetsoft.storage.BlobStorage;
-import inetsoft.util.SingletonManager;
+import inetsoft.storage.BlobStorageManager;
 
 import java.io.IOException;
 import java.net.URI;
@@ -40,7 +40,7 @@ public class CacheFileSystem extends FileSystem {
       this.uri = uri;
       this.pathService = pathService;
       this.storeId = storeId;
-      this.storage = SingletonManager.getInstance(BlobStorage.class, storeId, true);
+      this.storage = BlobStorageManager.getStorage(storeId, true);
 
       if(!storage.exists("/")) {
          CacheMetadata metadata = new CacheMetadata(System.currentTimeMillis());

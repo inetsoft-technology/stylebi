@@ -19,7 +19,6 @@ package inetsoft.uql.viewsheet.vslayout;
 
 import inetsoft.storage.*;
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.SingletonManager;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,7 +27,6 @@ import org.w3c.dom.*;
 import java.io.InputStream;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.function.Supplier;
 
 /**
  * Class that manages device descriptors.
@@ -40,9 +38,7 @@ public final class DeviceRegistry {
     * Creates a new instance of <tt>DeviceRegistry</tt>.
     */
    public DeviceRegistry() {
-      storage = SingletonManager
-         .getInstance(KeyValueStorage.class, "devices",
-                      (Supplier<LoadDevicesTask>)() -> new LoadDevicesTask("devices"));
+      storage = KeyValueStorageManager.getStorage("devices", new LoadDevicesTask("devices"));
    }
 
    /**

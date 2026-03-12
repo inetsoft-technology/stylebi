@@ -331,7 +331,7 @@ public class SreeEnv {
       // Use a non-initializing presence check to avoid triggering PropertiesEngine
       // initialization from Ignite internal threads (e.g. sys-stripe during transaction
       // commit callbacks), which can block partition exchange under high concurrency.
-      return SingletonManager.isPresent(PropertiesEngine.class);
+      return ConfigurationContext.getContext().getApplicationContext() != null;
    }
 
    private static final Map<String, Object> cache = new ConcurrentHashMap<>(); // cached objects

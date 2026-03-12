@@ -1201,11 +1201,33 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       return 0;
    }
 
+   /** Holds the non-Spring bootstrap instance (thread-safe via AtomicReference). */
+   private static final java.util.concurrent.atomic.AtomicReference<WorksheetService>
+      NON_SPRING_INSTANCE = new java.util.concurrent.atomic.AtomicReference<>();
+
    /**
     * Get the worksheet service.
     */
    public static WorksheetService getWorksheetService() {
-      return ConfigurationContext.getContext().getSpringBean(WorksheetService.class);
+      org.springframework.context.ApplicationContext ctx =
+         ConfigurationContext.getContext().getApplicationContext();
+
+      if(ctx != null) {
+         return ctx.getBean(WorksheetService.class);
+      }
+
+      return NON_SPRING_INSTANCE.updateAndGet(existing -> {
+         if(existing != null) {
+            return existing;
+         }
+
+         try {
+            return new WorksheetEngine();
+         }
+         catch(Exception e) {
+            throw new RuntimeException("Failed to create WorksheetEngine for non-Spring context", e);
+         }
+      });
    }
 
    /**

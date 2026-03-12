@@ -18,11 +18,9 @@
 package inetsoft.sree.security;
 
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.SingletonManager;
 
 import java.util.ServiceLoader;
 
-@SingletonManager.Singleton(OrganizationCache.Reference.class)
 public interface OrganizationCache {
    Organization getOrganization();
 
@@ -32,27 +30,4 @@ public interface OrganizationCache {
       return ConfigurationContext.getContext().getOptionalSpringBean(OrganizationCache.class);
    }
 
-   final class Reference extends SingletonManager.Reference<OrganizationCache> {
-      @Override
-      public OrganizationCache get(Object... parameters) {
-         if(cache == null) {
-            cache = ServiceLoader.load(OrganizationCache.class).findFirst().orElse(null);
-         }
-
-         return cache;
-      }
-
-      @Override
-      public void dispose() {
-         if(cache instanceof AutoCloseable closeable) {
-            try {
-               closeable.close();
-            }
-            catch(Exception ignore) {
-            }
-         }
-      }
-
-      private OrganizationCache cache;
-   }
 }

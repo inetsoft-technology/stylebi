@@ -18,7 +18,6 @@
 package inetsoft.uql.util;
 
 import com.google.common.collect.Iterables;
-import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.uql.XNode;
 import inetsoft.uql.XQuery;
 import inetsoft.uql.tabular.*;
@@ -45,7 +44,6 @@ import java.util.stream.Collectors;
  * @version 5.1, 9/20/2003
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(Config.Reference.class)
 public class Config implements Serializable {
    public Config() {
       try {
@@ -821,25 +819,6 @@ public class Config implements Serializable {
       private final Map<String, String> defaultPoolProperties;
 
       private static final long serialVersionUID = 1L;
-   }
-
-   @SingletonManager.ShutdownOrder(after = PortalThemesManager.Reference.class)
-   public static final class Reference extends SingletonManager.Reference<Config> {
-      @Override
-      public Config get(Object... parameters) {
-         if(config == null) {
-            config = new Config();
-         }
-
-         return config;
-      }
-
-      @Override
-      public void dispose() {
-         config = null;
-      }
-
-      private Config config;
    }
 
    private transient Map<String, DSInfo> dxmap = new HashMap<>();

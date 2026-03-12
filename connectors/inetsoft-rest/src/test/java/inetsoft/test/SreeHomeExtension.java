@@ -17,6 +17,8 @@
  */
 package inetsoft.test;
 
+import inetsoft.report.LibManager;
+import inetsoft.sree.web.SessionLicenseService;
 import inetsoft.util.*;
 import inetsoft.util.config.*;
 import org.junit.jupiter.api.extension.*;
@@ -45,7 +47,9 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
 
    @Override
    public void afterAll(ExtensionContext context) {
-      SingletonManager.reset();
+      LibManager.clear();
+      SessionLicenseService.resetServices();
+      ConfigurationContext.reset();
    }
 
    private void writeConfig(Path home) {

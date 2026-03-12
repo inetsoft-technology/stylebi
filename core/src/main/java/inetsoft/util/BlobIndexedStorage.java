@@ -75,8 +75,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       }
 
       String storeID = orgID.toLowerCase() + "__" + "indexedStorage";
-      return SingletonManager.getInstance(BlobStorage.class, storeID,
-                                          true, changeListener);
+      return BlobStorageManager.getStorage(storeID, true, changeListener);
    }
    @Override
    public XMLSerializable getXMLSerializable(String key, TransformListener trans) throws Exception {
@@ -392,8 +391,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
 
       for(String orgID : provider.getOrganizationIDs()) {
          String storeID = orgID.toLowerCase() + "__" + "indexedStorage";
-         storages.add(SingletonManager.getInstance(BlobStorage.class, storeID,
-                                             true, changeListener));
+         storages.add(BlobStorageManager.getStorage(storeID, true, changeListener));
       }
 
       return storages;

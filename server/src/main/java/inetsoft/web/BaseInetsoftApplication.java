@@ -18,11 +18,13 @@
 
 package inetsoft.web;
 
+import inetsoft.report.LibManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.sree.schedule.ScheduleTask;
+import inetsoft.sree.web.SessionLicenseService;
 import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.log.LogManager;
@@ -261,10 +263,11 @@ public abstract class BaseInetsoftApplication {
       }
 
       try {
-         SingletonManager.reset(true);
+         LibManager.clear();
+         SessionLicenseService.resetServices();
       }
       catch(Exception ex) {
-         log.debug("Failed to shutdown SingletonManager", ex);
+         log.debug("Failed to reset services", ex);
       }
 
       try {

@@ -22,6 +22,7 @@ import inetsoft.report.TableLens;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.storage.BlobStorage;
+import inetsoft.storage.BlobStorageManager;
 import inetsoft.storage.BlobTransaction;
 import inetsoft.uql.XTable;
 import inetsoft.util.*;
@@ -37,7 +38,6 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipException;
 
-@SingletonManager.Singleton
 public class DistributedTableCacheStore {
    /**
     * Get the distributed table cache store instance
@@ -183,7 +183,7 @@ public class DistributedTableCacheStore {
          return storages.get(storeID);
       }
       else {
-         BlobStorage<Metadata> storage = SingletonManager.getInstance(BlobStorage.class, storeID, false);
+         BlobStorage<Metadata> storage = BlobStorageManager.getStorage(storeID, false);
          storages.put(storeID, storage);
          return storage;
       }

@@ -20,11 +20,9 @@ package inetsoft.report.internal.license;
 
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.SingletonManager;
 
 import java.util.*;
 
-@SingletonManager.Singleton(HostedLicenseService.Reference.class)
 public interface HostedLicenseService {
    long getRemainingHours(String licenseKey, String orgId, String user);
 
@@ -64,34 +62,4 @@ public interface HostedLicenseService {
       void onTerminated(NotificationEvent event);
    }
 
-   final class Reference extends SingletonManager.Reference<HostedLicenseService> {
-      @Override
-      public HostedLicenseService get(Object... parameters) {
-         if(instance == null) {
-            try {
-               instance = ServiceLoader.load(HostedLicenseService.class).iterator().next();
-            }
-            catch(Exception e) {
-               instance = new NoopHostedLicenseService();
-            }
-         }
-
-         return instance;
-      }
-
-      @Override
-      public void dispose() {
-         if(instance instanceof AutoCloseable closeable) {
-            try {
-               closeable.close();
-            }
-            catch(Exception ignore) {
-            }
-         }
-
-         instance = null;
-      }
-
-      private HostedLicenseService instance;
-   }
 }

@@ -17,31 +17,45 @@
  */
 package inetsoft.util.audit;
 
-import inetsoft.util.*;
-
 import java.security.Principal;
-import java.util.concurrent.ExecutorService;
 
 /**
  * The {@code Audit} class contains methods used to audit access to the software.
  */
-@SingletonManager.Singleton
 public class Audit implements AutoCloseable {
+
+   private static volatile Audit INSTANCE;
+
    /**
     * Gets the singleton instance of this class.
     *
     * @return an Audit instance.
     */
    public static Audit getInstance() {
-      if(implCls == null) {
-         try {
-            implCls = Class.forName("inetsoft.enterprise.audit.DefaultAudit");
-         }
-         catch(Exception ex) {
-            implCls = Audit.class;
+      Audit a = INSTANCE;
+      if(a == null) {
+         synchronized(Audit.class) {
+            a = INSTANCE;
+            if(a == null) {
+               if(implCls == null) {
+                  try {
+                     implCls = Class.forName("inetsoft.enterprise.audit.DefaultAudit");
+                  }
+                  catch(Exception ex) {
+                     implCls = Audit.class;
+                  }
+               }
+               try {
+                  a = (Audit) implCls.getConstructor().newInstance();
+               }
+               catch(Exception e) {
+                  a = new Audit();
+               }
+               INSTANCE = a;
+            }
          }
       }
-      return (Audit) SingletonManager.getInstance(implCls);
+      return a;
    }
 
    @Override

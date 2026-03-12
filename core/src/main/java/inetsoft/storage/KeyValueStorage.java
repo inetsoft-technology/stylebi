@@ -18,12 +18,10 @@
 package inetsoft.storage;
 
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.SingletonManager;
 
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.Future;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -31,7 +29,6 @@ import java.util.stream.Stream;
  *
  * @param <T> the value type.
  */
-@SingletonManager.Singleton(KeyValueStorage.Reference.class)
 public interface KeyValueStorage<T extends Serializable> extends AutoCloseable {
    /**
     * Creates a new instance of {@code KeyValueStorage}.
@@ -301,29 +298,4 @@ public interface KeyValueStorage<T extends Serializable> extends AutoCloseable {
       void entryRemoved(Event<T> event);
    }
 
-   class Reference extends SingletonManager.Reference<KeyValueStorage<?>> {
-      @Override
-      public KeyValueStorage<?> get(Object... parameters) {
-         if(parameters.length < 1 || parameters.length > 2) {
-            return null;
-         }
-
-         String storeID = (String) parameters[0];
-         KeyValueStorageManager manager =
-            ConfigurationContext.getContext().getSpringBean(KeyValueStorageManager.class);
-
-         if(parameters.length == 2) {
-            Supplier<LoadKeyValueTask<?>> createTask =
-               (Supplier<LoadKeyValueTask<?>>) parameters[1];
-            return manager.getInstance(storeID, createTask.get());
-         }
-
-         return manager.getInstance(storeID);
-      }
-
-      @Override
-      public void dispose() {
-         // lifecycle is managed by KeyValueStorageManager
-      }
-   }
 }

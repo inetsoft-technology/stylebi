@@ -19,7 +19,7 @@ package inetsoft.storage.util;
 
 import inetsoft.storage.KeyValuePair;
 import inetsoft.storage.KeyValueStorage;
-import inetsoft.util.SingletonManager;
+import inetsoft.storage.KeyValueStorageManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,7 +53,7 @@ public class StorageProperties extends Properties implements AutoCloseable {
    public StorageProperties(String id, Properties defaults) {
       this.id = id;
       this.defaults = defaults;
-      this.storage = SingletonManager.getInstance(KeyValueStorage.class, id);
+      this.storage = KeyValueStorageManager.getStorage(id);
       this.storage.addListener(listener);
    }
 
@@ -266,7 +266,7 @@ public class StorageProperties extends Properties implements AutoCloseable {
    }
 
    private Object readResolve() throws ObjectStreamException {
-      this.storage = SingletonManager.getInstance(KeyValueStorage.class, id);
+      this.storage = KeyValueStorageManager.getStorage(id);
       this.storage.addListener(listener);
       return this;
    }

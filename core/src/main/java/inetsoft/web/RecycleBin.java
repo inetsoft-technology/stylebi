@@ -23,6 +23,7 @@ import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.security.*;
 import inetsoft.storage.KeyValuePair;
 import inetsoft.storage.KeyValueStorage;
+import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import jakarta.annotation.PreDestroy;
@@ -351,7 +352,7 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
          orgID = orgID;
       }
       String storeID = orgID.toLowerCase() + "__" + "recyclebin";
-      return SingletonManager.getInstance(KeyValueStorage.class, storeID);
+      return KeyValueStorageManager.getStorage(storeID);
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(RecycleBin.class);

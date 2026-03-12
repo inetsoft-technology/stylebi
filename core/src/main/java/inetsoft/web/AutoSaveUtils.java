@@ -21,6 +21,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.storage.BlobStorage;
+import inetsoft.storage.BlobStorageManager;
 import inetsoft.storage.BlobTransaction;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -334,7 +335,7 @@ public final class AutoSaveUtils {
          orgId = OrganizationManager.getInstance().getCurrentOrgID();
       }
 
-      return SingletonManager.getInstance(BlobStorage.class, orgId.toLowerCase() + "__autoSave", true);
+      return BlobStorageManager.getStorage(orgId.toLowerCase() + "__autoSave", true);
    }
 
    public static long getLastModified(AssetEntry entry, Principal principal) {

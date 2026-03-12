@@ -27,17 +27,27 @@ import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.SingletonManager;
 import inetsoft.util.Tool;
 import inetsoft.util.dep.*;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.context.ApplicationContext;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
-@SingletonManager.Singleton(DependencyHandler.Reference.class)
 public interface DependencyHandler {
+   /** Holds the non-Spring bootstrap instance (thread-safe via AtomicReference). */
+   AtomicReference<DependencyHandler> NON_SPRING_INSTANCE = new AtomicReference<>();
+
    static DependencyHandler getInstance() {
-      return ConfigurationContext.getContext().getSpringBean(DependencyHandler.class);
+      ApplicationContext ctx = ConfigurationContext.getContext().getApplicationContext();
+
+      if(ctx != null) {
+         return ctx.getBean(DependencyHandler.class);
+      }
+
+      return NON_SPRING_INSTANCE.updateAndGet(
+         existing -> existing != null ? existing : new LocalDependencyHandler());
    }
 
    void renameDependencies(AssetObject oentry, AssetObject nentry);
@@ -178,23 +188,4 @@ public interface DependencyHandler {
        return prefix + "/" + source;
    }
 
-   final class Reference extends SingletonManager.Reference<DependencyHandler> {
-      @Override
-      public synchronized DependencyHandler get(Object... parameters) {
-         if(handler == null) {
-            handler = new LocalDependencyHandler();
-         }
-
-         return handler;
-      }
-
-      @Override
-      public void dispose() {
-         if(handler != null) {
-            handler = null;
-         }
-      }
-
-      private DependencyHandler handler;
-   }
 }

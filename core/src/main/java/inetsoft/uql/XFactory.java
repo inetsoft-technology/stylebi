@@ -17,9 +17,7 @@
  */
 package inetsoft.uql;
 
-import inetsoft.uql.service.*;
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.SingletonManager;
 
 import java.rmi.RemoteException;
 
@@ -55,30 +53,4 @@ public class XFactory {
       // DataSourceRegistry will receive change events automatically via registered listeners.
    }
 
-   public static final class Reference extends SingletonManager.Reference<XRepository>
-   {
-      @Override
-      public synchronized XRepository get(Object ... parameters) {
-         if(engine == null) {
-            engine = new XEngine();
-         }
-
-         return engine;
-      }
-
-      @Override
-      public void dispose() {
-         if(engine != null) {
-            try {
-               engine.close();
-            }
-            catch(Exception ignore) {
-            }
-
-            engine = null;
-         }
-      }
-
-      private XEngine engine;
-   }
 }

@@ -20,7 +20,6 @@ package inetsoft.uql.viewsheet;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.MultiMap;
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.SingletonManager;
 import inetsoft.util.Tool;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -29,7 +28,6 @@ import org.slf4j.LoggerFactory;
 import java.io.Serializable;
 import java.util.*;
 
-@SingletonManager.Singleton(BookmarkLockManager.Reference.class)
 public class BookmarkLockManager implements AutoCloseable {
    public BookmarkLockManager() {
       this.lockMap = Cluster.getInstance().getMultiMap(BOOKMARK_LOCK_MAP_NAME);
@@ -143,30 +141,4 @@ public class BookmarkLockManager implements AutoCloseable {
       private String runtimeId;
    }
 
-   public static final class Reference extends SingletonManager.Reference<BookmarkLockManager> {
-      @Override
-      public synchronized BookmarkLockManager get(Object... parameters) {
-         if(instance == null) {
-            instance = new BookmarkLockManager();
-         }
-
-         return instance;
-      }
-
-      @Override
-      public void dispose() {
-         if(instance != null) {
-            try {
-               instance.close();
-            }
-            catch(Exception e) {
-               LOG.warn("Failed to close bookmark lock service", e);
-            }
-
-            instance = null;
-         }
-      }
-
-      private BookmarkLockManager instance;
-   }
 }

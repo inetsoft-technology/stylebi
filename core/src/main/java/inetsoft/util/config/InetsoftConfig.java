@@ -27,6 +27,7 @@ import inetsoft.util.*;
 import inetsoft.util.config.json.ConfigDeserializer;
 import inetsoft.util.config.json.ConfigSerializer;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationContext;
 
 import java.io.*;
 import java.nio.file.*;
@@ -35,7 +36,6 @@ import java.util.*;
 /**
  * {@code InetsoftConfig} contains the bootstrap configuration for an InetSoft installation.
  */
-@SingletonManager.Singleton(InetsoftConfig.Reference.class)
 @JsonSerialize(using = ConfigSerializer.class)
 @JsonDeserialize(using = ConfigDeserializer.class)
 public class InetsoftConfig implements Serializable {
@@ -210,7 +210,28 @@ public class InetsoftConfig implements Serializable {
     * @return the config instance.
     */
    public static InetsoftConfig getInstance() {
-      return ConfigurationContext.getContext().getSpringBean(InetsoftConfig.class);
+      ApplicationContext ctx = ConfigurationContext.getContext().getApplicationContext();
+
+      if(ctx != null) {
+         return ctx.getBean(InetsoftConfig.class);
+      }
+
+      // Non-Spring path (tests, CloudRunner): load from file on first access
+      if(BOOTSTRAP_INSTANCE == null) {
+         synchronized(InetsoftConfig.class) {
+            if(BOOTSTRAP_INSTANCE == null) {
+               File file = getConfigFile();
+               boolean save = !file.exists();
+               BOOTSTRAP_INSTANCE = load(file.toPath());
+
+               if(save) {
+                  save(BOOTSTRAP_INSTANCE, file.toPath());
+               }
+            }
+         }
+      }
+
+      return BOOTSTRAP_INSTANCE;
    }
 
    /**
@@ -389,8 +410,7 @@ public class InetsoftConfig implements Serializable {
     * {@code getInstance()} inside {@code @Bean} methods.
     *
     * <p>In non-Spring environments (tests, CloudRunner) this field is populated lazily by
-    * {@link Reference#get()} on first access, preserving the previous {@link SingletonManager}
-    * behaviour.</p>
+    * {@link #getInstance()} on first access.</p>
     */
    public static volatile InetsoftConfig BOOTSTRAP_INSTANCE;
 
@@ -407,26 +427,4 @@ public class InetsoftConfig implements Serializable {
    private NodeProtectionConfig nodeProtection;
    private Map<String, Object> additionalProperties;
 
-   @SingletonManager.ShutdownOrder(after = FileSystemService.class)
-   public static final class Reference extends SingletonManager.Reference<InetsoftConfig> {
-      @Override
-      public synchronized InetsoftConfig get(Object... parameters) {
-         if(BOOTSTRAP_INSTANCE == null) {
-            File file = getConfigFile();
-            boolean save = !file.exists();
-            BOOTSTRAP_INSTANCE = load(file.toPath());
-
-            if(save) {
-               save(BOOTSTRAP_INSTANCE, file.toPath());
-            }
-         }
-
-         return BOOTSTRAP_INSTANCE;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         BOOTSTRAP_INSTANCE = null;
-      }
-   }
 }

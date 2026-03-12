@@ -45,9 +45,8 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          return;
       }
 
-      storage = SingletonManager.getInstance(KeyValueStorage.class,
-                                   "defaultSecurityPermissions",
-                                   (Supplier<LoadPermissionsTask>) LoadPermissionsTask::new);
+      storage = KeyValueStorageManager.getStorage(
+         "defaultSecurityPermissions", new LoadPermissionsTask());
 
       isolatePermissionForOrg();
    }

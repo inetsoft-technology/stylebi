@@ -19,7 +19,6 @@ package inetsoft.util;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
-import inetsoft.sree.internal.cluster.ignite.IgniteCluster;
 import inetsoft.uql.DriverCache;
 import inetsoft.uql.asset.SnapshotEmbeddedTableAssembly;
 import inetsoft.util.swap.XSwapper;
@@ -45,7 +44,6 @@ import java.util.stream.Stream;
  * @author InetSoft Technology Corp
  */
 @Service
-@SingletonManager.ShutdownOrder(after = IgniteCluster.class)
 public class FileSystemService {
    public static FileSystemService getInstance() {
       return ConfigurationContext.getContext().getSpringBean(FileSystemService.class);

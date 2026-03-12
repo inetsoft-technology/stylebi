@@ -19,7 +19,6 @@ package inetsoft.sree.internal.cluster;
 
 import inetsoft.sree.internal.cluster.ignite.IgniteCluster;
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.SingletonManager;
 import org.apache.ignite.services.Service;
 
 import javax.cache.Cache;
@@ -27,8 +26,8 @@ import javax.cache.expiry.ExpiryPolicy;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.*;
 
 /**
@@ -36,22 +35,55 @@ import java.util.function.*;
  *
  * @since 12.2
  */
-@SingletonManager.Singleton(Cluster.Reference.class)
 public interface Cluster extends AutoCloseable {
    /**
+    * Thread-safe holder for the pre-Spring bootstrap instance. Interface fields are
+    * {@code public static final}, so we wrap the mutable reference in an {@code AtomicReference}.
+    */
+   AtomicReference<Cluster> PRE_SPRING_INSTANCE = new AtomicReference<>();
+
+   /**
     * Gets the singleton cluster instance.
+    *
+    * <p>In the full server this returns the Spring-managed bean. In non-Spring environments
+    * (unit tests, schedule-server pre-boot) the instance stored in
+    * {@link #PRE_SPRING_INSTANCE} is returned, creating it lazily on first access.</p>
     *
     * @return the cluster instance.
     */
    static Cluster getInstance() {
-      return ConfigurationContext.getContext().getSpringBean(Cluster.class);
+      ConfigurationContext ctx = ConfigurationContext.getContext();
+
+      if(ctx.getApplicationContext() != null) {
+         return ctx.getApplicationContext().getBean(Cluster.class);
+      }
+
+      // Non-Spring path: lazily create via the system-property override or IgniteCluster default.
+      return PRE_SPRING_INSTANCE.updateAndGet(existing -> {
+         if(existing != null) {
+            return existing;
+         }
+
+         String impl = System.getProperty("inetsoft.sree.internal.cluster.implementation");
+
+         if(impl != null) {
+            try {
+               return (Cluster) Class.forName(impl).getDeclaredConstructor().newInstance();
+            }
+            catch(Exception e) {
+               throw new RuntimeException("Failed to create Cluster: " + impl, e);
+            }
+         }
+
+         return new IgniteCluster();
+      });
    }
 
    /**
     * Shuts down and disposes of the singleton cluster instance.
     */
    static void clear() {
-      // no-op: Cluster is a Spring-managed singleton
+      // no-op: Cluster is a Spring-managed singleton; lifecycle is managed by BaseInetsoftApplication
    }
 
    /**
@@ -678,57 +710,4 @@ public interface Cluster extends AutoCloseable {
 
    void setClosed(boolean closed);
 
-   final class Reference extends SingletonManager.Reference<Cluster> {
-      @Override
-      public Cluster get(Object... parameters) {
-         lock.lock();
-
-         try {
-            if(instance == null) {
-               String property = System.getProperty("inetsoft.sree.internal.cluster.implementation");
-
-               if(property != null) {
-                  try {
-                     instance = (Cluster) Class.forName(property).getConstructor().newInstance();
-                  }
-                  catch(Exception e) {
-                     throw new RuntimeException("Failed to create cluster instance", e);
-                  }
-               }
-               else if("true".equals(System.getProperty("spring.aot.processing"))) {
-                  instance = new MockCluster();
-               }
-               else {
-                  instance = new IgniteCluster();
-               }
-            }
-         }
-         finally {
-            lock.unlock();
-         }
-
-         return instance;
-      }
-
-      @Override
-      public void dispose() {
-         lock.lock();
-
-         try {
-            if(instance != null) {
-               try {
-                  instance.close();
-               }
-               catch(Exception ignore) {
-               }
-            }
-         }
-         finally {
-            lock.unlock();
-         }
-      }
-
-      Cluster instance = null;
-      private final Lock lock = new ReentrantLock();
-   }
 }

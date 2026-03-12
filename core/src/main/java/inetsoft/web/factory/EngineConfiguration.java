@@ -162,11 +162,12 @@ public class EngineConfiguration {
     * pre-created by {@code BaseInetsoftApplication.start()} (before Spring runs). The
     * {@code InetsoftConfig} parameter ensures the config bean is resolved first.
     * {@code destroyMethod=""} prevents Spring from auto-calling {@code close()} — lifecycle
-    * is managed by {@code SingletonManager.reset()} in {@code BaseInetsoftApplication.shutdownInetsoft()}.
+    * is managed by {@code BaseInetsoftApplication.shutdownInetsoft()}.
     */
    @Bean(destroyMethod = "")
    public Cluster cluster(InetsoftConfig config) {
-      return SingletonManager.getInstance(Cluster.class);
+      // Return the instance pre-created by BaseInetsoftApplication.start() before Spring ran.
+      return Cluster.getInstance();
    }
 
    /** Cluster client for server-to-server communication. */

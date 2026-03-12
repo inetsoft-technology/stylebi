@@ -19,7 +19,6 @@ package inetsoft.report.internal;
 
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.SingletonManager;
 
 import java.util.Date;
 
@@ -28,7 +27,6 @@ import java.util.Date;
  *
  * @since 13.5
  */
-@SingletonManager.Singleton(MVInfoClient.Reference.class)
 public interface MVInfoClient {
    /**
     * Gets the date and time at which a worksheet's data was refreshed.
@@ -48,23 +46,4 @@ public interface MVInfoClient {
       return ConfigurationContext.getContext().getSpringBean(MVInfoClient.class);
    }
 
-   class Reference extends SingletonManager.Reference<MVInfoClient> {
-      @Override
-      public MVInfoClient get(Object... parameters) {
-         if(client == null) {
-            client = new LocalMVInfoClient();
-         }
-
-         return client;
-      }
-
-      @Override
-      public void dispose() {
-         if(client != null) {
-            client = null;
-         }
-      }
-
-      private MVInfoClient client;
-   }
 }

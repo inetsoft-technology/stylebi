@@ -57,7 +57,6 @@ import java.util.function.Consumer;
  */
 @Service
 @Lazy
-@SingletonManager.Singleton(DataCycleManager.Reference.class)
 public class DataCycleManager
    implements ScheduleExt, PropertyChangeListener, StorageRefreshListener, AutoCloseable
 {
@@ -1407,49 +1406,4 @@ public class DataCycleManager
 
    public record DataCycleId(String name, String orgId) {}
 
-   public static final class Reference
-      extends SingletonManager.Reference<DataCycleManager>
-   {
-      @Override
-      public DataCycleManager get(Object... parameters) {
-         // Ensure ScheduleManager is fully initialized before acquiring INIT_LOCK.
-         // In Spring environments this waits for the Spring bean; in non-Spring environments
-         // it falls back to SingletonManager. Either way the lock below will not re-enter
-         // ScheduleManager initialization, preventing a deadlock with Scheduler.loadTasks().
-         ScheduleManager.getScheduleManager();
-
-         if(manager == null) {
-            Lock lock = Cluster.getInstance().getLock(Scheduler.INIT_LOCK);
-            lock.lock();
-
-            try {
-               if(manager == null) {
-                  manager = new DataCycleManager();
-                  ScheduleManager.getScheduleManager().initialize();
-
-                  try {
-                     RepletRegistry.getRegistry().addPropertyChangeListener(manager);
-                  }
-                  catch(Exception ex) {
-                     LOG.error("Failed to add property change listener to replet registry", ex);
-                  }
-
-                  MVManager.getManager().addPropertyChangeListener(manager);
-               }
-            }
-            finally {
-               lock.unlock();
-            }
-         }
-
-         return manager;
-      }
-
-      @Override
-      public void dispose() {
-         manager = null;
-      }
-
-      private DataCycleManager manager;
-   }
 }

@@ -64,7 +64,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.function.*;
 import java.util.stream.Collectors;
 
-@SingletonManager.ShutdownOrder(after = AuthenticationService.class)
 public final class IgniteCluster implements inetsoft.sree.internal.cluster.Cluster {
    /**
     * Creates a new instance of <tt>Cluster</tt>.

@@ -18,7 +18,6 @@
 package inetsoft.uql.util;
 
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.SingletonManager;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -75,7 +74,7 @@ public class XSessionService {
     * Clear cached session manager.
     */
    public static synchronized void clear() {
-      SingletonManager.reset(XSessionService.class);
+      // no-op: XSessionService is a Spring-managed singleton; counters are persistent
    }
 
    /**

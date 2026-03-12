@@ -1061,32 +1061,4 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    private static final String DISTRIBUTED_LOCK_NAME =
       "inetsoft.sree.portal.PortalThemesManager.save";
 
-   @SingletonManager.ShutdownOrder()
-   public static final class Reference extends SingletonManager.Reference<PortalThemesManager> {
-      @Override
-      public synchronized PortalThemesManager get(Object... parameters) {
-         if(manager == null) {
-            manager = new PortalThemesManager();
-            manager.loadThemes();
-         }
-
-         return manager;
-      }
-
-      @Override
-      public void dispose() {
-         if(manager != null) {
-            try {
-               manager.close();
-            }
-            catch(Exception e) {
-               LOG.warn("Failed to close theme manager", e);
-            }
-
-            manager = null;
-         }
-      }
-
-      private PortalThemesManager manager;
-   }
 }

@@ -44,7 +44,6 @@ import java.util.*;
  * @version 5.1, 9/20/2003
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(DesignSession.Reference.class)
 public class DesignSession extends XSessionManager {
    /**
     * Get design session.
@@ -161,34 +160,4 @@ public class DesignSession extends XSessionManager {
    private static final Logger LOG =
       LoggerFactory.getLogger(DesignSession.class);
 
-   public static final class Reference
-      extends SingletonManager.Reference<DesignSession>
-   {
-      @Override
-      public synchronized DesignSession get(Object ... parameters) {
-         if(session == null) {
-            try {
-               session = new DesignSession();
-               session.bind(System.getProperty("user.name"));
-            }
-            catch(RemoteException ex) {
-               LOG.error("Failed to bind design session and add " +
-                     "query refresh listener", ex);
-               throw new RuntimeException("Failed to bind design session", ex);
-            }
-         }
-
-         return session;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(session != null) {
-            session.tearDown();
-            session = null;
-         }
-      }
-
-      private DesignSession session;
-   }
 }
