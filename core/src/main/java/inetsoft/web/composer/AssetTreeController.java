@@ -56,9 +56,13 @@ public class AssetTreeController {
     * @param assetRepository the asset repository.
     */
    @Autowired
-   public AssetTreeController(AssetRepository assetRepository, AssetTreeServiceProxy assetTreeServiceProxy) {
+   public AssetTreeController(AssetRepository assetRepository,
+                              AssetTreeServiceProxy assetTreeServiceProxy,
+                              SecurityEngine securityEngine)
+   {
       this.assetRepository = assetRepository;
       this.assetTreeServiceProxy = assetTreeServiceProxy;
+      this.securityEngine = securityEngine;
    }
 
    @PostMapping("/api/vs/bindingtree/getConnectionParameters")
@@ -95,7 +99,7 @@ public class AssetTreeController {
          includeTableStyles, includeScripts, includeLibrary, reportRepositoryEnabled, readOnly,
          physical, event, principal, readOnly || assetRepository.checkPermission(
             principal, ResourceType.WORKSHEET, "*", EnumSet.of(ResourceAction.ACCESS)),
-            SecurityEngine.getSecurity().checkPermission(
+            securityEngine.checkPermission(
             principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS),
             readOnly || assetRepository.checkPermission(
             principal, ResourceType.VIEWSHEET, "*", EnumSet.of(ResourceAction.ACCESS)));
@@ -1060,6 +1064,7 @@ public class AssetTreeController {
 
    private final AssetRepository assetRepository;
    private final AssetTreeServiceProxy assetTreeServiceProxy;
+   private final SecurityEngine securityEngine;
    private static final String TABLE_STYLE = "Table Style";
    private static final String SCRIPT = "Script Function";
    private static final Catalog catalog = Catalog.getCatalog();
