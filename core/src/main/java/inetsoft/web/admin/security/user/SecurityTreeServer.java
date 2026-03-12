@@ -41,11 +41,13 @@ public class SecurityTreeServer {
    public SecurityTreeServer(AuthenticationProviderService authenticationProviderService,
                              ServerService serverService,
                              SecurityEngine securityEngine,
-                             UserTreeService userTreeService)
+                             UserTreeService userTreeService,
+                             LicenseManager licenseManager)
    {
       this.authenticationProviderService = authenticationProviderService;
       this.userTreeService = userTreeService;
       this.securityEngine = securityEngine;
+      this.licenseManager = licenseManager;
       this.namedUsers = serverService.getLicenseInfos().stream()
          .anyMatch(licenseInfo -> LicenseInfo.NAMED_USER.equals(licenseInfo.getType()));
    }
@@ -96,7 +98,7 @@ public class SecurityTreeServer {
          }
 
          String currOrgName = orgIds.length > 0 ? provider.getOrgNameFromID(currOrgID) : Organization.getDefaultOrganizationName();
-         boolean isEnterprise = LicenseManager.getInstance().isEnterprise();
+         boolean isEnterprise = licenseManager.isEnterprise();
          isMultiTenant = isEnterprise && isMultiTenant;
 
          if(!isMultiTenant) {
@@ -137,5 +139,6 @@ public class SecurityTreeServer {
    private final UserTreeService userTreeService;
    private final SecurityEngine securityEngine;
    private final AuthenticationProviderService authenticationProviderService;
+   private final LicenseManager licenseManager;
    private SecurityProvider securityProvider;
 }

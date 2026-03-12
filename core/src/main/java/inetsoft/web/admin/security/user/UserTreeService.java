@@ -74,7 +74,7 @@ public class UserTreeService {
       this.securityEngine = securityEngine;
       this.themeService = themeService;
       this.messagingTemplate = messagingTemplate;
-      this.editOrganizationListener = new EditOrganizationListener(messagingTemplate);
+      this.editOrganizationListener = new EditOrganizationListener(messagingTemplate, securityEngine);
       this.keyValueStorageManager = keyValueStorageManager;
       this.dataCycleManager = dataCycleManager;
       this.licenseManager = licenseManager;

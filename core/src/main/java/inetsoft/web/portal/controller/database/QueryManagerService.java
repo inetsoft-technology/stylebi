@@ -290,7 +290,7 @@ public class QueryManagerService {
       boolean expressionAllowed = true;
 
       try {
-         expressionAllowed = SecurityEngine.getSecurity().checkPermission(
+         expressionAllowed = securityEngine.checkPermission(
             principal, ResourceType.WORKSHEET_EXPRESSION_COLUMN, "*", ResourceAction.ACCESS);
       }
       catch(SecurityException e) {
@@ -411,11 +411,9 @@ public class QueryManagerService {
          model.setSimpleModel(basicModel);
       }
 
-      SecurityEngine security = SecurityEngine.getSecurity();
-
       for(String dsName : repository.getDataSourceFullNames()) {
          if(repository.getDataSource(dsName) instanceof JDBCDataSource) {
-            if(security.checkPermission(principal, ResourceType.DATA_SOURCE, dsName,
+            if(securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE, dsName,
                ResourceAction.READ))
             {
                model.getDataSources().add(dsName);
@@ -798,11 +796,9 @@ public class QueryManagerService {
       model.setDataSource(dataSource);
       model.setVariableNames(getVariableList(rws, principal));
 
-      SecurityEngine security = SecurityEngine.getSecurity();
-
       for(String dsName : repository.getDataSourceFullNames()) {
          if(repository.getDataSource(dsName) instanceof JDBCDataSource) {
-            if(security.checkPermission(principal, ResourceType.DATA_SOURCE, dsName,
+            if(securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE, dsName,
                ResourceAction.READ))
             {
                model.getDataSources().add(dsName);

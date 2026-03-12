@@ -76,7 +76,13 @@ public class IdentityService {
                           IdentityThemeService themeService,
                           AuthenticationService authenticationService,
                           BlobStorageManager blobStorageManager,
-                          KeyValueStorageManager keyValueStorageManager)
+                          KeyValueStorageManager keyValueStorageManager,
+                          Cluster cluster,
+                          MVManager mvManager,
+                          DataCycleManager dataCycleManager,
+                          DataSourceRegistry dataSourceRegistry,
+                          LogManager logManager,
+                          LicenseManager licenseManager)
    {
       this.securityEngine = securityEngine;
       this.securityProvider = securityProvider;
@@ -84,6 +90,12 @@ public class IdentityService {
       this.authenticationService = authenticationService;
       this.blobStorageManager = blobStorageManager;
       this.keyValueStorageManager = keyValueStorageManager;
+      this.cluster = cluster;
+      this.mvManager = mvManager;
+      this.dataCycleManager = dataCycleManager;
+      this.dataSourceRegistry = dataSourceRegistry;
+      this.logManager = logManager;
+      this.licenseManager = licenseManager;
    }
 
    private AuthenticationProvider getProvider(String providerName) {
@@ -196,7 +208,7 @@ public class IdentityService {
                   logoutSession(identityId);
                }
 
-               Cluster.getInstance().sendMessage(new IdentityChangedMessage(type, null, identityId));
+               cluster.sendMessage(new IdentityChangedMessage(type, null, identityId));
 
                syncIdentity(provider, identityId != null ? new DefaultIdentity(identityId, type) :
                   new DefaultIdentity(), null);
@@ -458,7 +470,7 @@ public class IdentityService {
                // delete organization identityId inside of permissions
                authoc.cleanOrganizationFromPermissions(orgID);
 
-               DataCycleManager.getDataCycleManager().clearDataCycles(orgID);
+               dataCycleManager.clearDataCycles(orgID);
                removeOrgProperties(orgID);
                removeOrgScopedDataSpaceElements(oOrg);
                updateRepletRegistry(orgID, null);
@@ -467,11 +479,11 @@ public class IdentityService {
                CSSDictionary.resetDictionaryCache();
                themesManager.save();
                removeStorages(orgID);
-               DataSourceRegistry.getRegistry().clearCache(orgID);
+               dataSourceRegistry.clearCache(orgID);
                FSService.clearServerNodeCache(orgID);
                XJobPool.resetOrgCache(orgID);
                RepletRegistry.clearOrgCache(orgID);
-               LogManager.getInstance().removeOrgLogLevels(orgID);
+               logManager.removeOrgLogLevels(orgID);
             }
 
             // deleting current organization should reset curOrg
@@ -485,7 +497,7 @@ public class IdentityService {
             if(!identityId.equals(oID)) {
                eprovider.copyOrganization(oldOrg, (Organization) identity, id, identity.getName(),
                   this, themeService, ThreadContext.getContextPrincipal(), true);
-               LogManager.getInstance().renameOrgLogLevels(oId, id);
+               logManager.renameOrgLogLevels(oId, id);
             }
 
             // Update current orgID
@@ -974,7 +986,7 @@ public class IdentityService {
          updateBlobStorageName("__pdata", oOrg.getId(), nOrg.getId(), EmbeddedTableStorage.Metadata.class, true);
          updateBlobStorageName("__autoSave", oOrg.getId(), nOrg.getId(), AutoSaveUtils.Metadata.class, true);
          updateBlobStorageName("__mvBlock", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
-         MVManager.getManager().migrateStorageData(oOrg, nOrg, !rename);
+         mvManager.migrateStorageData(oOrg, nOrg, !rename);
 
          addNewOrgTaskToScheduleServer(nOrg.getOrganizationID());
       }
@@ -1527,7 +1539,7 @@ public class IdentityService {
                                               eprovider, principal);
          }
 
-         Cluster.getInstance().sendMessage(
+         cluster.sendMessage(
             new IdentityChangedMessage(type, newIdentity != null ? newIdentity.getIdentityID() : null,
                                        oldIdentity.getIdentityID()));
       }
@@ -1548,7 +1560,7 @@ public class IdentityService {
          }
 
          if(!SUtil.isMultiTenant()) {
-            LicenseManager.getInstance().userChanged();
+            licenseManager.userChanged();
          }
       }
    }
@@ -2160,12 +2172,12 @@ public class IdentityService {
 
 
    public void updateIdentityPermissions(int type, IdentityID oldName, IdentityID newName, String oldOrgId, String newOrgId, boolean doReplace) {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
       Organization oldOrganization = oldOrgId == null || oldOrgId.isEmpty() ?
          null : provider.getOrganization(oldOrgId);
 
       //iterate through all providers when updating permissions, else only first is found and set permissions can be lost
-      for(AuthorizationProvider aprovider : SecurityEngine.getSecurity().getAuthorizationChain().get().getProviders()) {
+      for(AuthorizationProvider aprovider : securityEngine.getAuthorizationChain().get().getProviders()) {
          List<Tuple4<ResourceType, String, String, Permission>> permissionSetList = null;
 
          try {
@@ -2267,10 +2279,10 @@ public class IdentityService {
       }
 
       if(resourceType == ResourceType.DATA_SOURCE) {
-         DataSourceRegistry.getRegistry().removeDataSource(path);
+         dataSourceRegistry.removeDataSource(path);
       }
       else if(resourceType == ResourceType.DATA_SOURCE_FOLDER) {
-         DataSourceRegistry.getRegistry().removeDataSourceFolder(path);
+         dataSourceRegistry.removeDataSourceFolder(path);
       }
    }
 
@@ -2495,7 +2507,7 @@ public class IdentityService {
       }
       else {
          String orgId = fromIdentity.getOrgID();
-         SecurityProvider sProvider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider sProvider = securityEngine.getSecurityProvider();
 
          updateIdentityPermissions(type, fromIdentity, newIdentity, orgId, newOrgId, replace);
       }
@@ -2557,7 +2569,7 @@ public class IdentityService {
    }
 
    public String getOrganizationDetailString(String orgKey, Principal principal) {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
       IdentityID orgIdentityID = IdentityID.getIdentityIDFromKey(orgKey);
 
       String dataBaseListString = getOrganizationDatabaseListString(orgIdentityID, principal);
@@ -2571,10 +2583,8 @@ public class IdentityService {
    }
 
    private String getOrganizationDatabaseListString(IdentityID orgIdentityID, Principal principal) {
-      final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
-
-      List<String> dataSourceNames = new ArrayList<>(registry.getSubfolderNames(null, false, orgIdentityID.orgID));
-      dataSourceNames.addAll(new ArrayList<>(registry.getSubDataSourceNames(null, false, orgIdentityID.orgID)));
+      List<String> dataSourceNames = new ArrayList<>(dataSourceRegistry.getSubfolderNames(null, false, orgIdentityID.orgID));
+      dataSourceNames.addAll(new ArrayList<>(dataSourceRegistry.getSubDataSourceNames(null, false, orgIdentityID.orgID)));
       Collections.sort(dataSourceNames);
 
       StringBuilder datasourceListString = new StringBuilder("{ ");
@@ -2604,4 +2614,10 @@ public class IdentityService {
    private final AuthenticationService authenticationService;
    private final BlobStorageManager blobStorageManager;
    private final KeyValueStorageManager keyValueStorageManager;
+   private final Cluster cluster;
+   private final MVManager mvManager;
+   private final DataCycleManager dataCycleManager;
+   private final DataSourceRegistry dataSourceRegistry;
+   private final LogManager logManager;
+   private final LicenseManager licenseManager;
 }

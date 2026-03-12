@@ -51,7 +51,8 @@ public class PhysicalModelController {
                                   PhysicalModelService physicalModelService,
                                   DataSourceService dataSourceService,
                                   XRepository repository,
-                                  PhysicalModelManagerService physicalModelManager)
+                                  PhysicalModelManagerService physicalModelManager,
+                                  SecurityEngine securityEngine)
    {
       this.databaseTreeService = databaseTreeService;
       this.runtimePartitionService = runtimePartitionService;
@@ -59,6 +60,7 @@ public class PhysicalModelController {
       this.dataSourceService = dataSourceService;
       this.repository = repository;
       this.physicalModelManager = physicalModelManager;
+      this.securityEngine = securityEngine;
    }
 
    @GetMapping(value = "/api/data/physicalmodel/heartbeat")
@@ -246,7 +248,7 @@ public class PhysicalModelController {
             boolean allowed;
 
             try {
-               allowed = SecurityEngine.getSecurity().checkPermission(
+               allowed = securityEngine.checkPermission(
                   principal, ResourceType.CROSS_JOIN, "*", ResourceAction.ACCESS);
             }
             catch(Exception e) {
@@ -609,5 +611,6 @@ public class PhysicalModelController {
    private final DataSourceService dataSourceService;
    private final XRepository repository;
    private final PhysicalModelManagerService physicalModelManager;
+   private final SecurityEngine securityEngine;
 
 }
