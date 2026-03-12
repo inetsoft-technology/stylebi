@@ -51,7 +51,7 @@ public class InvalidateSessionFilter extends AbstractSecurityFilter {
 
          if(principal != null) {
             if(isSecurityEnabled()) {
-               SecurityEngine securityEngine = SecurityEngine.getSecurity();
+               SecurityEngine securityEngine = getSecurityEngine();
 
                if(securityEngine != null) {
                   if(!securityEngine.isActiveUser(principal)) {

@@ -63,17 +63,27 @@ public class AssetTreeRefreshController {
       this.messagingTemplate = messagingTemplate;
    }
 
+   @Autowired
+   public void setSecurityEngine(SecurityEngine securityEngine) {
+      this.securityEngine = securityEngine;
+   }
+
+   @Autowired
+   public void setDataSourceRegistry(DataSourceRegistry dataSourceRegistry) {
+      this.dataSourceRegistry = dataSourceRegistry;
+   }
+
    @PostConstruct
    public void addListeners() {
       assetRepository.addAssetChangeListener(listener);
-      DataSourceRegistry.getRegistry().addRefreshedListener(this::dataSourceRefreshed);
+      dataSourceRegistry.addRefreshedListener(this::dataSourceRefreshed);
       AssetRepository runtimeAssetRepository = AssetUtil.getAssetRepository(false);
 
       if(runtimeAssetRepository != null && runtimeAssetRepository != assetRepository) {
          runtimeAssetRepository.addAssetChangeListener(listener);
       }
 
-      for(String orgId : SecurityEngine.getSecurity().getOrganizations()) {
+      for(String orgId : securityEngine.getOrganizations()) {
          addLibManagerListener(orgId);
       }
    }
@@ -82,14 +92,14 @@ public class AssetTreeRefreshController {
    public void preDestroy() {
       try {
          assetRepository.removeAssetChangeListener(listener);
-         DataSourceRegistry.getRegistry().removeRefreshedListener(this::dataSourceRefreshed);
+         dataSourceRegistry.removeRefreshedListener(this::dataSourceRefreshed);
          AssetRepository runtimeAssetRepository = AssetUtil.getAssetRepository(false);
 
          if(runtimeAssetRepository != null && runtimeAssetRepository != assetRepository) {
             runtimeAssetRepository.removeAssetChangeListener(listener);
          }
 
-         for(String orgId : SecurityEngine.getSecurity().getOrganizations()) {
+         for(String orgId : securityEngine.getOrganizations()) {
             removeLibManagerListener(orgId);
          }
 
@@ -192,6 +202,8 @@ public class AssetTreeRefreshController {
 
    private AssetRepository assetRepository;
    private SimpMessagingTemplate messagingTemplate;
+   private SecurityEngine securityEngine;
+   private DataSourceRegistry dataSourceRegistry;
    private final Map<String, Principal> subscriptions = new ConcurrentHashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(AssetTreeRefreshController.class);
 

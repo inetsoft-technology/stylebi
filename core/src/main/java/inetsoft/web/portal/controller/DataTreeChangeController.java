@@ -43,23 +43,25 @@ import java.util.concurrent.ConcurrentMap;
 public class DataTreeChangeController {
    @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
    public DataTreeChangeController(AssetRepository assetRepository,
-                                   SimpMessagingTemplate messagingTemplate)
+                                   SimpMessagingTemplate messagingTemplate,
+                                   DataSourceRegistry dataSourceRegistry)
    {
       this.assetRepository = assetRepository;
       this.messagingTemplate = messagingTemplate;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    @PostConstruct
    public void addListeners() {
       assetRepository.addAssetChangeListener(this.assetListener);
-      DataSourceRegistry.getRegistry().addRefreshedListener(this.dataSourceListener);
+      dataSourceRegistry.addRefreshedListener(this.dataSourceListener);
    }
 
    @PreDestroy
    public void removeListeners() {
       try {
          assetRepository.removeAssetChangeListener(this.assetListener);
-         DataSourceRegistry.getRegistry().removeRefreshedListener(this.dataSourceListener);
+         dataSourceRegistry.removeRefreshedListener(this.dataSourceListener);
       }
       catch(Exception e) {
          LOG.debug("Failed to remove listeners during shutdown", e);
@@ -120,6 +122,7 @@ public class DataTreeChangeController {
 
    private final AssetRepository assetRepository;
    private final SimpMessagingTemplate messagingTemplate;
+   private final DataSourceRegistry dataSourceRegistry;
    private final ConcurrentMap<String, IdentityID> subscriptions = new ConcurrentHashMap<>();
 
    private final AssetChangeListener assetListener = this::assetChanged;

@@ -62,13 +62,15 @@ public class DataSourceController {
                                DataSourceBrowserService dataSourceBrowserService,
                                DatabaseDatasourcesService databaseDatasourcesService,
                                SecurityEngine securityEngine,
-                               DataSourceStatusService dataSourceStatusService)
+                               DataSourceStatusService dataSourceStatusService,
+                               LicenseManager licenseManager)
    {
       this.datasourcesService = datasourcesService;
       this.dataSourceBrowserService = dataSourceBrowserService;
       this.databaseDatasourcesService = databaseDatasourcesService;
       this.securityEngine = securityEngine;
       this.dataSourceStatusService = dataSourceStatusService;
+      this.licenseManager = licenseManager;
    }
 
    /**
@@ -235,7 +237,7 @@ public class DataSourceController {
 
       boolean isSelfOrg =
          principal instanceof SRPrincipal && ((SRPrincipal) principal).isSelfOrganization();
-      boolean enterprise = LicenseManager.getInstance().isEnterprise();
+      boolean enterprise = licenseManager.isEnterprise();
 
       return DataSourceBrowserModel.builder()
          .dataSourceList(dataSourceBrowserService.getDataSources(path, root, movingFolders, principal))
@@ -679,7 +681,7 @@ public class DataSourceController {
       boolean physicalTable;
 
       try {
-         physicalTable = SecurityEngine.getSecurity().checkPermission(
+         physicalTable = securityEngine.checkPermission(
             principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS);
       }
       catch(Exception ex) {
@@ -696,15 +698,14 @@ public class DataSourceController {
       SourcePermissionModel model = new SourcePermissionModel();
 
       try {
-         SecurityEngine engine = SecurityEngine.getSecurity();
-         model.setCanDelete(engine.checkPermission(
+         model.setCanDelete(securityEngine.checkPermission(
             principal, ResourceType.DATA_SOURCE_FOLDER, folder, ResourceAction.DELETE));
          boolean root = folder == null || folder.isEmpty() || "/".equals(folder);
          boolean newSourcePermission = root && securityEngine.checkPermission(
             principal, ResourceType.CREATE_DATA_SOURCE, "*", ResourceAction.ACCESS);
-         model.setWritable(newSourcePermission || engine.checkPermission(
+         model.setWritable(newSourcePermission || securityEngine.checkPermission(
             principal, ResourceType.DATA_SOURCE_FOLDER, folder, ResourceAction.WRITE));
-         model.setReadable(engine.checkPermission(
+         model.setReadable(securityEngine.checkPermission(
             principal, ResourceType.DATA_SOURCE_FOLDER, folder, ResourceAction.READ));
       }
       catch(Exception ignore) {
@@ -732,6 +733,7 @@ public class DataSourceController {
    private final DatabaseDatasourcesService databaseDatasourcesService;
    private final SecurityEngine securityEngine;
    private final DataSourceStatusService dataSourceStatusService;
+   private final LicenseManager licenseManager;
 
    @Autowired
    private NotificationService notificationService;
