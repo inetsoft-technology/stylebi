@@ -241,7 +241,14 @@ public class ColumnSelection implements XMLSerializable, Cloneable, Serializable
     * @return a collection of DataRef objects
     */
    public final Enumeration getAttributes() {
-      return new IteratorEnumeration(attrs.iterator());
+      // snapshot under read lock to ensure visibility of concurrent writes
+      try {
+         lock.readLock().lock();
+         return new IteratorEnumeration(new ArrayList<>(attrs).iterator());
+      }
+      finally {
+         lock.readLock().unlock();
+      }
    }
 
    /**
