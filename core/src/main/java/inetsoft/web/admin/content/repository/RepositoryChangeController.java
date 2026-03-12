@@ -61,12 +61,17 @@ public class RepositoryChangeController {
    @Autowired
    public RepositoryChangeController(
       AssetRepository assetRepository,
-      SimpMessagingTemplate messagingTemplate)
+      SimpMessagingTemplate messagingTemplate,
+      Cluster cluster,
+      SecurityEngine securityEngine,
+      DataSourceRegistry dataSourceRegistry)
    {
       this.assetRepository = assetRepository;
       this.messagingTemplate = messagingTemplate;
       this.debouncer = new DefaultDebouncer<>();
-      this.cluster = Cluster.getInstance();
+      this.cluster = cluster;
+      this.securityEngine = securityEngine;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    @PostConstruct
@@ -75,10 +80,10 @@ public class RepositoryChangeController {
       assetRepository.addAssetChangeListener(this.assetListener);
       assetRepository.addAssetChangeListener(this.autoSaveListener);
       DashboardManager.getManager().addDashboardChangeListener(this.dashboardListener);
-      DataSourceRegistry.getRegistry().addRefreshedListener(dataSourceListener);
+      dataSourceRegistry.addRefreshedListener(dataSourceListener);
       cluster.addMessageListener(this.clusterMessageListener);
 
-      for(String orgId : SecurityEngine.getSecurity().getOrganizations()) {
+      for(String orgId : securityEngine.getOrganizations()) {
          addLibManagerListener(orgId);
       }
    }
@@ -98,7 +103,7 @@ public class RepositoryChangeController {
          assetRepository.removeAssetChangeListener(this.assetListener);
          assetRepository.removeAssetChangeListener(this.autoSaveListener);
          DashboardManager.getManager().removeDashboardChangeListener(this.dashboardListener);
-         DataSourceRegistry.getRegistry().removeRefreshedListener(dataSourceListener);
+         dataSourceRegistry.removeRefreshedListener(dataSourceListener);
          cluster.removeMessageListener(this.clusterMessageListener);
 
          for(PropertyChangeListener listener : adminReportListeners.values()) {
@@ -114,7 +119,7 @@ public class RepositoryChangeController {
             }
          }
 
-         for(String orgId : SecurityEngine.getSecurity().getOrganizations()) {
+         for(String orgId : securityEngine.getOrganizations()) {
             removeLibManagerListener(orgId);
          }
 
@@ -193,7 +198,7 @@ public class RepositoryChangeController {
    private boolean isSysAdmin(Principal principal) {
       try {
          IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-         SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider securityProvider = securityEngine.getSecurityProvider();
          IdentityID[] roles = securityProvider.getRoles(pId);
 
          if(roles != null) {
@@ -342,6 +347,8 @@ public class RepositoryChangeController {
    private final PropertyChangeListener dataSourceListener = this::dataSourceChanged;
    private final AssetChangeListener autoSaveListener = this::autoSaveChanged;
    private final Cluster cluster;
+   private final SecurityEngine securityEngine;
+   private final DataSourceRegistry dataSourceRegistry;
 
    private static final String CHANGE_TOPIC = "/em-content-changed";
    private static final Logger LOG = LoggerFactory.getLogger(RepositoryChangeController.class);

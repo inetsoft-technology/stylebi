@@ -36,8 +36,11 @@ import java.sql.Timestamp;
 @RestController
 public class RepositoryScriptController {
    @Autowired
-   public RepositoryScriptController(ResourcePermissionService resourcePermissionService) {
+   public RepositoryScriptController(ResourcePermissionService resourcePermissionService,
+                                     SecurityEngine securityEngine)
+   {
       this.resourcePermissionService = resourcePermissionService;
+      this.securityEngine = securityEngine;
    }
 
    @GetMapping("/api/em/settings/content/repository/script")
@@ -98,10 +101,9 @@ public class RepositoryScriptController {
          Resource resource = resourcePermissionService.getRepositoryResourceType(type, path);
 
          if(npath != null && !npath.isEmpty()) {
-            SecurityEngine security = SecurityEngine.getSecurity();
-            Permission temp = security.getPermission(resource.getType(), path);
-            security.removePermission(resource.getType(), path);
-            security.setPermission(resource.getType(), npath, temp);
+            Permission temp = securityEngine.getPermission(resource.getType(), path);
+            securityEngine.removePermission(resource.getType(), path);
+            securityEngine.setPermission(resource.getType(), npath, temp);
          }
 
          if(model.permissions() != null && model.permissions().changed()) {
@@ -121,4 +123,5 @@ public class RepositoryScriptController {
    }
 
    private ResourcePermissionService resourcePermissionService;
+   private SecurityEngine securityEngine;
 }

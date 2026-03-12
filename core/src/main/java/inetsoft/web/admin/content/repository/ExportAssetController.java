@@ -44,17 +44,18 @@ public class ExportAssetController {
    public ExportAssetController(DeployService deployService,
                                 IgniteSessionRepository igniteSessionRepository,
                                 ExportAssetServiceProxy exportAssetServiceProxy,
-                                BinaryTransferService binaryTransferService)
+                                BinaryTransferService binaryTransferService,
+                                Cluster cluster)
    {
       this.deployService = deployService;
       this.igniteSessionRepository = igniteSessionRepository;
       this.exportAssetServiceProxy = exportAssetServiceProxy;
       this.binaryTransferService = binaryTransferService;
+      this.cluster = cluster;
    }
 
    @PostConstruct
    public void initializeCache() {
-      Cluster cluster = Cluster.getInstance();
       cluster.registerSpringProxyPartitionedCache(ExportAssetService.FILE_LOCATION_CACHE_NAME);
       cluster.getCache(ExportAssetService.FILE_LOCATION_CACHE_NAME);
    }
@@ -237,6 +238,7 @@ public class ExportAssetController {
    private final BinaryTransferService binaryTransferService;
    private final DeployService deployService;
    private final IgniteSessionRepository igniteSessionRepository;
+   private final Cluster cluster;
    private static final String PERM_ATTR =
       ExportAssetController.class.getName() + ".deployPermissions";
    private static final String DEPS_ATTR =

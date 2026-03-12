@@ -30,8 +30,11 @@ import java.security.Principal;
 @RestController
 public class ResourcePermissionController {
    @Autowired
-   public ResourcePermissionController(ResourcePermissionService service) {
+   public ResourcePermissionController(ResourcePermissionService service,
+                                       SecurityEngine securityEngine)
+   {
       this.resourcePermissionService = service;
+      this.securityEngine = securityEngine;
    }
 
    @GetMapping("/api/em/content/repository/permission")
@@ -41,7 +44,7 @@ public class ResourcePermissionController {
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -67,4 +70,5 @@ public class ResourcePermissionController {
    }
 
    private final ResourcePermissionService resourcePermissionService;
+   private final SecurityEngine securityEngine;
 }
