@@ -20,6 +20,13 @@ package inetsoft.web.wiz;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.Tool;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.extensions.Extension;
+import io.swagger.v3.oas.annotations.extensions.ExtensionProperty;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -30,6 +37,10 @@ import java.security.Principal;
  * {@code AppDomainsController} provides the web API endpoints for getting/setting organization application domains.
  */
 @RestController
+@RequestMapping("/api/wiz")
+@Tag(
+   name = "Application Domains",
+   description = "The Application domains APIs allow you to get/set organization application domains.")
 @Validated
 public class AppDomainsController {
    /**
@@ -41,7 +52,7 @@ public class AppDomainsController {
     *
     * @since 2025
     */
-   @GetMapping(value = "/api/appDomains", produces = MediaType.APPLICATION_JSON_VALUE)
+   @GetMapping(value = "/appDomains", produces = MediaType.APPLICATION_JSON_VALUE)
    public OrganizationDomains getAppDomains(Principal user) throws Exception {
       String value = SreeEnv.getProperty(getOrgAppDomainPropKey(user), false, true);
 
@@ -61,8 +72,8 @@ public class AppDomainsController {
     *
     * @since 2025
     */
-   @PostMapping(value = "/api/appDomains", produces = MediaType.APPLICATION_JSON_VALUE)
-   public void setAppDomains(@RequestBody OrganizationDomains appDomains,
+   @PostMapping(value = "/appDomains", produces = MediaType.APPLICATION_JSON_VALUE)
+   public void setAppDomains(@RequestBody @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "The organization application domains.", required = true) OrganizationDomains appDomains,
                              Principal user) throws Exception
    {
       String value = appDomains.toString();

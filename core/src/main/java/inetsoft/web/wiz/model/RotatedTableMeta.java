@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,25 +16,21 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-:host {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-}
+package inetsoft.web.wiz.model;
 
-.wiz-vs-preview-container {
-  flex: 1;
-  overflow: auto;
-  width: 100%;
-  height: 100%;
-  background-color: var(--inet-canvas-bg);
-  box-sizing: border-box;
-}
+public class RotatedTableMeta extends WorksheetTableMeta {
+   private String sourceTable;
 
-.wiz-vs-canvas {
-  position: relative;
-  background-color: var(--inet-surface-color);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
-  border-radius: 2px;
-  min-height: 100%;
+   public String getSourceTable() {
+      return sourceTable;
+   }
+
+   public void setSourceTable(String sourceTable) {
+      this.sourceTable = sourceTable;
+   }
+
+   @Override
+   public String getTableType() {
+      return "rotatedTable";
+   }
 }

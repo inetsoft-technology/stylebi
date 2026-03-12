@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,26 +15,18 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+package inetsoft.web.wiz.model;
 
-:host {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-}
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
-.wiz-vs-preview-container {
-  flex: 1;
-  overflow: auto;
-  width: 100%;
-  height: 100%;
-  background-color: var(--inet-canvas-bg);
-  box-sizing: border-box;
-}
-
-.wiz-vs-canvas {
-  position: relative;
-  background-color: var(--inet-surface-color);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
-  border-radius: 2px;
-  min-height: 100%;
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "bindingType")
+@JsonSubTypes({
+   @JsonSubTypes.Type(value = ChartBinding.class, name = "chart"),
+   @JsonSubTypes.Type(value = TableBinding.class, name = "table"),
+   @JsonSubTypes.Type(value = CrosstabBinding.class, name = "crosstab"),
+   @JsonSubTypes.Type(value = OutputBinding.class, name = "output"),
+   @JsonSubTypes.Type(value = ImageBinding.class, name = "image")
+})
+public interface BindingInfo {
 }

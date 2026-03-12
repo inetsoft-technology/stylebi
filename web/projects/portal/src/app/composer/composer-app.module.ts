@@ -18,7 +18,7 @@
 import { ScrollingModule } from "@angular/cdk/scrolling";
 import { CommonModule } from "@angular/common";
 import { HttpClient } from "@angular/common/http";
-import { NgModule } from "@angular/core";
+import { CUSTOM_ELEMENTS_SCHEMA, NgModule } from "@angular/core";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import {
    NgbDropdownModule,
@@ -281,6 +281,7 @@ import { EventQueueService } from "./gui/vs/event-queue.service";
 import { LayoutObject } from "./gui/vs/layouts/layout-object.component";
 import { LayoutPane } from "./gui/vs/layouts/layout-pane.component";
 import { ComposerSelectionContainerChildren } from "./gui/vs/objects/selection/composer-selection-container-children.component";
+import { NewVisualizationDialog } from "./gui/wiz/new-visualization-dialog/new-visualization-dialog.component";
 import { WizComponentsPane } from "./gui/wiz/wiz-components-pane/wiz-components-pane.component";
 import { WizPane } from "./gui/wiz/wiz-main/wiz-pane.component";
 import { WizObject } from "./gui/wiz/wiz-object/wiz-object.component";
@@ -582,6 +583,7 @@ import { LineAnchorService } from "./services/line-anchor.service";
       ShowHideColumnsDialogComponent,
       ScriptEditPaneComponent,
       SaveScriptDialog,
+      NewVisualizationDialog,
       WizComponentsPane,
       WizPane,
       WizObject,
@@ -624,6 +626,7 @@ import { LineAnchorService } from "./services/line-anchor.service";
          useClass: DefaultCodemirrorService
       },
    ],
+   schemas: [CUSTOM_ELEMENTS_SCHEMA],
    exports: [],
    bootstrap: [ComposerAppComponent]
 })

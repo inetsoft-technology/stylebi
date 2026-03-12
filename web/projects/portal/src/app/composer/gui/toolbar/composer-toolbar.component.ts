@@ -1610,7 +1610,7 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
             buttonClass: "new-worksheet-button",
             tooltip: () => "<b>_#(js:New Worksheet)</b>\n" + "_#(js:fl.action.newWorksheetDes)",
             enabled: () => this.worksheetPermission,
-            visible: () => !this.deployed,
+            visible: () => !this.deployed && !this.showingWiz,
             action: () => this.newWorksheet()
          },
          {
@@ -1619,7 +1619,7 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
             buttonClass: "new-viewsheet-button",
             tooltip: () => "<b>_#(js:New Viewsheet)</b>\n" + "_#(js:fl.action.newViewsheetDes)",
             enabled: () => this.viewsheetPermission,
-            visible: () => !this.deployed,
+            visible: () => !this.deployed && !this.showingWiz,
             action: () => this.openViewsheetWizard()
          },
          {

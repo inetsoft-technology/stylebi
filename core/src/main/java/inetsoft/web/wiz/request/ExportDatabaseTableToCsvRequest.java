@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,25 +16,27 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-:host {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-}
+package inetsoft.web.wiz.request;
 
-.wiz-vs-preview-container {
-  flex: 1;
-  overflow: auto;
-  width: 100%;
-  height: 100%;
-  background-color: var(--inet-canvas-bg);
-  box-sizing: border-box;
-}
+import inetsoft.uql.asset.AssetEntry;
 
-.wiz-vs-canvas {
-  position: relative;
-  background-color: var(--inet-surface-color);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
-  border-radius: 2px;
-  min-height: 100%;
+public class ExportDatabaseTableToCsvRequest {
+   public String getDatasourcePath() {
+      return datasourcePath;
+   }
+
+   public void setDatasourcePath(String datasourcePath) {
+      this.datasourcePath = datasourcePath;
+   }
+
+   public AssetEntry getTable() {
+      return table;
+   }
+
+   public void setTable(AssetEntry table) {
+      this.table = table;
+   }
+
+   private String datasourcePath;
+   private AssetEntry table;
 }

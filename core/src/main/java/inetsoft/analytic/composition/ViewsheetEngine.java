@@ -984,7 +984,9 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
                                                      AssetEntry entry, Principal user, String id,
                                                      Viewsheet.WizInfo wizInfo)
       {
-         Viewsheet vs = wizInfo != null ? new Viewsheet(wentry, wizInfo.isWizSheet(), wizInfo.isWizVisualization(), wizInfo.getVisualizationSheet()) : new Viewsheet(wentry);
+         Viewsheet vs = wizInfo != null ?
+            new Viewsheet(wentry, wizInfo.isWizSheet(), wizInfo.isWizVisualization(),
+                          wizInfo.getVisualizationSheet(), wizInfo.getSources()) : new Viewsheet(wentry);
 
          vs.update(engine.engine, entry, user);
          RuntimeViewsheet rvs = new RuntimeViewsheet(entry, vs, user, engine.engine, engine,

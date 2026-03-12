@@ -16,15 +16,43 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { AssetEntry } from "../../../../../../shared/data/asset-entry";
-import { FontService } from "../../../widget/services/font.service";
-import { Viewsheet } from "./viewsheet";
+package inetsoft.web.wiz.request;
 
-export class WizDashboard extends Viewsheet {
-   baseEntries: AssetEntry[];
-
-   constructor(fontService: FontService = null, sheet: Viewsheet = null, public visualization: boolean = false, public visualizationSheet?: string) {
-      super(fontService, sheet);
-      this.type = "wiz";
+public class GetDatabaseTableMetaRequest {
+   public String getDsName() {
+      return dsName;
    }
+
+   public void setDsName(String dsName) {
+      this.dsName = dsName;
+   }
+
+   public String getTableName() {
+      return tableName;
+   }
+
+   public void setTableName(String tableName) {
+      this.tableName = tableName;
+   }
+
+   public String getCatalog() {
+      return catalog;
+   }
+
+   public void setCatalog(String catalog) {
+      this.catalog = catalog;
+   }
+
+   public String getSchema() {
+      return schema;
+   }
+
+   public void setSchema(String schema) {
+      this.schema = schema;
+   }
+
+   private String dsName;
+   private String tableName;
+   private String catalog;
+   private String schema;
 }

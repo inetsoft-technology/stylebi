@@ -15,16 +15,37 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+package inetsoft.web.wiz.model;
 
-import { AssetEntry } from "../../../../../../shared/data/asset-entry";
-import { FontService } from "../../../widget/services/font.service";
-import { Viewsheet } from "./viewsheet";
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
-export class WizDashboard extends Viewsheet {
-   baseEntries: AssetEntry[];
-
-   constructor(fontService: FontService = null, sheet: Viewsheet = null, public visualization: boolean = false, public visualizationSheet?: string) {
-      super(fontService, sheet);
-      this.type = "wiz";
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class Ranking {
+   public int getOptionValue() {
+      return optionValue;
    }
+
+   public void setOptionValue(int optionValue) {
+      this.optionValue = optionValue;
+   }
+
+   public int getRankingN() {
+      return rankingN;
+   }
+
+   public void setRankingN(int rankingN) {
+      this.rankingN = rankingN;
+   }
+
+   public String getRankingCol() {
+      return rankingCol;
+   }
+
+   public void setRankingCol(String rankingCol) {
+      this.rankingCol = rankingCol;
+   }
+
+   private int optionValue;
+   private int rankingN;
+   private String rankingCol;
 }

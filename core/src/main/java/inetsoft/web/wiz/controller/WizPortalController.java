@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,26 +15,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+package inetsoft.web.wiz.controller;
 
-:host {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-}
+import inetsoft.sree.SreeEnv;
+import org.springframework.web.bind.annotation.*;
 
-.wiz-vs-preview-container {
-  flex: 1;
-  overflow: auto;
-  width: 100%;
-  height: 100%;
-  background-color: var(--inet-canvas-bg);
-  box-sizing: border-box;
-}
+@RestController
+@RequestMapping("/api/wiz")
+public class WizPortalController {
 
-.wiz-vs-canvas {
-  position: relative;
-  background-color: var(--inet-surface-color);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
-  border-radius: 2px;
-  min-height: 100%;
+   @GetMapping("/service-url")
+   public String getWizServiceUrl() {
+      return SreeEnv.getProperty(WIZ_SERVICE_URL);
+   }
+
+   public static final String WIZ_SERVICE_URL = "wiz.service.url";
 }

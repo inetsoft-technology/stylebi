@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,25 +16,29 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-:host {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-}
+package inetsoft.web.wiz;
 
-.wiz-vs-preview-container {
-  flex: 1;
-  overflow: auto;
-  width: 100%;
-  height: 100%;
-  background-color: var(--inet-canvas-bg);
-  box-sizing: border-box;
-}
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 
-.wiz-vs-canvas {
-  position: relative;
-  background-color: var(--inet-surface-color);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
-  border-radius: 2px;
-  min-height: 100%;
+public class WizUtil {
+   public static String decodeId(String id) {
+      String decodedId;
+
+      if(id == null || id.isEmpty()) {
+         decodedId = null;
+      }
+      else {
+         try {
+            decodedId = new String(Base64.getDecoder().decode(id), StandardCharsets.UTF_8);
+         }
+         catch(IllegalArgumentException e) {
+            decodedId = null;
+         }
+      }
+
+      return decodedId;
+   }
+
+   public static final String ANNOTATION_RAW_DATA_MAX_ROW = "annotation.rawdata.maxrow";
 }

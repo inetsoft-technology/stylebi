@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, NgZone, OnDestroy, OnInit } from "@angular/core";
+import { WizPortalService } from "../../../../../../../shared/wiz-portal/wiz-portal.service";
 import { WizDashboard } from "../../../data/vs/wizDashboard";
 import { CommandProcessor, ViewsheetClientService } from "../../../../common/viewsheet-client";
 import { InitGridCommand } from "../../../../vsobjects/command/init-grid-command";
@@ -43,8 +44,25 @@ import { WizService } from "../services/wiz.service";
 export class WizVisualizationPane extends CommandProcessor implements OnInit, OnDestroy {
    @Input() currentVisualization: WizDashboard;
 
+   get styleBIUrl(): string {
+      return this.wizPortalService.styleBIUrl;
+   }
+
+   get wizServiceUrl(): string {
+      return this.wizPortalService.wizServiceUrl;
+   }
+
+   get userId(): string {
+      return this.wizPortalService.userId;
+   }
+
+   get domain(): string {
+      return this.wizPortalService.domain;
+   }
+
    constructor(private viewsheetClient: ViewsheetClientService, zone: NgZone,
-               private wizService: WizService) {
+               private wizService: WizService, private wizPortalService: WizPortalService)
+   {
       super(viewsheetClient, zone, true);
    }
 
@@ -62,7 +80,8 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
       if(this.currentVisualization.newSheet) {
          const event = new NewViewsheetEvent(
             this.currentVisualization.id, size[0], size[1], mobile,
-            window.navigator.userAgent, this.currentVisualization.baseEntry, false, true, this.currentVisualization?.visualizationSheet);
+            window.navigator.userAgent, null, false, true, this.currentVisualization?.visualizationSheet);
+         event.dataSources = this.currentVisualization.baseEntries;
          event.viewer = false;
          this.viewsheetClient.sendEvent("/events/composer/viewsheet/new", event);
       }
