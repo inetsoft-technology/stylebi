@@ -995,8 +995,15 @@ public class ResourcePermissionService {
             case USER -> provider.getUser(id) != null;
             case GROUP -> provider.getGroup(id) != null;
             case ROLE -> provider.getRole(id) != null;
-            case ORGANIZATION -> provider.getOrganization(
-               id.getOrgID() != null ? id.getOrgID() : id.getName()) != null;
+            case ORGANIZATION -> {
+               String orgId = id.getOrgID();
+
+               if(orgId == null) {
+                  orgId = provider.getOrgIdFromName(id.getName());
+               }
+
+               yield orgId != null && provider.getOrganization(orgId) != null;
+            }
             default -> true;
          };
 

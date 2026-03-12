@@ -194,7 +194,8 @@ export class ResourcePermissionComponent implements OnInit, OnChanges, OnDestroy
          ? this.http.post<ResourcePermissionTableModel[]>(this.validateIdentitiesUrl, result.permissions)
          : of([] as ResourcePermissionTableModel[]);
 
-      validate$.pipe(takeUntil(this.destroy$)).subscribe(missing => {
+      validate$.pipe(takeUntil(this.destroy$)).subscribe({
+         next: missing => {
          if(missing.length > 0 && missing.length === result.permissions.length) {
             this.snackBar.open("_#(js:em.security.pastePermissions.allMissing)", null, {
                duration: Tool.SNACKBAR_DURATION
@@ -207,7 +208,7 @@ export class ResourcePermissionComponent implements OnInit, OnChanges, OnDestroy
 
          if(missing.length > 0) {
             const names = missing.map(m => m.identityID.name).join(", ");
-            content = "_#(js:em.security.pastePermissions.missingIdentities)" + names +
+            content = "_#(js:em.security.pastePermissions.missingIdentities)\n" + names +
                "\n\n" + "_#(js:em.security.pastePermissions.confirmWithMissing)";
          }
 
@@ -226,10 +227,10 @@ export class ResourcePermissionComponent implements OnInit, OnChanges, OnDestroy
             let permissions = result.permissions;
 
             if(missing.length > 0) {
-               const missingKeys = new Set(missing.map(
-                  m => m.identityID.name + ":" + m.type));
-               permissions = permissions.filter(
-                  p => !missingKeys.has(p.identityID.name + ":" + p.type));
+               const key = (m: ResourcePermissionTableModel) =>
+                  `${m.identityID.name}:${m.identityID.orgID ?? ""}:${m.type}`;
+               const missingKeys = new Set(missing.map(key));
+               permissions = permissions.filter(p => !missingKeys.has(key(p)));
             }
 
             this.model.permissions = permissions;
@@ -238,6 +239,31 @@ export class ResourcePermissionComponent implements OnInit, OnChanges, OnDestroy
             this.model.changed = true;
             this.permissionChanged.emit(this.model.permissions);
          });
+         },
+         error: () => {
+            this.openPasteConfirmDialog(result);
+         }
+      });
+   }
+
+   private openPasteConfirmDialog(result: { permissions: ResourcePermissionTableModel[]; requiresBoth: boolean }): void {
+      this.dialog.open(MessageDialog, {
+         width: "350px",
+         data: {
+            title: "_#(js:Paste Permissions)",
+            content: "_#(js:em.security.pastePermissions.confirm)",
+            type: MessageDialogType.CONFIRMATION
+         }
+      }).afterClosed().pipe(takeUntil(this.destroy$)).subscribe(confirmed => {
+         if(!confirmed) {
+            return;
+         }
+
+         this.model.permissions = result.permissions;
+         this.model.requiresBoth = result.requiresBoth;
+         this.model.hasOrgEdited = true;
+         this.model.changed = true;
+         this.permissionChanged.emit(this.model.permissions);
       });
    }
 }
