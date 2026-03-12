@@ -40,6 +40,11 @@ import java.util.Map;
  */
 @ControllerAdvice(basePackages = { "inetsoft.web.portal" })
 public class ControllerErrorHandler extends ResponseEntityExceptionHandler {
+
+   public ControllerErrorHandler(LogManager logManager) {
+      this.logManager = logManager;
+   }
+
    /**
     * Handles file not found exceptions.
     */
@@ -74,7 +79,7 @@ public class ControllerErrorHandler extends ResponseEntityExceptionHandler {
    @ExceptionHandler(MessageException.class)
    public ResponseEntity<Map<String, String>> handleMessageException(MessageException e) {
       MessageException thrown = e.isDumpStack() ? e : null;
-      LogManager.getInstance().logException(LOG, e.getLogLevel(), e.getMessage(), thrown);
+      logManager.logException(LOG, e.getLogLevel(), e.getMessage(), thrown);
 
       Map<String, String> payload = new HashMap<>();
       payload.put("error", "messageException");
@@ -116,14 +121,15 @@ public class ControllerErrorHandler extends ResponseEntityExceptionHandler {
       // for common exceptions like file not found, file exists, and
       // unauthorized access, stack traces are not important and we shouldn't
       // pollute the log with them
-      if(LogManager.getInstance().isDebugEnabled(LOG.getName())) {
-         LogManager.getInstance().logException(LOG, level, message, e);
+      if(logManager.isDebugEnabled(LOG.getName())) {
+         logManager.logException(LOG, level, message, e);
       }
       else {
-         LogManager.getInstance().logException(LOG, level, message + ": " + e.getMessage(), null);
+         logManager.logException(LOG, level, message + ": " + e.getMessage(), null);
       }
    }
 
+   private final LogManager logManager;
    private static final Logger LOG =
       LoggerFactory.getLogger(ControllerErrorHandler.class);
 }

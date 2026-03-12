@@ -23,6 +23,7 @@ import inetsoft.sree.internal.cluster.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.ConfigurationContext;
 import inetsoft.web.ServiceProxyContext;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,9 +40,13 @@ import java.util.Set;
 @Component
 public class RuntimeViewsheetManager {
    @Autowired
-   public RuntimeViewsheetManager(ViewsheetService viewsheetService) {
+   public RuntimeViewsheetManager(ViewsheetService viewsheetService, Cluster cluster) {
       this.viewsheetService = viewsheetService;
-      Cluster cluster = Cluster.getInstance();
+      this.cluster = cluster;
+   }
+
+   @PostConstruct
+   public void init() {
       openSheets = cluster.getReplicatedMap(OPEN_SHEETS_MAP);
    }
 
@@ -112,8 +117,9 @@ public class RuntimeViewsheetManager {
       return user instanceof XPrincipal ? ((XPrincipal) user).getSessionID() : "unknown-session";
    }
 
-   private final DistributedMap<String, Set<String>> openSheets;
+   private DistributedMap<String, Set<String>> openSheets;
    private final ViewsheetService viewsheetService;
+   private final Cluster cluster;
    private static final String OPEN_SHEETS_MAP = RuntimeViewsheetManager.class.getName() + ".openSheetsMap";
    private static final Logger LOG = LoggerFactory.getLogger(RuntimeViewsheetManager.class);
 

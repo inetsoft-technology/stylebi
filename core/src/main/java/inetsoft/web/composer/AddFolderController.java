@@ -179,7 +179,7 @@ public class AddFolderController {
          else if(ex instanceof MessageException) {
             MessageException messageException = (MessageException) ex;
             Throwable throwable = messageException.isDumpStack() || LOG.isDebugEnabled() ? ex : null;
-            LogManager.getInstance().logException(
+            logManager.logException(
                LOG, messageException.getLogLevel(), ex.getMessage(), throwable);
          }
          else {
@@ -226,10 +226,16 @@ public class AddFolderController {
       this.tableStyleService = tableStyleService;
    }
 
+   @Autowired
+   public void setLogManager(LogManager logManager) {
+      this.logManager = logManager;
+   }
+
    private AssetRepository assetRepository;
    private RepletRepository repletRepository;
    private ViewsheetService viewsheetService;
    private TableStyleService tableStyleService;
+   private LogManager logManager;
    private static final Logger LOG =
       LoggerFactory.getLogger(AddFolderController.class);
 }

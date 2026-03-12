@@ -60,13 +60,15 @@ public class VSLifecycleService {
    public VSLifecycleService(ViewsheetService viewsheetService, AssetRepository assetRepository,
                              CoreLifecycleService coreLifecycleService,
                              ParameterService parameterService,
-                             VSLifecycleControllerServiceProxy serviceProxy)
+                             VSLifecycleControllerServiceProxy serviceProxy,
+                             LogManager logManager)
    {
       this.viewsheetService = viewsheetService;
       this.assetRepository = assetRepository;
       this.coreLifecycleService = coreLifecycleService;
       this.parameterService = parameterService;
       this.serviceProxy = serviceProxy;
+      this.logManager = logManager;
    }
 
    public String openViewsheet(OpenViewsheetEvent event, Principal principal, String linkUri)
@@ -257,7 +259,7 @@ public class VSLifecycleService {
          entry.setProperty("_device_mobile", Boolean.toString(event.isMobile()));
          entry.setProperty("_device_user_agent", event.getUserAgent());
 
-         if(LogManager.getInstance().isDebugEnabled(LOG.getName())) {
+         if(logManager.isDebugEnabled(LOG.getName())) {
             LOG.debug(
                "Browser: userAgent=" + event.getUserAgent() + ", displayWidth=" +
                   event.getWidth() + ", mobile=" + event.isMobile());
@@ -438,5 +440,6 @@ public class VSLifecycleService {
    private final CoreLifecycleService coreLifecycleService;
    private final ParameterService parameterService;
    private final VSLifecycleControllerServiceProxy serviceProxy;
+   private final LogManager logManager;
    private static final Logger LOG = LoggerFactory.getLogger(VSLifecycleService.class);
 }

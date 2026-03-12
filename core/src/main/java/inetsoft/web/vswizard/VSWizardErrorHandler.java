@@ -34,10 +34,14 @@ import java.util.Map;
 })
 public class VSWizardErrorHandler {
 
+   public VSWizardErrorHandler(LogManager logManager) {
+      this.logManager = logManager;
+   }
+
    @ExceptionHandler(MessageException.class)
    public ResponseEntity<Map<String, String>> handleMessageException(MessageException e) {
       MessageException thrown = e.isDumpStack() ? e : null;
-      LogManager.getInstance().logException(LOG, e.getLogLevel(), e.getMessage(), thrown);
+      logManager.logException(LOG, e.getLogLevel(), e.getMessage(), thrown);
 
       Map<String, String> payload = new HashMap<>();
       payload.put("error", "messageException");
@@ -45,5 +49,6 @@ public class VSWizardErrorHandler {
       return new ResponseEntity<>(payload, null, HttpStatus.INTERNAL_SERVER_ERROR);
    }
 
+   private final LogManager logManager;
    private static final Logger LOG = LoggerFactory.getLogger(VSWizardErrorHandler.class);
 }

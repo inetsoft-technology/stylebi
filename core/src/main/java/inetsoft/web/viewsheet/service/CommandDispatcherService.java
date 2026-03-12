@@ -38,13 +38,13 @@ import java.util.UUID;
 public class CommandDispatcherService
    implements MessageListener, ApplicationListener<WebsocketConnectionEvent>
 {
-   public CommandDispatcherService(SimpMessagingTemplate template) {
+   public CommandDispatcherService(SimpMessagingTemplate template, Cluster cluster) {
       this.template = template;
+      this.cluster = cluster;
    }
 
    @PostConstruct
    public void registerListener() {
-      cluster = Cluster.getInstance();
       sessions = cluster.getReplicatedMap(getClass().getName() + ".sessions");
       cluster.addMessageListener(this);
    }
