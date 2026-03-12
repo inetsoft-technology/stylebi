@@ -108,6 +108,11 @@ public class ComposerController {
       command.setMessage(Catalog.getCatalog().getString(canWorksheet?
                          "composer.openWorksheetRepeatedly" : "composer.openWorksheetNoPermission"));
       commandDispatcher.sendCommand(command);
+
+      if(simpSessionId == null) {
+         return;
+      }
+
       SimpMessageHeaderAccessor msgHeaderAccessor = SimpMessageHeaderAccessor
          .create(SimpMessageType.MESSAGE);
       msgHeaderAccessor.setSessionId(simpSessionId);

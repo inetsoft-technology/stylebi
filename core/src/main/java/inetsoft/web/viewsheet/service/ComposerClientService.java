@@ -24,7 +24,7 @@ import jakarta.annotation.PostConstruct;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Service;
 
-import java.util.function.Supplier;
+import java.util.Map;
 
 @Service
 public class ComposerClientService {
@@ -44,15 +44,12 @@ public class ComposerClientService {
    public String getFirstSimpSessionId(String httpSessionId) {
       return composerClients.entrySet().stream()
          .filter(e -> httpSessionId.equals(e.getValue()))
-         .map(java.util.Map.Entry::getKey)
+         .map(Map.Entry::getKey)
          .findFirst()
          .orElse(null);
    }
 
-   public void setSessionID(Supplier<String[]> sessionIDSupplier) {
-      String[] sessions = sessionIDSupplier.get();
-      String httpSessionId = sessions[0];
-      String simpSessionId = sessions[1];
+   public void setSessionID(String httpSessionId, String simpSessionId) {
       composerClients.put(simpSessionId, httpSessionId);
    }
 
