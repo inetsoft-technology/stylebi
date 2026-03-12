@@ -22,6 +22,7 @@ import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.graph.VGraph;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.internal.DimensionD;
+import inetsoft.graph.internal.GDefaults;
 import inetsoft.report.*;
 import inetsoft.report.composition.RegionTableLens;
 import inetsoft.report.composition.VSTableLens;
@@ -654,9 +655,11 @@ public class VsToReportConverter {
             addTextBoxElement(assembly, label, sectionName);
             break;
          case AbstractSheet.RADIOBUTTON_ASSET:
+            addInputLabel(assembly, sectionName);
             addRadioButton((RadioButtonVSAssembly) assembly, sectionName);
             break;
          case AbstractSheet.CHECKBOX_ASSET:
+            addInputLabel(assembly, sectionName);
             addCheckBox((CheckBoxVSAssembly) assembly, sectionName);
             break;
          case AbstractSheet.TEXTINPUT_ASSET:
@@ -1692,12 +1695,6 @@ public class VsToReportConverter {
    }
 
    /**
-    * Create a TextBoxElement and add to fixed position in the report section.
-    * @param assembly textbox elem should use same bounds with this assembly.
-    * @param text content of the textbox element.
-    * @param sectionName add the textbox element to this section.
-    */
-   /**
     * Add a label text box for input assemblies that have a visible LabelInfo.
     * The label is placed at the appropriate edge of the assembly bounds based
     * on the label position (left, right, top, bottom).
@@ -1723,7 +1720,6 @@ public class VsToReportConverter {
 
       Rectangle bounds = getPixelBounds(assembly);
       String position = labelInfo.getLabelPosition();
-      int gap = (int) (labelInfo.getLabelGap() * scalefont);
       int labelH = Math.round(AssetUtil.defh * scalefont);
 
       DefaultTextLens textlens = new DefaultTextLens(labelText);
@@ -1736,6 +1732,11 @@ public class VsToReportConverter {
       textbox.setBorder(StyleConstants.NO_BORDER);
 
       Font fn = textbox.getFont();
+
+      if(fn == null) {
+         fn = GDefaults.DEFAULT_TEXT_FONT;
+      }
+
       int labelW = (int) Common.stringWidth(labelText, fn) + 6;
 
       Rectangle labelBounds;
@@ -1749,7 +1750,7 @@ public class VsToReportConverter {
                                         bounds.width, labelH);
             break;
          case LabelInfo.RIGHT:
-            labelBounds = new Rectangle(bounds.x + bounds.width - labelW + gap,
+            labelBounds = new Rectangle(bounds.x + bounds.width - labelW,
                                         bounds.y, labelW, bounds.height);
             break;
          case LabelInfo.LEFT:
@@ -1761,6 +1762,12 @@ public class VsToReportConverter {
       addElement0(labelBounds, textbox, sectionName);
    }
 
+   /**
+    * Create a TextBoxElement and add to fixed position in the report section.
+    * @param assembly textbox elem should use same bounds with this assembly.
+    * @param text content of the textbox element.
+    * @param sectionName add the textbox element to this section.
+    */
    private void addTextBoxElement(VSAssembly assembly, String text,
                                   String sectionName)
    {
