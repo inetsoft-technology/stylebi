@@ -34,6 +34,7 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.FileNotFoundException;
@@ -51,8 +52,16 @@ public class RepletRegistryManager {
    /**
     * Creates a new instance of <tt>RepletRegistryManager</tt>.
     */
+   @Autowired
+   public RepletRegistryManager(SecurityEngine securityEngine) {
+      this(true, securityEngine);
+   }
+
+   /**
+    * Creates a new instance of <tt>RepletRegistryManager</tt>.
+    */
    public RepletRegistryManager() {
-      this(true);
+      this(true, null);
    }
 
    /**
@@ -63,6 +72,19 @@ public class RepletRegistryManager {
     */
    public RepletRegistryManager(boolean addRepositoryRootFolder) {
       this.addRepositoryRootFolder = addRepositoryRootFolder;
+      this.securityEngine = null;
+   }
+
+   /**
+    * Creates a new instance of <tt>RepletRegistryManager</tt>.
+    *
+    * @param addRepositoryRootFolder <tt>true</tt> to add a "Repository" root
+    *                                folder to all repository entries.
+    * @param securityEngine          the security engine.
+    */
+   public RepletRegistryManager(boolean addRepositoryRootFolder, SecurityEngine securityEngine) {
+      this.addRepositoryRootFolder = addRepositoryRootFolder;
+      this.securityEngine = securityEngine;
    }
 
    /**
@@ -335,16 +357,19 @@ public class RepletRegistryManager {
    }
 
    private void updateFolderPermission(String pathFrom, String pathTo) {
-      SecurityEngine engine = SecurityEngine.getSecurity();
+      if(securityEngine == null) {
+         return;
+      }
+
       ResourceType type = ResourceType.ASSET;
-      Permission permission = engine.getPermission(type, pathFrom);
+      Permission permission = securityEngine.getPermission(type, pathFrom);
 
       if(permission != null) {
-         engine.removePermission(type, pathFrom);
+         securityEngine.removePermission(type, pathFrom);
          int pindex = pathFrom.lastIndexOf("/");
          String entryName = pindex < 0 ? pathFrom : pathFrom.substring(pindex + 1);
          String newPath = pathTo + "/" + entryName;
-         engine.setPermission(type, newPath, permission);
+         securityEngine.setPermission(type, newPath, permission);
       }
    }
 
@@ -613,11 +638,10 @@ public class RepletRegistryManager {
       checkPermission(pathTo, ResourceType.REPORT, ResourceAction.DELETE, principal);
       registryTo.addFolder(pathTo);
 
-      SecurityEngine security = SecurityEngine.getSecurity();
-      if(security != null) {
-         Permission perm = security.getPermission(ResourceType.REPORT, pathFrom);
+      if(securityEngine != null) {
+         Permission perm = securityEngine.getPermission(ResourceType.REPORT, pathFrom);
          if(perm != null) {
-            security.setPermission(ResourceType.REPORT, pathTo, perm);
+            securityEngine.setPermission(ResourceType.REPORT, pathTo, perm);
          }
       }
 
@@ -1693,6 +1717,7 @@ public class RepletRegistryManager {
    }
 
    private final boolean addRepositoryRootFolder;
+   private final SecurityEngine securityEngine;
 
    /**
     * Exception that indicates that an asset name is already in use.

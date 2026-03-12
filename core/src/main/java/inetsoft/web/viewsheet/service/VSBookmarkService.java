@@ -64,13 +64,15 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
                             ViewsheetService viewsheetService,
                             SecurityEngine securityEngine,
                             CoreLifecycleService coreLifecycleService,
-                            ScheduleManager scheduleManager)
+                            ScheduleManager scheduleManager,
+                            Cluster cluster)
    {
       this.vsObjectService = vsObjectService;
       this.viewsheetService = viewsheetService;
       this.securityEngine = securityEngine;
       this.coreLifecycleService = coreLifecycleService;
       this.scheduleManager = scheduleManager;
+      this.cluster = cluster;
    }
 
    @Override
@@ -305,7 +307,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
          }
 
          if(currBookmark != null) {
-            Cluster.getInstance().sendMessage(new ViewsheetBookmarkChangedEvent(rvs,
+            cluster.sendMessage(new ViewsheetBookmarkChangedEvent(rvs,
                                                                                 true, currBookmark.getName()));
          }
       }
@@ -448,7 +450,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       AuditRecordUtils.executeEditBookmarkRecord(rvs, origBookmarkInfo, name, owner);
 
       if(!Tool.equals(name, oldName)) {
-         Cluster.getInstance().sendMessage(new ViewsheetBookmarkChangedEvent(rvs.getEntry()));
+         cluster.sendMessage(new ViewsheetBookmarkChangedEvent(rvs.getEntry()));
       }
 
       return null;
@@ -981,5 +983,6 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
    private final SecurityEngine securityEngine;
    private final CoreLifecycleService coreLifecycleService;
    private final ScheduleManager scheduleManager;
+   private final Cluster cluster;
    private static final Catalog catalog = Catalog.getCatalog();
 }

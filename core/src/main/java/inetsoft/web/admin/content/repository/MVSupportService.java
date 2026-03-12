@@ -136,7 +136,7 @@ public class MVSupportService {
       String id = UUID.randomUUID().toString();
       analyzePool.submit(new AnalysisTask(
          id, candidates, exceptions, plans, expanded, bypass, full, true, principal, false,
-         securityEngine));
+         securityEngine, cluster));
       return new AnalysisResult(id);
    }
 
@@ -196,7 +196,7 @@ public class MVSupportService {
       analyzePool.submit(new AnalysisTask(
          id, candidates, exceptions, plans, new boolean[] { expandGroups },
          new boolean[] { bypassVpm }, new boolean[] { fullData }, false,
-         principal, portal, securityEngine));
+         principal, portal, securityEngine, cluster));
 
       return new AnalysisResult(id);
    }
@@ -1015,7 +1015,7 @@ public class MVSupportService {
             return Optional.of(completed);
          }
 
-         Map<String, AnalysisStatus> map = Cluster.getInstance().getMap(ANALYSIS_STATUS_MAP);
+         Map<String, AnalysisStatus> map = ConfigurationContext.getContext().getSpringBean(Cluster.class).getMap(ANALYSIS_STATUS_MAP);
          AnalysisStatus status = map.get(id);
 
          if(status == null) {
@@ -1038,7 +1038,8 @@ public class MVSupportService {
       public AnalysisTask(String id, List<MVCandidate> candidates,
                           List<UserInfo> exceptions, Map<MVCandidate, StringBuffer> plans,
                           boolean[] expanded, boolean[] bypass, boolean[] full, boolean reanalyze,
-                          Principal principal, boolean portal, SecurityEngine securityEngine)
+                          Principal principal, boolean portal, SecurityEngine securityEngine,
+                          Cluster cluster)
          throws Exception
       {
          this.id = id;
@@ -1048,6 +1049,7 @@ public class MVSupportService {
          this.reanalyze = reanalyze;
          this.portal = portal;
          this.principal = principal;
+         this.cluster = cluster;
 
          jobs = new AnalysisJob[candidates.size()];
 
@@ -1157,7 +1159,7 @@ public class MVSupportService {
             }
          }
 
-         Map<String, AnalysisStatus> map = Cluster.getInstance().getMap(ANALYSIS_STATUS_MAP);
+         Map<String, AnalysisStatus> map = cluster.getMap(ANALYSIS_STATUS_MAP);
          AnalysisStatus status = new AnalysisStatus(candidates, exceptions, plans, results, error);
          map.put(id, status);
       }
@@ -1170,6 +1172,7 @@ public class MVSupportService {
       private final Map<MVCandidate, StringBuffer> plans;
       private final boolean portal;
       private final Principal principal;
+      private final Cluster cluster;
    }
 
    private static final class AnalysisJob {

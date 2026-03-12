@@ -50,11 +50,15 @@ import static inetsoft.web.admin.schedule.ScheduleCycleService.getCyclePermissio
 public class MVService {
    @Autowired
    public MVService(ContentRepositoryTreeService treeService, MVSupportService support,
-                    Cluster cluster)
+                    Cluster cluster, MVManager mvManager, DataCycleManager dataCycleManager,
+                    SecurityEngine securityEngine)
    {
       this.treeService = treeService;
       this.support = support;
       this.cluster = cluster;
+      this.mvManager = mvManager;
+      this.dataCycleManager = dataCycleManager;
+      this.securityEngine = securityEngine;
       createMVMap = cluster.getMap(CREATE_MV_STATUS_MAP);
       updateMVMap = cluster.getMap(UPDATE_MV_STATUS_MAP);
    }
@@ -138,8 +142,7 @@ public class MVService {
 
          String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
          List<MVSupportService.MVStatus> mvstatus = support.getMVStatusList(analysisId);
-         DataCycleManager dcmanager = DataCycleManager.getDataCycleManager();
-         dcmanager.setEnable(createUpdateMVRequest.cycle(), orgId, true);
+         dataCycleManager.setEnable(createUpdateMVRequest.cycle(), orgId, true);
 
          if(principal instanceof XPrincipal) {
             principal = (XPrincipal) ((XPrincipal) principal).clone();
@@ -395,7 +398,7 @@ public class MVService {
 
       boolean onDemand = "true".equals(SreeEnv.getProperty("mv.ondemand"));
       boolean runInBackground = "true".equals(SreeEnv.getProperty("mv.run.background"));
-      String defaultCycle = MVManager.getManager().getDefaultCycle();
+      String defaultCycle = mvManager.getDefaultCycle();
       defaultCycle = defaultCycle == null ? "" : defaultCycle;
       List<NameLabelTuple> cycles = getDataCycles(principal);
 
@@ -430,14 +433,13 @@ public class MVService {
          throw new RuntimeException(catalog.getString("em.mv.notDataServer"));
       }
 
-      MVManager manager = MVManager.getManager();
       boolean isShowAges = "true".equals(SreeEnv.getProperty("mvmanager.dates.ages", "false"));
       List<MaterializedModel> mvs = new ArrayList<>();
       List<NameLabelTuple> dataCycles = getDataCycles(principal);
       List<MVDef> defs = new ArrayList<>();
 
       if(ids != null) {
-         for(MVDef def : manager.list(true, null, principal)) {
+         for(MVDef def : mvManager.list(true, null, principal)) {
             for(String sheetId : ids) {
                if(def.isUsedBy(sheetId)) {
                   defs.add(def);
@@ -447,7 +449,7 @@ public class MVService {
          }
       }
       else {
-         defs = Arrays.asList(manager.list(true, null, principal));
+         defs = Arrays.asList(mvManager.list(true, null, principal));
       }
 
       for(MVDef def : defs) {
@@ -648,13 +650,12 @@ public class MVService {
    public List<NameLabelTuple> getDataCycles(Principal principal) throws Exception {
       Catalog catalog = Catalog.getCatalog(principal);
       List<NameLabelTuple> dataCycles = new ArrayList<>();
-      DataCycleManager dcmanager = DataCycleManager.getDataCycleManager();
       String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
-      for(Enumeration<?> cycles = dcmanager.getDataCycles(orgId); cycles.hasMoreElements(); ) {
+      for(Enumeration<?> cycles = dataCycleManager.getDataCycles(orgId); cycles.hasMoreElements(); ) {
          String cycle = (String) cycles.nextElement();
 
-         if(SecurityEngine.getSecurity().checkPermission(principal, ResourceType.SCHEDULE_CYCLE,
+         if(securityEngine.checkPermission(principal, ResourceType.SCHEDULE_CYCLE,
                                                          getCyclePermissionID(cycle, orgId), ResourceAction.ACCESS))
          {
             dataCycles.add(NameLabelTuple.builder().from(cycle, catalog).build());
@@ -699,6 +700,9 @@ public class MVService {
    private final MVSupportService support;
    private final ContentRepositoryTreeService treeService;
    private final Cluster cluster;
+   private final MVManager mvManager;
+   private final DataCycleManager dataCycleManager;
+   private final SecurityEngine securityEngine;
    private final Map<String, CreateMVResponse> createMVMap;
    private final Map<String, CreateMVResponse> updateMVMap;
    private static final String CREATE_MV_STATUS_MAP = "CREATE_MV_STATUS_MAP";

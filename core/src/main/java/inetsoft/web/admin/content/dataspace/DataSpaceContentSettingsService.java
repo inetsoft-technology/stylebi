@@ -39,6 +39,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -49,6 +50,11 @@ import java.util.*;
 
 @Service
 public class DataSpaceContentSettingsService {
+   @Autowired
+   public DataSpaceContentSettingsService(LicenseManager licenseManager) {
+      this.licenseManager = licenseManager;
+   }
+
    public DataSpaceTreeModel getTree(String parentPath) throws Exception {
       DataSpace space = DataSpace.getDataSpace();
       String[] childEntries = space.list(parentPath);
@@ -400,7 +406,7 @@ public class DataSpaceContentSettingsService {
    }
 
    public String getDisplayName(String fullName) {
-      if(LicenseManager.getInstance().isEnterprise()) {
+      if(licenseManager.isEnterprise()) {
          return fullName;
       }
 
@@ -429,7 +435,7 @@ public class DataSpaceContentSettingsService {
    public String getNewPath(String oldPath, String oldName, String newName) {
       String oldPrefix = oldPath.substring(0, oldPath.lastIndexOf(oldName));
 
-      if(LicenseManager.getInstance().isEnterprise() || newName == null) {
+      if(licenseManager.isEnterprise() || newName == null) {
          return oldPrefix + newName;
       }
 
@@ -450,7 +456,7 @@ public class DataSpaceContentSettingsService {
    }
 
    public String getDisplayPath(String path, String originalName, String displayName) {
-      if(LicenseManager.getInstance().isEnterprise() || path == null) {
+      if(licenseManager.isEnterprise() || path == null) {
          return path;
       }
 
@@ -493,6 +499,7 @@ public class DataSpaceContentSettingsService {
       }
    }
 
+   private final LicenseManager licenseManager;
    private static final String DEFAULT_ORG_FOLDER = "portal/" + Organization.getDefaultOrganizationID();
    private static final Logger LOG = LoggerFactory.getLogger(DataSpaceContentSettingsService.class);
 }

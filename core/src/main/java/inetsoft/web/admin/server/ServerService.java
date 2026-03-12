@@ -35,11 +35,14 @@ import java.util.stream.Collectors;
 @Component
 public class ServerService extends MonitorLevelService implements StatusUpdater {
    @Autowired
-   public ServerService(ServerClusterClient client, Cluster cluster, LicenseManager licenseManager) {
+   public ServerService(ServerClusterClient client, Cluster cluster, LicenseManager licenseManager,
+                        LogManager logManager)
+   {
       super(lowAttrs, new String[0], new String[0]);
       this.client = client;
       this.cluster = cluster;
       this.licenseManager = licenseManager;
+      this.logManager = logManager;
       this.calculator = new ServerMetricsCalculator(client, StatusMetricsType.SERVER_METRICS);
    }
 
@@ -257,7 +260,7 @@ public class ServerService extends MonitorLevelService implements StatusUpdater 
     * current log file is created and a new log file is started.
     */
    public void rotateLogFile() {
-      LogManager.getInstance().rotateLogFile();
+      logManager.rotateLogFile();
    }
 
    public String getThreadDump() {
@@ -309,6 +312,7 @@ public class ServerService extends MonitorLevelService implements StatusUpdater 
    private final ServerClusterClient client;
    private final Cluster cluster;
    private final LicenseManager licenseManager;
+   private final LogManager logManager;
    private ServerServiceMessageListener serverServiceMessageListener;
    private final ServerMetricsCalculator calculator;
 
