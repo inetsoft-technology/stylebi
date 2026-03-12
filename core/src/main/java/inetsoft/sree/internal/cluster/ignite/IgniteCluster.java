@@ -78,6 +78,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       ignite = createIgniteInstance(config);
       ignite.message().localListen(MESSAGE_TOPIC, new MessageDispatcher());
       ignite.message().localListen(AFFINITY_TOPIC, new AffinityCallProcessor());
+      ignite.message().localListen(ServiceTaskExecutorImpl.RESULT_TOPIC, new ServiceTaskResultListener());
       ignite.events().localListen(new MembershipDispatcher(), EventType.EVT_NODE_JOINED, EventType.EVT_NODE_LEFT);
       clusterFileTransfer = new ClusterFileTransfer();
       messageExecutor = Executors.newFixedThreadPool(
@@ -1349,7 +1350,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    @Override
    public String getServiceOwner(String serviceId) {
       // make sure the service has been deployed or else this will be null
-      IgniteCluster.deployAndGetService(ignite, serviceId);
+      ensureServiceDeployed(serviceId);
       Collection<ServiceDescriptor> services = ignite.services().serviceDescriptors();
 
       for(ServiceDescriptor service : services) {
@@ -1370,52 +1371,59 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public <T extends Serializable> Future<T> submit(String serviceId, SingletonCallableTask<T> task) {
-      return submit0(getNextTaskLevel(), serviceId, task);
-   }
+      ensureServiceDeployed(serviceId);
+      String taskId = UUID.randomUUID().toString();
+      CompletableFuture<Serializable> future = new CompletableFuture<>();
+      // Timeout prevents futures from hanging forever if the executor node dies mid-task
+      // and the result message is never delivered.
+      future.orTimeout(SERVICE_TASK_TIMEOUT_MINUTES, TimeUnit.MINUTES)
+         .whenComplete((r, ex) -> pendingServiceTasks.remove(taskId));
+      pendingServiceTasks.put(taskId, future);
+      BlockingQueue<ServiceTaskRequest> queue =
+         getQueue(ServiceTaskExecutorImpl.QUEUE_PREFIX + serviceId);
 
-   public <T extends Serializable> Future<T> submit0(int level, String serviceId, SingletonCallableTask<T> task) {
-      return CompletableFuture.supplyAsync(
-         new IgniteServiceCallableTask<>(ignite, serviceId, task, level),
-         getExecutorService(level));
+      if(!queue.offer(new ServiceTaskRequest(taskId, ignite.cluster().localNode().id(), task))) {
+         // completeExceptionally triggers the whenComplete callback which removes from
+         // pendingServiceTasks, so no explicit remove is needed here.
+         future.completeExceptionally(
+            new IllegalStateException("Task queue full for service: " + serviceId));
+      }
+
+      //noinspection unchecked
+      return (CompletableFuture<T>) future;
    }
 
    @Override
    public Future<?> submit(String serviceId, SingletonRunnableTask task) {
-      return submit0(getNextTaskLevel(), serviceId, task);
-   }
+      ensureServiceDeployed(serviceId);
+      String taskId = UUID.randomUUID().toString();
+      CompletableFuture<Serializable> future = new CompletableFuture<>();
+      future.orTimeout(SERVICE_TASK_TIMEOUT_MINUTES, TimeUnit.MINUTES)
+         .whenComplete((r, ex) -> pendingServiceTasks.remove(taskId));
+      pendingServiceTasks.put(taskId, future);
+      BlockingQueue<ServiceTaskRequest> queue =
+         getQueue(ServiceTaskExecutorImpl.QUEUE_PREFIX + serviceId);
 
-   private Future<?> submit0(int level, String serviceId, SingletonRunnableTask task) {
-      return CompletableFuture.supplyAsync(new IgniteServiceRunnableTask(ignite, serviceId, task, level),
-                                           getExecutorService(level));
+      if(!queue.offer(new ServiceTaskRequest(taskId, ignite.cluster().localNode().id(), task))) {
+         future.completeExceptionally(
+            new IllegalStateException("Task queue full for service: " + serviceId));
+      }
+
+      return future;
    }
 
    /**
-    * get the ExecutorService for the current task level.
+    * Ensures the singleton service executor for the given serviceId is deployed, creating the
+    * backing distributed queue first so that {@link ServiceTaskExecutorImpl#init()} can find it.
     */
-   private ExecutorService getExecutorService(int level) {
-      return executorServiceMap
-         .computeIfAbsent(level, k -> Executors.newFixedThreadPool(
-            Runtime.getRuntime().availableProcessors()));
-   }
+   private void ensureServiceDeployed(String serviceId) {
+      boolean deployed = ignite.services().serviceDescriptors().stream()
+         .anyMatch(s -> s.name().equals(serviceId));
 
-   private static ServiceTaskExecutor deployAndGetService(Ignite ignite, String serviceId) {
-      Collection<ServiceDescriptor> services = ignite.services().serviceDescriptors();
-      boolean deployed = false;
-
-      for(ServiceDescriptor service : services) {
-         if(service.name().equals(serviceId)) {
-            // service found, no need to do anything
-            deployed = true;
-            break;
-         }
-      }
-
-      // deploy a new service
       if(!deployed) {
+         getQueue(ServiceTaskExecutorImpl.QUEUE_PREFIX + serviceId);
          ignite.services().deployClusterSingleton(serviceId, new ServiceTaskExecutorImpl(serviceId));
       }
-
-      return ignite.services().serviceProxy(serviceId, ServiceTaskExecutor.class, false);
    }
 
    @Override
@@ -1612,6 +1620,12 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
 
       executorServiceMap.clear();
+
+      for(CompletableFuture<Serializable> future : pendingServiceTasks.values()) {
+         future.completeExceptionally(new RuntimeException("Cluster is closing"));
+      }
+
+      pendingServiceTasks.clear();
       messageExecutor.shutdownNow();
       affinityExecutor.shutdownNow();
       listenerExecutor.shutdownNow();
@@ -1833,6 +1847,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private final Timer timer = new Timer();
    private final ClusterFileTransfer clusterFileTransfer;
    private final Map<Integer, ExecutorService> executorServiceMap = new ConcurrentHashMap<>();
+   private final Map<String, CompletableFuture<Serializable>> pendingServiceTasks = new ConcurrentHashMap<>();
    private final ExecutorService messageExecutor;
    private final ExecutorService affinityExecutor;
    private final ExecutorService listenerExecutor;
@@ -1854,6 +1869,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private static final ThreadLocal<Integer> TASK_EXECUTE_LEVEL = new ThreadLocal<>();
    private static final String IGNITE_EXECUTE_POOL = "IGNITE_EXECUTE_POOL";
    private static final int IGNITE_EXECUTE_POOL_COUNT = 2;
+   private static final long SERVICE_TASK_TIMEOUT_MINUTES = 5;
    private static final Map<String, DistributedLockProxy> DISTRIBUTED_LOCK_MAP = new ConcurrentHashMap<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(IgniteCluster.class);
@@ -2390,95 +2406,24 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       private final int level;
    }
 
-   private static class IgniteServiceRunnableTask extends IgniteServiceTask
-      implements Supplier<Object>
-   {
-      public IgniteServiceRunnableTask(Ignite ignite, String service, SingletonRunnableTask task,
-                                       int level)
-      {
-         super(ignite, service);
-         this.runnableTask = new SingletonRunnableTaskProxy(task, level);
-      }
-
+   private final class ServiceTaskResultListener implements IgniteBiPredicate<UUID, Serializable> {
       @Override
-      public Object get() {
-         IgniteCluster.deployAndGetService(ignite, service).submitTask(runnableTask);
-         return null;
-      }
+      public boolean apply(UUID nodeId, Serializable message) {
+         if(message instanceof ServiceTaskResult result) {
+            CompletableFuture<Serializable> future = pendingServiceTasks.remove(result.getTaskId());
 
-      private final SingletonRunnableTask runnableTask;
-   }
-
-   private static class IgniteServiceCallableTask<T extends Serializable> extends IgniteServiceTask
-      implements Supplier<T>
-   {
-      public IgniteServiceCallableTask(Ignite ignite, String service, SingletonCallableTask<T> task,
-                                       int level)
-      {
-         super(ignite, service);
-         this.task = new SingletonCallableTaskProxy<>(task, level);
-      }
-
-      @Override
-      public T get() {
-         return IgniteCluster.deployAndGetService(ignite, service).submitTask(task);
-      }
-
-      private final SingletonCallableTask<T> task;
-   }
-
-   private static class SingletonCallableTaskProxy<T extends Serializable>
-      implements SingletonCallableTask<T>
-   {
-      private SingletonCallableTaskProxy(SingletonCallableTask<T> task, int level) {
-         this.task = task;
-         this.level = level;
-      }
-
-      @Override
-      public T call() throws Exception {
-         try {
-            TASK_EXECUTE_LEVEL.set(level);
-            return task.call();
+            if(future != null) {
+               if(result.isSuccess()) {
+                  future.complete(result.getResult());
+               }
+               else {
+                  future.completeExceptionally(result.getException());
+               }
+            }
          }
-         finally {
-            TASK_EXECUTE_LEVEL.remove();
-         }
+
+         return true; // keep listening
       }
-
-      private final SingletonCallableTask<T> task;
-      private final int level;
-   }
-
-   private static class SingletonRunnableTaskProxy implements SingletonRunnableTask {
-      private SingletonRunnableTaskProxy(SingletonRunnableTask task, int level) {
-         this.task = task;
-         this.level = level;
-      }
-
-      @Override
-      public void run() {
-         try {
-            TASK_EXECUTE_LEVEL.set(level);
-            task.run();
-         }
-         finally {
-            TASK_EXECUTE_LEVEL.remove();
-         }
-      }
-
-      private final SingletonRunnableTask task;
-      private final int level;
-   }
-
-   private static class IgniteServiceTask {
-      public IgniteServiceTask(Ignite ignite, String service) {
-         this.ignite = ignite;
-         this.service = service;
-      }
-
-      protected String service;
-      protected Ignite ignite;
    }
 
 }

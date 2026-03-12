@@ -19,6 +19,7 @@ package inetsoft.storage;
 
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.util.ThreadPool;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
@@ -60,32 +61,49 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
 
    @Override
    public Future<T> put(String key, T value) {
-      return cluster.submit(id, new PutKeyValueTask<>(id, key, value));
+      return submitWithRetry(key, new PutKeyValueTask<>(id, key, value));
    }
 
    @Override
    public Future<?> putAll(SortedMap<String, T> values) {
-      return cluster.submit(id, new PutAllKeyValueTask<>(id, values));
+      return submitWithRetry("putAll", new PutAllKeyValueTask<>(id, values));
    }
 
    @Override
    public Future<T> remove(String key) {
-      return cluster.submit(id, new DeleteKeyValueTask<>(id, key));
+      return submitWithRetry(key, new DeleteKeyValueTask<>(id, key));
    }
 
    @Override
    public Future<?> removeAll(Set<String> keys) {
-      return cluster.submit(id, new DeleteAllKeyValueTask<>(id, keys));
+      return submitWithRetry("removeAll", new DeleteAllKeyValueTask<>(id, keys));
    }
 
    @Override
    public Future<T> rename(String oldKey, String newKey, T value) {
+      // rename is not idempotent: no retry
       return cluster.submit(id, new RenameKeyValueTask<>(id, oldKey, newKey, value));
    }
 
    @Override
    public Future<?> replaceAll(SortedMap<String, T> values) {
-      return cluster.submit(id, new ReplaceAllKeyValueTask<>(id, values));
+      return submitWithRetry("replaceAll", new ReplaceAllKeyValueTask<>(id, values));
+   }
+
+   /**
+    * Submits a task and retries once on failure. Only use for idempotent operations.
+    * The returned future will complete exceptionally if both attempts fail.
+    */
+   private <R extends Serializable> Future<R> submitWithRetry(String opDesc,
+                                                               SingletonCallableTask<R> task)
+   {
+      @SuppressWarnings("unchecked")
+      CompletableFuture<R> first = (CompletableFuture<R>) cluster.submit(id, task);
+      return first.exceptionallyCompose(ex -> {
+         LOG.warn("Failed key-value operation on {}/{}, retrying...", id, opDesc, ex);
+         //noinspection unchecked
+         return (CompletableFuture<R>) cluster.submit(id, task);
+      });
    }
 
    @Override
@@ -146,6 +164,8 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
       new ConcurrentSkipListSet<>(Comparator.comparing(Listener::hashCode));
    private final ListenerDelegate listenerDelegate = new ListenerDelegate();
    private volatile boolean isClosed = false;
+
+   private static final Logger LOG = LoggerFactory.getLogger(LocalKeyValueStorage.class);
 
    private final class ListenerDelegate implements MapChangeListener<String, T> {
       @Override

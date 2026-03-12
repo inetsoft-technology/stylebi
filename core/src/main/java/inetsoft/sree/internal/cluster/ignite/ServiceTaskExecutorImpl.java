@@ -17,69 +17,131 @@
  */
 package inetsoft.sree.internal.cluster.ignite;
 
-import inetsoft.sree.internal.cluster.SingletonCallableTask;
-import inetsoft.sree.internal.cluster.SingletonRunnableTask;
-import inetsoft.util.GroupedThread;
+import org.apache.ignite.Ignite;
+import org.apache.ignite.resources.IgniteInstanceResource;
 import org.apache.ignite.services.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.ignite.IgniteQueue;
 
 import java.io.Serializable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
-public class ServiceTaskExecutorImpl implements ServiceTaskExecutor, Service {
+/**
+ * Ignite singleton service that consumes tasks from a distributed {@link org.apache.ignite.IgniteQueue}
+ * and sends results back to the originating node via Ignite messaging.
+ *
+ * <p>Tasks are submitted non-blocking by the caller side ({@link IgniteCluster#submit(String,
+ * SingletonCallableTask)}) and survive the failure of any single node because the queue is
+ * backed by the distributed Ignite data grid.  Uses peek/remove (at-least-once semantics):
+ * if the executor node crashes mid-task, the task remains in the queue and is re-processed
+ * by the newly-elected service owner. Callers must ensure tasks are idempotent.
+ */
+public class ServiceTaskExecutorImpl implements Service {
    public ServiceTaskExecutorImpl(String serviceId) {
       this.serviceId = serviceId;
    }
 
-
    @Override
-   public void init() throws Exception {
-      this.executor = Executors.newSingleThreadExecutor(
-         runnable -> new GroupedThread(runnable, "cluster-service-" + serviceId));
+   public void init() {
+      // The queue is created by IgniteCluster.ensureServiceDeployed() before this service is
+      // started, so passing null here retrieves the existing distributed queue.
+      this.queue = ignite.queue(QUEUE_PREFIX + serviceId, 0, null);
    }
 
    @Override
-   public void execute() throws Exception {
+   public void execute() {
+      running = true;
+      Thread.currentThread().setName("cluster-service-" + serviceId);
+      ClassLoader loader = getClass().getClassLoader();
 
+      while(running) {
+         try {
+            // Use peek() + remove() for at-least-once semantics: if the node crashes
+            // after peek() but before remove(), the task stays in the queue and is
+            // re-processed by the new singleton owner on failover. This is safe because
+            // the service is a cluster singleton — only one consumer exists at a time.
+            ServiceTaskRequest request = queue.peek();
+
+            if(request != null) {
+               processRequest(request, loader);
+               queue.remove();
+            }
+            else {
+               Thread.sleep(1000L);
+            }
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            break;
+         }
+         catch(Exception e) {
+            LOG.error("Error processing service task for {}", serviceId, e);
+
+            // Backoff to avoid tight retry loop under cluster instability
+            try {
+               Thread.sleep(1000L);
+            }
+            catch(InterruptedException ie) {
+               Thread.currentThread().interrupt();
+               break;
+            }
+         }
+      }
    }
 
    @Override
    public void cancel() {
-      this.executor.shutdown();
+      running = false;
    }
 
-   @Override
-   public <T extends Serializable> T submitTask(SingletonCallableTask<T> task) {
-      ClassLoader loader = Thread.currentThread().getContextClassLoader();
+   private void processRequest(ServiceTaskRequest request, ClassLoader loader) {
+      ClassLoader prev = Thread.currentThread().getContextClassLoader();
+      Thread.currentThread().setContextClassLoader(loader);
 
       try {
-         Thread.currentThread().setContextClassLoader(ServiceTaskExecutorImpl.class.getClassLoader());
-         return executor.submit(task).get();
+         Serializable result = null;
+
+         if(request.isCallable()) {
+            result = (Serializable) request.getCallableTask().call();
+         }
+         else {
+            request.getRunnableTask().run();
+         }
+
+         sendResult(request, ServiceTaskResult.success(request.getTaskId(), result));
       }
       catch(Exception e) {
-         throw new RuntimeException(e);
+         sendResult(request, ServiceTaskResult.failure(request.getTaskId(), e));
       }
       finally {
-         Thread.currentThread().setContextClassLoader(loader);
+         Thread.currentThread().setContextClassLoader(prev);
       }
    }
 
-   @Override
-   public void submitTask(SingletonRunnableTask task) {
-      ClassLoader loader = Thread.currentThread().getContextClassLoader();
-
+   private void sendResult(ServiceTaskRequest request, ServiceTaskResult result) {
       try {
-         Thread.currentThread().setContextClassLoader(ServiceTaskExecutorImpl.class.getClassLoader());
-         executor.submit(task).get();
+         ignite.message(ignite.cluster().forNodeId(request.getCallerNodeId()))
+            .send(RESULT_TOPIC, result);
       }
       catch(Exception e) {
-         throw new RuntimeException(e);
-      }
-      finally {
-         Thread.currentThread().setContextClassLoader(loader);
+         LOG.warn("Failed to send task result for task {}, caller node {} may have left the cluster",
+                  request.getTaskId(), request.getCallerNodeId(), e);
       }
    }
 
-   private ExecutorService executor;
+   // Prefix for the distributed queue name for each service.
+   static final String QUEUE_PREFIX = "inetsoft.service.task.queue.";
+
+   // Ignite messaging topic used to deliver task results back to the caller node.
+   static final String RESULT_TOPIC = IgniteCluster.class.getName() + ".serviceTaskResult";
+
+   @IgniteInstanceResource
+   private transient Ignite ignite;
+
+   private volatile boolean running;
+   private transient IgniteQueue<ServiceTaskRequest> queue;
    private final String serviceId;
+
+   private static final Logger LOG = LoggerFactory.getLogger(ServiceTaskExecutorImpl.class);
 }
