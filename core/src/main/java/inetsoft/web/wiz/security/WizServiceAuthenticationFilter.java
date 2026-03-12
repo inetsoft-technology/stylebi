@@ -45,7 +45,7 @@ import java.util.*;
 /**
  * Filter that authenticates requests from WIZ Service using JWT tokens.
  * <p>
- * This filter intercepts requests to /api/wiz/** and /api/composer/wiz/** endpoints
+ * This filter intercepts requests to /api/wiz/** endpoints
  * and validates the JWT token provided in the Authorization header. The token must
  * be signed by StyleBI Server using the SSO RSA key pair.
  * <p>
