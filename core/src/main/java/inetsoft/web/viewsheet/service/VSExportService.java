@@ -64,11 +64,12 @@ import java.util.regex.Pattern;
 public class VSExportService {
    @Autowired
    public VSExportService(ViewsheetService viewsheetService, CoreLifecycleService coreLifecycleService,
-                          ParameterService parameterService)
+                          ParameterService parameterService, SecurityEngine securityEngine)
    {
       this.viewsheetService = viewsheetService;
       this.coreLifecycleService = coreLifecycleService;
       this.parameterService = parameterService;
+      this.securityEngine = securityEngine;
    }
 
    public void exportViewsheet(String path, int format, boolean match, boolean expandSelections,
@@ -123,7 +124,7 @@ public class VSExportService {
       int format = req.format;
       boolean match = req.matchLayout;
       String runtimeId;
-      boolean exportEnabled = SecurityEngine.getSecurity().checkPermission(
+      boolean exportEnabled = securityEngine.checkPermission(
          req.principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Export", ResourceAction.READ);
 
       if(!req.previewPrintLayout && !exportEnabled) {
@@ -283,7 +284,7 @@ public class VSExportService {
       rvs.setProperty("__EXPORTING__", "true");
 
       try {
-         boolean expandEnabled = SecurityEngine.getSecurity().checkPermission(
+         boolean expandEnabled = securityEngine.checkPermission(
             principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ExportExpandComponents",
             ResourceAction.READ);
 
@@ -902,6 +903,7 @@ public class VSExportService {
    private final ViewsheetService viewsheetService;
    private final CoreLifecycleService coreLifecycleService;
    private final ParameterService parameterService;
+   private final SecurityEngine securityEngine;
 
    private static final Logger LOG = LoggerFactory.getLogger(VSExportService.class);
    private static final Pattern USER_PATH_PATTERN = Pattern.compile("^user/([^/]+)/(.+)$");

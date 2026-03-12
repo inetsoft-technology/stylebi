@@ -48,18 +48,20 @@ public class SchedulerMonitoringService
 {
    @Autowired
    public SchedulerMonitoringService(ScheduleManager scheduleManager, DataCycleManager cycleManager,
-                                     SecurityProvider securityProvider, ServerClusterClient client)
+                                     SecurityProvider securityProvider, ServerClusterClient client,
+                                     Cluster cluster, SecurityEngine securityEngine)
    {
       super(lowAttrs, new String[0], new String[0]);
       this.scheduleManager = scheduleManager;
       this.cycleManager = cycleManager;
       this.securityProvider = securityProvider;
       this.client = client;
+      this.cluster = cluster;
+      this.securityEngine = securityEngine;
    }
 
    @PostConstruct
    public void addListener() {
-      cluster = Cluster.getInstance();
       cluster.addMessageListener(this);
    }
 
@@ -290,7 +292,7 @@ public class SchedulerMonitoringService
          orgID = OrganizationManager.getInstance().getCurrentOrgID(getSystemPrincipal());
       }
       catch(Exception ex) {
-         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider provider = securityEngine.getSecurityProvider();
          Organization organization =
             provider.getOrganization(OrganizationManager.getInstance().getCurrentOrgID());
 
@@ -597,7 +599,7 @@ public class SchedulerMonitoringService
 
    public Optional<ServerMetrics> getServerMetrics() {
       ScheduleMetrics metrics =
-         client.getMetrics(StatusMetricsType.SERVER_METRICS, Cluster.getInstance().getLocalMember());
+         client.getMetrics(StatusMetricsType.SERVER_METRICS, cluster.getLocalMember());
       return Optional.ofNullable(metrics == null ? null : metrics.getServerMetrics());
    }
 
@@ -641,7 +643,8 @@ public class SchedulerMonitoringService
    private final ScheduleManager scheduleManager;
    private final SecurityProvider securityProvider;
    private final ServerClusterClient client;
-   private Cluster cluster;
+   private final Cluster cluster;
+   private final SecurityEngine securityEngine;
    private final Map<String, ScheduleMetrics> metricsMap = new ConcurrentHashMap<>();
 
    private static final String VIEWSHEET_HISTORY = "VIEWSHEETHISTORY";

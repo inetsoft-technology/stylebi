@@ -62,7 +62,10 @@ public class UserTreeService {
                           SecurityEngine securityEngine,
                           IdentityThemeService themeService,
                           SimpMessagingTemplate messagingTemplate,
-                          KeyValueStorageManager keyValueStorageManager)
+                          KeyValueStorageManager keyValueStorageManager,
+                          DataCycleManager dataCycleManager,
+                          LicenseManager licenseManager,
+                          MVManager mvManager)
    {
       this.authenticationProviderService = authenticationProviderService;
       this.systemAdminService = systemAdminService;
@@ -73,6 +76,9 @@ public class UserTreeService {
       this.messagingTemplate = messagingTemplate;
       this.editOrganizationListener = new EditOrganizationListener(messagingTemplate);
       this.keyValueStorageManager = keyValueStorageManager;
+      this.dataCycleManager = dataCycleManager;
+      this.licenseManager = licenseManager;
+      this.mvManager = mvManager;
    }
 
    public List<String> getOrganizationTree(String providerName, Principal principal) {
@@ -432,7 +438,7 @@ public class UserTreeService {
     */
    EditGroupPaneModel createGroup(String selectedProvider, String parentGroup, Principal principal)
    {
-      SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider securityProvider = securityEngine.getSecurityProvider();
       String currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
 
       if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_GROUP,
@@ -621,7 +627,7 @@ public class UserTreeService {
 
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -663,7 +669,7 @@ public class UserTreeService {
       identityService.setIdentityPermissions(oldID, newID, ResourceType.SECURITY_GROUP,
                                              principal, permittedIdentities, "");
       IndexedStorage storage = IndexedStorage.getIndexedStorage();
-      DataCycleManager cycleManager = DataCycleManager.getDataCycleManager();
+      DataCycleManager cycleManager = dataCycleManager;
       storage.migrateStorageData(oldID.getName(), newID.getName());
       cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), false);
    }
@@ -672,7 +678,7 @@ public class UserTreeService {
     * Create a new user
     */
    EditUserPaneModel createUser(String providerName, String parentGroup, Principal principal) {
-      SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider securityProvider = securityEngine.getSecurityProvider();
       String currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
 
       if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
@@ -691,7 +697,7 @@ public class UserTreeService {
       ThreadContext.setContextPrincipal(principal);
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -781,7 +787,7 @@ public class UserTreeService {
       String rootUser = "Users";
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(orgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(orgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -878,7 +884,7 @@ public class UserTreeService {
          }
 
          EditableAuthenticationProvider editProvider = (EditableAuthenticationProvider) provider;
-         SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider securityProvider = securityEngine.getSecurityProvider();
          FSOrganization identity;
          IdentityID newOrgKey = new IdentityID(orgName, orgID);
 
@@ -995,7 +1001,7 @@ public class UserTreeService {
    }
 
    private int getNamedUserCount() {
-      LicenseManager manager = LicenseManager.getInstance();
+      LicenseManager manager = licenseManager;
       return manager.getNamedUserCount() + manager.getNamedUserViewerSessionCount();
    }
 
@@ -1274,7 +1280,7 @@ public class UserTreeService {
    }
 
    private void checkDuplicateOrgIDs(EditOrganizationPaneModel model, Organization oldOrg) throws MessageException {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
       String[] organizations = provider.getOrganizationIDs();
       String[] orgNames = provider.getOrganizationNames();
 
@@ -1797,8 +1803,8 @@ public class UserTreeService {
       }
 
       IndexedStorage storage = IndexedStorage.getIndexedStorage();
-      MVManager mvManager = MVManager.getManager();
-      DataCycleManager cycleManager = DataCycleManager.getDataCycleManager();
+      MVManager mvManager = this.mvManager;
+      DataCycleManager cycleManager = this.dataCycleManager;
       KeyValueStorage<FavoriteList> favorites =
          keyValueStorageManager.getInstance("emFavorites");
 
@@ -1909,5 +1915,8 @@ public class UserTreeService {
    private final SimpMessagingTemplate messagingTemplate;
    private final EditOrganizationListener editOrganizationListener;
    private final KeyValueStorageManager keyValueStorageManager;
+   private final DataCycleManager dataCycleManager;
+   private final LicenseManager licenseManager;
+   private final MVManager mvManager;
    private final Set<String> propertyNames = Set.of("max.row.count", "max.col.count", "max.cell.size", "max.user.count");
 }

@@ -93,7 +93,8 @@ public class CoreLifecycleService {
       VSLayoutService vsLayoutService, ParameterService parameterService,
       VSCompositionService vsCompositionService,
       DataRefModelFactoryService dataRefModelFactoryService,
-      RuntimeViewsheetRef runtimeViewsheetRef, ApplicationEventPublisher eventPublisher)
+      RuntimeViewsheetRef runtimeViewsheetRef, ApplicationEventPublisher eventPublisher,
+      LicenseManager licenseManager, SecurityEngine securityEngine, Cluster cluster)
    {
       this.objectModelService = objectModelService;
       this.viewsheetService = viewsheetService;
@@ -103,6 +104,9 @@ public class CoreLifecycleService {
       this.dataRefModelFactoryService = dataRefModelFactoryService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.eventPublisher = eventPublisher;
+      this.licenseManager = licenseManager;
+      this.securityEngine = securityEngine;
+      this.cluster = cluster;
    }
 
    public ProcessSheetResult openViewsheet(ViewsheetService engine,
@@ -263,7 +267,7 @@ public class CoreLifecycleService {
             infoMap.put("viewsheetBackground", Tool.getVSCSSBgColorHexString());
          }
 
-         LicenseManager licenseManager = LicenseManager.getInstance();
+         LicenseManager licenseManager = this.licenseManager;
 
          if(licenseManager.isElasticLicense() && licenseManager.getElasticRemainingHours() == 0) {
             infoMap.put("hasWatermark", true);
@@ -2391,7 +2395,7 @@ public class CoreLifecycleService {
       Set<String> permissions = new HashSet<>();
 
       if(rvs.isRuntime()) {
-         final SecurityEngine engine = SecurityEngine.getSecurity();
+         final SecurityEngine engine = securityEngine;
 
          if(Boolean.parseBoolean(SreeEnv.getProperty("Viewsheet Toolbar Hidden"))) {
             permissions.add("Toolbar");
@@ -2498,7 +2502,7 @@ public class CoreLifecycleService {
          }
 
          boolean profiling = user instanceof XPrincipal xUser && xUser.isProfiling() &&
-            SecurityEngine.getSecurity().checkPermission(user, ResourceType.PROFILE, "*", ResourceAction.ACCESS);
+            securityEngine.checkPermission(user, ResourceType.PROFILE, "*", ResourceAction.ACCESS);
 
          if(profiling) {
             permissions.add("Profiling");
@@ -2749,7 +2753,7 @@ public class CoreLifecycleService {
                                                 CommandDispatcher dispatcher, Principal user)
       throws Exception
    {
-      Cluster cluster = Cluster.getInstance();
+      Cluster cluster = this.cluster;
 
       if(viewsheetService.isLocal(id)) {
          return doHandleOpenedSheet(
@@ -3272,6 +3276,9 @@ public class CoreLifecycleService {
    private final DataRefModelFactoryService dataRefModelFactoryService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final ApplicationEventPublisher eventPublisher;
+   private final LicenseManager licenseManager;
+   private final SecurityEngine securityEngine;
+   private final Cluster cluster;
    private static final Logger LOG = LoggerFactory.getLogger(CoreLifecycleService.class);
 
    /**

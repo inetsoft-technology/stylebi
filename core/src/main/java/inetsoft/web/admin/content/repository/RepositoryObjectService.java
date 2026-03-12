@@ -63,11 +63,12 @@ public class RepositoryObjectService {
                                   ResourcePermissionService resourcePermissionService,
                                   XRepository xRepository,
                                   RepositoryDashboardService repositoryDashboardService,
-                                  DataModelFolderManagerService dataModelFolderManagerService)
+                                  DataModelFolderManagerService dataModelFolderManagerService,
+                                  DataSourceRegistry dataSourceRegistry)
    {
       this.treeService = treeService;
       registryManager = new RepletRegistryManager();
-      dataSourceRegistry = DataSourceRegistry.getRegistry();
+      this.dataSourceRegistry = dataSourceRegistry;
       this.xRepository = xRepository;
       this.securityProvider = securityProvider;
       this.resourcePermissionService = resourcePermissionService;

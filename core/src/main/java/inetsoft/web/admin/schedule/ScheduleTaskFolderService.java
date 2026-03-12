@@ -51,18 +51,13 @@ public class ScheduleTaskFolderService {
    @Autowired
    public ScheduleTaskFolderService(ScheduleManager scheduleManager,
                                     SecurityEngine securityEngine,
-                                    SecurityProvider securityProvider)
+                                    SecurityProvider securityProvider,
+                                    IndexedStorage indexedStorage)
    {
       this.scheduleManager = scheduleManager;
       this.securityEngine = securityEngine;
       this.securityProvider = securityProvider;
-
-      try {
-         indexedStorage = IndexedStorage.getIndexedStorage();
-      }
-      catch(Exception e) {
-         throw new RuntimeException("Failed to get indexed storage", e);
-      }
+      this.indexedStorage = indexedStorage;
    }
 
    public void addFolder(AssetEntry parentEntry, String folderPath, String parentPath,
@@ -919,7 +914,7 @@ public class ScheduleTaskFolderService {
          return;
       }
 
-      SecurityEngine engine = SecurityEngine.getSecurity();
+      SecurityEngine engine = securityEngine;
 
       if(engine.getSecurityProvider().isVirtual()) {
          return;

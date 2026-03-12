@@ -63,12 +63,14 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
    public VSBookmarkService(VSObjectService vsObjectService,
                             ViewsheetService viewsheetService,
                             SecurityEngine securityEngine,
-                            CoreLifecycleService coreLifecycleService)
+                            CoreLifecycleService coreLifecycleService,
+                            ScheduleManager scheduleManager)
    {
       this.vsObjectService = vsObjectService;
       this.viewsheetService = viewsheetService;
       this.securityEngine = securityEngine;
       this.coreLifecycleService = coreLifecycleService;
+      this.scheduleManager = scheduleManager;
    }
 
    @Override
@@ -435,7 +437,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
             return null;
          }
          else {
-            ScheduleManager manager = ScheduleManager.getScheduleManager();
+            ScheduleManager manager = scheduleManager;
             manager.bookmarkRenamed(oldName, name, rvs.getEntry().toIdentifier(), user);
          }
       }
@@ -647,7 +649,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
                                           boolean confirmed, Principal principal)
       throws SecurityException
    {
-      SecurityEngine engine = SecurityEngine.getSecurity();
+      SecurityEngine engine = securityEngine;
       MessageCommand messageCommand = new MessageCommand();
 
       boolean isGlobalVSPermDenied = SUtil.isDefaultVSGloballyVisible(principal) &&
@@ -910,7 +912,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
          return false;
       }
 
-      ScheduleManager manager = ScheduleManager.getScheduleManager();
+      ScheduleManager manager = scheduleManager;
       Vector<ScheduleTask> tasks = manager.getScheduleTasks();
 
       for(int i = 0; i < tasks.size(); i++) {
@@ -944,7 +946,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
     * @return the scheduled tasks that use the bookmark.
     */
    private List<ScheduleTask> getScheduledTasksUsingBookmark(String bookmark, IdentityID user, String vname) {
-      ScheduleManager manager = ScheduleManager.getScheduleManager();
+      ScheduleManager manager = scheduleManager;
       Vector<ScheduleTask> tasks = manager.getScheduleTasks();
       final List<ScheduleTask> matchingTasks = new ArrayList<>();
 
@@ -978,5 +980,6 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
    private final VSObjectService vsObjectService;
    private final SecurityEngine securityEngine;
    private final CoreLifecycleService coreLifecycleService;
+   private final ScheduleManager scheduleManager;
    private static final Catalog catalog = Catalog.getCatalog();
 }

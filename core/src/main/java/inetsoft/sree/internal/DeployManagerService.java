@@ -39,7 +39,9 @@ import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
+import inetsoft.mv.MVManager;
 import inetsoft.util.dep.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import inetsoft.web.admin.deploy.*;
@@ -75,8 +77,17 @@ public class DeployManagerService {
    /**
     * Create a DeployManagerService.
     */
-   public DeployManagerService() {
-      super();
+   @Autowired
+   public DeployManagerService(SecurityEngine securityEngine, MVManager mvManager,
+                               DependencyHandler dependencyHandler,
+                               DataSourceRegistry dataSourceRegistry,
+                               DashboardManager dashboardManager)
+   {
+      this.securityEngine = securityEngine;
+      this.mvManager = mvManager;
+      this.dependencyHandler = dependencyHandler;
+      this.dataSourceRegistry = dataSourceRegistry;
+      this.dashboardManager = dashboardManager;
    }
 
    /**
@@ -1081,7 +1092,7 @@ public class DeployManagerService {
 
                if(!isQuery) {
                   XDataSource dx =
-                     DataSourceRegistry.getRegistry().getDataSource(newPath);
+                     getService().dataSourceRegistry.getDataSource(newPath);
 
                   if(dx == null) {
                      continue;
@@ -1528,7 +1539,7 @@ public class DeployManagerService {
                   // user is the owner or it has admin permission on owner
                   IdentityID owner = asset.getUser();
 
-                  if(!(principal.getName().equals(owner.convertToKey()) || SecurityEngine.getSecurity().checkPermission(
+                  if(!(principal.getName().equals(owner.convertToKey()) || getService().securityEngine.checkPermission(
                      principal, ResourceType.SECURITY_USER, owner, ResourceAction.ADMIN)) ||
                      !Tool.equals(owner.getOrgID(), OrganizationManager.getInstance().getCurrentOrgID()))
                   {
@@ -1542,7 +1553,7 @@ public class DeployManagerService {
                else {
                   ResourceAction action = AssetUtil.getAssetDeployPermission(resource);
 
-                  if(!SecurityEngine.getSecurity().checkPermission(
+                  if(!getService().securityEngine.checkPermission(
                      principal, resource.getType(), resource.getPath(), action))
                   {
                      String assetName = null;
@@ -1656,17 +1667,16 @@ public class DeployManagerService {
                asset.parseContent(input, config, true, OrganizationManager.getInstance().isSiteAdmin(principal));
 
                if(asset instanceof ScheduleTaskAsset) {
-                  DependencyHandler.getInstance().updateTaskDependencies((ScheduleTaskAsset) asset);
+                  getService().dependencyHandler.updateTaskDependencies((ScheduleTaskAsset) asset);
                }
 
                if(asset instanceof XDataSourceAsset) {
-                  DataSourceRegistry registry = DataSourceRegistry.getRegistry();
                   String dpath = ((XDataSourceAsset) asset).getDatasource();
-                  XDataSource source = registry.getDataSource(dpath);
+                  XDataSource source = getService().dataSourceRegistry.getDataSource(dpath);
 
                   if(source instanceof XMLADataSource) {
                      XDomain domain = XFactory.getRepository().getDomain(dpath);
-                     DependencyHandler.getInstance().updateCubeDomainDependencies(domain, true);
+                     getService().dependencyHandler.updateCubeDomainDependencies(domain, true);
                   }
                }
             }
@@ -1705,8 +1715,7 @@ public class DeployManagerService {
                   if(user != null) {
                      Identity identity = new User(user, new String[0], new String[0],
                                                   new IdentityID[0], null, null);
-                     DashboardManager manager = DashboardManager.getManager();
-                     manager.addDashboard(identity, name);
+                     DashboardManager.getManager().addDashboard(identity, name);
                   }
                }
             }
@@ -1935,8 +1944,7 @@ public class DeployManagerService {
       String assetName = idx >= 0 ? path.substring(idx + 1) : path;
 
       if(xAsset instanceof XDataSourceAsset dasset) {
-         DataSourceRegistry registry = DataSourceRegistry.getRegistry();
-         String[] existNames = registry.getDataSourceNames();
+         String[] existNames = getService().dataSourceRegistry.getDataSourceNames();
          String existDsFullName = dasset.getDataSourceName(dasset.getDatasource());
 
          // not same folder, auto rename avoid relocate the exist one.
@@ -2152,6 +2160,11 @@ public class DeployManagerService {
       }
    }
 
+   private final SecurityEngine securityEngine;
+   private final MVManager mvManager;
+   private final DependencyHandler dependencyHandler;
+   private final DataSourceRegistry dataSourceRegistry;
+   private final DashboardManager dashboardManager;
    public static final ThreadLocal<Boolean> IS_IMPORTING = ThreadLocal.withInitial(() -> Boolean.FALSE);
    private static final Logger LOG = LoggerFactory.getLogger(DeployManagerService.class);
 }

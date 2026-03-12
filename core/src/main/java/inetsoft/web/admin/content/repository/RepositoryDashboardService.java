@@ -34,6 +34,7 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.security.ResourcePermissionModel;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -42,16 +43,22 @@ import java.util.stream.Collectors;
 
 @Service
 public class RepositoryDashboardService {
+   @Autowired
    public RepositoryDashboardService(ResourcePermissionService permissionService,
                                      SecurityProvider securityProvider,
                                      ContentRepositoryTreeService contentRepositoryTreeService,
-                                     AnalyticRepository analyticRepository)
+                                     AnalyticRepository analyticRepository,
+                                     DashboardManager dashboardManager,
+                                     SecurityEngine securityEngine,
+                                     DependencyHandler dependencyHandler)
    {
       this.permissionService = permissionService;
       this.securityProvider = securityProvider;
-      dashboardManager = DashboardManager.getManager();
+      this.dashboardManager = dashboardManager;
       this.contentRepositoryTreeService = contentRepositoryTreeService;
       this.analyticRepository = analyticRepository;
+      this.securityEngine = securityEngine;
+      this.dependencyHandler = dependencyHandler;
    }
 
    /**
@@ -86,13 +93,13 @@ public class RepositoryDashboardService {
                            .viewsheet(vsEntry != null ? vsEntry.getIdentifier() : null)
                            .path(path)
                            .enable(enable)
-                           .visible(!SecurityEngine.getSecurity().isSecurityEnabled())
+                           .visible(!securityEngine.isSecurityEnabled())
                            .permissions(tableModel)
                            .build();
    }
 
-   private static Identity effectiveIdentity(IdentityID owner, Principal principal) {
-      if(!SecurityEngine.getSecurity().isSecurityEnabled()) {
+   private Identity effectiveIdentity(IdentityID owner, Principal principal) {
+      if(!securityEngine.isSecurityEnabled()) {
          return new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
       }
 
@@ -130,7 +137,7 @@ public class RepositoryDashboardService {
          AssetEntry entry = Objects.requireNonNull(AssetEntry.createAssetEntry(identifier));
          String oldName = model.oname();
          Dashboard oldDashboard = registry.getDashboard(oldName);
-         DependencyHandler.getInstance().updateDashboardDependencies(owner, oldName, false);
+         dependencyHandler.updateDashboardDependencies(owner, oldName, false);
          ViewsheetEntry oldEntry = ((VSDashboard) oldDashboard).getViewsheet();
          ViewsheetEntry viewsheet = new ViewsheetEntry(entry.getPath(), entry.getUser());
          viewsheet.setIdentifier(identifier);
@@ -194,11 +201,11 @@ public class RepositoryDashboardService {
 
          registry.addDashboard(name, dashboard);
          registry.save();
-         DependencyHandler.getInstance().updateDashboardDependencies(owner, name, true);
+         dependencyHandler.updateDashboardDependencies(owner, name, true);
 
          //security permission part
          ResourcePermissionModel permissions = model.permissions();
-         boolean security = SecurityEngine.getSecurity().isSecurityEnabled();
+         boolean security = securityEngine.isSecurityEnabled();
 
          if(security && permissions != null && (permissions.changed() || renamed)) {
             permissionService.setResourcePermissions(path, ResourceType.DASHBOARD,
@@ -322,7 +329,7 @@ public class RepositoryDashboardService {
          dashboard.setLastModifiedBy(identityID.getName());
          registry.addDashboard(dashboardName, dashboard);
          registry.save();
-         Identity identity = SecurityEngine.getSecurity().isSecurityEnabled() ?
+         Identity identity = securityEngine.isSecurityEnabled() ?
             contentRepositoryTreeService.getIdentity((XPrincipal) principal) :
             new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
          dashboardManager.addDashboard(identity, dashboardName);
@@ -375,7 +382,7 @@ public class RepositoryDashboardService {
          path = SUtil.getUnscopedPath(path);
       }
 
-      DependencyHandler.getInstance().updateDashboardDependencies(owner, path, false);
+      dependencyHandler.updateDashboardDependencies(owner, path, false);
       Dashboard dashboard = registry.getDashboard(path);
       registry.removeDashboard(path);
       registry.save();
@@ -410,7 +417,7 @@ public class RepositoryDashboardService {
       List<String> all = Arrays.asList(dashboardManager.getDashboards(identity));
       all.sort(Comparator.comparingInt(model.dashboards()::indexOf));
       dashboardManager.setDashboards(identity, all.toArray(new String[0]));
-      boolean security = SecurityEngine.getSecurity().isSecurityEnabled();
+      boolean security = securityEngine.isSecurityEnabled();
       ResourcePermissionModel permissionModel = model.permissions();
 
       if(security && permissionModel != null && permissionModel.changed()) {
@@ -429,7 +436,7 @@ public class RepositoryDashboardService {
       IdentityID currentUser = IdentityID.getIdentityIDFromKey(principal.getName());
       Identity identity = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
 
-      if(SecurityEngine.getSecurity().isSecurityEnabled()) {
+      if(securityEngine.isSecurityEnabled()) {
          if(orgID.equals(currentUser.orgID)) {
             identity = contentRepositoryTreeService.getIdentity((XPrincipal) principal);
          }
@@ -541,5 +548,7 @@ public class RepositoryDashboardService {
    private final ResourcePermissionService permissionService;
    private final SecurityProvider securityProvider;
    private final DashboardManager dashboardManager;
+   private final SecurityEngine securityEngine;
+   private final DependencyHandler dependencyHandler;
    private AnalyticRepository analyticRepository;
 }

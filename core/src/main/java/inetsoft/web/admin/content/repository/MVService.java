@@ -49,11 +49,14 @@ import static inetsoft.web.admin.schedule.ScheduleCycleService.getCyclePermissio
 @Service
 public class MVService {
    @Autowired
-   public MVService(ContentRepositoryTreeService treeService, MVSupportService support) {
+   public MVService(ContentRepositoryTreeService treeService, MVSupportService support,
+                    Cluster cluster)
+   {
       this.treeService = treeService;
       this.support = support;
-      createMVMap = Cluster.getInstance().getMap(CREATE_MV_STATUS_MAP);
-      updateMVMap = Cluster.getInstance().getMap(UPDATE_MV_STATUS_MAP);
+      this.cluster = cluster;
+      createMVMap = cluster.getMap(CREATE_MV_STATUS_MAP);
+      updateMVMap = cluster.getMap(UPDATE_MV_STATUS_MAP);
    }
 
    public CreateMVResponse create(String createId, String analysisId,
@@ -126,7 +129,7 @@ public class MVService {
       try {
          IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
 
-         if(createUpdateMVRequest.runInBackground() && Cluster.getInstance().isSchedulerRunning() &&
+         if(createUpdateMVRequest.runInBackground() && cluster.isSchedulerRunning() &&
             !SUtil.getRepletRepository().checkPermission(
                principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS))
          {
@@ -566,7 +569,7 @@ public class MVService {
 
    private String getStatus(MVDef def) {
       Catalog catalog = Catalog.getCatalog();
-      Map<String, String> statusMap = Cluster.getInstance().getMap("inetsoft.mv.status.map");
+      Map<String, String> statusMap = cluster.getMap("inetsoft.mv.status.map");
       String status = statusMap.get(def.getName());
 
       if(status != null) {
@@ -695,6 +698,7 @@ public class MVService {
    private static final long ONE_DAY = 24 * ONE_HOUR;
    private final MVSupportService support;
    private final ContentRepositoryTreeService treeService;
+   private final Cluster cluster;
    private final Map<String, CreateMVResponse> createMVMap;
    private final Map<String, CreateMVResponse> updateMVMap;
    private static final String CREATE_MV_STATUS_MAP = "CREATE_MV_STATUS_MAP";

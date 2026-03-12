@@ -62,13 +62,23 @@ public class ContentRepositoryTreeService {
    public ContentRepositoryTreeService(SecurityProvider securityProvider, XRepository repository,
                                        ResourcePermissionService permissionService,
                                        RepletRegistryManager registryManager,
-                                       ScheduleTaskFolderService scheduleTaskFolderService)
+                                       ScheduleTaskFolderService scheduleTaskFolderService,
+                                       MVManager mvManager,
+                                       SecurityEngine securityEngine,
+                                       ScheduleManager scheduleManager,
+                                       DataSourceRegistry dataSourceRegistry,
+                                       DashboardManager dashboardManager)
    {
       this.securityProvider = securityProvider;
       this.repository = repository;
       this.permissionService = permissionService;
       this.registryManager = registryManager;
       this.scheduleTaskFolderService = scheduleTaskFolderService;
+      this.mvManager = mvManager;
+      this.securityEngine = securityEngine;
+      this.scheduleManager = scheduleManager;
+      this.dataSourceRegistry = dataSourceRegistry;
+      this.dashboardManager = dashboardManager;
    }
 
    public LicensedComponents getLicensedComponents() {
@@ -374,7 +384,7 @@ public class ContentRepositoryTreeService {
 
       // if auto save has administrator, support import auto save assets.
       // if no security, only can login em by admin.
-      if (SecurityEngine.getSecurity().isSecurityEnabled() && !(OrganizationManager.getInstance().isSiteAdmin(principal) || OrganizationManager.getInstance().isOrgAdmin(principal))) {
+      if (securityEngine.isSecurityEnabled() && !(OrganizationManager.getInstance().isSiteAdmin(principal) || OrganizationManager.getInstance().isOrgAdmin(principal))) {
          return Collections.singletonList(recycleRoot.build());
       }
 
@@ -1125,11 +1135,11 @@ public class ContentRepositoryTreeService {
    }
 
    private boolean isMaterializedViewsheet(AssetEntry entry) {
-      return MVManager.getManager().isMaterialized(entry.toIdentifier(), false);
+      return mvManager.isMaterialized(entry.toIdentifier(), false);
    }
 
    private boolean isMaterializedWorksheet(AssetEntry entry) {
-      return MVManager.getManager().isMaterialized(entry.toIdentifier(), true);
+      return mvManager.isMaterialized(entry.toIdentifier(), true);
    }
 
    private boolean isMaterializedViewsheet(RepositoryEntry entry) {
@@ -1192,7 +1202,7 @@ public class ContentRepositoryTreeService {
       List<IdentityID> adminUsers = OrganizationManager.getInstance().orgAdminUsers(orgID);
       Identity identity = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
 
-      if(SecurityEngine.getSecurity().isSecurityEnabled()) {
+      if(securityEngine.isSecurityEnabled()) {
          if(OrganizationManager.getInstance().isSiteAdmin(principal) &&
             !orgID.equals(Organization.getDefaultOrganizationID()))
          {
@@ -1204,7 +1214,7 @@ public class ContentRepositoryTreeService {
          }
       }
 
-      List<String> sortedDashboards = Arrays.asList(DashboardManager.getManager().getDashboards(identity));
+      List<String> sortedDashboards = Arrays.asList(dashboardManager.getDashboards(identity));
       dashboardNames.sort(Comparator.comparingInt(
          d -> !sortedDashboards.contains(d) ? Integer.MAX_VALUE : sortedDashboards.indexOf(d)));
       return dashboardNames.stream()
@@ -1290,7 +1300,7 @@ public class ContentRepositoryTreeService {
    }
 
    List<ContentRepositoryTreeNode> getScheduleTaskNodeChildren(Principal principal) {
-      ScheduleManager manager = ScheduleManager.getScheduleManager();
+      ScheduleManager manager = scheduleManager;
       String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       List<String> taskNames = manager.getScheduleTasks(orgID).stream()
@@ -1580,7 +1590,7 @@ public class ContentRepositoryTreeService {
     * Get the top level data source nodes/folders
     */
    private List<ContentRepositoryTreeNode> getDataSources(String name, Set<XQuery> queries) {
-      final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      final DataSourceRegistry registry = dataSourceRegistry;
       final List<String> subDataSourceNames = registry.getSubDataSourceNames(name);
       final List<String> subfolderNames = registry.getSubfolderNames(name);
 
@@ -1658,7 +1668,7 @@ public class ContentRepositoryTreeService {
 
    private List<ContentRepositoryTreeNode> getDataSourceCubes(XDataSource dataSource) {
       if(dataSource instanceof XMLADataSource) {
-         XDomain xDomain = DataSourceRegistry.getRegistry().getDomain(dataSource.getFullName());
+         XDomain xDomain = dataSourceRegistry.getDomain(dataSource.getFullName());
 
          if(xDomain instanceof Domain) {
             Domain domain = (Domain) xDomain;
@@ -1775,7 +1785,7 @@ public class ContentRepositoryTreeService {
     */
    private List<ContentRepositoryTreeNode> getDataSourceModels(XDataSource dataSource)
    {
-      final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      final DataSourceRegistry registry = dataSourceRegistry;
       final String dataSourceName = dataSource.getFullName();
       final XDataModel dataModel = registry.getDataModel(dataSourceName);
       final List<ContentRepositoryTreeNode> nodes = new ArrayList<>();
@@ -1943,7 +1953,7 @@ public class ContentRepositoryTreeService {
     * Get the user identity for dashboard.
     */
    public Identity getIdentity(XPrincipal principal) {
-      boolean securityEnabled = SecurityEngine.getSecurity().isSecurityEnabled();
+      boolean securityEnabled = securityEngine.isSecurityEnabled();
       IdentityID userID = principal.getIdentityID();
       Identity identity;
 
@@ -2040,6 +2050,11 @@ public class ContentRepositoryTreeService {
    private final ResourcePermissionService permissionService;
 
    private final ScheduleTaskFolderService scheduleTaskFolderService;
+   private final MVManager mvManager;
+   private final SecurityEngine securityEngine;
+   private final ScheduleManager scheduleManager;
+   private final DataSourceRegistry dataSourceRegistry;
+   private final DashboardManager dashboardManager;
    private final Comparator<ContentRepositoryTreeNode> nodeComparator = getNodeComparator();
 
    public static final String RECYCLE_BIN_FOLDER = "Recycle Bin";

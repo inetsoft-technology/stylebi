@@ -35,15 +35,16 @@ import java.util.stream.Collectors;
 @Component
 public class ServerService extends MonitorLevelService implements StatusUpdater {
    @Autowired
-   public ServerService(ServerClusterClient client){
+   public ServerService(ServerClusterClient client, Cluster cluster, LicenseManager licenseManager) {
       super(lowAttrs, new String[0], new String[0]);
       this.client = client;
+      this.cluster = cluster;
+      this.licenseManager = licenseManager;
       this.calculator = new ServerMetricsCalculator(client, StatusMetricsType.SERVER_METRICS);
    }
 
    @PostConstruct
    public void addListener() {
-      cluster = Cluster.getInstance();
       serverServiceMessageListener = new ServerServiceMessageListener(cluster);
       cluster.addMessageListener(serverServiceMessageListener);
    }
@@ -67,21 +68,21 @@ public class ServerService extends MonitorLevelService implements StatusUpdater 
     * Add a license key to the server.
     */
    public void addLicense(String license) throws Exception {
-      LicenseManager.getInstance().addLicense(license);
+      licenseManager.addLicense(license);
    }
 
    /**
     * Get the count of license.
     */
    public int getLicenseCount() {
-      return LicenseManager.getInstance().getInstalledLicenses().size();
+      return licenseManager.getInstalledLicenses().size();
    }
 
    /**
     * Get array of LicenseInfo.
     */
    public List<LicenseInfo> getLicenseInfos() {
-      return LicenseManager.getInstance().getInstalledLicenses().stream()
+      return licenseManager.getInstalledLicenses().stream()
          .map(License::key)
          .map(LicenseInfo::new)
          .collect(Collectors.toList());
@@ -91,7 +92,7 @@ public class ServerService extends MonitorLevelService implements StatusUpdater 
     * Remove a license key from the server.
     */
    public void removeLicense(String license) throws Exception {
-      LicenseManager.getInstance().removeLicense(license);
+      licenseManager.removeLicense(license);
    }
 
    /**
@@ -306,8 +307,9 @@ public class ServerService extends MonitorLevelService implements StatusUpdater 
    }
 
    private final ServerClusterClient client;
+   private final Cluster cluster;
+   private final LicenseManager licenseManager;
    private ServerServiceMessageListener serverServiceMessageListener;
-   private Cluster cluster;
    private final ServerMetricsCalculator calculator;
 
    private static final String[] lowAttrs = {"startDate"};

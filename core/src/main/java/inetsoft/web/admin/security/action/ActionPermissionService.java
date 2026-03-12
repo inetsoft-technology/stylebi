@@ -40,8 +40,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class ActionPermissionService {
    @Autowired
-   public ActionPermissionService(ComponentAuthorizationService componentService) {
+   public ActionPermissionService(ComponentAuthorizationService componentService,
+                                  SecurityEngine securityEngine,
+                                  LicenseManager licenseManager)
+   {
       this.componentService = componentService;
+      this.securityEngine = securityEngine;
+      this.licenseManager = licenseManager;
    }
 
    public ActionTreeNode getActionTree(Principal principal) {
@@ -49,7 +54,7 @@ public class ActionPermissionService {
 
       if(SUtil.isMultiTenant()) {
          if(principal != null) {
-            SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+            SecurityProvider provider = securityEngine.getSecurityProvider();
             List<IdentityID> roles = new ArrayList<>(Arrays.stream(provider.getRoles(IdentityID.getIdentityIDFromKey(principal.getName()))).toList());
             roles.addAll(Arrays.stream(((XPrincipal)principal).getRoles()).toList());
             isOrgAdmin = Arrays
@@ -173,7 +178,7 @@ public class ActionPermissionService {
 
       if(principal != null) {
          if(OrganizationManager.getInstance().isSiteAdmin(principal) ||
-            !LicenseManager.getInstance().isEnterprise() || !SUtil.isMultiTenant())
+            !licenseManager.isEnterprise() || !SUtil.isMultiTenant())
          {
             root.addFilteredChildren(ActionTreeNode.builder()
                                         .label(catalog.getString("Upload Drivers"))
@@ -543,7 +548,7 @@ public class ActionPermissionService {
                                           ViewComponent component, String path, boolean isOrgAdmin,
                                           Principal principal)
    {
-      boolean enterprise = LicenseManager.getInstance().isEnterprise();
+      boolean enterprise = licenseManager.isEnterprise();
       boolean isSiteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
       component.children().values().stream()
          .filter(ViewComponent::available)
@@ -559,7 +564,7 @@ public class ActionPermissionService {
    }
 
    private boolean isEMActionVisible(ViewComponent c, String path, boolean isSiteAdmin) {
-      if(!LicenseManager.getInstance().isEnterprise() && Tool.equals("auditing", c.name()) ||
+      if(!licenseManager.isEnterprise() && Tool.equals("auditing", c.name()) ||
          !SUtil.isMultiTenant() && Tool.equals("org-settings", c.name()))
       {
          return false;
@@ -817,4 +822,6 @@ public class ActionPermissionService {
       );
 
    private final ComponentAuthorizationService componentService;
+   private final SecurityEngine securityEngine;
+   private final LicenseManager licenseManager;
 }
