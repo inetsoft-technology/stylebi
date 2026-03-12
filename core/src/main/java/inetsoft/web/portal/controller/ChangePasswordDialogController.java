@@ -44,6 +44,11 @@ import java.sql.Timestamp;
  */
 @RestController
 public class ChangePasswordDialogController {
+   @org.springframework.beans.factory.annotation.Autowired
+   public ChangePasswordDialogController(SecurityEngine securityEngine) {
+      this.securityEngine = securityEngine;
+   }
+
    @GetMapping(value = "/api/portal/change-password-dialog-model")
    public ChangePasswordDialogModel getChangePasswordDialogModel(
       Principal principal) throws Exception
@@ -88,8 +93,7 @@ public class ChangePasswordDialogController {
       IdentityService.validatePasswordStrength(model.getNewPassword());
 
       try {
-         SecurityEngine engine = SecurityEngine.getSecurity();
-         engine.changePassword(principal0, model.getNewPassword());
+         securityEngine.changePassword(principal0, model.getNewPassword());
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
          return true;
       }
@@ -115,6 +119,7 @@ public class ChangePasswordDialogController {
          new DefaultTicket(userName, password));
    }
 
+   private final SecurityEngine securityEngine;
    private static final Logger LOG = LoggerFactory.getLogger(RepositoryTreeController.class);
 }
 

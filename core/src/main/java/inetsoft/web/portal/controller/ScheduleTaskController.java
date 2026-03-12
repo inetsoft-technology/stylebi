@@ -51,10 +51,12 @@ public class ScheduleTaskController {
     */
    @Autowired
    public ScheduleTaskController(ScheduleTaskService scheduleTaskService,
-                                 ScheduleTaskFolderService scheduleTaskFolderService)
+                                 ScheduleTaskFolderService scheduleTaskFolderService,
+                                 SecurityEngine securityEngine)
    {
       this.scheduleTaskService = scheduleTaskService;
       this.scheduleTaskFolderService = scheduleTaskFolderService;
+      this.securityEngine = securityEngine;
    }
 
    /**
@@ -181,7 +183,7 @@ public class ScheduleTaskController {
       ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
       ScheduleTask task = scheduleManager.getScheduleTask(taskName);
 
-      if(!(SecurityEngine.getSecurity().checkPermission(principal, ResourceType.SCHEDULE_TASK, taskName,
+      if(!(securityEngine.checkPermission(principal, ResourceType.SCHEDULE_TASK, taskName,
             ResourceAction.WRITE) || (task != null && scheduleTaskService.canDeleteTask(task, principal))))
       {
          return;
@@ -193,6 +195,7 @@ public class ScheduleTaskController {
 
    private final ScheduleTaskService scheduleTaskService;
    private final ScheduleTaskFolderService scheduleTaskFolderService;
+   private final SecurityEngine securityEngine;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(ScheduleTaskController.class);

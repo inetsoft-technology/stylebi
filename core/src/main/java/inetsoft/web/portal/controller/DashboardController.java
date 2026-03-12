@@ -65,11 +65,13 @@ public class DashboardController {
    @Autowired
    public DashboardController(AnalyticRepository analyticRepository,
                               ViewsheetService viewsheetService,
-                              DashboardServiceProxy serviceProxy)
+                              DashboardServiceProxy serviceProxy,
+                              SecurityEngine securityEngine)
    {
       this.analyticRepository = analyticRepository;
       this.viewsheetService = viewsheetService;
       this.serviceProxy = serviceProxy;
+      this.securityEngine = securityEngine;
    }
 
    @GetMapping(value = "/api/portal/dashboard-tab-model")
@@ -599,7 +601,7 @@ public class DashboardController {
     */
    private SecurityProvider getSecurityProvider() {
       try {
-         return SecurityEngine.getSecurity().getSecurityProvider();
+         return securityEngine.getSecurityProvider();
       }
       catch(Exception ex) {
          LOG.error("Failed to get security provider", ex);
@@ -611,7 +613,7 @@ public class DashboardController {
     * Get the user identity for dashboard.
     */
    private Identity getIdentity(XPrincipal principal) {
-      boolean securityEnabled = SecurityEngine.getSecurity().isSecurityEnabled();
+      boolean securityEnabled = securityEngine.isSecurityEnabled();
       SecurityProvider provider = getSecurityProvider();
       IdentityID user = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
       Identity identity;
@@ -670,6 +672,7 @@ public class DashboardController {
    private final AnalyticRepository analyticRepository;
    private final ViewsheetService viewsheetService;
    private final DashboardServiceProxy serviceProxy;
+   private final SecurityEngine securityEngine;
    private static final Logger LOG =
       LoggerFactory.getLogger(DashboardController.class);
 }

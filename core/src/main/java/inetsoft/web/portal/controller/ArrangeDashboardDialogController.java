@@ -25,6 +25,7 @@ import inetsoft.uql.util.*;
 import inetsoft.util.Catalog;
 import inetsoft.web.portal.model.ArrangeDashboardDialogModel;
 import inetsoft.web.portal.model.DashboardModel;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -37,6 +38,11 @@ import java.util.*;
  */
 @RestController
 public class ArrangeDashboardDialogController {
+   @Autowired
+   public ArrangeDashboardDialogController(SecurityEngine securityEngine) {
+      this.securityEngine = securityEngine;
+   }
+
    @GetMapping(value = "/api/portal/arrange-dashboard-dialog-model")
    public ArrangeDashboardDialogModel getArrangeDashboardDialogModel(Principal principal) {
       ArrangeDashboardDialogModel model = new ArrangeDashboardDialogModel();
@@ -92,7 +98,7 @@ public class ArrangeDashboardDialogController {
 
       Identity identity = getIdentity((XPrincipal) principal);
 
-      if(!SecurityEngine.getSecurity().isSecurityEnabled()) {
+      if(!securityEngine.isSecurityEnabled()) {
          identity = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
       }
 
@@ -150,8 +156,8 @@ public class ArrangeDashboardDialogController {
     * Get the user identity for dashboard.
     */
    private Identity getIdentity(XPrincipal principal) {
-      boolean securityEnabled = SecurityEngine.getSecurity().isSecurityEnabled();
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      boolean securityEnabled = securityEngine.isSecurityEnabled();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
       IdentityID user = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
       Identity identity;
 
@@ -179,4 +185,6 @@ public class ArrangeDashboardDialogController {
       IdentityID[] users = provider.getUsers();
       return users != null && Arrays.asList(users).contains(user);
    }
+
+   private final SecurityEngine securityEngine;
 }
