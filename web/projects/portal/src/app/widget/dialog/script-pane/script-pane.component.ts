@@ -81,6 +81,8 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
    private _scriptDefinitions: any;
    private cancelAutocomplete: () => any;
    private init: boolean = true;
+   private cursorTopLoaded = false;
+   private cursorPositionApplied = false;
    private returnToken = false; // return without function
    private functionOperatorRoot: TreeNodeModel;
    private _functionTreeRoot: TreeNodeModel;
@@ -213,6 +215,8 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
          if(val && this.codemirrorInstance) {
             this.codemirrorInstance.setCursor({line: 0, ch: 0});
          }
+         this.cursorTopLoaded = true;
+         this.applyCursorPosition();
       });
    }
 
@@ -329,18 +333,7 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
          }
 
          this.codemirrorInstance.focus();
-
-         if (this.cursorTop) {
-            this.codemirrorInstance.setCursor({
-               line: 0,
-               ch: 0
-            });
-         } else {
-            this.codemirrorInstance.setCursor({
-               line: this.codemirrorInstance.lineCount(),
-               ch: this.codemirrorInstance.getLine(this.codemirrorInstance.lastLine()).length
-            });
-         }
+         this.applyCursorPosition();
 
          this.renderAnalysisResults();
 
@@ -446,6 +439,27 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
       tip1.appendChild(tip2);
 
       return tip1;
+   }
+
+   private applyCursorPosition(): void {
+      if(!this.codemirrorInstance || !this.cursorTopLoaded || this.cursorPositionApplied) {
+         return;
+      }
+
+      this.cursorPositionApplied = true;
+
+      if(this.cursorTop) {
+         this.codemirrorInstance.setCursor({
+            line: 0,
+            ch: 0
+         });
+      }
+      else {
+         this.codemirrorInstance.setCursor({
+            line: this.codemirrorInstance.lineCount(),
+            ch: this.codemirrorInstance.getLine(this.codemirrorInstance.lastLine()).length
+         });
+      }
    }
 
    private triggerSyntaxAnalyzer(): void {

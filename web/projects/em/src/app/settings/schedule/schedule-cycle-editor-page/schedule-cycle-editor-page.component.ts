@@ -66,6 +66,7 @@ export class ScheduleCycleEditorPageComponent implements OnInit, OnDestroy {
    valueChangesSubscription = Subscription.EMPTY;
 
    private nextConditionId: number = 0;
+   private readonly COPY_OF_PREFIX = "_#(js:Copy of) ";
 
    get valid(): boolean {
       return this.conditionsValid && this.optionsValid && this.name && this.name.valid && this.taskChanged;
@@ -156,6 +157,26 @@ export class ScheduleCycleEditorPageComponent implements OnInit, OnDestroy {
    addCondition(): void {
       this.appendCondition(true);
       this.selectedConditionIndex = this.conditionItems.length - 1;
+   }
+
+   copyCondition(): void {
+      if(this.selectedConditionIndex < 0 || !this.condition) {
+         return;
+      }
+
+      const copy: ScheduleConditionModel = Tool.clone(this.condition);
+      let baseLabel = copy.label || "_#(js:New Condition)";
+
+      while(baseLabel.startsWith(this.COPY_OF_PREFIX)) {
+         baseLabel = baseLabel.slice(this.COPY_OF_PREFIX.length);
+      }
+
+      copy.label = this.COPY_OF_PREFIX + baseLabel;
+      this.model.conditionPaneModel.conditions.push(copy);
+      const item = new TaskItem(`condition-${this.nextConditionId++}`, copy.label);
+      this.conditionItems.push(item);
+      this.selectedConditionIndex = this.conditionItems.length - 1;
+      this.taskChanged = true;
    }
 
    deleteConditions(): void {

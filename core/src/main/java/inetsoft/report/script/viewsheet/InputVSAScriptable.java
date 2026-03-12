@@ -126,6 +126,19 @@ public class InputVSAScriptable extends VSAScriptable {
          addProperty("defaultText","getDefaultText","setDefaultText",String.class,info.getClass(), info);
          addProperty("placeholderText","getToolTip","setToolTip",String.class,info.getClass(), info);
       }
+
+      LabelInfo labelInfo = ((InputVSAssemblyInfo) info).getLabelInfo();
+
+      if(labelInfo != null) {
+         addProperty("labelText", "getLabelText", "setLabelText",
+                     String.class, LabelInfo.class, labelInfo);
+         addProperty("labelVisible", "isLabelVisible", "setLabelVisible",
+                     boolean.class, LabelInfo.class, labelInfo);
+         addProperty("labelPosition", "getLabelPosition", "setLabelPosition",
+                     String.class, LabelInfo.class, labelInfo);
+         addProperty("labelGap", "getLabelGap", "setLabelGap",
+                     int.class, LabelInfo.class, labelInfo);
+      }
    }
 
    /**
