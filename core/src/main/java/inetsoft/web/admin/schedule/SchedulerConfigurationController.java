@@ -39,8 +39,11 @@ import org.springframework.web.bind.annotation.*;
 @EnableAspectJAutoProxy(proxyTargetClass = true)
 public class SchedulerConfigurationController implements MessageListener {
    @Autowired
-   public SchedulerConfigurationController(SchedulerConfigurationService configService) {
+   public SchedulerConfigurationController(SchedulerConfigurationService configService,
+                                           Cluster cluster)
+   {
       this.configService = configService;
+      this.cluster = cluster;
    }
 
    @DeniedMultiTenancyOrgUser
@@ -81,13 +84,13 @@ public class SchedulerConfigurationController implements MessageListener {
 
    @PostConstruct
    public void addListeners() throws Exception {
-      Cluster.getInstance().addMessageListener(this);
+      cluster.addMessageListener(this);
    }
 
    @PreDestroy
    public void removeListeners() {
       try {
-         Cluster.getInstance().removeMessageListener(this);
+         cluster.removeMessageListener(this);
       }
       catch(Exception e) {
          LOG.debug("Failed to remove listeners during shutdown", e);
@@ -107,6 +110,7 @@ public class SchedulerConfigurationController implements MessageListener {
    }
 
    private final SchedulerConfigurationService configService;
+   private final Cluster cluster;
 
    private static final Logger LOG = LoggerFactory.getLogger(SchedulerConfigurationController.class);
 }

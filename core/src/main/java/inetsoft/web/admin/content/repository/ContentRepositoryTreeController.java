@@ -35,8 +35,11 @@ import java.util.List;
 @RestController
 public class ContentRepositoryTreeController {
    @Autowired
-   public ContentRepositoryTreeController(ContentRepositoryTreeService treeService) {
+   public ContentRepositoryTreeController(ContentRepositoryTreeService treeService,
+                                          SecurityEngine securityEngine)
+   {
       this.treeService = treeService;
+      this.securityEngine = securityEngine;
    }
 
    /**
@@ -48,7 +51,7 @@ public class ContentRepositoryTreeController {
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -133,4 +136,5 @@ public class ContentRepositoryTreeController {
    }
 
    private final ContentRepositoryTreeService treeService;
+   private final SecurityEngine securityEngine;
 }

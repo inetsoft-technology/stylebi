@@ -33,11 +33,13 @@ public class RepositoryDashboardController {
    @Autowired
    public RepositoryDashboardController(RepositoryDashboardService repositoryDashboardService,
                                         ContentRepositoryTreeService treeService,
-                                        ScheduleTaskActionService taskActionService)
+                                        ScheduleTaskActionService taskActionService,
+                                        SecurityEngine securityEngine)
    {
       this.repositoryDashboardService = repositoryDashboardService;
       this.treeService = treeService;
       this.taskActionService = taskActionService;
+      this.securityEngine = securityEngine;
    }
 
    @GetMapping("/api/em/content/repository/dashboard")
@@ -48,7 +50,7 @@ public class RepositoryDashboardController {
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -99,6 +101,7 @@ public class RepositoryDashboardController {
    }
 
    private final RepositoryDashboardService repositoryDashboardService;
+   private final SecurityEngine securityEngine;
    private final ContentRepositoryTreeService treeService;
    private final ScheduleTaskActionService taskActionService;
 }

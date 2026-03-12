@@ -43,11 +43,13 @@ public class EMScheduleTaskFolderController {
    @Autowired
    public EMScheduleTaskFolderController(ScheduleTaskFolderService scheduleTaskFolderService,
                                          ScheduleService scheduleService,
-                                         ScheduleTaskService scheduleTaskService)
+                                         ScheduleTaskService scheduleTaskService,
+                                         SecurityEngine securityEngine)
    {
       this.scheduleTaskFolderService = scheduleTaskFolderService;
       this.scheduleService = scheduleService;
       this.scheduleTaskService = scheduleTaskService;
+      this.securityEngine = securityEngine;
    }
 
    @PostMapping("/api/em/schedule/add/checkDuplicate")
@@ -100,7 +102,7 @@ public class EMScheduleTaskFolderController {
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -189,7 +191,7 @@ public class EMScheduleTaskFolderController {
          for(ScheduleTaskModel taskModel : taskModels) {
             ScheduleTask task = scheduleManager.getScheduleTask(taskModel.name());
 
-            if(!(SecurityEngine.getSecurity().checkPermission(principal,
+            if(!(securityEngine.checkPermission(principal,
                ResourceType.SCHEDULE_TASK, taskModel.name(), ResourceAction.WRITE) ||
                (task != null && scheduleTaskService.canDeleteTask(task, principal))))
             {
@@ -246,6 +248,7 @@ public class EMScheduleTaskFolderController {
    }
 
    private final ScheduleTaskFolderService scheduleTaskFolderService;
+   private final SecurityEngine securityEngine;
    private final ScheduleService scheduleService;
 
    private final ScheduleTaskService scheduleTaskService;
