@@ -46,7 +46,6 @@ public class RawDataController {
       HttpServletResponse response) throws Exception
    {
       response.setContentType("text/csv");
-      response.setBufferSize(8192);
       ServletOutputStream outputStream = response.getOutputStream();
       rawDataService.writeDataSourceTableCsvStream(data, principal, outputStream);
    }
@@ -62,7 +61,6 @@ public class RawDataController {
       HttpServletResponse response) throws Exception
    {
       response.setContentType("text/csv");
-      response.setBufferSize(8192);
       ServletOutputStream outputStream = response.getOutputStream();
       rawDataService.writeWorksheetTableCsvStream(
          WizUtil.decodeId(worksheetId),
