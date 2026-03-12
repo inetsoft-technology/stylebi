@@ -18,51 +18,42 @@
 
 package inetsoft.web.viewsheet.service;
 
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.DistributedMap;
+import jakarta.annotation.PostConstruct;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Supplier;
+import java.util.Map;
 
 @Service
 public class ComposerClientService {
+   @PostConstruct
+   public void init() {
+      composerClients = Cluster.getInstance().getReplicatedMap(getClass().getName() + ".sessions");
+   }
+
    public void removeFromSessionList(StompHeaderAccessor headers) {
+      String simpSessionId = headers.getSessionId();
 
-      if(headers.getSessionAttributes() != null) {
-         String httpSessionId = headers.getSessionAttributes().get("HTTP.SESSION.ID").toString();
-         List<String> sessionList = composerClients.get(httpSessionId);
-
-         if(sessionList != null) {
-            sessionList.remove(headers.getSessionId());
-
-            if(sessionList.isEmpty()) {
-               composerClients.remove(httpSessionId);
-            }
-         }
+      if(simpSessionId != null) {
+         composerClients.remove(simpSessionId);
       }
    }
 
    public String getFirstSimpSessionId(String httpSessionId) {
-      List<String> simpSessionIdList = composerClients.get(httpSessionId);
-
-      if(simpSessionIdList != null && !simpSessionIdList.isEmpty()) {
-         return simpSessionIdList.getFirst();
-      }
-
-      return null;
+      return composerClients.entrySet().stream()
+         .filter(e -> httpSessionId.equals(e.getValue()))
+         .map(Map.Entry::getKey)
+         .findFirst()
+         .orElse(null);
    }
 
-   public void setSessionID(Supplier<String[]> sessionIDSupplier) {
-      String[] sessions = sessionIDSupplier.get();
-      String httpSessionId = sessions[0];
-      String simpSessionId = sessions[1];
-      List<String> simpSessionIdList =
-         composerClients.computeIfAbsent(httpSessionId, k -> new ArrayList<>());
-      simpSessionIdList.add(simpSessionId);
+   public void setSessionID(String httpSessionId, String simpSessionId) {
+      composerClients.put(simpSessionId, httpSessionId);
    }
 
    public static final String COMMANDS_TOPIC = "/composer-client";
-   // key = http session id, value = list of simpSessionIds
-   private final Map<String, List<String>> composerClients = new ConcurrentHashMap<>();
+   // key = simpSessionId, value = httpSessionId (cluster-wide replicated map)
+   private DistributedMap<String, String> composerClients;
 }
