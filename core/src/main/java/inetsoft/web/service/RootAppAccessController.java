@@ -35,21 +35,26 @@ import java.util.*;
 @RestController
 public class RootAppAccessController {
    @Autowired
-   public RootAppAccessController(AssetRepository assetRepository) {
+   public RootAppAccessController(AssetRepository assetRepository,
+                                   LicenseManager licenseManager,
+                                   SecurityEngine securityEngine)
+   {
       this.assetRepository = assetRepository;
+      this.licenseManager = licenseManager;
+      this.securityEngine = securityEngine;
    }
 
    @GetMapping("api/license-info")
    public LicenseInfo getLicenseInfo(Principal principal) {
       return LicenseInfo.builder()
-         .valid(LicenseManager.getInstance().isLicensed())
+         .valid(licenseManager.isLicensed())
          .access(checkAccess(principal))
          .build();
    }
 
    @GetMapping("/api/enterprise")
    public boolean isEnterprise(@SuppressWarnings("unused") Principal principal) {
-      return LicenseManager.getInstance().isEnterprise();
+      return licenseManager.isEnterprise();
    }
 
    @GetMapping("/api/org/info")
@@ -74,7 +79,7 @@ public class RootAppAccessController {
          return list;
       }
 
-      String[] names = SecurityEngine.getSecurity().getSecurityProvider().getOrganizationNames();
+      String[] names = securityEngine.getSecurityProvider().getOrganizationNames();
 
      return Arrays.asList(names);
    }
@@ -96,4 +101,6 @@ public class RootAppAccessController {
    }
 
    private final AssetRepository assetRepository;
+   private final LicenseManager licenseManager;
+   private final SecurityEngine securityEngine;
 }

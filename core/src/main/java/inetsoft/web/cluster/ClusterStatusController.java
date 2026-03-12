@@ -36,6 +36,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -45,16 +46,20 @@ import java.util.concurrent.locks.ReentrantLock;
 @Component
 @Lazy(false)
 public class ClusterStatusController implements MessageListener {
+   @Autowired
    public ClusterStatusController(SchedulerMonitoringService schedulerMonitoringService,
-                                  DataSourceService dataSourceService)
+                                  DataSourceService dataSourceService,
+                                  Cluster cluster,
+                                  SecurityEngine securityEngine)
    {
       this.schedulerMonitoringService = schedulerMonitoringService;
       this.dataSourceService = dataSourceService;
+      this.cluster = cluster;
+      this.securityEngine = securityEngine;
    }
 
    @PostConstruct
    public void addListener() {
-      cluster = Cluster.getInstance();
 
       (new Thread(() -> {
          cluster.addMessageListener(ClusterStatusController.this);
@@ -71,12 +76,10 @@ public class ClusterStatusController implements MessageListener {
    @PreDestroy
    public void removeListener() {
       try {
-         if(cluster != null) {
-            cluster.removeMessageListener(this);
+         cluster.removeMessageListener(this);
 
-            if(mvListener != null) {
-               cluster.removeMessageListener(mvListener);
-            }
+         if(mvListener != null) {
+            cluster.removeMessageListener(mvListener);
          }
       }
       catch(Exception e) {
@@ -153,8 +156,6 @@ public class ClusterStatusController implements MessageListener {
          LOG.error("Unable to remove meta data files", exception);
       }
 
-      Cluster cluster = Cluster.getInstance();
-
       try {
          cluster.sendMessage(sender, message);
       }
@@ -194,8 +195,6 @@ public class ClusterStatusController implements MessageListener {
          LOG.error("Unable to clear the meta data cache", exception);
       }
 
-      Cluster cluster = Cluster.getInstance();
-
       try {
          cluster.sendMessage(sender, message);
       }
@@ -230,8 +229,6 @@ public class ClusterStatusController implements MessageListener {
          LOG.error("Failed to restart cluster node", exc);
       }
 
-      Cluster cluster = Cluster.getInstance();
-
       try {
          cluster.sendMessage(sender, message);
       }
@@ -262,7 +259,7 @@ public class ClusterStatusController implements MessageListener {
          }
 
          if(!"".equals(SreeEnv.getProperty("security.provider"))) {
-            SecurityEngine.getSecurity().init();
+            securityEngine.init();
          }
 
          AuthenticationService.getInstance().reset();
@@ -281,7 +278,7 @@ public class ClusterStatusController implements MessageListener {
          ServerClusterCompleteMessage message = new ServerClusterCompleteMessage();
          message.setAction(PauseClusterMessage.ACTION);
          message.setSuccess(true);
-         Cluster.getInstance().sendMessage(sender, message);
+         cluster.sendMessage(sender, message);
       }
       catch(Exception e) {
          LOG.warn("Failed to send cluster status message", e);
@@ -302,7 +299,7 @@ public class ClusterStatusController implements MessageListener {
       }
 
       try {
-         Cluster.getInstance().sendMessage(sender, message);
+         cluster.sendMessage(sender, message);
       }
       catch(Exception e) {
          LOG.warn("Failed to send start schedule complete", e);
@@ -323,7 +320,7 @@ public class ClusterStatusController implements MessageListener {
       }
 
       try {
-         Cluster.getInstance().sendMessage(sender, message);
+         cluster.sendMessage(sender, message);
       }
       catch(Exception e) {
          LOG.warn("Failed to send stop schedule complete", e);
@@ -338,7 +335,7 @@ public class ClusterStatusController implements MessageListener {
       message.setSuccess(true);
 
       try {
-         Cluster.getInstance().sendMessage(sender, message);
+         cluster.sendMessage(sender, message);
       }
       catch(Exception e) {
          LOG.warn("Failed to send clean cache complete", e);
@@ -365,7 +362,8 @@ public class ClusterStatusController implements MessageListener {
    }
 
    private MessageListener mvListener;
-   private Cluster cluster;
+   private final Cluster cluster;
+   private final SecurityEngine securityEngine;
    private final SchedulerMonitoringService schedulerMonitoringService;
    private final DataSourceService dataSourceService;
    private final ServerClusterClient client = new ServerClusterClient(true);
