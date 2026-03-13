@@ -23,6 +23,7 @@ import {
    HttpResponse
 } from "@angular/common/http";
 import { ChangeDetectorRef, Component, Input, OnInit } from "@angular/core";
+import { MatSnackBar } from "@angular/material/snack-bar";
 import { Observable, Subject } from "rxjs";
 import { UploadFilesResponse } from "./upload-files-response";
 
@@ -46,7 +47,8 @@ export class StagedFileChooserComponent implements OnInit {
    uploading = false;
    progress = 0;
 
-   constructor(private http: HttpClient, private changeDetector: ChangeDetectorRef) {
+   constructor(private http: HttpClient, private changeDetector: ChangeDetectorRef,
+               private snackBar: MatSnackBar) {
    }
 
    ngOnInit() {
@@ -96,7 +98,14 @@ export class StagedFileChooserComponent implements OnInit {
                result.complete();
             }
          },
-         (error) => result.error(error),
+         (error) => {
+            const message = error?.error?.message || "_#(js:em.upload.error)";
+            this.snackBar.open(message, null, {duration: 5000});
+            this.uploading = false;
+            this.progress = 0;
+            this.changeDetector.detectChanges();
+            result.error(error);
+         },
          () => this.uploading = false
       );
 

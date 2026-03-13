@@ -19,10 +19,13 @@ package inetsoft.web.admin.upload;
 
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
+import inetsoft.util.Catalog;
 import inetsoft.util.FileSystemService;
+import inetsoft.web.admin.GenericError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -61,7 +64,7 @@ public class UploadController {
    }
 
    @PostMapping("/api/em/upload")
-   public UploadFilesResponse uploadFiles(
+   public ResponseEntity<?> uploadFiles(
       @RequestParam("uploadedFiles") MultipartFile[] uploadedFiles,
       @RequestParam("uploadType") String uploadType,
       @RequestParam(name = "id", required = false) String id,
@@ -69,6 +72,14 @@ public class UploadController {
    {
       if(!checkUploadPermission(principal, uploadType)) {
          throw new SecurityException("You do not have permission to upload files.");
+      }
+
+      for(MultipartFile uploadedFile : uploadedFiles) {
+         if(uploadedFile.isEmpty()) {
+            return ResponseEntity.badRequest()
+               .body(new GenericError("EmptyFileException",
+                  Catalog.getCatalog().getString("em.upload.emptyFile")));
+         }
       }
 
       List<UploadedFile> files = Arrays.stream(uploadedFiles)
@@ -80,19 +91,19 @@ public class UploadController {
          List<String> names = files.stream()
             .map(UploadedFile::fileName)
             .collect(Collectors.toList());
-         return UploadFilesResponse.builder()
+         return ResponseEntity.ok(UploadFilesResponse.builder()
             .identifier(id)
             .files(names)
-            .build();
+            .build());
       }
       else {
          List<String> names = service.add(id, files).stream()
             .map(UploadedFile::fileName)
             .collect(Collectors.toList());
-         return UploadFilesResponse.builder()
+         return ResponseEntity.ok(UploadFilesResponse.builder()
             .identifier(id)
             .files(names)
-            .build();
+            .build());
       }
    }
 

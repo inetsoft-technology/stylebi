@@ -92,22 +92,25 @@ export class CustomShapeDialogComponent {
 
    uploadFiles() {
       this.uploading = true;
-      this.fileChooser.uploadFiles().subscribe((result) => {
-         const uri = "../api/em/content/data-space/folder/upload";
-         const request = {
-            path: this.currentNode? this.currentNode.data.path : "portal/shapes",
-            global: !this.orgId,
-            files: result,
-            extractArchives: this.extractArchives
-         };
+      this.fileChooser.uploadFiles().subscribe(
+         (result) => {
+            const uri = "../api/em/content/data-space/folder/upload";
+            const request = {
+               path: this.currentNode? this.currentNode.data.path : "portal/shapes",
+               global: !this.orgId,
+               files: result,
+               extractArchives: this.extractArchives
+            };
 
-         this.http.post(uri, request).subscribe(
-            () => {
-               this.dataSource.refresh();
-               this.uploading = false;
-            }
-         );
-      });
+            this.http.post(uri, request).subscribe(
+               () => {
+                  this.dataSource.refresh();
+                  this.uploading = false;
+               }
+            );
+         },
+         () => this.uploading = false
+      );
    }
 
    deleteSelectedNodes() {
