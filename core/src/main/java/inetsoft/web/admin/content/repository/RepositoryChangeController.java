@@ -33,11 +33,13 @@ import org.springframework.context.annotation.ScopedProxyMode;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.stereotype.Controller;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.lang.invoke.MethodHandles;
 import java.security.Principal;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
@@ -68,21 +70,37 @@ public class RepositoryChangeController {
    @PreDestroy
    public void removeListeners() throws Exception {
       closed = true;
-      RepletRegistry.getRegistry().removePropertyChangeListener(this.reportListener);
+
+      try {
+         RepletRegistry.getRegistry().removePropertyChangeListener(this.reportListener);
+      }
+      catch(Exception e) {
+         LOG.debug("Exception occurred while removing listener, this usually indicates a shutdown in progress", e);
+      }
+
       assetRepository.removeAssetChangeListener(this.assetListener);
       assetRepository.removeAssetChangeListener(this.autoSaveListener);
       LibManager.getManager().removeActionListener(this.libraryListener);
       DashboardManager.getManager().removeDashboardChangeListener(this.dashboardListener);
       DataSourceRegistry.getRegistry().removeRefreshedListener(dataSourceListener);
-      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-      IdentityID[] users = SecurityEngine.getSecurity().getSecurityProvider().getUsers();
 
-      if(principal != null && Tool.contains(users, pId)) {
-         RepletRegistry.getRegistry(pId)
-            .removePropertyChangeListener(this.reportListener);
+      if(principal != null) {
+         IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
 
-         if(isSysAdmin(principal)) {
-            RepletRegistry.removeGlobalPropertyChangeListener(this.reportListener);
+         try {
+            IdentityID[] users = SecurityEngine.getSecurity().getSecurityProvider().getUsers();
+
+            if(Tool.contains(users, pId)) {
+               RepletRegistry.getRegistry(pId)
+                  .removePropertyChangeListener(this.reportListener);
+
+               if(isSysAdmin(principal)) {
+                  RepletRegistry.removeGlobalPropertyChangeListener(this.reportListener);
+               }
+            }
+         }
+         catch(Exception e) {
+            LOG.debug("Exception occurred while removing listener, this usually indicates a shutdown in progress", e);
          }
       }
 
@@ -211,4 +229,5 @@ public class RepositoryChangeController {
    private final AssetChangeListener autoSaveListener = this::autoSaveChanged;
 
    private static final String CHANGE_TOPIC = "/em-content-changed";
+   private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 }
