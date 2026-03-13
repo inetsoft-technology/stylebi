@@ -538,7 +538,7 @@ public class InputVSAQuery extends VSAQuery {
                label = fmt == null ? null : fmt.format(obj);
             }
             catch(Exception ex) {
-               LOG.warn("Failed to format label value: " + obj, ex);
+               LOG.debug("Failed to format label value: " + obj, ex);
             }
 
             if(label == null) {

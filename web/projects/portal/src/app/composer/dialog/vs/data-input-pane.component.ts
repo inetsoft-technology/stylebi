@@ -23,6 +23,7 @@ import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-m
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { DataInputPaneModel } from "../../data/vs/data-input-pane-model";
 import { DatePipe } from '@angular/common';
+import { XSchema } from "../../../common/data/xschema";
 
 const ROW_URI: string = "../vs/dataInput/rows/";
 const COLUMN_URI: string = "../vs/dataInput/columns/";
@@ -40,6 +41,7 @@ export class DataInputPane implements OnInit {
    @Input() runtimeId: string = "";
    @Input() checkBox: boolean = false;
    @Input() comboBox: boolean = false;
+   @Input() dataType: string = "";
    headers: HttpHeaders;
    columns: any[] = [];
    rows: string[] = [];
@@ -60,7 +62,7 @@ export class DataInputPane implements OnInit {
    ngOnInit() {
       this.updateColumns();
 
-      if(this.comboBox && this.model.queryDateFormat && this.model.dateFormatPattern) {
+      if(this.comboBox && this.isDateType && this.model.queryDateFormat && this.model.dateFormatPattern) {
          this.validateDateFormat(this.model.dateFormatPattern);
       }
    }
@@ -345,6 +347,10 @@ export class DataInputPane implements OnInit {
 
    getPageLabel(): string {
       return Tool.formatCatalogString("_#(js:nOfTotal)", ["", this.popupTable.numPages]);
+   }
+
+   get isDateType(): boolean {
+      return XSchema.isDateType(this.dataType);
    }
 
    onQueryDateFormatToggle(checked: boolean): void {
