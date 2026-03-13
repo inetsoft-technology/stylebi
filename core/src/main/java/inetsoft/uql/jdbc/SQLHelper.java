@@ -1584,7 +1584,7 @@ public class SQLHelper implements KeywordProvider {
 
       if(table == null || alias == null) {
          if(table != null && column != null) {
-            return form + quoteTableAlias(table) + "." + quoteColumnAlias(column) + ')';
+            return form + quoteTableName(table, false) + "." + quoteColumnAlias(column) + ')';
          }
 
          if(XUtil.isQualifiedName(npath)) {
@@ -3317,7 +3317,7 @@ public class SQLHelper implements KeywordProvider {
             };
          }
 
-         name = tpart ? XUtil.quoteNameSegment(name, true, this, checkSpecial)
+         name = (tpart && name.indexOf('.') < 0) ? XUtil.quoteNameSegment(name, true, this, checkSpecial)
             : XUtil.quoteName(name, this);
       }
 
