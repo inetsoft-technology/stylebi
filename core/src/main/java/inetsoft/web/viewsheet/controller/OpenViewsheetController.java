@@ -150,51 +150,60 @@ public class OpenViewsheetController {
 
       boolean existing = event.getRuntimeViewsheetId() != null;
       String id = null;
-
-      if(event.isWizVisualization()) {
-         AssetEntry entry = AssetEntry.createAssetEntry(event.getEntryId());
-
-         if(entry != null) {
-            AssetEntry wizCopyEntry = VSUtil.copyViewsheetForWiz(entry, false, principal);
-
-            if(wizCopyEntry != null) {
-               event.setEntryId(wizCopyEntry.toIdentifier());
-            }
-         }
-      }
+      AssetEntry wizCopyEntry = null;
 
       try {
-         id = vsLifecycleService.openViewsheet(
-            event, principal, commandDispatcher, runtimeViewsheetRef, runtimeViewsheetManager,
-            linkUri);
-      }
-      catch(Exception e) {
-         // embed web component failed to load
-         if(event.getEmbedAssemblyName() != null) {
-            commandDispatcher.sendCommand(
-               EmbedErrorCommand.builder().message(e.getMessage()).build());
-         }
-         else if(event.isEmbed()) {
-            commandDispatcher.sendCommand(
-               EmbedErrorCommand.builder().message(e.getMessage()).build());
-            return;
+         if(event.isWizVisualization()) {
+            AssetEntry entry = AssetEntry.createAssetEntry(event.getEntryId());
+
+            if(entry != null) {
+               wizCopyEntry = VSUtil.copyViewsheetForWiz(entry, false, principal);
+
+               if(wizCopyEntry != null) {
+                  event.setEntryId(wizCopyEntry.toIdentifier());
+               }
+            }
          }
 
-         throw e;
-      }
+         try {
+            id = vsLifecycleService.openViewsheet(
+               event, principal, commandDispatcher, runtimeViewsheetRef, runtimeViewsheetManager,
+               linkUri);
+         }
+         catch(Exception e) {
+            // embed web component failed to load
+            if(event.getEmbedAssemblyName() != null) {
+               commandDispatcher.sendCommand(
+                  EmbedErrorCommand.builder().message(e.getMessage()).build());
+            }
+            else if(event.isEmbed()) {
+               commandDispatcher.sendCommand(
+                  EmbedErrorCommand.builder().message(e.getMessage()).build());
+               return;
+            }
 
-      if(!existing && !event.isViewer()) {
-         serviceProxy.sendPopulateObjectTreeCommand(id, event.getEntryId(), commandDispatcher, principal);
-      }
+            throw e;
+         }
 
-      // if viewsheet is create by wizard, it must have source, so if new sheet from wizard and
-      // finished, we should send command to show warning for user.
-      if(event.isNewSheet()) {
-         commandDispatcher.sendCommand(new VSDependencyChangedCommand(true));
-      }
+         if(!existing && !event.isViewer()) {
+            serviceProxy.sendPopulateObjectTreeCommand(id, event.getEntryId(), commandDispatcher, principal);
+         }
 
-      if(event.isWizVisualization()) {
-         wizViewsheetServiceProxy.updateWizSheetByCopyVisualization(event.getWizSheetRuntimeId(), event.getEntryId(), principal);
+         // if viewsheet is create by wizard, it must have source, so if new sheet from wizard and
+         // finished, we should send command to show warning for user.
+         if(event.isNewSheet()) {
+            commandDispatcher.sendCommand(new VSDependencyChangedCommand(true));
+         }
+
+         if(event.isWizVisualization()) {
+            wizViewsheetServiceProxy.updateWizSheetByCopyVisualization(event.getWizSheetRuntimeId(), event.getEntryId(), principal);
+         }
+      }
+      catch(Exception ex) {
+         if(wizCopyEntry != null) {
+            VSUtil.deleteWizCopyViewsheet(wizCopyEntry, principal);
+         }
+         throw ex;
       }
    }
 
