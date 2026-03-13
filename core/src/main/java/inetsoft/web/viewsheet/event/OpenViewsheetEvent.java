@@ -472,6 +472,14 @@ public class OpenViewsheetEvent implements Serializable {
       this.visualizationSheet = visualizationSheet;
    }
 
+   public String getWizSheetRuntimeId() {
+      return wizSheetRuntimeId;
+   }
+
+   public void setWizSheetRuntimeId(String wizSheetRuntimeId) {
+      this.wizSheetRuntimeId = wizSheetRuntimeId;
+   }
+
    @Override
    public String toString() {
       return "OpenViewsheetEvent{" +
@@ -525,7 +533,10 @@ public class OpenViewsheetEvent implements Serializable {
    private String embedAssemblyName;
    private Dimension embedAssemblySize;
    private boolean embed;
+   //For wiz viewsheet.
    private boolean wizSheet;
+   //for wiz visualization
    private boolean wizVisualization;
    private String visualizationSheet;
+   private String wizSheetRuntimeId;
 }
