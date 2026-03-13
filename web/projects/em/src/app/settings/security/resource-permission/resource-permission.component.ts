@@ -184,6 +184,14 @@ export class ResourcePermissionComponent implements OnInit, OnChanges, OnDestroy
    }
 
    pastePermissions(): void {
+      if(this.pasteCount === 0) {
+         this.snackBar.open("_#(js:em.security.pastePermissions.incompatible)", null, {
+            duration: Tool.SNACKBAR_DURATION
+         });
+
+         return;
+      }
+
       const result = this.clipboardService.paste(this.copyPasteContext, this.model.displayActions);
 
       if(!result) {
