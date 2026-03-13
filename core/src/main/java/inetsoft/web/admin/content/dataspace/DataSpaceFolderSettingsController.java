@@ -160,7 +160,7 @@ public class DataSpaceFolderSettingsController {
                   ArchiveEntry entry;
 
                   while((entry = archive.getNextEntry()) != null) {
-                     if(entry.getSize() == 0) {
+                     if(!entry.isDirectory() && entry.getSize() == 0) {
                         continue;
                      }
 
