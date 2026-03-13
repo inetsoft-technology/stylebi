@@ -337,7 +337,7 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
          ChartVSAssemblyInfo.class, cinfo);
       addProperty("xAxis", new AxisScriptable(vinfo, vinfo.getRTAxisDescriptor(), true));
       addProperty("yAxis", new AxisScriptable(vinfo, vinfo.getRTAxisDescriptor()));
-      addProperty("y2Axis", new AxisScriptable(vinfo, vinfo.getRTAxisDescriptor2()));
+      addProperty("y2Axis", new AxisScriptable(vinfo, vinfo.getRTAxisDescriptor2(), false, true));
       addProperty("axis", new ChartArray("Axis", Object.class) {
          @Override
          public AbstractChartInfo getInfo() {
