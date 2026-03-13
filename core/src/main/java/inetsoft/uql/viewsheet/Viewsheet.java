@@ -5524,6 +5524,36 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          return visualizationSheet;
       }
 
+      public Set<String> getVisualizations() {
+         return visualizations == null ? Collections.emptySet() : new HashSet<>(visualizations);
+      }
+
+      public void addVisualization(String visualization) {
+         if(visualizations == null) {
+            visualizations = new HashSet<>();
+         }
+
+         visualizations.add(visualization);
+      }
+
+      public void removeVisualization(String visualization) {
+         if(visualizations == null) {
+            return;
+         }
+
+         visualizations.remove(visualization);
+      }
+
+      @Override
+      public WizInfo clone() throws CloneNotSupportedException {
+         WizInfo clone = (WizInfo) super.clone();
+
+         clone.visualizations = (Set<String>) Tool.clone(visualizations);
+         clone.sources = (List<AssetEntry>) Tool.clone(sources);
+
+         return clone;
+      }
+
       private void writeXML(PrintWriter writer) {
          writer.print("<wizInfo wizSheet=\"" + wizSheet +
             "\" wizVisualization=\"" + wizVisualization + "\"");
@@ -5532,15 +5562,32 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
             writer.print(" visualizationSheet=\"" + byteEncode(visualizationSheet) + "\"");
          }
 
-         if(sources != null && !sources.isEmpty()) {
-            writer.println(">");
-            writer.println("<sources>");
+         boolean hasSources = sources != null && !sources.isEmpty();
+         boolean hasVisualizations = visualizations != null && !visualizations.isEmpty();
 
-            for(AssetEntry source : sources) {
-               source.writeXML(writer);
+         if(hasSources || hasVisualizations) {
+            writer.println(">");
+
+            if(hasSources) {
+               writer.println("<sources>");
+
+               for(AssetEntry source : sources) {
+                  source.writeXML(writer);
+               }
+
+               writer.println("</sources>");
             }
 
-            writer.println("</sources>");
+            if(hasVisualizations) {
+               writer.println("<visualizations>");
+
+               for(String visualization : visualizations) {
+                  writer.println("<visualization><![CDATA[" + visualization + "]]></visualization>");
+               }
+
+               writer.println("</visualizations>");
+            }
+
             writer.println("</wizInfo>");
          }
          else {
@@ -5582,10 +5629,32 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
             info.sources = sources;
          }
 
+         Element visualizationsNode = Tool.getChildNodeByTagName(elem, "visualizations");
+
+         if(visualizationsNode != null) {
+            NodeList vizNodes = visualizationsNode.getChildNodes();
+
+            for(int i = 0; i < vizNodes.getLength(); i++) {
+               Node node = vizNodes.item(i);
+
+               if(node instanceof Element vizElem) {
+                  String visualization = Tool.getValue(vizElem);
+
+                  if(visualization != null) {
+                     info.addVisualization(visualization);
+                  }
+               }
+            }
+         }
+
          return info;
       }
 
+      //For wiz viewsheet.
       private boolean wizSheet;
+      private Set<String> visualizations;
+
+      //For wiz visualization
       private boolean wizVisualization;
       private String visualizationSheet;
       private List<AssetEntry> sources;

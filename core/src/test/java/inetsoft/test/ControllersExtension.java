@@ -41,6 +41,8 @@ import inetsoft.web.viewsheet.model.calendar.VSCalendarModel;
 import inetsoft.web.viewsheet.model.chart.VSChartModel;
 import inetsoft.web.viewsheet.model.table.*;
 import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.wiz.service.WizViewsheetService;
+import inetsoft.web.wiz.service.WizViewsheetServiceProxy;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -58,6 +60,7 @@ public class ControllersExtension extends MockMessageExtension {
    @Override
    public void afterEach(ExtensionContext context) {
       viewsheetService = null;
+      wizViewsheetService = null;
       vsLifecycleService = null;
       runtimeViewsheetManager = null;
       objectModelFactoryService = null;
@@ -77,6 +80,7 @@ public class ControllersExtension extends MockMessageExtension {
    private void createControllers() {
       viewsheetService = ViewsheetEngine.getViewsheetEngine();
       worksheetService = WorksheetEngine.getWorksheetService();
+      wizViewsheetService = new WizViewsheetService(viewsheetService);
 
       runtimeViewsheetRef = new RuntimeViewsheetRef(new RuntimeViewsheetRefServiceProxy()) {
          @Override
@@ -168,7 +172,7 @@ public class ControllersExtension extends MockMessageExtension {
       licenseService = new LicenseService();
       openViewsheetController = new OpenViewsheetController(
          runtimeViewsheetRef, runtimeViewsheetManager, vsLifecycleService, licenseService,
-         new OpenViewsheetServiceProxy(), viewsheetService);
+         new OpenViewsheetServiceProxy(), viewsheetService, new WizViewsheetServiceProxy());
       baseTableLoadDataController =
          new BaseTableLoadDataController(runtimeViewsheetRef, tableLoadDataServiceProxy);
       selectionService = new VSSelectionService(coreLifecycleService, viewsheetService,
@@ -267,6 +271,7 @@ public class ControllersExtension extends MockMessageExtension {
    private String runtimeId;
    private RuntimeViewsheetRef runtimeViewsheetRef;
    private ViewsheetService viewsheetService;
+   private WizViewsheetService wizViewsheetService;
    private WorksheetService worksheetService;
    private VSLifecycleService vsLifecycleService;
    private RuntimeViewsheetManager runtimeViewsheetManager;

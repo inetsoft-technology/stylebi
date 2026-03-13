@@ -175,6 +175,11 @@ export class OpenViewsheetEvent implements ViewsheetEvent {
    public visualizationSheet: string;
 
    /**
+    * Wiz sheet runtime for wiz visualization.
+    */
+   public wizSheetRuntimeId: string;
+
+   /**
     * Creates a new instance of <tt>OpenViewsheetEvent</tt>.
     *
     * @param entryId   the asset entry identifier of the viewsheet.
@@ -182,9 +187,16 @@ export class OpenViewsheetEvent implements ViewsheetEvent {
     * @param height    the viewport height of the browser.
     * @param mobile    the flag that indicates if the client is a mobile device.
     * @param userAgent the user agent string of the client browser.
+    * @param meta      the flag that open sheet at metadata.
+    * @param newSheet  the flag that crate new sheet.
+    * @param wizSheet  the flag that sheet is wiz sheet.
+    * @param wizVisualization the flag that sheet is wiz visualization.
+    * @param visualizationSheet the visualization wiz sheet name.
+    * @param wizSheetRuntimeId the visualization sheet runtime id.
     */
    constructor(entryId: string, width: number, height: number, mobile: boolean, userAgent: string,
-               meta?: boolean, newSheet?: boolean, wizSheet?: boolean, wizVisualization?: boolean, visualizationSheet?: string)
+               meta?: boolean, newSheet?: boolean, wizSheet?: boolean, wizVisualization?: boolean,
+               visualizationSheet?: string, wizSheetRuntimeId?: string)
    {
       this.entryId = entryId;
       this.width = width;
@@ -196,6 +208,7 @@ export class OpenViewsheetEvent implements ViewsheetEvent {
       this.wizSheet = wizSheet;
       this.wizVisualization = wizVisualization;
       this.visualizationSheet = visualizationSheet;
+      this.wizSheetRuntimeId = wizSheetRuntimeId;
    }
 
    /**
