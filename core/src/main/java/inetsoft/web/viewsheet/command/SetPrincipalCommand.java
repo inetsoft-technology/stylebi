@@ -19,6 +19,7 @@ package inetsoft.web.viewsheet.command;
 
 import inetsoft.sree.security.*;
 import inetsoft.web.AutoSaveUtils;
+import inetsoft.web.admin.presentation.AISettingsService;
 
 import java.security.Principal;
 import java.util.ArrayList;
@@ -30,7 +31,9 @@ import java.util.List;
  * @since 12.3
  */
 public class SetPrincipalCommand implements ViewsheetCommand {
-   public SetPrincipalCommand(SecurityEngine securityEngine, Principal principal) throws Exception {
+   public SetPrincipalCommand(SecurityEngine securityEngine, AISettingsService aiSettingsService,
+                              Principal principal) throws Exception
+   {
       this.principalKey = principal.getName();
 
       if(securityEngine != null) {
@@ -44,6 +47,10 @@ public class SetPrincipalCommand implements ViewsheetCommand {
             principal, ResourceType.CREATE_TABLE_STYLE, "*", ResourceAction.ACCESS);
          this.scriptPermission = securityEngine.checkPermission(
             principal, ResourceType.CREATE_SCRIPT, "*", ResourceAction.ACCESS);
+
+         this.aiAssistantPermission = aiSettingsService.isAiAssistantVisible() &&
+            securityEngine.checkPermission(principal, ResourceType.AI_ASSISTANT, "*",
+                                           ResourceAction.ACCESS);
 
          autoSaveFiles = new ArrayList<>();
          initAutoSaveFiles(principal);
@@ -88,6 +95,10 @@ public class SetPrincipalCommand implements ViewsheetCommand {
       return tableStylePermission;
    }
 
+   public boolean isAiAssistantPermission() {
+      return aiAssistantPermission;
+   }
+
    public void setAutoSaveFiles(List<String>  files) {
       autoSaveFiles = files;
    }
@@ -102,5 +113,6 @@ public class SetPrincipalCommand implements ViewsheetCommand {
    private boolean worksheetPermission;
    private boolean tableStylePermission;
    private boolean scriptPermission;
+   private boolean aiAssistantPermission;
    private List<String> autoSaveFiles;
 }
