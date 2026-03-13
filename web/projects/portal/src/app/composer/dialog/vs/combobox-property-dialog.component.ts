@@ -42,7 +42,8 @@ export class ComboBoxPropertyDialog extends PropertyDialog implements OnInit {
    scriptTab: string = "combobox-property-dialog-script-tab";
    validGeneral: boolean = true;
    validLabel: boolean = true;
-   formValid = () => this.form && this.form.valid && this.validGeneral && this.validLabel;
+   dateFormatValid: boolean = true;
+   formValid = () => this.form && this.form.valid && this.validGeneral && this.validLabel && this.dateFormatValid;
    private timeInstantCombo = false;
 
    public constructor(protected uiContextService: UIContextService,
@@ -129,5 +130,9 @@ export class ComboBoxPropertyDialog extends PropertyDialog implements OnInit {
 
    onLabelValidChanged(valid: boolean) {
       this.validLabel = valid;
+   }
+
+   onDateFormatInvalidChanged(invalid: boolean) {
+      this.dateFormatValid = !invalid;
    }
 }

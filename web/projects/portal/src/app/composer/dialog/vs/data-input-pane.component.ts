@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient, HttpHeaders } from "@angular/common/http";
-import { Component, Input, OnInit, ViewChild } from "@angular/core";
+import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
 import { Tool } from "../../../../../../shared/util/tool";
 import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
@@ -47,6 +47,7 @@ export class DataInputPane implements OnInit {
    rowType: ComboMode = ComboMode.VALUE;
    popupTable: PopupEmbeddedTable;
    dateFormatInvalid: boolean = false;
+   @Output() dateFormatInvalidChange = new EventEmitter<boolean>();
    @ViewChild(FixedDropdownDirective) dropdown: FixedDropdownDirective;
 
    constructor(private http: HttpClient,
@@ -346,6 +347,12 @@ export class DataInputPane implements OnInit {
       return Tool.formatCatalogString("_#(js:nOfTotal)", ["", this.popupTable.numPages]);
    }
 
+   onQueryDateFormatToggle(checked: boolean): void {
+      if(!checked) {
+         this.setDateFormatInvalid(false);
+      }
+   }
+
    validateDateFormat(format: string) {
       try {
          // Allow known date tokens, separators, and quoted literals
@@ -355,7 +362,7 @@ export class DataInputPane implements OnInit {
          const required = /(?=.*y+)(?=.*M+)(?=.*d+)/;
 
          if (!allowed.test(format) || !required.test(format)) {
-            this.dateFormatInvalid = true;
+            this.setDateFormatInvalid(true);
             return;
          }
 
@@ -367,14 +374,19 @@ export class DataInputPane implements OnInit {
          const r2 = this.datePipe.transform(d2, format);
 
          if (!r1 || !r2 || r1 === r2) {
-            this.dateFormatInvalid = true;
+            this.setDateFormatInvalid(true);
             return;
          }
 
-         this.dateFormatInvalid = false;
+         this.setDateFormatInvalid(false);
       } catch {
-         this.dateFormatInvalid = true;
+         this.setDateFormatInvalid(true);
       }
+   }
+
+   private setDateFormatInvalid(invalid: boolean) {
+      this.dateFormatInvalid = invalid;
+      this.dateFormatInvalidChange.emit(invalid);
    }
 }
 
