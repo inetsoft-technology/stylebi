@@ -38,6 +38,7 @@ import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.script.VariableScriptable;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.*;
@@ -4054,7 +4055,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       if(iassembly instanceof ComboBoxVSAssembly comboBox) {
          ComboBoxVSAssemblyInfo comboBoxInfo = (ComboBoxVSAssemblyInfo) comboBox.getVSAssemblyInfo();
 
-         if(comboBoxInfo.isQueryDateFormat()) {
+         if(comboBoxInfo.isQueryDateFormat() && XSchema.isDateType(comboBoxInfo.getDataType())) {
             vt.putFormat(varName, comboBoxInfo.getDateFormatPattern());
          }
          else {

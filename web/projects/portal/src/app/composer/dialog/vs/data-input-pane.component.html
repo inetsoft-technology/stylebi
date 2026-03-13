@@ -82,7 +82,7 @@
           </div>
         </div>
       </div>
-      <div class="form-row-float-label row" *ngIf="comboBox">
+      <div class="form-row-float-label row" *ngIf="comboBox && isDateType">
         <div class="col">
           <div class="form-check">
             <input type="checkbox" class="form-check-input" [(ngModel)]="model.queryDateFormat" id="queryDateFormat"
@@ -93,7 +93,7 @@
           </div>
         </div>
       </div>
-      <div class="form-row-float-label row" *ngIf="comboBox && model.queryDateFormat">
+      <div class="form-row-float-label row" *ngIf="comboBox && isDateType && model.queryDateFormat">
         <div class="col">
           <div class="form">
             <input type="text" class="form-control" [(ngModel)]="model.dateFormatPattern" id="dateFormatPattern"

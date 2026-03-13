@@ -37,6 +37,7 @@ import inetsoft.uql.asset.internal.VariableProvider;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.table.XSwappableTable;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.util.XUtil;
@@ -1366,7 +1367,7 @@ public class VSInputService {
       if(iassembly instanceof ComboBoxVSAssembly comboBox) {
          ComboBoxVSAssemblyInfo comboBoxInfo = (ComboBoxVSAssemblyInfo) comboBox.getVSAssemblyInfo();
 
-         if(comboBoxInfo.isQueryDateFormat()) {
+         if(comboBoxInfo.isQueryDateFormat() && XSchema.isDateType(comboBoxInfo.getDataType())) {
             vt.putFormat(varName, comboBoxInfo.getDateFormatPattern());
          }
          else {
