@@ -79,10 +79,6 @@ export class AiAssistantService {
       this.http.get("../api/assistant/get-stylebi-url").subscribe((url: string) => {
          this.styleBIUrl = url || "";
       });
-
-      this.http.get<boolean>("../api/assistant/ai-assistant-visible").subscribe((visible: boolean) => {
-         this.aiAssistantVisible = visible;
-      });
    }
 
    set lastBindingObject(value: string) {
