@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Input } from "@angular/core";
+import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { InputLabelPaneModel } from "../../data/vs/input-label-pane-model";
 import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 
@@ -23,10 +23,28 @@ import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-m
    selector: "input-label-pane",
    templateUrl: "input-label-pane.component.html"
 })
-export class InputLabelPane {
+export class InputLabelPane implements OnInit {
    @Input() model: InputLabelPaneModel;
    @Input() variableValues: string[];
    @Input() vsId: string;
+   @Output() isInputValid = new EventEmitter<boolean>();
+
+   ngOnInit(): void {
+      this.emitValidity();
+   }
+
+   onGapChange(): void {
+      this.emitValidity();
+   }
+
+   onShowLabelChange(): void {
+      this.emitValidity();
+   }
+
+   private emitValidity(): void {
+      const valid = !this.model.showLabel || (this.model.labelGap != null && this.model.labelGap >= 0);
+      this.isInputValid.emit(valid);
+   }
 
    positionOptions = [
       {label: "_#(Left)", value: "left"},
