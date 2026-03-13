@@ -106,6 +106,20 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
       });
    }
 
+   /**
+    * Submits a runnable task and retries once on failure. Only use for idempotent operations.
+    * The returned future will complete exceptionally if both attempts fail.
+    */
+   private Future<?> submitWithRetry(String opDesc, SingletonRunnableTask task) {
+      @SuppressWarnings("unchecked")
+      CompletableFuture<Object> first = (CompletableFuture<Object>) cluster.submit(id, task);
+      return first.exceptionallyCompose(ex -> {
+         LOG.warn("Failed key-value operation on {}/{}, retrying...", id, opDesc, ex);
+         //noinspection unchecked
+         return (CompletableFuture<Object>) cluster.submit(id, task);
+      });
+   }
+
    @Override
    public Future<?> deleteStore() {
       return cluster.submit(id, new DeleteKeyValueStorageTask<>(id));
