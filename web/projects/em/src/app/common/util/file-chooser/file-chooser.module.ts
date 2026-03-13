@@ -25,6 +25,7 @@ import { MatIconModule } from "@angular/material/icon";
 import { MatInputModule } from "@angular/material/input";
 import { MatListModule } from "@angular/material/list";
 import { MatProgressBarModule } from "@angular/material/progress-bar";
+import { MatSnackBarModule } from "@angular/material/snack-bar";
 import { FileChooserComponent } from "./file-chooser/file-chooser.component";
 import { MultiFileChooserComponent } from "./multi-file-chooser/multi-file-chooser.component";
 import { StagedFileChooserComponent } from "./staged-file-chooser/staged-file-chooser.component";
@@ -40,7 +41,8 @@ import { StagedFileChooserComponent } from "./staged-file-chooser/staged-file-ch
       MatIconModule,
       MatInputModule,
       MatListModule,
-      MatProgressBarModule
+      MatProgressBarModule,
+      MatSnackBarModule
    ],
    declarations: [
       FileChooserComponent,

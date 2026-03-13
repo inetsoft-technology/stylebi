@@ -243,9 +243,18 @@ export class DriverWizardComponent implements OnInit {
          finalize(() => this.loading = false),
          catchError(error => {
             if(!!this.dataNotifications) {
-               const message = error.error?.message?.includes("unresolved dependency") ?
-                  "_#(js:em.data.databases.driver.mavenCoordMissing)" :
-                  "_#(js:em.data.databases.driverUploadError)";
+               let message: string;
+
+               if(error.status === 400 && error.error?.message) {
+                  message = error.error.message;
+               }
+               else if(error.error?.message?.includes("unresolved dependency")) {
+                  message = "_#(js:em.data.databases.driver.mavenCoordMissing)";
+               }
+               else {
+                  message = "_#(js:em.data.databases.driverUploadError)";
+               }
+
                this.dataNotifications.notifications.danger(message);
             }
 
