@@ -18,7 +18,7 @@
 
 package inetsoft.storage;
 
-import inetsoft.sree.internal.cluster.SingletonCallableTask; 
+import inetsoft.sree.internal.cluster.SingletonCallableTask;
 
 import java.io.Serializable;
 import java.util.Set;
