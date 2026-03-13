@@ -8858,7 +8858,7 @@ public final class VSUtil {
     */
    public static AssetEntry createCopyEntryForWiz(AssetEntry originalEntry, boolean newVisualization) {
       String vizFlag = newVisualization ? "new" : "edit";
-      String copyName = WIZ_COPY_PREFIX + vizFlag + "_" + System.currentTimeMillis() + "_" + originalEntry.getName();
+      String copyName = WIZ_COPY_PREFIX + vizFlag + "_" + UUID.randomUUID().toString().replace("-", "") + "_" + originalEntry.getName();
       String parentPath = originalEntry.getParentPath();
 
       if(parentPath == null) {
@@ -8902,7 +8902,13 @@ public final class VSUtil {
       }
 
       engine.setSheet(originalEntry, copy, principal, true);
-      engine.removeSheet(wizCopyEntry, principal, true);
+
+      try {
+         engine.removeSheet(wizCopyEntry, principal, true);
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to remove wiz copy entry after applying: " + wizCopyEntry.toIdentifier(), ex);
+      }
 
       return originalEntry;
    }

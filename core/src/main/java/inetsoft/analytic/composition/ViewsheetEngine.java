@@ -463,7 +463,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
                   VSUtil.deleteWizCopyViewsheet(AssetEntry.createAssetEntry(visualization), user);
                }
                catch(Exception ex) {
-                  LOG.warn("Failed to delete wiz temp visualization: " + visualization);
+                  LOG.warn("Failed to delete wiz temp visualization: " + visualization, ex);
                }
             }
          }

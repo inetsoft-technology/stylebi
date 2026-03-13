@@ -5525,7 +5525,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       }
 
       public Set<String> getVisualizations() {
-         return new HashSet<>(visualizations);
+         return visualizations == null ? Collections.emptySet() : new HashSet<>(visualizations);
       }
 
       public void addVisualization(String visualization) {
