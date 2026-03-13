@@ -65,7 +65,7 @@ export class CustomShapeDialogComponent {
    handleNodeSelected(nodes: FlatTreeNode<DataSpaceTreeNode>[]) {
       this.selectedNodes = nodes;
 
-      if(nodes.length == 1) {
+      if(nodes.length == 1 && nodes[0].expandable) {
          this.currentNode = nodes[0];
       }
    }
