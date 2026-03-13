@@ -23,6 +23,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.composer.ws.event.OpenSheetEventValidator;
@@ -34,6 +35,7 @@ import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.ViewsheetRouteDataModel;
 import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.wiz.service.WizViewsheetServiceProxy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -56,7 +58,8 @@ public class OpenViewsheetController {
                                   VSLifecycleService vsLifecycleService,
                                   LicenseService licenseService,
                                   OpenViewsheetServiceProxy serviceProxy,
-                                  ViewsheetService viewsheetService)
+                                  ViewsheetService viewsheetService,
+                                  WizViewsheetServiceProxy wizViewsheetServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.runtimeViewsheetManager = runtimeViewsheetManager;
@@ -64,6 +67,7 @@ public class OpenViewsheetController {
       this.licenseService = licenseService;
       this.serviceProxy = serviceProxy;
       this.viewsheetService = viewsheetService;
+      this.wizViewsheetServiceProxy = wizViewsheetServiceProxy;
    }
 
    @GetMapping("api/vs/route-data")
@@ -147,6 +151,18 @@ public class OpenViewsheetController {
       boolean existing = event.getRuntimeViewsheetId() != null;
       String id = null;
 
+      if(event.isWizVisualization()) {
+         AssetEntry entry = AssetEntry.createAssetEntry(event.getEntryId());
+
+         if(entry != null) {
+            AssetEntry wizCopyEntry = VSUtil.copyViewsheetForWiz(entry, false, principal);
+
+            if(wizCopyEntry != null) {
+               event.setEntryId(wizCopyEntry.toIdentifier());
+            }
+         }
+      }
+
       try {
          id = vsLifecycleService.openViewsheet(
             event, principal, commandDispatcher, runtimeViewsheetRef, runtimeViewsheetManager,
@@ -176,6 +192,10 @@ public class OpenViewsheetController {
       if(event.isNewSheet()) {
          commandDispatcher.sendCommand(new VSDependencyChangedCommand(true));
       }
+
+      if(event.isWizVisualization()) {
+         wizViewsheetServiceProxy.updateWizSheetByCopyVisualization(event.getWizSheetRuntimeId(), event.getEntryId(), principal);
+      }
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
@@ -184,4 +204,5 @@ public class OpenViewsheetController {
    private final LicenseService licenseService;
    private final OpenViewsheetServiceProxy serviceProxy;
    private final ViewsheetService viewsheetService;
+   private final WizViewsheetServiceProxy wizViewsheetServiceProxy;
 }

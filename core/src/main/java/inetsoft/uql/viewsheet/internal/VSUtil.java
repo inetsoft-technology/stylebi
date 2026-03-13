@@ -8818,5 +8818,163 @@ public final class VSUtil {
    public static final ThreadLocal<Boolean> OPEN_VIEWSHEET = ThreadLocal.withInitial(() -> Boolean.FALSE);
    private static final String DEBOUNCER_KEY = "VSUtil.debouncer";
 
+   /**
+    * Copies the viewsheet identified by the given entry and saves the copy under a unique
+    * name with the wiz prefix in the same folder. Returns the new entry, or {@code null}
+    * if the original viewsheet could not be loaded.
+    *
+    * @param originalEntry the entry of the viewsheet to copy.
+    * @param principal     the current user.
+    * @param newVisualization whether is new visualization.
+    * @return the {@link AssetEntry} of the saved copy, or {@code null}.
+    */
+   public static AssetEntry copyViewsheetForWiz(AssetEntry originalEntry, boolean newVisualization, Principal principal)
+      throws Exception
+   {
+      AssetRepository repository =
+         SingletonManager.getInstance(AssetRepository.class);
+      Viewsheet vs = (Viewsheet) repository.getSheet(
+         originalEntry, principal, false, AssetContent.ALL);
+
+      if(vs == null) {
+         return null;
+      }
+
+      Viewsheet copy = vs.clone();
+      AssetEntry newEntry = createCopyEntryForWiz(originalEntry, newVisualization);
+      repository.setSheet(newEntry, copy, principal, true);
+
+      return newEntry;
+   }
+
+   /**
+    * Copies the viewsheet identified by the given entry and saves the copy under a unique
+    * name with the wiz prefix in the same folder. Returns the new entry, or {@code null}
+    * if the original viewsheet could not be loaded.
+    *
+    * @param originalEntry the entry of the viewsheet to copy.
+    * @param newVisualization whether is new visualization.
+    * @return the {@link AssetEntry} of the saved copy, or {@code null}.
+    */
+   public static AssetEntry createCopyEntryForWiz(AssetEntry originalEntry, boolean newVisualization) {
+      String vizFlag = newVisualization ? "new" : "edit";
+      String copyName = WIZ_COPY_PREFIX + vizFlag + "_" + System.currentTimeMillis() + "_" + originalEntry.getName();
+      String parentPath = originalEntry.getParentPath();
+
+      if(parentPath == null) {
+         parentPath = "/";
+      }
+
+      String newPath = parentPath.endsWith("/") ?
+         parentPath + copyName : parentPath + "/" + copyName;
+      AssetEntry newEntry = new AssetEntry(
+         originalEntry.getScope(), AssetEntry.Type.VIEWSHEET, newPath, originalEntry.getUser());
+      newEntry.copyProperties(originalEntry);
+      newEntry.setProperty("wizOriginalEntry", originalEntry.toIdentifier());
+
+      return newEntry;
+   }
+
+   /**
+    * Replaces the original viewsheet with the wiz copy: saves the copy's content over the
+    * original entry (derived from the copy name) and then removes the copy.
+    *
+    * @param wizCopyEntry the entry of the wiz copy that should replace the original.
+    * @param principal    the current user.
+    */
+   public static AssetEntry applyWizCopyToOriginal(AssetEntry wizCopyEntry, Principal principal)
+      throws Exception
+   {
+      AssetRepository engine = AssetUtil.getAssetRepository(false);
+      wizCopyEntry = engine.getAssetEntry(wizCopyEntry);
+
+      if(wizCopyEntry == null || !wizCopyEntry.getName().startsWith(WIZ_COPY_PREFIX)) {
+         return null;
+      }
+
+      AssetEntry originalEntry = createWizOriginalVisualization(wizCopyEntry);
+      originalEntry.copyProperties(wizCopyEntry);
+      Viewsheet copy = (Viewsheet) engine.getSheet(
+         wizCopyEntry, principal, false, AssetContent.ALL);
+
+      if(copy == null) {
+         return null;
+      }
+
+      engine.setSheet(originalEntry, copy, principal, true);
+      engine.removeSheet(wizCopyEntry, principal, true);
+
+      return originalEntry;
+   }
+
+   /**
+    * Returns {@code true} if the wiz-copy entry was created as a new visualization
+    * (i.e. {@code newVisualization=true} was passed to {@link #copyViewsheetForWiz}).
+    *
+    * @param wizCopyEntry the wiz-copy entry to test.
+    */
+   public static boolean isNewVisualization(AssetEntry wizCopyEntry) {
+      return wizCopyEntry.getName().startsWith(WIZ_COPY_PREFIX + "new_");
+   }
+
+   /**
+    * Deletes the wiz-copy viewsheet from the repository.
+    *
+    * @param wizCopyEntry the entry of the wiz copy to delete.
+    * @param principal    the current user.
+    */
+   public static void deleteWizCopyViewsheet(AssetEntry wizCopyEntry, Principal principal)
+      throws Exception
+   {
+      if(wizCopyEntry == null || !wizCopyEntry.getName().startsWith(WIZ_COPY_PREFIX)) {
+         return;
+      }
+
+      AssetRepository engine = AssetUtil.getAssetRepository(false);
+
+      wizCopyEntry = engine.getAssetEntry(wizCopyEntry);
+
+      if(wizCopyEntry == null) {
+         return;
+      }
+
+      engine.removeSheet(wizCopyEntry, principal, true);
+   }
+
+   public static AssetEntry createWizOriginalVisualization(AssetEntry wizCopyEntry) {
+      // Prefer the stored original-entry identifier (set by createCopyEntryForWiz) over name parsing.
+      String originalId = wizCopyEntry.getProperty("wizOriginalEntry");
+
+      if(originalId != null) {
+         AssetEntry originalEntry = AssetEntry.createAssetEntry(originalId);
+
+         if(originalEntry != null) {
+            return originalEntry;
+         }
+      }
+
+      // Fall back to name parsing for entries created before the property was introduced.
+      // copy name is: __wiz__<new|edit>_<timestamp>_<originalName> — strip prefix+flag+timestamp
+      String copyName = wizCopyEntry.getName();
+      String originalName = copyName.replaceFirst(
+         "^" + Pattern.quote(WIZ_COPY_PREFIX) + "(new|edit)_\\d+_", "");
+      String parentPath = wizCopyEntry.getParentPath();
+
+      if(parentPath == null) {
+         parentPath = "/";
+      }
+
+      String originalPath = parentPath.endsWith("/") ?
+         parentPath + originalName : parentPath + "/" + originalName;
+      AssetEntry originalEntry = new AssetEntry(
+         wizCopyEntry.getScope(), AssetEntry.Type.VIEWSHEET, originalPath, wizCopyEntry.getUser());
+      originalEntry.copyProperties(wizCopyEntry);
+
+      return originalEntry;
+   }
+
+   /** Prefix used for wiz-copy viewsheet names. */
+   public static final String WIZ_COPY_PREFIX = "__wiz__";
+
    private static final Logger LOG = LoggerFactory.getLogger(VSUtil.class);
 }

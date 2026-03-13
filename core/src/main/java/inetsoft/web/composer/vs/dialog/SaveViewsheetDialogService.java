@@ -31,6 +31,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -40,6 +41,9 @@ import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.viewsheet.command.SaveSheetCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
+import inetsoft.web.wiz.service.WizViewsheetService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -246,6 +250,15 @@ public class SaveViewsheetDialogService {
       else if("true".equals(oentry.getProperty("isWizVisualization"))) {
          entry.setProperty("isWizVisualization", "true");
          entry.setProperty("visualizationSheet", oentry.getProperty("visualizationSheet"));
+
+         String wizSheetRuntimeId = rvs.getWizSheetRuntimeId();
+
+         if(wizSheetRuntimeId == null) {
+            LOG.warn("Wiz sheet runtime id is missing for wiz visualization; skipping wiz copy entry creation.");
+         }
+         else if(oentry.getScope() == AssetRepository.TEMPORARY_SCOPE) {
+            entry = VSUtil.createCopyEntryForWiz(entry, true);
+         }
       }
 
       String objectName = parent.getDescription() + "/" + model.getName();
@@ -305,6 +318,12 @@ public class SaveViewsheetDialogService {
             .id(rvs.getEntry().toIdentifier())
             .build();
          commandDispatcher.sendCommand(command);
+
+         if("true".equals(oentry.getProperty("isWizVisualization"))) {
+            if(oentry.getScope() == AssetRepository.TEMPORARY_SCOPE && rvs.getWizSheetRuntimeId() != null) {
+               addWizSheetVisualization(rvs.getWizSheetRuntimeId(), entry.toIdentifier(), principal);
+            }
+         }
       }
       catch(Exception ex) {
          if(actionRecord != null) {
@@ -321,6 +340,12 @@ public class SaveViewsheetDialogService {
       }
 
       return null;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public java.lang.Void addWizSheetVisualization(@ClusterProxyKey String rId, String entryId, Principal principal) throws Exception
+   {
+      return WizViewsheetService.updateWizSheetByCopyVisualization(viewsheetService.getViewsheet(rId, principal), entryId);
    }
 
    private static final class IsDuplicateTask implements ViewsheetService.Task<Boolean> {
@@ -364,4 +389,5 @@ public class SaveViewsheetDialogService {
    private final ViewsheetSettingsService viewsheetSettingsService;
    private final Catalog catalog = Catalog.getCatalog();
    private final AssetRepository assetRepository;
+   private static final Logger LOG = LoggerFactory.getLogger(SaveViewsheetDialogService.class);
 }

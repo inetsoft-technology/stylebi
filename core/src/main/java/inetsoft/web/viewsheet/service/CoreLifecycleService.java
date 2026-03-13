@@ -2944,6 +2944,12 @@ public class CoreLifecycleService {
          }
       }
 
+      if(rvs.getViewsheet() != null && rvs.getViewsheet().getWizInfo() != null &&
+         rvs.getViewsheet().getWizInfo().isWizVisualization())
+      {
+         rvs.setWizSheetRuntimeId(event.getWizSheetRuntimeId());
+      }
+
       try {
          refreshViewsheet(rvs, id, uri, event.getWidth(), event.getHeight(),
                           event.isMobile(),

@@ -2669,6 +2669,14 @@ public class RuntimeViewsheet extends RuntimeSheet {
       return imageHashService;
    }
 
+   public String getWizSheetRuntimeId() {
+      return wizSheetRuntimeId;
+   }
+
+   public void setWizSheetRuntimeId(String wizSheetRuntimeId) {
+      this.wizSheetRuntimeId = wizSheetRuntimeId;
+   }
+
    @Override
    RuntimeViewsheetState saveState(ObjectMapper mapper) {
       RuntimeViewsheetState state = new RuntimeViewsheetState();
@@ -2804,6 +2812,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
    private boolean wizardViewsheet = false;
    private EmbedAssemblyInfo embedAssemblyInfo;
    private ImageHashService imageHashService = new ImageHashService();
+   private String wizSheetRuntimeId;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(RuntimeViewsheet.class);
