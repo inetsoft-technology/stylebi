@@ -2119,7 +2119,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private final class MembershipDispatcher implements IgnitePredicate<Event> {
       @Override
       public boolean apply(Event event) {
-         ExecutorService executor = messageExecutor;  // 修改这里
+         ExecutorService executor = messageExecutor;
 
          if(event.type() == EventType.EVT_NODE_JOINED) {
             MembershipEvent membershipEvent = new MembershipEvent(
