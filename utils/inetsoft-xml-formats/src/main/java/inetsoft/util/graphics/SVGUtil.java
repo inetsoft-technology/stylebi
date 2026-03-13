@@ -270,6 +270,19 @@ public class SVGUtil {
       return factory.createDocument("file://", svgStream);
    }
 
+   // batik rejects fill="" as an invalid CSS value; replace with "none" to avoid DOMException
+   public static void fixEmptyFill(Document doc) {
+      NodeList elements = doc.getElementsByTagName("*");
+
+      for(int i = 0; i < elements.getLength(); i++) {
+         Element element = (Element) elements.item(i);
+
+         if(element.hasAttribute("fill") && element.getAttribute("fill").isEmpty()) {
+            element.setAttribute("fill", "none");
+         }
+      }
+   }
+
    // batik requires the offset attribute on <stop> elements, add a default if missing
    public static void fixGradientStops(Document doc) {
       NodeList stops = doc.getElementsByTagName("stop");
