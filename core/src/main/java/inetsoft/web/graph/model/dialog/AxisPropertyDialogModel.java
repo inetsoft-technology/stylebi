@@ -135,6 +135,20 @@ public class AxisPropertyDialogModel {
          GraphTypes.isMekko(cInfo.getRTChartType()) ||
          GraphTypes.is3DBar(cInfo.getRTChartType()));
 
+      // A right_y_axis click can mean either a true secondary y-axis OR a primary axis whose
+      // labels were moved to the right via "Labels on Opposite Side".
+      // Only hide the option for a true secondary axis.
+      boolean hasSecondaryYAxis = Arrays.stream(cInfo.getRTYFields())
+         .anyMatch(f -> f instanceof ChartAggregateRef && ((ChartAggregateRef) f).isSecondaryY());
+      axisLabelPaneModel.setSecondary(
+         ("right_y_axis".equals(axisType) && !axisDesc.isLabelOnSecondaryAxis()) ||
+         // When a secondary Y axis exists, "Labels on Opposite Side" on the primary Y axis
+         // causes it to disappear, so hide the option. (Bug #74033)
+         ("left_y_axis".equals(axisType) && hasSecondaryYAxis) ||
+         GraphTypes.isRadar(cInfo.getRTChartType()) ||
+         GraphTypes.isMekko(cInfo.getRTChartType()) ||
+         GraphTypes.is3DBar(cInfo.getRTChartType()));
+
       RotationRadioGroupModel rotationRadioGroupModel = new RotationRadioGroupModel();
       CompositeTextFormat textFormat;
 
