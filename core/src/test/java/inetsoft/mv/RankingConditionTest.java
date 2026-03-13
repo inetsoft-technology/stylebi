@@ -27,7 +27,11 @@ import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.*;
 
@@ -40,6 +44,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 // ignite error: CacheInvalidStateException: Failed to execute the cache operation (all partition owners have left the grid, partition data has been lost)
 @Disabled("Ignite causing problems")
 @SreeHome(importResources = "RankingConditionTest.zip", materialize = RankingConditionTest.ASSET_ID)
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = ControllersTestConfiguration.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 public class RankingConditionTest {
    @Test
    public void testOneGroupTopN() throws Exception {
@@ -130,13 +137,8 @@ public class RankingConditionTest {
    }
 
    @RegisterExtension
-   @Order(1)
-   ControllersExtension controllers = new ControllersExtension();
-
-   @RegisterExtension
-   @Order(2)
    RuntimeViewsheetExtension viewsheetResource =
-      new RuntimeViewsheetExtension(createOpenViewsheetEvent(), controllers);
+      new RuntimeViewsheetExtension(createOpenViewsheetEvent());
 
    public static final String ASSET_ID = "1^128^__NULL__^TEST_RankingCondition";
 }

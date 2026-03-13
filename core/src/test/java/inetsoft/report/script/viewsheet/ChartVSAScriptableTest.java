@@ -34,8 +34,12 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.mockito.Mock;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.mozilla.javascript.ScriptableObject;
 
 import java.awt.*;
@@ -48,6 +52,9 @@ import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
 @SreeHome(importResources = "ChartVSAScriptableTest.vso")
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = ControllersTestConfiguration.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 public class ChartVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox;
    private ChartVSAScriptable chartVSAScriptable, chartVSAScriptable1;
@@ -369,11 +376,6 @@ public class ChartVSAScriptableTest {
    public static final String ASSET_ID = "1^128^__NULL__^ChartVSAScriptableTest";
 
    @RegisterExtension
-   @Order(1)
-   ControllersExtension controllers = new ControllersExtension();
-
-   @RegisterExtension
-   @Order(2)
    RuntimeViewsheetExtension viewsheetResource =
-      new RuntimeViewsheetExtension(createOpenViewsheetEvent(), controllers);
+      new RuntimeViewsheetExtension(createOpenViewsheetEvent());
 }

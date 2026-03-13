@@ -24,7 +24,11 @@ import inetsoft.test.*;
 import inetsoft.util.FileSystemService;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -37,6 +41,9 @@ import java.nio.file.Files;
  * skipped in automated testing.
  */
 @SreeHome(importResources = "GraphRenderTest.zip")
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = ControllersTestConfiguration.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Disabled("Don't run during automated tests, requires human verification of output")
 class GraphRenderTest {
    @Test
@@ -71,13 +78,8 @@ class GraphRenderTest {
    }
 
    @RegisterExtension
-   @Order(1)
-   ControllersExtension controllers = new ControllersExtension();
-
-   @RegisterExtension
-   @Order(2)
    RuntimeViewsheetExtension viewsheetResource =
-      new RuntimeViewsheetExtension(createOpenViewsheetEvent(), controllers);
+      new RuntimeViewsheetExtension(createOpenViewsheetEvent());
 
    private static final String ASSET_ID = "1^128^__NULL__^TEST_GraphRender";
 }

@@ -30,13 +30,20 @@ import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.MockitoAnnotations.openMocks;
 
 @SreeHome(importResources = "SelectionTreeVSAScriptableTest.vso")
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = ControllersTestConfiguration.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 public class SelectionTreeVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox ;
    private SelectionTreeVSAScriptable selectionTreeVSAScriptable, selectionTreeVSAScriptable1;
@@ -214,11 +221,6 @@ public class SelectionTreeVSAScriptableTest {
    public static final String ASSET_ID = "1^128^__NULL__^SelectionTreeVSAScriptableTest";
 
    @RegisterExtension
-   @Order(1)
-   ControllersExtension controllers = new ControllersExtension();
-
-   @RegisterExtension
-   @Order(2)
    RuntimeViewsheetExtension viewsheetResource =
-      new RuntimeViewsheetExtension(createOpenViewsheetEvent(), controllers);
+      new RuntimeViewsheetExtension(createOpenViewsheetEvent());
 }

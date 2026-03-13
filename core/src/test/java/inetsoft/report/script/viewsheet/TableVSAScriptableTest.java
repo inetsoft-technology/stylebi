@@ -34,7 +34,11 @@ import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -50,6 +54,9 @@ import static org.mockito.Mockito.*;
 import static org.mockito.MockitoAnnotations.openMocks;
 
 @SreeHome(importResources = "TableVSAScriptableTest.vso")
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = ControllersTestConfiguration.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 public class TableVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox ;
    private TableVSAScriptable tableVSAScriptable, tableVSAScriptable2;
@@ -376,11 +383,6 @@ public class TableVSAScriptableTest {
    public static final String ASSET_ID = "1^128^__NULL__^TableVSAScriptableTest";
 
    @RegisterExtension
-   @Order(1)
-   ControllersExtension controllers = new ControllersExtension();
-
-   @RegisterExtension
-   @Order(2)
    RuntimeViewsheetExtension viewsheetResource =
-      new RuntimeViewsheetExtension(createOpenViewsheetEvent(), controllers);
+      new RuntimeViewsheetExtension(createOpenViewsheetEvent());
 }

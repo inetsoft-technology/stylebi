@@ -23,12 +23,18 @@ import inetsoft.uql.viewsheet.SelectionList;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.web.viewsheet.event.ApplySelectionListEvent;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
+import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.VSSelectionServiceProxy;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
 import java.util.Collections;
@@ -38,14 +44,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 @SreeHome(importResources = "34891-VSSelectionListControllerTest.zip")
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({SpringExtension.class, MockitoExtension.class})
+@ContextConfiguration(classes = ControllersTestConfiguration.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Disabled
 class VSSelectionListControllerTest {
    @BeforeEach
    void setup() {
-      controller = new VSSelectionListController(
-         controllers.getRuntimeViewsheetRef(),
-         controllers.getVSSelectionServiceProxy());
+      controller = new VSSelectionListController(runtimeViewsheetRef, selectionServiceProxy);
    }
 
    private static OpenViewsheetEvent createOpenViewsheetEvent() {
@@ -91,9 +97,10 @@ class VSSelectionListControllerTest {
       assertTrue(selectionListAfter.findValue(val2).isSelected());
    }
 
-   @RegisterExtension
-   @Order(1)
-   ControllersExtension controllers = new ControllersExtension();
+   @Autowired
+   RuntimeViewsheetRef runtimeViewsheetRef;
+   @Autowired
+   VSSelectionServiceProxy selectionServiceProxy;
    @Mock
    ViewsheetService viewsheetService;
    @Mock
@@ -103,9 +110,8 @@ class VSSelectionListControllerTest {
    private VSSelectionListController controller;
 
    @RegisterExtension
-   @Order(2)
    RuntimeViewsheetExtension viewsheetResource =
-      new RuntimeViewsheetExtension(createOpenViewsheetEvent(), controllers);
+      new RuntimeViewsheetExtension(createOpenViewsheetEvent());
 
    private static final String ASSET_ID = "1^128^__NULL__^34891";
 }
