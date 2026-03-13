@@ -17,7 +17,7 @@
  */
 package inetsoft.storage;
 
-import inetsoft.sree.internal.cluster.SingletonRunnableTask;
+import inetsoft.sree.internal.cluster.SingletonCallableTask;
 
 import java.io.Serializable;
 import java.util.Map;
@@ -29,7 +29,7 @@ import java.util.SortedMap;
  * @param <T> the value type.
  */
 public class PutAllKeyValueTask<T extends Serializable>
-   extends KeyValueTask<T> implements SingletonRunnableTask
+   extends KeyValueTask<T> implements SingletonCallableTask<Serializable>
 {
    /**
     * Creates a new instance of {@code PutAllKeyValueTask}.
@@ -43,10 +43,11 @@ public class PutAllKeyValueTask<T extends Serializable>
    }
 
    @Override
-   public void run() {
+   public Serializable call() throws Exception {
       SortedMap<String, T> values = deserializeValue(data);
       getEngine().putAll(getId(), values);
       getMap().putAll(values);
+      return null;
    }
 
    private final byte[] data;

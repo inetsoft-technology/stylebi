@@ -18,7 +18,7 @@
 
 package inetsoft.storage;
 
-import inetsoft.sree.internal.cluster.SingletonRunnableTask;
+import inetsoft.sree.internal.cluster.SingletonCallableTask; 
 
 import java.io.Serializable;
 import java.util.Set;
@@ -29,7 +29,7 @@ import java.util.Set;
  * @param <T> the value type.
  */
 public class DeleteAllKeyValueTask<T extends Serializable>
-   extends KeyValueTask<T> implements SingletonRunnableTask
+   extends KeyValueTask<T> implements SingletonCallableTask<Serializable>
 {
    /**
     * Creates a new instance of {@code DeleteKeyValueTask}.
@@ -43,9 +43,11 @@ public class DeleteAllKeyValueTask<T extends Serializable>
    }
 
    @Override
-   public void run() {
+   public Serializable call() throws Exception {
       getEngine().removeAll(getId(), keys);
       getMap().removeAll(keys);
+
+      return null;
    }
 
    private final Set<String> keys;

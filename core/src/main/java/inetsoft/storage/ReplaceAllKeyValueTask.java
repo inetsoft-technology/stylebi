@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
  * @param <T> the value type.
  */
 public class ReplaceAllKeyValueTask<T extends Serializable>
-   extends KeyValueTask<T> implements SingletonRunnableTask
+   extends KeyValueTask<T> implements SingletonCallableTask<Serializable>
 {
    /**
     * Creates a new instance of {@code ReplaceAllKeyValueTask}.
@@ -44,7 +44,7 @@ public class ReplaceAllKeyValueTask<T extends Serializable>
    }
 
    @Override
-   public void run() {
+   public Serializable call() throws Exception {
       try {
          // first deserialize before removing anything
          Map<String, T> values = deserializeValue(data);
@@ -72,6 +72,7 @@ public class ReplaceAllKeyValueTask<T extends Serializable>
             map.putAll(values);
             tx.commit();
          }
+          return null;
       }
       catch(Exception e) {
          throw new RuntimeException("Failed to replace values", e);
