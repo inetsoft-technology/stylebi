@@ -27,7 +27,6 @@ import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.*;
 import inetsoft.report.internal.table.TableHighlightAttr.HighlightTableLens;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
-import inetsoft.sree.SreeEnv;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
@@ -216,16 +215,7 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
          }
 
          int ccount = lens.getColCount();
-
-         String maxColProp = SreeEnv.getProperty("table.output.maxcol");
-         int maxCols = 500;
-
-         try {
-            maxCols = Math.min(Integer.parseInt(maxColProp), 500);
-            maxCols = Math.max(maxCols, 1);
-         }
-         catch(NumberFormatException ignored) {
-         }
+         int maxCols = VSTableLens.getConfiguredMaxCols();
 
          if(ccount > maxCols) {
             Catalog catalog = Catalog.getCatalog();
