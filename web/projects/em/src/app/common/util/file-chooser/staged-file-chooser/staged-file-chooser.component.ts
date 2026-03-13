@@ -80,7 +80,6 @@ export class StagedFileChooserComponent implements OnInit {
       }
 
       data.append("uploadType", this.uploadType);
-      // const data = this.value.reduce((form, file, i) => form.append(`file${i + 1}`, file), new FormData());
       const options = { params: new HttpParams(), reportProgress: true };
       const request = new HttpRequest("POST", "../api/em/upload", data, options);
       const result = new Subject<string>();

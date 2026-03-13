@@ -45,7 +45,8 @@ export class DataSpaceUploadDialogComponent implements OnInit {
 
    uploadFiles(): void {
       this.fileChooser.uploadFiles().subscribe(
-         uploadId => this.dialogRef.close({uploadId, extract: this.extractArchives})
+         uploadId => this.dialogRef.close({uploadId, extract: this.extractArchives}),
+         _error => { /* error already handled by staged-file-chooser snackbar */ }
       );
    }
 }

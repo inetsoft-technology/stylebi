@@ -64,7 +64,7 @@ public class UploadController {
    }
 
    @PostMapping("/api/em/upload")
-   public ResponseEntity<?> uploadFiles(
+   public ResponseEntity<Object> uploadFiles(
       @RequestParam("uploadedFiles") MultipartFile[] uploadedFiles,
       @RequestParam("uploadType") String uploadType,
       @RequestParam(name = "id", required = false) String id,
