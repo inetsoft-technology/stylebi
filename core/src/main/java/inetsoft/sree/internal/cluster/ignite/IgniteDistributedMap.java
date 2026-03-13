@@ -21,6 +21,8 @@ import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.util.Tool;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.lang.IgniteFuture;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.cache.CacheException;
 import java.util.*;
@@ -166,10 +168,28 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
 
    @Override
    public void lock(K key, long leaseTime, TimeUnit timeUnit) {
-      try {
-         getLock(key).tryLock(leaseTime, timeUnit);
-      }
-      catch(InterruptedException ignore) {
+      long deadlineNs = System.nanoTime() + timeUnit.toNanos(leaseTime);
+      Lock lock = getLock(key);
+
+      // Use tryLock() (zero timeout) in a polling loop instead of tryLock(time, unit).
+      // tryLock(time > 0) creates a GridDhtLockFuture with a LockTimeoutObject whose
+      // onTimeout() has a NullPointerException bug in Ignite 2.17.0 when tx is null
+      // (i.e., no active transaction). The NPE prevents the timeout from being handled
+      // properly, leaving the waiting thread blocked indefinitely.
+      while(!lock.tryLock()) {
+         if(System.nanoTime() >= deadlineNs) {
+            throw new RuntimeException(
+               "Lock acquisition timed out after " + leaseTime + " " + timeUnit +
+               " for key: " + key);
+         }
+
+         try {
+            Thread.sleep(LOCK_POLL_INTERVAL_MS);
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Lock acquisition interrupted for key: " + key, e);
+         }
       }
    }
 
@@ -178,7 +198,18 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
    }
 
    public boolean tryLock(K key, long time, TimeUnit timeunit) throws InterruptedException {
-      return getLock(key).tryLock(time, timeunit);
+      long deadlineNs = System.nanoTime() + timeunit.toNanos(time);
+      Lock lock = getLock(key);
+
+      while(!lock.tryLock()) {
+         if(System.nanoTime() >= deadlineNs) {
+            return false;
+         }
+
+         Thread.sleep(LOCK_POLL_INTERVAL_MS);
+      }
+
+      return true;
    }
 
    @Override
@@ -315,4 +346,6 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
    private final IgniteCache<K, V> cache;
    private final ThreadLocal<Map<K, Lock>> lockMap = ThreadLocal.withInitial(HashMap::new);
    private static final int MAX_RETRIES = 5;
+   private static final long LOCK_POLL_INTERVAL_MS = 200L;
+   private static final Logger LOG = LoggerFactory.getLogger(IgniteDistributedMap.class);
 }
