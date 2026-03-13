@@ -291,6 +291,18 @@ public class SVGUtil {
          for(int i = 0; i < images.getLength(); i++) {
             Element image = (Element) images.item(i);
             String xlink = image.getAttributeNS("http://www.w3.org/1999/xlink", "href");
+
+            // SVG 2.0 uses plain href (no xlink namespace); convert to xlink:href for Batik
+            // SVG 1.1 compatibility
+            if(xlink == null || xlink.isEmpty()) {
+               String plainHref = image.getAttribute("href");
+
+               if(plainHref != null && !plainHref.isEmpty() && plainHref.startsWith("data:image")) {
+                  image.setAttributeNS("http://www.w3.org/1999/xlink", "href", plainHref);
+                  xlink = plainHref;
+               }
+            }
+
             String prefix = "data:image/png;base64,";
 
             if(xlink == null) {
