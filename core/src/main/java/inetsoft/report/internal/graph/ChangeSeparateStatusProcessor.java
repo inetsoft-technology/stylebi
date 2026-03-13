@@ -66,6 +66,13 @@ public class ChangeSeparateStatusProcessor extends ChangeChartProcessor {
                info.setAxisDescriptor(yfield.getAxisDescriptor());
             }
          }
+
+         // Clear cached RT refs so they are regenerated from the updated binding refs.
+         // Without this, VSChartInfo.getRTRefsWithDescriptors() would copy stale axis
+         // descriptors from the old RT refs to the new ones, overwriting the axis
+         // property changes made above. (Bug 74013)
+         info.setRTYFields(new ChartRef[0]);
+         info.setRTXFields(new ChartRef[0]);
       }
 
       if(multiChanged) {
@@ -253,8 +260,8 @@ public class ChangeSeparateStatusProcessor extends ChangeChartProcessor {
 
    /**
     * Copy axis attributes from source descriptor to target descriptor.
-    * Only color, font, and rotation are copied.  Format is intentionally
-    * omitted.
+    * Only color, font, rotation, and positioning are copied.  Format is
+    * intentionally omitted.
     *
     * @param axisDesc The descriptor to set the new information on.
     * @param sourceDesc The descriptor which contains the source information.
@@ -287,6 +294,7 @@ public class ChangeSeparateStatusProcessor extends ChangeChartProcessor {
       axisDesc.setMaximum(sourceDesc.getMaximum());
       axisDesc.setIncrement(sourceDesc.getIncrement());
       axisDesc.setMinorIncrement(sourceDesc.getMinorIncrement());
+      axisDesc.setLabelOnSecondaryAxis(sourceDesc.isLabelOnSecondaryAxis());
    }
 
    /**
