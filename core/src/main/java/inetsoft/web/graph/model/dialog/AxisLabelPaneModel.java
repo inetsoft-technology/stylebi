@@ -50,8 +50,17 @@ public class AxisLabelPaneModel {
       this.labelOnSecondaryAxis = labelOnSecondaryAxis;
    }
 
+   public boolean isSecondary() {
+      return secondary;
+   }
+
+   public void setSecondary(boolean secondary) {
+      this.secondary = secondary;
+   }
+
    private boolean showAxisLabel;
    private boolean showAxisLabelEnabled;
    private RotationRadioGroupModel rotationRadioGroupModel;
    private boolean labelOnSecondaryAxis;
+   private boolean secondary;
 }
