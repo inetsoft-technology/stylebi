@@ -651,6 +651,22 @@ public class RuntimeViewsheet extends RuntimeSheet {
 
          getEntry().setProperty("bookmarkName", name);
          getEntry().setProperty("bookmarkUser", user.convertToKey());
+
+         // Clear input assembly variables from the sandbox variable table before applying
+         // the bookmark state. During refresh, applyParameterToInput() reads from this table
+         // and would otherwise overwrite bookmark-restored assembly selections with stale
+         // values left over from the previous execution cycle. Drill-down navigation does the
+         // same clear (CoreLifecycleService) before injecting fresh hyperlink parameters.
+         VariableTable sandboxVars = box.getVariableTable();
+
+         if(sandboxVars != null) {
+            for(Assembly assembly : processedViewsheet.getAssemblies()) {
+               if(assembly instanceof InputVSAssembly) {
+                  sandboxVars.remove(assembly.getName());
+               }
+            }
+         }
+
          setViewsheet(processedViewsheet);
          addCheckpoint(processedViewsheet.prepareCheckpoint());
 
