@@ -19,6 +19,7 @@ package inetsoft.report.composition.graph;
 
 import inetsoft.graph.AxisSpec;
 import inetsoft.graph.GraphConstants;
+import inetsoft.graph.visual.ElementVO;
 import inetsoft.graph.aesthetic.TextFrame;
 import inetsoft.graph.coord.*;
 import inetsoft.graph.data.DataSet;
@@ -109,6 +110,28 @@ public class SeparateGraphGenerator extends GraphGenerator {
          case PairsDataSet.XMEASURE_VALUE:
          case PairsDataSet.YMEASURE_VALUE:
             return new AxisDescriptor();
+         }
+      }
+
+      // For point/scatter charts where x and y use the same measure, return the
+      // axis-specific descriptor so x and y can be controlled independently.
+      // This matches ChartRegionHandler.getAxisDescriptor() for separated charts. (Bug #74012)
+      if(("x".equals(axisType) || "y".equals(axisType)) &&
+         xmeasures.size() > 0 && ymeasures.size() > 0)
+      {
+         boolean isX = "x".equals(axisType);
+         ChartRef[] refs = isX ? info.getXFields() : info.getYFields();
+
+         for(String field : fields) {
+            String baseName = ElementVO.getBaseName(field);
+
+            if(xmeasures.contains(baseName) && ymeasures.contains(baseName)) {
+               ChartRef ref = getChartRef(baseName, true, refs);
+
+               if(ref instanceof ChartAggregateRef) {
+                  return getAxisDescriptor0(ref);
+               }
+            }
          }
       }
 
@@ -283,6 +306,15 @@ public class SeparateGraphGenerator extends GraphGenerator {
                   Coordinate coord;
                   fixMScale(xname, ctype);
                   xscale = scales.get(xname);
+
+                  // When x and y bind the same measure, clone xscale so x and y axes
+                  // can have independent AxisSpec settings (e.g. labelOnSecondaryAxis). (Bug #74012)
+                  // The clone is intentionally not re-inserted into the scales map — it is only
+                  // used locally for coordinate construction (fixCoordProperties reads from
+                  // rect.getXScale(), not from the map).
+                  if(xscale == yscale) {
+                     xscale = xscale.clone();
+                  }
                   createElement(type, yname, xname);
 
                   if(bar3D) {
