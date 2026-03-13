@@ -95,26 +95,6 @@ public class AxisPropertyDialogModel {
          maxMode ? axisDesc.isMaxModeLabelVisible() : axisDesc.isLabelVisible());
       axisLabelPaneModel.setShowAxisLabelEnabled(showAxisLabelEnabled);
       axisLabelPaneModel.setLabelOnSecondaryAxis(axisDesc.isLabelOnSecondaryAxis());
-      axisLabelPaneModel.setSecondary("right_y_axis".equals(axisType) ||
-         GraphTypes.isRadar(cInfo.getRTChartType()));
-
-      // A right_y_axis click can mean either a true secondary y-axis OR a primary axis whose
-      // labels were moved to the right via "Labels on Opposite Side".
-      // Only hide the option for a true secondary axis.
-      axisLabelPaneModel.setSecondary(
-         ("right_y_axis".equals(axisType) && !axisDesc.isLabelOnSecondaryAxis()) ||
-         GraphTypes.isRadar(cInfo.getRTChartType()) ||
-         GraphTypes.isMekko(cInfo.getRTChartType()));
-
-      // A right_y_axis click can mean either a true secondary y-axis OR a primary axis whose
-      // labels were moved to the right via "Labels on Opposite Side".
-      // Only hide the option for a true secondary axis.
-      axisLabelPaneModel.setSecondary(
-         ("right_y_axis".equals(axisType) && !axisDesc.isLabelOnSecondaryAxis()) ||
-         GraphTypes.isRadar(cInfo.getRTChartType()) ||
-         GraphTypes.isMekko(cInfo.getRTChartType()) ||
-         GraphTypes.is3DBar(cInfo.getRTChartType()));
-
       // A right_y_axis click can mean either a true secondary y-axis OR a primary axis whose
       // labels were moved to the right via "Labels on Opposite Side".
       // Only hide the option for a true secondary axis.
@@ -126,25 +106,14 @@ public class AxisPropertyDialogModel {
          .anyMatch(f -> f instanceof ChartAggregateRef && ((ChartAggregateRef) f).isSecondaryY());
       axisLabelPaneModel.setSecondary(
          ("right_y_axis".equals(axisType) && !axisDesc.isLabelOnSecondaryAxis()) ||
+         // When a secondary Y axis exists, "Labels on Opposite Side" on the primary Y axis
+         // causes it to disappear, so hide the option. (Bug #74033)
+         ("left_y_axis".equals(axisType) && hasSecondaryYAxis) ||
          // Secondary X axis (a top_x_axis whose column ref has isSecondaryY=true). (Bug #74047)
          ("top_x_axis".equals(axisType) && ref instanceof ChartAggregateRef &&
             ((ChartAggregateRef) ref).isSecondaryY()) ||
          // Primary X axis when a secondary X axis exists. (Bug #74047)
          ("bottom_x_axis".equals(axisType) && hasSecondaryXAxis) ||
-         GraphTypes.isRadar(cInfo.getRTChartType()) ||
-         GraphTypes.isMekko(cInfo.getRTChartType()) ||
-         GraphTypes.is3DBar(cInfo.getRTChartType()));
-
-      // A right_y_axis click can mean either a true secondary y-axis OR a primary axis whose
-      // labels were moved to the right via "Labels on Opposite Side".
-      // Only hide the option for a true secondary axis.
-      boolean hasSecondaryYAxis = Arrays.stream(cInfo.getRTYFields())
-         .anyMatch(f -> f instanceof ChartAggregateRef && ((ChartAggregateRef) f).isSecondaryY());
-      axisLabelPaneModel.setSecondary(
-         ("right_y_axis".equals(axisType) && !axisDesc.isLabelOnSecondaryAxis()) ||
-         // When a secondary Y axis exists, "Labels on Opposite Side" on the primary Y axis
-         // causes it to disappear, so hide the option. (Bug #74033)
-         ("left_y_axis".equals(axisType) && hasSecondaryYAxis) ||
          GraphTypes.isRadar(cInfo.getRTChartType()) ||
          GraphTypes.isMekko(cInfo.getRTChartType()) ||
          GraphTypes.is3DBar(cInfo.getRTChartType()));
