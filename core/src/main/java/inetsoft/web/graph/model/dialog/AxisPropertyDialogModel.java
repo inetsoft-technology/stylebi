@@ -98,6 +98,13 @@ public class AxisPropertyDialogModel {
          }
       }
 
+      // create AxisLabelPaneModel.
+      axisLabelPaneModel = new AxisLabelPaneModel();
+      axisLabelPaneModel.setShowAxisLabel(
+         maxMode ? axisDesc.isMaxModeLabelVisible() : axisDesc.isLabelVisible());
+      axisLabelPaneModel.setShowAxisLabelEnabled(showAxisLabelEnabled);
+      axisLabelPaneModel.setLabelOnSecondaryAxis(axisDesc.isLabelOnSecondaryAxis());
+
       // A right_y_axis click can mean either a true secondary y-axis OR a primary axis whose
       // labels were moved to the right via "Labels on Opposite Side".
       // Only hide the option for a true secondary axis, or for the primary axis in a dual axis chart.
