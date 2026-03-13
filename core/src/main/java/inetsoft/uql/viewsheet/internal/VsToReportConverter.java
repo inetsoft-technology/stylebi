@@ -608,6 +608,27 @@ public class VsToReportConverter {
             }
 
             copyTableRColumnWidth2((TableDataVSAssembly) assembly, box.getViewsheet(), lens);
+
+            // Bug #74000, apply table.output.maxcol limit in print layout (same as web display).
+            // Must be applied BEFORE getRegionTableLens(), which captures column count at
+            // construction time in its own ccount field, bypassing VSTableLens.maxCols.
+            if(lens != null) {
+               int ccount = lens.getColCount();
+               String maxColProp = SreeEnv.getProperty("table.output.maxcol");
+               int maxCols = 500;
+
+               try {
+                  maxCols = Math.min(Integer.parseInt(maxColProp), 500);
+                  maxCols = Math.max(maxCols, 1);
+               }
+               catch(NumberFormatException ignored) {
+               }
+
+               if(ccount > maxCols) {
+                  lens.setMaxCols(maxCols);
+               }
+            }
+
             lens = getRegionTableLens(lens, (TableDataVSAssembly) assembly);
             addTable((TableDataVSAssembly) assembly, lens, sectionName);
             break;
