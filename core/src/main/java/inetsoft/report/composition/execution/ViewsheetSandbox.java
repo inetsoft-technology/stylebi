@@ -5351,7 +5351,17 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
 
          name = name.substring(index + 1);
-         return box.getData(name, initial, type);
+         // Release outer sandbox locks during sub-sandbox data fetch to prevent blocking
+         // background threads (e.g. TableMetaDataRepository.shrink) that need a read lock.
+         // The outer sandbox's state is not mutated during a sub-sandbox data fetch, so it
+         // is safe to release outer locks here. This mirrors the pattern in doExecuteData(). (74129)
+         try {
+            unlockAll();
+            return box.getData(name, initial, type);
+         }
+         finally {
+            restoreLocks();
+         }
       }
 
       if(disposed) {
@@ -6540,7 +6550,17 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             return null;
          }
 
-         return box.getVGraphPair(name, init, maxsize, export, scaleFont, forceExpand, ignoreSize);
+         // Release outer sandbox locks during sub-sandbox graph computation to prevent blocking
+         // background threads (e.g. TableMetaDataRepository.shrink) that need a read lock.
+         // The outer sandbox's state is not mutated during a sub-sandbox graph fetch, so it
+         // is safe to release outer locks here. This mirrors the pattern in doExecuteData(). (74129)
+         try {
+            unlockAll();
+            return box.getVGraphPair(name, init, maxsize, export, scaleFont, forceExpand, ignoreSize);
+         }
+         finally {
+            restoreLocks();
+         }
       }
 
       if(disposed) {
