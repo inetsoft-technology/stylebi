@@ -19,6 +19,8 @@ package inetsoft.sree.internal.cluster.ignite;
 
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.util.Map;
@@ -38,6 +40,24 @@ public class IgniteScheduledExecutorServiceImpl implements IgniteScheduledExecut
 
    @Override
    public void execute() throws Exception {
+      // This method is called by Ignite whenever the service is (re)deployed on this node,
+      // which happens on every topology change that triggers service migration. Logging here
+      // tells us (a) whether migration occurred at all, and (b) whether the distributed map
+      // was populated at the time — an empty map would confirm the PME-timing hypothesis.
+      // The local member ID lets you correlate this with cancel() on the node that lost the service.
+      String localMember = Cluster.getInstance().getLocalMember();
+
+      if(map.isEmpty()) {
+         LOG.warn("IgniteScheduledExecutorService.execute() called on node '{}' but the distributed " +
+                  "scheduler map is empty — no periodic tasks will be rescheduled on this node. If a " +
+                  "topology change just occurred, this may indicate execute() ran before the Partition " +
+                  "Map Exchange completed and the map was not yet visible on this node.", localMember);
+      }
+      else {
+         LOG.info("IgniteScheduledExecutorService.execute() called on node '{}'; rescheduling {} task(s): {}",
+                  localMember, map.size(), map.keySet());
+      }
+
       for(Map.Entry<String, ScheduledExecutorCommand> entry : map.entrySet()) {
          String id = entry.getKey();
          ScheduledExecutorCommand command = entry.getValue();
@@ -57,6 +77,9 @@ public class IgniteScheduledExecutorServiceImpl implements IgniteScheduledExecut
 
    @Override
    public void cancel() {
+      LOG.info("IgniteScheduledExecutorService.cancel() called on node '{}' — service is being " +
+               "stopped or migrated due to a topology change.",
+               Cluster.getInstance().getLocalMember());
       shutdown();
    }
 
@@ -80,9 +103,19 @@ public class IgniteScheduledExecutorServiceImpl implements IgniteScheduledExecut
    {
       String id = command.getClass().getName();
 
-      if(!map.containsKey(id)) {
-         map.put(id, new ScheduledExecutorCommand((Serializable) command, initialDelay, period, unit));
+      if(map.putIfAbsent(id, new ScheduledExecutorCommand((Serializable) command, initialDelay, period, unit)) == null) {
          scheduleCommandAtFixedRate(id, command, initialDelay, period, unit);
+      }
+      else {
+         // The distributed map already has an entry for this task. This is normal on secondary
+         // pods — the first pod registered the task and it deduplicates by class name. The task
+         // will only run if it was rescheduled via execute() when the service was last deployed.
+         // If execute() was never called after a topology change, or saw an empty map, the task
+         // may not be running on any node.
+         LOG.debug("scheduleAtFixedRate: '{}' already registered in the distributed scheduler map " +
+                   "— scheduling skipped (normal on secondary pods). If the executor service was " +
+                   "recently redeployed, confirm that execute() was called and rescheduled this task.",
+                   id);
       }
    }
 
@@ -122,6 +155,7 @@ public class IgniteScheduledExecutorServiceImpl implements IgniteScheduledExecut
 
    private DistributedMap<String, ScheduledExecutorCommand> map;
    private ScheduledExecutorService executor;
+   private static final Logger LOG = LoggerFactory.getLogger(IgniteScheduledExecutorServiceImpl.class);
 
    private static final class ScheduledExecutorCommand implements Serializable {
       public ScheduledExecutorCommand(Serializable command, long delay, long period, TimeUnit unit) {
