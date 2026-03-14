@@ -162,8 +162,8 @@ public class ImportAssetService {
          CompletableFuture<ImportAssetResponse> future = new CompletableFuture<>();
          importCache.put(importId, future);
          ThreadPool.addOnDemand(() -> {
-            Principal oPrincipal = ThreadContext.getPrincipal();
-            ThreadContext.setPrincipal(principal);
+            Principal oPrincipal = ThreadContext.getContextPrincipal();
+            ThreadContext.setContextPrincipal(principal);
 
             try {
                ImportAssetResponse response = deployService.importAsset(
@@ -174,7 +174,7 @@ public class ImportAssetService {
                future.completeExceptionally(e);
             }
             finally {
-               ThreadContext.setPrincipal(oPrincipal);
+               ThreadContext.setContextPrincipal(oPrincipal);
             }
          });
       }
