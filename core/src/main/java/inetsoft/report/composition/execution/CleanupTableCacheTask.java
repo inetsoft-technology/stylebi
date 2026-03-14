@@ -39,6 +39,11 @@ import java.util.Set;
 public class CleanupTableCacheTask implements Runnable, Serializable {
    @Override
    public void run() {
+      // Logged at INFO so that absence of this message every ~30 minutes is itself a signal
+      // that the cleanup task has stopped running (e.g. after a topology change). The node
+      // identity confirms the task is running on exactly one node — not zero, not multiple.
+      LOG.info("CleanupTableCacheTask running on node '{}'", Cluster.getInstance().getLocalMember());
+
       try {
          String clusterId = Cluster.getInstance().getId();
          SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
@@ -63,6 +68,8 @@ public class CleanupTableCacheTask implements Runnable, Serializable {
             });
 
             if(!keysToRemove.isEmpty()) {
+               LOG.info("CleanupTableCacheTask: deleting {} expired entr{} from store '{}'",
+                        keysToRemove.size(), keysToRemove.size() == 1 ? "y" : "ies", storeId);
                storage.deleteAll(keysToRemove);
             }
          }
