@@ -190,7 +190,13 @@ public class TextInputVSAssemblyInfo extends ClickableInputVSAssemblyInfo {
     * set default text design value
     */
    public void setDefaultTextValue(String val) {
-      this.value = val;
+      // Only update the runtime value if it hasn't been customized from the design default.
+      // This prevents losing user-typed content when only layout properties (e.g. label position)
+      // are changed in the property dialog. Bug #74044
+      if(Tool.equals(this.value, this.defaultText.getDValue())) {
+         this.value = val;
+      }
+
       this.defaultText.setDValue(val);
    }
 
