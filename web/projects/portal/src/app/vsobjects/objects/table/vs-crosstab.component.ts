@@ -949,6 +949,10 @@ export class VSCrosstab extends BaseTable<VSCrosstabModel> implements OnInit, On
             }
          }
 
+         if(!this.mobileDevice && this.model.dataTip && this.model.isTipOnClick) {
+            tip += "_#(js:composer.graph.ctrlSelect)";
+         }
+
          if(tip.length != 0) {
             return tip;
          }

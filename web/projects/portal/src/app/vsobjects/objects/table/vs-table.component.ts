@@ -1332,6 +1332,14 @@ export class VSTable extends BaseTable<VSTableModel> implements OnInit, OnDestro
          tooltip = this.rowHyperlinks[row]?.tooltip;
       }
 
-      return !!tooltip ? tooltip : super.getTooltip(cell);
+      if(tooltip) {
+         if(!this.mobileDevice && this.model.dataTip && this.model.isTipOnClick) {
+            tooltip += "_#(js:composer.graph.ctrlSelect)";
+         }
+
+         return tooltip;
+      }
+
+      return super.getTooltip(cell);
    }
 }
