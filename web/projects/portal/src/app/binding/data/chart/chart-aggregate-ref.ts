@@ -48,6 +48,7 @@ export class ChartAggregateRef extends BAggregateRef implements ChartRef, ChartA
    buildInCalcs: CalculateInfo[];
    secondaryY: boolean;
    secondaryAxisSupported: boolean;
+   labelOnOppositeAxis: boolean;
    aggregated: boolean;
    oriFullName: string;
    oriView: string;

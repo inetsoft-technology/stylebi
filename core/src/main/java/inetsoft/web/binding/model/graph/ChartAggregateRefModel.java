@@ -331,8 +331,17 @@ public class ChartAggregateRefModel extends BAggregateRefModel
    private ColorFrameModel summaryColorFrame;
    private TextureFrameModel summaryTextureFrame;
 
+   public boolean isLabelOnOppositeAxis() {
+      return labelOnOppositeAxis;
+   }
+
+   public void setLabelOnOppositeAxis(boolean labelOnOppositeAxis) {
+      this.labelOnOppositeAxis = labelOnOppositeAxis;
+   }
+
    private boolean y2;
    private boolean aggregated;
+   private boolean labelOnOppositeAxis;
    private String oriFullName;
    private String oriView;
 }
