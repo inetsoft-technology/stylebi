@@ -58,29 +58,70 @@ public class ChartRegionHandler {
       else if(ref != null && (info instanceof RadarChartInfo ||
                               ref instanceof ChartAggregateRef && (asDim || info.isSeparatedGraph())))
       {
-         axisDes = ref.getAxisDescriptor();
+         axisDes = getRTAxisDescriptor(ref);
       }
       else if(ref != null && info.isSeparatedGraph() &&
               !(info instanceof StockChartInfo) && !(info instanceof CandleChartInfo))
       {
-         axisDes = ref.getAxisDescriptor();
+         axisDes = getRTAxisDescriptor(ref);
       }
       else if(ref instanceof ChartAggregateRef && ((ChartAggregateRef) ref).isSecondaryY()) {
-         axisDes = info.getAxisDescriptor2();
+         axisDes = getRTAxisDescriptor2(info);
       }
       // if inseparate graph or candle, stock chart, get dimension descriptor
       // from ref, get shared measure descriptor from info
       else if(ref != null && (info.isSeparatedGraph() || ref instanceof XDimensionRef ||
          GraphUtil.isDiscrete(ref)))
       {
-         axisDes = ref.getAxisDescriptor();
+         axisDes = getRTAxisDescriptor(ref);
       }
       else {
-         axisDes = info.getAxisDescriptor();
+         axisDes = getRTAxisDescriptor(info);
          linear.set(true);
       }
 
       return axisDes;
+   }
+
+   // Prefer the runtime axis descriptor (set by chart scripts) over the design-time one.
+   // Mirrors GraphGenerator.getAxisDescriptor0(ChartRef).
+   private static AxisDescriptor getRTAxisDescriptor(ChartRef ref) {
+      if(ref instanceof VSChartRef) {
+         AxisDescriptor rtDesc = ((VSChartRef) ref).getRTAxisDescriptor();
+
+         if(rtDesc != null) {
+            return rtDesc;
+         }
+      }
+
+      return ref.getAxisDescriptor();
+   }
+
+   // Prefer the runtime shared-Y axis descriptor over the design-time one.
+   // Mirrors GraphGenerator.getAxisDescriptor0().
+   private static AxisDescriptor getRTAxisDescriptor(ChartInfo info) {
+      if(info instanceof VSChartInfo) {
+         AxisDescriptor rtDesc = ((VSChartInfo) info).getRTAxisDescriptor();
+
+         if(rtDesc != null) {
+            return rtDesc;
+         }
+      }
+
+      return info.getAxisDescriptor();
+   }
+
+   // Prefer the runtime secondary-Y axis descriptor over the design-time one.
+   private static AxisDescriptor getRTAxisDescriptor2(ChartInfo info) {
+      if(info instanceof VSChartInfo) {
+         AxisDescriptor rtDesc = ((VSChartInfo) info).getRTAxisDescriptor2();
+
+         if(rtDesc != null) {
+            return rtDesc;
+         }
+      }
+
+      return info.getAxisDescriptor2();
    }
 
    public static ChartRef getChartRef(ChartInfo info, String axisType, String column) {
