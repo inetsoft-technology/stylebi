@@ -62,6 +62,14 @@ public abstract class ChartAggregateInfoFactory<A extends ChartAggregateRef>
 
       aggrInfo.setBuildInCalcs(getBuildInCalcs(chartRef, cinfo, isBreakBy));
 
+      if(OriginalDescriptor.Y_AXIS.equals(des.getSource())) {
+         AxisDescriptor axisDesc = cinfo.getAxisDescriptor();
+
+         if(axisDesc != null && axisDesc.isLabelOnSecondaryAxis()) {
+            aggrInfo.setLabelOnOppositeAxis(true);
+         }
+      }
+
       return aggrInfo;
    }
 
