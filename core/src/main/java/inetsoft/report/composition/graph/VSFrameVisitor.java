@@ -391,15 +391,7 @@ public class VSFrameVisitor {
       if(col != null && frame instanceof CategoricalColorFrame &&
          ((CategoricalColorFrame) frame).isShareColors())
       {
-         String columnName = col;
-
-         if(sourceType == XSourceInfo.MODEL) {
-            final String attribute = tref.getAttribute();
-
-            if(attribute != null) {
-               columnName = attribute.indexOf(':') > -1 ? attribute.split(":")[1] : attribute;
-            }
-         }
+         String columnName = resolveColumnName(col, tref);
 
          // pull colors from other categorical color frames referencing the same column
          final CategoricalColorFrameContext context = CategoricalColorFrameContext.getContext();
@@ -428,15 +420,7 @@ public class VSFrameVisitor {
          context.addSharedFrame(columnName, saveFrame, ref);
       }
       else if(col != null && frame instanceof CategoricalShapeFrame) {
-         String columnName = col;
-
-         if(sourceType == XSourceInfo.MODEL) {
-            final String attribute = tref.getAttribute();
-
-            if(attribute != null) {
-               columnName = attribute.indexOf(':') > -1 ? attribute.split(":")[1] : attribute;
-            }
-         }
+         String columnName = resolveColumnName(col, tref);
 
          final CategoricalColorFrameContext context = CategoricalColorFrameContext.getContext();
          final VisualFrame sharedShapeFrame = context.getSharedShapeFrame(columnName, ref);
@@ -469,24 +453,47 @@ public class VSFrameVisitor {
       syncCategoricalFrame(frame, data, ref, dc, tref.isRuntime());
 
       if(col != null && frame instanceof CategoricalShapeFrame) {
-         String columnName = col;
-
-         if(sourceType == XSourceInfo.MODEL) {
-            final String attribute = tref.getAttribute();
-
-            if(attribute != null) {
-               columnName = attribute.indexOf(':') > -1 ? attribute.split(":")[1] : attribute;
-            }
-         }
+         // Save the fully-initialised frame (after initFrame + second syncCategoricalFrame) so
+         // that cmap contains complete value→shape entries. Unlike the color path (which saves
+         // after the first sync), shape frames must be saved here because syncShapes() only
+         // populates cmap during the sync that follows initFrame. Saving earlier would give an
+         // empty cmap. The stale scale is harmless because it is always rebuilt on load. (74067)
+         String columnName = resolveColumnName(col, tref);
 
          final CategoricalColorFrameContext context = CategoricalColorFrameContext.getContext();
-         context.addSharedShapeFrame(columnName, (VisualFrame) frame.clone(), ref);
+         final VisualFrame saveShapeFrame = (VisualFrame) frame.clone();
+         final Optional<TextFrame> shapeTextFrame = Optional.of(saveShapeFrame)
+                                                            .map(VisualFrame::getLegendSpec)
+                                                            .map(LegendSpec::getTextFrame);
+
+         if(shapeTextFrame.isPresent()) {
+            shapeTextFrame.get().getKeys().clear();
+         }
+
+         context.addSharedShapeFrame(columnName, saveShapeFrame, ref);
       }
 
       frame.getLegendSpec().setTitle(XCube.SQLSERVER.equals(cubeType) &&
                                      tref.isMeasure() ? col : GraphUtil.getCaption(ref));
 
       return frame;
+   }
+
+   /**
+    * Resolve the effective column name for frame-sharing lookups.
+    * For MODEL source types, the attribute may be qualified (e.g. "entity:attribute");
+    * only the local attribute name is used as the sharing key.
+    */
+   private String resolveColumnName(String col, AestheticRef tref) {
+      if(sourceType == XSourceInfo.MODEL) {
+         final String attribute = tref.getAttribute();
+
+         if(attribute != null) {
+            return attribute.indexOf(':') > -1 ? attribute.split(":")[1] : attribute;
+         }
+      }
+
+      return col;
    }
 
    private static boolean isMetaData(DataSet data) {
