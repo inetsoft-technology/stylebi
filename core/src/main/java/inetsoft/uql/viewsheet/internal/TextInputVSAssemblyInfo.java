@@ -148,7 +148,7 @@ public class TextInputVSAssemblyInfo extends ClickableInputVSAssemblyInfo {
     */
    public String getToolTip() {
 
-      if(toolTip.getRValue() != null & toolTip.getRValue() instanceof String
+      if(toolTip.getRValue() != null && toolTip.getRValue() instanceof String
             && !"".equals(toolTip.getRValue().toString())) {
          return toolTip.getRValue().toString();
       }
@@ -191,9 +191,10 @@ public class TextInputVSAssemblyInfo extends ClickableInputVSAssemblyInfo {
     */
    public void setDefaultTextValue(String val) {
       // Only update the runtime value if it hasn't been customized from the design default.
+      // Use string representations to handle numeric data types (e.g. Double(42.0) vs "42").
       // This prevents losing user-typed content when only layout properties (e.g. label position)
       // are changed in the property dialog. Bug #74044
-      if(Tool.equals(this.value, this.defaultText.getDValue())) {
+      if(Tool.equals(Tool.getDataString(this.value), this.defaultText.getDValue())) {
          this.value = val;
       }
 
