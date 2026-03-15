@@ -427,6 +427,28 @@ public class VSFrameVisitor {
 
          context.addSharedFrame(columnName, saveFrame, ref);
       }
+      else if(col != null && frame instanceof CategoricalShapeFrame) {
+         String columnName = col;
+
+         if(sourceType == XSourceInfo.MODEL) {
+            final String attribute = tref.getAttribute();
+
+            if(attribute != null) {
+               columnName = attribute.indexOf(':') > -1 ? attribute.split(":")[1] : attribute;
+            }
+         }
+
+         final CategoricalColorFrameContext context = CategoricalColorFrameContext.getContext();
+         final VisualFrame sharedShapeFrame = context.getSharedShapeFrame(columnName, ref);
+
+         if(sharedShapeFrame instanceof CategoricalShapeFrame) {
+            frame = (VisualFrame) sharedShapeFrame.clone();
+            frame.setField(col);
+            tref.setVisualFrame(frame);
+         }
+
+         syncCategoricalFrame(frame, data, ref, dc, tref.isRuntime());
+      }
       else {
          syncCategoricalFrame(frame, data, ref, dc, tref.isRuntime());
       }
@@ -445,6 +467,22 @@ public class VSFrameVisitor {
 
       initFrame(frame, tref);
       syncCategoricalFrame(frame, data, ref, dc, tref.isRuntime());
+
+      if(col != null && frame instanceof CategoricalShapeFrame) {
+         String columnName = col;
+
+         if(sourceType == XSourceInfo.MODEL) {
+            final String attribute = tref.getAttribute();
+
+            if(attribute != null) {
+               columnName = attribute.indexOf(':') > -1 ? attribute.split(":")[1] : attribute;
+            }
+         }
+
+         final CategoricalColorFrameContext context = CategoricalColorFrameContext.getContext();
+         context.addSharedShapeFrame(columnName, (VisualFrame) frame.clone(), ref);
+      }
+
       frame.getLegendSpec().setTitle(XCube.SQLSERVER.equals(cubeType) &&
                                      tref.isMeasure() ? col : GraphUtil.getCaption(ref));
 

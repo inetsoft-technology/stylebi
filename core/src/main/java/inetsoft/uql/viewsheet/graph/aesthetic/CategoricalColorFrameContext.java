@@ -58,6 +58,20 @@ public class CategoricalColorFrameContext {
       return sharedFrames.get(sharedFrame);
    }
 
+   public VisualFrame getSharedShapeFrame(String columnName, DataRef ref) {
+      final SharedFrameParameters params = new SharedFrameParameters();
+      addParameters(columnName, ref, params);
+      params.addParameter("shape");
+      return sharedFrames.get(params);
+   }
+
+   public void addSharedShapeFrame(String columnName, VisualFrame frame, DataRef ref) {
+      final SharedFrameParameters params = new SharedFrameParameters();
+      addParameters(columnName, ref, params);
+      params.addParameter("shape");
+      sharedFrames.put(params, frame);
+   }
+
    public void addParameters(String columnName, DataRef ref, SharedFrameParameters sharedFrame) {
       sharedFrame.addParameter(columnName);
 

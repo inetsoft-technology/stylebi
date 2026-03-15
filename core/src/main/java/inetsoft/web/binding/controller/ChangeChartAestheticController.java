@@ -101,7 +101,7 @@ public class ChangeChartAestheticController {
       synchronized(assembly) {
          BindingModel obinding = bindingFactory.createModel(assembly);
 
-         if("color".equals(event.getFieldType())) {
+         if("color".equals(event.getFieldType()) || "shape".equals(event.getFieldType())) {
             vs = assembly.getViewsheet();
             vs.clearSharedFrames();
          }
