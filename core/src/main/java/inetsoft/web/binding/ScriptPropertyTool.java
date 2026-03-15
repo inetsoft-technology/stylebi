@@ -248,7 +248,6 @@ public class ScriptPropertyTool {
       ASSEMBLY_NAMES.put("VSCrosstabInfo", "Crosstab.bindingInfo");
       ASSEMBLY_NAMES.put("VSChartInfo", "Chart.bindingInfo");
       ASSEMBLY_NAMES.put("SelectionContainerVSA", "SelectionContainer");
-      ASSEMBLY_NAMES.put("TabVSA", "Tab");
       // Since GroupContainer has the same properties with Image,
       // using its property link as its own.
       ASSEMBLY_NAMES.put("GroupContainerVSA", "Image");
