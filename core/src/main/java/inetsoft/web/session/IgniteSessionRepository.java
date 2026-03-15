@@ -105,11 +105,14 @@ public class IgniteSessionRepository
    @Override
    public void save(IgniteSession session) {
       if(session.isNew) {
-         saveWithRetry(() -> this.sessions.put(session.getId(), session.getDelegate()));
+         withRetry(() -> this.sessions.put(session.getId(), session.getDelegate()));
       }
       else if(session.sessionIdChanged) {
          String oldId = session.originalId;
-         saveWithRetry(() -> {
+         // Note: remove + put are not wrapped in a distributed transaction, so there is a brief
+         // window where neither the old nor the new key exists. On retry, remove is a no-op if
+         // already gone and put sets the new key, making this safe to retry. (Bug #74131)
+         withRetry(() -> {
             this.sessions.remove(oldId);
             this.sessions.put(session.getId(), session.getDelegate());
          });
@@ -121,7 +124,7 @@ public class IgniteSessionRepository
          Duration maxInactiveInterval =
             session.maxInactiveIntervalChanged ? session.getMaxInactiveInterval() : null;
 
-         saveWithRetry(() -> this.sessions.invoke(
+         withRetry(() -> this.sessions.invoke(
             session.getId(), new SessionUpdateEntryProcessor(),
             lastAccessedTime, maxInactiveInterval));
       }
@@ -136,9 +139,14 @@ public class IgniteSessionRepository
     * rolled back with {@code IgniteTxRollbackCheckedException} (caused by
     * {@code ClusterTopologyCheckedException}).  After the topology stabilises Ignite
     * reassigns the partition, so retrying the same operation will succeed.  Session
-    * saves are idempotent (last-accessed-time update or full put), so retrying is safe.
+    * saves and deletes are idempotent on retry, so retrying is safe.
+    *
+    * <p>3 retries × 200 ms = up to 600 ms overhead, which gives Ignite sufficient time
+    * to stabilise the topology for session operations while keeping user-visible latency
+    * low. (IgniteDistributedMap uses 5 retries for internal data operations where
+    * higher retry counts are acceptable.)
     */
-   private void saveWithRetry(Runnable operation) {
+   private void withRetry(Runnable operation) {
       int attempts = 0;
 
       while(true) {
@@ -151,7 +159,7 @@ public class IgniteSessionRepository
                throw e;
             }
 
-            LOG.warn("Session save failed due to cluster topology change, retrying ({}/{})",
+            LOG.warn("Session operation failed due to cluster topology change, retrying ({}/{})",
                      attempts, SAVE_MAX_RETRIES, e);
 
             try {
@@ -159,7 +167,7 @@ public class IgniteSessionRepository
             }
             catch(InterruptedException ie) {
                Thread.currentThread().interrupt();
-               throw new RuntimeException("Interrupted while retrying session save", ie);
+               throw new RuntimeException("Interrupted while retrying session operation", ie);
             }
          }
       }
@@ -169,6 +177,11 @@ public class IgniteSessionRepository
     * Returns {@code true} if the exception (or any cause in its chain) indicates that an
     * Ignite cluster topology change caused the operation to fail — i.e. the primary node
     * for the affected partition left the grid mid-transaction.
+    *
+    * <p>Class names are matched by string rather than {@code instanceof} to avoid a
+    * hard compile-time dependency on Ignite internal classes
+    * ({@code org.apache.ignite.internal.*}) that are not part of the public API and
+    * may be relocated or renamed across major Ignite versions.
     */
    private static boolean isTopologyException(Throwable e) {
       for(Throwable t = e; t != null; t = t.getCause()) {
@@ -210,7 +223,7 @@ public class IgniteSessionRepository
       }
 
       IgniteSession igniteSession = new IgniteSession(session, false);
-      this.sessions.remove(id);
+      withRetry(() -> this.sessions.remove(id));
       sendApplicationEvent(new SessionExpiredEvent(this.getClass().getName(), igniteSession));
    }
 
@@ -369,7 +382,7 @@ public class IgniteSessionRepository
       final IgniteSession session = this.findById(id);
 
       if(session != null) {
-         this.sessions.remove(id);
+         withRetry(() -> this.sessions.remove(id));
          sendApplicationEvent(new SessionExpiredEvent(this.getClass().getName(), session));
       }
    }
