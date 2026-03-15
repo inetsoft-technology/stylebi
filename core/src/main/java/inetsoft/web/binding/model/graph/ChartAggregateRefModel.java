@@ -331,6 +331,11 @@ public class ChartAggregateRefModel extends BAggregateRefModel
    private ColorFrameModel summaryColorFrame;
    private TextureFrameModel summaryTextureFrame;
 
+   /**
+    * Check whether the primary Y-axis has labels on the opposite (secondary) side.
+    * When true, the Secondary Axis option should be disabled for this measure to
+    * prevent a rendering conflict where both axes compete for the same side.
+    */
    public boolean isLabelOnOppositeAxis() {
       return labelOnOppositeAxis;
    }

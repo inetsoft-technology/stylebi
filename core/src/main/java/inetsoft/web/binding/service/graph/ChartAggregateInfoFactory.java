@@ -67,6 +67,9 @@ public abstract class ChartAggregateInfoFactory<A extends ChartAggregateRef>
 
          if(axisDesc != null && axisDesc.isLabelOnSecondaryAxis()) {
             aggrInfo.setLabelOnOppositeAxis(true);
+            // Reset stale secondaryY so that opening and applying the measure editor
+            // cleans up any conflicting saved state. (Bug #74140)
+            aggrInfo.setSecondaryY(false);
          }
       }
 
