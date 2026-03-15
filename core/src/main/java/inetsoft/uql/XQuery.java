@@ -876,7 +876,7 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
          nquery.datasource = datasource == null ? null : (XDataSource) datasource.clone();
          nquery.orgId = orgId;
          nquery.varmap = new ConcurrentHashMap<>(varmap);
-         nquery.propmap = (HashMap<String, Object>) propmap.clone();
+         nquery.propmap = propmap == null ? new HashMap<>() : (HashMap<String, Object>) propmap.clone();
          nquery.dependencies = new HashSet<>(dependencies);
 
          return nquery;
