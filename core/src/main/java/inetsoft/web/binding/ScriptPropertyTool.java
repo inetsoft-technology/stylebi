@@ -235,7 +235,6 @@ public class ScriptPropertyTool {
       ASSEMBLY_NAMES.put("RectangleVSA", "Rectangle");
       ASSEMBLY_NAMES.put("LineVSA", "Line");
       ASSEMBLY_NAMES.put("OvalVSA", "Oval");
-      ASSEMBLY_NAMES.put("UploadVSA", "Upload");
       ASSEMBLY_NAMES.put("SubmitVSA", "Submit");
       ASSEMBLY_NAMES.put("SliderVSA", "Slider");
       ASSEMBLY_NAMES.put("SpinnerVSA", "Spinner");
