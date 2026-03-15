@@ -145,7 +145,7 @@ public class UpgradableReadWriteLock {
    }
 
    private final ReadWriteLock thisLock = new ReentrantReadWriteLock(false);
-   private static final ThreadLocal<List<Integer>> thisOldLocks =
+   private final ThreadLocal<List<Integer>> thisOldLocks =
       ThreadLocal.withInitial(ArrayList::new);
    private static final ThreadLocal<Map<Object,Stack<Integer>>> thisLockState =
       ThreadLocal.withInitial(HashMap::new);

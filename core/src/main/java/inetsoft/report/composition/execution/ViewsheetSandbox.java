@@ -6546,7 +6546,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          ViewsheetSandbox box = getSandbox(name.substring(0, index));
          name = name.substring(index + 1);
 
-         if(disposed) {
+         if(disposed || box == null) {
             return null;
          }
 
