@@ -154,7 +154,7 @@ public class IgniteSessionRepository
             operation.run();
             return;
          }
-         catch(CacheException | RuntimeException e) {
+         catch(RuntimeException e) {
             if(!isTopologyException(e) || ++attempts > SAVE_MAX_RETRIES) {
                throw e;
             }
@@ -341,7 +341,8 @@ public class IgniteSessionRepository
                if(igniteSession != null &&
                   principal.equals(igniteSession.getAttribute(RepletRepository.PRINCIPAL_COOKIE)))
                {
-                  iter.remove();
+                  String sessionId = entry.getValue().getId();
+                  withRetry(() -> this.sessions.remove(sessionId));
                   break;
                }
             }
