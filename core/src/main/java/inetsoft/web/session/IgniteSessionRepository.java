@@ -34,6 +34,7 @@ import org.springframework.session.*;
 import org.springframework.util.Assert;
 
 import javax.cache.Cache;
+import javax.cache.CacheException;
 import java.io.Serializable;
 import java.security.Principal;
 import java.time.Duration;
@@ -104,12 +105,18 @@ public class IgniteSessionRepository
    @Override
    public void save(IgniteSession session) {
       if(session.isNew) {
-         this.sessions.put(session.getId(), session.getDelegate());
+         withRetry(() -> this.sessions.put(session.getId(), session.getDelegate()));
       }
       else if(session.sessionIdChanged) {
-         this.sessions.remove(session.originalId);
+         String oldId = session.originalId;
+         // Note: remove + put are not wrapped in a distributed transaction, so there is a brief
+         // window where neither the old nor the new key exists. On retry, remove is a no-op if
+         // already gone and put sets the new key, making this safe to retry. (Bug #74131)
+         withRetry(() -> {
+            this.sessions.remove(oldId);
+            this.sessions.put(session.getId(), session.getDelegate());
+         });
          session.originalId = session.getId();
-         this.sessions.put(session.getId(), session.getDelegate());
       }
       else if(session.hasChanges()) {
          Instant lastAccessedTime =
@@ -117,12 +124,78 @@ public class IgniteSessionRepository
          Duration maxInactiveInterval =
             session.maxInactiveIntervalChanged ? session.getMaxInactiveInterval() : null;
 
-         this.sessions.invoke(
+         withRetry(() -> this.sessions.invoke(
             session.getId(), new SessionUpdateEntryProcessor(),
-            lastAccessedTime, maxInactiveInterval);
+            lastAccessedTime, maxInactiveInterval));
       }
 
       session.clearChangeFlags();
+   }
+
+   /**
+    * Execute a session cache operation with retry on topology-change exceptions.
+    *
+    * <p>When an Ignite primary node leaves the cluster mid-transaction the commit is
+    * rolled back with {@code IgniteTxRollbackCheckedException} (caused by
+    * {@code ClusterTopologyCheckedException}).  After the topology stabilises Ignite
+    * reassigns the partition, so retrying the same operation will succeed.  Session
+    * saves and deletes are idempotent on retry, so retrying is safe.
+    *
+    * <p>3 retries × 200 ms = up to 600 ms overhead, which gives Ignite sufficient time
+    * to stabilise the topology for session operations while keeping user-visible latency
+    * low. (IgniteDistributedMap uses 5 retries for internal data operations where
+    * higher retry counts are acceptable.)
+    */
+   private void withRetry(Runnable operation) {
+      int attempts = 0;
+
+      while(true) {
+         try {
+            operation.run();
+            return;
+         }
+         catch(RuntimeException e) {
+            if(!isTopologyException(e) || ++attempts > SAVE_MAX_RETRIES) {
+               throw e;
+            }
+
+            LOG.warn("Session operation failed due to cluster topology change, retrying ({}/{})",
+                     attempts, SAVE_MAX_RETRIES, e);
+
+            try {
+               Thread.sleep(SAVE_RETRY_DELAY_MS);
+            }
+            catch(InterruptedException ie) {
+               Thread.currentThread().interrupt();
+               throw new RuntimeException("Interrupted while retrying session operation", ie);
+            }
+         }
+      }
+   }
+
+   /**
+    * Returns {@code true} if the exception (or any cause in its chain) indicates that an
+    * Ignite cluster topology change caused the operation to fail — i.e. the primary node
+    * for the affected partition left the grid mid-transaction.
+    *
+    * <p>Class names are matched by string rather than {@code instanceof} to avoid a
+    * hard compile-time dependency on Ignite internal classes
+    * ({@code org.apache.ignite.internal.*}) that are not part of the public API and
+    * may be relocated or renamed across major Ignite versions.
+    */
+   private static boolean isTopologyException(Throwable e) {
+      for(Throwable t = e; t != null; t = t.getCause()) {
+         String name = t.getClass().getName();
+
+         if(name.contains("ClusterTopologyCheckedException") ||
+            name.contains("ClusterTopologyException") ||
+            name.contains("IgniteTxRollbackCheckedException"))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    @Override
@@ -150,7 +223,7 @@ public class IgniteSessionRepository
       }
 
       IgniteSession igniteSession = new IgniteSession(session, false);
-      this.sessions.remove(id);
+      withRetry(() -> this.sessions.remove(id));
       sendApplicationEvent(new SessionExpiredEvent(this.getClass().getName(), igniteSession));
    }
 
@@ -268,7 +341,8 @@ public class IgniteSessionRepository
                if(igniteSession != null &&
                   principal.equals(igniteSession.getAttribute(RepletRepository.PRINCIPAL_COOKIE)))
                {
-                  iter.remove();
+                  String sessionId = entry.getValue().getId();
+                  withRetry(() -> this.sessions.remove(sessionId));
                   break;
                }
             }
@@ -309,7 +383,7 @@ public class IgniteSessionRepository
       final IgniteSession session = this.findById(id);
 
       if(session != null) {
-         this.sessions.remove(id);
+         withRetry(() -> this.sessions.remove(id));
          sendApplicationEvent(new SessionExpiredEvent(this.getClass().getName(), session));
       }
    }
@@ -442,6 +516,8 @@ public class IgniteSessionRepository
 
    public static final String DEFAULT_SESSION_MAP_NAME = "spring.session.sessions";
    private static final Logger LOG = LoggerFactory.getLogger(IgniteSessionRepository.class);
+   private static final int SAVE_MAX_RETRIES = 3;
+   private static final long SAVE_RETRY_DELAY_MS = 200L;
    private static final int SESSION_EXPIRATION_WARNING_TIME = 90000; // 90 seconds, when to start warning the user about session expiring
    private static final int PROTECTION_EXPIRATION_WARNING_TIME = 600000; // 10 minutes, when to start warning the user about protection expiring
    private static final int PROTECTION_EXPIRATION_WARNING_INTERVAL = 120000; // 2 minutes, how often to warn about protection expiring
