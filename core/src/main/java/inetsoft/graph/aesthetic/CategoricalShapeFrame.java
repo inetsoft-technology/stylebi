@@ -24,17 +24,12 @@ import inetsoft.graph.scale.CategoricalScale;
 import inetsoft.graph.scale.Scale;
 import inetsoft.util.CoreTool;
 import inetsoft.util.DefaultComparator;
+import inetsoft.util.script.JavaScriptEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import inetsoft.util.DefaultComparator;
-import inetsoft.util.script.JavaScriptEngine;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * This class defines a shape frame for categorical values.
@@ -116,7 +111,7 @@ public class CategoricalShapeFrame extends ShapeFrame implements CategoricalFram
          Scale scale = getScale();
          List<Object> toRemove = cmap.keySet().stream()
             .filter(k -> Double.isNaN(scale.map(k)))
-            .collect(Collectors.toList());
+            .toList();
          toRemove.forEach(k -> setShape(k, null));
       }
    }
