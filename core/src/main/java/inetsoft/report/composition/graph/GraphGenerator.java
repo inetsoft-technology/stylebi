@@ -3708,6 +3708,9 @@ public abstract class GraphGenerator {
       else if(GraphTypes.isInterval(chartType)) {
          IntervalElement elem = new IntervalElement();
          elem.setZeroHeight(1);
+         elem.setCornerRadius(desc.getPlotDescriptor().getBarCornerRadius());
+         // Both ends are value ends (no fixed zero anchor), so always round all corners.
+         elem.setRoundAllCorners(true);
          elements.add(elem);
       }
       else if(GraphTypes.isScatteredContour(chartType)) {

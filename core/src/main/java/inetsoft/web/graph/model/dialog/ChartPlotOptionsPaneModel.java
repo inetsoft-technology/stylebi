@@ -116,7 +116,12 @@ public class ChartPlotOptionsPaneModel {
       this.barCornerRadius = plotDesc.getBarCornerRadius() > 0
          ? plotDesc.getBarCornerRadius() : null;
       this.barCornerRadiusVisible = GraphTypeUtil.checkType(info, ctype ->
-         GraphTypes.isBar(ctype) && !GraphTypes.is3DBar(ctype) &&
+         (GraphTypes.isBar(ctype) || GraphTypes.isInterval(ctype)) && !GraphTypes.is3DBar(ctype) &&
+         !GraphTypes.isPareto(ctype) && !GraphTypes.isWaterfall(ctype) &&
+         !GraphTypes.isFunnel(ctype));
+      // "Round All Corners" is hidden for interval charts — both ends are always rounded
+      this.barRoundAllCornersVisible = GraphTypeUtil.checkType(info, ctype ->
+         GraphTypes.isBar(ctype) && !GraphTypes.isStack(ctype) && !GraphTypes.is3DBar(ctype) &&
          !GraphTypes.isPareto(ctype) && !GraphTypes.isWaterfall(ctype) &&
          !GraphTypes.isFunnel(ctype) && !GraphTypes.isInterval(ctype));
       this.barRoundAllCorners = plotDesc.isBarRoundAllCorners();
@@ -193,7 +198,10 @@ public class ChartPlotOptionsPaneModel {
       plotDesc.setApplyAestheticsToSource(applyAestheticsToSource);
       plotDesc.setPieRatio(pieRatio != null ? pieRatio : 0);
       plotDesc.setBarCornerRadius(barCornerRadius != null ? barCornerRadius : 0);
-      plotDesc.setBarRoundAllCorners(barRoundAllCorners);
+      // Skip for interval charts — GraphGenerator hardcodes roundAllCorners=true for them.
+      if(barRoundAllCornersVisible) {
+         plotDesc.setBarRoundAllCorners(barRoundAllCorners);
+      }
       plotDesc.setOneLine(oneLine);
    }
 
@@ -914,6 +922,14 @@ public class ChartPlotOptionsPaneModel {
       this.barRoundAllCorners = barRoundAllCorners;
    }
 
+   public boolean isBarRoundAllCornersVisible() {
+      return barRoundAllCornersVisible;
+   }
+
+   public void setBarRoundAllCornersVisible(boolean barRoundAllCornersVisible) {
+      this.barRoundAllCornersVisible = barRoundAllCornersVisible;
+   }
+
    public boolean isOneLine() {
       return oneLine;
    }
@@ -986,6 +1002,7 @@ public class ChartPlotOptionsPaneModel {
    private Double pieRatio;
    private Double barCornerRadius;
    private boolean barCornerRadiusVisible;
+   private boolean barRoundAllCornersVisible;
    private boolean barRoundAllCorners;
    private boolean oneLine;
    private final static Logger LOG = LoggerFactory.getLogger(ChartPlotOptionsPaneModel.class);
