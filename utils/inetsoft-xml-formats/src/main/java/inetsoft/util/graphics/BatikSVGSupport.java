@@ -131,6 +131,7 @@ public class BatikSVGSupport implements SVGSupport {
          imageTranscoder.addTranscodingHint(SVGImageTranscoder.KEY_HEIGHT, finalSize.height);
       }
       SVGUtil.fixPNG(doc);
+      SVGUtil.fixEmptyFill(doc);
 
       try {
          imageTranscoder.transcode(new TranscoderInput(doc), null);
@@ -138,6 +139,7 @@ public class BatikSVGSupport implements SVGSupport {
       }
       catch(TranscoderException ex) {
          if(ex.getException() instanceof BridgeException) {
+            SVGUtil.fixGradientStops(doc);
             imageTranscoder.transcode(new TranscoderInput(doc), null);
             return imageTranscoder.getImage();
          }
@@ -304,7 +306,7 @@ public class BatikSVGSupport implements SVGSupport {
          t.transcode(transcoderInput, null);
       }
       catch(Exception e) {
-         e.printStackTrace();
+         LOG.warn("Failed to transcode SVG to buffered image", e);
       }
 
       return t.getImage();

@@ -3727,7 +3727,7 @@ public class VSInputService {
       if(iassembly instanceof ComboBoxVSAssembly comboBox) {
          ComboBoxVSAssemblyInfo comboBoxInfo = (ComboBoxVSAssemblyInfo) comboBox.getVSAssemblyInfo();
 
-         if(comboBoxInfo.isQueryDateFormat()) {
+         if(comboBoxInfo.isQueryDateFormat() && XSchema.isDateType(comboBoxInfo.getDataType())) {
             vt.putFormat(varName, comboBoxInfo.getDateFormatPattern());
          }
          else {

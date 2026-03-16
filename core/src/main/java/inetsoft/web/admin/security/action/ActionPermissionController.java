@@ -21,6 +21,7 @@ import inetsoft.sree.security.*;
 import inetsoft.util.*;
 import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.admin.security.ResourcePermissionModel;
+import inetsoft.web.admin.security.ResourcePermissionTableModel;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.security.*;
 import jakarta.annotation.PostConstruct;
@@ -137,6 +138,20 @@ public class ActionPermissionController {
       permissionService
          .setResourcePermissions(path, type, getActionObjectName(typeName, path), permissions, principal);
       return getPermissions(typeName, path, isGrant, principal);
+   }
+
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/actions",
+         actions = ResourceAction.ACCESS
+      )
+   )
+   @PostMapping("/api/em/security/actions/validate-identities")
+   public List<ResourcePermissionTableModel> validateIdentities(
+      @RequestBody List<ResourcePermissionTableModel> identities)
+   {
+      return permissionService.findMissingIdentities(identities);
    }
 
    private String getActionObjectName(String typeName, String path) {

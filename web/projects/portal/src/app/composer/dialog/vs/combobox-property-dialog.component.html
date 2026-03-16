@@ -26,7 +26,7 @@
         <combobox-general-pane [form]="form.controls['comboBoxGeneralForm']"
                                [model]="model.comboboxGeneralPaneModel" [runtimeId]="runtimeId"
                                [variableValues]="variableValues"
-                               (isInputValid)="onValidChanged($event)"
+                               (isInputValid)="onGeneralValidChanged($event)"
                                [columnTreeRoot]="scriptTreeModel?.columnTree"
                                [functionTreeRoot]="scriptTreeModel?.functionTree"
                                [operatorTreeRoot]="scriptTreeModel?.operatorTree"
@@ -36,14 +36,15 @@
     </ng-container>
     <ng-container ngbNavItem="dataTab">
       <a ngbNavLink>_#(Data)</a>
-      <ng-template ngbNavContent><data-input-pane [model]="model.dataInputPaneModel" [runtimeId]="runtimeId" [variableValues]="variableValues" [comboBox]="true"></data-input-pane></ng-template>
+      <ng-template ngbNavContent><data-input-pane [model]="model.dataInputPaneModel" [runtimeId]="runtimeId" [variableValues]="variableValues" [comboBox]="true" [dataType]="model.comboboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel.dataType" (dateFormatInvalidChange)="onDateFormatInvalidChanged($event)"></data-input-pane></ng-template>
     </ng-container>
     <ng-container ngbNavItem="labelTab">
       <a ngbNavLink>_#(Label)</a>
       <ng-template ngbNavContent>
         <input-label-pane [model]="model.inputLabelPaneModel"
                           [variableValues]="variableValues"
-                          [vsId]="runtimeId"></input-label-pane>
+                          [vsId]="runtimeId"
+                          (isInputValid)="onLabelValidChanged($event)"></input-label-pane>
       </ng-template>
     </ng-container>
     <ng-container [ngbNavItem]="scriptTab">
@@ -54,7 +55,7 @@
   <div [ngbNavOutlet]="nav"></div>
 </div>
 <div class="modal-footer">
-  <apply-button (onApply)="apply($event)" [disabled]="!form.valid || !valid"></apply-button>
+  <apply-button (onApply)="apply($event)" [disabled]="!form.valid || !dateFormatValid || !validGeneral || !validLabel"></apply-button>
   <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">_#(Cancel)</button>
-  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!form.valid || !valid" #okButton>_#(OK)</button>
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!form.valid || !dateFormatValid || !validGeneral || !validLabel" #okButton>_#(OK)</button>
 </div>

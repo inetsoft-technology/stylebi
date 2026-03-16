@@ -36,4 +36,6 @@ export interface ChartRegion {
    legendItemIdx?: number;
    period?: boolean;
    selectRows?: number[];
+   cornerRadius?: number;
+   barDirection?: number; // 0=up, 1=down, 2=right, 3=left
 }

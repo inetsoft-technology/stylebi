@@ -105,6 +105,12 @@ public interface ChartRegion {
    @Nullable
    int[] selectRows();
 
+   @Nullable
+   Double cornerRadius();
+
+   @Nullable
+   Integer barDirection();
+
    static Builder builder() {
       return new Builder();
    }

@@ -279,6 +279,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    worksheetPermission: boolean;
    scriptPermission: boolean;
    tableStylePermission: boolean;
+   aiAssistantPermission: boolean;
    grayedOutFields: DataRef[];
    splitPaneCollapsed: boolean = false;
    splitPaneSize: number = this.INIT_SPLIT_PANE_SIZE;
@@ -379,6 +380,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          this.viewsheetPermission = this.setPrincipalCommand.viewsheetPermission;
          this.scriptPermission = this.setPrincipalCommand.scriptPermission;
          this.tableStylePermission = this.setPrincipalCommand.tableStylePermission;
+         this.aiAssistantPermission = this.setPrincipalCommand.aiAssistantPermission;
          this.aiAssistantService.aiAssistantVisible = this.setPrincipalCommand.aiAssistantPermission;
 
          if(!this.vsWizard && this.setPrincipalCommand.autoSaveFiles != null &&

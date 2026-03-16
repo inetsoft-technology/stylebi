@@ -1237,6 +1237,22 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       this.pieRatio = pieRatio;
    }
 
+   public double getBarCornerRadius() {
+      return barCornerRadius;
+   }
+
+   public void setBarCornerRadius(double barCornerRadius) {
+      this.barCornerRadius = barCornerRadius;
+   }
+
+   public boolean isBarRoundAllCorners() {
+      return barRoundAllCorners;
+   }
+
+   public void setBarRoundAllCorners(boolean barRoundAllCorners) {
+      this.barRoundAllCorners = barRoundAllCorners;
+   }
+
    /**
     * Get the circle packing container formats.
     * @level the nesting level, with the top circle having a level of 0.
@@ -1452,6 +1468,10 @@ public class PlotDescriptor implements AssetObject, ContentObject {
          pieRatio = Double.parseDouble(val);
       }
 
+      val = Tool.getAttribute(node, "barCornerRadius");
+      barCornerRadius = val != null ? Double.parseDouble(val) : 0.0;
+      barRoundAllCorners = "true".equals(Tool.getAttribute(node, "barRoundAllCorners"));
+
       String lonMin = Tool.getAttribute(node, "lonMin");
       String lonMax = Tool.getAttribute(node, "lonMax");
       String latMin = Tool.getAttribute(node, "latMin");
@@ -1593,6 +1613,8 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       writer.print(" applyAestheticsToSource=\"" + applyAestheticsToSource + "\" ");
       writer.print(" wordCloudFontScale=\"" + wordCloudFontScale + "\" ");
       writer.print(" pieRatio=\"" + pieRatio + "\" ");
+      writer.print(" barCornerRadius=\"" + barCornerRadius + "\" ");
+      writer.print(" barRoundAllCorners=\"" + barRoundAllCorners + "\" ");
       writer.print(" oneLine=\"" + oneLine + "\" ");
 
       if(lonlat != null) {
@@ -1741,6 +1763,8 @@ public class PlotDescriptor implements AssetObject, ContentObject {
          applyAestheticsToSource == desc.applyAestheticsToSource &&
          Tool.equals(wordCloudFontScale, desc.wordCloudFontScale) &&
          pieRatio == desc.pieRatio &&
+         barCornerRadius == desc.barCornerRadius &&
+         barRoundAllCorners == desc.barRoundAllCorners &&
          circleFormats.equals(desc.circleFormats) &&
          Tool.equals(errorFormat, desc.errorFormat) &&
          includeParentLabels == desc.includeParentLabels &&
@@ -1830,6 +1854,10 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    private boolean fillGapWithDash = true;
    private CompositeTextFormat errorFormat;
    private double pieRatio = 0;
+   // By design, new bar charts default to rounded corners; parseXML overrides to 0 for saved charts.
+   private static final double DEFAULT_BAR_CORNER_RADIUS = 0.3;
+   private double barCornerRadius = DEFAULT_BAR_CORNER_RADIUS;
+   private boolean barRoundAllCorners = false;
    private boolean oneLine = false;
 
    private static final Logger LOG = LoggerFactory.getLogger(PlotDescriptor.class);

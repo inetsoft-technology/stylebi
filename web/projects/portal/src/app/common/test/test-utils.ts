@@ -689,6 +689,7 @@ export namespace TestUtils {
             calculateInfo: null,
             secondaryY: false,
             secondaryAxisSupported: true,
+            labelOnOppositeAxis: false,
             aggregated: true,
             oriFullName: name,
             oriView: name,

@@ -858,8 +858,15 @@ export namespace ChartTool {
                   const y = coordinates[n][k][0][1];
                   const w = coordinates[n][k][1][0];
                   const h = coordinates[n][k][1][1];
-                  context.moveTo(x, y);
-                  context.rect(x, y, w, h);
+                  const r = region.cornerRadius;
+
+                  if(r > 0) {
+                     drawRoundedBar(context, x, y, w, h, r, region.barDirection);
+                  }
+                  else {
+                     context.moveTo(x, y);
+                     context.rect(x, y, w, h);
+                  }
                }
                else if(segmentTypes[n].length == 1 && segmentTypes[n][0] == ELLIPSE) {
                   // [[x, y], [w, h]]
@@ -1427,5 +1434,91 @@ export namespace ChartTool {
    export function isAxis(areaName: string): boolean {
       return areaName === "bottom_x_axis" || areaName === "top_x_axis" || areaName === "left_y_axis" ||
          areaName === "right_y_axis";
+   }
+
+   /**
+    * Draw a bar with rounded corners onto the given canvas context path.
+    *
+    * direction undefined → all four corners rounded equally.
+    * direction 0–3      → only the open (value) end corners are rounded; base is sharp.
+    *   0 (up):    round top-left, top-right       base = bottom
+    *   1 (down):  round bottom-left, bottom-right base = top
+    *   2 (right): round top-right, bottom-right   base = left
+    *   3 (left):  round top-left, bottom-left     base = right
+    */
+   export function drawRoundedBar(
+      ctx: CanvasRenderingContext2D,
+      x: number, y: number, w: number, h: number,
+      radiusFraction: number, direction: number | undefined
+   ): void {
+      if(direction == null) {
+         // all four corners rounded equally; use shorter dimension so radiusFraction
+         // scales consistently for both vertical (w < h) and horizontal (h < w) bars.
+         const shortDim = Math.min(w, h);
+         const arc = Math.min(radiusFraction * shortDim, shortDim / 2);
+         ctx.moveTo(x + arc, y);
+         ctx.lineTo(x + w - arc, y);
+         ctx.arcTo(x + w, y,     x + w, y + arc,     arc); // top-right
+         ctx.lineTo(x + w, y + h - arc);
+         ctx.arcTo(x + w, y + h, x + w - arc, y + h, arc); // bottom-right
+         ctx.lineTo(x + arc, y + h);
+         ctx.arcTo(x,     y + h, x,     y + h - arc, arc); // bottom-left
+         ctx.lineTo(x, y + arc);
+         ctx.arcTo(x,     y,     x + arc, y,          arc); // top-left
+         ctx.closePath();
+         return;
+      }
+
+      // round only the open (value) end; base corners are sharp.
+      // Cap at min(w,h)/2 so the arc never exceeds half the shorter dimension (matches Java shortDim/2).
+      const arc = direction < 2
+         ? Math.min(radiusFraction * w, Math.min(w, h) / 2)   // vertical: fraction of bar width
+         : Math.min(radiusFraction * h, Math.min(w, h) / 2);  // horizontal: fraction of bar height
+
+      switch(direction) {
+         case 0: // up — round top-left, top-right
+            ctx.moveTo(x + arc, y);
+            ctx.lineTo(x + w - arc, y);
+            ctx.arcTo(x + w, y, x + w, y + arc, arc);  // top-right
+            ctx.lineTo(x + w, y + h);
+            ctx.lineTo(x, y + h);
+            ctx.lineTo(x, y + arc);
+            ctx.arcTo(x, y, x + arc, y, arc);           // top-left
+            ctx.closePath();
+            break;
+
+         case 1: // down — round bottom-left, bottom-right
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + w, y);
+            ctx.lineTo(x + w, y + h - arc);
+            ctx.arcTo(x + w, y + h, x + w - arc, y + h, arc); // bottom-right
+            ctx.lineTo(x + arc, y + h);
+            ctx.arcTo(x, y + h, x, y + h - arc, arc);          // bottom-left
+            ctx.lineTo(x, y);
+            ctx.closePath();
+            break;
+
+         case 2: // right — round top-right, bottom-right
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + w - arc, y);
+            ctx.arcTo(x + w, y, x + w, y + arc, arc);          // top-right
+            ctx.lineTo(x + w, y + h - arc);
+            ctx.arcTo(x + w, y + h, x + w - arc, y + h, arc);  // bottom-right
+            ctx.lineTo(x, y + h);
+            ctx.lineTo(x, y);
+            ctx.closePath();
+            break;
+
+         case 3: // left — round top-left, bottom-left
+            ctx.moveTo(x + arc, y);
+            ctx.lineTo(x + w, y);
+            ctx.lineTo(x + w, y + h);
+            ctx.lineTo(x + arc, y + h);
+            ctx.arcTo(x, y + h, x, y + h - arc, arc);  // bottom-left
+            ctx.lineTo(x, y + arc);
+            ctx.arcTo(x, y, x + arc, y, arc);           // top-left
+            ctx.closePath();
+            break;
+      }
    }
 }

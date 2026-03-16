@@ -62,6 +62,17 @@ public abstract class ChartAggregateInfoFactory<A extends ChartAggregateRef>
 
       aggrInfo.setBuildInCalcs(getBuildInCalcs(chartRef, cinfo, isBreakBy));
 
+      if(OriginalDescriptor.Y_AXIS.equals(des.getSource())) {
+         AxisDescriptor axisDesc = cinfo.getAxisDescriptor();
+
+         if(axisDesc != null && axisDesc.isLabelOnSecondaryAxis()) {
+            aggrInfo.setLabelOnOppositeAxis(true);
+            // Reset stale secondaryY so that opening and applying the measure editor
+            // cleans up any conflicting saved state. (Bug #74140)
+            aggrInfo.setSecondaryY(false);
+         }
+      }
+
       return aggrInfo;
    }
 

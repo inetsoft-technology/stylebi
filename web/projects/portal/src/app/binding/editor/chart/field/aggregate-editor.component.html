@@ -48,7 +48,9 @@
     </div>
     <div class="form-check ms-3">
       <input type="checkbox" id="secondary" class="form-check-input"
-           [(ngModel)]="secondaryValue" *ngIf="isSecondaryAxisSupported"/>
+           [(ngModel)]="secondaryValue" *ngIf="isSecondaryAxisSupported"
+           [disabled]="aggregate.labelOnOppositeAxis"
+           [title]="aggregate.labelOnOppositeAxis ? '_#(viewer.chart.secondaryAxisDisabledTip)' : ''"/>
       <label class="form-check-label" *ngIf="isSecondaryAxisSupported" for="secondary">
         _#(Secondary Axis)
       </label>

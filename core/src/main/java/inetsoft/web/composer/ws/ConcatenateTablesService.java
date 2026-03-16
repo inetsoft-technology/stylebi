@@ -111,7 +111,7 @@ public class ConcatenateTablesService extends WorksheetControllerService {
       if(event.getOtherTables().length == 0) {
          MessageCommand command = new MessageCommand();
          command.setType(MessageCommand.Type.WARNING);
-         command.setMessage("There are no other tables to concatenate with.");
+         command.setMessage(Catalog.getCatalog().getString("common.concatenate.notable"));
          command.setAssemblyName(event.getSourceTable());
          commandDispatcher.sendCommand(command);
          return null;

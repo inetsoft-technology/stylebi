@@ -1065,6 +1065,22 @@ public abstract class GShape implements Cloneable, Serializable {
                                 bounds.getWidth(), bounds.getHeight());
          }
 
+         // When applyColor is false (PNG/JPG drawn as-is) but a pure-grey color is set
+         // (e.g. brush dim color, saturation == 0), draw a semi-transparent overlay so the
+         // image appears visually dimmed. Categorical colors (saturation > 0) are unaffected.
+         // Note: this produces a grey wash over the original image, not a solid silhouette;
+         // SVGShape uses HueImageFilter for a fully opaque silhouette instead.
+         if(!applyColor) {
+            Color c = g.getColor();
+            float[] hsb = Color.RGBtoHSB(c.getRed(), c.getGreen(), c.getBlue(), null);
+
+            if(hsb[1] == 0) { // pure grey only — matches HueImageFilter.gray threshold
+               // alpha=160 (~63% opaque) dims the image while keeping the shape recognizable
+               g.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), 160));
+               g.fill(bounds);
+            }
+         }
+
          g.dispose();
       }
 

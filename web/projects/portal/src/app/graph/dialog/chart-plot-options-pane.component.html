@@ -220,8 +220,29 @@
                   formControlName="fontScale">
            <label><span>_#(Font Scale)</span></label>
          </div>
+         <div class="col-auto form-floating" *ngIf="model.barCornerRadiusVisible">
+           <input class="form-control number-input bar-corner-radius"
+                  type="number" min="0" max="0.5" step="0.05"
+                  placeholder="0.3"
+                  [(ngModel)]="model.barCornerRadius"
+                  formControlName="barCornerRadius">
+           <label><span>_#(Bar Corner Radius)</span></label>
+         </div>
+         <div class="col-auto" *ngIf="model.barCornerRadiusVisible && model.barCornerRadius">
+            <div class="form-check">
+               <input type="checkbox" class="form-check-input" id="barRoundAllCorners"
+                      [(ngModel)]="model.barRoundAllCorners"
+                      [ngModelOptions]="{standalone: true}">
+               <label class="form-check-label" for="barRoundAllCorners">
+                 _#(Round All Corners)
+               </label>
+            </div>
+         </div>
       </div>
    </fieldset>
+   <div *ngIf="form.controls['barCornerRadius']?.errors && model.barCornerRadius != null" class="alert alert-danger error">
+     _#(viewer.viewsheet.chart.barCornerRadius.rangeWarning)
+   </div>
    <div *ngIf="form.controls['pieRatio']?.errors && model.pieRatio != null" class="alert alert-danger error">
      _#(viewer.viewsheet.chart.pieRatio.rangeWarning)
    </div>

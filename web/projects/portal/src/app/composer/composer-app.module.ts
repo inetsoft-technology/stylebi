@@ -20,6 +20,7 @@ import { CommonModule } from "@angular/common";
 import { HttpClient } from "@angular/common/http";
 import { NgModule } from "@angular/core";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { AiAssistantModule } from "../../../../shared/ai-assistant/ai-assistant.module";
 import {
    NgbDropdownModule,
    NgbModal,
@@ -377,7 +378,8 @@ import { LineAnchorService } from "./services/line-anchor.service";
       ScriptModule,
       VSObjectDirectivesModule,
       CodemirrorModule,
-      ScrollingModule ,
+      ScrollingModule,
+      AiAssistantModule,
    ],
    declarations: [
       ComposerAppComponent,

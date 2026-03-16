@@ -622,6 +622,16 @@ public class FormatPainterService {
                   }
                }
 
+               // When setting format on the whole input assembly, also apply to the label
+               if(info instanceof InputVSAssemblyInfo) {
+                  LabelInfo labelInfo = ((InputVSAssemblyInfo) info).getLabelInfo();
+
+                  if(labelInfo != null) {
+                     changeLabelFormat(labelInfo, event.getFormat(), event.getOrigFormat(),
+                                       event.isReset(), event.isCopyFormat());
+                  }
+               }
+
                if(isFormattedStringColumn(event, assembly, dataPath)) {
                   Tool.addUserMessage(new UserMessage(
                      catalog.getString("composer.stringColumnFormat"), ConfirmException.WARNING,

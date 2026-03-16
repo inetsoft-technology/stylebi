@@ -33,6 +33,7 @@ import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageHeaders;
@@ -41,7 +42,8 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.socket.messaging.*;
+import org.springframework.web.socket.messaging.AbstractSubProtocolEvent;
+import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -52,7 +54,6 @@ import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import org.springframework.context.annotation.Lazy;
 
 @Lazy(false)
 @Controller
@@ -88,6 +89,12 @@ public class RepositoryChangeController {
 
       try {
          RepletRegistry.getRegistry().removePropertyChangeListener(this.reportListener);
+      }
+      catch(Exception e) {
+         LOG.debug("Exception occurred while removing listener, this usually indicates a shutdown in progress", e);
+      }
+
+      try {
          assetRepository.removeAssetChangeListener(this.assetListener);
          assetRepository.removeAssetChangeListener(this.autoSaveListener);
          DashboardManager.getManager().removeDashboardChangeListener(this.dashboardListener);

@@ -3430,7 +3430,7 @@ public class SQLHelper implements KeywordProvider {
             };
          }
 
-         name = tpart ? XUtil.quoteNameSegment(name, true, this, checkSpecial)
+         name = (tpart && name.indexOf('.') < 0) ? XUtil.quoteNameSegment(name, true, this, checkSpecial)
             : XUtil.quoteName(name, this);
       }
 

@@ -219,9 +219,18 @@ export class CreateDriverDialogComponent implements OnInit {
          mergeMap(id => this.scanDrivers(id)),
          finalize(() => this.loading = false),
          catchError(error => {
-            const message = error.error?.message?.includes("unresolved dependency") ?
-               "_#(js:em.data.databases.driver.mavenCoordMissing)" :
-               "_#(js:em.data.databases.driverUploadError)";
+            let message: string;
+
+            if(error.status === 400 && error.error?.message) {
+               message = error.error.message;
+            }
+            else if(error.error?.message?.includes("unresolved dependency")) {
+               message = "_#(js:em.data.databases.driver.mavenCoordMissing)";
+            }
+            else {
+               message = "_#(js:em.data.databases.driverUploadError)";
+            }
+
             this.snackBar.open(message, null, {duration: Tool.SNACKBAR_DURATION});
             console.error("Failed to upload driver(s): ", error);
             return throwError(error);
