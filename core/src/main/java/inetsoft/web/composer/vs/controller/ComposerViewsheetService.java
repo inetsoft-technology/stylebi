@@ -208,7 +208,7 @@ public class ComposerViewsheetService {
       }
    }
 
-   private Viewsheet.WizInfo updateWizVisualization(RuntimeViewsheet rvs) throws CloneNotSupportedException {
+   private Viewsheet.WizInfo updateWizVisualization(RuntimeViewsheet rvs) {
       if(rvs.getViewsheet() != null && rvs.getViewsheet().getWizInfo() != null &&
          rvs.getViewsheet().getWizInfo().isWizSheet())
       {
@@ -217,7 +217,7 @@ public class ComposerViewsheetService {
 
          Set<String> visualizations = wizInfo.getVisualizations();
 
-         if(visualizations != null && !visualizations.isEmpty()) {
+         if(!visualizations.isEmpty()) {
             for(String visualization : visualizations) {
                AssetEntry original = VSUtil.createWizOriginalVisualization(AssetEntry.createAssetEntry(visualization));
                wizInfo.removeVisualization(visualization);

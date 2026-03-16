@@ -5553,10 +5553,8 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
             return clone;
          }
          catch(CloneNotSupportedException ex) {
-            LOG.error("Failed to clone object", ex);
+            throw new AssertionError("Cloneable contract violated", ex);
          }
-
-         return null;
       }
 
       private void writeXML(PrintWriter writer) {
