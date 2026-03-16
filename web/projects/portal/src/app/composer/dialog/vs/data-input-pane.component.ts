@@ -16,13 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient, HttpHeaders } from "@angular/common/http";
-import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
+import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges, ViewChild } from "@angular/core";
 import { Tool } from "../../../../../../shared/util/tool";
 import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { DataInputPaneModel } from "../../data/vs/data-input-pane-model";
 import { DatePipe } from '@angular/common';
+import { XSchema } from "../../../common/data/xschema";
 
 const ROW_URI: string = "../vs/dataInput/rows/";
 const COLUMN_URI: string = "../vs/dataInput/columns/";
@@ -34,12 +35,13 @@ const POPUP_TABLE_URI: string = "../vs/dataInput/popupTable/";
    styleUrls: ["data-input-pane.component.scss"],
    providers: [DatePipe]
 })
-export class DataInputPane implements OnInit {
+export class DataInputPane implements OnInit, OnChanges {
    @Input() model: DataInputPaneModel;
    @Input() variableValues: string[] = [];
    @Input() runtimeId: string = "";
    @Input() checkBox: boolean = false;
    @Input() comboBox: boolean = false;
+   @Input() dataType: string = "";
    headers: HttpHeaders;
    columns: any[] = [];
    rows: string[] = [];
@@ -60,8 +62,15 @@ export class DataInputPane implements OnInit {
    ngOnInit() {
       this.updateColumns();
 
-      if(this.comboBox && this.model.queryDateFormat && this.model.dateFormatPattern) {
+      if(this.comboBox && this.isDateType && this.model.queryDateFormat && this.model.dateFormatPattern) {
          this.validateDateFormat(this.model.dateFormatPattern);
+      }
+   }
+
+   ngOnChanges(changes: SimpleChanges) {
+      if(changes['dataType'] && !changes['dataType'].firstChange && !this.isDateType) {
+         this.model.queryDateFormat = false;
+         this.setDateFormatInvalid(false);
       }
    }
 
@@ -345,6 +354,10 @@ export class DataInputPane implements OnInit {
 
    getPageLabel(): string {
       return Tool.formatCatalogString("_#(js:nOfTotal)", ["", this.popupTable.numPages]);
+   }
+
+   get isDateType(): boolean {
+      return XSchema.isDateType(this.dataType);
    }
 
    onQueryDateFormatToggle(checked: boolean): void {
