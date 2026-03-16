@@ -389,6 +389,21 @@ public class MVSupportService {
 
       ClusterUtil.clearRemovedMVFiles();
       manager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
+      removeAnalysisStatusEntries(mvs);
+   }
+
+   private void removeAnalysisStatusEntries(List<String> mvNames) {
+      Set<String> nameSet = new HashSet<>(mvNames);
+      Map<String, AnalysisStatus> map = Cluster.getInstance().getMap(ANALYSIS_STATUS_MAP);
+      map.entrySet().stream()
+         .filter(e -> {
+            List<MVStatus> results = e.getValue().getResults();
+            return results != null && results.stream()
+               .anyMatch(s -> nameSet.contains(s.getDefinition().getMVName()));
+         })
+         .map(Map.Entry::getKey)
+         .toList()
+         .forEach(map::remove);
    }
 
    /**
