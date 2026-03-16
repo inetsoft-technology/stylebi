@@ -51,7 +51,7 @@ public class WizViewsheetService {
       AssetEntry visualizationEntry = AssetEntry.createAssetEntry(entryId);
 
       if(visualizationEntry == null) {
-         throw  new Exception("Invalid Viewsheet");
+         throw new Exception("Invalid Viewsheet");
       }
 
       AssetEntry originalEntry = VSUtil.createWizOriginalVisualization(visualizationEntry);

@@ -71,6 +71,11 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
    }
 
    ngOnInit(): void {
+      if(!this.currentVisualization.wizSheetRuntimeId) {
+         console.error("wizSheetRuntimeId is missing for wiz visualization");
+         return;
+      }
+
       this.viewsheetClient.connect();
       this.currentVisualization.socketConnection = this.viewsheetClient;
 
