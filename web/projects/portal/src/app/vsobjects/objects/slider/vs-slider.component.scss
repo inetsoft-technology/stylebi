@@ -21,17 +21,17 @@
 // element to adapt the slider to a custom M3 color scheme.
 //
 // Reference sizes (standard variant per M3 Expressive spec):
-//   track-height:            16dp
-//   handle-width (pressed):   4dp  (thin pill, --md-sys-shape-corner-full)
-//   handle-width (resting):  12dp  (grabbable; squishes to 4dp while dragging)
-//   handle-height:           44dp
-//   handle-gap:               6dp  (gap between pill edge and track, per side)
-//   track-overhang:          12px  (track extends 12px past first/last tick)
-//   state-layer-size:        48dp
+//   track-height:            16dp   → using 12px  (acceptable deviation — fits compact layouts)
+//   handle-width (pressed):   4dp   → using 2px   (acceptable deviation — more subtle squish)
+//   handle-width (resting):  12dp   → using 4px   (acceptable deviation — less obtrusive)
+//   handle-height:           44dp   → using 33px  (acceptable deviation — fits compact layouts)
+//   handle-gap:               6dp   (matches spec)
+//   track-overhang:           4dp   → using 12px  (intentional product decision — more visual breathing room)
+//   state-layer-size:        48dp   → using 44px  (acceptable deviation — proportional to handle-height)
 :host {
   // ── Geometry ──────────────────────────────────────────────────────────────
   --slider-track-height: 12px;
-  --slider-handle-width: 2px;           // pressed / dragging pill width
+  --slider-handle-pressed-width: 2px;   // pressed / dragging pill width
   --slider-handle-resting-width: 4px;   // resting pill width — squishes on drag
   --slider-handle-height: 33px;
   --slider-handle-gap: 6px;             // gap between pill and track edge, per side
@@ -56,6 +56,9 @@
   --slider-pressed-state-opacity: 0.12;
 
   // ── Value label ───────────────────────────────────────────────────────────
+  // These variables are not currently applied to .slider-value so the label
+  // inherits the component's theme colors. They are defined here as override
+  // hooks for consumers who want to style the value bubble independently.
   --slider-label-bg: #9e9e9e;
   --slider-label-color: #fff;
   --slider-label-border-radius: 14px;
@@ -187,7 +190,7 @@
 
 // ── Derived container widths ──────────────────────────────────────────────────
 $handle-container-resting: calc(var(--slider-handle-resting-width) + 2 * var(--slider-handle-gap));
-$handle-container-pressed: calc(var(--slider-handle-width)         + 2 * var(--slider-handle-gap));
+$handle-container-pressed: calc(var(--slider-handle-pressed-width)         + 2 * var(--slider-handle-gap));
 
 .slider-handle {
   height: var(--slider-handle-height);
@@ -248,8 +251,8 @@ $handle-container-pressed: calc(var(--slider-handle-width)         + 2 * var(--s
   cursor: grabbing;
 
   &::after {
-    width: var(--slider-handle-width);
-    border-radius: calc(var(--slider-handle-width) / 2);
+    width: var(--slider-handle-pressed-width);
+    border-radius: calc(var(--slider-handle-pressed-width) / 2);
   }
 
   &::before {

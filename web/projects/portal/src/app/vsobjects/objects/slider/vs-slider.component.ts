@@ -160,6 +160,7 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
                this.zone.run(() => {
                   this.handlePosition = this.getValueX();
                   this.ticks = this.getTicks();
+                  this.changeRef.detectChanges();
                });
             });
          });
@@ -370,7 +371,7 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
    }
 
    moveHandleHere(event: MouseEvent) {
-      this.handlePosition = this.snap(event.offsetX);
+      this.handlePosition = Math.max(0, Math.min(this.snap(event.offsetX), this.getLineWidth()));
       this.model.value = this.getModelValueFromXPosition(this.handlePosition);
       this.previousLabel = this.model.currentLabel;
       this.isMouseDown = true;
