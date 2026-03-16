@@ -47,10 +47,6 @@
   --slider-handle-color: #9e9e9e;
   --slider-handle-shadow: 0 1px 2px rgba(0, 0, 0, 0.30),
                           0 1px 3px 1px rgba(0, 0, 0, 0.15);
-  // Surface fills the gap container *only within the track zone*.
-  // Set this to match the slider's background-color when it is non-white.
-  --slider-surface: #fff;
-
   // ── State-layer opacities ─────────────────────────────────────────────────
   --slider-hover-state-opacity: 0.08;
   --slider-pressed-state-opacity: 0.12;
@@ -180,13 +176,9 @@
 //
 // Structure (single .slider-handle div):
 //
-//   .slider-handle — gap container (44dp tall, grab area)
-//     background: transparent above/below track, --slider-surface within track zone
-//     ::before — 48dp state-layer ring (hover / pressed halo)
-//     ::after  — visible pill (primary-colored, squishes to 4dp while dragging)
-//
-// The gradient background "punches through" the track only within the 16dp
-// track zone, leaving the handle freely visible above and below.
+//   .slider-handle — gap container (33dp tall, grab area)
+//     ::before — state-layer ring (hover / pressed halo)
+//     ::after  — visible pill (squishes to pressed width while dragging)
 
 // ── Derived container widths ──────────────────────────────────────────────────
 $handle-container-resting: calc(var(--slider-handle-resting-width) + 2 * var(--slider-handle-gap));
