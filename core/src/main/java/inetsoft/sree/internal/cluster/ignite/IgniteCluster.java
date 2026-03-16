@@ -94,8 +94,6 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          initLockTimer();
          ignite.getOrCreateCache(getCacheConfiguration(RW_MAP_NAME));
       }
-
-      registerSpringProxyPartitionedCache(WorksheetEngine.CACHE_NAME);
    }
 
    public static IgniteConfiguration getDefaultConfig(Path workDir) {
@@ -1018,7 +1016,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    @Override
    public boolean isLocalCall() {
       ClusterNode localNode = ignite.cluster().localNode();
-      return localNode.isClient() || Boolean.TRUE.equals(localNode.attribute("scheduler"));
+      return localNode.isClient();
    }
 
    @Override
