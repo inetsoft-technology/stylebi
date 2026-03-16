@@ -235,7 +235,6 @@ public class ScriptPropertyTool {
       ASSEMBLY_NAMES.put("RectangleVSA", "Rectangle");
       ASSEMBLY_NAMES.put("LineVSA", "Line");
       ASSEMBLY_NAMES.put("OvalVSA", "Oval");
-      ASSEMBLY_NAMES.put("UploadVSA", "Upload");
       ASSEMBLY_NAMES.put("SubmitVSA", "Submit");
       ASSEMBLY_NAMES.put("SliderVSA", "Slider");
       ASSEMBLY_NAMES.put("SpinnerVSA", "Spinner");
@@ -249,7 +248,6 @@ public class ScriptPropertyTool {
       ASSEMBLY_NAMES.put("VSCrosstabInfo", "Crosstab.bindingInfo");
       ASSEMBLY_NAMES.put("VSChartInfo", "Chart.bindingInfo");
       ASSEMBLY_NAMES.put("SelectionContainerVSA", "SelectionContainer");
-      ASSEMBLY_NAMES.put("TabVSA", "Tab");
       // Since GroupContainer has the same properties with Image,
       // using its property link as its own.
       ASSEMBLY_NAMES.put("GroupContainerVSA", "Image");
