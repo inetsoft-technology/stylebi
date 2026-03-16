@@ -41,6 +41,8 @@ import inetsoft.web.viewsheet.model.calendar.VSCalendarModel;
 import inetsoft.web.viewsheet.model.chart.VSChartModel;
 import inetsoft.web.viewsheet.model.table.*;
 import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.wiz.service.WizViewsheetService;
+import inetsoft.web.wiz.service.WizViewsheetServiceProxy;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -168,7 +170,7 @@ public class ControllersExtension extends MockMessageExtension {
       licenseService = new LicenseService();
       openViewsheetController = new OpenViewsheetController(
          runtimeViewsheetRef, runtimeViewsheetManager, vsLifecycleService, licenseService,
-         new OpenViewsheetServiceProxy(), viewsheetService);
+         new OpenViewsheetServiceProxy(), viewsheetService, new WizViewsheetServiceProxy());
       baseTableLoadDataController =
          new BaseTableLoadDataController(runtimeViewsheetRef, tableLoadDataServiceProxy);
       selectionService = new VSSelectionService(coreLifecycleService, viewsheetService,

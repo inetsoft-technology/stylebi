@@ -18,6 +18,7 @@
 package inetsoft.web.composer.vs.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
@@ -88,6 +89,10 @@ public class ComposerViewsheetController {
          wizInfo = new Viewsheet.WizInfo(true);
       }
       else if(event.isWizVisualization()) {
+         if(Tool.isEmptyString(event.getWizSheetRuntimeId())) {
+            throw new IllegalArgumentException("Wiz Sheet RuntimeId is required for wizVisualization");
+         }
+
          wizInfo = new Viewsheet.WizInfo(true, event.getVisualizationSheet(), event.getDataSources());
       }
       else if(event.getDataSources() != null && !event.getDataSources().isEmpty()) {
@@ -96,6 +101,11 @@ public class ComposerViewsheetController {
 
       String runtimeId = viewsheetService.openTemporaryViewsheet(null, datasource, principal, wizInfo);
       runtimeViewsheetRef.setRuntimeId(runtimeId);
+      RuntimeViewsheet viewsheet = viewsheetService.getViewsheet(runtimeId, principal);
+
+      if(viewsheet != null && event.isWizVisualization()) {
+         viewsheet.setWizSheetRuntimeId(event.getWizSheetRuntimeId());
+      }
 
       composerViewsheetService.newViewsheet(runtimeId, event, principal, commandDispatcher, linkUri);
    }

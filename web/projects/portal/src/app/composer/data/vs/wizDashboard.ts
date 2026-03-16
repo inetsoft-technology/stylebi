@@ -22,6 +22,7 @@ import { Viewsheet } from "./viewsheet";
 
 export class WizDashboard extends Viewsheet {
    baseEntries: AssetEntry[];
+   wizSheetRuntimeId: string;
 
    constructor(fontService: FontService = null, sheet: Viewsheet = null, public visualization: boolean = false, public visualizationSheet?: string) {
       super(fontService, sheet);

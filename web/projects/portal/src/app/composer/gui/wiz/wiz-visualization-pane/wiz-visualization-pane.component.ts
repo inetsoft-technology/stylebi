@@ -71,6 +71,11 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
    }
 
    ngOnInit(): void {
+      if(!this.currentVisualization.wizSheetRuntimeId) {
+         console.error("wizSheetRuntimeId is missing for wiz visualization");
+         return;
+      }
+
       this.viewsheetClient.connect();
       this.currentVisualization.socketConnection = this.viewsheetClient;
 
@@ -80,7 +85,8 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
       if(this.currentVisualization.newSheet) {
          const event = new NewViewsheetEvent(
             this.currentVisualization.id, size[0], size[1], mobile,
-            window.navigator.userAgent, null, false, true, this.currentVisualization?.visualizationSheet);
+            window.navigator.userAgent, null, false, true,
+            this.currentVisualization?.visualizationSheet, this.currentVisualization.wizSheetRuntimeId);
          event.dataSources = this.currentVisualization.baseEntries;
          event.viewer = false;
          this.viewsheetClient.sendEvent("/events/composer/viewsheet/new", event);
@@ -88,7 +94,8 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
       else {
          const event = new OpenViewsheetEvent(
             this.currentVisualization.id, size[0], size[1], mobile,
-            window.navigator.userAgent, this.currentVisualization.meta, false);
+            window.navigator.userAgent, this.currentVisualization.meta,
+            false, false, true, null, this.currentVisualization.wizSheetRuntimeId);
          event.viewer = false;
 
          this.viewsheetClient.sendEvent("/events/open", event);

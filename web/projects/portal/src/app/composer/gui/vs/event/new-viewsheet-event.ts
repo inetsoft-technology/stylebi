@@ -36,11 +36,17 @@ export class NewViewsheetEvent extends OpenViewsheetEvent {
     * @param mobile    the flag that indicates if the client is a mobile device.
     * @param userAgent the user agent string of the client browser.
     * @param dataSource the asset entry id of the data source.
+    * @param wizSheet  the flag that sheet is wiz sheet.
+    * @param wizVisualization the flag that sheet is wiz visualization.
+    * @param visualizationSheet the visualization wiz sheet name.
+    * @param wizSheetRuntimeId the visualization sheet runtime id.
     */
    constructor(entryId: string, width: number, height: number, mobile: boolean,
-               userAgent: string, dataSource: AssetEntry, wizSheet?: boolean, wizVisualization?: boolean, visualizationSheet?: string)
+               userAgent: string, dataSource: AssetEntry, wizSheet?: boolean, wizVisualization?: boolean,
+               visualizationSheet?: string, wizSheetRuntimeId?: string)
    {
-      super(entryId, width, height, mobile, userAgent, false, false, wizSheet, wizVisualization, visualizationSheet);
+      super(entryId, width, height, mobile, userAgent, false, false, wizSheet,
+         wizVisualization, visualizationSheet, wizSheetRuntimeId);
 
       this.dataSources = !!dataSource ? [dataSource] : [];
    }

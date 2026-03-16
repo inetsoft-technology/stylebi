@@ -449,6 +449,25 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
          closeSheet(id, user);
          lifecycleMessageService.viewsheetClosed(id);
       }
+
+      if(closeSheet instanceof RuntimeViewsheet runtimeViewsheet &&
+         runtimeViewsheet.getViewsheet() != null &&
+         runtimeViewsheet.getViewsheet().getWizInfo() != null &&
+         runtimeViewsheet.getViewsheet().getWizInfo().isWizSheet())
+      {
+         Viewsheet.WizInfo wizInfo = runtimeViewsheet.getViewsheet().getWizInfo();
+
+         if(wizInfo.getVisualizations() != null) {
+            for(String visualization : wizInfo.getVisualizations()) {
+               try {
+                  VSUtil.deleteWizCopyViewsheet(AssetEntry.createAssetEntry(visualization), user);
+               }
+               catch(Exception ex) {
+                  LOG.warn("Failed to delete wiz temp visualization: " + visualization, ex);
+               }
+            }
+         }
+      }
    }
 
    /**
