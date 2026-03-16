@@ -127,7 +127,7 @@ public class BindingModel {
       private List<SourceTableColumn> columns;
    }
 
-    public static class SourceTableColumn {
+   public static class SourceTableColumn {
       public SourceTableColumn() {
       }
 
