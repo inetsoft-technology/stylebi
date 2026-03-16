@@ -103,7 +103,11 @@ public class AxisPropertyDialogModel {
       axisLabelPaneModel.setShowAxisLabel(
          maxMode ? axisDesc.isMaxModeLabelVisible() : axisDesc.isLabelVisible());
       axisLabelPaneModel.setShowAxisLabelEnabled(showAxisLabelEnabled);
-      axisLabelPaneModel.setLabelOnSecondaryAxis(axisDesc.isLabelOnSecondaryAxis());
+      // For Pareto charts the "Labels on Opposite Side" option is not supported (the right y-axis
+      // is always the cumulative-percentage axis). Reset to false so that any chart previously saved
+      // with this flag set will have the primary axis restored on open/OK. (Bug #74142)
+      axisLabelPaneModel.setLabelOnSecondaryAxis(axisDesc.isLabelOnSecondaryAxis() &&
+         !GraphTypes.isPareto(cInfo.getRTChartType()));
 
       // A right_y_axis click can mean either a true secondary y-axis OR a primary axis whose
       // labels were moved to the right via "Labels on Opposite Side".
