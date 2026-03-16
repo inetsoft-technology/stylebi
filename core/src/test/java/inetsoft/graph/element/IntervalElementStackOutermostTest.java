@@ -169,25 +169,29 @@ class IntervalElementStackOutermostTest {
       long outermostCount = geoms.stream().filter(IntervalGeometry::isStackOutermost).count();
       assertEquals(2, outermostCount, "One outermost negative segment per category expected");
 
+      long innermostCount = geoms.stream().filter(IntervalGeometry::isStackInnermost).count();
+      assertEquals(2, innermostCount, "One innermost negative segment per category expected");
+
       // The outermost negative segment (farthest below baseline) is m2, which is
-      // stacked further down than m1.
+      // stacked further down than m1. The innermost is m1, closest to the baseline.
       for(int rowIdx = 0; rowIdx <= 1; rowIdx++) {
          final int r = rowIdx;
          IntervalGeometry outermost = geoms.stream()
             .filter(g -> g.getRowIndex() == r && g.isStackOutermost())
             .findFirst().orElse(null);
-         IntervalGeometry inner = geoms.stream()
-            .filter(g -> g.getRowIndex() == r && !g.isStackOutermost())
+         IntervalGeometry innermost = geoms.stream()
+            .filter(g -> g.getRowIndex() == r && g.isStackInnermost())
             .findFirst().orElse(null);
 
          assertNotNull(outermost, "Row " + rowIdx + " must have one outermost segment");
-         assertNotNull(inner, "Row " + rowIdx + " must have one inner segment");
+         assertNotNull(innermost, "Row " + rowIdx + " must have one innermost segment");
 
          // DefaultDataSet assigns column indices by declaration order: "Cat"=0, "m1"=1, "m2"=2.
          // m2 (colIndex 2) is stacked below m1 (colIndex 1), so it is farthest from the
          // baseline and must be the outermost segment.
-         assertTrue(inner.getColIndex() < outermost.getColIndex(),
-                    "m1 (inner) must have lower colIndex than m2 (outermost) for row " + rowIdx);
+         // m1 (colIndex 1) is stacked directly from the baseline, so it must be innermost.
+         assertTrue(innermost.getColIndex() < outermost.getColIndex(),
+                    "m1 (innermost) must have lower colIndex than m2 (outermost) for row " + rowIdx);
       }
    }
 
@@ -241,7 +245,14 @@ class IntervalElementStackOutermostTest {
       assertEquals(4, outermostCount,
                    "Each bar must have one outermost positive and one outermost negative segment");
 
-      // Verify: exactly 2 outermost segments per row (one positive stack, one negative stack)
+      // Each bar also has one innermost per sign: the first positive and first negative segment.
+      // Row A (m1=10, m2=-5, m3=15): firstPositive=m1(col 1), firstNegative=m2(col 2) → 2 innermosts
+      // Row B (m1=-8, m2=20, m3=-3): firstNegative=m1(col 1), firstPositive=m2(col 2) → 2 innermosts
+      long innermostCount = geoms.stream().filter(IntervalGeometry::isStackInnermost).count();
+      assertEquals(4, innermostCount,
+                   "Each bar must have one innermost positive and one innermost negative segment");
+
+      // Verify: exactly 2 outermost and 2 innermost segments per row
       for(int rowIdx = 0; rowIdx <= 1; rowIdx++) {
          final int r = rowIdx;
          long rowOutermost = geoms.stream()
@@ -249,6 +260,12 @@ class IntervalElementStackOutermostTest {
             .count();
          assertEquals(2, rowOutermost,
                       "Row " + rowIdx + " must have exactly 2 outermost segments (one positive, one negative)");
+
+         long rowInnermost = geoms.stream()
+            .filter(g -> g.getRowIndex() == r && g.isStackInnermost())
+            .count();
+         assertEquals(2, rowInnermost,
+                      "Row " + rowIdx + " must have exactly 2 innermost segments (one positive, one negative)");
       }
    }
 
