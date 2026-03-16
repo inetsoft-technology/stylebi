@@ -249,7 +249,14 @@ public abstract class RuntimeSheet {
     * @return <tt>true</tt> if yes, <tt>false</tt> otherwise.
     */
    public boolean matches(Principal user) {
-      return Tool.equals(this.user, user);
+      if(this.user == null || user == null) {
+         return this.user == user;
+      }
+
+      // Bug #74165: compare only the business identity (name + orgID), ignoring session ID
+      // and client IP. These technical attributes can change (network switch, session timeout,
+      // cluster routing) even though the business identity remains the same.
+      return Tool.equals(this.user.getName(), user.getName());
    }
 
    /**
