@@ -77,19 +77,20 @@ class ChartPlotOptionsPaneModelTest {
    // --- updateChartPlotOptionsPaneModel: barRoundAllCorners save guard ---
 
    @Test
-   void updateModel_doesNotOverwriteBarRoundAllCornersForIntervalChart() {
+   void updateModel_setsBarRoundAllCornersTrueForIntervalChart() {
       VSChartInfo info = new VSChartInfo();
       info.setChartType(GraphTypes.CHART_INTERVAL);
       PlotDescriptor plotDesc = new PlotDescriptor();
-      plotDesc.setBarRoundAllCorners(true);
+      // Stale descriptor value of false (e.g. created before interval support was added)
+      plotDesc.setBarRoundAllCorners(false);
 
       ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, plotDesc);
-      // Simulate the frontend sending barRoundAllCorners=false (checkbox was hidden)
+      // Simulate the frontend sending barRoundAllCorners=false (checkbox is hidden)
       model.setBarRoundAllCorners(false);
       model.updateChartPlotOptionsPaneModel(info, plotDesc);
 
       assertTrue(plotDesc.isBarRoundAllCorners(),
-         "barRoundAllCorners should not be overwritten for interval charts");
+         "barRoundAllCorners should be forced true for interval charts to match GraphGenerator");
    }
 
    @Test

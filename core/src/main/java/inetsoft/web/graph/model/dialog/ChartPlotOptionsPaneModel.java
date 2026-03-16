@@ -198,9 +198,12 @@ public class ChartPlotOptionsPaneModel {
       plotDesc.setApplyAestheticsToSource(applyAestheticsToSource);
       plotDesc.setPieRatio(pieRatio != null ? pieRatio : 0);
       plotDesc.setBarCornerRadius(barCornerRadius != null ? barCornerRadius : 0);
-      // Skip for interval charts — GraphGenerator hardcodes roundAllCorners=true for them.
       if(barRoundAllCornersVisible) {
          plotDesc.setBarRoundAllCorners(barRoundAllCorners);
+      }
+      else if(GraphTypeUtil.checkType(info, GraphTypes::isInterval)) {
+         // Interval charts always round all corners in GraphGenerator; persist the invariant.
+         plotDesc.setBarRoundAllCorners(true);
       }
       plotDesc.setOneLine(oneLine);
    }
