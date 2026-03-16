@@ -52,14 +52,15 @@
      <div class="slider-value" [style.left.px]="getLabelLeft()"
           [style.text-decoration]="model.objectFormat.decoration"
           *ngIf="model.currentVisible || isMouseDown">{{getLabel()}}</div>
-      <div class="slider-track prevent-drag" (click)="moveHandleHere($event)"></div>
-      <div class="slider-tracked"></div>
+      <div class="slider-track prevent-drag" #trackLine (click)="moveHandleHere($event)"></div>
+      <div class="slider-tracked" [style.width.px]="handlePosition"></div>
      <div *ngIf="handleSelected" #sliderHandle
           class="slider-handle selector bd-selected-cell"
           tabindex="-1" [attr.aria-label]="getLabel()"
           [style.left.px]="handlePosition">
      </div>
       <div class="slider-handle prevent-drag" [style.left.px]="handlePosition"
+           [class.is-dragging]="isMouseDown"
            (touchstart)="mouseDown($event)"
            (touchmove)="mouseMove($event)"
            (mousedown)="mouseDown($event)">

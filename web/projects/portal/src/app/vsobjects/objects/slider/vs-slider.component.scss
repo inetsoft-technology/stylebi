@@ -15,93 +15,310 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-/* Component Defaults */
-.slider {
-   position: relative;
-   vertical-align: top;
-   text-align: left;
-   width: 100%;
-   height: 100%;
+
+// ─── M3 Expressive Slider design tokens ───────────────────────────────────────
+// All --slider-* custom properties can be overridden on :root or any ancestor
+// element to adapt the slider to a custom M3 color scheme.
+//
+// Reference sizes (standard variant per M3 Expressive spec):
+//   track-height:            16dp
+//   handle-width (pressed):   4dp  (thin pill, --md-sys-shape-corner-full)
+//   handle-width (resting):  12dp  (grabbable; squishes to 4dp while dragging)
+//   handle-height:           44dp
+//   handle-gap:               6dp  (gap between pill edge and track, per side)
+//   track-overhang:           4dp  (track extends 4px past first/last tick)
+//   state-layer-size:        48dp
+:host {
+  // ── Geometry ──────────────────────────────────────────────────────────────
+  --slider-track-height: 12px; //16px;
+  --slider-handle-width: 2px;           // pressed / dragging pill width
+  --slider-handle-resting-width: 4px;   // resting pill width — squishes on drag
+  --slider-handle-height: 33px; //44px;
+  --slider-handle-gap: 6px;             // gap between pill and track edge, per side
+  --slider-track-overhang: 12px;        // visual extension past first/last tick
+  --slider-gap: 16px;                    // spacing between track bottom and tick labels
+  --slider-state-layer-size: 44px; //48px
+
+  // ── Track colors ──────────────────────────────────────────────────────────
+  --slider-active-track-color: #9e9e9e;
+  --slider-inactive-track-color: #e0e0e0;
+
+  // ── Handle ────────────────────────────────────────────────────────────────
+  --slider-handle-color: #9e9e9e;
+  --slider-handle-shadow: 0 1px 2px rgba(0, 0, 0, 0.30),
+                          0 1px 3px 1px rgba(0, 0, 0, 0.15);
+  // Surface fills the gap container *only within the track zone*.
+  // Set this to match the slider's background-color when it is non-white.
+  --slider-surface: #fff;
+
+  // ── State-layer opacities ─────────────────────────────────────────────────
+  --slider-hover-state-opacity: 0.08;
+  --slider-pressed-state-opacity: 0.12;
+
+  // ── Value label ───────────────────────────────────────────────────────────
+  --slider-label-bg: #9e9e9e;
+  --slider-label-color: #fff;
+  --slider-label-border-radius: 14px;
+  --slider-label-font-size: 11px;
+
+  // ── Tick dots ─────────────────────────────────────────────────────────────
+  --slider-tick-size: 4px;
+  --slider-tick-color: rgba(0, 0, 0, 0.38);
 }
 
+// ─── Structural containers ────────────────────────────────────────────────────
+
+.slider {
+  position: relative;
+  vertical-align: top;
+  text-align: left;
+  width: 100%;
+  height: 100%;
+}
+
+// wrapper top edge = component vertical centre (set by TS via verticalCenter).
+// top: 0 within the wrapper == the track's vertical centre line.
+// The wrapper is inset by --slider-track-overhang on each side so that tick/handle
+// positions (0 … getLineWidth()) align with the track content area.
+// The track's ::before/::after pseudo-elements extend outward to fill the overhang
+// visually. #trackLine.clientWidth returns the inset width, keeping TS math correct.
 .wrapper {
-   position: absolute;
-   width: 100%;
+  position: absolute;
+  width: calc(100% - 2 * var(--slider-track-overhang));
+  left: var(--slider-track-overhang);
 }
 
 .unselectable-canvas {
-   z-index:5;
-   -moz-user-select: none;
-   -webkit-user-select: none;
-   -ms-user-select: none;
+  z-index: 5;
+  -moz-user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
 }
+
+// ─── Value label ─────────────────────────────────────────────────────────────
 
 .slider-value {
-   margin-top: -3px;
-   display: block;
-   position: absolute;
-   text-align: center;
-   vertical-align: middle;
-   width: 80px;
-   top: -15px;
+  display: block;
+  position: absolute;
+  transform: translateX(-50%);
+  top: calc(-1 * var(--slider-handle-height) / 2 - 24px);
+  padding: 2px 10px;
+  //background-color: var(--slider-label-bg);
+  //color: var(--slider-label-color);
+  border-radius: var(--slider-label-border-radius);
+  //font-size: var(--slider-label-font-size);
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2;
 }
+
+// ─── Inactive track ───────────────────────────────────────────────────────────
+// Sits within the wrapper's padded content area, so it naturally starts and
+// ends --slider-track-overhang px from the component edge. No pseudo-elements
+// needed; rounded caps are on the element itself.
 
 .slider-track {
-   height: 5px;
-   width: 100%;
-   border-radius: 14px;
-   background-image: url('../../../../assets/default/slider/slider_track_skin.png');
-   cursor: default;
+  position: absolute;
+  top: calc(-1 * var(--slider-track-height) / 2);
+  height: var(--slider-track-height);
+  width: 100%;
+  background-color: var(--slider-inactive-track-color);
+  cursor: default;
+  overflow: visible;
+
+  // Left overhang cap
+  &::before {
+    content: '';
+    position: absolute;
+    right: 100%;
+    top: 0;
+    width: var(--slider-track-overhang);
+    height: 100%;
+    background-color: var(--slider-inactive-track-color);
+    border-radius: calc(var(--slider-track-height) / 2) 0 0 calc(var(--slider-track-height) / 2);
+  }
+
+  // Right overhang cap
+  &::after {
+    content: '';
+    position: absolute;
+    left: 100%;
+    top: 0;
+    width: var(--slider-track-overhang);
+    height: 100%;
+    background-color: var(--slider-inactive-track-color);
+    border-radius: 0 calc(var(--slider-track-height) / 2) calc(var(--slider-track-height) / 2) 0;
+  }
 }
+
+// ─── Active (filled) track ────────────────────────────────────────────────────
+// Width is driven by [style.width.px]="handlePosition" in the template.
 
 .slider-tracked {
-   width: 29%;
-   margin-top: -4px;
-   border-radius: 14px;
-   background-size: 100% 100%;
-   background-image: url('../../../../assets/default/slider/slider_tracked_skin.png');
+  position: absolute;
+  top: calc(-1 * var(--slider-track-height) / 2);
+  height: var(--slider-track-height);
+  background-color: var(--slider-active-track-color);
+  overflow: visible;
+  pointer-events: none;
+
+  // Left overhang cap
+  &::before {
+    content: '';
+    position: absolute;
+    right: 100%;
+    top: 0;
+    width: var(--slider-track-overhang);
+    height: 100%;
+    background-color: var(--slider-active-track-color);
+    border-radius: calc(var(--slider-track-height) / 2) 0 0 calc(var(--slider-track-height) / 2);
+  }
 }
+
+// ─── Handle / thumb ───────────────────────────────────────────────────────────
+//
+// Structure (single .slider-handle div):
+//
+//   .slider-handle — gap container (44dp tall, grab area)
+//     background: transparent above/below track, --slider-surface within track zone
+//     ::before — 48dp state-layer ring (hover / pressed halo)
+//     ::after  — visible pill (primary-colored, squishes to 4dp while dragging)
+//
+// The gradient background "punches through" the track only within the 16dp
+// track zone, leaving the handle freely visible above and below.
+
+// ── Derived container widths ──────────────────────────────────────────────────
+$handle-container-resting: calc(var(--slider-handle-resting-width) + 2 * var(--slider-handle-gap));
+$handle-container-pressed: calc(var(--slider-handle-width)         + 2 * var(--slider-handle-gap));
 
 .slider-handle {
-   height: 12px;
-   width: 12px;
-   margin-left: -5px;
-   margin-top: -5px;
-   position: absolute;
-   cursor: default;
-   top: 1px;
+  height: var(--slider-handle-height);
+  width: $handle-container-resting;
+  margin-left: calc(-1 * #{$handle-container-resting} / 2);
+  top: calc(-1 * var(--slider-handle-height) / 2);
+  position: absolute;
+  cursor: grab;
+  z-index: 2;   // sits above .slider-tick (z-index: 1)
+
+  // Surface colour fills only the track-zone band (16dp centred in 44dp).
+  // Above and below the track the container is transparent so no gap artefact
+  // appears outside the track area.
+//   background: linear-gradient(
+//     to bottom,
+//     transparent                                calc(50% - var(--slider-track-height) / 2),
+//     var(--slider-surface, #fff)                calc(50% - var(--slider-track-height) / 2),
+//     var(--slider-surface, #fff)                calc(50% + var(--slider-track-height) / 2),
+//     transparent                                calc(50% + var(--slider-track-height) / 2)
+//   );
+
+  border-radius: calc(#{$handle-container-resting} / 2);
+  transition: width 150ms cubic-bezier(0.2, 0, 0, 1),
+              margin-left 150ms cubic-bezier(0.2, 0, 0, 1),
+              border-radius 150ms cubic-bezier(0.2, 0, 0, 1);
+
+  // ── State-layer ring (::before) ─────────────────────────────────────────
+  &::before {
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+    width: var(--slider-state-layer-size);
+    height: var(--slider-state-layer-size);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: var(--slider-handle-color);
+    opacity: 0;
+    transition: opacity 200ms;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  // ── Visible pill (::after) ──────────────────────────────────────────────
+  &::after {
+    content: '';
+    position: absolute;
+    width: var(--slider-handle-resting-width);
+    height: var(--slider-handle-height);
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--slider-handle-color);
+    border-radius: calc(var(--slider-handle-resting-width) / 2);
+    box-shadow: var(--slider-handle-shadow);
+    z-index: 1;
+    transition: width 150ms cubic-bezier(0.2, 0, 0, 1),
+                border-radius 150ms cubic-bezier(0.2, 0, 0, 1);
+  }
 }
+
+// ── Dragging / pressed — squish to 4dp pill ───────────────────────────────────
+
+.slider-handle.is-dragging,
+.slider .slider-handle:not(.selector):active {
+  width: $handle-container-pressed;
+  margin-left: calc(-1 * #{$handle-container-pressed} / 2);
+  border-radius: calc(#{$handle-container-pressed} / 2);
+  cursor: grabbing;
+
+  &::after {
+    width: var(--slider-handle-width);
+    border-radius: calc(var(--slider-handle-width) / 2);
+  }
+
+  &::before {
+    opacity: var(--slider-pressed-state-opacity);
+  }
+}
+
+// ── Hover state layer ─────────────────────────────────────────────────────────
+
+.slider .slider-handle:not(.selector):not(.is-dragging):hover::before {
+  opacity: var(--slider-hover-state-opacity);
+}
+
+// ── Keyboard-focus / selection ring ──────────────────────────────────────────
 
 .slider-handle.selector {
-   transform: translate(-2px, -2px);
-   height: 16px;
-   width: 16px;
+  background: transparent;
+  box-shadow: none;
+  width: calc(#{$handle-container-resting} + 6px);
+  margin-left: calc(-1 * (#{$handle-container-resting} + 6px) / 2);
+  height: calc(var(--slider-handle-height) + 6px);
+  top: calc(-1 * (var(--slider-handle-height) + 6px) / 2);
+  border-radius: calc((#{$handle-container-resting} + 6px) / 2);
+  cursor: default;
+  transform: none;
+
+  &::before,
+  &::after {
+    display: none;
+  }
 }
+
+// ─── Tick marks (M3 — 4dp dots, centred on track centre line) ────────────────
+// z-index: 1 keeps ticks below the handle container (z-index: 2).
+// font-size: 0 hides the '|' glyph from the template.
 
 .slider-tick {
-   position: absolute;
-   top: 4px;
-   //margin-left: 0;
-   font-size: 6px;
-   color: rgb(205, 205, 205);
-   font-style: normal;
-   z-index: -1;
+  position: absolute;
+  top: calc(-1 * var(--slider-tick-size) / 2);
+  width: var(--slider-tick-size);
+  height: var(--slider-tick-size);
+  border-radius: 50%;
+  background-color: var(--slider-tick-color);
+  font-size: 0;
+  z-index: 1;
+  transform: translateX(-50%);
 }
+
+// ─── Tick labels ─────────────────────────────────────────────────────────────
+// z-index: 3 keeps labels above the handle container (z-index: 2) so the handle
+// never obscures them as it passes over their position.
 
 .slider-label {
-   position: absolute;
-   top: 10px;
-   text-align: left;
-}
-
-.slider .slider-handle {
-   background-image: url('../../../../assets/default/slider/slider_thumb_up_skin.png');
-}
-
-.slider .slider-handle:hover {
-   background-image: url('../../../../assets/default/slider/slider_thumb_down_skin.png');
-}
-
-.slider .slider-handle:active {
-   background-image: url('../../../../assets/default/slider/slider_thumb_down_skin.png');
+  position: absolute;
+  top: calc(var(--slider-track-height) / 2 + var(--slider-gap));
+  text-align: left;
+  z-index: 3;
 }
