@@ -36,6 +36,7 @@ public class IgniteScheduledExecutorServiceImpl implements IgniteScheduledExecut
       executor = Executors.newSingleThreadScheduledExecutor();
       Cluster cluster = Cluster.getInstance();
       map = cluster.getMap("IgniteScheduledExecutorServiceCache");
+      localMemberId = cluster.getLocalMember();
    }
 
    @Override
@@ -45,7 +46,7 @@ public class IgniteScheduledExecutorServiceImpl implements IgniteScheduledExecut
       // tells us (a) whether migration occurred at all, and (b) whether the distributed map
       // was populated at the time — an empty map would confirm the PME-timing hypothesis.
       // The local member ID lets you correlate this with cancel() on the node that lost the service.
-      String localMember = Cluster.getInstance().getLocalMember();
+      String localMember = localMemberId;
 
       if(map.isEmpty()) {
          LOG.warn("IgniteScheduledExecutorService.execute() called on node '{}' but the distributed " +
@@ -79,7 +80,7 @@ public class IgniteScheduledExecutorServiceImpl implements IgniteScheduledExecut
    public void cancel() {
       LOG.info("IgniteScheduledExecutorService.cancel() called on node '{}' — service is being " +
                "stopped or migrated due to a topology change.",
-               Cluster.getInstance().getLocalMember());
+               localMemberId);
       shutdown();
    }
 
@@ -119,6 +120,7 @@ public class IgniteScheduledExecutorServiceImpl implements IgniteScheduledExecut
       }
    }
 
+   @Override
    public void scheduleWithId(String id, Runnable command, long delay, TimeUnit unit) {
       if(!map.containsKey(id)) {
          map.put(id, new ScheduledExecutorCommand((Serializable) command, delay, 0, unit));
@@ -155,6 +157,7 @@ public class IgniteScheduledExecutorServiceImpl implements IgniteScheduledExecut
 
    private DistributedMap<String, ScheduledExecutorCommand> map;
    private ScheduledExecutorService executor;
+   private String localMemberId;
    private static final Logger LOG = LoggerFactory.getLogger(IgniteScheduledExecutorServiceImpl.class);
 
    private static final class ScheduledExecutorCommand implements Serializable {
