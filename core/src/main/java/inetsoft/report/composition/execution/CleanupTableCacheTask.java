@@ -39,12 +39,11 @@ import java.util.Set;
 public class CleanupTableCacheTask implements Runnable, Serializable {
    @Override
    public void run() {
-      // Logged at INFO so that absence of this message every ~30 minutes is itself a signal
-      // that the cleanup task has stopped running (e.g. after a topology change). The node
-      // identity confirms the task is running on exactly one node — not zero, not multiple.
-      LOG.info("CleanupTableCacheTask running on node '{}'", Cluster.getInstance().getLocalMember());
-
       try {
+         // Logged at INFO so that absence of this message every ~30 minutes is itself a signal
+         // that the cleanup task has stopped running (e.g. after a topology change). The node
+         // identity confirms the task is running on exactly one node — not zero, not multiple.
+         LOG.info("CleanupTableCacheTask running on node '{}'", Cluster.getInstance().getLocalMember());
          String clusterId = Cluster.getInstance().getId();
          SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
          String[] orgIds = provider.getOrganizationIDs();
