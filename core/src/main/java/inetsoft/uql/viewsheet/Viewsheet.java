@@ -5545,13 +5545,18 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       }
 
       @Override
-      public WizInfo clone() throws CloneNotSupportedException {
-         WizInfo clone = (WizInfo) super.clone();
+      public WizInfo clone() {
+         try {
+            WizInfo clone = (WizInfo) super.clone();
+            clone.visualizations = (Set<String>) Tool.clone(visualizations);
+            clone.sources = (List<AssetEntry>) Tool.clone(sources);
+            return clone;
+         }
+         catch(CloneNotSupportedException ex) {
+            LOG.error("Failed to clone object", ex);
+         }
 
-         clone.visualizations = (Set<String>) Tool.clone(visualizations);
-         clone.sources = (List<AssetEntry>) Tool.clone(sources);
-
-         return clone;
+         return null;
       }
 
       private void writeXML(PrintWriter writer) {

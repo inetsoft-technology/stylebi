@@ -60,7 +60,6 @@ public class ControllersExtension extends MockMessageExtension {
    @Override
    public void afterEach(ExtensionContext context) {
       viewsheetService = null;
-      wizViewsheetService = null;
       vsLifecycleService = null;
       runtimeViewsheetManager = null;
       objectModelFactoryService = null;
@@ -80,7 +79,6 @@ public class ControllersExtension extends MockMessageExtension {
    private void createControllers() {
       viewsheetService = ViewsheetEngine.getViewsheetEngine();
       worksheetService = WorksheetEngine.getWorksheetService();
-      wizViewsheetService = new WizViewsheetService(viewsheetService);
 
       runtimeViewsheetRef = new RuntimeViewsheetRef(new RuntimeViewsheetRefServiceProxy()) {
          @Override
@@ -271,7 +269,6 @@ public class ControllersExtension extends MockMessageExtension {
    private String runtimeId;
    private RuntimeViewsheetRef runtimeViewsheetRef;
    private ViewsheetService viewsheetService;
-   private WizViewsheetService wizViewsheetService;
    private WorksheetService worksheetService;
    private VSLifecycleService vsLifecycleService;
    private RuntimeViewsheetManager runtimeViewsheetManager;
