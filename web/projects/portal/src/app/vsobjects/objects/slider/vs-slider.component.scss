@@ -26,18 +26,18 @@
 //   handle-width (resting):  12dp  (grabbable; squishes to 4dp while dragging)
 //   handle-height:           44dp
 //   handle-gap:               6dp  (gap between pill edge and track, per side)
-//   track-overhang:           4dp  (track extends 4px past first/last tick)
+//   track-overhang:          12px  (track extends 12px past first/last tick)
 //   state-layer-size:        48dp
 :host {
   // ── Geometry ──────────────────────────────────────────────────────────────
-  --slider-track-height: 12px; //16px;
+  --slider-track-height: 12px;
   --slider-handle-width: 2px;           // pressed / dragging pill width
   --slider-handle-resting-width: 4px;   // resting pill width — squishes on drag
-  --slider-handle-height: 33px; //44px;
+  --slider-handle-height: 33px;
   --slider-handle-gap: 6px;             // gap between pill and track edge, per side
   --slider-track-overhang: 12px;        // visual extension past first/last tick
   --slider-gap: 16px;                    // spacing between track bottom and tick labels
-  --slider-state-layer-size: 44px; //48px
+  --slider-state-layer-size: 44px;
 
   // ── Track colors ──────────────────────────────────────────────────────────
   --slider-active-track-color: #9e9e9e;
@@ -103,10 +103,7 @@
   transform: translateX(-50%);
   top: calc(-1 * var(--slider-handle-height) / 2 - 24px);
   padding: 2px 10px;
-  //background-color: var(--slider-label-bg);
-  //color: var(--slider-label-color);
   border-radius: var(--slider-label-border-radius);
-  //font-size: var(--slider-label-font-size);
   line-height: 1.4;
   white-space: nowrap;
   pointer-events: none;
@@ -124,7 +121,7 @@
   height: var(--slider-track-height);
   width: 100%;
   background-color: var(--slider-inactive-track-color);
-  cursor: default;
+  cursor: pointer;
   overflow: visible;
 
   // Left overhang cap
@@ -199,18 +196,7 @@ $handle-container-pressed: calc(var(--slider-handle-width)         + 2 * var(--s
   top: calc(-1 * var(--slider-handle-height) / 2);
   position: absolute;
   cursor: grab;
-  z-index: 2;   // sits above .slider-tick (z-index: 1)
-
-  // Surface colour fills only the track-zone band (16dp centred in 44dp).
-  // Above and below the track the container is transparent so no gap artefact
-  // appears outside the track area.
-//   background: linear-gradient(
-//     to bottom,
-//     transparent                                calc(50% - var(--slider-track-height) / 2),
-//     var(--slider-surface, #fff)                calc(50% - var(--slider-track-height) / 2),
-//     var(--slider-surface, #fff)                calc(50% + var(--slider-track-height) / 2),
-//     transparent                                calc(50% + var(--slider-track-height) / 2)
-//   );
+  z-index: 3;   // sits above .slider-tick (z-index: 1) and .slider-label (z-index: 2)
 
   border-radius: calc(#{$handle-container-resting} / 2);
   transition: width 150ms cubic-bezier(0.2, 0, 0, 1),
@@ -288,7 +274,6 @@ $handle-container-pressed: calc(var(--slider-handle-width)         + 2 * var(--s
   top: calc(-1 * (var(--slider-handle-height) + 6px) / 2);
   border-radius: calc((#{$handle-container-resting} + 6px) / 2);
   cursor: default;
-  transform: none;
 
   &::before,
   &::after {
@@ -310,15 +295,16 @@ $handle-container-pressed: calc(var(--slider-handle-width)         + 2 * var(--s
   font-size: 0;
   z-index: 1;
   transform: translateX(-50%);
+  pointer-events: none;
 }
 
 // ─── Tick labels ─────────────────────────────────────────────────────────────
-// z-index: 3 keeps labels above the handle container (z-index: 2) so the handle
-// never obscures them as it passes over their position.
+// z-index: 2 keeps labels above tick dots (z-index: 1) but below the handle
+// (z-index: 3) per M3 spec.
 
 .slider-label {
   position: absolute;
   top: calc(var(--slider-track-height) / 2 + var(--slider-gap));
   text-align: left;
-  z-index: 3;
+  z-index: 2;
 }

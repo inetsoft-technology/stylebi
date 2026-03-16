@@ -67,10 +67,10 @@
       </div>
       <ng-template [ngIf]="model.ticksVisible">
         <div class="slider-tick"
-             *ngFor="let tick of getTicks(); trackBy: trackByIdx"
+             *ngFor="let tick of ticks; trackBy: trackByIdx"
              [style.left.px]="tick.left">|</div>
         <div class="slider-label"
-             *ngFor="let tick of getTicks(); let first = first; let last = last; trackBy: trackByIdx"
+             *ngFor="let tick of ticks; let first = first; let last = last; trackBy: trackByIdx"
              [style.white-space]="last ? 'nowrap' : ''"
              [style.left.px]="tick.labelLeft"
              [style.text-decoration]="model.objectFormat.decoration"

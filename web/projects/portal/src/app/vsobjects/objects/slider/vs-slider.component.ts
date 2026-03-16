@@ -95,7 +95,7 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
                private formDataService: CheckFormDataService,
                private formInputService: FormInputService,
                private changeRef: ChangeDetectorRef,
-               zone: NgZone,
+               private zone: NgZone,
                protected context: ContextProvider,
                protected dataTipService: DataTipService,
                private debounceService: DebounceService)
@@ -118,6 +118,7 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
 
    ngOnChanges(changes: SimpleChanges) {
       this.handlePosition = this.getValueX();
+      this.ticks = this.getTicks();
 
       if(this.viewer && changes.submitted && this.submitted) {
          if(this.submittedForm) {
@@ -136,13 +137,31 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
    ngAfterViewInit() {
       // Recalculate handle position now that the DOM is rendered and the actual
       // container width is known (may differ from model width when a label is present).
-      this.handlePosition = this.getValueX();
-      this.changeRef.detectChanges();
+      const initialPos = this.getValueX();
+
+      const initialTicks = this.getTicks();
+
+      if(initialPos !== this.handlePosition || initialTicks.length !== this.ticks.length) {
+         this.handlePosition = initialPos;
+         this.ticks = initialTicks;
+         this.changeRef.detectChanges();
+      }
 
       if(this.trackLine?.nativeElement) {
+         let rafPending = false;
          this.resizeObserver = new ResizeObserver(() => {
-            this.handlePosition = this.getValueX();
-            this.changeRef.detectChanges();
+            if(rafPending) {
+               return;
+            }
+
+            rafPending = true;
+            requestAnimationFrame(() => {
+               rafPending = false;
+               this.zone.run(() => {
+                  this.handlePosition = this.getValueX();
+                  this.ticks = this.getTicks();
+               });
+            });
          });
          this.resizeObserver.observe(this.trackLine.nativeElement);
       }
