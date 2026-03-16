@@ -19,7 +19,8 @@
            [snapOffset]="0" [gutterSize]="4">
   <!-- Left: AI dialog placeholder (web component will be embedded here) -->
   <div class="wiz-dialog-panel split">
-    <wiz-chat class="wiz-chat-pane" [attr.stylebi-url]="styleBIUrl"
+    <wiz-chat *ngIf="!!currentVisualization?.runtimeId"
+              class="wiz-chat-pane" [attr.stylebi-url]="styleBIUrl" [attr.visualization-runtime-id]="currentVisualization?.runtimeId"
               [attr.wiz-service-url]="wizServiceUrl"
               [attr.expected-user-id]="userId || null"
               [attr.domain]="domain || null">

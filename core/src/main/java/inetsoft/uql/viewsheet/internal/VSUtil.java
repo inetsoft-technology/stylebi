@@ -8831,8 +8831,7 @@ public final class VSUtil {
    public static AssetEntry copyViewsheetForWiz(AssetEntry originalEntry, boolean newVisualization, Principal principal)
       throws Exception
    {
-      AssetRepository repository =
-         SingletonManager.getInstance(AssetRepository.class);
+      AssetRepository repository = AssetUtil.getAssetRepository(false);;
       Viewsheet vs = (Viewsheet) repository.getSheet(
          originalEntry, principal, false, AssetContent.ALL);
 
@@ -8865,8 +8864,7 @@ public final class VSUtil {
          parentPath = "/";
       }
 
-      String newPath = parentPath.endsWith("/") ?
-         parentPath + copyName : parentPath + "/" + copyName;
+      String newPath = parentPath.endsWith("/") ? copyName : parentPath + "/" + copyName;
       AssetEntry newEntry = new AssetEntry(
          originalEntry.getScope(), AssetEntry.Type.VIEWSHEET, newPath, originalEntry.getUser());
       newEntry.copyProperties(originalEntry);
@@ -8876,13 +8874,47 @@ public final class VSUtil {
    }
 
    /**
+    * Wraps a viewsheet save call with the wiz-visualization bookkeeping:
+    * calls {@link #updateWizVisualization} before saving and
+    * {@link #applyWizCopyToOriginal} after saving.
+    *
+    * @param rvs       the runtime viewsheet being saved.
+    * @param principal the current user.
+    * @param entry     the wiz sheet entry.
+    * @param save      the actual save operation (may throw any checked exception).
+    */
+   public static void saveWizSheet(RuntimeViewsheet rvs, Principal principal, AssetEntry entry,
+                                   ThrowingRunnable save) throws Exception
+   {
+      Viewsheet.WizInfo wizInfo = updateWizVisualization(rvs);
+      save.run();
+
+      if(wizInfo != null && wizInfo.getVisualizations() != null) {
+         for(String visualization : wizInfo.getVisualizations()) {
+            try {
+               VSUtil.applyWizCopyToOriginal(AssetEntry.createAssetEntry(visualization), entry, principal);
+            }
+            catch(Exception ex) {
+               LOG.warn("Failed to apply wiz copy to " + visualization, ex);
+            }
+         }
+      }
+   }
+
+   @FunctionalInterface
+   public interface ThrowingRunnable {
+      void run() throws Exception;
+   }
+
+   /**
     * Replaces the original viewsheet with the wiz copy: saves the copy's content over the
     * original entry (derived from the copy name) and then removes the copy.
     *
     * @param wizCopyEntry the entry of the wiz copy that should replace the original.
+    * @param entry        the wiz sheet entry.
     * @param principal    the current user.
     */
-   public static AssetEntry applyWizCopyToOriginal(AssetEntry wizCopyEntry, Principal principal)
+   public static AssetEntry applyWizCopyToOriginal(AssetEntry wizCopyEntry, AssetEntry entry, Principal principal)
       throws Exception
    {
       AssetRepository engine = AssetUtil.getAssetRepository(false);
@@ -8901,6 +8933,7 @@ public final class VSUtil {
          return null;
       }
 
+      originalEntry.setProperty("visualizationSheet", entry.toIdentifier());
       engine.setSheet(originalEntry, copy, principal, true);
 
       try {
@@ -8911,6 +8944,29 @@ public final class VSUtil {
       }
 
       return originalEntry;
+   }
+
+   private static Viewsheet.WizInfo updateWizVisualization(RuntimeViewsheet rvs) {
+      if(rvs.getViewsheet() != null && rvs.getViewsheet().getWizInfo() != null &&
+         rvs.getViewsheet().getWizInfo().isWizSheet())
+      {
+         Viewsheet.WizInfo wizInfo = rvs.getViewsheet().getWizInfo();
+         Viewsheet.WizInfo owizInfo = wizInfo.clone();
+
+         Set<String> visualizations = wizInfo.getVisualizations();
+
+         if(!visualizations.isEmpty()) {
+            for(String visualization : visualizations) {
+               AssetEntry original = VSUtil.createWizOriginalVisualization(AssetEntry.createAssetEntry(visualization));
+               wizInfo.removeVisualization(visualization);
+               wizInfo.addVisualization(original.toIdentifier());
+            }
+         }
+
+         return owizInfo;
+      }
+
+      return null;
    }
 
    /**

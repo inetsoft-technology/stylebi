@@ -113,6 +113,24 @@ public class GenerateWsService {
          boolean containsMergeJoin = false;//Todo
          List<WorksheetConstructionModel.JoinPath> joinPaths = model.getJoinPaths();
 
+         List<WorksheetConstructionModel.QueryField> fields = model.getFields();
+
+         for(WorksheetConstructionModel.JoinPath joinPath : joinPaths) {
+            WorksheetConstructionModel.QueryField leftField =
+               new WorksheetConstructionModel.QueryField(joinPath.getLeftTable(), joinPath.getLeftKey());
+
+            if(!fields.contains(leftField)) {
+               fields.add(leftField);
+            }
+
+            WorksheetConstructionModel.QueryField rightField =
+               new WorksheetConstructionModel.QueryField(joinPath.getRightTable(), joinPath.getRightKey());
+
+            if(!fields.contains(rightField)) {
+               fields.add(rightField);
+            }
+         }
+
          if(containsMergeJoin) {
             Map<String, String> tableMapping = new HashMap<>();
 

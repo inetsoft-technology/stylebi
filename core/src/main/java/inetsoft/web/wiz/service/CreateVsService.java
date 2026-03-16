@@ -66,12 +66,12 @@ public class CreateVsService {
 
       AssetEntry sourceWs = null;
 
-      if(config == null || config.getData() == null) {
+      if(config == null || config.getData() == null || config.getData().getSource() == null) {
          throw new IllegalArgumentException("Invalid configuration, missing source");
       }
 
       try {
-         sourceWs = AssetEntry.createAssetEntry(config.getData().getSource());
+         sourceWs = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, config.getData().getSource(), null);
       }
       catch(Exception e) {
          throw new IllegalArgumentException("Datasource is invalid", e);
@@ -99,6 +99,10 @@ public class CreateVsService {
       vs.addAssembly(assembly);
       assembly.setPrimary(true);
       viewsheet.setViewsheet(vs);
+
+      String vsName = "vs_" + System.currentTimeMillis();
+      AssetEntry vsEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, vsName, null);
+      viewsheetService.setViewsheet(vs, vsEntry, user, true, true);
    }
 
    private VSAssembly createAssembly(Viewsheet vs, String type, String name,
