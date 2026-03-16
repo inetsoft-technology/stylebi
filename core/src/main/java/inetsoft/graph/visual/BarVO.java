@@ -215,21 +215,25 @@ public class BarVO extends ElementVO {
          IntervalElement ielem = (IntervalElement) ((ElementGeometry) getGeometry()).getElement();
          double r = ielem.getCornerRadius();
 
-         if(r > 0 && !(this instanceof Bar3DVO) && !ielem.isStack()) {
+         if(r > 0 && !(this instanceof Bar3DVO)) {
+            IntervalGeometry geom = (IntervalGeometry) getGeometry();
             boolean stdOrientation = GTool.isHorizontal(getScreenTransform());
-            int direction;
+            // Direction of the open (value) end in Y-up screen space.
+            int openDir = stdOrientation ? (negative ? 0 : 1) : (negative ? 3 : 2);
 
-            if(stdOrientation) {
-               // Y-up screen space (after transformShape): y+h is the visual top, y is the visual bottom.
-               // GraphBuilder uses the inverse (neg ? 1 : 0) because the frontend canvas is Y-down.
-               direction = negative ? 0 : 1; // 1=open end at top (y+h), 0=open end at bottom (y)
+            if(!ielem.isStack() || geom.isStackOutermost()) {
+               // Round all 4 corners only when there is no adjacent segment on the base side
+               // (non-stacked, or single-segment stack where outermost == innermost).
+               boolean roundAll = ielem.isRoundAllCorners() &&
+                  (!ielem.isStack() || geom.isStackInnermost());
+               path0 = buildRoundedBarShape(path0.getBounds2D(), r, openDir, roundAll);
             }
-            else {
-               direction = negative ? 3 : 2; // 2=right, 3=left; same mapping as GraphBuilder (no Y-flip for horizontal)
+            else if(ielem.isRoundAllCorners() && geom.isStackInnermost()) {
+               // Innermost (non-outermost) stacked segment with roundAllCorners: round the
+               // base end so the full stack appears rounded on both ends.
+               int baseDir = openDir ^ 1; // flip 0↔1 or 2↔3 to reach the base end
+               path0 = buildRoundedBarShape(path0.getBounds2D(), r, baseDir, false);
             }
-
-            path0 = buildRoundedBarShape(path0.getBounds2D(), r, direction,
-                                         ielem.isRoundAllCorners());
          }
 
          this.cachedShape = new SoftReference<>(new CachedShape(trans0, path0));
@@ -1321,8 +1325,8 @@ public class BarVO extends ElementVO {
       double y = bounds.getY();
       double w = bounds.getWidth();
       double h = bounds.getHeight();
-      // Use the shorter dimension as the fraction base so the radius scales consistently
-      // for both vertical bars (w < h) and horizontal bars (h < w).
+      // For roundAllCorners, use the shorter dimension so the radius scales consistently.
+      // For directional rounding, arc is overridden per case to match the frontend formula.
       double shortDim = Math.min(w, h);
       double arc = Math.min(radiusFraction * shortDim, shortDim / 2);
 
@@ -1335,6 +1339,7 @@ public class BarVO extends ElementVO {
 
       switch(direction) {
          case 0: // open end at bottom (y); round bottom-left, bottom-right (Y-up coords: y=visual bottom)
+            arc = Math.min(radiusFraction * w, Math.min(w / 2, h));
             path.moveTo(x + arc, y);
             path.lineTo(x + w - arc, y);
             path.quadTo(x + w, y, x + w, y + arc);   // bottom-right
@@ -1345,6 +1350,7 @@ public class BarVO extends ElementVO {
             break;
 
          case 1: // open end at top (y+h); round top-left, top-right (Y-up coords: y+h=visual top)
+            arc = Math.min(radiusFraction * w, Math.min(w / 2, h));
             path.moveTo(x, y);
             path.lineTo(x + w, y);
             path.lineTo(x + w, y + h - arc);
@@ -1355,8 +1361,7 @@ public class BarVO extends ElementVO {
             break;
 
          case 2: // right — open end at right; round top-right, bottom-right
-            // for horizontal bars the "width" dimension driving the fraction is h
-            arc = Math.min(radiusFraction * h, w / 2);
+            arc = Math.min(radiusFraction * h, Math.min(h / 2, w));
             path.moveTo(x, y);
             path.lineTo(x + w - arc, y);
             path.quadTo(x + w, y, x + w, y + arc);          // top-right
@@ -1367,7 +1372,7 @@ public class BarVO extends ElementVO {
             break;
 
          case 3: // left — open end at left; round top-left, bottom-left
-            arc = Math.min(radiusFraction * h, w / 2);
+            arc = Math.min(radiusFraction * h, Math.min(h / 2, w));
             path.moveTo(x + arc, y);
             path.lineTo(x + w, y);
             path.lineTo(x + w, y + h);

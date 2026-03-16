@@ -116,7 +116,7 @@ public class ChartPlotOptionsPaneModel {
       this.barCornerRadius = plotDesc.getBarCornerRadius() > 0
          ? plotDesc.getBarCornerRadius() : null;
       this.barCornerRadiusVisible = GraphTypeUtil.checkType(info, ctype ->
-         GraphTypes.isBar(ctype) && !GraphTypes.isStack(ctype) && !GraphTypes.is3DBar(ctype) &&
+         GraphTypes.isBar(ctype) && !GraphTypes.is3DBar(ctype) &&
          !GraphTypes.isPareto(ctype) && !GraphTypes.isWaterfall(ctype) &&
          !GraphTypes.isFunnel(ctype) && !GraphTypes.isInterval(ctype));
       this.barRoundAllCorners = plotDesc.isBarRoundAllCorners();

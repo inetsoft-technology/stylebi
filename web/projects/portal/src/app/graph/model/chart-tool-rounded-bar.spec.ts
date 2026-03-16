@@ -89,7 +89,7 @@ describe("ChartTool.drawRoundedBar", () => {
 
       it("starts at (x+arc, y) — top-left of bar", () => {
          const ctx = makeCtx();
-         // arc = min(0.2*100, 50/2) = min(20, 25) = 20
+         // arc = min(0.2*100, 100/2, 50) = min(20, 50, 50) = 20
          ChartTool.drawRoundedBar(ctx, 0, 0, 100, 50, 0.2, 0);
          expect(ctx.calls[0]).toBe("moveTo(20,0)");
       });
@@ -123,7 +123,7 @@ describe("ChartTool.drawRoundedBar", () => {
       });
 
       it("uses h (not w) as the arc-fraction base for horizontal bars", () => {
-         // horizontal: arc = min(radiusFraction * h, min(w,h)/2) = min(0.2*40, 20) = min(8, 20) = 8
+         // horizontal: arc = min(0.2*40, 40/2, 80) = min(8, 20, 80) = 8
          const ctx = makeCtx();
          ChartTool.drawRoundedBar(ctx, 0, 0, 80, 40, 0.2, 2);
          const arcCalls = ctx.calls.filter(c => c.startsWith("arcTo"));
@@ -141,8 +141,8 @@ describe("ChartTool.drawRoundedBar", () => {
          expect(ctx.calls.filter(c => c.startsWith("arcTo")).length).toBe(2);
       });
 
-      it("caps arc at min(w,h)/2 when radiusFraction * h is very large", () => {
-         // arc = min(1.0 * 40, min(80,40)/2) = min(40, 20) = 20
+      it("caps arc at h/2 when radiusFraction * h is very large", () => {
+         // horizontal: arc = min(1.0 * 40, 40/2, 80) = min(40, 20, 80) = 20
          const ctx = makeCtx();
          ChartTool.drawRoundedBar(ctx, 0, 0, 80, 40, 1.0, 3);
          const arcCalls = ctx.calls.filter(c => c.startsWith("arcTo"));
@@ -150,6 +150,30 @@ describe("ChartTool.drawRoundedBar", () => {
             const r = parseFloat(c.split(",")[4]);
             expect(r).toBeCloseTo(20);
          });
+      });
+   });
+
+   describe("arc consistency for stacked segments of different heights", () => {
+      it("outermost and innermost vertical segments with different heights produce the same arc", () => {
+         // Outermost segment: w=100, h=60, direction=0 → arc = min(0.3*100, 100/2, 60) = 30
+         // Innermost segment: w=100, h=90, direction=1 → arc = min(0.3*100, 100/2, 90) = 30
+         // Both > w/2=50 so the h clamp is not reached; arc is width-driven in both cases.
+         const ctxOuter = makeCtx();
+         const ctxInner = makeCtx();
+         ChartTool.drawRoundedBar(ctxOuter, 0, 0, 100, 60, 0.3, 0);
+         ChartTool.drawRoundedBar(ctxInner, 0, 0, 100, 90, 0.3, 1);
+         const arcOuter = parseFloat(ctxOuter.calls.filter(c => c.startsWith("arcTo"))[0].split(",")[4]);
+         const arcInner = parseFloat(ctxInner.calls.filter(c => c.startsWith("arcTo"))[0].split(",")[4]);
+         expect(arcOuter).toBeCloseTo(30);
+         expect(arcInner).toBeCloseTo(30);
+      });
+
+      it("very thin segment clamps arc to its own height to prevent geometric overflow", () => {
+         // w=100, h=8 (h < w/2=50), direction=0 → arc = min(0.3*100, 100/2, 8) = 8
+         const ctx = makeCtx();
+         ChartTool.drawRoundedBar(ctx, 0, 0, 100, 8, 0.3, 0);
+         const arc = parseFloat(ctx.calls.filter(c => c.startsWith("arcTo"))[0].split(",")[4]);
+         expect(arc).toBeCloseTo(8);
       });
    });
 
