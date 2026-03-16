@@ -271,7 +271,8 @@ public class BarVO extends ElementVO {
       // fraction (<1) shape may not show up without antialiasing.
       // also if the bar is too narrow, no anti-alias would cause the bars to
       // appear to be different size
-      if(getOuterArc(path) != null || fraction) {
+      double r = ((IntervalElement) elem).getCornerRadius();
+      if(getOuterArc(path) != null || fraction || (r > 0 && !(this instanceof Bar3DVO))) {
          g.setRenderingHint(GHints.CURVE, "true");
       }
 
@@ -1383,7 +1384,7 @@ public class BarVO extends ElementVO {
             break;
 
          default:
-            return new RoundRectangle2D.Double(x, y, w, h, arc * 2, arc * 2);
+            throw new IllegalArgumentException("direction: " + direction);
       }
 
       path.closePath();

@@ -1450,7 +1450,6 @@ export namespace ChartTool {
             ctx.arcTo(x + w, y + h, x + w - arc, y + h, arc); // bottom-right
             ctx.lineTo(x + arc, y + h);
             ctx.arcTo(x, y + h, x, y + h - arc, arc);          // bottom-left
-            ctx.lineTo(x, y);
             ctx.closePath();
             break;
 

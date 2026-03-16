@@ -375,6 +375,7 @@ public class IntervalElement extends StackableElement {
       }
 
       if(stack) {
+         // Final flush after all rows — no reassignment needed since the variables are unused.
          markAndReset(lastPositive);
          markAndReset(lastNegative);
          markInnermostAndReset(firstPositive);

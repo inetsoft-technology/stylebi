@@ -426,6 +426,8 @@ class IntervalElementStackOutermostTest {
          IntervalGeometry geom = (IntervalGeometry) ggraph.getGeometry(i);
          assertFalse(geom.isStackOutermost(),
                      "Non-stacked bar segments must not be marked as outermost");
+         assertFalse(geom.isStackInnermost(),
+                     "Non-stacked bar segments must not be marked as innermost");
       }
    }
 }
