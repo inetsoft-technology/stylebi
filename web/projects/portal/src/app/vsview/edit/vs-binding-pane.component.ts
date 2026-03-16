@@ -182,6 +182,10 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
       return this._runtimeId;
    }
 
+   @Input() set aiAssistantPermission(aiPermission: boolean) {
+      this.aiAssistantService.aiAssistantVisible = aiPermission;
+   }
+
    @Input() assemblyName: string;
    @Input() objectType: string;
    @Input() temporarySheet: boolean;

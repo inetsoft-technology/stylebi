@@ -279,6 +279,7 @@
       [linkUri]="focusedViewsheet?.linkUri"
       [assetId]="focusedViewsheet.id"
       [isCube]="!!!focusedViewsheet?.baseEntry"
+      [aiAssistantPermission]="aiAssistantService.aiAssistantVisible"
       (onOpenWizardPane)="switchBindingToWizard($event)"
       (onCloseBindingPane)="closeBindingPane()"
       (onAssemblyChanged)="refreshChangedAssembly($event)"
