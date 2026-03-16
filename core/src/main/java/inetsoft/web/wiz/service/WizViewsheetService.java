@@ -45,13 +45,13 @@ public class WizViewsheetService {
       if(rvs == null || rvs.getViewsheet() == null || rvs.getViewsheet().getWizInfo() == null ||
          !rvs.getViewsheet().getWizInfo().isWizSheet())
       {
-         throw new Exception("Invalid Viewsheet");
+         throw new IllegalArgumentException("Invalid Viewsheet");
       }
 
       AssetEntry visualizationEntry = AssetEntry.createAssetEntry(entryId);
 
       if(visualizationEntry == null) {
-         throw new Exception("Invalid Viewsheet");
+         throw new IllegalArgumentException("Invalid Viewsheet");
       }
 
       AssetEntry originalEntry = VSUtil.createWizOriginalVisualization(visualizationEntry);
