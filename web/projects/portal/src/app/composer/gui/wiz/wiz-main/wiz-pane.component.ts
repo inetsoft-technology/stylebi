@@ -60,6 +60,7 @@ export class WizPane implements OnInit, OnDestroy {
 
       const vs = new WizDashboard(this.fontService);
       vs.label = "";
+      vs.wizSheetRuntimeId = this.currentDashboard.runtimeId;
 
       if(value) {
          // open existing visualization

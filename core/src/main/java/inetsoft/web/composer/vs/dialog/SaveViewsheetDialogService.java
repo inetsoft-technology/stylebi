@@ -300,8 +300,9 @@ public class SaveViewsheetDialogService {
          ViewsheetParametersDialogModel vsParametersDialogModel = model
             .getViewsheetOptionsPaneModel().getViewsheetParametersDialogModel();
          viewsheetSettingsService.setViewsheetParameterInfo(info, vsParametersDialogModel);
-
-         vsService.setViewsheet(viewsheet, entry, principal, true, true);
+         final AssetEntry finalEntry = entry;
+         VSUtil.saveWizSheet(rvs, principal, entry,
+            () -> vsService.setViewsheet(viewsheet, finalEntry, principal, true, true));
 
          if(model.isUpdateDepend()) {
             vsService.fixRenameDepEntry(rvs.getID(), entry);

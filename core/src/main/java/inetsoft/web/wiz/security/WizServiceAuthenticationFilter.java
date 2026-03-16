@@ -21,6 +21,7 @@ import com.nimbusds.jose.JWSVerifier;
 import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import inetsoft.sree.ClientInfo;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
@@ -250,27 +251,62 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
          userID = new IdentityID(subject, orgId);
       }
 
-      SRPrincipal principal = new SRPrincipal(
-         userID,
-         roles,
-         groups,
-         orgId,
-         Tool.getSecureRandom().nextLong()
-      );
+      // Extract secureId from token (preserves the original session identity)
+      long secureId;
 
-      // Set locale if available
       try {
-         principal.setProperty("wiz", "true");
+         Long tokenSecureId = claims.getLongClaim("secureId");
+         secureId = tokenSecureId != null ? tokenSecureId : Tool.getSecureRandom().nextLong();
+      }
+      catch(ParseException e) {
+         secureId = Tool.getSecureRandom().nextLong();
+      }
+
+      // Extract ClientInfo fields from token
+      String clientAddress = null;
+      String clientSession = null;
+      Locale clientLocale = null;
+      IdentityID clientLoginUser = null;
+
+      try {
+         clientAddress = claims.getStringClaim("clientAddress");
+         clientSession = claims.getStringClaim("clientSession");
+
          String localeStr = claims.getStringClaim("locale");
 
          if(localeStr != null && !localeStr.isEmpty()) {
-            // Convert hyphen to underscore (e.g., zh-CN -> zh_CN)
             localeStr = localeStr.replace('-', '_');
-            principal.setProperty("locale", localeStr);
+            clientLocale = Catalog.parseLocale(localeStr);
+         }
+
+         String loginUserKey = claims.getStringClaim("clientLoginUser");
+
+         if(loginUserKey != null && !loginUserKey.isEmpty()) {
+            clientLoginUser = IdentityID.getIdentityIDFromKey(loginUserKey);
          }
       }
       catch(ParseException ignored) {
-         // Use default locale
+         // Use null defaults
+      }
+
+      ClientInfo clientInfo = new ClientInfo(userID, clientAddress, clientSession, clientLocale);
+
+      if(clientLoginUser != null) {
+         clientInfo.setLoginUserName(clientLoginUser);
+      }
+
+      SRPrincipal principal = new SRPrincipal(
+         clientInfo,
+         roles,
+         groups,
+         orgId,
+         secureId
+      );
+
+      principal.setProperty("wiz", "true");
+
+      if(clientLocale != null) {
+         principal.setProperty("locale", clientLocale.toString());
       }
 
       return principal;
