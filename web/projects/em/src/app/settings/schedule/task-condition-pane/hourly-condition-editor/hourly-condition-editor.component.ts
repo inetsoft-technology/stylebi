@@ -52,22 +52,24 @@ export class HourlyConditionEditorComponent implements OnInit {
    }
 
    set condition(value: TimeConditionModel) {
-      if(this._condition != null &&
-         this._condition.label === value.label &&
-         this._condition.timeZoneOffset === value.timeZoneOffset &&
-         this.numberEquals(this._condition.hour, value.hour) &&
-         this.numberEquals(this._condition.minute, value.minute) &&
-         this.numberEquals(this._condition.second, value.second) &&
-         this.numberEquals(this._condition.hourEnd, value.hourEnd) &&
-         this.numberEquals(this._condition.minuteEnd, value.minuteEnd) &&
-         this.numberEquals(this._condition.secondEnd, value.secondEnd) &&
-         this.numberEquals(this._condition.hourlyInterval, value.hourlyInterval) &&
-         this._condition.daysOfWeek === value.daysOfWeek)
+      const oldCondition = this._condition;
+      this._condition = Object.assign({}, value);
+
+      if(oldCondition != null &&
+         oldCondition.label === value.label &&
+         oldCondition.timeZoneOffset === value.timeZoneOffset &&
+         this.numberEquals(oldCondition.hour, value.hour) &&
+         this.numberEquals(oldCondition.minute, value.minute) &&
+         this.numberEquals(oldCondition.second, value.second) &&
+         this.numberEquals(oldCondition.hourEnd, value.hourEnd) &&
+         this.numberEquals(oldCondition.minuteEnd, value.minuteEnd) &&
+         this.numberEquals(oldCondition.secondEnd, value.secondEnd) &&
+         this.numberEquals(oldCondition.hourlyInterval, value.hourlyInterval) &&
+         oldCondition.daysOfWeek === value.daysOfWeek &&
+         oldCondition.timeZone === value.timeZone)
       {
          return;
       }
-
-      this._condition = Object.assign({}, value);
       this.form.get("startTime").setValue(
          this.dateTimeService.getStartTime(this._condition), { emitEvent: false });
       this.form.get("endTime").setValue(

@@ -59,22 +59,25 @@ export class MonthlyConditionEditorComponent implements OnInit {
    }
 
    set condition(value: TimeConditionModel) {
-      if(this._condition != null &&
-         this._condition.label === value.label &&
-         this._condition.timeZoneOffset === value.timeZoneOffset &&
-         this._condition.hour === value.hour &&
-         this._condition.minute === value.minute &&
-         this._condition.second === value.second &&
-         this._condition.monthlyDaySelected === value.monthlyDaySelected &&
-         this._condition.dayOfMonth === value.dayOfMonth &&
-         this._condition.weekOfMonth === value.weekOfMonth &&
-         this._condition.dayOfWeek === value.dayOfWeek &&
-         this._condition.monthsOfYear === value.monthsOfYear)
+      const oldCondition = this._condition;
+      this._condition = Object.assign({}, value);
+
+      if(oldCondition != null &&
+         oldCondition.label === value.label &&
+         oldCondition.timeZoneOffset === value.timeZoneOffset &&
+         oldCondition.hour === value.hour &&
+         oldCondition.minute === value.minute &&
+         oldCondition.second === value.second &&
+         oldCondition.monthlyDaySelected === value.monthlyDaySelected &&
+         oldCondition.dayOfMonth === value.dayOfMonth &&
+         oldCondition.weekOfMonth === value.weekOfMonth &&
+         oldCondition.dayOfWeek === value.dayOfWeek &&
+         oldCondition.monthsOfYear === value.monthsOfYear &&
+         oldCondition.timeRange === value.timeRange &&
+         oldCondition.timeZone === value.timeZone)
       {
          return;
       }
-
-      this._condition = Object.assign({}, value);
       this.form.get("monthlyDaySelected").setValue(this._condition.monthlyDaySelected !== false);
       this.form.get("dayOfMonth").setValue(this._condition.dayOfMonth || 1);
       this.form.get("weekOfMonth").setValue(

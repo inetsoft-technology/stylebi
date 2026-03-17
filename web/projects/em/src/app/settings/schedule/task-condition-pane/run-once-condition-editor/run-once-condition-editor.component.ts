@@ -43,15 +43,17 @@ export class RunOnceConditionEditorComponent implements OnInit {
    }
 
    set condition(value: TimeConditionModel) {
-      if(this._condition != null &&
-         this._condition.label === value.label &&
-         this._condition.timeZoneOffset === value.timeZoneOffset &&
-         this._condition.date === value.date)
+      const oldCondition = this._condition;
+      this._condition = Object.assign({}, value);
+
+      if(oldCondition != null &&
+         oldCondition.label === value.label &&
+         oldCondition.timeZoneOffset === value.timeZoneOffset &&
+         oldCondition.date === value.date &&
+         oldCondition.timeZone === value.timeZone)
       {
          return;
       }
-
-      this._condition = Object.assign({}, value);
       const date = dayjs(this._condition.date)
          .utcOffset(this.timeZoneService.calculateTimezoneOffset(this._condition.timeZone) / 60000);
       this.dateValue = new Date(date.year(), date.month(), date.date(), date.hour(), date.minute());
