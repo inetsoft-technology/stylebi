@@ -198,7 +198,12 @@ public class ChartPlotOptionsPaneModel {
       plotDesc.setApplyAestheticsToSource(applyAestheticsToSource);
       plotDesc.setPieRatio(pieRatio != null ? pieRatio : 0);
       plotDesc.setBarCornerRadius(barCornerRadius != null ? barCornerRadius : 0);
-      if(barRoundAllCornersVisible) {
+      // Re-derive from info rather than trusting the client-supplied barRoundAllCornersVisible field.
+      boolean roundAllCornersVisible = GraphTypeUtil.checkType(info, ctype ->
+         GraphTypes.isBar(ctype) && !GraphTypes.is3DBar(ctype) &&
+         !GraphTypes.isPareto(ctype) && !GraphTypes.isWaterfall(ctype) &&
+         !GraphTypes.isFunnel(ctype) && !GraphTypes.isInterval(ctype));
+      if(roundAllCornersVisible) {
          plotDesc.setBarRoundAllCorners(barRoundAllCorners);
       }
       else if(GraphTypeUtil.checkType(info, GraphTypes::isInterval)) {

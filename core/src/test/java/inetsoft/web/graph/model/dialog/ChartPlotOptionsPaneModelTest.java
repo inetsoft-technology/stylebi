@@ -124,11 +124,41 @@ class ChartPlotOptionsPaneModelTest {
    }
 
    @Test
+   void updateModel_savesBarRoundAllCornersForStackedBarChart() {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_BAR_STACK);
+      PlotDescriptor plotDesc = new PlotDescriptor();
+      plotDesc.setBarRoundAllCorners(false);
+
+      ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, plotDesc);
+      model.setBarRoundAllCorners(true);
+      model.updateChartPlotOptionsPaneModel(info, plotDesc);
+
+      assertTrue(plotDesc.isBarRoundAllCorners(),
+         "barRoundAllCorners should be persisted for stacked bar charts");
+   }
+
+   @Test
+   void updateModel_savesBarRoundAllCornersFalseForStackedBarChart() {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_BAR_STACK);
+      PlotDescriptor plotDesc = new PlotDescriptor();
+      plotDesc.setBarRoundAllCorners(true);
+
+      ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, plotDesc);
+      model.setBarRoundAllCorners(false);
+      model.updateChartPlotOptionsPaneModel(info, plotDesc);
+
+      assertFalse(plotDesc.isBarRoundAllCorners(),
+         "barRoundAllCorners=false should be persisted for stacked bar charts");
+   }
+
+   @Test
    void updateModel_resetsBarRoundAllCornersForWaterfallChart() {
       VSChartInfo info = new VSChartInfo();
       info.setChartType(GraphTypes.CHART_WATERFALL);
       PlotDescriptor plotDesc = new PlotDescriptor();
-      // Stale value from before waterfall was excluded from barRoundAllCornersVisible
+      // Simulate a stale descriptor value that could exist before the barRoundAllCornersVisible guard was introduced
       plotDesc.setBarRoundAllCorners(true);
 
       ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, plotDesc);
