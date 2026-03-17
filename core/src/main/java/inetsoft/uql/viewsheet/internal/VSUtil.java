@@ -8831,7 +8831,7 @@ public final class VSUtil {
    public static AssetEntry copyViewsheetForWiz(AssetEntry originalEntry, boolean newVisualization, Principal principal)
       throws Exception
    {
-      AssetRepository repository = AssetUtil.getAssetRepository(false);;
+      AssetRepository repository = AssetUtil.getAssetRepository(false);
       Viewsheet vs = (Viewsheet) repository.getSheet(
          originalEntry, principal, false, AssetContent.ALL);
 
