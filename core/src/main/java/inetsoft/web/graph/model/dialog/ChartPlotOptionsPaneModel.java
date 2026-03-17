@@ -205,6 +205,9 @@ public class ChartPlotOptionsPaneModel {
          // Interval charts always round all corners in GraphGenerator; persist the invariant.
          plotDesc.setBarRoundAllCorners(true);
       }
+      else {
+         plotDesc.setBarRoundAllCorners(false);
+      }
       plotDesc.setOneLine(oneLine);
    }
 

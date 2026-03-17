@@ -107,4 +107,19 @@ class ChartPlotOptionsPaneModelTest {
       assertTrue(plotDesc.isBarRoundAllCorners(),
          "barRoundAllCorners should be persisted for bar charts");
    }
+
+   @Test
+   void updateModel_savesBarRoundAllCornersFalseForBarChart() {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_BAR);
+      PlotDescriptor plotDesc = new PlotDescriptor();
+      plotDesc.setBarRoundAllCorners(true);
+
+      ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, plotDesc);
+      model.setBarRoundAllCorners(false);
+      model.updateChartPlotOptionsPaneModel(info, plotDesc);
+
+      assertFalse(plotDesc.isBarRoundAllCorners(),
+         "barRoundAllCorners=false should be persisted for bar charts");
+   }
 }
