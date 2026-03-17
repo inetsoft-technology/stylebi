@@ -705,10 +705,16 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
             rs.access(true);
          }
 
-         // Access-time update only — fire-and-forget put() is intentional here.
-         // The caller does not depend on the updated entry being visible across the cluster
-         // immediately; this merely refreshes the LRU timestamp in the local node's map.
-         amap.put(id, rs);
+         // Only refresh the cache if this node is still the primary for this key.
+         // This debounced task is scheduled 1 second after getSheet() is called.
+         // During that window, an Ignite topology change (node join/leave/rebalance)
+         // can move the partition primary to a different node. Calling amap.put()
+         // on a non-primary node logs a spurious "Added remote runtime sheet" error,
+         // stores a stale copy in this node's local map, and causes memory growth
+         // as each non-primary node accumulates session copies it doesn't own.
+         if(amap.isLocal(id)) {
+            amap.put(id, rs);
+         }
       }
    }
 

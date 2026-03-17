@@ -465,6 +465,12 @@ public class RuntimeSheetCache
             allIds.add(iter.next().getKey());
          }
       }
+      catch(NoSuchElementException e) {
+         // Ignite closes distributed iterators mid-scan during topology changes
+         // (node join/leave/rebalance). Use whatever keys were collected so far;
+         // missing keys will be re-discovered on the next flush cycle.
+         LOG.warn("Cache iterator closed during getLocalKeys scan, using partial key set", e);
+      }
       finally {
          Tool.closeIterator(iter);
       }
@@ -615,6 +621,11 @@ public class RuntimeSheetCache
                }
             }
          }
+      }
+      catch(NoSuchElementException e) {
+         // Ignite closes distributed iterators mid-scan during topology changes
+         // (node join/leave/rebalance). Return whatever ids were collected so far.
+         LOG.warn("Cache iterator closed during getAllIds scan, returning partial results", e);
       }
       finally {
          Tool.closeIterator(iter);
