@@ -51,7 +51,7 @@ public class InputLabelPaneModel {
    }
 
    public void setLabelGap(int labelGap) {
-      this.labelGap = labelGap;
+      this.labelGap = Math.max(0, Math.min(labelGap, 1000));
    }
 
    private boolean showLabel;

@@ -180,7 +180,7 @@ public class ChartVSAScriptableTest {
       chartVSAScriptable.setTipView("this is a tip view");
       assertEquals("this is a tip view", chartVSAScriptable.getTipView());
 
-      assertEquals(142, chartVSAScriptable.getIds().length);
+      assertEquals(143, chartVSAScriptable.getIds().length);
    }
 
    /**

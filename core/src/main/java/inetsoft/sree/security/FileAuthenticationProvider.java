@@ -973,14 +973,6 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
                                        new IdentityID("Everyone", defaultOrg)});
          map.put(user.getIdentityID().convertToKey(), user);
 
-         user = new FSUser(new IdentityID("guest", defaultOrg));
-         hash = Tool.hash("success123", "bcrypt");
-         user.setPassword(hash.getHash());
-         user.setPasswordAlgorithm(hash.getAlgorithm());
-         user.setRoles(new IdentityID[] { new IdentityID("Everyone", defaultOrg) });
-         user.setActive(!useEnvPassword);
-         map.put(user.getIdentityID().convertToKey(), user);
-
          return FSUser.class;
       }
 
@@ -1063,7 +1055,6 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
       if(orgID.equals(Organization.getDefaultOrganizationID())) {
          members.add("admin");
-         members.add("guest");
       }
 
       return members.toArray(new String[0]);

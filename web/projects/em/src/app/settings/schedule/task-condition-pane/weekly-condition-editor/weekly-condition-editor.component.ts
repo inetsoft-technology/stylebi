@@ -47,19 +47,22 @@ export class WeeklyConditionEditorComponent implements OnInit {
    }
 
    set condition(value: TimeConditionModel) {
-      if(this._condition != null &&
-         this._condition.label === value.label &&
-         this._condition.timeZoneOffset === value.timeZoneOffset &&
-         this._condition.hour === value.hour &&
-         this._condition.minute === value.minute &&
-         this._condition.second === value.second &&
-         this._condition.interval === value.interval &&
-         this._condition.daysOfWeek === value.daysOfWeek)
+      const oldCondition = this._condition;
+      this._condition = Object.assign({}, value);
+
+      if(oldCondition != null &&
+         oldCondition.label === value.label &&
+         oldCondition.timeZoneOffset === value.timeZoneOffset &&
+         oldCondition.hour === value.hour &&
+         oldCondition.minute === value.minute &&
+         oldCondition.second === value.second &&
+         oldCondition.interval === value.interval &&
+         oldCondition.daysOfWeek === value.daysOfWeek &&
+         oldCondition.timeRange === value.timeRange &&
+         oldCondition.timeZone === value.timeZone)
       {
          return;
       }
-
-      this._condition = Object.assign({}, value);
 
       this.form.get("interval").setValue(this._condition.interval);
       this.form.get("weekdays").setValue(this._condition.daysOfWeek);

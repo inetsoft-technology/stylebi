@@ -139,11 +139,11 @@ class BarVORoundedShapeTest {
       assertTrue(rr1.getArcWidth() < rr2.getArcWidth(), "Larger fraction must produce larger arc");
    }
 
-   /** Unknown direction falls through to RoundRectangle2D default. */
+   /** Unknown direction throws IllegalArgumentException. */
    @Test
-   void unknownDirection_fallsBackToRoundRect() {
+   void unknownDirection_throwsIllegalArgumentException() {
       Rectangle2D bounds = new Rectangle2D.Double(0, 0, 100, 40);
-      Shape shape = BarVO.buildRoundedBarShape(bounds, 0.3, 99, false);
-      assertInstanceOf(RoundRectangle2D.class, shape);
+      assertThrows(IllegalArgumentException.class,
+                   () -> BarVO.buildRoundedBarShape(bounds, 0.3, 99, false));
    }
 }

@@ -29,6 +29,7 @@ import inetsoft.graph.element.GraphElement;
 import inetsoft.graph.element.IntervalElement;
 import inetsoft.graph.geometry.ElementGeometry;
 import inetsoft.graph.geometry.Geometry;
+import inetsoft.graph.geometry.IntervalGeometry;
 import inetsoft.graph.geometry.ParaboxPointGeometry;
 import inetsoft.graph.internal.Donut;
 import inetsoft.graph.internal.GTool;
@@ -1339,24 +1340,37 @@ public class GraphBuilder {
 
          if(vobj instanceof BarVO) {
             BarVO barVO = (BarVO) vobj;
-            IntervalElement elem = (IntervalElement) ((ElementGeometry) barVO.getGeometry()).getElement();
+            IntervalGeometry geom = (IntervalGeometry) barVO.getGeometry();
+            IntervalElement elem = (IntervalElement) ((ElementGeometry) geom).getElement();
             double r = elem.getCornerRadius();
 
-            if(r > 0 && !(barVO instanceof Bar3DVO) && !elem.isStack()) {
-               cornerRadius = r;
+            if(r > 0 && !(barVO instanceof Bar3DVO)) {
+               // GTool.isHorizontal() returns true for standard (vertical bar) orientation,
+               // false for the rotated coordinate system used by horizontal bar charts.
+               boolean stdOrientation = GTool.isHorizontal(barVO.getScreenTransform());
+               boolean neg = barVO.isNegative();
+               // Note: direction values are the inverse of BarVO's assignments because
+               // BarVO operates in Y-up screen space (after transformShape) while the
+               // frontend canvas uses standard Y-down coordinates.
+               int outerDir = stdOrientation ? (neg ? 1 : 0) : (neg ? 3 : 2);
 
-               if(!elem.isRoundAllCorners()) {
-                  // GTool.isHorizontal() returns true for standard (vertical bar) orientation,
-                  // false for the rotated coordinate system used by horizontal bar charts.
-                  boolean stdOrientation = GTool.isHorizontal(barVO.getScreenTransform());
-                  boolean neg = barVO.isNegative();
-                  // Note: direction values are the inverse of BarVO's assignments because
-                  // BarVO operates in Y-up screen space (after transformShape) while the
-                  // frontend canvas uses standard Y-down coordinates.
-                  barDirection = stdOrientation ? (neg ? 1 : 0) : (neg ? 3 : 2);
+               if(!elem.isStack() || geom.isStackOutermost()) {
+                  cornerRadius = r;
+
+                  if(!elem.isRoundAllCorners() || (elem.isStack() && !geom.isStackInnermost())) {
+                     // Round only the open (value) end: either roundAllCorners is off, or this
+                     // outermost segment has inner neighbours (is not also the innermost).
+                     barDirection = outerDir;
+                  }
+                  // else: barDirection=null → all 4 corners (non-stacked + roundAllCorners,
+                  // or single-segment stack where outermost == innermost)
                }
-               // barDirection stays null when roundAllCorners=true so the frontend
-               // draws all four corners rounded (direction==null path in drawRoundedBar)
+               else if(elem.isRoundAllCorners() && geom.isStackInnermost()) {
+                  // Innermost segment of a multi-segment stack with roundAllCorners: round the
+                  // base (closed) end using the opposite direction to the outermost segment.
+                  cornerRadius = r;
+                  barDirection = outerDir ^ 1; // 0↔1, 2↔3: flip to base end
+               }
             }
          }
       }

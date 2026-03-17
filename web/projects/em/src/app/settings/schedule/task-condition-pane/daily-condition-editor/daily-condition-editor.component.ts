@@ -45,19 +45,22 @@ export class DailyConditionEditorComponent implements OnInit {
    }
 
    set condition(value: TimeConditionModel) {
-      if(this._condition != null &&
-         this._condition.label === value.label &&
-         this._condition.timeZoneOffset === value.timeZoneOffset &&
-         this._condition.hour === value.hour &&
-         this._condition.minute === value.minute &&
-         this._condition.second === value.second &&
-         this._condition.weekdayOnly === value.weekdayOnly &&
-         this._condition.interval === value.interval)
+      const oldCondition = this._condition;
+      this._condition = Object.assign({}, value);
+
+      if(oldCondition != null &&
+         oldCondition.label === value.label &&
+         oldCondition.timeZoneOffset === value.timeZoneOffset &&
+         oldCondition.hour === value.hour &&
+         oldCondition.minute === value.minute &&
+         oldCondition.second === value.second &&
+         oldCondition.weekdayOnly === value.weekdayOnly &&
+         oldCondition.interval === value.interval &&
+         oldCondition.timeRange === value.timeRange &&
+         oldCondition.timeZone === value.timeZone)
       {
          return;
       }
-
-      this._condition = Object.assign({}, value);
 
       this.form.get("weekdayOnly").setValue(this._condition.weekdayOnly || false);
       this.form.get("interval").setValue(this._condition.interval || 0);
