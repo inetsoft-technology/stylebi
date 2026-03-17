@@ -32,7 +32,7 @@ public class CreateViewsheetController {
       this.createVsService = createVsService;
    }
 
-   @PostMapping(value = "/viewsheet/create/vs", produces = MediaType.APPLICATION_JSON_VALUE)
+   @PostMapping(value = "/viewsheet/create", produces = MediaType.APPLICATION_JSON_VALUE)
    public void createViewsheet(@RequestBody CreateVisualizationModel model, Principal user)
       throws Exception
    {

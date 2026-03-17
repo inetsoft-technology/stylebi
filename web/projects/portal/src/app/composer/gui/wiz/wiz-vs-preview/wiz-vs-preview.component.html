@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div class="wiz-vs-preview-container">
-  <div class="wiz-vs-canvas">
+  <div class="wiz-vs-canvas" wInteractContainer>
     <ng-container *ngFor="let object of vsObjects; trackBy: trackByFn">
       <wiz-object [vsObject]="object" [viewsheet]="viewsheet"></wiz-object>
     </ng-container>

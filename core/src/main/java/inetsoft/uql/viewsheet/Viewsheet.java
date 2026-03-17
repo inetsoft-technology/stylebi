@@ -5497,7 +5497,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       return wizInfo;
    }
 
-   public static class WizInfo {
+   public static class WizInfo implements Cloneable {
       public WizInfo(boolean wizSheet) {
          this.wizSheet = wizSheet;
       }

@@ -66,12 +66,12 @@ public class CreateVsService {
 
       AssetEntry sourceWs = null;
 
-      if(config == null || config.getData() == null) {
+      if(config == null || config.getData() == null || config.getData().getSource() == null) {
          throw new IllegalArgumentException("Invalid configuration, missing source");
       }
 
       try {
-         sourceWs = AssetEntry.createAssetEntry(config.getData().getSource());
+         sourceWs = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, config.getData().getSource(), null);
       }
       catch(Exception e) {
          throw new IllegalArgumentException("Datasource is invalid", e);
@@ -89,7 +89,7 @@ public class CreateVsService {
          throw new Exception("Worksheet has no primary assembly");
       }
 
-      Viewsheet vs = new Viewsheet();
+      Viewsheet vs = new Viewsheet(sourceWs);
       VSAssembly assembly = createAssembly(vs, model.getVisualizationType(), title, config, primaryAssembly.getName());
 
       if(assembly == null) {

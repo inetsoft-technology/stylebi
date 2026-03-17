@@ -38,6 +38,10 @@ export function VSWizardContextProviderFactory(): ContextProvider {
    return new ContextProvider(false, true, false, false, false, false, true, false, false, false, false);
 }
 
+export function wizardContextProviderFactory(): ContextProvider {
+   return new ContextProvider(false, true, false, false, false, false, false, false, false, false, false, false, true);
+}
+
 export function VSWizardPreviewContextProviderFactory(): ContextProvider {
    return new ContextProvider(false, true, false, false, false, false, false, true, false, false, false);
 }
@@ -71,11 +75,12 @@ export class ContextProvider {
    private _parameterElementPreview: boolean;
    private _embed: boolean;
    private _embedAssembly: boolean;
+   private _wiz: boolean;
 
    constructor(viewer: boolean, composer: boolean, preview: boolean, binding: boolean,
                composerBinding: boolean, reportViewer: boolean, vsWizard: boolean,
                vsWizardPreview: boolean, adhocPreviewParameter: boolean,
-               parameterElementPreview: boolean, embed: boolean, embedAssembly: boolean = false)
+               parameterElementPreview: boolean, embed: boolean, embedAssembly: boolean = false, wiz: boolean = false)
    {
       this._viewer = viewer;
       this._composer = composer;
@@ -89,6 +94,7 @@ export class ContextProvider {
       this._parameterElementPreview = parameterElementPreview;
       this._embed = embed;
       this._embedAssembly = embedAssembly;
+      this._wiz = wiz;
    }
 
    get vsWizardPreview(): boolean {
@@ -125,5 +131,9 @@ export class ContextProvider {
 
    get embedAssembly(): boolean {
       return this._embedAssembly;
+   }
+
+   get wiz(): boolean {
+      return this._wiz;
    }
 }

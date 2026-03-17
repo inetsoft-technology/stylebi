@@ -1,5 +1,6 @@
 import { Component, Input, OnDestroy, OnInit } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { Subscription } from "rxjs";
 import { ComponentTool } from "../../../../common/util/component-tool";
 import { WizDashboard } from "../../../data/vs/wizDashboard";
 import {
@@ -8,7 +9,6 @@ import {
 } from "../new-visualization-dialog/new-visualization-dialog.component";
 import { WizService } from "../services/wiz.service";
 import { FontService } from "../../../../widget/services/font.service";
-import { Subscription } from "rxjs";
 
 let wizDashboardCounter = 1;
 
@@ -35,7 +35,9 @@ export class WizPane implements OnInit, OnDestroy {
       return this._currentVisualization;
    }
 
-   constructor(private wizService: WizService, private fontService: FontService, private modalService: NgbModal) {
+   constructor(private wizService: WizService, private fontService: FontService,
+               private modalService: NgbModal)
+   {
       this.subscriptions.add(wizService.openVisualization.subscribe((value: string) => {
          this.createVisualization(value);
       }));
@@ -60,6 +62,7 @@ export class WizPane implements OnInit, OnDestroy {
 
       const vs = new WizDashboard(this.fontService);
       vs.label = "";
+      vs.wizSheetRuntimeId = this.currentDashboard.runtimeId;
 
       if(value) {
          // open existing visualization

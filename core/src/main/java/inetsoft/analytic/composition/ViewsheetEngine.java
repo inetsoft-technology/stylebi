@@ -441,6 +441,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       }
 
       closeSheet = amap.get(id);
+      AbstractSheet sheet = closeSheet != null ? closeSheet.getSheet() : null;
 
       if(closeSheet != null && "true".equals(closeSheet.getProperty("__EXPORTING__"))) {
          closeSheet.setProperty("_CLOSE_AFTER_EXPORT_", "true");
@@ -450,12 +451,10 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
          lifecycleMessageService.viewsheetClosed(id);
       }
 
-      if(closeSheet instanceof RuntimeViewsheet runtimeViewsheet &&
-         runtimeViewsheet.getViewsheet() != null &&
-         runtimeViewsheet.getViewsheet().getWizInfo() != null &&
-         runtimeViewsheet.getViewsheet().getWizInfo().isWizSheet())
+      if(sheet instanceof Viewsheet viewsheet &&
+         viewsheet.getWizInfo() != null && viewsheet.getWizInfo().isWizSheet())
       {
-         Viewsheet.WizInfo wizInfo = runtimeViewsheet.getViewsheet().getWizInfo();
+         Viewsheet.WizInfo wizInfo = viewsheet.getWizInfo();
 
          if(wizInfo.getVisualizations() != null) {
             for(String visualization : wizInfo.getVisualizations()) {

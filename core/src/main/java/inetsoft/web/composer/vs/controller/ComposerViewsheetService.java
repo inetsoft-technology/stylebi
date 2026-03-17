@@ -135,20 +135,9 @@ public class ComposerViewsheetService {
             rvs.setProperty("mvconfirmed", "true");
          }
 
-         Viewsheet.WizInfo wizInfo = updateWizVisualization(rvs);
-         vsService.setViewsheet(rvs.getViewsheet(), entry, principal, true,
-                                !event.isUpdateDepend());
-
-         if(wizInfo != null && wizInfo.getVisualizations() != null) {
-            for(String visualization : wizInfo.getVisualizations()) {
-               try {
-                  VSUtil.applyWizCopyToOriginal(AssetEntry.createAssetEntry(visualization), principal);
-               }
-               catch(Exception ex) {
-                  LOG.warn("Failed to apply wiz copy to " + visualization, ex);
-               }
-            }
-         }
+         VSUtil.saveWizSheet(rvs, principal, entry,
+            () -> vsService.setViewsheet(rvs.getViewsheet(), entry, principal, true,
+                                         !event.isUpdateDepend()));
 
          if(event.isUpdateDepend()) {
             vsService.renameDep(rvs.getID());
@@ -206,29 +195,6 @@ public class ComposerViewsheetService {
             Audit.getInstance().auditAction(actionRecord, principal);
          }
       }
-   }
-
-   private Viewsheet.WizInfo updateWizVisualization(RuntimeViewsheet rvs) {
-      if(rvs.getViewsheet() != null && rvs.getViewsheet().getWizInfo() != null &&
-         rvs.getViewsheet().getWizInfo().isWizSheet())
-      {
-         Viewsheet.WizInfo wizInfo = rvs.getViewsheet().getWizInfo();
-         Viewsheet.WizInfo owizInfo = wizInfo.clone();
-
-         Set<String> visualizations = wizInfo.getVisualizations();
-
-         if(!visualizations.isEmpty()) {
-            for(String visualization : visualizations) {
-               AssetEntry original = VSUtil.createWizOriginalVisualization(AssetEntry.createAssetEntry(visualization));
-               wizInfo.removeVisualization(visualization);
-               wizInfo.addVisualization(original.toIdentifier());
-            }
-         }
-
-         return owizInfo;
-      }
-
-      return null;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
