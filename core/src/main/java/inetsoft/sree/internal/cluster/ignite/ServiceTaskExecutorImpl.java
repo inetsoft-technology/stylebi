@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.ignite.IgniteQueue;
 
 import java.io.Serializable;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Ignite singleton service that consumes tasks from a distributed {@link org.apache.ignite.IgniteQueue}
@@ -33,9 +34,9 @@ import java.io.Serializable;
  *
  * <p>Tasks are submitted non-blocking by the caller side ({@link IgniteCluster#submit(String,
  * SingletonCallableTask)}) and survive the failure of any single node because the queue is
- * backed by the distributed Ignite data grid.  Uses peek/remove (at-least-once semantics):
- * if the executor node crashes mid-task, the task remains in the queue and is re-processed
- * by the newly-elected service owner. Callers must ensure tasks are idempotent.
+ * backed by the distributed Ignite data grid.  Uses {@link IgniteQueue#poll(long, java.util.concurrent.TimeUnit)}
+ * so the executor thread wakes immediately when a task is enqueued rather than sleeping for
+ * up to 1 second between tasks.
  */
 public class ServiceTaskExecutorImpl implements Service {
    public ServiceTaskExecutorImpl(String serviceId) {
@@ -57,18 +58,12 @@ public class ServiceTaskExecutorImpl implements Service {
 
       while(running) {
          try {
-            // Use peek() + remove() for at-least-once semantics: if the node crashes
-            // after peek() but before remove(), the task stays in the queue and is
-            // re-processed by the new singleton owner on failover. This is safe because
-            // the service is a cluster singleton — only one consumer exists at a time.
-            ServiceTaskRequest request = queue.peek();
+            // poll() blocks until a task arrives or 1 second elapses, then returns
+            // immediately — no artificial sleep between consecutive tasks.
+            ServiceTaskRequest request = queue.poll(1L, TimeUnit.SECONDS);
 
             if(request != null) {
                processRequest(request, loader);
-               queue.remove();
-            }
-            else {
-               Thread.sleep(1000L);
             }
          }
          catch(InterruptedException e) {
