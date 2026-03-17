@@ -21,7 +21,7 @@ import {
    CanDeactivate,
    RouterStateSnapshot
 } from "@angular/router";
-import { map, switchMap } from "rxjs/operators";
+import { catchError, map, switchMap } from "rxjs/operators";
 import { UsersSettingsPageComponent } from "./users-settings-page.component";
 import { MatDialog } from "@angular/material/dialog";
 import { Observable, of } from "rxjs";
@@ -47,29 +47,41 @@ export class UsersSettingsSaveGuard implements CanDeactivate<UsersSettingsPageCo
          return ref.afterClosed().pipe(
             switchMap(result => {
                if(result) {
-                  return component.clearIncompleteNewUser(false).pipe(map(() => true));
+                  return component.clearIncompleteNewUser(false).pipe(
+                     map(() => true),
+                     catchError(() => of(false))
+                  );
                }
 
                return of(false);
+            }),
+            switchMap(canLeave => {
+               if(canLeave && component.pageChanged) {
+                  return this.confirmPageChanged();
+               }
+
+               return of(canLeave);
             })
          );
       }
 
       if(component && component.pageChanged) {
-         const ref = this.dialog.open(MessageDialog, {
-            data: {
-               title: "_#(js:em.settings.userSettingsChanged)",
-               content: "_#(js:em.settings.userSettings.confirm)",
-               type: MessageDialogType.CONFIRMATION
-            }
-         });
-
-         return ref.afterClosed().pipe(
-            map(result => !!result)
-         );
+         return this.confirmPageChanged();
       }
 
       return of(true);
+   }
+
+   private confirmPageChanged(): Observable<boolean> {
+      const ref = this.dialog.open(MessageDialog, {
+         data: {
+            title: "_#(js:em.settings.userSettingsChanged)",
+            content: "_#(js:em.settings.userSettings.confirm)",
+            type: MessageDialogType.CONFIRMATION
+         }
+      });
+
+      return ref.afterClosed().pipe(map(result => !!result));
    }
 
 }

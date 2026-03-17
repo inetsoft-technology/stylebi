@@ -370,19 +370,23 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
       // Set the password property to null if unchanged
       const passGroup: UntypedFormGroup = <UntypedFormGroup> this.form.get("changePassword");
 
-      if(!this.user || !this.model.editable) {
+      if(!this.user) {
          this.form.get("changePasswordEnabled").disable({emitEvent: false});
+         return;
+      }
 
+      // For new users, always keep password enabled regardless of editable state
+      if(this.isNewUser) {
+         passGroup.enable({emitEvent: false});
+         return;
+      }
+
+      if(!this.model.editable) {
+         this.form.get("changePasswordEnabled").disable({emitEvent: false});
          return;
       }
       else {
          this.form.get("changePasswordEnabled").enable({emitEvent: false});
-      }
-
-      // For new users, always keep password enabled
-      if(this.isNewUser) {
-         passGroup.enable({emitEvent: false});
-         return;
       }
 
       if(enable) {
@@ -460,6 +464,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
 
          if(this.isNewUser) {
             this.updatePassword(true);
+            this.pwForm.controls.password.markAsTouched();
          }
          else if(!this.userModel.hasPassword) {
             this.form.get("changePasswordEnabled").setValue(true, {emitEvent: false});

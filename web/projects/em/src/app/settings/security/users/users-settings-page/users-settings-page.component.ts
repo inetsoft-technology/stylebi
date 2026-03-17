@@ -145,7 +145,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
       }
 
       if(this.newUserIdentity) {
-         this.clearIncompleteNewUser(false).subscribe();
+         this.clearIncompleteNewUser(false).subscribe({error: () => {}});
       }
 
       this.selectedNodes = [];
@@ -173,7 +173,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
 
          ref.afterClosed().subscribe(val => {
             if(val) {
-               this.clearIncompleteNewUser(true).subscribe();
+               this.clearIncompleteNewUser(true).subscribe({error: () => {}});
                this.pageChanged = false;
                this.selectedNodes = event;
             }
@@ -366,7 +366,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
          }),
          catchError((error: HttpErrorResponse) => {
             this.errorService.showSnackBar(error);
-            return of(null);
+            throw error;
          }),
          map(() => undefined as void)
       );
