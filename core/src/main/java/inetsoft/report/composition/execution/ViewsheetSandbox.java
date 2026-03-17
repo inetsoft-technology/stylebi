@@ -4055,7 +4055,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       if(iassembly instanceof ComboBoxVSAssembly comboBox) {
          ComboBoxVSAssemblyInfo comboBoxInfo = (ComboBoxVSAssemblyInfo) comboBox.getVSAssemblyInfo();
 
-         if(comboBoxInfo.isQueryDateFormat() && XSchema.isDateType(comboBoxInfo.getDataType())) {
+         if(comboBoxInfo.isQueryDateFormat() && (XSchema.DATE.equals(comboBoxInfo.getDataType()) ||
+            XSchema.TIME_INSTANT.equals(comboBoxInfo.getDataType()))) {
             vt.putFormat(varName, comboBoxInfo.getDateFormatPattern());
          }
          else {

@@ -167,7 +167,7 @@ public class ComboboxPropertyDialogController {
 
       ListData listData = comboBoxAssemblyInfo.getListData() == null ?
          new ListData() : comboBoxAssemblyInfo.getListData();
-      comboBoxEditorModel.setDataType(comboBoxAssemblyInfo.getEmbeddedDataType());
+      comboBoxEditorModel.setDataType(comboBoxAssemblyInfo.getDataType());
       comboBoxEditorModel.setCalendar(comboBoxAssemblyInfo.isCalendar());
       comboBoxEditorModel.setServerTZ(comboBoxAssemblyInfo.isServerTimeZone());
       comboBoxEditorModel.setMinDate(minDate);
