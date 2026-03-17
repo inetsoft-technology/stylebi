@@ -766,10 +766,12 @@ public class DeployManagerService {
                if(fileName.startsWith("__WS_EMBEDDED_TABLE_")) {
                   String fname = fileName.substring("__WS_EMBEDDED_TABLE_".length());
 
-                  int idx = fname.indexOf('/');
+                  // Zip entries are written as "__WS_EMBEDDED_TABLE_pdata^_^<filename>".
+                  // Strip the "pdata^_^" prefix to get the bare filename.
+                  int idx = fname.indexOf("^_^");
 
-                  if(idx > 0) {
-                     fname = fname.substring(idx + 1);
+                  if(idx >= 0) {
+                     fname = fname.substring(idx + 3);
                   }
 
                   if(ignoreUserAssets.contains(fname)) {
@@ -1372,11 +1374,13 @@ public class DeployManagerService {
          else if(filename.startsWith("__WS_EMBEDDED_TABLE_")) {
             fname = filename.substring("__WS_EMBEDDED_TABLE_".length());
 
-            int idx = fname.indexOf('/');
+            // Zip entries are written as "__WS_EMBEDDED_TABLE_pdata^_^<filename>".
+            // Split on "^_^" to get folder="pdata" and the bare filename.
+            int idx = fname.indexOf("^_^");
 
-            if(idx > 0) {
+            if(idx >= 0) {
                folder = fname.substring(0, idx);
-               fname = fname.substring(idx + 1);
+               fname = fname.substring(idx + 3);
             }
          }
 
