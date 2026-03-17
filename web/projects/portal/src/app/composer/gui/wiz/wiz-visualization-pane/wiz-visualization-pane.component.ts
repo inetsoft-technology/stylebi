@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, NgZone, OnDestroy, OnInit } from "@angular/core";
+import { Subscription } from "rxjs";
 import { WizPortalService } from "../../../../../../../shared/wiz-portal/wiz-portal.service";
 import { WizDashboard } from "../../../data/vs/wizDashboard";
 import { CommandProcessor, ViewsheetClientService } from "../../../../common/viewsheet-client";
@@ -28,8 +29,10 @@ import { UpdateUndoStateCommand } from "../../../../vsobjects/command/update-unt
 import { VSObjectModel } from "../../../../vsobjects/model/vs-object-model";
 import { VSUtil } from "../../../../vsobjects/util/vs-util";
 import { OpenViewsheetEvent } from "../../../../vsobjects/event/open-viewsheet-event";
+import { VSRefreshEvent } from "../../../../vsobjects/event/vs-refresh-event";
 import { NewViewsheetEvent } from "../../vs/event/new-viewsheet-event";
 import { CloseSheetCommand } from "../../ws/socket/close-sheet-command";
+import { TouchAssetEvent } from "../../ws/socket/touch-asset-event";
 import { GuiTool } from "../../../../common/util/gui-tool";
 import { WizService } from "../services/wiz.service";
 
@@ -43,6 +46,7 @@ import { WizService } from "../services/wiz.service";
 })
 export class WizVisualizationPane extends CommandProcessor implements OnInit, OnDestroy {
    @Input() currentVisualization: WizDashboard;
+   private heartbeatSubscription: Subscription = Subscription.EMPTY;
 
    get styleBIUrl(): string {
       return this.wizPortalService.styleBIUrl;
@@ -77,6 +81,9 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
       }
 
       this.viewsheetClient.connect();
+      this.heartbeatSubscription = this.viewsheetClient.onHeartbeat.subscribe(() => {
+         this.touchAsset();
+      });
       this.currentVisualization.socketConnection = this.viewsheetClient;
 
       const size: [number, number] = GuiTool.getViewportSize();
@@ -111,7 +118,18 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
    }
 
    ngOnDestroy(): void {
+      this.heartbeatSubscription.unsubscribe();
       super.cleanup();
+   }
+
+   private touchAsset(): void {
+      if(this.currentVisualization?.runtimeId) {
+         const event = new TouchAssetEvent();
+         event.setDesign(true);
+         event.setChanged(false);
+         event.setUpdate(false);
+         this.viewsheetClient.sendEvent("/events/composer/touch-asset", event);
+      }
    }
 
    private processSetRuntimeIdCommand(command: SetRuntimeIdCommand): void {
@@ -202,5 +220,11 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
       this.currentVisualization.vsObjects[index] =
          VSUtil.replaceObject(this.currentVisualization.vsObjects[index], newModel);
       this.currentVisualization.updateSelectedAssembly(this.currentVisualization.vsObjects[index]);
+   }
+
+   refreshVisualization(): void {
+      const event = new VSRefreshEvent();
+      event.setUserRefresh(true);
+      this.viewsheetClient.sendEvent("/events/vs/refresh", event);
    }
 }

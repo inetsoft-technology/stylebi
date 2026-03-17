@@ -23,7 +23,7 @@
               class="wiz-chat-pane" [attr.stylebi-url]="styleBIUrl" [attr.visualization-runtime-id]="currentVisualization?.runtimeId"
               [attr.wiz-service-url]="wizServiceUrl"
               [attr.expected-user-id]="userId || null"
-              [attr.domain]="domain || null">
+              [attr.domain]="domain || null" (refreshViewsheet)="refreshVisualization()">
     </wiz-chat>
   </div>
 

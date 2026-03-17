@@ -89,7 +89,7 @@ public class CreateVsService {
          throw new Exception("Worksheet has no primary assembly");
       }
 
-      Viewsheet vs = new Viewsheet();
+      Viewsheet vs = new Viewsheet(sourceWs);
       VSAssembly assembly = createAssembly(vs, model.getVisualizationType(), title, config, primaryAssembly.getName());
 
       if(assembly == null) {
@@ -100,6 +100,7 @@ public class CreateVsService {
       assembly.setPrimary(true);
       viewsheet.setViewsheet(vs);
 
+      // Temporary code
       String vsName = "vs_" + System.currentTimeMillis();
       AssetEntry vsEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, vsName, null);
       viewsheetService.setViewsheet(vs, vsEntry, user, true, true);

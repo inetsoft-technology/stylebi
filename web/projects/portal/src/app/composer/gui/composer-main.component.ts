@@ -2397,7 +2397,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          return;
       }
 
-      if(sheet.type === "viewsheet") {
+      if(sheet.type === "viewsheet" || sheet.type == "wiz") {
          sheet.socketConnection.sendEvent(CLOSE_VIEWSHEET_SOCKET_URI, new CloseSheetEvent(deleteAutosave));
       }
       else if(sheet.type === "worksheet") {
