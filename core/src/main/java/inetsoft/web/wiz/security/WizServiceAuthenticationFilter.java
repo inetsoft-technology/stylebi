@@ -129,7 +129,7 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
       }
       catch(WizAuthenticationException e) {
          LOG.warn("WIZ service authentication failed: {}", e.getMessage());
-         sendUnauthorized(httpResponse, e.getMessage());
+         sendUnauthorized(httpResponse, "Unauthorized");
       }
       catch(Exception e) {
          LOG.error("Error during WIZ service authentication", e);
