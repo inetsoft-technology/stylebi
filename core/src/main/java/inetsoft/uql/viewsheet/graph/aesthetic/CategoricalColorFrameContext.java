@@ -58,6 +58,20 @@ public class CategoricalColorFrameContext {
       return sharedFrames.get(sharedFrame);
    }
 
+   public VisualFrame getSharedShapeFrame(String columnName, DataRef ref) {
+      final SharedFrameParameters params = new SharedFrameParameters();
+      addParameters(columnName, ref, params);
+      params.addParameter(FrameType.SHAPE);
+      return sharedFrames.get(params);
+   }
+
+   public void addSharedShapeFrame(String columnName, VisualFrame frame, DataRef ref) {
+      final SharedFrameParameters params = new SharedFrameParameters();
+      addParameters(columnName, ref, params);
+      params.addParameter(FrameType.SHAPE);
+      sharedFrames.put(params, frame);
+   }
+
    public void addParameters(String columnName, DataRef ref, SharedFrameParameters sharedFrame) {
       sharedFrame.addParameter(columnName);
 
@@ -66,6 +80,8 @@ public class CategoricalColorFrameContext {
          sharedFrame.addParameter(dateLevel);
       }
    }
+
+   private enum FrameType { SHAPE }
 
    private static final ThreadLocal<CategoricalColorFrameContext> context =
       ThreadLocal.withInitial(CategoricalColorFrameContext::new);
