@@ -110,10 +110,10 @@ public class GenerateWsService {
          }
       }
       else if(model.getJoinPaths() != null) {
-         boolean containsMergeJoin = false;//Todo
+         boolean containsMergeJoin = false; // Todo To be implemented later
          List<WorksheetConstructionModel.JoinPath> joinPaths = model.getJoinPaths();
 
-         List<WorksheetConstructionModel.QueryField> fields = model.getFields();
+         List<WorksheetConstructionModel.QueryField> fields = new ArrayList<>(model.getFields());
 
          for(WorksheetConstructionModel.JoinPath joinPath : joinPaths) {
             WorksheetConstructionModel.QueryField leftField =
