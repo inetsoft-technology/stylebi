@@ -263,7 +263,7 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
       }
 
       for(let i = 0; i < this.currentVisualization.currentFocusedAssemblies.length; i++) {
-         if(this.currentVisualization.currentFocusedAssemblies[i].absoluteName == obj.absoluteName) {
+         if(this.currentVisualization.currentFocusedAssemblies[i].absoluteName === obj.absoluteName) {
             this.currentVisualization.currentFocusedAssemblies[i] = obj;
             this.currentVisualization.focusedAssembliesChanged();
          }
