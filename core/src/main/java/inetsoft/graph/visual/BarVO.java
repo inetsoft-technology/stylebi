@@ -1358,7 +1358,6 @@ public class BarVO extends ElementVO {
             path.quadTo(x + w, y + h, x + w - arc, y + h); // top-right
             path.lineTo(x + arc, y + h);
             path.quadTo(x, y + h, x, y + h - arc);          // top-left
-            path.lineTo(x, y);
             break;
 
          case 2: // right — open end at right; round top-right, bottom-right
@@ -1369,7 +1368,6 @@ public class BarVO extends ElementVO {
             path.lineTo(x + w, y + h - arc);
             path.quadTo(x + w, y + h, x + w - arc, y + h);  // bottom-right
             path.lineTo(x, y + h);
-            path.lineTo(x, y);
             break;
 
          case 3: // left — open end at left; round top-left, bottom-left

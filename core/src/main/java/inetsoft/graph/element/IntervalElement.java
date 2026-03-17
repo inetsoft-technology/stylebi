@@ -599,6 +599,7 @@ public class IntervalElement extends StackableElement {
    /**
     * Get the corner radius fraction for bar rounding (0 = disabled, 0.5 = maximum).
     */
+   @TernMethod
    public double getCornerRadius() {
       return cornerRadius;
    }
@@ -607,6 +608,7 @@ public class IntervalElement extends StackableElement {
     * Set the corner radius fraction for bar rounding.
     * @param cornerRadius fraction in [0, 0.5]; 0 disables rounding.
     */
+   @TernMethod
    public void setCornerRadius(double cornerRadius) {
       this.cornerRadius = cornerRadius;
    }
@@ -616,6 +618,7 @@ public class IntervalElement extends StackableElement {
     * When {@code false} (default), only the open (value) end is rounded.
     * When {@code true}, all four corners are rounded equally.
     */
+   @TernMethod
    public boolean isRoundAllCorners() {
       return roundAllCorners;
    }
@@ -624,6 +627,7 @@ public class IntervalElement extends StackableElement {
     * Set whether all four corners of bars should be rounded.
     * @param roundAllCorners {@code true} to round all corners; {@code false} for open-end only.
     */
+   @TernMethod
    public void setRoundAllCorners(boolean roundAllCorners) {
       this.roundAllCorners = roundAllCorners;
    }
