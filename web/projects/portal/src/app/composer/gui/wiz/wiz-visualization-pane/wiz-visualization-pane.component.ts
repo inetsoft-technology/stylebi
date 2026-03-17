@@ -101,6 +101,8 @@ import { WizService } from "../services/wiz.service";
 })
 export class WizVisualizationPane extends CommandProcessor implements OnInit, OnDestroy {
    @Input() currentVisualization: WizDashboard;
+   initError: string = null;
+   private connected: boolean = false;
    private heartbeatSubscription: Subscription = Subscription.EMPTY;
 
    get styleBIUrl(): string {
@@ -131,10 +133,11 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
 
    ngOnInit(): void {
       if(!this.currentVisualization.wizSheetRuntimeId) {
-         console.error("wizSheetRuntimeId is missing for wiz visualization");
+         this.initError = "_#(js:wiz.visualization.missing.runtime.id)";
          return;
       }
 
+      this.connected = true;
       this.viewsheetClient.connect();
       this.heartbeatSubscription = this.viewsheetClient.onHeartbeat.subscribe(() => {
          this.touchAsset();
@@ -173,8 +176,10 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
    }
 
    ngOnDestroy(): void {
-      this.heartbeatSubscription.unsubscribe();
-      super.cleanup();
+      if(this.connected) {
+         this.heartbeatSubscription.unsubscribe();
+         super.cleanup();
+      }
    }
 
    private touchAsset(): void {
