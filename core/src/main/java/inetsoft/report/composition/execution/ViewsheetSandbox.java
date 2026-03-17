@@ -3982,12 +3982,14 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          // variable that this assembly controls, using the same extraction logic as
          // refreshVariable().
          String tname = iassembly.getTableName();
+         boolean isVarExtracted = iassembly.isVariable() && tname != null &&
+            !tname.isEmpty() && tname.startsWith("$(");
 
-         if(iassembly.isVariable() && tname != null && !tname.isEmpty() && tname.startsWith("$(")) {
+         if(isVarExtracted) {
             tname = tname.substring(2, tname.length() - 1);
          }
 
-         if(tname != null && !tname.isEmpty() && vt.contains(tname)) {
+         if(isVarExtracted && tname != null && !tname.isEmpty() && vt.contains(tname)) {
             name = tname;
          }
          else {
