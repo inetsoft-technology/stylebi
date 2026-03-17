@@ -387,12 +387,28 @@ public class TestCluster implements Cluster {
 
    @Override
    public <T extends Serializable> Future<T> submit(String serviceId, SingletonCallableTask<T> task) {
-      return getSingletonExecutor(serviceId).submit(task);
+      ExecutorService executor = getSingletonExecutor(serviceId);
+      return CompletableFuture.supplyAsync(() -> {
+         try {
+            return task.call();
+         }
+         catch(Exception e) {
+            throw new CompletionException(e);
+         }
+      }, executor);
    }
 
    @Override
    public Future<?> submit(String serviceId, SingletonRunnableTask task) {
-      return getSingletonExecutor(serviceId).submit(task);
+      ExecutorService executor = getSingletonExecutor(serviceId);
+      return CompletableFuture.runAsync(() -> {
+         try {
+            task.run();
+         }
+         catch(Exception e) {
+            throw new CompletionException(e);
+         }
+      }, executor);
    }
 
    @Override
