@@ -33,10 +33,10 @@ import java.util.concurrent.TimeUnit;
  * and sends results back to the originating node via Ignite messaging.
  *
  * <p>Tasks are submitted non-blocking by the caller side ({@link IgniteCluster#submit(String,
- * SingletonCallableTask)}) and survive the failure of any single node because the queue is
- * backed by the distributed Ignite data grid.  Uses {@link IgniteQueue#poll(long, java.util.concurrent.TimeUnit)}
- * so the executor thread wakes immediately when a task is enqueued rather than sleeping for
- * up to 1 second between tasks.
+ * inetsoft.sree.internal.cluster.SingletonCallableTask)}) and survive the failure of any single
+ * node because the queue is backed by the distributed Ignite data grid. Uses
+ * {@link IgniteQueue#poll(long, java.util.concurrent.TimeUnit)} so the executor thread wakes
+ * immediately when a task is enqueued rather than sleeping for up to 1 second between tasks.
  */
 public class ServiceTaskExecutorImpl implements Service {
    public ServiceTaskExecutorImpl(String serviceId) {
@@ -65,10 +65,6 @@ public class ServiceTaskExecutorImpl implements Service {
             if(request != null) {
                processRequest(request, loader);
             }
-         }
-         catch(InterruptedException e) {
-            Thread.currentThread().interrupt();
-            break;
          }
          catch(Exception e) {
             LOG.error("Error processing service task for {}", serviceId, e);
