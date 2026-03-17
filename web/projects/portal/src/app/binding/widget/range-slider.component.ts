@@ -88,8 +88,10 @@ export class RangeSlider implements OnInit, OnDestroy {
    // get the tick positions (css left)
    getTicks(): SliderTick[] {
       let ticks: SliderTick[] = [];
+      // Derive a step that produces ~5 ticks for any range size.
+      const step = Math.max(1, Math.round(this.size / 5));
 
-      for(let i = this.model.min; i <= this.model.max; i += 5) {
+      for(let i = this.model.min; i <= this.model.max; i += step) {
          let tick: SliderTick = {left: "0px", label: ""};
          let leftOffset: number = this.model.width * (i - this.model.min) / this.size;
          tick.left = leftOffset + "px";
@@ -163,7 +165,7 @@ export class RangeSlider implements OnInit, OnDestroy {
       else {
          return Math.min(this.model.max,
                          this.model.min +
-                         Math.max(Math.round(offset * (this.size - 1) / this.model.width)));
+                         Math.max(0, Math.round(offset * (this.size - 1) / this.model.width)));
       }
    }
 

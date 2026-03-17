@@ -19,6 +19,6 @@ export class RangeSliderOptions {
    width: number = 270;
    min: number = 1;
    max: number = 30;
-   selectStart: number = 0;
+   selectStart: number = 1;
    selectEnd: number = 30;
 }
