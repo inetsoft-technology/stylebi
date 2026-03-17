@@ -32,8 +32,7 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 public class RunningTotalColumnTest {
@@ -242,6 +241,196 @@ public class RunningTotalColumnTest {
       CrossTabFilter.PairN pairN = new CrossTabFilter.PairN(rowTuple, colTuple, 0);
 
       return pairN;
+   }
+
+   /**
+    * Running average over dates: uses date dim + NONE reset so no boundary breaks.
+    * Each row returns the average of all values seen up to and including that row.
+    */
+   @Test
+   void testRunningAverageWithDateDim() {
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"date", "id"},
+         {toDate("2021-01-01"), 10},
+         {toDate("2021-02-01"), 20},
+         {toDate("2021-03-01"), 30}
+      });
+
+      runningTotalColumn = new RunningTotalColumn("id", "avg(id)");
+      runningTotalColumn.setInnerDim("date");
+      runningTotalColumn.setResetLevel(RunningTotalColumn.NONE);
+      runningTotalColumn.setFormula(new AverageFormula());
+
+      vsDataSet = createVSDataSet(tb, new String[]{"date"});
+
+      // row 0: avg(10) = 10
+      Object result = runningTotalColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(10.0, result);
+
+      // row 1: avg(10, 20) = 15
+      result = runningTotalColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(15.0, result);
+
+      // row 2: avg(10, 20, 30) = 20
+      result = runningTotalColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(20.0, result);
+   }
+
+   /**
+    * Running min: always the minimum of all values seen so far.
+    */
+   @Test
+   void testRunningMinWithDateDim() {
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"date", "id"},
+         {toDate("2021-01-01"), 30},
+         {toDate("2021-02-01"), 10},
+         {toDate("2021-03-01"), 20}
+      });
+
+      runningTotalColumn = new RunningTotalColumn("id", "min(id)");
+      runningTotalColumn.setInnerDim("date");
+      runningTotalColumn.setResetLevel(RunningTotalColumn.NONE);
+      runningTotalColumn.setFormula(new MinFormula());
+
+      vsDataSet = createVSDataSet(tb, new String[]{"date"});
+
+      // row 0: min(30)
+      Object result = runningTotalColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(30, result);
+
+      // row 1: min(30, 10) = 10
+      result = runningTotalColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(10, result);
+
+      // row 2: min(30, 10, 20) = 10
+      result = runningTotalColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(10, result);
+   }
+
+   /**
+    * Running max: always the maximum of all values seen so far.
+    */
+   @Test
+   void testRunningMaxWithDateDim() {
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"date", "id"},
+         {toDate("2021-01-01"), 5},
+         {toDate("2021-02-01"), 15},
+         {toDate("2021-03-01"), 10}
+      });
+
+      runningTotalColumn = new RunningTotalColumn("id", "max(id)");
+      runningTotalColumn.setInnerDim("date");
+      runningTotalColumn.setResetLevel(RunningTotalColumn.NONE);
+      runningTotalColumn.setFormula(new MaxFormula());
+
+      vsDataSet = createVSDataSet(tb, new String[]{"date"});
+
+      // row 0: max(5) = 5
+      Object result = runningTotalColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(5, result);
+
+      // row 1: max(5, 15) = 15
+      result = runningTotalColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(15, result);
+
+      // row 2: max(5, 15, 10) = 15
+      result = runningTotalColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(15, result);
+   }
+
+   /**
+    * Running sum with no reset level (NONE=-1): accumulates across all rows
+    * ignoring date boundaries.
+    */
+   @Test
+   void testRunningSumNoReset() {
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"date", "id"},
+         {toDate("2021-01-01"), 5},
+         {toDate("2021-06-01"), 3},
+         {toDate("2022-01-01"), 10}
+      });
+
+      runningTotalColumn = new RunningTotalColumn("id", "sum(id)");
+      runningTotalColumn.setInnerDim("date");
+      runningTotalColumn.setResetLevel(RunningTotalColumn.NONE);
+      runningTotalColumn.setFormula(new SumFormula());
+
+      vsDataSet = createVSDataSet(tb, new String[]{"date"});
+
+      // row 0: 5
+      Object result = runningTotalColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(5.0, result);
+
+      // row 1: 5+3 = 8 (NONE means no reset)
+      result = runningTotalColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(8.0, result);
+
+      // row 2: 5+3+10 = 18 (crosses year boundary but no reset)
+      result = runningTotalColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(18.0, result);
+   }
+
+   /**
+    * Running sum with null values in the dataset. Null is treated as 0.
+    */
+   @Test
+   void testRunningSumWithNullValues() {
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"date", "id"},
+         {toDate("2021-01-01"), 5},
+         {toDate("2021-06-01"), null},
+         {toDate("2021-12-01"), 3}
+      });
+
+      runningTotalColumn = new RunningTotalColumn("id", "sum(id)");
+      runningTotalColumn.setInnerDim("date");
+      runningTotalColumn.setResetLevel(RunningTotalColumn.NONE);
+      runningTotalColumn.setFormula(new SumFormula());
+
+      vsDataSet = createVSDataSet(tb, new String[]{"date"});
+
+      // row 1: 5 + null = 5
+      Object result = runningTotalColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(5.0, result);
+
+      // row 2: 5 + null + 3 = 8
+      result = runningTotalColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(8.0, result);
+   }
+
+   /**
+    * Running sum resets at month boundary.
+    */
+   @Test
+   void testRunningSumResetsAtMonth() {
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"date", "id"},
+         {toDate("2021-01-01"), 5},
+         {toDate("2021-01-15"), 3},
+         {toDate("2021-02-01"), 10}
+      });
+
+      runningTotalColumn = new RunningTotalColumn("id", "sum(id)");
+      runningTotalColumn.setInnerDim("date");
+      runningTotalColumn.setResetLevel(RunningTotalColumn.MONTH);
+      runningTotalColumn.setFormula(new SumFormula());
+
+      vsDataSet = createVSDataSet(tb, new String[]{"date"});
+
+      // row 0: 5
+      Object result = runningTotalColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(5.0, result);
+
+      // row 1: still Jan → 5+3 = 8
+      result = runningTotalColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(8.0, result);
+
+      // row 2: Feb, reset → 10
+      result = runningTotalColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(10.0, result);
    }
 
    private CrossFilter.Tuple createCrosstabFilterTuple(Object value) {

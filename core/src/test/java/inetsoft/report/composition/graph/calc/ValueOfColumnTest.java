@@ -31,7 +31,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -315,6 +315,182 @@ public class ValueOfColumnTest {
       vsDataSet = new VSDataSet(tableLens, new VSDataRef[] { mockDRef });
 
       return vsDataSet;
+   }
+
+   /**
+    * With FIRST type and dimension set, should return the value at the first
+    * position in that dimension.
+    */
+   @Test
+   void testFirstWithDimension() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.FIRST);
+      valueOfColumn.setDim("name");
+
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"name", "id"},
+         {"a", 100},
+         {"b", 200},
+         {"c", 300}
+      });
+
+      vsDataSet = createVSDataSet(tb, "name");
+
+      // All rows return first dim value = "a" → value 100
+      Object result = valueOfColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(100, result);
+   }
+
+   /**
+    * With LAST type and dimension set, should return the value at the last
+    * position in that dimension.
+    */
+   @Test
+   void testLastWithDimension() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.LAST);
+      valueOfColumn.setDim("name");
+
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"name", "id"},
+         {"a", 100},
+         {"b", 200},
+         {"c", 300}
+      });
+
+      vsDataSet = createVSDataSet(tb, "name");
+
+      // All rows return last dim value = "c" → value 300
+      Object result = valueOfColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(300, result);
+   }
+
+   /**
+    * With PREVIOUS type and a dimension, the first row (in first dim position)
+    * has no previous → INVALID.
+    */
+   @Test
+   void testPreviousFirstRowInDimIsInvalid() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS);
+      valueOfColumn.setDim("name");
+
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"name", "id"},
+         {"a", 10},
+         {"b", 20}
+      });
+
+      vsDataSet = createVSDataSet(tb, "name");
+
+      // row 0 ("a"): no previous dim value → INVALID
+      Object result = valueOfColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(CalcColumn.INVALID, result);
+
+      // row 1 ("b"): previous dim = "a" → value 10
+      result = valueOfColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(10, result);
+   }
+
+   /**
+    * With NEXT type and a dimension, the last row has no next → INVALID.
+    */
+   @Test
+   void testNextLastRowInDimIsInvalid() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.NEXT);
+      valueOfColumn.setDim("name");
+
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"name", "id"},
+         {"a", 10},
+         {"b", 20}
+      });
+
+      vsDataSet = createVSDataSet(tb, "name");
+
+      // row 0 ("a"): next dim = "b" → value 20
+      Object result = valueOfColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(20, result);
+
+      // row 1 ("b"): no next dim value → INVALID
+      result = valueOfColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(CalcColumn.INVALID, result);
+   }
+
+   /**
+    * Field with null values: PREVIOUS pointing to a null row returns null.
+    */
+   @Test
+   void testPreviousPointingToNullValue() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS);
+      valueOfColumn.setDim("name");
+
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"name", "id"},
+         {"a", null},
+         {"b", 50}
+      });
+
+      vsDataSet = createVSDataSet(tb, "name");
+      // row 1's previous dim value is "a" → look up "a" → value is null
+      Object result = valueOfColumn.calculate(vsDataSet, 1, false, false);
+      assertNull(result);
+   }
+
+   /**
+    * Verify complete() clears cache state without throwing.
+    */
+   @Test
+   void testCompleteResetsState() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS);
+      valueOfColumn.setDim("name");
+      // calling complete() before any calculation should not throw
+      valueOfColumn.complete();
+   }
+
+   /**
+    * supportSortByValue returns true for date-based change types and false for others.
+    */
+   @Test
+   void testSupportSortByValue() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.FIRST);
+      assertFalse(valueOfColumn.supportSortByValue());
+
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS);
+      assertFalse(valueOfColumn.supportSortByValue());
+
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS_YEAR);
+      assertTrue(valueOfColumn.supportSortByValue());
+
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS_QUARTER);
+      assertTrue(valueOfColumn.supportSortByValue());
+
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS_MONTH);
+      assertTrue(valueOfColumn.supportSortByValue());
+
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS_WEEK);
+      assertTrue(valueOfColumn.supportSortByValue());
+
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS_RANGE);
+      assertTrue(valueOfColumn.supportSortByValue());
+   }
+
+   /**
+    * Null context or tuplePair returns null from the crosstab path.
+    */
+   @Test
+   void testCalculateWithNullContextReturnsNull() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.FIRST);
+      valueOfColumn.setDim("name");
+
+      Object result = valueOfColumn.calculate((CrossTabFilter.CrosstabDataContext) null,
+         (CrossTabFilter.PairN) null);
+      assertNull(result);
    }
 
    private CrossTabFilter.PairN createCrosstabFilterPairN(Object rowValue, Object colValue) {
