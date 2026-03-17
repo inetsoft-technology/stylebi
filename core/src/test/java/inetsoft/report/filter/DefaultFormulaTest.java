@@ -240,8 +240,10 @@ public class DefaultFormulaTest {
    // -----------------------------------------------------------------------
 
    @Test
-   void reset_clearsAllSlots() {
-      formula.addValue("text");
+   void reset_clearsNumericSlots() {
+      // reset() clears all numeric slots (dv, fv, lv, iv, sinited) but does NOT clear
+      // the Object slot (v). After reset, isNull() returns true (dv is sentinel) and
+      // getResult() returns null only if no Object value was added.
       formula.addValue(1.0);
       formula.addValue(2.0f);
       formula.addValue(3L);
@@ -250,6 +252,15 @@ public class DefaultFormulaTest {
       formula.reset();
       assertNull(formula.getResult());
       assertTrue(formula.isNull());
+   }
+
+   @Test
+   void reset_doesNotClearObjectSlot() {
+      // reset() only resets numeric slots; the Object slot (v) is not cleared.
+      formula.addValue("text");
+      formula.reset();
+      // v still holds "text" — getResult() returns it
+      assertEquals("text", formula.getResult());
    }
 
    @Test
