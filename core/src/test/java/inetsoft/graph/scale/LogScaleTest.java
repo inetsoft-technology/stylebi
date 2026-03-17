@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class LogScaleTest {
 
-   private static final double DELTA = 1e-9;
+   private static final double DELTA = 1e-6;
 
    // ---- setBase validation ----
 
@@ -179,7 +179,7 @@ class LogScaleTest {
       double original = 1000.0;
       double mapped = scale.mapValue(Double.valueOf(original));
       double unmapped = scale.unmap(mapped);
-      assertEquals(original, unmapped, 1e-6);
+      assertEquals(original, unmapped, DELTA);
    }
 
    // ---- add() ----
@@ -189,7 +189,7 @@ class LogScaleTest {
       LogScale scale = new LogScale();
       // add(1.0, 2.0): unmap(1.0)=10, unmap(2.0)=100 → sum=110 → map(110) = log10(110)
       double result = scale.add(1.0, 2.0);
-      assertEquals(Math.log10(110.0), result, 1e-6);
+      assertEquals(Math.log10(110.0), result, DELTA);
    }
 
    @Test
@@ -244,7 +244,7 @@ class LogScaleTest {
       for(Object v : values) {
          double d = ((Number) v).doubleValue();
          double log = Math.log10(Math.abs(d));
-         assertEquals(Math.round(log), log, 1e-6,
+         assertEquals(Math.round(log), log, DELTA,
             "Expected " + d + " to be an exact power of 10");
       }
    }

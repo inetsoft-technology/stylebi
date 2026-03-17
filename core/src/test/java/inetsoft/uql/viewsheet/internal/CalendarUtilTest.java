@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import java.util.Calendar;
 import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -321,14 +322,13 @@ class CalendarUtilTest {
    }
 
    @Test
-   void trimCharacter_noValidCharsInString_returnsEmptyOrSingleChar() {
+   void trimCharacter_noValidCharsInString_retainsFirstChar() {
       char[] valid = {'M', 'y'};
-      // "HH:mm" has no y or M; the loop for "start" never sets it from 0,
-      // so start stays 0 and no leading characters are removed; trailing
-      // non-valid chars are removed.
+      // "HH:mm" has no y or M; the leading-trim loop finds no valid char so
+      // start stays 0 and nothing is trimmed from the front. The trailing loop
+      // removes all non-valid chars from the back stopping when j==0, leaving "H".
       String result = CalendarUtil.trimCharacter("HH:mm", valid);
-      // result should be empty string or the implementation trims all
-      assertNotNull(result);
+      assertEquals("H", result);
    }
 
    // ==========================================================================
@@ -338,13 +338,10 @@ class CalendarUtilTest {
    @Test
    void fixSplitCharacter_removesDoubleNonValidSeparators() {
       char[] valid = {'M', 'y', 'd'};
-      // "yyyy--MM" has "--" between y and M; one '-' should survive but
-      // consecutive non-valid chars are collapsed.
+      // "yyyy--MM": iterating backwards, the second '-' is preceded by another '-'
+      // (also non-valid), so it is deleted, leaving "yyyy-MM".
       String result = CalendarUtil.fixSplitCharacter("yyyy--MM", valid);
-      assertNotNull(result);
-      // At minimum the valid characters should still be present
-      assertTrue(result.contains("y"), "Result should still contain year chars");
-      assertTrue(result.contains("M"), "Result should still contain month chars");
+      assertEquals("yyyy-MM", result);
    }
 
    @Test
@@ -366,30 +363,46 @@ class CalendarUtilTest {
 
    @Test
    void parseStringToDate_yearOnlyString() {
-      // "y2020" => year prefix, year=2020
+      // "y2020" => year prefix: year=2020, month=0 (no month in string), day=1
       Date result = CalendarUtil.parseStringToDate("y2020");
       assertNotNull(result);
+      Calendar cal = Calendar.getInstance();
+      cal.setTime(result);
+      assertEquals(2020, cal.get(Calendar.YEAR));
    }
 
    @Test
    void parseStringToDate_monthString() {
-      // "m2020-5" => year=2020, month=5
+      // "m2020-5" => year=2020, month=5 (Calendar 0-based = June), day=1
       Date result = CalendarUtil.parseStringToDate("m2020-5");
       assertNotNull(result);
+      Calendar cal = Calendar.getInstance();
+      cal.setTime(result);
+      assertEquals(2020, cal.get(Calendar.YEAR));
+      assertEquals(5, cal.get(Calendar.MONTH));
    }
 
    @Test
    void parseStringToDate_weekString() {
-      // "w2020-5-2" => year=2020, month=5, week=2
+      // "w2020-5-2" => year=2020, month=5 (June), WEEK_OF_MONTH=2
       Date result = CalendarUtil.parseStringToDate("w2020-5-2");
       assertNotNull(result);
+      Calendar cal = Calendar.getInstance();
+      cal.setTime(result);
+      assertEquals(2020, cal.get(Calendar.YEAR));
+      assertEquals(5, cal.get(Calendar.MONTH));
    }
 
    @Test
    void parseStringToDate_dayString() {
-      // "2020-10-15" => year=2020, month=10, day=15
+      // "2020-10-15" => year=2020, month=10 (Calendar 0-based = November), day=15
       Date result = CalendarUtil.parseStringToDate("2020-10-15");
       assertNotNull(result);
+      Calendar cal = Calendar.getInstance();
+      cal.setTime(result);
+      assertEquals(2020, cal.get(Calendar.YEAR));
+      assertEquals(10, cal.get(Calendar.MONTH));
+      assertEquals(15, cal.get(Calendar.DAY_OF_MONTH));
    }
 
    @Test
@@ -400,22 +413,28 @@ class CalendarUtilTest {
 
    @Test
    void parseStringToDate_monthMinusOne_adjustsMonth() {
-      // With monthMinusOne=true the parsed month should be decremented
-      Date resultNormal    = CalendarUtil.parseStringToDate("m2020-5", false);
-      Date resultMinusOne  = CalendarUtil.parseStringToDate("m2020-5", true);
+      // "m2020-5" with monthMinusOne=false → Calendar.MONTH=5 (June)
+      // "m2020-5" with monthMinusOne=true  → Calendar.MONTH=4 (May)
+      Date resultNormal   = CalendarUtil.parseStringToDate("m2020-5", false);
+      Date resultMinusOne = CalendarUtil.parseStringToDate("m2020-5", true);
       assertNotNull(resultNormal);
       assertNotNull(resultMinusOne);
-      // resultMinusOne should have month 4 (0-based) vs month 5 (0-based)
-      // i.e. resultMinusOne is 1 month earlier
-      assertTrue(resultMinusOne.before(resultNormal) || resultMinusOne.equals(resultNormal),
-                 "monthMinusOne=true should not advance the date");
+      Calendar calNormal = Calendar.getInstance();
+      calNormal.setTime(resultNormal);
+      Calendar calMinus = Calendar.getInstance();
+      calMinus.setTime(resultMinusOne);
+      assertEquals(5, calNormal.get(Calendar.MONTH));
+      assertEquals(4, calMinus.get(Calendar.MONTH));
    }
 
    @Test
    void parseStringToDate_yearStringWithNoMonth() {
-      // Simple year with 'y' prefix and no dash
+      // "y2021" → year=2021
       Date result = CalendarUtil.parseStringToDate("y2021");
       assertNotNull(result);
+      Calendar cal = Calendar.getInstance();
+      cal.setTime(result);
+      assertEquals(2021, cal.get(Calendar.YEAR));
    }
 
    // ==========================================================================

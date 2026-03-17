@@ -646,9 +646,15 @@ public class ConditionTest {
       cond.setOperation(XCondition.DATE_IN);
       cond.addValue("this year");
 
+      // Use mid-June of the current year to avoid year-boundary failures
       Calendar cal = Calendar.getInstance();
-      Date thisYear = cal.getTime();
-      assertTrue(cond.evaluate(thisYear));
+      cal.set(Calendar.MONTH, Calendar.JUNE);
+      cal.set(Calendar.DAY_OF_MONTH, 15);
+      cal.set(Calendar.HOUR_OF_DAY, 12);
+      cal.set(Calendar.MINUTE, 0);
+      cal.set(Calendar.SECOND, 0);
+      cal.set(Calendar.MILLISECOND, 0);
+      assertTrue(cond.evaluate(cal.getTime()));
    }
 
    @Test
@@ -657,10 +663,16 @@ public class ConditionTest {
       cond.setOperation(XCondition.DATE_IN);
       cond.addValue("this year");
 
+      // Use mid-June of last year to avoid year-boundary failures
       Calendar cal = Calendar.getInstance();
+      cal.set(Calendar.MONTH, Calendar.JUNE);
+      cal.set(Calendar.DAY_OF_MONTH, 15);
+      cal.set(Calendar.HOUR_OF_DAY, 12);
+      cal.set(Calendar.MINUTE, 0);
+      cal.set(Calendar.SECOND, 0);
+      cal.set(Calendar.MILLISECOND, 0);
       cal.add(Calendar.YEAR, -1);
-      Date lastYear = cal.getTime();
-      assertFalse(cond.evaluate(lastYear));
+      assertFalse(cond.evaluate(cal.getTime()));
    }
 
    @Test
@@ -669,10 +681,16 @@ public class ConditionTest {
       cond.setOperation(XCondition.DATE_IN);
       cond.addValue("last year");
 
+      // Use mid-June of last year to avoid year-boundary failures
       Calendar cal = Calendar.getInstance();
+      cal.set(Calendar.MONTH, Calendar.JUNE);
+      cal.set(Calendar.DAY_OF_MONTH, 15);
+      cal.set(Calendar.HOUR_OF_DAY, 12);
+      cal.set(Calendar.MINUTE, 0);
+      cal.set(Calendar.SECOND, 0);
+      cal.set(Calendar.MILLISECOND, 0);
       cal.add(Calendar.YEAR, -1);
-      Date lastYear = cal.getTime();
-      assertTrue(cond.evaluate(lastYear));
+      assertTrue(cond.evaluate(cal.getTime()));
    }
 
    @Test
@@ -681,8 +699,14 @@ public class ConditionTest {
       cond.setOperation(XCondition.DATE_IN);
       cond.addValue("this month");
 
-      Date now = new Date();
-      assertTrue(cond.evaluate(now));
+      // Use the 15th of the current month at noon to avoid month-boundary failures
+      Calendar cal = Calendar.getInstance();
+      cal.set(Calendar.DAY_OF_MONTH, 15);
+      cal.set(Calendar.HOUR_OF_DAY, 12);
+      cal.set(Calendar.MINUTE, 0);
+      cal.set(Calendar.SECOND, 0);
+      cal.set(Calendar.MILLISECOND, 0);
+      assertTrue(cond.evaluate(cal.getTime()));
    }
 
    @Test
@@ -691,7 +715,13 @@ public class ConditionTest {
       cond.setOperation(XCondition.DATE_IN);
       cond.addValue("this month");
 
+      // Use the 15th of last month at noon to avoid month-boundary failures
       Calendar cal = Calendar.getInstance();
+      cal.set(Calendar.DAY_OF_MONTH, 15);
+      cal.set(Calendar.HOUR_OF_DAY, 12);
+      cal.set(Calendar.MINUTE, 0);
+      cal.set(Calendar.SECOND, 0);
+      cal.set(Calendar.MILLISECOND, 0);
       cal.add(Calendar.MONTH, -1);
       assertFalse(cond.evaluate(cal.getTime()));
    }
@@ -702,8 +732,14 @@ public class ConditionTest {
       cond.setOperation(XCondition.DATE_IN);
       cond.addValue("this week");
 
-      Date now = new Date();
-      assertTrue(cond.evaluate(now));
+      // Use Wednesday of the current week at noon to avoid week-boundary failures
+      Calendar cal = Calendar.getInstance();
+      cal.set(Calendar.DAY_OF_WEEK, Calendar.WEDNESDAY);
+      cal.set(Calendar.HOUR_OF_DAY, 12);
+      cal.set(Calendar.MINUTE, 0);
+      cal.set(Calendar.SECOND, 0);
+      cal.set(Calendar.MILLISECOND, 0);
+      assertTrue(cond.evaluate(cal.getTime()));
    }
 
    @Test
@@ -712,8 +748,14 @@ public class ConditionTest {
       cond.setOperation(XCondition.DATE_IN);
       cond.addValue("last week");
 
-      Date now = new Date();
-      assertFalse(cond.evaluate(now));
+      // Use Wednesday of the current week at noon — clearly not "last week"
+      Calendar cal = Calendar.getInstance();
+      cal.set(Calendar.DAY_OF_WEEK, Calendar.WEDNESDAY);
+      cal.set(Calendar.HOUR_OF_DAY, 12);
+      cal.set(Calendar.MINUTE, 0);
+      cal.set(Calendar.SECOND, 0);
+      cal.set(Calendar.MILLISECOND, 0);
+      assertFalse(cond.evaluate(cal.getTime()));
    }
 
    @Test
@@ -737,14 +779,28 @@ public class ConditionTest {
    @Test
    void isInDateRange_thisYear() {
       Condition cond = new Condition();
-      Date now = new Date();
-      assertTrue(cond.isInDateRange("this year", now));
+      // Use mid-June of current year to avoid year-boundary failures
+      Calendar cal = Calendar.getInstance();
+      cal.set(Calendar.MONTH, Calendar.JUNE);
+      cal.set(Calendar.DAY_OF_MONTH, 15);
+      cal.set(Calendar.HOUR_OF_DAY, 12);
+      cal.set(Calendar.MINUTE, 0);
+      cal.set(Calendar.SECOND, 0);
+      cal.set(Calendar.MILLISECOND, 0);
+      assertTrue(cond.isInDateRange("this year", cal.getTime()));
    }
 
    @Test
    void isInDateRange_lastYear() {
       Condition cond = new Condition();
+      // Use mid-June of last year to avoid year-boundary failures
       Calendar cal = Calendar.getInstance();
+      cal.set(Calendar.MONTH, Calendar.JUNE);
+      cal.set(Calendar.DAY_OF_MONTH, 15);
+      cal.set(Calendar.HOUR_OF_DAY, 12);
+      cal.set(Calendar.MINUTE, 0);
+      cal.set(Calendar.SECOND, 0);
+      cal.set(Calendar.MILLISECOND, 0);
       cal.add(Calendar.YEAR, -1);
       assertTrue(cond.isInDateRange("last year", cal.getTime()));
    }
@@ -758,7 +814,11 @@ public class ConditionTest {
    @Test
    void isInDateRange_nullRange() {
       Condition cond = new Condition();
-      assertFalse(cond.isInDateRange(null, new Date()));
+      // Use mid-June of current year to avoid year-boundary failures
+      Calendar cal = Calendar.getInstance();
+      cal.set(Calendar.MONTH, Calendar.JUNE);
+      cal.set(Calendar.DAY_OF_MONTH, 15);
+      assertFalse(cond.isInDateRange(null, cal.getTime()));
    }
 
    @Test

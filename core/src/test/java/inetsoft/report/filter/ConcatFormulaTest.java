@@ -70,22 +70,13 @@ public class ConcatFormulaTest {
    // -----------------------------------------------------------------------
 
    @Test
-   void getResult_noValues_defaultResultTrue_returnsNull() {
-      // def=false by default — but looking at code: def defaults to false field
-      // new ConcatFormula() → def=false → getResult() returns "" when cnt==0
-      // Wait: re-read: cnt == 0 ? (def ? null : "") — so def=false → empty string
-      formula.setDefaultResult(false);
-      assertEquals("", formula.getResult());
-   }
-
-   @Test
    void getResult_noValues_defaultResultFalse_returnsEmpty() {
       formula.setDefaultResult(false);
       assertEquals("", formula.getResult());
    }
 
    @Test
-   void getResult_noValues_defaultResultTrue_returnsNull2() {
+   void getResult_noValues_defaultResultTrue_returnsNull() {
       formula.setDefaultResult(true);
       assertNull(formula.getResult());
    }

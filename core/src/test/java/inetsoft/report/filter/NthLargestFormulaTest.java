@@ -72,7 +72,8 @@ public class NthLargestFormulaTest {
    void getResult_noValues_defaultResultTrue_returnsZero() {
       NthLargestFormula formula = new NthLargestFormula(1);
       formula.setDefaultResult(true);
-      assertEquals(0, formula.getResult());
+      // getResult() returns Integer(0) when def=true and no qualifying values
+      assertEquals(Integer.valueOf(0), formula.getResult());
    }
 
    // -----------------------------------------------------------------------
@@ -126,7 +127,8 @@ public class NthLargestFormulaTest {
       NthLargestFormula formula = new NthLargestFormula(2);
       formula.setDefaultResult(true);
       formula.addValue(Double.valueOf(5.0));
-      assertEquals(0, formula.getResult());
+      // getResult() returns Integer(0) when def=true and no qualifying values
+      assertEquals(Integer.valueOf(0), formula.getResult());
    }
 
    // -----------------------------------------------------------------------

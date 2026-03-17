@@ -26,6 +26,7 @@ import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.graph.AbstractCalc;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -38,6 +39,20 @@ import static org.mockito.Mockito.when;
 public class MovingColumnTest {
    private MovingColumn movingColumn;
    private VSDataSet vsDataSet;
+   private DefaultTableLens tableLens;
+
+   @BeforeEach
+   void setUp() {
+      tableLens = new DefaultTableLens(new Object[][]{
+         {"group", "name", "id"},
+         {"A", "a", 1},
+         {"A", "b", 3},
+         {"A", "c", null},
+         {"B", "d", 7},
+         {"B", "e", 1},
+         {"B", "f", 9}
+      });
+   }
 
    @Test
    void testCalculateWithVSDataSet() {
@@ -344,13 +359,4 @@ public class MovingColumnTest {
       assertEquals(2.0, result);
    }
 
-   DefaultTableLens tableLens = new DefaultTableLens(new Object[][]{
-      {"group", "name", "id"},
-      {"A", "a", 1},
-      {"A", "b", 3},
-      {"A", "c", null},
-      {"B", "d", 7},
-      {"B", "e", 1},
-      {"B", "f", 9}
-   });
 }

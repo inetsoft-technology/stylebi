@@ -24,6 +24,7 @@ import inetsoft.report.filter.CrossTabFilter;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -31,8 +32,22 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class PercentColumnTest {
-   private  PercentColumn percentColumn;
-   VSDataSet vsDataSet;
+   private PercentColumn percentColumn;
+   private VSDataSet vsDataSet;
+   private DefaultTableLens tableLens;
+
+   @BeforeEach
+   void setUp() {
+      tableLens = new DefaultTableLens(new Object[][]{
+         {"name", "id"},
+         {"a", 10},
+         {"b", 20},
+         {"b", 16},
+         {"c", 0},
+         {"d", null},
+         {"e", false}
+      });
+   }
 
    @Test
    void testCalculateWithVSDataset() {
@@ -232,13 +247,4 @@ public class PercentColumnTest {
       return  Math.round((double)value * 100) / 100.0;
    }
 
-   DefaultTableLens tableLens = new DefaultTableLens(new Object[][]{
-      {"name", "id"},
-      {"a", 10},
-      {"b", 20},
-      {"b", 16},
-      {"c", 0},
-      {"d", null},
-      {"e", false}
-   });
 }

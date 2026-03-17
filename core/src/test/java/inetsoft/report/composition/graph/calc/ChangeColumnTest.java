@@ -26,6 +26,7 @@ import inetsoft.report.filter.CrossTabFilter;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -40,6 +41,18 @@ import static org.mockito.Mockito.when;
 public class ChangeColumnTest {
    private ChangeColumn changeColumn;
    private VSDataSet vsDataSet;
+   private DefaultTableLens tableLens;
+
+   @BeforeEach
+   void setUp() {
+      tableLens = new DefaultTableLens(new Object[][]{
+         {"name", "id"},
+         {"a", 10},
+         {"b", 20},
+         {"c", 0},
+         {"d", null}
+      });
+   }
 
    /**
     * check calculate with vsdataset,  change  of previous column
@@ -253,11 +266,4 @@ public class ChangeColumnTest {
       assertEquals(CalcColumn.INVALID, result);
    }
 
-   DefaultTableLens tableLens = new DefaultTableLens(new Object[][]{
-      {"name", "id"},
-      {"a", 10},
-      {"b", 20},
-      {"c", 0},
-      {"d", null}
-   });
 }

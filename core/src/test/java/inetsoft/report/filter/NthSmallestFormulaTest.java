@@ -62,7 +62,8 @@ public class NthSmallestFormulaTest {
    void getResult_noValues_defaultResultTrue_returnsZero() {
       NthSmallestFormula formula = new NthSmallestFormula(1);
       formula.setDefaultResult(true);
-      assertEquals(0, formula.getResult());
+      // getResult() returns Integer(0) when def=true and no qualifying values
+      assertEquals(Integer.valueOf(0), formula.getResult());
    }
 
    // -----------------------------------------------------------------------
