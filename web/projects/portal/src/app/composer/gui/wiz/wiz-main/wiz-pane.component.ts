@@ -9,7 +9,6 @@ import {
 } from "../new-visualization-dialog/new-visualization-dialog.component";
 import { WizService } from "../services/wiz.service";
 import { FontService } from "../../../../widget/services/font.service";
-import { TouchAssetEvent } from "../../ws/socket/touch-asset-event";
 
 let wizDashboardCounter = 1;
 
@@ -22,7 +21,6 @@ export class WizPane implements OnInit, OnDestroy {
    private _currentVisualization: WizDashboard;
    private _currentDashboard: WizDashboard;
    private subscriptions = new Subscription();
-   private heartbeatSubscription: Subscription = Subscription.EMPTY;
 
    @Input()
    set currentDashboard(value: WizDashboard) {
@@ -37,7 +35,9 @@ export class WizPane implements OnInit, OnDestroy {
       return this._currentVisualization;
    }
 
-   constructor(private wizService: WizService, private fontService: FontService, private modalService: NgbModal) {
+   constructor(private wizService: WizService, private fontService: FontService,
+               private modalService: NgbModal)
+   {
       this.subscriptions.add(wizService.openVisualization.subscribe((value: string) => {
          this.createVisualization(value);
       }));
@@ -47,27 +47,17 @@ export class WizPane implements OnInit, OnDestroy {
       this.subscriptions.add(
          this.wizService.exitVisualization.subscribe(() => {
             this._currentVisualization = null;
-            this.heartbeatSubscription.unsubscribe();
-            this.heartbeatSubscription = Subscription.EMPTY;
          })
       );
    }
 
    ngOnDestroy(): void {
-      this.heartbeatSubscription.unsubscribe();
       this.subscriptions.unsubscribe();
    }
 
    createVisualization(value: string) {
       if(!this.currentDashboard) {
          return;
-      }
-
-      if(this.currentDashboard.socketConnection) {
-         this.heartbeatSubscription.unsubscribe();
-         this.heartbeatSubscription = this.currentDashboard.socketConnection.onHeartbeat.subscribe(() => {
-            this.touchAsset();
-         });
       }
 
       const vs = new WizDashboard(this.fontService);
@@ -93,16 +83,6 @@ export class WizPane implements OnInit, OnDestroy {
                vs.visualizationSheet = this.currentDashboard?.id;
                this._currentVisualization = vs;
             }, {});
-      }
-   }
-
-   private touchAsset(): void {
-      if(this.currentDashboard?.runtimeId && this.currentDashboard?.socketConnection) {
-         const event = new TouchAssetEvent();
-         event.setDesign(true);
-         event.setChanged(false);
-         event.setUpdate(false);
-         this.currentDashboard.socketConnection.sendEvent("/events/composer/touch-asset", event);
       }
    }
 }
