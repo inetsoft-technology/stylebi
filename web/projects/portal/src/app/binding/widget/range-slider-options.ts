@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 export class RangeSliderOptions {
-   width: number = 240;
+   width: number = 270;
    min: number = 1;
    max: number = 30;
    selectStart: number = 0;

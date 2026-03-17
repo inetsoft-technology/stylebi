@@ -15,17 +15,17 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div style="height: 32px;" [style.width]="sliderWidth + 3 + 'px'"
-     class="slider unselectable-canvas" outOfZone (onMousemove)="mouseMove($event)"
-     [class.disabled]="!enabled"
-     (mouseup)="mouseUp($event)">
-   <div class="slider-value" [style.marginLeft]="getLabelLeft()">
-      {{getLabel()}}
-   </div>
-   <div class="slider-track"></div>
-   <div class="slider-tracked"></div>
-   <div class="slider-handle" [style.left]="getValueLeft()"
-      (mousedown)="mouseDown($event)">
-   </div>
-   <div class="slider-tick" *ngFor="let tick of ticks" [style.left]="tick.left">|</div>
+<div [style.width]="sliderWidth + 'px'"
+     class="slider unselectable-canvas"
+     [class.disabled]="!enabled">
+  <div class="wrapper">
+    <div class="slider-track" (click)="moveHandleHere($event)"></div>
+    <div class="slider-tracked" [style.width]="getValueX() + 'px'"></div>
+    <div class="slider-handle" [style.left]="getValueLeft()"
+         [class.is-dragging]="isDragging"
+         (mousedown)="mouseDown($event)">
+    </div>
+    <div class="slider-tick" *ngFor="let tick of ticks" [style.left]="tick.left">|</div>
+    <div class="slider-value" [style.left]="getLabelLeft()">{{getLabel()}}</div>
+  </div>
 </div>

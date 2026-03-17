@@ -38,7 +38,7 @@ export class Slider implements OnInit {
    ticks: SliderTick[] = [];
    private mouseDownX: number = NaN;
    private mouseDelta: number = 0;
-   public sliderWidth: number = 250;
+   public sliderWidth: number = 270;
 
    constructor(private renderer: Renderer2,
                private changeRef: ChangeDetectorRef) {
@@ -73,7 +73,11 @@ export class Slider implements OnInit {
             (this.model.max - this.model.min));
       }
 
-      return this.model.value.toString();
+      return this.toLabel(this.model.value);
+   }
+
+   get isDragging(): boolean {
+      return !isNaN(this.mouseDownX);
    }
 
    // css left for value thumb
@@ -81,31 +85,38 @@ export class Slider implements OnInit {
       return this.getValueX() + "px";
    }
 
-   // css left for value label
+   // css left for value label — CSS uses transform: translateX(-50%) to centre on this position
    getLabelLeft(): string {
-      // label width is set to 80 in css
-      return (this.getValueX() - 40) + "px";
+      return this.getValueX() + "px";
    }
 
    getTicks(): SliderTick[] {
-      let startX: number = 0;
-      const values: Array<string> = this.getValueLabels();
+      const lineWidth = this.getLineWidth();
       const numLong: number = this.model.max - this.model.min;
       const incCount: number = Math.ceil(numLong / this.model.increment);
-      const incWidth = (this.model.increment / numLong) * this.getLineWidth();
-      const jump = this.getJump(values);
+      const incWidth = (this.model.increment / numLong) * lineWidth;
+      const jump = this.getJump(this.getValueLabels());
       const tickjump = (incCount / jump < 4) ? Math.floor(jump / 2) : jump;
-      const incPrecision = this.getIncrementPrecision();
-      let power = Math.pow(10, incPrecision);
+
+      // Max tick is only shown when it lands exactly on a tickjump boundary so
+      // all gaps are identical. Otherwise it is dropped rather than squished.
+      const maxFitsEvenly = tickjump === 0 || incCount % tickjump === 0;
       const ticks: SliderTick[] = [];
 
-      for(let i = 0; i < incCount + 1; i++, startX += incWidth) {
-         startX = Math.min(startX, this.getLineWidth());
+      for(let i = 0; i <= incCount; i++) {
+         const isFirst = i === 0;
+         const isLast = i === incCount;
+         const isRegular = !isFirst && !isLast && (tickjump === 0 || i % tickjump === 0);
 
-         if(this.model.minVisible && i === 0 ||
-            this.model.maxVisible && i === incCount || tickjump === 0 ||
-            tickjump !== 0 && i % tickjump === 0 && i !== incCount && i != 0) {
-            ticks.push({label: values[i], left: startX + "px"});
+         if((isFirst && this.model.minVisible) ||
+            (isLast && this.model.maxVisible && maxFitsEvenly) ||
+            isRegular)
+         {
+            // Position is derived from the value index so each tick lands on
+            // the exact pixel that corresponds to its whole-number value.
+            const x = Math.min(i * incWidth, lineWidth);
+            const value = this.model.min + i * this.model.increment;
+            ticks.push({label: this.toLabel(value), left: x + "px"});
          }
       }
 
@@ -199,6 +210,14 @@ export class Slider implements OnInit {
       return incPrecision;
    }
 
+   moveHandleHere(event: MouseEvent): void {
+      const x = Math.max(0, Math.min(event.offsetX, this.getLineWidth()));
+      this.model.value = this.model.min + (x / this.getLineWidth()) * (this.model.max - this.model.min);
+      this.sliderChanged.emit(parseInt(this.toLabel(this.model.value), 10));
+      this.changeCompleted.emit(true);
+      this.changeRef.detectChanges();
+   }
+
    mouseDown(event: MouseEvent) {
       if(event.button != 0 || !this.enabled) {
          return;
@@ -207,24 +226,28 @@ export class Slider implements OnInit {
       this.mouseDelta = 0;
       this.mouseDownX = event.pageX;
 
+      // Register global listeners so dragging outside the component still works.
+      // Without this, mousemove stops firing when the cursor exits the container,
+      // making it impossible to reach the min and max values.
+      const cancelMouseMove: Function =
+         this.renderer.listen("document", "mousemove", (e: MouseEvent) => {
+            this.mouseDelta = e.pageX - this.mouseDownX;
+            const newValue = parseInt(this.getLabel(), 10);
+            this.sliderChanged.emit(newValue);
+            this.changeRef.detectChanges();
+         });
+
       const cancelMouseUp: Function =
          this.renderer.listen("document", "mouseup", () => {
             this.model.value = parseFloat(this.getLabel());
             this.mouseDownX = NaN;
+            cancelMouseMove();
             cancelMouseUp();
+            this.changeCompleted.emit(true);
          });
    }
 
    mouseMove(event: MouseEvent) {
-      if(!isNaN(this.mouseDownX)) {
-         this.mouseDelta = event.pageX - this.mouseDownX;
-         let newValue = parseInt(this.getLabel(), 10);
-         this.sliderChanged.emit(newValue);
-         this.changeRef.detectChanges();
-      }
-   }
-
-   mouseUp(event: MouseEvent) {
-      this.changeCompleted.emit(true);
+      // Handled by the document-level listener registered in mouseDown.
    }
 }

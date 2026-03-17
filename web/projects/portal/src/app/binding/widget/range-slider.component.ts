@@ -43,6 +43,18 @@ export class RangeSlider implements OnInit {
    private mouseHandle: Handle = Handle.None;
    private size: number;
 
+   get isDraggingLeft(): boolean {
+      return this.mouseHandle === Handle.Left || this.mouseHandle === Handle.Middle;
+   }
+
+   get isDraggingRight(): boolean {
+      return this.mouseHandle === Handle.Right || this.mouseHandle === Handle.Middle;
+   }
+
+   get isDraggingMiddle(): boolean {
+      return this.mouseHandle === Handle.Middle;
+   }
+
    constructor(private renderer: Renderer2) {
    }
 
@@ -53,7 +65,7 @@ export class RangeSlider implements OnInit {
 
    // get the range x (css left) position
    getRangeX(): number {
-      return this.model.width * this.model.selectStart / this.size;
+      return this.model.width * (this.model.selectStart - this.model.min) / this.size;
    }
 
    // get the range width in pixels
@@ -70,10 +82,10 @@ export class RangeSlider implements OnInit {
    getTicks(): SliderTick[] {
       let ticks: SliderTick[] = [];
 
-      for(let i = 0; i <= this.size; i = i + 10) {
+      for(let i = this.model.min; i <= this.model.max; i += 5) {
          let tick: SliderTick = {left: "0px", label: ""};
-         let leftOffset: number = this.model.width * i / this.size;
-         tick.left = leftOffset - 2 + "px";
+         let leftOffset: number = this.model.width * (i - this.model.min) / this.size;
+         tick.left = leftOffset + "px";
          ticks.push(tick);
       }
 
