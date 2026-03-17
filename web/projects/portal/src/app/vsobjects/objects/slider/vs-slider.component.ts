@@ -77,6 +77,7 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
    @Output() sliderChanged = new EventEmitter();
    @ViewChild("sliderHandle") sliderHandle: ElementRef;
    @ViewChild("sliderContainer") sliderContainer: ElementRef;
+   @ViewChild("trackLine") trackLine: ElementRef;
    ticks: SliderTick[] = [];
    private mouseDownX: number = NaN;
    isMouseDown: boolean = false;
@@ -88,12 +89,13 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
    verticalCenter: number;
    _model: VSSliderModel;
    handleSelected: boolean = false;
+   private resizeObserver: ResizeObserver;
 
    constructor(protected viewsheetClient: ViewsheetClientService,
                private formDataService: CheckFormDataService,
                private formInputService: FormInputService,
                private changeRef: ChangeDetectorRef,
-               zone: NgZone,
+               private zone: NgZone,
                protected context: ContextProvider,
                protected dataTipService: DataTipService,
                private debounceService: DebounceService)
@@ -116,6 +118,7 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
 
    ngOnChanges(changes: SimpleChanges) {
       this.handlePosition = this.getValueX();
+      this.ticks = this.getTicks();
 
       if(this.viewer && changes.submitted && this.submitted) {
          if(this.submittedForm) {
@@ -134,7 +137,35 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
    ngAfterViewInit() {
       // Recalculate handle position now that the DOM is rendered and the actual
       // container width is known (may differ from model width when a label is present).
-      this.handlePosition = this.getValueX();
+      const initialPos = this.getValueX();
+
+      const initialTicks = this.getTicks();
+
+      if(initialPos !== this.handlePosition || initialTicks.length !== this.ticks.length) {
+         this.handlePosition = initialPos;
+         this.ticks = initialTicks;
+         this.changeRef.detectChanges();
+      }
+
+      if(this.trackLine?.nativeElement) {
+         let rafPending = false;
+         this.resizeObserver = new ResizeObserver(() => {
+            if(rafPending) {
+               return;
+            }
+
+            rafPending = true;
+            requestAnimationFrame(() => {
+               rafPending = false;
+               this.zone.run(() => {
+                  this.handlePosition = this.getValueX();
+                  this.ticks = this.getTicks();
+                  this.changeRef.detectChanges();
+               });
+            });
+         });
+         this.resizeObserver.observe(this.trackLine.nativeElement);
+      }
    }
 
    ngOnDestroy() {
@@ -143,11 +174,16 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
       if(this.submittedForm) {
          this.submittedForm.unsubscribe();
       }
+
+      this.resizeObserver?.disconnect();
    }
 
    // get the width of the slider line, used to calculate the various positions.
+   // Prefers the rendered track element; falls back to the container then model width.
    getLineWidth(): number {
-      return this.sliderContainer?.nativeElement?.clientWidth || this.model.objectFormat.width;
+      return this.trackLine?.nativeElement?.clientWidth
+         || this.sliderContainer?.nativeElement?.clientWidth
+         || this.model.objectFormat.width;
    }
 
    // get the current (handle) position
@@ -169,10 +205,9 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
       }
    }
 
-   // css left for value label
+   // css left for value label — CSS uses transform: translateX(-50%) to center on this position
    getLabelLeft(): number {
-      // label width is set to 80 in css
-      return (this.handlePosition - 40);
+      return this.handlePosition;
    }
 
    getTicks(): SliderTick[] {
@@ -336,7 +371,7 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
    }
 
    moveHandleHere(event: MouseEvent) {
-      this.handlePosition = this.snap(event.offsetX);
+      this.handlePosition = Math.max(0, Math.min(this.snap(event.offsetX), this.getLineWidth()));
       this.model.value = this.getModelValueFromXPosition(this.handlePosition);
       this.previousLabel = this.model.currentLabel;
       this.isMouseDown = true;
