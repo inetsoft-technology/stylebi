@@ -47,7 +47,7 @@ class ChartPlotOptionsPaneModelTest {
 
    @Test
    void barCornerRadiusVisible_stackedBarChart() {
-      assertFalse(modelFor(GraphTypes.CHART_BAR_STACK).isBarCornerRadiusVisible());
+      assertTrue(modelFor(GraphTypes.CHART_BAR_STACK).isBarCornerRadiusVisible());
    }
 
    @Test
