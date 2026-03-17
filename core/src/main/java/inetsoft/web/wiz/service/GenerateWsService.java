@@ -110,7 +110,7 @@ public class GenerateWsService {
             applyColumnSelection(table, fields);
          }
       }
-      else if(model.getJoinPaths() != null) {
+      else {
          boolean containsMergeJoin = false; // Todo To be implemented later
          List<WorksheetConstructionModel.JoinPath> joinPaths = model.getJoinPaths();
 
