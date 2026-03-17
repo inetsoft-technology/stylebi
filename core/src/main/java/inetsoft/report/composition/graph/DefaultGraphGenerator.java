@@ -505,6 +505,16 @@ public class DefaultGraphGenerator extends GraphGenerator {
       setupYScale(scale2, desc2, (RectCoord) coord, true);
       ((RectCoord) coord).setYScale2(scale2);
 
+      // Bug #74179: date comparison creates a real secondary axis for change/percent values.
+      // If labelOnSecondaryAxis is also set on the primary axis, both axes compete for the
+      // right side and the primary axis disappears. Ignore the setting when DC created
+      // this secondary axis.
+      if(info instanceof VSChartInfo && ((VSChartInfo) info).isAppliedDateComparison() &&
+         yscale.getAxisSpec() != null)
+      {
+         yscale.getAxisSpec().setLabelOnSecondaryAxis(false);
+      }
+
       // no binding on the primary axis, hide labels (which is meaningless)
       // and share the scale with 2nd y (bug1335514813120)
       if(yfields.size() == 0) {
