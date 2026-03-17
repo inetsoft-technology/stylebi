@@ -89,9 +89,34 @@ public class AIAssistantController {
     * This URL is used as the JWT issuer for SSO tokens and should be passed
     * to external applications (like chat-app) to enable them to verify tokens
     * by fetching the JWKS from ${styleBIUrl}/sso/jwks.
+    *
+    * <p>In multi-tenant deployments that use organization subdomains (e.g.
+    * {@code organization0.localhost:8080}), the chat-app server may not be able to
+    * resolve those subdomains for server-side JWKS fetching. Set
+    * {@code chat.app.stylebi.url} to a canonical URL that the chat-app server can
+    * always reach (e.g. {@code http://localhost:8080/sree}) to override the
+    * auto-detected request URL.</p>
     */
    @GetMapping("/api/assistant/get-stylebi-url")
    public ResponseEntity<String> getStyleBIUrl(HttpServletRequest request) {
+      // Allow an explicit override for multi-tenant deployments where the
+      // organization subdomain is not resolvable from the chat-app server.
+      String configured = SreeEnv.getProperty(CHAT_APP_STYLEBI_URL);
+
+      if(configured != null && !configured.trim().isEmpty()) {
+         String url = configured.trim();
+
+         if(!url.startsWith("http://") && !url.startsWith("https://")) {
+            return ResponseEntity.noContent().build();
+         }
+
+         if(url.endsWith("/")) {
+            url = url.substring(0, url.length() - 1);
+         }
+
+         return ResponseEntity.ok(url);
+      }
+
       String url = LinkUriArgumentResolver.getLinkUri(request);
 
       // Guard against Host-header injection: only return a URL with a known-safe scheme.
@@ -120,6 +145,7 @@ public class AIAssistantController {
 
    public static final String CHAT_APP_SERVER_URL = "chat.app.server.url";
    public static final String CHAT_APP_INTERNAL_URL = "chat.app.internal.url";
+   public static final String CHAT_APP_STYLEBI_URL = "chat.app.stylebi.url";
    public static final String PROXY_PATH_PREFIX = "/api/assistant/proxy";
    public static final String AI_ASSISTANT_VISIBLE = "portal.ai.assistant.visible";
 }
