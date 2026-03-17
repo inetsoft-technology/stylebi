@@ -42,7 +42,7 @@ export class InputLabelPane implements OnInit {
    }
 
    private emitValidity(): void {
-      const valid = !this.model.showLabel || (this.model.labelGap != null && this.model.labelGap >= 0);
+      const valid = !this.model.showLabel || (this.model.labelGap != null && this.model.labelGap >= 0 && this.model.labelGap <= 1000);
       this.isInputValid.emit(valid);
    }
 
