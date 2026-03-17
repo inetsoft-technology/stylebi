@@ -99,11 +99,6 @@ public class CreateVsService {
       vs.addAssembly(assembly);
       assembly.setPrimary(true);
       viewsheet.setViewsheet(vs);
-
-      // Temporary code
-      String vsName = "vs_" + System.currentTimeMillis();
-      AssetEntry vsEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, vsName, null);
-      viewsheetService.setViewsheet(vs, vsEntry, user, true, true);
    }
 
    private VSAssembly createAssembly(Viewsheet vs, String type, String name,
