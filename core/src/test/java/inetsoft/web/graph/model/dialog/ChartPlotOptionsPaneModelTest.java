@@ -71,7 +71,7 @@ class ChartPlotOptionsPaneModelTest {
 
    @Test
    void barRoundAllCornersVisible_stackedBarChart() {
-      assertFalse(modelFor(GraphTypes.CHART_BAR_STACK).isBarRoundAllCornersVisible());
+      assertTrue(modelFor(GraphTypes.CHART_BAR_STACK).isBarRoundAllCornersVisible());
    }
 
    // --- updateChartPlotOptionsPaneModel: barRoundAllCorners save guard ---

@@ -121,7 +121,7 @@ public class ChartPlotOptionsPaneModel {
          !GraphTypes.isFunnel(ctype));
       // "Round All Corners" is hidden for interval charts — both ends are always rounded
       this.barRoundAllCornersVisible = GraphTypeUtil.checkType(info, ctype ->
-         GraphTypes.isBar(ctype) && !GraphTypes.isStack(ctype) && !GraphTypes.is3DBar(ctype) &&
+         GraphTypes.isBar(ctype) && !GraphTypes.is3DBar(ctype) &&
          !GraphTypes.isPareto(ctype) && !GraphTypes.isWaterfall(ctype) &&
          !GraphTypes.isFunnel(ctype) && !GraphTypes.isInterval(ctype));
       this.barRoundAllCorners = plotDesc.isBarRoundAllCorners();
