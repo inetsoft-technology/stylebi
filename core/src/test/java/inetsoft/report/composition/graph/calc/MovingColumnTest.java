@@ -26,6 +26,7 @@ import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.graph.AbstractCalc;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -38,6 +39,20 @@ import static org.mockito.Mockito.when;
 public class MovingColumnTest {
    private MovingColumn movingColumn;
    private VSDataSet vsDataSet;
+   private DefaultTableLens tableLens;
+
+   @BeforeEach
+   void setUp() {
+      tableLens = new DefaultTableLens(new Object[][]{
+         {"group", "name", "id"},
+         {"A", "a", 1},
+         {"A", "b", 3},
+         {"A", "c", null},
+         {"B", "d", 7},
+         {"B", "e", 1},
+         {"B", "f", 9}
+      });
+   }
 
    @Test
    void testCalculateWithVSDataSet() {
@@ -184,13 +199,164 @@ public class MovingColumnTest {
       return new CrossFilter.Tuple(new Object[] { value });
    }
 
-   DefaultTableLens tableLens = new DefaultTableLens(new Object[][]{
-      {"group", "name", "id"},
-      {"A", "a", 1},
-      {"A", "b", 3},
-      {"A", "c", null},
-      {"B", "d", 7},
-      {"B", "e", 1},
-      {"B", "f", 9}
-   });
+   /**
+    * Moving minimum over a window of previous+current+next using MinFormula.
+    * MinFormula skips null values, so the result is the minimum of non-null entries.
+    * The formula returns the same type as the input data (Integer).
+    */
+   @Test
+   void testMovingMinFormula() {
+      vsDataSet = createVSDataSet(tableLens, "name");
+      movingColumn = new MovingColumn("id", "min(id)");
+
+      MinFormula minFormula = new MinFormula();
+      movingColumn.setFormula(minFormula);
+      movingColumn.setPreCnt(1);
+      movingColumn.setNextCnt(1);
+      movingColumn.setIncludeCurrent(true);
+
+      // row 0 (1): window = [1, 3] (next=row1=3) → min = 1
+      Object result = movingColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(1, result);
+
+      // row 1 (3): window = [1, 3, null] → min of non-null = 1
+      result = movingColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(1, result);
+
+      // row 3 (7): window = [null, 7, 1] → min of non-null = 1
+      result = movingColumn.calculate(vsDataSet, 3, false, false);
+      assertEquals(1, result);
+   }
+
+   /**
+    * Moving maximum over a window using MaxFormula.
+    * The formula returns the same type as the input data (Integer).
+    */
+   @Test
+   void testMovingMaxFormula() {
+      vsDataSet = createVSDataSet(tableLens, "name");
+      movingColumn = new MovingColumn("id", "max(id)");
+
+      MaxFormula maxFormula = new MaxFormula();
+      movingColumn.setFormula(maxFormula);
+      movingColumn.setPreCnt(1);
+      movingColumn.setNextCnt(0);
+      movingColumn.setIncludeCurrent(true);
+
+      // row 1 (3): window = [1, 3] → max = 3
+      Object result = movingColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(3, result);
+
+      // row 3 (7): window = [null, 7] → max = 7
+      result = movingColumn.calculate(vsDataSet, 3, false, false);
+      assertEquals(7, result);
+
+      // row 4 (1): window = [7, 1] → max = 7
+      result = movingColumn.calculate(vsDataSet, 4, false, false);
+      assertEquals(7, result);
+   }
+
+   /**
+    * When showNull=true and window is incomplete (< preCnt values before), result is null.
+    */
+   @Test
+   void testShowNullWhenPartialWindow() {
+      vsDataSet = createVSDataSet(tableLens, "name");
+      movingColumn = new MovingColumn("id", "sum(id)");
+
+      movingColumn.setFormula(new SumFormula());
+      movingColumn.setPreCnt(2);
+      movingColumn.setNextCnt(0);
+      movingColumn.setIncludeCurrent(true);
+      movingColumn.setShowNull(true);
+
+      // row 0 has only 0 previous values but requires 2 → null
+      assertNull(movingColumn.calculate(vsDataSet, 0, false, false));
+
+      // row 1 has only 1 previous value but requires 2 → null
+      assertNull(movingColumn.calculate(vsDataSet, 1, false, false));
+
+      // row 2 has 2 previous values → result is non-null
+      // [1, 3, null] where null treated as 0 → sum = 4
+      Object result = movingColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(4.0, result);
+   }
+
+   /**
+    * When showNull=false (default), partial windows are still computed with available data.
+    */
+   @Test
+   void testNoShowNullYieldsResultWithPartialWindow() {
+      vsDataSet = createVSDataSet(tableLens, "name");
+      movingColumn = new MovingColumn("id", "sum(id)");
+
+      movingColumn.setFormula(new SumFormula());
+      movingColumn.setPreCnt(2);
+      movingColumn.setNextCnt(0);
+      movingColumn.setIncludeCurrent(true);
+      movingColumn.setShowNull(false);
+
+      // row 0: no previous values → sum of just current: 1
+      Object result = movingColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(1.0, result);
+
+      // row 1: 1 previous value available → 1 + 3 = 4
+      result = movingColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(4.0, result);
+   }
+
+   /**
+    * Null values within the window are treated as 0 for numeric formulas.
+    */
+   @Test
+   void testNullValuesWithinWindow() {
+      vsDataSet = createVSDataSet(tableLens, "name");
+      movingColumn = new MovingColumn("id", "sum(id)");
+
+      movingColumn.setFormula(new SumFormula());
+      movingColumn.setPreCnt(1);
+      movingColumn.setNextCnt(1);
+      movingColumn.setIncludeCurrent(true);
+
+      // row 2 is null; window: [3, null, 7] → sum = 10 (null → 0)
+      Object result = movingColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(10.0, result);
+   }
+
+   /**
+    * With no formula set, calculate simply returns the raw data value.
+    */
+   @Test
+   void testNoFormulaReturnsRawValue() {
+      vsDataSet = createVSDataSet(tableLens, "name");
+      movingColumn = new MovingColumn("id", "id");
+      // no formula set
+      assertNull(movingColumn.getFormula());
+      Object result = movingColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(1, result);
+   }
+
+   /**
+    * Average formula: moving average including current value.
+    */
+   @Test
+   void testMovingAverageIncludingCurrent() {
+      vsDataSet = createVSDataSet(tableLens, "name");
+      movingColumn = new MovingColumn("id", "avg(id)");
+
+      AverageFormula averageFormula = new AverageFormula();
+      movingColumn.setFormula(averageFormula);
+      movingColumn.setPreCnt(1);
+      movingColumn.setNextCnt(0);
+      movingColumn.setIncludeCurrent(true);
+
+      // row 0 (1): window = [1] → avg = 1
+      Object result = movingColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(1.0, result);
+
+      // row 1 (3): window = [1, 3] → avg = 2
+      result = movingColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(2.0, result);
+   }
+
 }

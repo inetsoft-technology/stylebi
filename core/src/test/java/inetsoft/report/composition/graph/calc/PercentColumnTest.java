@@ -24,6 +24,7 @@ import inetsoft.report.filter.CrossTabFilter;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -31,8 +32,22 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class PercentColumnTest {
-   private  PercentColumn percentColumn;
-   VSDataSet vsDataSet;
+   private PercentColumn percentColumn;
+   private VSDataSet vsDataSet;
+   private DefaultTableLens tableLens;
+
+   @BeforeEach
+   void setUp() {
+      tableLens = new DefaultTableLens(new Object[][]{
+         {"name", "id"},
+         {"a", 10},
+         {"b", 20},
+         {"b", 16},
+         {"c", 0},
+         {"d", null},
+         {"e", false}
+      });
+   }
 
    @Test
    void testCalculateWithVSDataset() {
@@ -108,17 +123,128 @@ public class PercentColumnTest {
       return pairN;
    }
 
+   /**
+    * When the grand total is zero (all values are 0), getTotal returns 0 and result is null.
+    */
+   @Test
+   void testZeroTotalReturnsNull() {
+      DefaultTableLens zeroLens = new DefaultTableLens(new Object[][]{
+         {"name", "id"},
+         {"a", 0},
+         {"b", 0}
+      });
+      vsDataSet = createVSDataSet(zeroLens, "name");
+      percentColumn = new PercentColumn("id", "sum(id)");
+      percentColumn.setTotalField("id");
+      percentColumn.setDim(null);
+      percentColumn.setLevel(PercentCalc.GRAND_TOTAL);
+
+      // row 0 value=0; total=0 → null
+      Object result = percentColumn.calculate(vsDataSet, 0, false, false);
+      assertNull(result);
+   }
+
+   /**
+    * Grand total percent: each row is divided by the sum of all rows.
+    */
+   @Test
+   void testGrandTotalPercent() {
+      DefaultTableLens grandTotalLens = new DefaultTableLens(new Object[][]{
+         {"name", "id"},
+         {"a", 25},
+         {"b", 75}
+      });
+      vsDataSet = createVSDataSet(grandTotalLens, "name");
+      percentColumn = new PercentColumn("id", "sum(id)");
+      percentColumn.setTotalField("id");
+      percentColumn.setDim(null);
+      percentColumn.setLevel(PercentCalc.GRAND_TOTAL);
+
+      // row 0: 25 / 100 = 0.25
+      Object result = percentColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(0.25, (double) result, 1e-9);
+
+      // row 1: 75 / 100 = 0.75
+      result = percentColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(0.75, (double) result, 1e-9);
+   }
+
+   /**
+    * Sub-total percent: each row is expressed as a proportion within its sub-group.
+    * The sub-group is identified by the dim column value.
+    */
+   @Test
+   void testSubTotalPercent() {
+      // "b" group: 20 + 16 = 36; row 1 should be 20/36 ≈ 0.556
+      vsDataSet = createVSDataSet(tableLens, "name");
+      percentColumn = new PercentColumn("id", "sum(id)");
+      percentColumn.setTotalField("id");
+      percentColumn.setDim("name");
+      percentColumn.setLevel(PercentCalc.SUB_TOTAL);
+
+      Object result = percentColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(0.56, roundToTwoDecimal(result));
+
+      result = percentColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(0.44, roundToTwoDecimal(result));
+   }
+
+   /**
+    * A null field value must return null (not zero or exception).
+    */
+   @Test
+   void testNullFieldValueReturnsNull() {
+      vsDataSet = createVSDataSet(tableLens, "name");
+      percentColumn = new PercentColumn("id", "sum(id)");
+      percentColumn.setTotalField("id");
+      percentColumn.setDim("name");
+      percentColumn.setLevel(PercentCalc.GRAND_TOTAL);
+
+      // row 4 is null
+      Object result = percentColumn.calculate(vsDataSet, 4, false, false);
+      assertNull(result);
+   }
+
+   /**
+    * A non-numeric (invalid) field value must return ZERO.
+    */
+   @Test
+   void testNonNumericFieldValueReturnsZero() {
+      vsDataSet = createVSDataSet(tableLens, "name");
+      percentColumn = new PercentColumn("id", "sum(id)");
+      percentColumn.setTotalField("id");
+      percentColumn.setDim("name");
+      percentColumn.setLevel(PercentCalc.GRAND_TOTAL);
+
+      // row 5: value = false (Boolean, not Number) → ZERO
+      Object result = percentColumn.calculate(vsDataSet, 5, false, false);
+      assertEquals(0.0, result);
+   }
+
+   /**
+    * isAsPercent() must always be true for PercentColumn.
+    */
+   @Test
+   void testIsAsPercentAlwaysTrue() {
+      percentColumn = new PercentColumn("id", "sum(id)");
+      assertTrue(percentColumn.isAsPercent());
+   }
+
+   /**
+    * isGrandTotal() mirrors the level setting.
+    */
+   @Test
+   void testIsGrandTotal() {
+      percentColumn = new PercentColumn("id", "sum(id)");
+      percentColumn.setLevel(PercentCalc.GRAND_TOTAL);
+      assertTrue(percentColumn.isGrandTotal());
+
+      percentColumn.setLevel(PercentCalc.SUB_TOTAL);
+      assertFalse(percentColumn.isGrandTotal());
+   }
+
    private Double roundToTwoDecimal(Object value) {
       return  Math.round((double)value * 100) / 100.0;
    }
 
-   DefaultTableLens tableLens = new DefaultTableLens(new Object[][]{
-      {"name", "id"},
-      {"a", 10},
-      {"b", 20},
-      {"b", 16},
-      {"c", 0},
-      {"d", null},
-      {"e", false}
-   });
 }

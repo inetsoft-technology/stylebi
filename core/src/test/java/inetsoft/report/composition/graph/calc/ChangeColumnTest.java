@@ -26,6 +26,7 @@ import inetsoft.report.filter.CrossTabFilter;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -33,14 +34,25 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ChangeColumnTest {
    private ChangeColumn changeColumn;
    private VSDataSet vsDataSet;
+   private DefaultTableLens tableLens;
+
+   @BeforeEach
+   void setUp() {
+      tableLens = new DefaultTableLens(new Object[][]{
+         {"name", "id"},
+         {"a", 10},
+         {"b", 20},
+         {"c", 0},
+         {"d", null}
+      });
+   }
 
    /**
     * check calculate with vsdataset,  change  of previous column
@@ -144,11 +156,114 @@ public class ChangeColumnTest {
                                     .toInstant());
    }
 
-   DefaultTableLens tableLens = new DefaultTableLens(new Object[][]{
-      {"name", "id"},
-      {"a", 10},
-      {"b", 20},
-      {"c", 0},
-      {"d", null}
-   });
+   /**
+    * Verify that absolute change (not percent) is computed correctly.
+    */
+   @Test
+   void testAbsoluteChange() {
+      changeColumn = new ChangeColumn("id", "sum(id)");
+      vsDataSet = createVSDataSet(tableLens, "name");
+      changeColumn.setAsPercent(false);
+      changeColumn.setChangeType(ValueOfCalc.FIRST);
+
+      // row 0: value=10, first value=10 → 10 - 10 = 0
+      Object result = changeColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(0.0, result);
+
+      // row 1: value=20, first value=10 → 20 - 10 = 10
+      result = changeColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(10.0, result);
+
+      // row 2: value=0, first value=10 → 0 - 10 = -10
+      result = changeColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(-10.0, result);
+   }
+
+   /**
+    * When denominator is zero and asPercent=true, result must be null.
+    */
+   @Test
+   void testZeroDenominatorWithPercent() {
+      // Build a dataset where first value is 0 so percent change is undefined.
+      DefaultTableLens zeroFirstLens = new DefaultTableLens(new Object[][]{
+         {"name", "id"},
+         {"a", 0},
+         {"b", 50}
+      });
+      changeColumn = new ChangeColumn("id", "sum(id)");
+      vsDataSet = createVSDataSet(zeroFirstLens, "name");
+      changeColumn.setAsPercent(true);
+      changeColumn.setChangeType(ValueOfCalc.FIRST);
+
+      // first value denominator = 0 → null
+      Object result = changeColumn.calculate(vsDataSet, 1, false, false);
+      assertNull(result);
+   }
+
+   /**
+    * Percent change calculation: (new - old) / old.
+    */
+   @Test
+   void testPercentChangeFromFirst() {
+      changeColumn = new ChangeColumn("id", "sum(id)");
+      vsDataSet = createVSDataSet(tableLens, "name");
+      changeColumn.setAsPercent(true);
+      changeColumn.setChangeType(ValueOfCalc.FIRST);
+
+      // row 0: (10-10)/10 = 0
+      Object result = changeColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(0.0, result);
+
+      // row 1: (20-10)/10 = 1.0
+      result = changeColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(1.0, result);
+
+      // row 2: (0-10)/10 = -1.0
+      result = changeColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(-1.0, result);
+   }
+
+   /**
+    * When the current value is null and missingAsZero is true (default),
+    * the column should treat null as 0 for the change calculation.
+    */
+   @Test
+   void testNullCurrentValueWithMissingAsZero() {
+      changeColumn = new ChangeColumn("id", "sum(id)");
+      vsDataSet = createVSDataSet(tableLens, "name");
+      changeColumn.setAsPercent(false);
+      changeColumn.setChangeType(ValueOfCalc.PREVIOUS);
+
+      // row 3 is null; previous row 2 is 0. missing-as-zero → 0 - 0 = 0
+      Object result = changeColumn.calculate(vsDataSet, 3, false, false);
+      assertEquals(0.0, result);
+   }
+
+   /**
+    * isAsPercent getter reflects the setter correctly.
+    */
+   @Test
+   void testIsAsPercentProperty() {
+      changeColumn = new ChangeColumn("id", "sum(id)");
+      assertFalse(changeColumn.isAsPercent());
+      changeColumn.setAsPercent(true);
+      assertTrue(changeColumn.isAsPercent());
+   }
+
+   /**
+    * With PREVIOUS direction on the first row (no prior value), result
+    * should be INVALID because there is no previous row.
+    */
+   @Test
+   void testPreviousDirectionAtFirstRow() {
+      changeColumn = new ChangeColumn("id", "sum(id)");
+      vsDataSet = createVSDataSet(tableLens, "name");
+      changeColumn.setAsPercent(false);
+      changeColumn.setChangeType(ValueOfCalc.PREVIOUS);
+
+      // row 0: no previous → INVALID from ValueOfColumn, ChangeColumn propagates INVALID
+      Object result = changeColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(CalcColumn.INVALID, result);
+   }
+
 }
