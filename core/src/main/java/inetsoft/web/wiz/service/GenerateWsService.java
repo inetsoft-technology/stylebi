@@ -98,22 +98,21 @@ public class GenerateWsService {
       }
 
       AbstractTableAssembly table = null;
+      List<WorksheetConstructionModel.QueryField> fields = new ArrayList<>(model.getFields());
 
       if(model.getJoinPaths() == null) {
          if(originWs != null) {
-            WSAssembly baseTable = (WSAssembly) originWs.getAssembly(model.getFields().getFirst().getTable().getName());
+            WSAssembly baseTable = (WSAssembly) originWs.getAssembly(fields.getFirst().getTable().getName());
             table = new MirrorTableAssembly(originWs, model.getName(), baseTable);
          }
          else {
             table = new PhysicalBoundTableAssembly(worksheet, model.getName());
-            applyColumnSelection(table, model.getFields());
+            applyColumnSelection(table, fields);
          }
       }
       else if(model.getJoinPaths() != null) {
          boolean containsMergeJoin = false; // Todo To be implemented later
          List<WorksheetConstructionModel.JoinPath> joinPaths = model.getJoinPaths();
-
-         List<WorksheetConstructionModel.QueryField> fields = new ArrayList<>(model.getFields());
 
          for(WorksheetConstructionModel.JoinPath joinPath : joinPaths) {
             WorksheetConstructionModel.QueryField leftField =
@@ -135,7 +134,7 @@ public class GenerateWsService {
             Map<String, String> tableMapping = new HashMap<>();
 
             for(WorksheetConstructionModel.JoinPath joinPath : joinPaths) {
-               AbstractTableAssembly joinTable = createJoinTable(worksheet, joinPath, model.getFields(), tableMapping);
+               AbstractTableAssembly joinTable = createJoinTable(worksheet, joinPath, fields, tableMapping);
                worksheet.addAssembly(joinTable);
 
                if(joinPath == joinPaths.getLast()) {
@@ -148,7 +147,7 @@ public class GenerateWsService {
             final Set<TableAssembly> tableAssemblies = new HashSet<>();
 
             for(WorksheetConstructionModel.JoinPath joinPath : joinPaths) {
-               noperator.addOperator(createJoinOperator(worksheet, joinPath, model.getFields()));
+               noperator.addOperator(createJoinOperator(worksheet, joinPath, fields));
                tableAssemblies.add((TableAssembly) worksheet.getAssembly(joinPath.getLeftTable().getName()));
                tableAssemblies.add((TableAssembly) worksheet.getAssembly(joinPath.getRightTable().getName()));
             }
@@ -164,7 +163,6 @@ public class GenerateWsService {
 
       if(model.getTableSetOperations() != null) {
          List<WorksheetConstructionModel.TableSetOperation> tableSetOperations = model.getTableSetOperations();
-         List<WorksheetConstructionModel.QueryField> fields = model.getFields();
          Map<String, String> tableMapping = new HashMap<>();
 
          for(WorksheetConstructionModel.TableSetOperation tableSetOperation : tableSetOperations) {
