@@ -535,9 +535,12 @@ class VariableTableTest {
       table.put("prefix.qualified", "other");
 
       VariableTable subset = table.getSubset("prefix.");
-      // "simple" has no dot so it is included with lower priority
-      assertTrue(subset.contains("simple") || subset.contains("qualified"),
-                 "Subset should include simple or prefix-qualified variables");
+      // "prefix.qualified" matches the prefix → stripped to "qualified"
+      assertTrue(subset.contains("qualified"), "Prefix-matched key should be in subset");
+      assertEquals("other", subset.get("qualified"));
+      // "simple" has no dot → included as-is with lower priority
+      assertTrue(subset.contains("simple"), "Dot-free key should also be in subset");
+      assertEquals("value", subset.get("simple"));
    }
 
    @Test

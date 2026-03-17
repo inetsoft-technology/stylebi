@@ -47,8 +47,11 @@ class LogScaleTest {
    }
 
    @Test
-   void setBaseAcceptsOne() {
-      // base=1 is allowed by the guard (only <=0 is rejected)
+   void setBase_guardOnlyRejectsNonPositiveSoOneIsAccepted() {
+      // base=1 is mathematically undefined (log₁(x) is undefined for all x),
+      // but the implementation guard only rejects base <= 0, so 1 is accepted.
+      // This test documents the current (lax) guard behavior. The guard should
+      // ideally reject base <= 1.
       LogScale scale = new LogScale();
       scale.setBase(1);
       assertEquals(1, scale.getBase());

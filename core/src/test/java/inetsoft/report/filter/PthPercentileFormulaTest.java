@@ -50,10 +50,20 @@ public class PthPercentileFormulaTest {
 
    @Test
    void isNull_afterAddObjectValueOnly_remainsTrue() {
-      // isNull checks only dlist != null, so Object-only values leave isNull true
+      // isNull() checks only dlist != null — Object-only values populate the vs
+      // Vector, not dlist, so isNull() remains true even with values present.
       PthPercentileFormula formula = new PthPercentileFormula(50);
       formula.addValue(Double.valueOf(5.0));
       assertTrue(formula.isNull());
+   }
+
+   @Test
+   void getResult_afterAddObjectValueOnly_returnsValueViaObjectBranch() {
+      // Even though isNull() returns true for Object-only input, getResult()
+      // accesses the vs Vector (not dlist) and does return the computed percentile.
+      PthPercentileFormula formula = new PthPercentileFormula(50);
+      formula.addValue(Double.valueOf(5.0));
+      assertEquals(Double.valueOf(5.0), formula.getResult());
    }
 
    @Test
