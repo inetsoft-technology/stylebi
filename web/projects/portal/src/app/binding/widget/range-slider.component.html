@@ -46,7 +46,7 @@
     </div>
 
     <!-- Tick dots -->
-    <div class="slider-tick" *ngFor="let tick of ticks" [style.left]="tick.left">|</div>
+    <div class="slider-tick" *ngFor="let tick of ticks" [style.left]="tick.left"></div>
 
     <!-- Value label — centred between the two handles -->
     <div class="slider-value" [style.left.px]="getRangeX() + getRangeWidth() / 2">

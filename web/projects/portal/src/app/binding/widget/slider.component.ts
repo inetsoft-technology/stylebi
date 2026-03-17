@@ -15,14 +15,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnInit, Output, Renderer2,
+import { Component, EventEmitter, Input, OnDestroy, OnInit, Output, Renderer2,
          ChangeDetectorRef } from "@angular/core";
 import { SliderOptions } from "./slider-options";
 import { GuiTool } from "../../common/util/gui-tool";
 
 interface SliderTick {
    left: string;
-   label: String;
+   label: string;
 }
 
 @Component({
@@ -30,7 +30,7 @@ interface SliderTick {
    templateUrl: "slider.component.html",
    styleUrls: ["slider.component.scss"]
 })
-export class Slider implements OnInit {
+export class Slider implements OnInit, OnDestroy {
    @Input() model: SliderOptions;
    @Input() enabled: boolean = true;
    @Output() sliderChanged = new EventEmitter();
@@ -39,6 +39,8 @@ export class Slider implements OnInit {
    private mouseDownX: number = NaN;
    private mouseDelta: number = 0;
    public sliderWidth: number = 270;
+   private cancelMouseMove: Function | null = null;
+   private cancelMouseUp: Function | null = null;
 
    constructor(private renderer: Renderer2,
                private changeRef: ChangeDetectorRef) {
@@ -46,6 +48,11 @@ export class Slider implements OnInit {
 
    public ngOnInit(): void {
       this.ticks = this.getTicks();
+   }
+
+   public ngOnDestroy(): void {
+      this.cancelMouseMove?.();
+      this.cancelMouseUp?.();
    }
 
    // get the width of the slider line, used to calculate the various positions.
@@ -213,7 +220,7 @@ export class Slider implements OnInit {
    moveHandleHere(event: MouseEvent): void {
       const x = Math.max(0, Math.min(event.offsetX, this.getLineWidth()));
       this.model.value = this.model.min + (x / this.getLineWidth()) * (this.model.max - this.model.min);
-      this.sliderChanged.emit(parseInt(this.toLabel(this.model.value), 10));
+      this.sliderChanged.emit(parseFloat(this.toLabel(this.model.value)));
       this.changeCompleted.emit(true);
       this.changeRef.detectChanges();
    }
@@ -229,25 +236,23 @@ export class Slider implements OnInit {
       // Register global listeners so dragging outside the component still works.
       // Without this, mousemove stops firing when the cursor exits the container,
       // making it impossible to reach the min and max values.
-      const cancelMouseMove: Function =
+      this.cancelMouseMove =
          this.renderer.listen("document", "mousemove", (e: MouseEvent) => {
             this.mouseDelta = e.pageX - this.mouseDownX;
-            const newValue = parseInt(this.getLabel(), 10);
-            this.sliderChanged.emit(newValue);
+            this.sliderChanged.emit(parseFloat(this.getLabel()));
             this.changeRef.detectChanges();
          });
 
-      const cancelMouseUp: Function =
+      this.cancelMouseUp =
          this.renderer.listen("document", "mouseup", () => {
             this.model.value = parseFloat(this.getLabel());
             this.mouseDownX = NaN;
-            cancelMouseMove();
-            cancelMouseUp();
+            this.cancelMouseMove?.();
+            this.cancelMouseUp?.();
+            this.cancelMouseMove = null;
+            this.cancelMouseUp = null;
             this.changeCompleted.emit(true);
          });
    }
 
-   mouseMove(event: MouseEvent) {
-      // Handled by the document-level listener registered in mouseDown.
-   }
 }

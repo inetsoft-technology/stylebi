@@ -15,13 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, Output, Renderer2, ViewChild, ElementRef,
-         HostListener, OnInit } from "@angular/core";
+import { Component, EventEmitter, Input, OnDestroy, OnInit, Output, Renderer2,
+         ViewChild, ElementRef } from "@angular/core";
 import { RangeSliderOptions } from "./range-slider-options";
 
 interface SliderTick {
    left: string;
-   label: String;
+   label: string;
 }
 
 enum Handle { Left, Middle, Right, None }
@@ -31,7 +31,7 @@ enum Handle { Left, Middle, Right, None }
    templateUrl: "range-slider.component.html",
    styleUrls: ["range-slider.component.scss"]
 })
-export class RangeSlider implements OnInit {
+export class RangeSlider implements OnInit, OnDestroy {
    @Input() model: RangeSliderOptions;
    @Output() sliderChanged = new EventEmitter();
    @ViewChild("rangeSlider") sliderDiv: ElementRef;
@@ -42,6 +42,8 @@ export class RangeSlider implements OnInit {
    private mouseOffset: number = 0; // distance to the left handle
    private mouseHandle: Handle = Handle.None;
    private size: number;
+   private cancelMouseMove: Function | null = null;
+   private cancelMouseUp: Function | null = null;
 
    get isDraggingLeft(): boolean {
       return this.mouseHandle === Handle.Left || this.mouseHandle === Handle.Middle;
@@ -61,6 +63,11 @@ export class RangeSlider implements OnInit {
    ngOnInit(): void {
       this.size = this.model.max - this.model.min;
       this.ticks = this.getTicks();
+   }
+
+   ngOnDestroy(): void {
+      this.cancelMouseMove?.();
+      this.cancelMouseUp?.();
    }
 
    // get the range x (css left) position
@@ -105,15 +112,17 @@ export class RangeSlider implements OnInit {
             this.leftHandle.nativeElement.getBoundingClientRect().left;
       }
 
-      const mouseMoveListener: Function = this.renderer.listen(
+      this.cancelMouseMove = this.renderer.listen(
          "document", "mousemove", (evt: MouseEvent) => {
             this.mouseMove(evt);
          });
 
-      const cancelMouseUp: Function = this.renderer.listen("document", "mouseup", () => {
+      this.cancelMouseUp = this.renderer.listen("document", "mouseup", () => {
          this.mouseHandle = Handle.None;
-         mouseMoveListener();
-         cancelMouseUp();
+         this.cancelMouseMove?.();
+         this.cancelMouseUp?.();
+         this.cancelMouseMove = null;
+         this.cancelMouseUp = null;
       });
    }
 
@@ -121,7 +130,7 @@ export class RangeSlider implements OnInit {
       switch(this.mouseHandle) {
       case Handle.Left:
          this.model.selectStart = Math.min(this.model.selectEnd,
-                                           Math.max(0, this.getIndex(event.pageX, true)));
+                                           Math.max(this.model.min, this.getIndex(event.pageX, true)));
          break;
       case Handle.Right:
          this.model.selectEnd = Math.max(this.model.selectStart,
@@ -130,8 +139,8 @@ export class RangeSlider implements OnInit {
       case Handle.Middle:
          let start = this.getIndex(event.pageX - this.mouseOffset, true);
          const range = this.model.selectEnd - this.model.selectStart;
-         start = Math.max(0, start);
-         start = Math.min(start, this.size - range);
+         start = Math.max(this.model.min, start);
+         start = Math.min(start, this.model.max - range);
          const diff = start - this.model.selectStart;
          this.model.selectStart += diff;
          this.model.selectEnd += diff;

@@ -25,7 +25,7 @@
          [class.is-dragging]="isDragging"
          (mousedown)="mouseDown($event)">
     </div>
-    <div class="slider-tick" *ngFor="let tick of ticks" [style.left]="tick.left">|</div>
+    <div class="slider-tick" *ngFor="let tick of ticks" [style.left]="tick.left"></div>
     <div class="slider-value" [style.left]="getLabelLeft()">{{getLabel()}}</div>
   </div>
 </div>
