@@ -708,8 +708,6 @@ public class UserTreeService {
                addOrganizationMember(currOrgID, name, editProvider);
                identity.setRoles(getDefaultRoles(editProvider, currOrgID)
                                     .toArray(new IdentityID[0]));
-               SUtil.setPassword(identity, "success123");
-
                if(parentGroup != null) {
                   identity.setGroups(new String[] { parentGroup });
                }
@@ -735,7 +733,6 @@ public class UserTreeService {
 
          return EditUserPaneModel.builder()
             .name(identity.getName())
-            .password(identity.getPassword())
             .alias("")
             .email("")
             .organization(currOrgID)
@@ -745,6 +742,7 @@ public class UserTreeService {
             .permittedIdentities(new ArrayList<>())
             .localesList(localesList)
             .theme(themeService.getTheme(identity.getIdentityID(), CustomTheme::getUsers))
+            .newUser(true)
             .build();
       }
       catch(Exception e) {
@@ -839,6 +837,7 @@ public class UserTreeService {
          .localesList(localesList)
          .theme(themeService.getTheme(userName, CustomTheme::getUsers))
          .supportChangePassword(Tool.isEmptyString(user.getGoogleSSOId()))
+         .hasPassword(!Tool.isEmptyString(user.getPassword()))
          .build();
    }
 
@@ -1127,6 +1126,13 @@ public class UserTreeService {
       if(oldUser == null) {
          throw new MessageException(
             Catalog.getCatalog().getString("em.security.editingUser.not.exist", oldID.getName()));
+      }
+
+      if(Tool.isEmptyString(oldUser.getGoogleSSOId()) &&
+         Tool.isEmptyString(oldUser.getPassword()) &&
+         Tool.isEmptyString(model.password()))
+      {
+         throw new MessageException(Catalog.getCatalog().getString("em.users.passwordRequired"));
       }
 
       final IdentityModification userChange =

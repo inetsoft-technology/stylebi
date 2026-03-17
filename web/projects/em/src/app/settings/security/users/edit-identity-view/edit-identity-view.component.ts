@@ -140,6 +140,10 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
       return this.model as EditUserPaneModel;
    }
 
+   get isNewUser(): boolean {
+      return this.user && !!this.userModel?.newUser;
+   }
+
    get organizationModel(): EditOrganizationPaneModel {
       return this.model as EditOrganizationPaneModel;
    }
@@ -319,7 +323,19 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
          this.form.get("active").disable();
       }
 
-      this.updatePassword(false);
+      if(this.isNewUser) {
+         this.updatePassword(true);
+         this.pwForm.controls.password.setValue("", {emitEvent: false});
+         this.pwForm.controls.confirmPassword.setValue("", {emitEvent: false});
+      }
+      else if(!model.hasPassword) {
+         this.form.get("changePasswordEnabled").setValue(true, {emitEvent: false});
+         this.updatePassword(true);
+         this.pwForm.controls.password.markAsTouched();
+      }
+      else {
+         this.updatePassword(false);
+      }
    }
 
    private initializeRoleForm() {
@@ -361,6 +377,12 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
       }
       else {
          this.form.get("changePasswordEnabled").enable({emitEvent: false});
+      }
+
+      // For new users, always keep password enabled
+      if(this.isNewUser) {
+         passGroup.enable({emitEvent: false});
+         return;
       }
 
       if(enable) {
@@ -435,7 +457,18 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
             .controls["password"].setValue("");
          (<UntypedFormGroup>this.form.controls["changePassword"])
             .controls["confirmPassword"].setValue("");
-         (<UntypedFormGroup>this.form).controls["changePasswordEnabled"].setValue(false);
+
+         if(this.isNewUser) {
+            this.updatePassword(true);
+         }
+         else if(!this.userModel.hasPassword) {
+            this.form.get("changePasswordEnabled").setValue(true, {emitEvent: false});
+            this.updatePassword(true);
+            this.pwForm.controls.password.markAsTouched();
+         }
+         else {
+            (<UntypedFormGroup>this.form).controls["changePasswordEnabled"].setValue(false);
+         }
       }
 
       if(this.role) {
@@ -500,7 +533,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
       }
 
       this.model.theme = this.form.value["theme"];
-      const changingPassword = !!this.form.get("changePasswordEnabled").value;
+      const changingPassword = !!this.form.get("changePasswordEnabled").value || this.isNewUser;
 
       if(this.user && changingPassword) {
          (<EditUserPaneModel>this.model).password = this.pwForm.value["password"];

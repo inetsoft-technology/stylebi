@@ -21,7 +21,7 @@ import {
    CanDeactivate,
    RouterStateSnapshot
 } from "@angular/router";
-import { map } from "rxjs/operators";
+import { map, switchMap } from "rxjs/operators";
 import { UsersSettingsPageComponent } from "./users-settings-page.component";
 import { MatDialog } from "@angular/material/dialog";
 import { Observable, of } from "rxjs";
@@ -35,6 +35,26 @@ export class UsersSettingsSaveGuard implements CanDeactivate<UsersSettingsPageCo
    canDeactivate(component: UsersSettingsPageComponent, currentRoute: ActivatedRouteSnapshot,
                  currentState: RouterStateSnapshot, nextState?: RouterStateSnapshot): Observable<boolean>
    {
+      if(component && component.hasIncompleteNewUser) {
+         const ref = this.dialog.open(MessageDialog, {
+            data: {
+               title: "_#(js:em.users.newUser.incompleteTitle)",
+               content: "_#(js:em.users.newUser.incompleteContent)",
+               type: MessageDialogType.CONFIRMATION
+            }
+         });
+
+         return ref.afterClosed().pipe(
+            switchMap(result => {
+               if(result) {
+                  return component.clearIncompleteNewUser(false).pipe(map(() => true));
+               }
+
+               return of(false);
+            })
+         );
+      }
+
       if(component && component.pageChanged) {
          const ref = this.dialog.open(MessageDialog, {
             data: {
