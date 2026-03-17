@@ -2499,7 +2499,10 @@ public abstract class GraphGenerator {
       axis.setTextFrame(axisD.getTextFrame());
       axis.setTruncate(axisD.isTruncate());
       axis.setLabelGap(axisD.getLabelGap());
-      axis.setLabelOnSecondaryAxis(axisD.isLabelOnSecondaryAxis());
+      // Bug #74171: pareto uses the right y-axis for its percentage scale, so
+      // labelOnSecondaryAxis would hide the primary measure axis. Ignore the setting.
+      axis.setLabelOnSecondaryAxis(axisD.isLabelOnSecondaryAxis() &&
+                                   info.getChartType() != CHART_PARETO);
    }
 
    private void assignAxisCSS(AxisDescriptor axisDesc, String axis) {
