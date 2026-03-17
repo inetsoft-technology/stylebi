@@ -188,6 +188,41 @@ class ApplyParameterToInputTest {
       assertArrayEquals(new Object[]{"solo"}, assembly.getSelectedObjects());
    }
 
+   // ── Variable-bound assembly (Bug #74184) ──────────────────────────────────
+   // When an assembly is bound to a worksheet variable (tableName = "$(varName)"),
+   // passParams sends the parameter under the variable name, not the assembly name.
+   // applyParameterToInput must fall back to the variable name so the combobox is
+   // seeded correctly when drilling down.
+
+   @Test
+   void variableBoundSingleInputGetsValueFromVariableName() throws Exception {
+      variableTable.put("var1", "drillValue");
+      ComboBoxVSAssembly assembly = new ComboBoxVSAssembly();
+      assembly.getVSAssemblyInfo().setName("ComboBox1");
+      assembly.setVariable(true);
+      assembly.setTableName("$(var1)");
+
+      invoke(assembly);
+
+      assertEquals("drillValue", assembly.getSelectedObject());
+   }
+
+   @Test
+   void variableBoundSingleInputAssemblyNameTakesPrecedenceOverVariableName() throws Exception {
+      // If the parameter is also present under the assembly name, the assembly-name
+      // match takes priority (existing behaviour for non-variable-bound assemblies).
+      variableTable.put("ComboBox1", "byAssemblyName");
+      variableTable.put("var1", "byVariableName");
+      ComboBoxVSAssembly assembly = new ComboBoxVSAssembly();
+      assembly.getVSAssemblyInfo().setName("ComboBox1");
+      assembly.setVariable(true);
+      assembly.setTableName("$(var1)");
+
+      invoke(assembly);
+
+      assertEquals("byAssemblyName", assembly.getSelectedObject());
+   }
+
    @Test
    void emptyArrayPreservesDesignTimeDefaultForCompositeInput() throws Exception {
       // VariableTable.put() normalises empty Object[] to null → val == null guard fires.

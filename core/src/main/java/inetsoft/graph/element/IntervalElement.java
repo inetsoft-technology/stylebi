@@ -194,6 +194,10 @@ public class IntervalElement extends StackableElement {
       int max = getEndRow(data);
       boolean negGrp = isStackNegative();
       boolean first = true; // first bar on a stack
+      IntervalGeometry lastPositive = null; // last positive segment added to the current bar's stack
+      IntervalGeometry lastNegative = null; // last negative segment added to the current bar's stack
+      IntervalGeometry firstPositive = null; // first positive segment added to the current bar's stack
+      IntervalGeometry firstNegative = null; // first negative segment added to the current bar's stack
 
       for(int i = getStartRow(data); i < max; i++) {
          if(!isAccepted(data, i)) {
@@ -232,6 +236,14 @@ public class IntervalElement extends StackableElement {
                // whether stacking negative values
                top = negtop = base;
                first = true;
+
+               if(stack) {
+                  lastPositive = markAndReset(lastPositive);
+                  lastNegative = markAndReset(lastNegative);
+                  firstPositive = markInnermostAndReset(firstPositive);
+                  firstNegative = markInnermostAndReset(firstNegative);
+               }
+
                addGeometries(graph, geoms);
             }
 
@@ -240,6 +252,8 @@ public class IntervalElement extends StackableElement {
 
             switch(coord.getDimCount()) {
             case 1:
+               // 1D coords (OneVarParallelCoord, MekkoCoord) do not produce multi-category
+               // stacked bars, so no group-boundary detection for outermost/innermost is needed here.
                interval = coord.getValue(tuple, 0);
                from = (interval < base && negGrp) ? negtop : top;
                vtuple = new double[] {getBase(scale, from)};
@@ -262,9 +276,25 @@ public class IntervalElement extends StackableElement {
                      top = base;
                   }
 
+                  if(stack) {
+                     lastPositive = markAndReset(lastPositive);
+                     lastNegative = markAndReset(lastNegative);
+                     firstPositive = markInnermostAndReset(firstPositive);
+                     firstNegative = markInnermostAndReset(firstNegative);
+                  }
+
                   addGeometries(graph, geoms);
                   groupIdx = coord.getValue(tuple, 0);
                   first = true;
+               }
+               else if(stack && !stackGroup && groupIdx != coord.getValue(tuple, 0)) {
+                  // non-stackGroup: detect category boundary for outermost/innermost tracking;
+                  // geoms are not flushed here — all categories share one addGeometries pass
+                  lastPositive = markAndReset(lastPositive);
+                  lastNegative = markAndReset(lastNegative);
+                  firstPositive = markInnermostAndReset(firstPositive);
+                  firstNegative = markInnermostAndReset(firstNegative);
+                  groupIdx = coord.getValue(tuple, 0);
                }
 
                interval = coord.getValue(tuple, 1);
@@ -274,6 +304,8 @@ public class IntervalElement extends StackableElement {
                gobj = new IntervalGeometry(this, graph, vname, i, vmodel, vtuple, interval2);
                break;
             case 3:
+               // No per-group boundary detection here: Bar3DVO is always excluded from
+               // rounded corners, so outermost/innermost flags are never consulted for 3D bars.
                interval = coord.getValue(tuple, 2);
                from = (interval < base && negGrp) ? negtop : top;
                interval2 = getInterval(scale, from, interval, base, first);
@@ -319,14 +351,62 @@ public class IntervalElement extends StackableElement {
 
             if(interval < base && negGrp) {
                geoms.add(0, gobj);
+
+               if(stack) {
+                  lastNegative = gobj;
+
+                  if(firstNegative == null) {
+                     firstNegative = gobj;
+                  }
+               }
             }
             else {
                geoms.add(gobj);
+
+               if(stack) {
+                  lastPositive = gobj;
+
+                  if(firstPositive == null) {
+                     firstPositive = gobj;
+                  }
+               }
             }
          }
       }
 
+      if(stack) {
+         // Final flush after all rows — no reassignment needed since the variables are unused.
+         markAndReset(lastPositive);
+         markAndReset(lastNegative);
+         markInnermostAndReset(firstPositive);
+         markInnermostAndReset(firstNegative);
+      }
+
       addGeometries(graph, geoms);
+   }
+
+   /**
+    * Mark geometry as stack outermost (if non-null) and return null,
+    * for use when flushing per-bar outermost tracking state.
+    */
+   private static IntervalGeometry markAndReset(IntervalGeometry geom) {
+      if(geom != null) {
+         geom.setStackOutermost(true);
+      }
+
+      return null;
+   }
+
+   /**
+    * Mark geometry as stack innermost (if non-null) and return null,
+    * for use when flushing per-bar innermost tracking state.
+    */
+   private static IntervalGeometry markInnermostAndReset(IntervalGeometry geom) {
+      if(geom != null) {
+         geom.setStackInnermost(true);
+      }
+
+      return null;
    }
 
    /**
@@ -519,6 +599,7 @@ public class IntervalElement extends StackableElement {
    /**
     * Get the corner radius fraction for bar rounding (0 = disabled, 0.5 = maximum).
     */
+   @TernMethod
    public double getCornerRadius() {
       return cornerRadius;
    }
@@ -527,6 +608,7 @@ public class IntervalElement extends StackableElement {
     * Set the corner radius fraction for bar rounding.
     * @param cornerRadius fraction in [0, 0.5]; 0 disables rounding.
     */
+   @TernMethod
    public void setCornerRadius(double cornerRadius) {
       this.cornerRadius = cornerRadius;
    }
@@ -536,6 +618,7 @@ public class IntervalElement extends StackableElement {
     * When {@code false} (default), only the open (value) end is rounded.
     * When {@code true}, all four corners are rounded equally.
     */
+   @TernMethod
    public boolean isRoundAllCorners() {
       return roundAllCorners;
    }
@@ -544,6 +627,7 @@ public class IntervalElement extends StackableElement {
     * Set whether all four corners of bars should be rounded.
     * @param roundAllCorners {@code true} to round all corners; {@code false} for open-end only.
     */
+   @TernMethod
    public void setRoundAllCorners(boolean roundAllCorners) {
       this.roundAllCorners = roundAllCorners;
    }

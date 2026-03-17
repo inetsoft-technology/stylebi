@@ -19,6 +19,7 @@ package inetsoft.web.graph.model.dialog;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.graph.data.PairsDataSet;
+import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.composition.region.ChartArea;
 import inetsoft.uql.viewsheet.XDimensionRef;
@@ -106,8 +107,11 @@ public class AxisPropertyDialogModel {
       // For Pareto charts the "Labels on Opposite Side" option is not supported (the right y-axis
       // is always the cumulative-percentage axis). Reset to false so that any chart previously saved
       // with this flag set will have the primary axis restored on open/OK. (Bug #74142)
+      // For the inner axes of a scatter matrix the option breaks shared-axis alignment across
+      // cells; reset to false to heal any chart previously saved with this flag set. (Bug #74136)
       axisLabelPaneModel.setLabelOnSecondaryAxis(axisDesc.isLabelOnSecondaryAxis() &&
-         !GraphTypes.isPareto(cInfo.getRTChartType()));
+         !GraphTypes.isPareto(cInfo.getRTChartType()) &&
+         (outer || !GraphTypeUtil.isScatterMatrix(cInfo)));
 
       // A right_y_axis click can mean either a true secondary y-axis OR a primary axis whose
       // labels were moved to the right via "Labels on Opposite Side".
@@ -117,7 +121,9 @@ public class AxisPropertyDialogModel {
       // The secondary X axis position is hardcoded in RectCoord and cannot be moved by
       // labelOnSecondaryAxis, so hide the option for both the secondary X axis and its primary.
       boolean isSecondaryYAxis = "right_y_axis".equals(axisType) && !axisDesc.isLabelOnSecondaryAxis();
-      boolean isPrimaryInDualAxis = "left_y_axis".equals(axisType) && hasDualAxis;
+      // Bug #74177: only restrict the option for measure (linear) y-axis; dimension axes on y
+      // do not conflict with dual-axis setup and should support "Labels on Opposite Side".
+      boolean isPrimaryInDualAxis = "left_y_axis".equals(axisType) && hasDualAxis && linear;
       boolean hasSecondaryXAxis = Arrays.stream(cInfo.getRTXFields())
          .anyMatch(f -> f instanceof ChartAggregateRef && ((ChartAggregateRef) f).isSecondaryY());
       axisLabelPaneModel.setSecondary(
@@ -130,7 +136,10 @@ public class AxisPropertyDialogModel {
          GraphTypes.isRadar(cInfo.getRTChartType()) ||
          GraphTypes.isMekko(cInfo.getRTChartType()) ||
          GraphTypes.is3DBar(cInfo.getRTChartType()) ||
-         GraphTypes.isPareto(cInfo.getRTChartType()));
+         GraphTypes.isPareto(cInfo.getRTChartType()) ||
+         // Inner axes of a scatter matrix share scale across cells; moving labels to the
+         // opposite side breaks cell alignment. (Bug #74136)
+         (!outer && GraphTypeUtil.isScatterMatrix(cInfo)));
 
       RotationRadioGroupModel rotationRadioGroupModel = new RotationRadioGroupModel();
       CompositeTextFormat textFormat;

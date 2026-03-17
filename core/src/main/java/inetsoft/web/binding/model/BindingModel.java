@@ -100,7 +100,7 @@ public class BindingModel {
       return tables;
    }
 
-   public class SourceTable {
+   public static class SourceTable {
       public SourceTable() {
       }
 
@@ -127,7 +127,10 @@ public class BindingModel {
       private List<SourceTableColumn> columns;
    }
 
-   public class SourceTableColumn {
+   public static class SourceTableColumn {
+      public SourceTableColumn() {
+      }
+
       public SourceTableColumn(String name, String type) {
          this.name = name;
          this.dataType = type;

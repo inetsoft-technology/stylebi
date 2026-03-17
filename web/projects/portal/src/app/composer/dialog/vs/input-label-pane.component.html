@@ -53,13 +53,13 @@
       </div>
       <div class="col-6 form-floating mb-2">
         <input class="form-control" type="number" [(ngModel)]="model.labelGap"
-               placeholder="_#(Gap)" id="labelGap" min="0" #gap="ngModel"
+               placeholder="_#(Gap)" id="labelGap" min="0" max="1000" #gap="ngModel"
                (ngModelChange)="onGapChange()">
         <label for="labelGap"><span>_#(Gap px)</span></label>
       </div>
         <div class="col form-floating">
           <div class="alert alert-danger" *ngIf="gap.invalid && gap.touched">
-            _#(Gap must be a number greater than or equal to 0)
+            _#(Gap must be a number between 0 and 1000)
           </div>
         </div>
     </div>

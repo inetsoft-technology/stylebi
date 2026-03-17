@@ -357,7 +357,7 @@ export class DataInputPane implements OnInit, OnChanges {
    }
 
    get isDateType(): boolean {
-      return XSchema.isDateType(this.dataType);
+      return this.dataType === XSchema.DATE || this.dataType === XSchema.TIME_INSTANT;
    }
 
    onQueryDateFormatToggle(checked: boolean): void {

@@ -1425,10 +1425,11 @@ export namespace ChartTool {
       }
 
       // round only the open (value) end; base corners are sharp.
-      // Cap at min(w,h)/2 so the arc never exceeds half the shorter dimension (matches Java shortDim/2).
+      // Cap at w/2 (vertical) or h/2 (horizontal) so the two corner arcs don't overlap.
+      // Also clamp to segment height/width so thin stacked segments don't overflow their bounds.
       const arc = direction < 2
-         ? Math.min(radiusFraction * w, Math.min(w, h) / 2)   // vertical: fraction of bar width
-         : Math.min(radiusFraction * h, Math.min(w, h) / 2);  // horizontal: fraction of bar height
+         ? Math.min(radiusFraction * w, w / 2, h)   // vertical: fraction of bar width, clamped to segment height
+         : Math.min(radiusFraction * h, h / 2, w);  // horizontal: fraction of bar height, clamped to segment width
 
       switch(direction) {
          case 0: // up — round top-left, top-right
@@ -1449,7 +1450,6 @@ export namespace ChartTool {
             ctx.arcTo(x + w, y + h, x + w - arc, y + h, arc); // bottom-right
             ctx.lineTo(x + arc, y + h);
             ctx.arcTo(x, y + h, x, y + h - arc, arc);          // bottom-left
-            ctx.lineTo(x, y);
             ctx.closePath();
             break;
 

@@ -3977,7 +3977,24 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       String name = iassembly.getName();
 
       if(!vt.contains(name)) {
-         return;
+         // When the assembly is bound to a variable, passParams sends the parameter under
+         // the variable name rather than the assembly name. Fall back to looking up the
+         // variable that this assembly controls, using the same extraction logic as
+         // refreshVariable().
+         String tname = iassembly.getTableName();
+         boolean isVarExtracted = iassembly.isVariable() && tname != null &&
+            !tname.isEmpty() && tname.startsWith("$(");
+
+         if(isVarExtracted) {
+            tname = tname.substring(2, tname.length() - 1);
+         }
+
+         if(isVarExtracted && tname != null && !tname.isEmpty() && vt.contains(tname)) {
+            name = tname;
+         }
+         else {
+            return;
+         }
       }
 
       // Dependency chains can cause refreshVariable() to be called more than once for
@@ -4055,7 +4072,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       if(iassembly instanceof ComboBoxVSAssembly comboBox) {
          ComboBoxVSAssemblyInfo comboBoxInfo = (ComboBoxVSAssemblyInfo) comboBox.getVSAssemblyInfo();
 
-         if(comboBoxInfo.isQueryDateFormat() && XSchema.isDateType(comboBoxInfo.getDataType())) {
+         if(comboBoxInfo.isQueryDateFormat() && (XSchema.DATE.equals(comboBoxInfo.getDataType()) ||
+            XSchema.TIME_INSTANT.equals(comboBoxInfo.getDataType()))) {
             vt.putFormat(varName, comboBoxInfo.getDateFormatPattern());
          }
          else {
