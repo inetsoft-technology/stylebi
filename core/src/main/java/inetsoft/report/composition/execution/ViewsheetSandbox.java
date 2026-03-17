@@ -3977,7 +3977,22 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       String name = iassembly.getName();
 
       if(!vt.contains(name)) {
-         return;
+         // When the assembly is bound to a variable, passParams sends the parameter under
+         // the variable name rather than the assembly name. Fall back to looking up the
+         // variable that this assembly controls, using the same extraction logic as
+         // refreshVariable().
+         String tname = iassembly.getTableName();
+
+         if(iassembly.isVariable() && tname != null && !tname.isEmpty() && tname.startsWith("$(")) {
+            tname = tname.substring(2, tname.length() - 1);
+         }
+
+         if(tname != null && !tname.isEmpty() && vt.contains(tname)) {
+            name = tname;
+         }
+         else {
+            return;
+         }
       }
 
       // Dependency chains can cause refreshVariable() to be called more than once for
