@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.security;
 
+import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSVerifier;
 import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
@@ -181,16 +182,19 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
       }
 
       // Verify signature
-      try {
-         RSAPublicKey publicKey = (RSAPublicKey) ssoKeyPair.getPublic();
-         JWSVerifier verifier = new RSASSAVerifier(publicKey);
+      RSAPublicKey publicKey = (RSAPublicKey) ssoKeyPair.getPublic();
+      JWSVerifier verifier = new RSASSAVerifier(publicKey);
+      boolean valid;
 
-         if(!jwt.verify(verifier)) {
-            throw new WizAuthenticationException("Invalid token signature");
-         }
+      try {
+         valid = jwt.verify(verifier);
       }
-      catch(Exception e) {
+      catch(JOSEException e) {
          throw new WizAuthenticationException("Signature verification failed: " + e.getMessage());
+      }
+
+      if(!valid) {
+         throw new WizAuthenticationException("Invalid token signature");
       }
 
       // Validate claims
