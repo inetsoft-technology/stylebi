@@ -122,4 +122,19 @@ class ChartPlotOptionsPaneModelTest {
       assertFalse(plotDesc.isBarRoundAllCorners(),
          "barRoundAllCorners=false should be persisted for bar charts");
    }
+
+   @Test
+   void updateModel_resetsBarRoundAllCornersForWaterfallChart() {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_WATERFALL);
+      PlotDescriptor plotDesc = new PlotDescriptor();
+      // Stale value from before waterfall was excluded from barRoundAllCornersVisible
+      plotDesc.setBarRoundAllCorners(true);
+
+      ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, plotDesc);
+      model.updateChartPlotOptionsPaneModel(info, plotDesc);
+
+      assertFalse(plotDesc.isBarRoundAllCorners(),
+         "barRoundAllCorners should be reset to false for chart types where it is not applicable");
+   }
 }
