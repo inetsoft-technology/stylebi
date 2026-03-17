@@ -96,7 +96,6 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          if(userCount > 0 && authcChain.getProviders().isEmpty()) {
             FileAuthenticationProvider authc = new FileAuthenticationProvider();
             authc.setProviderName("Primary");
-            authc.removeUser(new IdentityID("guest", Organization.getDefaultOrganizationID()));
             authcChain.setProviders(Collections.singletonList(authc));
          }
 
