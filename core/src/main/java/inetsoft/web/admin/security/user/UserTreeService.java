@@ -743,6 +743,7 @@ public class UserTreeService {
             .localesList(localesList)
             .theme(themeService.getTheme(identity.getIdentityID(), CustomTheme::getUsers))
             .newUser(true)
+            .supportChangePassword(true)
             .build();
       }
       catch(Exception e) {

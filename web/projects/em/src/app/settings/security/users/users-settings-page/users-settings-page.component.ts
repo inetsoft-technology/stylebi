@@ -332,10 +332,6 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
       const SET_USER_URI = "../api/em/security/users/edit-user/" +
          Tool.byteEncodeURLComponent(this.selectedProvider);
       this.http.post(SET_USER_URI, model).pipe(
-         catchError((error: HttpErrorResponse) => {
-            this.errorService.showSnackBar(error)
-            return of(null);
-         }),
          tap(() => {
             if(this.model.namedUsers && model.oldName != model.name) {
                this.snackBar.open("_#(js:em.security.userNameChangeWarning)", "_#(js:Close)", {duration: Tool.SNACKBAR_DURATION});
@@ -344,6 +340,10 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
             this.newUserIdentity = null;
             let id: IdentityId = {name: model.name, orgID: model.organization};
             this.refreshTree(id, IdentityType.USER);
+         }),
+         catchError((error: HttpErrorResponse) => {
+            this.errorService.showSnackBar(error);
+            return of(null);
          })
       ).subscribe(() => {
          if(logout) {
