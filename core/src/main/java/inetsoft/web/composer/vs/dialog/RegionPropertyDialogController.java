@@ -32,6 +32,8 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
+import inetsoft.web.binding.command.SetVSBindingModelCommand;
+import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.factory.RemainingPath;
@@ -173,6 +175,13 @@ public class RegionPropertyDialogController {
       rvs.getViewsheetSandbox().clearGraph(chartAssembly.getAbsoluteName());
       this.vsObjectPropertyService.editObjectProperty(
          rvs, chartAssemblyInfo, objectId, objectId, linkUri, principal, commandDispatcher);
+
+      // Refresh the binding model so that labelOnOppositeAxis reflects the updated axis
+      // descriptor. Without this, the client-side binding model remains stale — e.g. unchecking
+      // 'Labels on Opposite Side' would leave labelOnOppositeAxis=true and keep the Secondary
+      // Axis checkbox disabled when the measure editor is re-opened. (Bug #74140)
+      BindingModel bindingModel = vsBindingService.createModel(chartAssembly);
+      commandDispatcher.sendCommand(new SetVSBindingModelCommand(bindingModel));
    }
 
    /**
