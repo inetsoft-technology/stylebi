@@ -117,7 +117,9 @@ public class AxisPropertyDialogModel {
       // The secondary X axis position is hardcoded in RectCoord and cannot be moved by
       // labelOnSecondaryAxis, so hide the option for both the secondary X axis and its primary.
       boolean isSecondaryYAxis = "right_y_axis".equals(axisType) && !axisDesc.isLabelOnSecondaryAxis();
-      boolean isPrimaryInDualAxis = "left_y_axis".equals(axisType) && hasDualAxis;
+      // Bug #74177: only restrict the option for measure (linear) y-axis; dimension axes on y
+      // do not conflict with dual-axis setup and should support "Labels on Opposite Side".
+      boolean isPrimaryInDualAxis = "left_y_axis".equals(axisType) && hasDualAxis && linear;
       boolean hasSecondaryXAxis = Arrays.stream(cInfo.getRTXFields())
          .anyMatch(f -> f instanceof ChartAggregateRef && ((ChartAggregateRef) f).isSecondaryY());
       axisLabelPaneModel.setSecondary(
