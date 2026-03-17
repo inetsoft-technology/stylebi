@@ -249,7 +249,26 @@ public abstract class RuntimeSheet {
     * @return <tt>true</tt> if yes, <tt>false</tt> otherwise.
     */
    public boolean matches(Principal user) {
-      return Tool.equals(this.user, user);
+      if(this.user == null || user == null) {
+         return this.user == user;
+      }
+
+      // Bug #74165: anonymous users share the same name but represent distinct browser sessions,
+      // so they must be compared by full identity (including session/IP) to avoid one anonymous
+      // user's sheet being matched to another's. Named users, however, should be compared only
+      // by their business identity (name~;~orgID): in a distributed/ECS cluster, the same user's
+      // close request may arrive via a different pod/session/IP than the open request, so
+      // including session or IP in the comparison would throw a false InvalidUserException.
+      if(this.user instanceof SRPrincipal) {
+         if(XPrincipal.ANONYMOUS.equals(((SRPrincipal) this.user).getIdentityID().name)) {
+            return Tool.equals(this.user, user);
+         }
+      }
+      else if(XPrincipal.ANONYMOUS.equals(this.user.getName())) {
+         return Tool.equals(this.user, user);
+      }
+
+      return Tool.equals(this.user.getName(), user.getName());
    }
 
    /**
