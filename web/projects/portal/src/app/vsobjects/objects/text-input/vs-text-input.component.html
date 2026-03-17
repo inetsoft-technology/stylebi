@@ -84,7 +84,7 @@
       [style.overflow]="model.objectFormat.wrapping.overflow"
       [style.border-style]="getBorderStyle()"
       [class.disable-input]="isInputDisabled()">
-    <div *ngIf="model.option == 'Date'">
+    <div *ngIf="model.option == 'Date'" class="date-input-container">
       <input #thisTextArea placeholder="yyyy-mm-dd"
              [(ngModel)]="model.text"
              (keyup)="onKey($event)"
