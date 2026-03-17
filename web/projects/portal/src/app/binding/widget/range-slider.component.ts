@@ -160,12 +160,12 @@ export class RangeSlider implements OnInit, OnDestroy {
 
       if(left) {
          return this.model.min +
-            Math.max(0, Math.round(offset * (this.size - 2) / this.model.width));
+            Math.max(0, Math.round(offset * this.size / this.model.width));
       }
       else {
          return Math.min(this.model.max,
                          this.model.min +
-                         Math.max(0, Math.round(offset * (this.size - 1) / this.model.width)));
+                         Math.max(0, Math.round(offset * this.size / this.model.width)));
       }
    }
 
