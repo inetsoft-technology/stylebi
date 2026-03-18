@@ -91,7 +91,7 @@ export class IdentityClipboardService implements OnDestroy {
          return 0;
       }
 
-      let result = typeFilter == null ? this.copiedIdentities : this.copiedIdentities.filter(i => typeFilter.includes(i.type));
+      let result = typeFilter == null ? this.copiedIdentities! : this.copiedIdentities!.filter(i => typeFilter.includes(i.type));
 
       if(excludeIdentities != null && excludeIdentities.length > 0) {
          result = result.filter(i => !excludeIdentities.some(e => e.type === i.type && e.identityID.name === i.identityID.name));
@@ -110,7 +110,7 @@ export class IdentityClipboardService implements OnDestroy {
          return 0;
       }
 
-      return this.copiedIdentities.length;
+      return this.copiedIdentities!.length;
    }
 
    ngOnDestroy(): void {
@@ -131,7 +131,10 @@ export class IdentityClipboardService implements OnDestroy {
       return typeFilter == null ? cloned : cloned.filter(i => typeFilter.includes(i.type));
    }
 
-   private anyContextMatches(context: IdentityCopyPasteContext | IdentityCopyPasteContext[] | null, stored: IdentityCopyPasteContext | null): boolean {
+   private anyContextMatches(
+      context: IdentityCopyPasteContext | IdentityCopyPasteContext[] | null,
+      stored: IdentityCopyPasteContext | null
+   ): boolean {
       if(context === null || stored === null) {
          return false;
       }
