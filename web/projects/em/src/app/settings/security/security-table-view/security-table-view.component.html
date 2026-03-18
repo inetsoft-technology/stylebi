@@ -50,7 +50,7 @@
           </ng-container>
         </ng-container>
         <tr mat-header-row *matHeaderRowDef="displayColumns"></tr>
-        <tr mat-row *matRowDef="let row; columns: displayColumns;" (click)="selection.toggle(row.name)"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayColumns;" (click)="selection.toggle(row)"></tr>
       </table>
       <mat-paginator [pageSizeOptions]="[10, 25, 100]" [showFirstLastButtons]="true"></mat-paginator>
     </div>

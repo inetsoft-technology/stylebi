@@ -208,6 +208,11 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
 
       const selected = this.selection.selected;
       const toCopy = selected.length > 0 ? selected : this.dataSource;
+
+      if(!toCopy?.length) {
+         return;
+      }
+
       this.clipboardService.copy(toCopy, this.copyPasteContext);
       this.snackBar.open("_#(js:em.security.identitiesCopied)", null, { duration: Tool.SNACKBAR_DURATION });
    }

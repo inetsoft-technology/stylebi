@@ -34,7 +34,7 @@ export type IdentityCopyPasteContext =
 @Injectable({
    providedIn: "root"
 })
-// implements OnDestroy so tests can call ngOnDestroy() directly; Angular never calls it for root-scoped services.
+// implements OnDestroy so tests can call ngOnDestroy() directly; Angular only calls it at application teardown for root-scoped services.
 export class IdentityClipboardService implements OnDestroy {
    private copiedIdentities: IdentityModel[] | null = null;
    private contextAtCopy: IdentityCopyPasteContext | null = null;
@@ -58,6 +58,12 @@ export class IdentityClipboardService implements OnDestroy {
       );
    }
 
+   /**
+    * Returns true if there is clipboard content that matches the given paste context.
+    *
+    * Note: passing no argument (or {@code null}) always returns {@code false} because a null context
+    * never matches any stored context. Always pass the target context to get a meaningful result.
+    */
    canPaste(context: IdentityCopyPasteContext | IdentityCopyPasteContext[] | null = null): boolean {
       return this.copiedIdentities != null && this.anyContextMatches(context, this.contextAtCopy);
    }
