@@ -277,8 +277,10 @@ public class SVGShape extends GShape {
             if(rawInput != null) {
                byte[] svgData = rawInput.readAllBytes();
 
+               SVGSupport svgSupport = SVGSupport.getInstance();
+
                try {
-                  SVGTransformer svg = SVGSupport.getInstance()
+                  SVGTransformer svg = svgSupport
                      .createSVGTransformer(new ByteArrayInputStream(svgData));
                   Dimension isize = svg.getDefaultSize();
 
@@ -294,7 +296,7 @@ public class SVGShape extends GShape {
                   LOG.debug("SVG transformer failed, falling back to getSVGImage for: {}", uri, ex);
                }
 
-               return SVGSupport.getInstance().getSVGImage(
+               return svgSupport.getSVGImage(
                   new ByteArrayInputStream(svgData), size.width, size.height);
             }
          }

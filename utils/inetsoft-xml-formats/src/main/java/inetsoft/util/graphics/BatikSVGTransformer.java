@@ -154,6 +154,10 @@ public class BatikSVGTransformer implements Cloneable, SVGTransformer {
     */
    @Override
    public BufferedImage getImage() throws Exception {
+      if(gvtRoot == null) {
+         throw new IllegalStateException("GVT tree was not built; cannot render SVG image");
+      }
+
       //ImageRendererFactory rendFactory = new ConcreteImageRendererFactory();
       //ImageRenderer renderer = rendFactory.createStaticImageRenderer();
 
