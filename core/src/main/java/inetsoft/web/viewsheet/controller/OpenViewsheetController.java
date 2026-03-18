@@ -156,7 +156,7 @@ public class OpenViewsheetController {
          if(event.isWizVisualization()) {
             AssetEntry entry = AssetEntry.createAssetEntry(event.getEntryId());
 
-            if(entry != null) {
+            if(entry != null && !VSUtil.isWizCopyEntry(entry)) {
                wizCopyEntry = VSUtil.copyViewsheetForWiz(entry, false, principal);
 
                if(wizCopyEntry != null) {

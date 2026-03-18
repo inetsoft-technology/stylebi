@@ -19,49 +19,75 @@
 package inetsoft.web.composer.wiz.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.sree.security.ResourceAction;
+import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.web.composer.model.TreeNodeModel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 @Service
+@ClusterProxy
 public class VisualizationService {
-   public VisualizationService(ViewsheetService viewsheetService,
-                               AssetRepository assetRepository)
-   {
+   public VisualizationService(ViewsheetService viewsheetService, AssetRepository assetRepository) {
       this.viewsheetService = viewsheetService;
       this.assetRepository = assetRepository;
    }
 
-   public TreeNodeModel getVisualizations(String runtimeId, Principal principal) throws Exception {
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public TreeNodeModel getVisualizations(@ClusterProxyKey String runtimeId, Principal principal) throws Exception {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      AssetEntry vsEntry = rvs.getEntry();
-      String vsId = vsEntry != null ? vsEntry.toIdentifier() : null;
 
-      AssetEntry root = new AssetEntry(
-         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.FOLDER, "/", null);
-      AssetEntry[] allEntries = assetRepository.getAllEntries(
-         root, principal, ResourceAction.READ,
-         new AssetEntry.Selector(AssetEntry.Type.VIEWSHEET));
+      if(rvs == null || rvs.getViewsheet() == null || rvs.getViewsheet().getWizInfo() == null ||
+         !rvs.getViewsheet().getWizInfo().isWizSheet() ||
+         rvs.getViewsheet().getWizInfo().getVisualizations() == null ||
+         rvs.getViewsheet().getWizInfo().getVisualizations().isEmpty())
+      {
+         return TreeNodeModel.builder().build();
+      }
 
       List<TreeNodeModel> children = new ArrayList<>();
 
-      for(AssetEntry entry : allEntries) {
-         if("true".equals(entry.getProperty("isWizVisualization")) &&
-            vsId != null && vsId.equals(entry.getProperty("visualizationSheet")))
-         {
-            children.add(TreeNodeModel.builder()
-               .label(entry.getName())
-               .data(entry)
-               .leaf(true)
+      for(String visualization : rvs.getViewsheet().getWizInfo().getVisualizations()) {
+         try {
+            AssetEntry assetEntry = AssetEntry.createAssetEntry(visualization);
+
+            if(assetEntry == null) {
+               LOG.warn("Invalid visualization entry for " + visualization);
+               continue;
+            }
+
+            AssetEntry vEntry = assetRepository.getAssetEntry(AssetEntry.createAssetEntry(visualization));
+
+            if(vEntry == null) {
+               LOG.warn("Asset entry could not be found for " + visualization);
+               continue;
+            }
+
+            TreeNodeModel.Builder builder = TreeNodeModel.builder()
                .icon("viewsheet-icon")
                .dragName("dragVisualization")
-               .build());
+               .data(vEntry)
+               .leaf(true);
+
+            if(VSUtil.isWizCopyEntry(vEntry, true)) {
+               AssetEntry wizOriginalVisualization = VSUtil.createWizOriginalVisualization(vEntry);
+               builder.label(wizOriginalVisualization.getName());
+            }
+            else {
+               builder.label(vEntry.getName());
+            }
+
+            children.add(builder.build());
+         }
+         catch(Exception e) {
+            LOG.error("Failed to load visualization entry: {}", visualization, e);
          }
       }
 
@@ -72,4 +98,5 @@ public class VisualizationService {
 
    private final ViewsheetService viewsheetService;
    private final AssetRepository assetRepository;
+   private static final Logger LOG = LoggerFactory.getLogger(VisualizationService.class);
 }
