@@ -15,22 +15,42 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div [style.width] = "model.width + 'px'" style="height: 30px;"
-     class="vs-range-slider" #rangeSlider>
-   <div class="range-slider" [style.width]="model.width + 'px'"></div>
-   <div class="range-line" [style.left]="getRangeX() + 'px'"
-        [style.width]="getRangeWidth() + 'px'">
-      <div class="range-slider-handle range-slider-left-handle" #leftHandle
-           (mousedown)="mouseDown($event, handleType.Left)"></div>
-      <div class="range-slider-handle range-slider-right-handle"
-           (mousedown)="mouseDown($event, handleType.Right)"></div>
-      <div class="thumb-middle" [style.width]="getRangeWidth() + 'px'"
-           (mousedown)="mouseDown($event, handleType.Middle)"></div>
-   </div>
-   <div class="current-value"
-        [style.left]="(getRangeX() + getRangeWidth() / 2 - 40) + 'px'">
+<div [style.width]="model.width + 'px'"
+     class="range-slider-container unselectable-canvas"
+     #rangeSlider>
+  <div class="wrapper">
+    <!-- Inactive track (full width, with overhang caps via ::before / ::after) -->
+    <div class="slider-track"></div>
+
+    <!-- Active track — spans between the two handles; draggable to move the whole range -->
+    <div class="slider-tracked"
+         [style.left.px]="getRangeX()"
+         [style.width.px]="getRangeWidth()"
+         [class.is-dragging]="isDraggingMiddle"
+         (mousedown)="mouseDown($event, handleType.Middle)">
+    </div>
+
+    <!-- Left handle -->
+    <div class="slider-handle"
+         [style.left.px]="getRangeX()"
+         [class.is-dragging]="isDraggingLeft"
+         (mousedown)="mouseDown($event, handleType.Left)"
+         #leftHandle>
+    </div>
+
+    <!-- Right handle -->
+    <div class="slider-handle"
+         [style.left.px]="getRangeX() + getRangeWidth()"
+         [class.is-dragging]="isDraggingRight"
+         (mousedown)="mouseDown($event, handleType.Right)">
+    </div>
+
+    <!-- Tick dots -->
+    <div class="slider-tick" *ngFor="let tick of ticks" [style.left]="tick.left"></div>
+
+    <!-- Value label — centred between the two handles -->
+    <div class="slider-value" [style.left.px]="getRangeX() + getRangeWidth() / 2">
       {{getCurrentLabel()}}
-   </div>
-   <!-- header cell -->
-   <div class="tick" *ngFor="let tick of ticks" [style.left]="tick.left">|</div>
+    </div>
+  </div>
 </div>
