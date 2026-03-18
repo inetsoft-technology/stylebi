@@ -361,19 +361,17 @@ export class IdentityTablesPaneComponent implements OnChanges {
 
    pasteMembers(identities: IdentityModel[]): void {
       this.members = [];
-      this.membersChanged.emit(this.members);
       this.addMembers(identities);
    }
 
    pasteRoles(identities: IdentityModel[]): void {
       this.roles = [];
-      this.rolesChanged.emit(this.roles);
       this.addRoles(identities);
    }
 
    pastePermittedIdentities(identities: IdentityModel[]): void {
-      this.permittedIdentities = identities;
-      this.permittedIdentitiesChanged.emit(this.permittedIdentities);
+      this.permittedIdentities = [];
+      this.addPermittedIdentities(identities);
    }
 
    protected readonly IdentityType = IdentityType;

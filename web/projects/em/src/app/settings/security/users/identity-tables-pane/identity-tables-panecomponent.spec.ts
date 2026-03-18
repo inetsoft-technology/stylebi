@@ -77,6 +77,7 @@ describe("IdentityTablesPaneComponent", () => {
 
    describe("paste handlers", () => {
       const alice: IdentityModel = { identityID: { name: "alice", orgID: null }, type: IdentityType.USER };
+      const editorRole: IdentityModel = { identityID: { name: "editor", orgID: null }, type: IdentityType.ROLE };
 
       it("pasteMembers should replace members and emit membersChanged", () => {
          const emitted: IdentityModel[][] = [];
@@ -89,9 +90,9 @@ describe("IdentityTablesPaneComponent", () => {
       it("pasteRoles should replace roles and emit rolesChanged", () => {
          const emitted: IdentityModel[][] = [];
          component.rolesChanged.subscribe(v => emitted.push(v));
-         component.pasteRoles([alice]);
-         expect(component.roles).toEqual([alice]);
-         expect(emitted).toEqual([[alice]]);
+         component.pasteRoles([editorRole]);
+         expect(component.roles).toEqual([editorRole]);
+         expect(emitted).toEqual([[editorRole]]);
       });
 
       it("pastePermittedIdentities should replace permittedIdentities and emit permittedIdentitiesChanged", () => {

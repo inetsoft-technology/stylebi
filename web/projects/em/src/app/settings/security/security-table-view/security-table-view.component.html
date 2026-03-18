@@ -67,7 +67,7 @@
             (click)="copyIdentities()">_#(js:Copy)
     </button>
     <button mat-stroked-button
-            *ngIf="showCopyPaste && copyPasteContext"
+            *ngIf="showCopyPaste && (copyPasteContext || pasteContexts)"
             [disabled]="pasteCount === 0 || !editable"
             [matTooltip]="pasteTooltip"
             (click)="pasteIdentities()">_#(js:Paste){{pasteBadgeLabel}}

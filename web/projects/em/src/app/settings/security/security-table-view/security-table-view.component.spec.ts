@@ -17,6 +17,7 @@
  */
 import { CommonModule } from "@angular/common";
 import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { By } from "@angular/platform-browser";
 import { MatCardModule } from "@angular/material/card";
 import { MatCheckboxModule } from "@angular/material/checkbox";
 import { MatExpansionModule } from "@angular/material/expansion";
@@ -204,6 +205,28 @@ describe("SecurityTableViewComponent", () => {
       mockClipboardService.canPaste.mockReturnValue(true);
       mockClipboardService.copiedCount.mockReturnValue(3);
       expect(component.pasteTooltip).toBe("");
+    });
+  });
+
+  describe("paste button visibility", () => {
+    it("should show paste button when only pasteContexts is set (no copyPasteContext)", () => {
+      component.showCopyPaste = true;
+      component.copyPasteContext = null;
+      component.pasteContexts = COPY_PASTE_CONTEXT_IDENTITY_ROLES;
+      fixture.detectChanges();
+
+      const pasteButton = fixture.debugElement.query(By.css("button[mat-stroked-button]"));
+      expect(pasteButton).toBeTruthy();
+    });
+
+    it("should not show paste button when both copyPasteContext and pasteContexts are null", () => {
+      component.showCopyPaste = true;
+      component.copyPasteContext = null;
+      component.pasteContexts = null;
+      fixture.detectChanges();
+
+      const pasteButton = fixture.debugElement.query(By.css("button[mat-stroked-button]"));
+      expect(pasteButton).toBeNull();
     });
   });
 
