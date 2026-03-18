@@ -308,12 +308,17 @@ public class SVGShape extends GShape {
 
          SVGTransformer svg = SVGSupport.getInstance().createSVGTransformer(new URL(uri));
          Dimension isize = svg.getDefaultSize();
-         svg.setSize(size);
-         svg.setTransform(AffineTransform.getScaleInstance(
-            ((double) size.width) / ((double) isize.width),
-            ((double) size.height) / ((double) isize.height)));
 
-         return svg.getImage();
+         if(isize.width > 0 && isize.height > 0) {
+            svg.setSize(size);
+            svg.setTransform(AffineTransform.getScaleInstance(
+               ((double) size.width) / ((double) isize.width),
+               ((double) size.height) / ((double) isize.height)));
+
+            return svg.getImage();
+         }
+
+         return null;
       }
    }
 

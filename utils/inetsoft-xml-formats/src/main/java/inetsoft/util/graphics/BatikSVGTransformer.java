@@ -83,7 +83,7 @@ public class BatikSVGTransformer implements Cloneable, SVGTransformer {
          if(viewBox != null) {
             SVGRect rect = viewBox.getBaseVal();
 
-            if(rect != null) {
+            if(rect != null && rect.getWidth() > 0 && rect.getHeight() > 0) {
                this.documentSize = new Dimension((int) rect.getWidth(), (int) rect.getHeight());
             }
          }
