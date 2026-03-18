@@ -187,6 +187,26 @@ describe("SecurityTableViewComponent", () => {
     });
   });
 
+  describe("pasteTooltip", () => {
+    it("should return empty clipboard message when canPaste is false", () => {
+      mockClipboardService.canPaste.mockReturnValue(false);
+      mockClipboardService.copiedCount.mockReturnValue(0);
+      expect(component.pasteTooltip).toBe("_#(js:em.security.clipboard.empty)");
+    });
+
+    it("should return no matching identities message when canPaste is true but pasteCount is 0", () => {
+      mockClipboardService.canPaste.mockReturnValue(true);
+      mockClipboardService.copiedCount.mockReturnValue(0);
+      expect(component.pasteTooltip).toBe("_#(js:em.security.clipboard.noMatchingIdentities)");
+    });
+
+    it("should return empty string when paste is available", () => {
+      mockClipboardService.canPaste.mockReturnValue(true);
+      mockClipboardService.copiedCount.mockReturnValue(3);
+      expect(component.pasteTooltip).toBe("");
+    });
+  });
+
   describe("pasteBadgeLabel", () => {
     it("should return empty string when pasteCount is 0", () => {
       mockClipboardService.copiedCount.mockReturnValue(0);

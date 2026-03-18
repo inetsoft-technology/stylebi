@@ -178,6 +178,18 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
       return this.clipboardService.copiedTotal(this.effectivePasteContext);
    }
 
+   get pasteTooltip(): string {
+      if(!this.canPaste) {
+         return "_#(js:em.security.clipboard.empty)";
+      }
+
+      if(this.pasteCount === 0) {
+         return "_#(js:em.security.clipboard.noMatchingIdentities)";
+      }
+
+      return "";
+   }
+
    get pasteBadgeLabel(): string {
       const count = this.pasteCount;
 

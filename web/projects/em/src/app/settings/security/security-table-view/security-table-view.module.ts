@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { MatButtonModule } from "@angular/material/button";
+import { MatTooltipModule } from "@angular/material/tooltip";
 import { MatCardModule } from "@angular/material/card";
 import { MatCheckboxModule } from "@angular/material/checkbox";
 import { MatIconModule } from "@angular/material/icon";
@@ -44,7 +45,8 @@ import { MessageDialogModule } from "../../../common/util/message-dialog.module"
       MatSnackBarModule,
       SecurityTreeDialogModule,
       MatPaginatorModule,
-      MessageDialogModule
+      MessageDialogModule,
+      MatTooltipModule
    ],
    exports: [
       SecurityTableViewComponent

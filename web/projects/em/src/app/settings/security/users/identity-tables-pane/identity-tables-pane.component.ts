@@ -345,6 +345,8 @@ export class IdentityTablesPaneComponent implements OnChanges {
       identityMap.set(this.getIdentityKey(identity), true);
    }
 
+   // The roles table accepts both the ROLES and MEMBERS clipboard contexts so that a copied
+   // members list can be pasted into the roles table (filtered to ROLE type by rolesPasteTypeFilter).
    readonly rolesPasteTypeFilter: IdentityType[] = [IdentityType.ROLE];
    membersPasteTypeFilter: IdentityType[] | null = null;
 
@@ -358,13 +360,15 @@ export class IdentityTablesPaneComponent implements OnChanges {
    }
 
    pasteMembers(identities: IdentityModel[]): void {
-      this.members = identities;
+      this.members = [];
       this.membersChanged.emit(this.members);
+      this.addMembers(identities);
    }
 
    pasteRoles(identities: IdentityModel[]): void {
-      this.roles = identities;
+      this.roles = [];
       this.rolesChanged.emit(this.roles);
+      this.addRoles(identities);
    }
 
    pastePermittedIdentities(identities: IdentityModel[]): void {

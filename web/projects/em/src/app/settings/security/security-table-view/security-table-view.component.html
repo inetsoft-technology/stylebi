@@ -68,7 +68,8 @@
     </button>
     <button mat-stroked-button
             *ngIf="showCopyPaste && copyPasteContext"
-            [disabled]="!canPaste || pasteCount === 0 || !editable"
+            [disabled]="pasteCount === 0 || !editable"
+            [matTooltip]="pasteTooltip"
             (click)="pasteIdentities()">_#(js:Paste){{pasteBadgeLabel}}
     </button>
   </mat-card-actions>
