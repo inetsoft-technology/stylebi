@@ -119,6 +119,14 @@ public class SetViewsheetInfoCommand implements ViewsheetCommand, InitializingCo
       this.hideNotifications = hideNotifications;
    }
 
+   public String getChatSessionId() {
+      return chatSessionId;
+   }
+
+   public void setChatSessionId(String chatSessionId) {
+      this.chatSessionId = chatSessionId;
+   }
+
    private Map<String, Object> info;
    private Map<String, Object> assemblyInfo;
    private AssetEntry baseEntry;
@@ -130,4 +138,5 @@ public class SetViewsheetInfoCommand implements ViewsheetCommand, InitializingCo
    private String assetId;
    private boolean hasScript;
    private boolean hideNotifications;
+   private String chatSessionId;
 }

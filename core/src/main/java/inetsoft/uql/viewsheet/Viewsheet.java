@@ -172,6 +172,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
       if(wizSheet || wizVisualization) {
          this.wizInfo = wizSheet ? new WizInfo(true) : new WizInfo(true, visualizationSheet, sources);
+         this.chatSessionId = UUID.randomUUID().toString();
       }
    }
 
@@ -1483,6 +1484,8 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          vs.clearCache();
          vs.varmap = null;
          vs.annotationsVisible = annotationsVisible;
+         vs.wizInfo = wizInfo == null ? null : wizInfo.clone();
+         vs.chatSessionId = chatSessionId;
 
          if(imgmap != null) {
             vs.imgmap = new HashMap<>(imgmap);
@@ -4071,6 +4074,10 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          wizInfo.writeXML(writer);
       }
 
+      if(chatSessionId != null) {
+         writer.println("<chatSessionId><![CDATA[" + chatSessionId + "]]></chatSessionId>");
+      }
+
       // the root viewsheet, save bookmarks and images
       if(getViewsheet() == null) {
          List<Map.Entry<String, byte[]>> entries
@@ -4354,6 +4361,8 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       if(wizNode != null) {
          this.wizInfo = WizInfo.parseXML(wizNode);
       }
+
+      this.chatSessionId = Tool.getChildValueByTagName(elem, "chatSessionId");
 
       setVersion(Tool.getChildValueByTagName(elem, "Version"));
       Element vsnode = Tool.getChildNodeByTagName(elem, "viewsheetEntry");
@@ -5524,6 +5533,10 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       return wizInfo;
    }
 
+   public String getChatSessionId() {
+      return chatSessionId;
+   }
+
    public static class WizInfo implements Cloneable {
       public WizInfo(boolean wizSheet) {
          this.wizSheet = wizSheet;
@@ -5729,6 +5742,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
    private boolean maxMode = false;
    private final Map<String, LogbackTraceAppender.StackRecord> rmStacks = new ConcurrentHashMap<>();
    private WizInfo wizInfo;
+   private String chatSessionId;
    private transient boolean snapshotExport = false;
 
    private static final String COLUMN_DELIMITER = "^^";

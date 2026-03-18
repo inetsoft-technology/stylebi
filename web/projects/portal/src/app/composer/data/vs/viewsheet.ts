@@ -50,6 +50,7 @@ export class Viewsheet extends Sheet {
    snapGrid: number;
    metadata: boolean;
    newGroup: boolean;
+   chatSessionId: string;
 
    private removeAssemblySubject: Subject<string> = new Subject<string>();
    private layoutChangeSubject: Subject<any> = new Subject<any>();
