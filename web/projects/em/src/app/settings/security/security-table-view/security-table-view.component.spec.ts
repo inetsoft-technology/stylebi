@@ -47,6 +47,7 @@ describe("SecurityTableViewComponent", () => {
   beforeEach(waitForAsync(() => {
     mockClipboardService = {
       canPaste: jest.fn(() => false),
+      hasContent: jest.fn(() => false),
       copiedCount: jest.fn(() => 0),
       copiedTotal: jest.fn(() => 0),
       copy: jest.fn(),
@@ -189,10 +190,18 @@ describe("SecurityTableViewComponent", () => {
   });
 
   describe("pasteTooltip", () => {
-    it("should return empty clipboard message when canPaste is false", () => {
+    it("should return empty clipboard message when clipboard has no content", () => {
       mockClipboardService.canPaste.mockReturnValue(false);
+      mockClipboardService.hasContent.mockReturnValue(false);
       mockClipboardService.copiedCount.mockReturnValue(0);
       expect(component.pasteTooltip).toBe("_#(js:em.security.clipboard.empty)");
+    });
+
+    it("should return cannot paste here message when clipboard has content but context does not match", () => {
+      mockClipboardService.canPaste.mockReturnValue(false);
+      mockClipboardService.hasContent.mockReturnValue(true);
+      mockClipboardService.copiedCount.mockReturnValue(0);
+      expect(component.pasteTooltip).toBe("_#(js:em.security.clipboard.cannotPasteHere)");
     });
 
     it("should return no matching identities message when canPaste is true but pasteCount is 0", () => {

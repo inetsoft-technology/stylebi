@@ -181,7 +181,9 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
 
    get pasteTooltip(): string {
       if(!this.canPaste) {
-         return "_#(js:em.security.clipboard.empty)";
+         return this.clipboardService.hasContent()
+            ? "_#(js:em.security.clipboard.cannotPasteHere)"
+            : "_#(js:em.security.clipboard.empty)";
       }
 
       if(this.pasteCount === 0) {

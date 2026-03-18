@@ -69,12 +69,24 @@ export class IdentityClipboardService implements OnDestroy {
    }
 
    /**
+    * Returns true if the clipboard has any content, regardless of context.
+    * Use to distinguish an empty clipboard from a context mismatch in UI messages.
+    */
+   hasContent(): boolean {
+      return this.copiedIdentities != null;
+   }
+
+   /**
     * Returns the number of copied identities that would survive a paste into the current target.
     *
     * A row survives if its type is present in {@code typeFilter} and it does not match any entry
     * in {@code excludeIdentities} (matched by type + name). Pass {@code null} to skip either filter.
     */
-   copiedCount(context: IdentityCopyPasteContext | IdentityCopyPasteContext[] | null = null, typeFilter: IdentityType[] | null = null, excludeIdentities: IdentityModel[] | null = null): number {
+   copiedCount(
+      context: IdentityCopyPasteContext | IdentityCopyPasteContext[] | null = null,
+      typeFilter: IdentityType[] | null = null,
+      excludeIdentities: IdentityModel[] | null = null
+   ): number {
       if(!this.canPaste(context)) {
          return 0;
       }

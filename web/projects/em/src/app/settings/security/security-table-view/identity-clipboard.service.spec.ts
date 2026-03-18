@@ -85,6 +85,29 @@ describe("IdentityClipboardService", () => {
       });
    });
 
+   describe("hasContent", () => {
+      it("should be false initially", () => {
+         expect(service.hasContent()).toBe(false);
+      });
+
+      it("should be true after copying identities", () => {
+         service.copy([createIdentity("alice")], COPY_PASTE_CONTEXT_IDENTITY_MEMBERS);
+         expect(service.hasContent()).toBe(true);
+      });
+
+      it("should be true even when paste context does not match the copy context", () => {
+         service.copy([createIdentity("alice")], COPY_PASTE_CONTEXT_IDENTITY_MEMBERS);
+         expect(service.canPaste(COPY_PASTE_CONTEXT_IDENTITY_ROLES)).toBe(false);
+         expect(service.hasContent()).toBe(true);
+      });
+
+      it("should be false after the clipboard is cleared by an org change", () => {
+         service.copy([createIdentity("alice")], COPY_PASTE_CONTEXT_IDENTITY_MEMBERS);
+         orgChangeSubject.next();
+         expect(service.hasContent()).toBe(false);
+      });
+   });
+
    describe("ngOnDestroy", () => {
       it("should stop responding to org change events after destroy", () => {
          service.copy([createIdentity("alice")], COPY_PASTE_CONTEXT_IDENTITY_MEMBERS);
