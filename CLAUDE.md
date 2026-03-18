@@ -39,7 +39,7 @@ npm run verify        # lint + test
 After building, start the server from `docker/target/docker-test`:
 ```bash
 docker compose up -d
-# Access at http://localhost:8080, admin/admin credentials
+# Access at http://localhost:8080, username "admin", password from INETSOFT_ADMIN_PASSWORD env var
 docker compose down --rmi local -v  # Tear down
 ```
 

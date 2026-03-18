@@ -12,7 +12,7 @@ Additionally, the following environment variables are used:
 : This environment variable should be set on the storage, server, and scheduler containers. This variable contains a password that is used to create a PBKDF2 encryption key for storing sensitive information.
 
 `INETSOFT_ADMIN_PASSWORD`
-: This environment variable may be set on the storage container to set the initial administrator password.
+: This environment variable must be set on the storage container to set the initial administrator password. There is no default — the server will not start without it.
 
 ### YAML Configuration
 
@@ -177,7 +177,7 @@ This container is run once when you are starting the application for the first t
 
 The container must be started with a [configuration file](#yaml-configuration) mounted at `/var/lib/inetsoft/config/inetsoft.yaml` or have the equivalent configuration contained in [environment variables](#environment-variable-configuration). It should also have the `INETSOFT_MASTER_PASSWORD` environment variable set to some secret token shared with the other containers.
 
-The storage container also sets the initial administrator password if run with the `INETSOFT_ADMIN_PASSWORD` environment variable.
+The storage container also sets the initial administrator password with the required `INETSOFT_ADMIN_PASSWORD` environment variable.
 
 This container will set the initial value of application properties specified in the environment variables. See the [Application Properties](#application-properties) section for details.
 
