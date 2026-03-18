@@ -36,6 +36,6 @@ public final class AdminCredentialUtil {
             "The INETSOFT_ADMIN_PASSWORD environment variable must be set before starting the server.");
       }
 
-      return password.trim();
+      return password;
    }
 }

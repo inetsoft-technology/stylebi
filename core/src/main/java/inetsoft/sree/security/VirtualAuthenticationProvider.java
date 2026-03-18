@@ -224,8 +224,17 @@ public class VirtualAuthenticationProvider
       DataSpace space = DataSpace.getDataSpace();
 
       if(!space.exists(null, fileName)) {
+         String password = System.getenv("INETSOFT_ADMIN_PASSWORD");
+
+         if(password == null || password.isBlank()) {
+            throw new IllegalStateException(
+               "The security configuration file '" + fileName + "' was not found in the data space " +
+               "and INETSOFT_ADMIN_PASSWORD is not set. " +
+               "Ensure that storage initialization has completed successfully before starting the server.");
+         }
+
          admin = new FSUser(new IdentityID("admin", Organization.getDefaultOrganizationID()));
-         SUtil.setPassword(admin, AdminCredentialUtil.getRequiredAdminPassword());
+         SUtil.setPassword(admin, password.trim());
          admin.setRoles(new IdentityID[] { new IdentityID("Administrator", null) });
          save();
 
