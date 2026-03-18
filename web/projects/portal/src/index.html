@@ -35,7 +35,8 @@
   <link rel="stylesheet" type="text/css" href="../codemirror-eclipse.css" data-th-href="${scriptThemeCssPath}">
   <link rel="stylesheet" type="text/css" href="/sree/portal/font.css" data-th-href="${linkUri + 'portal/font.css'}">
   <link data-th-each="style : ${additionalStyles}" rel="stylesheet" type="text/css" data-th-href="${style}">
-  <script data-th-each="script: ${additionalScripts}"  data-th-src="${script}"></script>
+  <script data-th-each="script: ${additionalScripts}" data-th-src="${script}"></script>
+  <script data-th-if="${not #strings.isEmpty(chatAppScript)}" data-th-src="${chatAppScript}" defer></script>
   <script data-th-inline="javascript">
       globalPostParams = /*[[${postParams}]]*/ null;
   </script>

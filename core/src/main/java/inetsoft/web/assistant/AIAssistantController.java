@@ -21,9 +21,19 @@ package inetsoft.web.assistant;
 import inetsoft.sree.SreeEnv;
 import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import javax.net.ssl.*;
+import java.net.URI;
+import java.net.http.*;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
+import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
 
 @RestController
 public class AIAssistantController {
@@ -118,8 +128,97 @@ public class AIAssistantController {
       return "true".equalsIgnoreCase(SreeEnv.getProperty("chat.app.server.ssl.verify", "false"));
    }
 
+   /**
+    * Checks whether the AI assistant server is currently reachable.
+    *
+    * <p>Always returns HTTP 200 with a boolean body ({@code true} = online, {@code false} =
+    * unreachable). Using a non-error status code avoids triggering any application-level HTTP
+    * interceptors that treat 4xx/5xx as fatal errors.
+    *
+    * <p>Returns 204 No Content when the assistant is not configured at all.
+    * Uses a 3-second connect and read timeout. Non-blocking: the servlet thread is released
+    * immediately while the upstream check runs on the HttpClient's own thread pool.
+    */
+   @GetMapping("/api/assistant/health")
+   public CompletableFuture<ResponseEntity<Boolean>> checkAssistantHealth() {
+      String upstreamBase = resolveUpstreamBase();
+
+      if(upstreamBase == null) {
+         return CompletableFuture.completedFuture(ResponseEntity.noContent().build());
+      }
+
+      String url = upstreamBase.endsWith("/")
+         ? upstreamBase + "health"
+         : upstreamBase + "/health";
+
+      HttpRequest req = HttpRequest.newBuilder()
+         .uri(URI.create(url))
+         .timeout(Duration.ofSeconds(3))
+         .method("HEAD", HttpRequest.BodyPublishers.noBody())
+         .build();
+
+      return HEALTH_CLIENT.sendAsync(req, HttpResponse.BodyHandlers.discarding())
+         .thenApply(r -> ResponseEntity.ok(r.statusCode() < 500))
+         .exceptionally(e -> {
+            LOG.debug("AI assistant health check failed for {}: {}", url, e.getMessage());
+            return ResponseEntity.ok(false);
+         });
+   }
+
+   private String resolveUpstreamBase() {
+      String internalUrl = SreeEnv.getProperty(CHAT_APP_INTERNAL_URL);
+
+      if(internalUrl != null && !internalUrl.trim().isEmpty()) {
+         return internalUrl.trim();
+      }
+
+      String serverUrl = SreeEnv.getProperty(CHAT_APP_SERVER_URL);
+
+      if(serverUrl != null && !serverUrl.trim().isEmpty()) {
+         return serverUrl.trim();
+      }
+
+      return null;
+   }
+
+   private static SSLContext createTrustAllSslContext() {
+      try {
+         TrustManager[] trustAll = {
+            new X509TrustManager() {
+               public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+               public void checkClientTrusted(X509Certificate[] c, String a) {}
+               public void checkServerTrusted(X509Certificate[] c, String a) {}
+            }
+         };
+         SSLContext ctx = SSLContext.getInstance("TLS");
+         ctx.init(null, trustAll, new SecureRandom());
+         return ctx;
+      }
+      catch(Exception e) {
+         throw new RuntimeException("Failed to create trust-all SSL context", e);
+      }
+   }
+
    public static final String CHAT_APP_SERVER_URL = "chat.app.server.url";
    public static final String CHAT_APP_INTERNAL_URL = "chat.app.internal.url";
    public static final String PROXY_PATH_PREFIX = "/api/assistant/proxy";
    public static final String AI_ASSISTANT_VISIBLE = "portal.ai.assistant.visible";
+   private static final Logger LOG = LoggerFactory.getLogger(AIAssistantController.class);
+
+   /**
+    * Shared HttpClient for health checks. Initialized once at class load since
+    * {@code chat.app.server.ssl.verify} requires a server restart to take effect.
+    */
+   private static final HttpClient HEALTH_CLIENT;
+
+   static {
+      HttpClient.Builder builder = HttpClient.newBuilder()
+         .connectTimeout(Duration.ofSeconds(3));
+
+      if(!isSslVerifyEnabled()) {
+         builder.sslContext(createTrustAllSslContext());
+      }
+
+      HEALTH_CLIENT = builder.build();
+   }
 }

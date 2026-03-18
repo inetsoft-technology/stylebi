@@ -154,6 +154,20 @@
   min-height: 0;
 }
 
+.assistant-server-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 24px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.assistant-server-offline {
+  color: var(--inet-danger-color);
+}
+
 // ::ng-deep is required here because #assistant-root lives inside the <ai-assistant>
 // custom element (web component), which uses its own shadow-like encapsulation that
 // Angular's view encapsulation cannot pierce with normal scoped selectors.

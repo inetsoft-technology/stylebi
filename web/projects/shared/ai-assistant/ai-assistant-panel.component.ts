@@ -17,6 +17,7 @@
  */
 
 import { Component, HostListener, NgZone, OnDestroy, OnInit, Renderer2 } from "@angular/core";
+import { Subscription } from "rxjs";
 import { AiAssistantService } from "./ai-assistant.service";
 
 type PanelMode = "side" | "bottom";
@@ -39,6 +40,7 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
    mode: PanelMode = "side";
    sideWidth: number = DEFAULT_SIDE_WIDTH;
    bottomHeight: number = DEFAULT_BOTTOM_HEIGHT;
+   serverState: "checking" | "online" | "offline" = "checking";
 
    readonly panelOpen$ = this.aiAssistantService.panelOpen$;
 
@@ -46,6 +48,8 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
    private dragStartPos = 0;
    private dragStartSize = 0;
    private unlisten: (() => void)[] = [];
+   private healthSub: Subscription | null = null;
+   private panelOpenSub: Subscription | null = null;
 
    constructor(
       private aiAssistantService: AiAssistantService,
@@ -54,6 +58,16 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
    ) {}
 
    ngOnInit(): void {
+      this.panelOpenSub = this.aiAssistantService.panelOpen$.subscribe(open => {
+         if(open) {
+            this.serverState = "checking";
+            this.healthSub?.unsubscribe();
+            this.healthSub = this.aiAssistantService.checkHealth().subscribe(online => {
+               this.serverState = online ? "online" : "offline";
+            });
+         }
+      });
+
       try {
          const savedMode = localStorage.getItem(LS_MODE_KEY) as PanelMode;
 
@@ -82,6 +96,8 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
 
    ngOnDestroy(): void {
       this.unlisten.forEach(fn => fn());
+      this.healthSub?.unsubscribe();
+      this.panelOpenSub?.unsubscribe();
    }
 
    close(): void {
