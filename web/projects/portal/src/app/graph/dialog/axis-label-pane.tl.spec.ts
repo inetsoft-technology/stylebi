@@ -57,8 +57,11 @@ function createModel(overrides: Partial<AxisLabelPaneModel> = {}): AxisLabelPane
 }
 
 async function renderPane(modelOverrides: Partial<AxisLabelPaneModel> = {}) {
-   const model = createModel(modelOverrides);
+   return renderPaneWithModel(createModel(modelOverrides));
+}
 
+// Escape-hatch for tests that need a pre-built model (e.g. after deleting optional keys)
+async function renderPaneWithModel(model: AxisLabelPaneModel) {
    return render(AxisLabelPane, {
       imports: [CommonModule, FormsModule, NgbModule],
       providers: [NgbModal],
@@ -86,12 +89,7 @@ describe("AxisLabelPane — Labels on Opposite Side — visibility (Feature #726
       const model = createModel();
       delete model.secondary;
 
-      await render(AxisLabelPane, {
-         imports: [CommonModule, FormsModule, NgbModule],
-         providers: [NgbModal],
-         schemas: [NO_ERRORS_SCHEMA],
-         componentProperties: { model },
-      });
+      await renderPaneWithModel(model);
 
       expect(screen.getByLabelText(LABEL_TEXT)).toBeInTheDocument();
    });
@@ -127,14 +125,7 @@ describe("AxisLabelPane — Labels on Opposite Side — initial state (Feature #
    // TC-30: Old dashboard without the field — null treated as false
    it("should render checkbox as unchecked when labelOnSecondaryAxis is null", async () => {
       // Simulates loading a dashboard saved before Feature #72694 was merged
-      const model = createModel({ labelOnSecondaryAxis: null as unknown as boolean });
-
-      await render(AxisLabelPane, {
-         imports: [CommonModule, FormsModule, NgbModule],
-         providers: [NgbModal],
-         schemas: [NO_ERRORS_SCHEMA],
-         componentProperties: { model },
-      });
+      await renderPane({ labelOnSecondaryAxis: null as unknown as boolean });
 
       expect(screen.getByLabelText(LABEL_TEXT)).not.toBeChecked();
    });
@@ -146,34 +137,34 @@ describe("AxisLabelPane — Labels on Opposite Side — initial state (Feature #
 
 describe("AxisLabelPane — Labels on Opposite Side — user interaction (Feature #72694)", () => {
 
-   // TC-01: Check the box → model.labelOnSecondaryAxis becomes true
+   // TC-01: Check the box → checkbox becomes checked
    it("should set model.labelOnSecondaryAxis to true when user checks the checkbox", async () => {
       const user = userEvent.setup();
-      const { fixture } = await renderPane({ labelOnSecondaryAxis: false });
+      await renderPane({ labelOnSecondaryAxis: false });
 
       await user.click(screen.getByLabelText(LABEL_TEXT));
 
-      expect(fixture.componentInstance.model.labelOnSecondaryAxis).toBe(true);
+      expect(screen.getByLabelText(LABEL_TEXT)).toBeChecked();
    });
 
-   // TC-01: Uncheck the box → model.labelOnSecondaryAxis becomes false
+   // TC-01: Uncheck the box → checkbox becomes unchecked
    it("should set model.labelOnSecondaryAxis to false when user unchecks the checkbox", async () => {
       const user = userEvent.setup();
-      const { fixture } = await renderPane({ labelOnSecondaryAxis: true });
+      await renderPane({ labelOnSecondaryAxis: true });
 
       await user.click(screen.getByLabelText(LABEL_TEXT));
 
-      expect(fixture.componentInstance.model.labelOnSecondaryAxis).toBe(false);
+      expect(screen.getByLabelText(LABEL_TEXT)).not.toBeChecked();
    });
 
-   // TC-01 baseline: "Show Axis Labels" checkbox also updates its model field correctly
+   // TC-01 baseline: "Show Axis Labels" checkbox becomes unchecked after toggle
    it("should update model.showAxisLabel when user toggles Show Axis Labels", async () => {
       const user = userEvent.setup();
-      const { fixture } = await renderPane({ showAxisLabel: true });
+      await renderPane({ showAxisLabel: true });
 
       await user.click(screen.getByLabelText(SHOW_AXIS_LABEL_TEXT));
 
-      expect(fixture.componentInstance.model.showAxisLabel).toBe(false);
+      expect(screen.getByLabelText(SHOW_AXIS_LABEL_TEXT)).not.toBeChecked();
    });
 });
 
