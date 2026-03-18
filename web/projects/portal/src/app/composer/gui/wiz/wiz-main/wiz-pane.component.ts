@@ -9,6 +9,7 @@ import {
 } from "../new-visualization-dialog/new-visualization-dialog.component";
 import { WizService } from "../services/wiz.service";
 import { FontService } from "../../../../widget/services/font.service";
+import { CloseSheetEvent } from "../../vs/event/close-sheet-event";
 
 let wizDashboardCounter = 1;
 
@@ -46,6 +47,7 @@ export class WizPane implements OnInit, OnDestroy {
    ngOnInit(): void {
       this.subscriptions.add(
          this.wizService.exitVisualization.subscribe(() => {
+            this.closeVisualizationOnServer(this._currentVisualization);
             this._currentVisualization = null;
          })
       );
@@ -53,6 +55,12 @@ export class WizPane implements OnInit, OnDestroy {
 
    ngOnDestroy(): void {
       this.subscriptions.unsubscribe();
+   }
+
+   private closeVisualizationOnServer(vs: WizDashboard): void {
+      if(vs?.runtimeId && vs?.socketConnection) {
+         vs.socketConnection.sendEvent("/events/composer/viewsheet/close", new CloseSheetEvent(true));
+      }
    }
 
    createVisualization(value: string) {

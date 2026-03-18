@@ -19,7 +19,7 @@
 package inetsoft.web.composer.wiz.controller;
 
 import inetsoft.web.composer.model.TreeNodeModel;
-import inetsoft.web.composer.wiz.service.VisualizationService;
+import inetsoft.web.composer.wiz.service.VisualizationServiceProxy;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import org.springframework.web.bind.annotation.*;
@@ -28,8 +28,8 @@ import java.security.Principal;
 
 @RestController
 public class VisualizationController {
-   public VisualizationController(VisualizationService visualizationService) {
-      this.visualizationService = visualizationService;
+   public VisualizationController(VisualizationServiceProxy visualizationServiceProxy) {
+      this.visualizationServiceProxy = visualizationServiceProxy;
    }
 
    @GetMapping(value = "/api/composer/wiz/visualizations")
@@ -44,8 +44,8 @@ public class VisualizationController {
       String runtimeId,
       Principal principal) throws Exception
    {
-      return visualizationService.getVisualizations(runtimeId, principal);
+      return visualizationServiceProxy.getVisualizations(runtimeId, principal);
    }
 
-   private final VisualizationService visualizationService;
+   private final VisualizationServiceProxy visualizationServiceProxy;
 }
