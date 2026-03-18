@@ -23,16 +23,35 @@ import { MatExpansionModule } from "@angular/material/expansion";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatIconModule } from "@angular/material/icon";
 import { MatPaginatorModule } from "@angular/material/paginator";
+import { MatSnackBarModule } from "@angular/material/snack-bar";
 import { MatTableModule } from "@angular/material/table";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
+import { of } from "rxjs";
+import { IdentityType } from "../../../../../../shared/data/identity-type";
+import { MatSnackBar } from "@angular/material/snack-bar";
 import { SecurityTreeDialogModule } from "../security-tree-dialog/security-tree-dialog.module";
+import { IdentityModel } from "./identity-model";
 import { SecurityTableViewComponent } from "./security-table-view.component";
+import { IdentityClipboardService, COPY_PASTE_CONTEXT_IDENTITY_MEMBERS, COPY_PASTE_CONTEXT_IDENTITY_ROLES } from "./identity-clipboard.service";
 
 describe("SecurityTableViewComponent", () => {
   let component: SecurityTableViewComponent;
   let fixture: ComponentFixture<SecurityTableViewComponent>;
+  let mockClipboardService: any;
+
+  function makeIdentity(name: string): IdentityModel {
+    return { identityID: { name, orgID: null }, type: IdentityType.USER };
+  }
 
   beforeEach(async(() => {
+    mockClipboardService = {
+      canPaste: jest.fn(() => false),
+      copiedCount: jest.fn(() => 0),
+      copiedTotal: jest.fn(() => 0),
+      copy: jest.fn(),
+      paste: jest.fn(() => null)
+    };
+
     TestBed.configureTestingModule({
       imports: [
         NoopAnimationsModule,
@@ -43,10 +62,14 @@ describe("SecurityTableViewComponent", () => {
         MatFormFieldModule,
         MatCardModule,
         MatIconModule,
+        MatSnackBarModule,
         SecurityTreeDialogModule,
         MatPaginatorModule
       ],
-      declarations: [ SecurityTableViewComponent ]
+      declarations: [ SecurityTableViewComponent ],
+      providers: [
+        { provide: IdentityClipboardService, useValue: mockClipboardService }
+      ]
     })
     .compileComponents();
   }));
@@ -59,5 +82,127 @@ describe("SecurityTableViewComponent", () => {
 
   it("should create", () => {
     expect(component).toBeTruthy();
+  });
+
+  describe("copyIdentities", () => {
+    beforeEach(() => {
+      component.copyPasteContext = COPY_PASTE_CONTEXT_IDENTITY_MEMBERS;
+    });
+
+    it("should copy all rows when nothing is selected", () => {
+      const alice = makeIdentity("alice");
+      const bob = makeIdentity("bob");
+      component.dataSource = [alice, bob];
+      component.ngOnChanges({ dataSource: { currentValue: [alice, bob], previousValue: null, firstChange: true, isFirstChange: () => true } });
+
+      component.copyIdentities();
+
+      expect(mockClipboardService.copy).toHaveBeenCalledWith([alice, bob], COPY_PASTE_CONTEXT_IDENTITY_MEMBERS);
+    });
+
+    it("should copy only selected rows when selection is non-empty", () => {
+      const alice = makeIdentity("alice");
+      const bob = makeIdentity("bob");
+      component.dataSource = [alice, bob];
+      component.ngOnChanges({ dataSource: { currentValue: [alice, bob], previousValue: null, firstChange: true, isFirstChange: () => true } });
+      component.selection.select(alice);
+
+      component.copyIdentities();
+
+      expect(mockClipboardService.copy).toHaveBeenCalledWith([alice], COPY_PASTE_CONTEXT_IDENTITY_MEMBERS);
+    });
+
+    it("should show snack bar after copying", () => {
+      const snackBar = TestBed.inject(MatSnackBar);
+      const snackSpy = jest.spyOn(snackBar, "open");
+      component.dataSource = [makeIdentity("alice")];
+      component.ngOnChanges({ dataSource: { currentValue: component.dataSource, previousValue: null, firstChange: true, isFirstChange: () => true } });
+
+      component.copyIdentities();
+
+      expect(snackSpy).toHaveBeenCalled();
+    });
+
+    it("should do nothing when copyPasteContext is null", () => {
+      component.copyPasteContext = null;
+      component.dataSource = [makeIdentity("alice")];
+      component.ngOnChanges({ dataSource: { currentValue: component.dataSource, previousValue: null, firstChange: true, isFirstChange: () => true } });
+
+      component.copyIdentities();
+
+      expect(mockClipboardService.copy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("pasteIdentities", () => {
+    it("should not open dialog when clipboard is empty", () => {
+      mockClipboardService.paste.mockReturnValue(null);
+      const dialogSpy = jest.spyOn(component["dialog"], "open");
+
+      component.pasteIdentities();
+
+      expect(dialogSpy).not.toHaveBeenCalled();
+    });
+
+    it("should emit pasteReplaceIdentities when dialog is confirmed", () => {
+      const identities = [makeIdentity("alice")];
+      mockClipboardService.paste.mockReturnValue(identities);
+      jest.spyOn(component["dialog"], "open").mockReturnValue({ afterClosed: () => of(true) } as any);
+
+      const emitted: IdentityModel[][] = [];
+      component.pasteReplaceIdentities.subscribe(v => emitted.push(v));
+
+      component.pasteIdentities();
+
+      expect(emitted.length).toBe(1);
+      expect(emitted[0]).toEqual(identities);
+    });
+
+    it("should not emit pasteReplaceIdentities when dialog is cancelled", () => {
+      const identities = [makeIdentity("alice")];
+      mockClipboardService.paste.mockReturnValue(identities);
+      jest.spyOn(component["dialog"], "open").mockReturnValue({ afterClosed: () => of(false) } as any);
+
+      const emitted: IdentityModel[][] = [];
+      component.pasteReplaceIdentities.subscribe(v => emitted.push(v));
+
+      component.pasteIdentities();
+
+      expect(emitted.length).toBe(0);
+    });
+
+    it("should use pasteContexts instead of copyPasteContext when set", () => {
+      component.copyPasteContext = COPY_PASTE_CONTEXT_IDENTITY_MEMBERS;
+      component.pasteContexts = [COPY_PASTE_CONTEXT_IDENTITY_ROLES, COPY_PASTE_CONTEXT_IDENTITY_MEMBERS];
+      const identities = [makeIdentity("alice")];
+      mockClipboardService.paste.mockReturnValue(identities);
+      jest.spyOn(component["dialog"], "open").mockReturnValue({ afterClosed: () => of(true) } as any);
+
+      component.pasteIdentities();
+
+      expect(mockClipboardService.paste).toHaveBeenCalledWith(
+        [COPY_PASTE_CONTEXT_IDENTITY_ROLES, COPY_PASTE_CONTEXT_IDENTITY_MEMBERS],
+        null
+      );
+    });
+  });
+
+  describe("pasteBadgeLabel", () => {
+    it("should return empty string when pasteCount is 0", () => {
+      mockClipboardService.copiedCount.mockReturnValue(0);
+      expect(component.pasteBadgeLabel).toBe("");
+    });
+
+    it("should return '(N)' when count equals total", () => {
+      mockClipboardService.copiedCount.mockReturnValue(3);
+      mockClipboardService.copiedTotal.mockReturnValue(3);
+      expect(component.pasteBadgeLabel).toBe(" (3)");
+    });
+
+    it("should return '(N of M)' when typeFilter reduces the count below total", () => {
+      mockClipboardService.copiedCount.mockReturnValue(2);
+      mockClipboardService.copiedTotal.mockReturnValue(5);
+      expect(component.pasteBadgeLabel).toBe(" (2 of 5)");
+    });
   });
 });

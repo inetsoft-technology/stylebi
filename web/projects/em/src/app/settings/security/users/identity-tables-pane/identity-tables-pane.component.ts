@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, Output } from "@angular/core";
+import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from "@angular/core";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { IdentityModel } from "../../security-table-view/identity-model";
 import { IdentityType } from "../../../../../../../shared/data/identity-type";
@@ -24,13 +24,18 @@ import { PropertyModel } from "../../property-table-view/property-model";
 import { MessageDialog, MessageDialogType } from "../../../../common/util/message-dialog";
 import { MatDialog } from "@angular/material/dialog";
 import {convertToKey, IdentityId} from "../identity-id";
+import {
+   COPY_PASTE_CONTEXT_IDENTITY_MEMBERS,
+   COPY_PASTE_CONTEXT_IDENTITY_PERMISSIONS,
+   COPY_PASTE_CONTEXT_IDENTITY_ROLES
+} from "../../security-table-view/identity-clipboard.service";
 
 @Component({
    selector: "em-identity-tables-pane",
    templateUrl: "./identity-tables-pane.component.html",
    styleUrls: ["./identity-tables-pane.component.scss"]
 })
-export class IdentityTablesPaneComponent {
+export class IdentityTablesPaneComponent implements OnChanges {
    @Input() name: string;
    @Input() globalRole: boolean = false;
    @Input() type: number;
@@ -60,7 +65,17 @@ export class IdentityTablesPaneComponent {
       return this._provider;
    }
 
+   readonly copyPasteContextMembers = COPY_PASTE_CONTEXT_IDENTITY_MEMBERS;
+   readonly copyPasteContextRoles = COPY_PASTE_CONTEXT_IDENTITY_ROLES;
+   readonly copyPasteContextPermissions = COPY_PASTE_CONTEXT_IDENTITY_PERMISSIONS;
+
    constructor(private dialog: MatDialog) {
+   }
+
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes.type) {
+         this.membersPasteTypeFilter = this.computeMembersPasteTypeFilter();
+      }
    }
 
    get userTableLabel(): string {
@@ -328,6 +343,33 @@ export class IdentityTablesPaneComponent {
 
    private addToIdentityMap(identityMap: Map<string, boolean>, identity: IdentityModel) {
       identityMap.set(this.getIdentityKey(identity), true);
+   }
+
+   readonly rolesPasteTypeFilter: IdentityType[] = [IdentityType.ROLE];
+   membersPasteTypeFilter: IdentityType[] | null = null;
+
+   private computeMembersPasteTypeFilter(): IdentityType[] | null {
+      switch(this.type) {
+         case IdentityType.USER: return [IdentityType.GROUP];
+         case IdentityType.GROUP:
+         case IdentityType.ROLE: return [IdentityType.USER, IdentityType.GROUP];
+         default: return null;  // ORGANIZATION: accept all member types
+      }
+   }
+
+   pasteMembers(identities: IdentityModel[]): void {
+      this.members = identities;
+      this.membersChanged.emit(this.members);
+   }
+
+   pasteRoles(identities: IdentityModel[]): void {
+      this.roles = identities;
+      this.rolesChanged.emit(this.roles);
+   }
+
+   pastePermittedIdentities(identities: IdentityModel[]): void {
+      this.permittedIdentities = identities;
+      this.permittedIdentitiesChanged.emit(this.permittedIdentities);
    }
 
    protected readonly IdentityType = IdentityType;

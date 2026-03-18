@@ -24,9 +24,13 @@
                           [dialogData]="type == 0 ? groupsType : type == 1 || type == 2 ? membersType : allMembersType"
                           [dataSource]="members"
                           [editable]="editable"
+                          [showCopyPaste]="true"
+                          [copyPasteContext]="copyPasteContextMembers"
+                          [pasteTypeFilter]="membersPasteTypeFilter"
                           (dropOnTable)="addMembers([$event])"
                           (addIdentities)="addMembers($event)"
-                          (removeSelection)="removeMembers($event)">
+                          (removeSelection)="removeMembers($event)"
+                          (pasteReplaceIdentities)="pasteMembers($event)">
   </em-security-table-view>
   <em-security-table-view *ngIf="!root && type != IdentityType.ORGANIZATION"
                           [name]="name"
@@ -36,9 +40,14 @@
                           [dialogData]="rolesType"
                           [dataSource]="roles"
                           [editable]="editable"
+                          [showCopyPaste]="true"
+                          [copyPasteContext]="copyPasteContextRoles"
+                          [pasteContexts]="[copyPasteContextRoles, copyPasteContextMembers]"
+                          [pasteTypeFilter]="rolesPasteTypeFilter"
                           (dropOnTable)="addRoles([$event])"
                           (addIdentities)="addRoles($event)"
-                          (removeSelection)="removeRoles($event)">
+                          (removeSelection)="removeRoles($event)"
+                          (pasteReplaceIdentities)="pasteRoles($event)">
   </em-security-table-view>
   <em-security-table-view *ngIf="root || type != IdentityType.ROLE" [name]="name"
                           [globalRole]="globalRole"
@@ -47,9 +56,12 @@
                           [dialogData]="permissionsType"
                           [dataSource]="permittedIdentities"
                           [editable]="editable"
+                          [showCopyPaste]="true"
+                          [copyPasteContext]="copyPasteContextPermissions"
                           (dropOnTable)="addPermittedIdentities([$event])"
                           (addIdentities)="addPermittedIdentities($event)"
-                          (removeSelection)="removePermittedIdentities($event)">
+                          (removeSelection)="removePermittedIdentities($event)"
+                          (pasteReplaceIdentities)="pastePermittedIdentities($event)">
   </em-security-table-view>
   <em-property-table-view *ngIf="!root && type==IdentityType.ORGANIZATION"
                           [name]="name"

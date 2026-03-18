@@ -61,5 +61,15 @@
     <button mat-raised-button (click)="removeSelection.emit(selection.selected)"
             [disabled]="!selection || selection.selected.length == 0 || !editable">_#(Remove)
     </button>
+    <button mat-stroked-button
+            *ngIf="showCopyPaste && copyPasteContext"
+            [disabled]="!dataSource?.length"
+            (click)="copyIdentities()">_#(js:Copy)
+    </button>
+    <button mat-stroked-button
+            *ngIf="showCopyPaste && copyPasteContext"
+            [disabled]="!canPaste || pasteCount === 0 || !editable"
+            (click)="pasteIdentities()">_#(js:Paste){{pasteBadgeLabel}}
+    </button>
   </mat-card-actions>
 </mat-card>

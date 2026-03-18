@@ -28,6 +28,9 @@ import { IdentityType } from "../../../../../../shared/data/identity-type";
 import { SecurityTreeDialogComponent } from "../security-tree-dialog/security-tree-dialog.component";
 import { SecurityTreeDialogData } from "../security-tree-dialog/security-tree-dialog-data";
 import { MatPaginator } from "@angular/material/paginator";
+import { MatSnackBar } from "@angular/material/snack-bar";
+import { IdentityClipboardService, IdentityCopyPasteContext } from "./identity-clipboard.service";
+import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 
 @Component({
    selector: "em-security-table-view",
@@ -42,15 +45,22 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
    @Input() dialogData: SecurityTreeDialogData;
    @Input() dataSource: IdentityModel[] = [];
    @Input() editable: boolean = true;
+   @Input() showCopyPaste = false;
+   @Input() copyPasteContext: IdentityCopyPasteContext | null = null;
+   @Input() pasteContexts: IdentityCopyPasteContext | IdentityCopyPasteContext[] | null = null;
+   @Input() pasteTypeFilter: IdentityType[] | null = null;
    @Output() addIdentities = new EventEmitter<IdentityModel[]>();
    @Output() removeSelection = new EventEmitter<IdentityModel[]>();
    @Output() dropOnTable = new EventEmitter<IdentityModel>();
+   @Output() pasteReplaceIdentities = new EventEmitter<IdentityModel[]>();
    @ViewChild(MatPaginator, { static: true }) paginator: MatPaginator;
    matTableDataSource: MatTableDataSource<IdentityModel>;
    displayColumns: string[] = ["selected", "type", "name"];
    selection = new SelectionModel<IdentityModel>(true, []);
 
-   constructor(private dialog: MatDialog) { }
+   constructor(private dialog: MatDialog,
+               private clipboardService: IdentityClipboardService,
+               private snackBar: MatSnackBar) { }
 
    ngOnChanges(changes: SimpleChanges) {
       if(changes.dataSource) {
@@ -150,5 +160,64 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
       this.isAllSelected() ?
          this.selection.clear() :
          this.matTableDataSource.data.forEach(row => this.selection.select(row));
+   }
+
+   private get effectivePasteContext(): IdentityCopyPasteContext | IdentityCopyPasteContext[] | null {
+      return this.pasteContexts ?? this.copyPasteContext;
+   }
+
+   get canPaste(): boolean {
+      return this.clipboardService.canPaste(this.effectivePasteContext);
+   }
+
+   get pasteCount(): number {
+      return this.clipboardService.copiedCount(this.effectivePasteContext, this.pasteTypeFilter);
+   }
+
+   get pasteTotal(): number {
+      return this.clipboardService.copiedTotal(this.effectivePasteContext);
+   }
+
+   get pasteBadgeLabel(): string {
+      const count = this.pasteCount;
+
+      if(count === 0) {
+         return "";
+      }
+
+      const total = this.pasteTotal;
+      return ` (${count}${total > count ? ` of ${total}` : ""})`;
+   }
+
+   copyIdentities(): void {
+      if(!this.copyPasteContext) {
+         return;
+      }
+
+      const selected = this.selection.selected;
+      const toCopy = selected.length > 0 ? selected : this.dataSource;
+      this.clipboardService.copy(toCopy, this.copyPasteContext);
+      this.snackBar.open("_#(js:em.security.identitiesCopied)", null, { duration: Tool.SNACKBAR_DURATION });
+   }
+
+   pasteIdentities(): void {
+      const pasted = this.clipboardService.paste(this.effectivePasteContext, this.pasteTypeFilter);
+
+      if(!pasted) {
+         return;
+      }
+
+      this.dialog.open(MessageDialog, {
+         width: "350px",
+         data: {
+            title: "_#(js:Paste)",
+            content: "_#(js:em.security.pasteIdentities.confirm)",
+            type: MessageDialogType.CONFIRMATION
+         }
+      }).afterClosed().subscribe(confirmed => {
+         if(confirmed) {
+            this.pasteReplaceIdentities.emit(pasted);
+         }
+      });
    }
 }

@@ -19,6 +19,7 @@ import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
 import { MatCheckboxModule } from "@angular/material/checkbox";
 import { MatIconModule } from "@angular/material/icon";
+import { MatSnackBarModule } from "@angular/material/snack-bar";
 import { MatSortModule } from "@angular/material/sort";
 import { MatTableModule } from "@angular/material/table";
 import { FormsModule } from "@angular/forms";
@@ -28,6 +29,8 @@ import { LocalizedMatPaginator } from "../../../../../../shared/util/localized-m
 import { SecurityTableViewComponent } from "./security-table-view.component";
 import { SecurityTreeDialogModule } from "../security-tree-dialog/security-tree-dialog.module";
 import { MatPaginatorIntl, MatPaginatorModule } from "@angular/material/paginator";
+import { MessageDialogModule } from "../../../common/util/message-dialog.module";
+
 @NgModule({
    imports: [
       CommonModule,
@@ -38,8 +41,10 @@ import { MatPaginatorIntl, MatPaginatorModule } from "@angular/material/paginato
       MatCheckboxModule,
       MatCardModule,
       MatIconModule,
+      MatSnackBarModule,
       SecurityTreeDialogModule,
-      MatPaginatorModule
+      MatPaginatorModule,
+      MessageDialogModule
    ],
    exports: [
       SecurityTableViewComponent
