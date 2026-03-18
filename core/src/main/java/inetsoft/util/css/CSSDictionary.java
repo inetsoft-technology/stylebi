@@ -254,7 +254,10 @@ public class CSSDictionary {
       Map<String, String> cssEntries = PortalThemesManager.getManager().getCssEntries();
       String orgFile = cssEntries.get(OrganizationManager.getInstance().getCurrentOrgID());
       List<String> otherFiles = new ArrayList<>();
-      otherFiles.add(orgFile);
+
+      if(orgFile != null) {
+         otherFiles.add(orgFile);
+      }
 
       if(!Tool.equals(otherFiles, dict.otherFiles)) {
          return System.currentTimeMillis();
@@ -777,6 +780,8 @@ public class CSSDictionary {
     * Check if the type is present in CSS file
     */
    public boolean checkPresent(String type) {
+      CascadingStyleSheet css = this.css;
+
       if(css != null) {
          Boolean present = selectorPresentCache.get(type);
 
@@ -806,6 +811,7 @@ public class CSSDictionary {
     */
    private void initCSSIDs() {
       idMap.clear();
+      CascadingStyleSheet css = this.css;
 
       if(css == null) {
          return;
@@ -847,6 +853,7 @@ public class CSSDictionary {
     */
    private void initCSSClasses() {
       classMap.clear();
+      CascadingStyleSheet css = this.css;
 
       if(css == null) {
          return;
@@ -918,6 +925,7 @@ public class CSSDictionary {
                                             String attrName)
    {
       Set<String> attrValues = new LinkedHashSet<>();
+      CascadingStyleSheet css = this.css;
 
       if(css == null) {
          return attrValues;
@@ -2219,7 +2227,8 @@ public class CSSDictionary {
          }
 
          MapKey mapKey = (MapKey) o;
-         return (isReport == mapKey.isReport && Objects.equals(orgId, mapKey.orgId) || !isReport) &&
+         return isReport == mapKey.isReport &&
+            Objects.equals(orgId, mapKey.orgId) &&
             Objects.equals(cssDir, mapKey.cssDir) &&
             Objects.equals(cssFile, mapKey.cssFile);
       }
