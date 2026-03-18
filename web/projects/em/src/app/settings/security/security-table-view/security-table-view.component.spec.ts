@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { CommonModule } from "@angular/common";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
 import { MatCardModule } from "@angular/material/card";
 import { MatCheckboxModule } from "@angular/material/checkbox";
@@ -44,7 +44,7 @@ describe("SecurityTableViewComponent", () => {
     return { identityID: { name, orgID: null }, type: IdentityType.USER };
   }
 
-  beforeEach(async(() => {
+  beforeEach(waitForAsync(() => {
     mockClipboardService = {
       canPaste: jest.fn(() => false),
       copiedCount: jest.fn(() => 0),

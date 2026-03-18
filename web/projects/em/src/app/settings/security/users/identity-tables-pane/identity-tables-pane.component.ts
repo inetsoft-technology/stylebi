@@ -69,6 +69,10 @@ export class IdentityTablesPaneComponent implements OnChanges {
    readonly copyPasteContextRoles = COPY_PASTE_CONTEXT_IDENTITY_ROLES;
    readonly copyPasteContextPermissions = COPY_PASTE_CONTEXT_IDENTITY_PERMISSIONS;
 
+   get selfIdentity(): IdentityModel[] {
+      return this.name ? [{ identityID: { name: this.name, orgID: null }, type: this.type }] : [];
+   }
+
    constructor(private dialog: MatDialog) {
    }
 
@@ -347,6 +351,8 @@ export class IdentityTablesPaneComponent implements OnChanges {
 
    // The roles table accepts both the ROLES and MEMBERS clipboard contexts so that a copied
    // members list can be pasted into the roles table (filtered to ROLE type by rolesPasteTypeFilter).
+   // pasteTypeFilter is a first pass (type restriction); addMembers/addRoles do a second pass for
+   // runtime guards (self-reference, deduplication) that the stateless clipboard service can't check.
    readonly rolesPasteTypeFilter: IdentityType[] = [IdentityType.ROLE];
    membersPasteTypeFilter: IdentityType[] | null = null;
 

@@ -71,19 +71,21 @@ export class IdentityClipboardService implements OnDestroy {
    /**
     * Returns the number of copied identities that would survive a paste into the current target.
     *
-    * A row survives if its type is present in {@code typeFilter}.
-    * Passing {@code null} (or omitting the argument) means no filtering — all rows are counted.
+    * A row survives if its type is present in {@code typeFilter} and it does not match any entry
+    * in {@code excludeIdentities} (matched by type + name). Pass {@code null} to skip either filter.
     */
-   copiedCount(context: IdentityCopyPasteContext | IdentityCopyPasteContext[] | null = null, typeFilter: IdentityType[] | null = null): number {
+   copiedCount(context: IdentityCopyPasteContext | IdentityCopyPasteContext[] | null = null, typeFilter: IdentityType[] | null = null, excludeIdentities: IdentityModel[] | null = null): number {
       if(!this.canPaste(context)) {
          return 0;
       }
 
-      if(typeFilter == null) {
-         return this.copiedIdentities.length;
+      let result = typeFilter == null ? this.copiedIdentities : this.copiedIdentities.filter(i => typeFilter.includes(i.type));
+
+      if(excludeIdentities != null && excludeIdentities.length > 0) {
+         result = result.filter(i => !excludeIdentities.some(e => e.type === i.type && e.identityID.name === i.identityID.name));
       }
 
-      return this.copiedIdentities.filter(i => typeFilter.includes(i.type)).length;
+      return result.length;
    }
 
    /**

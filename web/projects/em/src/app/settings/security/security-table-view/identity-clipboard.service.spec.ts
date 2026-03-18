@@ -140,6 +140,21 @@ describe("IdentityClipboardService", () => {
          service.copy([createIdentity("alice", IdentityType.USER)], COPY_PASTE_CONTEXT_IDENTITY_MEMBERS);
          expect(service.copiedCount(COPY_PASTE_CONTEXT_IDENTITY_MEMBERS, [IdentityType.ROLE])).toBe(0);
       });
+
+      it("should exclude identities matching excludeIdentities by type and name", () => {
+         service.copy([
+            createIdentity("alice", IdentityType.USER),
+            createIdentity("admins", IdentityType.GROUP)
+         ], COPY_PASTE_CONTEXT_IDENTITY_MEMBERS);
+         const exclude = [createIdentity("alice", IdentityType.USER)];
+         expect(service.copiedCount(COPY_PASTE_CONTEXT_IDENTITY_MEMBERS, null, exclude)).toBe(1);
+      });
+
+      it("should not exclude identities whose type differs even if name matches", () => {
+         service.copy([createIdentity("alice", IdentityType.USER)], COPY_PASTE_CONTEXT_IDENTITY_MEMBERS);
+         const exclude = [createIdentity("alice", IdentityType.GROUP)];
+         expect(service.copiedCount(COPY_PASTE_CONTEXT_IDENTITY_MEMBERS, null, exclude)).toBe(1);
+      });
    });
 
    describe("copiedTotal", () => {

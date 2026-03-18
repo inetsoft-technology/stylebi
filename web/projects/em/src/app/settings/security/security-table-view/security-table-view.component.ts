@@ -49,6 +49,7 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
    @Input() copyPasteContext: IdentityCopyPasteContext | null = null;
    @Input() pasteContexts: IdentityCopyPasteContext | IdentityCopyPasteContext[] | null = null;
    @Input() pasteTypeFilter: IdentityType[] | null = null;
+   @Input() pasteExcludeIdentities: IdentityModel[] | null = null;
    @Output() addIdentities = new EventEmitter<IdentityModel[]>();
    @Output() removeSelection = new EventEmitter<IdentityModel[]>();
    @Output() dropOnTable = new EventEmitter<IdentityModel>();
@@ -171,7 +172,7 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
    }
 
    get pasteCount(): number {
-      return this.clipboardService.copiedCount(this.effectivePasteContext, this.pasteTypeFilter);
+      return this.clipboardService.copiedCount(this.effectivePasteContext, this.pasteTypeFilter, this.pasteExcludeIdentities);
    }
 
    get pasteTotal(): number {
@@ -209,7 +210,7 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
       const selected = this.selection.selected;
       const toCopy = selected.length > 0 ? selected : this.dataSource;
 
-      if(!toCopy?.length) {
+      if(!toCopy.length) {
          return;
       }
 
