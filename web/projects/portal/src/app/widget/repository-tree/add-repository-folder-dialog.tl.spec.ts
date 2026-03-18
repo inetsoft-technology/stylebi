@@ -183,38 +183,41 @@ describe("AddRepositoryFolderDialog — scenario-based (Testing Library + MSW)",
       });
 
       it("should show error dialog when server returns a non-CONFIRM message", async () => {
-         // MSW: override for this case only — server rejects with ERROR type
+         // Set up spy BEFORE render so it captures any init-time calls too
          // Component logic: messageCommand.type !== "CONFIRM" → showMessageDialog
-         server.use(
-            http.post("*/api/portal/tree/add-folder", () =>
-               MswHttpResponse.json({
-                  type: "ERROR",
-                  message: "A folder with this name already exists.",
-                  events: {},
-               })
-            )
-         );
-
-         // Spy on the static helper so the real NgbModal.open is never called
          const errorDialogSpy = jest
             .spyOn(ComponentTool, "showMessageDialog")
             .mockReturnValue(undefined);
 
-         const user = userEvent.setup();
-         await renderDialog();
+         // Guarantee cleanup even if the waitFor assertion throws
+         try {
+            // MSW: override for this case only — server rejects with ERROR type
+            server.use(
+               http.post("*/api/portal/tree/add-folder", () =>
+                  MswHttpResponse.json({
+                     type: "ERROR",
+                     message: "A folder with this name already exists.",
+                     events: {},
+                  })
+               )
+            );
 
-         await user.type(screen.getByPlaceholderText("_#(Folder Name)"), "Duplicate Folder");
-         await user.click(screen.getByRole("button", { name: "_#(OK)" }));
+            const user = userEvent.setup();
+            await renderDialog();
 
-         await waitFor(() =>
-            expect(errorDialogSpy).toHaveBeenCalledWith(
-               expect.anything(),
-               expect.anything(),
-               "A folder with this name already exists."
-            )
-         );
+            await user.type(screen.getByPlaceholderText("_#(Folder Name)"), "Duplicate Folder");
+            await user.click(screen.getByRole("button", { name: "_#(OK)" }));
 
-         errorDialogSpy.mockRestore();
+            await waitFor(() =>
+               expect(errorDialogSpy).toHaveBeenCalledWith(
+                  expect.anything(),
+                  expect.anything(),
+                  "A folder with this name already exists."
+               )
+            );
+         } finally {
+            errorDialogSpy.mockRestore();
+         }
       });
    });
 

@@ -53,7 +53,10 @@ import { GlobalSubmitService } from "../../util/global-submit.service";
  * Common render helper function — replaces the verbose TestBed configuration in beforeEach
  * Only pass the model properties to override, others remain default
  */
-async function renderSubmit(modelOverrides: Partial<ReturnType<typeof TestUtils.createMockVSSubmitModel>> = {}) {
+async function renderSubmit(
+   modelOverrides: Partial<ReturnType<typeof TestUtils.createMockVSSubmitModel>> = {},
+   componentOverrides: { viewer?: boolean } = {}
+) {
    const model = {
       ...TestUtils.createMockVSSubmitModel("submit1"),
       ...modelOverrides,
@@ -75,7 +78,7 @@ async function renderSubmit(modelOverrides: Partial<ReturnType<typeof TestUtils.
          { provide: SsoHeartbeatService, useValue: { heartbeat: jest.fn() } },
          { provide: TimerService, useValue: { defer: jest.fn((fn) => fn()) } },
       ],
-      componentProperties: { model },
+      componentProperties: { model, ...componentOverrides },
    });
 }
 
@@ -122,30 +125,8 @@ describe("VSSubmit — Testing Library style", () => {
    // Button is only truly disabled when viewer=true and enabled=false
    it("should disable button when viewer mode and not enabled", async () => {
       // Template: [disabled]="viewer && !model.enabled"
-      // Requires viewer=true and enabled=false to be disabled, passed via componentInputs
-      const model = {
-         ...TestUtils.createMockVSSubmitModel("submit1"),
-         enabled: false,
-      };
-
-      await render(VSSubmit, {
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule],
-         declarations: [VSPopComponentDirective, SafeFontDirective],
-         schemas: [NO_ERRORS_SCHEMA],
-         providers: [
-            FormInputService,
-            ViewsheetClientService,
-            StompClientService,
-            PopComponentService,
-            GlobalSubmitService,
-            { provide: ContextProvider, useValue: {} },
-            { provide: DataTipService, useValue: { isDataTip: jest.fn() } },
-            { provide: DebounceService, useValue: { debounce: jest.fn((key, fn, delay, args) => fn(...args)) } },
-            { provide: SsoHeartbeatService, useValue: { heartbeat: jest.fn() } },
-            { provide: TimerService, useValue: { defer: jest.fn((fn) => fn()) } },
-         ],
-         componentProperties: { model, viewer: true },
-      });
+      // Requires viewer=true and enabled=false to be disabled
+      await renderSubmit({ enabled: false }, { viewer: true });
 
       // Use jest-dom toBeDisabled() to directly assert disabled state — clearer than getAttribute('disabled')
       const button = screen.getByRole("button", { name: "Submit" });

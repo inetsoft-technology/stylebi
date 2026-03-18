@@ -25,8 +25,8 @@
 import { http, HttpResponse } from "msw";
 
 export const emHandlers = [
-   // Current organization info (navbar)
-   http.get("*/em/navbar/organization", () => {
+   // Current organization info (navbar) — all callers use ../api/em/navbar/organization
+   http.get("*/api/em/navbar/organization", () => {
       return HttpResponse.json("host_org");
    }),
 

@@ -26,11 +26,6 @@
 import { http, HttpResponse } from "msw";
 
 export const modelHandlers = [
-   // ModelService.getCurrentOrganization()
-   http.get("*/api/em/navbar/organization", () => {
-      return HttpResponse.json("host_org");
-   }),
-
    // Portal data-source browser
    http.get("*/api/portal/content/data-source/:name", () => {
       return HttpResponse.json({ tables: [], columns: [] });

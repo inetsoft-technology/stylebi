@@ -2,15 +2,6 @@
  * Workspace-level Jest configuration delta.
  *
  * @angular-builders/jest merges this on top of its default config for all projects.
- * Only specify overrides needed across all projects here.
- *
- * MSW v2 uses package.json "exports" field which Jest's default module resolver
- * (moduleResolution: node) does not support. Map msw/node explicitly.
- */
-/**
- * Workspace-level Jest configuration delta.
- *
- * @angular-builders/jest merges this on top of its default config for all projects.
  *
  * MSW v2 and its dependencies (@mswjs/interceptors) use package.json "exports"
  * subpath fields that Jest's default module resolver (moduleResolution: node)
