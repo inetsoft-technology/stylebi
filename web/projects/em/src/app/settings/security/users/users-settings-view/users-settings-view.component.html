@@ -47,7 +47,7 @@
     </div>
   </mat-drawer>
   <mat-drawer-content [class.security-tree-editor]="!isScreenSmall()">
-    <ng-container *ngIf="showPageEdit(); else description">
+    <ng-container *ngIf="showPageEdit()">
       <em-edit-identity-pane [treeData]="treeData" [selectedIdentity]="selectedIdentity"
                              [provider]="selectedProvider"
                              [smallDevice]="isScreenSmall()"
@@ -63,8 +63,5 @@
                              (pageEdited)="onPageChanged($event)">
       </em-edit-identity-pane>
     </ng-container>
-    <ng-template #description>
-      <div *ngIf="!selectedIdentity" class="description-view">{{getDescriptionText()}}</div>
-    </ng-template>
   </mat-drawer-content>
 </mat-drawer-container>

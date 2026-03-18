@@ -304,7 +304,4 @@ export class UsersSettingsViewComponent implements OnInit {
       });
    }
 
-   getDescriptionText(): string {
-      return this.currOrg == "host-org" ? "_#(js:em.users.defaultPassword.hostOrg)" : "_#(js:em.users.defaultPassword)"
-   }
 }
