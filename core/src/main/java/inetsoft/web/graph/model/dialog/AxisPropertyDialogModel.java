@@ -104,13 +104,15 @@ public class AxisPropertyDialogModel {
       axisLabelPaneModel.setShowAxisLabel(
          maxMode ? axisDesc.isMaxModeLabelVisible() : axisDesc.isLabelVisible());
       axisLabelPaneModel.setShowAxisLabelEnabled(showAxisLabelEnabled);
-      // For Pareto charts the "Labels on Opposite Side" option is not supported (the right y-axis
-      // is always the cumulative-percentage axis). Reset to false so that any chart previously saved
-      // with this flag set will have the primary axis restored on open/OK. (Bug #74142)
+      // For Pareto charts the "Labels on Opposite Side" option is not supported on measure axes
+      // (the right y-axis is always the cumulative-percentage axis). Reset to false so that any
+      // chart previously saved with this flag set will have the primary axis restored on open/OK.
+      // (Bug #74142). Dimension axes on y are not affected by the cumulative-percentage conflict,
+      // so allow "Labels on Opposite Side" for them. (Bug #74191)
       // For the inner axes of a scatter matrix the option breaks shared-axis alignment across
       // cells; reset to false to heal any chart previously saved with this flag set. (Bug #74136)
       axisLabelPaneModel.setLabelOnSecondaryAxis(axisDesc.isLabelOnSecondaryAxis() &&
-         !GraphTypes.isPareto(cInfo.getRTChartType()) &&
+         !(GraphTypes.isPareto(cInfo.getRTChartType()) && linear) &&
          (outer || !GraphTypeUtil.isScatterMatrix(cInfo)));
 
       // A right_y_axis click can mean either a true secondary y-axis OR a primary axis whose
@@ -136,7 +138,8 @@ public class AxisPropertyDialogModel {
          GraphTypes.isRadar(cInfo.getRTChartType()) ||
          GraphTypes.isMekko(cInfo.getRTChartType()) ||
          GraphTypes.is3DBar(cInfo.getRTChartType()) ||
-         GraphTypes.isPareto(cInfo.getRTChartType()) ||
+         // Only restrict for Pareto measure axes; dimension axes on y support the option. (Bug #74191)
+         (GraphTypes.isPareto(cInfo.getRTChartType()) && linear) ||
          // Inner axes of a scatter matrix share scale across cells; moving labels to the
          // opposite side breaks cell alignment. (Bug #74136)
          (!outer && GraphTypeUtil.isScatterMatrix(cInfo)));
