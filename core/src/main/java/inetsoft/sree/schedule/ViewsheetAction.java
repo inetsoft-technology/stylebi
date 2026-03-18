@@ -552,12 +552,24 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
 
             for(int i = 0; i < bookmarks.length; i++) {
                int vmode = Viewsheet.SHEET_RUNTIME_MODE;
+               Viewsheet alertBookmarkVs = rvs.getOriginalBookmark(bookmarks[i].getName());
                box = new ViewsheetSandbox(
-                  rvs.getOriginalBookmark(bookmarks[i].getName()), vmode, principal, false,
-                  rvs.getEntry());
+                  alertBookmarkVs, vmode, principal, false, rvs.getEntry());
 
                if(obox.isPresent()) {
                   box.getAssetQuerySandbox().refreshVariableTable(obox.get().getVariableTable());
+               }
+
+               // Clear input assembly variables from the sandbox variable table before resetAll.
+               // applyParameterToInput() would otherwise overwrite bookmark-restored selections.
+               VariableTable alertSandboxVars = box.getVariableTable();
+
+               if(alertSandboxVars != null && alertBookmarkVs != null) {
+                  for(Assembly assembly : alertBookmarkVs.getAssemblies()) {
+                     if(assembly instanceof InputVSAssembly) {
+                        alertSandboxVars.remove(assembly.getName());
+                     }
+                  }
                }
 
                setScheduleParameters(rvs.getVariableTable());
@@ -1340,13 +1352,26 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
          }
 
          setScheduleParameters(variableTable);
+         Viewsheet bookmarkVs = rvs.getOriginalBookmark(bookmarkName, orgID);
          ViewsheetSandbox box = new ViewsheetSandbox(
-            rvs.getOriginalBookmark(bookmarkName, orgID), vmode, principal, false,
-            rvs.getEntry());
+            bookmarkVs, vmode, principal, false, rvs.getEntry());
          AssetQuerySandbox assetQuerySandbox = box.getAssetQuerySandbox();
 
          if(assetQuerySandbox != null) {
             assetQuerySandbox.refreshVariableTable(variableTable);
+         }
+
+         // Clear input assembly variables from the sandbox variable table before reset.
+         // resetAll() → applyParameterToInput() would otherwise overwrite bookmark-restored
+         // assembly selections with stale values from the original sandbox's variable table.
+         VariableTable sandboxVars = box.getVariableTable();
+
+         if(sandboxVars != null && bookmarkVs != null) {
+            for(Assembly assembly : bookmarkVs.getAssemblies()) {
+               if(assembly instanceof InputVSAssembly) {
+                  sandboxVars.remove(assembly.getName());
+               }
+            }
          }
 
          box.resetAll(new ChangedAssemblyList());

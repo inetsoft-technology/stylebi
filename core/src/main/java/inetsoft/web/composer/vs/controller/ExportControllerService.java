@@ -33,6 +33,7 @@ import inetsoft.report.io.viewsheet.excel.CSVVSExporter;
 import inetsoft.report.io.viewsheet.snapshot.SnapshotVSExporter;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.portal.PortalThemesManager;
+import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.AbstractSheet;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
@@ -280,6 +281,19 @@ public class ExportControllerService {
 
          if(abox != null) {
             abox.refreshVariableTable(rbox.get().getVariableTable());
+         }
+
+         // Clear input assembly variables from the sandbox variable table before reset.
+         // During reset, applyParameterToInput() reads from this table and would otherwise
+         // overwrite bookmark-restored assembly selections (checkbox, radio button, etc.)
+         VariableTable sandboxVars = sandbox.getVariableTable();
+
+         if(sandboxVars != null) {
+            for(Assembly assembly : vs.getAssemblies()) {
+               if(assembly instanceof InputVSAssembly) {
+                  sandboxVars.remove(assembly.getName());
+               }
+            }
          }
 
          try {
