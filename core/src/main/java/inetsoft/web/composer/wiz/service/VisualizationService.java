@@ -63,7 +63,7 @@ public class VisualizationService {
                continue;
             }
 
-            AssetEntry vEntry = assetRepository.getAssetEntry(AssetEntry.createAssetEntry(visualization));
+            AssetEntry vEntry = assetRepository.getAssetEntry(assetEntry);
 
             if(vEntry == null) {
                LOG.warn("Asset entry could not be found for " + visualization);
