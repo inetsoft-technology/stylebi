@@ -69,15 +69,27 @@ public class BatikSVGTransformer implements Cloneable, SVGTransformer {
       SVGOMDocument svgDoc = (SVGOMDocument) doc;
       SVGSVGElement root = svgDoc.getRootElement();
       GVTBuilder builder = new GVTBuilder();
-      this.gvtRoot = builder.build(ctx, svgDoc);
-      SVGAnimatedRect viewBox = root.getViewBox();
 
-      if(viewBox != null) {
-         SVGRect rect = viewBox.getBaseVal();
+      try {
+         this.gvtRoot = builder.build(ctx, svgDoc);
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to build GVT tree for SVG document", ex);
+      }
 
-         if(rect != null) {
-            this.documentSize = new Dimension((int) rect.getWidth(), (int) rect.getHeight());
+      try {
+         SVGAnimatedRect viewBox = root.getViewBox();
+
+         if(viewBox != null) {
+            SVGRect rect = viewBox.getBaseVal();
+
+            if(rect != null) {
+               this.documentSize = new Dimension((int) rect.getWidth(), (int) rect.getHeight());
+            }
          }
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to read viewBox from SVG document", ex);
       }
    }
 
@@ -125,11 +137,14 @@ public class BatikSVGTransformer implements Cloneable, SVGTransformer {
       if(documentSize != null) {
          return documentSize;
       }
-      else {
+      else if(gvtRoot != null) {
          Rectangle2D bounds = gvtRoot.getOutline().getBounds2D();
          Dimension size = new Dimension();
          size.setSize(bounds.getWidth(), bounds.getHeight());
          return size;
+      }
+      else {
+         return new Dimension(0, 0);
       }
    }
 
