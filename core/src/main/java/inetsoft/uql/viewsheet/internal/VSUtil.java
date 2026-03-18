@@ -8811,13 +8811,6 @@ public final class VSUtil {
       return service.switchToHostOrgForGlobalShareAsset(sheetRuntimeId, principal);
    }
 
-   private static InheritableThreadLocal<Boolean> IGNORE_CSS = new InheritableThreadLocal<>();
-   // cached dependency
-   private static DataCache<String, Set<AssemblyRef>> scriptDeps = new DataCache<>(1000, 5000);
-   private static final Pattern CONTAINS_VARIABLE_PATTERN = Pattern.compile("([\\s\\S]+)(\\$\\([\\s\\S]*?\\))([\\s\\S]*)");
-   public static final ThreadLocal<Boolean> OPEN_VIEWSHEET = ThreadLocal.withInitial(() -> Boolean.FALSE);
-   private static final String DEBOUNCER_KEY = "VSUtil.debouncer";
-
    /**
     * Copies the viewsheet identified by the given entry and saves the copy under a unique
     * name with the wiz prefix in the same folder. Returns the new entry, or {@code null}
@@ -8858,19 +8851,34 @@ public final class VSUtil {
    public static AssetEntry createCopyEntryForWiz(AssetEntry originalEntry, boolean newVisualization) {
       String vizFlag = newVisualization ? "new" : "edit";
       String copyName = WIZ_COPY_PREFIX + vizFlag + "_" + UUID.randomUUID().toString().replace("-", "") + "_" + originalEntry.getName();
-      String parentPath = originalEntry.getParentPath();
-
-      if(parentPath == null) {
-         parentPath = "/";
-      }
-
-      String newPath = parentPath.endsWith("/") ? copyName : parentPath + "/" + copyName;
-      AssetEntry newEntry = new AssetEntry(
-         originalEntry.getScope(), AssetEntry.Type.VIEWSHEET, newPath, originalEntry.getUser());
+      AssetEntry newEntry = renameAssetEntry(originalEntry, copyName);
       newEntry.copyProperties(originalEntry);
       newEntry.setProperty("wizOriginalEntry", originalEntry.toIdentifier());
 
       return newEntry;
+   }
+
+   private static AssetEntry renameAssetEntry(AssetEntry originalEntry, String newName) {
+      String parentPath = originalEntry.getParentPath();
+
+      if(Tool.isEmptyString(parentPath)) {
+         parentPath = "/";
+      }
+
+      String newPath;
+
+      if("/".equals(parentPath)) {
+         newPath = newName;
+      }
+      else if(parentPath.endsWith("/")) {
+         newPath = parentPath + newName;
+      }
+      else {
+         newPath = parentPath + "/" + newName;
+      }
+
+      return new AssetEntry(
+         originalEntry.getScope(), AssetEntry.Type.VIEWSHEET, newPath, originalEntry.getUser());
    }
 
    /**
@@ -8925,7 +8933,6 @@ public final class VSUtil {
       }
 
       AssetEntry originalEntry = createWizOriginalVisualization(wizCopyEntry);
-      originalEntry.copyProperties(wizCopyEntry);
       Viewsheet copy = (Viewsheet) engine.getSheet(
          wizCopyEntry, principal, false, AssetContent.ALL);
 
@@ -8957,7 +8964,14 @@ public final class VSUtil {
 
          if(!visualizations.isEmpty()) {
             for(String visualization : visualizations) {
-               AssetEntry original = VSUtil.createWizOriginalVisualization(AssetEntry.createAssetEntry(visualization));
+               AssetEntry parsedEntry = AssetEntry.createAssetEntry(visualization);
+
+               if(parsedEntry == null) {
+                  LOG.warn("Could not parse visualization identifier: {}", visualization);
+                  continue;
+               }
+
+               AssetEntry original = VSUtil.createWizOriginalVisualization(parsedEntry);
                wizInfo.removeVisualization(visualization);
                wizInfo.addVisualization(original.toIdentifier());
             }
@@ -8993,7 +9007,6 @@ public final class VSUtil {
       }
 
       AssetRepository engine = AssetUtil.getAssetRepository(false);
-
       wizCopyEntry = engine.getAssetEntry(wizCopyEntry);
 
       if(wizCopyEntry == null) {
@@ -9011,32 +9024,86 @@ public final class VSUtil {
          AssetEntry originalEntry = AssetEntry.createAssetEntry(originalId);
 
          if(originalEntry != null) {
+            originalEntry.copyProperties(wizCopyEntry);
+            originalEntry.setProperty("wizOriginalEntry", null);
+
             return originalEntry;
          }
       }
 
       // Fall back to name parsing for entries created before the property was introduced.
-      // copy name is: __wiz__<new|edit>_<timestamp>_<originalName> — strip prefix+flag+timestamp
+      // copy name is: __wiz__<new|edit>_<uuid>_<originalName> — strip prefix+flag+uuid
       String copyName = wizCopyEntry.getName();
       String originalName = copyName.replaceFirst(
-         "^" + Pattern.quote(WIZ_COPY_PREFIX) + "(new|edit)_\\d+_", "");
-      String parentPath = wizCopyEntry.getParentPath();
-
-      if(parentPath == null) {
-         parentPath = "/";
-      }
-
-      String originalPath = parentPath.endsWith("/") ?
-         parentPath + originalName : parentPath + "/" + originalName;
-      AssetEntry originalEntry = new AssetEntry(
-         wizCopyEntry.getScope(), AssetEntry.Type.VIEWSHEET, originalPath, wizCopyEntry.getUser());
+         "^" + Pattern.quote(WIZ_COPY_PREFIX) + "(new|edit)_[0-9a-f]+_", "");
+      AssetEntry originalEntry = renameAssetEntry(wizCopyEntry, originalName);
       originalEntry.copyProperties(wizCopyEntry);
+      originalEntry.setProperty("wizOriginalEntry", null);
 
       return originalEntry;
    }
 
+   /**
+    * Returns {@code true} if the given entry is a wiz-copy viewsheet entry —
+    * i.e. it was created by {@link #createCopyEntryForWiz}.
+    *
+    * <p>The primary check is the name prefix {@value #WIZ_COPY_PREFIX}. The
+    * {@code "wizOriginalEntry"} property (set since the prefix was introduced) is
+    * used as an additional confirmation when present.
+    *
+    * @param entry the asset entry to test; may be {@code null}.
+    * @return {@code true} if {@code entry} is a wiz copy entry.
+    */
+   public static boolean isWizCopyEntry(AssetEntry entry) throws Exception {
+      return isWizCopyEntry(entry, false);
+   }
+
+   /**
+    * Tests whether an {@link AssetEntry} is a wiz copy entry.
+    *
+    * <p>The primary check is the name prefix {@value #WIZ_COPY_PREFIX}. The
+    * {@code "wizOriginalEntry"} property (set since the prefix was introduced) is
+    * used as an additional confirmation when present.
+    *
+    * @param entry    the asset entry to test; may be {@code null}.
+    * @param resolved {@code true} if the entry has already been fetched from the
+    *                 repository, skipping an extra lookup; {@code false} to fetch it.
+    * @return {@code true} if {@code entry} is a wiz copy entry.
+    */
+   public static boolean isWizCopyEntry(AssetEntry entry, boolean resolved) throws Exception {
+      if(entry == null) {
+         return false;
+      }
+
+      if(!resolved) {
+         AssetRepository engine = AssetUtil.getAssetRepository(false);
+         entry = engine.getAssetEntry(entry);
+      }
+
+      if(entry == null || !entry.getName().startsWith(WIZ_COPY_PREFIX)) {
+         return false;
+      }
+
+      // If the property is present it must point to a valid identifier; if it is
+      // absent we still trust the name prefix (older entries lack the property).
+      String originalId = entry.getProperty("wizOriginalEntry");
+
+      if(originalId != null && AssetEntry.createAssetEntry(originalId) == null) {
+         LOG.warn("wiz copy entry '{}' has a malformed wizOriginalEntry property: '{}'",
+                  entry.toIdentifier(), originalId);
+         return false;
+      }
+
+      return true;
+   }
+
    /** Prefix used for wiz-copy viewsheet names. */
    public static final String WIZ_COPY_PREFIX = "__wiz__";
-
    private static final Logger LOG = LoggerFactory.getLogger(VSUtil.class);
+   private static InheritableThreadLocal<Boolean> IGNORE_CSS = new InheritableThreadLocal<>();
+   // cached dependency
+   private static DataCache<String, Set<AssemblyRef>> scriptDeps = new DataCache<>(1000, 5000);
+   private static final Pattern CONTAINS_VARIABLE_PATTERN = Pattern.compile("([\\s\\S]+)(\\$\\([\\s\\S]*?\\))([\\s\\S]*)");
+   public static final ThreadLocal<Boolean> OPEN_VIEWSHEET = ThreadLocal.withInitial(() -> Boolean.FALSE);
+   private static final String DEBOUNCER_KEY = "VSUtil.debouncer";
 }
