@@ -108,7 +108,9 @@ export class IdentityClipboardService implements OnDestroy {
     * Use alongside {@link copiedCount} to detect when filtering reduces the paste result,
     * so the UI can show a "N of M" badge instead of just "N".
     */
-   copiedTotal(context: IdentityCopyPasteContext | IdentityCopyPasteContext[] | null = null): number {
+   copiedTotal(
+      context: IdentityCopyPasteContext | IdentityCopyPasteContext[] | null = null
+   ): number {
       if(!this.canPaste(context)) {
          return 0;
       }
