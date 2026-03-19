@@ -615,8 +615,19 @@ public class StyleFont extends Font implements StyleConstants, Cloneable {
     */
    @Override
    public Font deriveFont(float size) {
-      return new StyleFont(getName(), getStyle(), (int) (size + 0.5),
-                           underline, strikeline, defaultFont, userFontName);
+      StyleFont font = new StyleFont(getName(), getStyle(), (int) (size + 0.5),
+                                     underline, strikeline, defaultFont, userFontName);
+      font.pointSize = size;
+      return font;
+   }
+
+   @Override
+   public String getName() {
+      if(userFontName != null) {
+         return userFontName;
+      }
+
+      return super.getName();
    }
 
    @Override
