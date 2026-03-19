@@ -238,7 +238,6 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
       }).afterClosed().pipe(take(1)).subscribe(confirmed => {
          if(confirmed) {
             this.pasteReplaceIdentities.emit(pasted);
-            this.snackBar.open("_#(js:em.security.identitiesPasted)", null, { duration: Tool.SNACKBAR_DURATION });
          }
       });
    }

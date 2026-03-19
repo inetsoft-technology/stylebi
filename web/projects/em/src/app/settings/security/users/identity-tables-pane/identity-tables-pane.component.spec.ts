@@ -103,13 +103,26 @@ describe("IdentityTablesPaneComponent", () => {
          expect(emitted).toEqual([[bob]]);
       });
 
-      it("pasteMembers should emit empty array when all pasted identities are filtered by addMembers guards", () => {
+      it("pasteMembers should restore previous members when all pasted identities are filtered by addMembers guards", () => {
+         const bob: IdentityModel = { identityID: { name: "bob", orgID: null }, type: IdentityType.USER };
+         component.type = IdentityType.USER;
+         component.name = "alice";
+         component.members = [bob];
+         const emitted: IdentityModel[][] = [];
+         component.membersChanged.subscribe(v => emitted.push(v));
+         // alice is the current identity (self-reference) and editorRole is a ROLE — both blocked by addMembers
+         component.pasteMembers([alice, editorRole]);
+         expect(component.members).toEqual([bob]);
+         // addMembers emits first (empty), then pasteReplace restores and re-emits the original list
+         expect(emitted[emitted.length - 1]).toEqual([bob]);
+      });
+
+      it("pasteMembers should allow empty result when previous list was also empty", () => {
          component.type = IdentityType.USER;
          component.name = "alice";
          component.members = [];
          const emitted: IdentityModel[][] = [];
          component.membersChanged.subscribe(v => emitted.push(v));
-         // alice is the current identity (self-reference) and editorRole is a ROLE — both blocked by addMembers
          component.pasteMembers([alice, editorRole]);
          expect(component.members).toEqual([]);
          expect(emitted).toEqual([[]]);

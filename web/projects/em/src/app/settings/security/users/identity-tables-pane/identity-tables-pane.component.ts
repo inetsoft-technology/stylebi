@@ -23,6 +23,7 @@ import { SecurityTreeDialogData } from "../../security-tree-dialog/security-tree
 import { PropertyModel } from "../../property-table-view/property-model";
 import { MessageDialog, MessageDialogType } from "../../../../common/util/message-dialog";
 import { MatDialog } from "@angular/material/dialog";
+import { MatSnackBar } from "@angular/material/snack-bar";
 import {convertToKey, IdentityId} from "../identity-id";
 import {
    COPY_PASTE_CONTEXT_IDENTITY_MEMBERS,
@@ -76,7 +77,7 @@ export class IdentityTablesPaneComponent {
       return this.name ? [{ identityID: { name: this.name, orgID: null }, type: this.type }] : [];
    }
 
-   constructor(private dialog: MatDialog) {
+   constructor(private dialog: MatDialog, private snackBar: MatSnackBar) {
    }
 
    get userTableLabel(): string {
@@ -366,18 +367,47 @@ export class IdentityTablesPaneComponent {
    }
 
    pasteMembers(identities: IdentityModel[]): void {
-      this.members = [];
-      this.addMembers(identities);
+      this.pasteReplace(identities, this.members,
+         list => this.members = list,
+         ids => this.addMembers(ids),
+         () => this.members,
+         list => this.membersChanged.emit(list));
    }
 
    pasteRoles(identities: IdentityModel[]): void {
-      this.roles = [];
-      this.addRoles(identities);
+      this.pasteReplace(identities, this.roles,
+         list => this.roles = list,
+         ids => this.addRoles(ids),
+         () => this.roles,
+         list => this.rolesChanged.emit(list));
    }
 
    pastePermittedIdentities(identities: IdentityModel[]): void {
-      this.permittedIdentities = [];
-      this.addPermittedIdentities(identities);
+      this.pasteReplace(identities, this.permittedIdentities,
+         list => this.permittedIdentities = list,
+         ids => this.addPermittedIdentities(ids),
+         () => this.permittedIdentities,
+         list => this.permittedIdentitiesChanged.emit(list));
+   }
+
+   private pasteReplace(identities: IdentityModel[],
+                         previous: IdentityModel[],
+                         setList: (list: IdentityModel[]) => void,
+                         addFn: (ids: IdentityModel[]) => void,
+                         getList: () => IdentityModel[],
+                         emitChanged: (list: IdentityModel[]) => void): void
+   {
+      setList([]);
+      addFn(identities);
+
+      if(getList().length === 0 && previous.length > 0) {
+         setList(previous);
+         emitChanged(previous);
+         this.snackBar.open("_#(js:em.security.clipboard.noMatchingIdentities)", null, { duration: Tool.SNACKBAR_DURATION });
+      }
+      else {
+         this.snackBar.open("_#(js:em.security.identitiesPasted)", null, { duration: Tool.SNACKBAR_DURATION });
+      }
    }
 
    protected readonly IdentityType = IdentityType;
