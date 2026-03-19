@@ -335,7 +335,7 @@ public final class AutoSaveUtils {
          orgId = OrganizationManager.getInstance().getCurrentOrgID();
       }
 
-      return BlobStorageManager.getStorage(orgId.toLowerCase() + "__autoSave", true);
+      return BlobStorageManager.getInstance().getStorage(orgId.toLowerCase() + "__autoSave", true);
    }
 
    public static long getLastModified(AssetEntry entry, Principal principal) {

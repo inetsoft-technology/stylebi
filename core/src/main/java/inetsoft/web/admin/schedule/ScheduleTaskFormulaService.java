@@ -20,6 +20,7 @@ package inetsoft.web.admin.schedule;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.analytic.web.adhoc.AdHocQueryHandler;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.schedule.ScheduleParameterScope;
 import inetsoft.util.*;
 import inetsoft.util.script.ScriptEnv;
@@ -35,6 +36,10 @@ import static inetsoft.analytic.web.adhoc.AdHocQueryHandler.DOT_FLAG;
 
 @Service
 public class ScheduleTaskFormulaService {
+   public ScheduleTaskFormulaService(LibManagerProvider libManagerProvider) {
+      this.libManagerProvider = libManagerProvider;
+   }
+
    /**
     * Get script definition for the schedule task parameters.
     *
@@ -79,7 +84,7 @@ public class ScheduleTaskFormulaService {
    }
 
    private void createUserDefinedScript(ObjectMapper mapper, ObjectNode root) {
-      List<String> list = AdHocQueryHandler.getUserDefinedScriptFunctions();
+      List<String> list = AdHocQueryHandler.getUserDefinedScriptFunctions(libManagerProvider);
 
       if(list.size() == 0) {
          return;
@@ -132,7 +137,7 @@ public class ScheduleTaskFormulaService {
       String excelFunctionLabel = catalog.getString("Excel-style Functions");
       String excelFunctionName = "Excel-style Functions";
 
-      ItemMap functionMap = AdHocQueryHandler.getScriptFunctions(false, true);
+      ItemMap functionMap = AdHocQueryHandler.getScriptFunctions(false, true, libManagerProvider);
       ItemMap excelFunctionMap = AdHocQueryHandler.getExcelScriptFunctions();
 
       TreeNodeModel jsFunctionsNode = createNode(
@@ -301,4 +306,6 @@ public class ScheduleTaskFormulaService {
             .build())
          .build();
    }
+
+   private final LibManagerProvider libManagerProvider;
 }

@@ -24,6 +24,7 @@ import inetsoft.report.composition.*;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AbstractModelTrapContext;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.drm.DataRefModel;
@@ -40,8 +41,10 @@ import java.util.Arrays;
 @ClusterProxy
 public class ConditionTrapService extends WorksheetControllerService {
    public ConditionTrapService(ViewsheetService viewsheetService,
-                               DataRefModelFactoryService dataRefModelFactoryService) {
-      super(viewsheetService);
+                               DataRefModelFactoryService dataRefModelFactoryService,
+                               DataSourceRegistry dataSourceRegistry)
+   {
+      super(viewsheetService, dataSourceRegistry);
       this.dataRefModelFactoryService = dataRefModelFactoryService;
       this.viewsheetService = viewsheetService;
    }
@@ -67,7 +70,7 @@ public class ConditionTrapService extends WorksheetControllerService {
          TableAssembly otable = (TableAssembly) table.clone();
          otable.setPreConditionList(oldConditionList);
          WSModelTrapContext mtc =
-            new WSModelTrapContext(otable, ThreadContext.getContextPrincipal());
+            new WSModelTrapContext(otable, ThreadContext.getContextPrincipal(), getDataSourceRegistry());
 
          if(mtc.isCheckTrap()) {
             TableAssembly ntable = (TableAssembly) table.clone();

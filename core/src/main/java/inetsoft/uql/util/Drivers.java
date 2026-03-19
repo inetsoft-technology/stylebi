@@ -22,6 +22,7 @@ import inetsoft.uql.tabular.*;
 import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.event.EventListener;
 
 import java.net.URL;
 import java.sql.*;
@@ -31,6 +32,10 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 public class Drivers {
+   public Drivers(Plugins plugins) {
+      this.plugins = plugins;
+   }
+
    public static Drivers getInstance() {
       return ConfigurationContext.getContext().getSpringBean(Drivers.class);
    }
@@ -80,7 +85,7 @@ public class Drivers {
          if(driverServices == null) {
             driverServices = new HashMap<>();
 
-            for(Plugin plugin : Plugins.getInstance().getPlugins()) {
+            for(Plugin plugin : plugins.getPlugins()) {
                List<DriverService> services = plugin.getServices(DriverService.class);
 
                if(!services.isEmpty()) {
@@ -125,6 +130,11 @@ public class Drivers {
       return a.getClass().getSimpleName().compareTo(b.getClass().getSimpleName());
    }
 
+   @EventListener(PluginAddedEvent.class)
+   public void onPluginAdded(PluginAddedEvent event) {
+      pluginAdded(event.getPluginId());
+   }
+
    public void pluginAdded(String pluginId) {
       initDriverServices();
       driverServicesLock.writeLock().lock();
@@ -140,6 +150,11 @@ public class Drivers {
       finally {
          driverServicesLock.writeLock().unlock();
       }
+   }
+
+   @EventListener(PluginRemovedEvent.class)
+   public void onPluginRemoved(PluginRemovedEvent event) {
+      pluginRemoved(event.getPluginId());
    }
 
    public void pluginRemoved(String pluginId) {
@@ -244,7 +259,7 @@ public class Drivers {
     * Check if Hive data model is supported.
     */
    public boolean isHiveEnabled() {
-      return Plugins.getInstance().getServices(
+      return plugins.getServices(
          inetsoft.uql.jdbc.DriverService.class, "inetsoft.driver.hive") != null;
    }
 
@@ -284,6 +299,7 @@ public class Drivers {
       return provider;
    }
 
+   private final Plugins plugins;
    private DriverProvider provider;
    private final ReadWriteLock driverServicesLock = new ReentrantReadWriteLock();
    private Map<String, List<DriverService>> driverServices = null;

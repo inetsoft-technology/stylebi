@@ -43,11 +43,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
-@SreeHome(importResources = "34891-VSSelectionListControllerTest.zip")
 @ExtendWith({SpringExtension.class, MockitoExtension.class})
-@ContextConfiguration(classes = ControllersTestConfiguration.class)
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome(importResources = "34891-VSSelectionListControllerTest.zip")
 @Disabled
+@Tag("core")
 class VSSelectionListControllerTest {
    @BeforeEach
    void setup() {

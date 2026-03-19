@@ -28,6 +28,7 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
@@ -70,7 +71,8 @@ public class ModifyCalculateFieldService {
       VSWizardBindingHandler wizardBindingHandler,
       VSRefreshController refreshController,
       ViewsheetService viewsheetService,
-      VSAssemblyInfoHandler assemblyInfoHandler)
+      VSAssemblyInfoHandler assemblyInfoHandler,
+      DataSourceRegistry dataSourceRegistry)
    {
       this.bindingFactory = bindingFactory;
       this.bindingTreeController = bindingTreeController;
@@ -80,6 +82,7 @@ public class ModifyCalculateFieldService {
       this.refreshController = refreshController;
       this.viewsheetService = viewsheetService;
       this.assemblyInfoHandler = assemblyInfoHandler;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -696,7 +699,7 @@ public class ModifyCalculateFieldService {
          return false;
       }
 
-      VSModelTrapContext mtc = new VSModelTrapContext(rvs, true);
+      VSModelTrapContext mtc = new VSModelTrapContext(rvs, dataSourceRegistry, true);
       AbstractModelTrapContext.TrapInfo trapInfo = mtc.checkCalcTrap(tname, cref);
 
       if(trapInfo.showWarning()) {
@@ -714,4 +717,5 @@ public class ModifyCalculateFieldService {
    private final ViewsheetService viewsheetService;
    private final VSWizardBindingHandler wizardBindingHandler;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
+   private final DataSourceRegistry dataSourceRegistry;
 }

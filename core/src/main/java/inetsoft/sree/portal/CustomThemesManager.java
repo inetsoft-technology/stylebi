@@ -18,6 +18,7 @@
 package inetsoft.sree.portal;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.util.*;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -27,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.w3c.dom.*;
 
 import java.io.*;
+import java.lang.reflect.Constructor;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -43,13 +45,17 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
       return ConfigurationContext.getContext().getSpringBean(CustomThemesManager.class);
    }
 
-   public CustomThemesManager() {
-      try {
-         impl = (CustomThemesImpl) Class.forName("inetsoft.enterprise.theme.CustomThemesImpl").newInstance();
-         String name = SreeEnv.getPath("custom.themes.file", "customthemes.xml");
-         DataSpace space = DataSpace.getDataSpace();
+   public CustomThemesManager(KeyValueStorageManager keyValueStorageManager, DataSpace dataSpace) {
+      this.keyValueStorageManager = keyValueStorageManager;
+      this.dataSpace = dataSpace;
 
-         space.addChangeListener(null, name, event -> {
+      try {
+         Class<?> clazz = Class.forName("inetsoft.enterprise.theme.CustomThemesImpl");
+         Constructor<?> cstr = clazz.getConstructor(KeyValueStorageManager.class);
+         impl = (CustomThemesImpl) cstr.newInstance(keyValueStorageManager);
+         String name = SreeEnv.getPath("custom.themes.file", "customthemes.xml");
+
+         dataSpace.addChangeListener(null, name, event -> {
             debouncer.debounce("themes", 500L, TimeUnit.MILLISECONDS, this::loadThemes);
          });
       }
@@ -95,19 +101,19 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
    }
 
    public boolean isCustomThemeApplied() {
-      return impl.isCustomThemeApplied();
+      return impl.isCustomThemeApplied(this);
    }
 
    public boolean isEMDarkTheme() {
-      return impl.isEMDarkTheme();
+      return impl.isEMDarkTheme(this);
    }
 
    public String getScriptThemeCssPath(boolean portal) {
-      return impl.getScriptThemeCssPath(portal);
+      return impl.getScriptThemeCssPath(portal, this);
    }
 
    public String getSelectedTheme(Principal user) {
-      return impl.getSelectedTheme(user);
+      return impl.getSelectedTheme(user, this);
    }
 
    public void reloadThemes(String path) {
@@ -155,6 +161,12 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
       impl.parseXML(tag);
    }
 
+   public KeyValueStorageManager getKeyValueStorageManager() {
+      return keyValueStorageManager;
+   }
+
+   private final KeyValueStorageManager keyValueStorageManager;
+   private final DataSpace dataSpace;
    private CustomThemesImpl impl;
    private static final Logger LOG = LoggerFactory.getLogger(CustomThemesManager.class);
 

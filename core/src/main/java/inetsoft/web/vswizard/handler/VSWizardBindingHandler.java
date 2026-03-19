@@ -17,6 +17,7 @@
  */
 package inetsoft.web.vswizard.handler;
 
+import inetsoft.analytic.AnalyticAssistant;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.StyleConstants;
@@ -99,7 +100,7 @@ public class VSWizardBindingHandler {
                                  RuntimeViewsheetRef runtimeViewsheetRef,
                                  ChartRefModelFactoryService chartService,
                                  DataRefModelFactoryService dataRefService,
-                                 VSWizardTemporaryInfoService temporaryInfoService)
+                                 VSWizardTemporaryInfoService temporaryInfoService, AnalyticAssistant analyticAssistant)
    {
       this.chartService = chartService;
       this.regionHandler = regionHandler;
@@ -113,6 +114,7 @@ public class VSWizardBindingHandler {
       this.coreLifecycleService = coreLifecycleService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.temporaryInfoService = temporaryInfoService;
+      this.analyticAssistant = analyticAssistant;
    }
 
    public boolean changeSource(SourceInfo newSource, SourceInfo oldSource, ViewsheetEvent event,
@@ -1334,7 +1336,7 @@ public class VSWizardBindingHandler {
 
       Arrays.stream(entries).forEach((entry) -> {
          ChartRef chartRef =
-            ChartRecommenderUtil.createChartRef(entry, rvs, vsTemporaryInfo, formatMap);
+            ChartRecommenderUtil.createChartRef(entry, rvs, vsTemporaryInfo, formatMap, analyticAssistant);
          boolean find = keepFieldsToTempChart(ninfo, oldXFields, chartRef);
 
          if(!find) {
@@ -2656,6 +2658,7 @@ public class VSWizardBindingHandler {
    private final ChartRefModelFactoryService chartService;
    private final DataRefModelFactoryService dataRefService;
    private final VSWizardTemporaryInfoService temporaryInfoService;
+   private final AnalyticAssistant analyticAssistant;
 
    private static final List<AggregateFormula> SAME_TYPE_FORMULA = new ArrayList<>();
 

@@ -30,7 +30,8 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 
 public class BlockFileStorage implements AutoCloseable {
-   public BlockFileStorage() {
+   public BlockFileStorage(BlobStorageManager blobStorageManager) {
+      this.blobStorageManager = blobStorageManager;
    }
 
    public static BlockFileStorage getInstance() {
@@ -132,12 +133,14 @@ public class BlockFileStorage implements AutoCloseable {
    public BlobStorage<Metadata> getStorage(String orgID) {
       orgID = orgID == null ? OrganizationManager.getInstance().getCurrentOrgID() : orgID;
       String storeID = Tool.buildString(orgID.toLowerCase(), "__", "mvBlock");
-      return BlobStorageManager.getStorage(storeID, true);
+      return blobStorageManager.getStorage(storeID, true);
    }
 
    public BlobStorage<Metadata> getStorage() {
       return getStorage(OrganizationManager.getInstance().getCurrentOrgID());
    }
+
+   private final BlobStorageManager blobStorageManager;
 
    public static final class Metadata implements Serializable {
    }

@@ -35,10 +35,6 @@ public class ClusterHealthService {
       this.cluster = cluster;
    }
 
-   public static ClusterHealthService getInstance() {
-      return ConfigurationContext.getContext().getSpringBean(ClusterHealthService.class);
-   }
-
    /**
     * Gets the cluster health status.
     *

@@ -63,7 +63,7 @@ public class ScheduleUsersChangeService extends BaseSubscribeChangeHandler imple
       }
    }
 
-   @EventListener
+   @EventListener(SessionDisconnectEvent.class)
    public void handleDisconnect(SessionDisconnectEvent event) {
       super.handleDisconnect(event);
    }

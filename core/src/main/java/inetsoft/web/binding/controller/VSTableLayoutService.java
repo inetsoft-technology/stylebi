@@ -32,6 +32,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.CalcAggregate;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
@@ -69,7 +70,8 @@ public class VSTableLayoutService {
       TableLayoutHandler layoutHandler,
       VSCalcCellScriptHandler cellScriptHandler,
       VSColumnHandler columnsHandler,
-      ViewsheetService viewsheetService)
+      ViewsheetService viewsheetService,
+      DataSourceRegistry dataSourceRegistry)
    {
       this.rowColGroupHandler = rowColGroupHandler;
       this.refModelService = refModelService;
@@ -78,6 +80,7 @@ public class VSTableLayoutService {
       this.cellScriptHandler = cellScriptHandler;
       this.columnsHandler = columnsHandler;
       this.viewsheetService = viewsheetService;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -228,7 +231,7 @@ public class VSTableLayoutService {
       setBinding(binding,
                  getBindingFromLayout(layout, row, col), principal, infos);
       assembly.setVSAssemblyInfo(ninfo);
-      VSModelTrapContext context = new VSModelTrapContext(rvs);
+      VSModelTrapContext context = new VSModelTrapContext(rvs, dataSourceRegistry);
       boolean containsTrap = context.isCheckTrap() &&
          context.checkTrap(oinfo, ninfo).showWarning();
       assembly.setVSAssemblyInfo(oinfo);
@@ -660,5 +663,6 @@ public class VSTableLayoutService {
    private final TableLayoutHandler layoutHandler;
    private final VSColumnHandler columnsHandler;
    private final ViewsheetService viewsheetService;
+   private final DataSourceRegistry dataSourceRegistry;
    private static final Logger LOG = LoggerFactory.getLogger(VSTableLayoutService.class);
 }

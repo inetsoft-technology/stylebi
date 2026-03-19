@@ -38,8 +38,12 @@ import java.security.Principal;
 @Controller
 public class AdminPageController {
    @Autowired
-   public AdminPageController(SecurityEngine securityEngine) {
+   public AdminPageController(SecurityEngine securityEngine, CustomThemesManager customThemesManager,
+                              PortalThemesManager portalThemesManager)
+   {
       this.securityEngine = securityEngine;
+      this.customThemesManager = customThemesManager;
+      this.portalThemesManager = portalThemesManager;
    }
 
    @GetMapping({
@@ -61,7 +65,7 @@ public class AdminPageController {
          principal, ResourceType.EM, "*", ResourceAction.ACCESS))
       {
          model = new ModelAndView("restricted");
-         PortalThemesManager manager = PortalThemesManager.getManager();
+         PortalThemesManager manager = this.portalThemesManager;
          String redirectUri = LinkUriArgumentResolver.transformUri(request);
          String baseLink = SreeEnv.getProperty("sso.logout.url", linkUri + "logout");
          String paramAppend = baseLink.contains("?") ? "&" : "?";
@@ -75,7 +79,6 @@ public class AdminPageController {
          model = new ModelAndView("em/index");
       }
 
-      CustomThemesManager themes = CustomThemesManager.getManager();
       boolean hasOrgTheme = false;
       boolean hasDarkEMTheme = false;
 
@@ -89,7 +92,7 @@ public class AdminPageController {
          {
             hasOrgTheme = true;
 
-            hasDarkEMTheme = CustomThemesManager.getManager().getCustomThemes().stream()
+            hasDarkEMTheme = customThemesManager.getCustomThemes().stream()
                .filter(t -> t.getId().equals(provider.getOrganization(orgId).getTheme()))
                .findAny()
                .map(CustomTheme::isEMDark)
@@ -98,11 +101,13 @@ public class AdminPageController {
       }
 
       model.addObject("linkUri", linkUri);
-      model.addObject("customTheme", themes.isCustomThemeApplied() || hasOrgTheme);
-      model.addObject("darkTheme", themes.isEMDarkTheme() || hasDarkEMTheme);
-      model.addObject("scriptThemeCssPath", themes.getScriptThemeCssPath(false));
+      model.addObject("customTheme", customThemesManager.isCustomThemeApplied() || hasOrgTheme);
+      model.addObject("darkTheme", customThemesManager.isEMDarkTheme() || hasDarkEMTheme);
+      model.addObject("scriptThemeCssPath", customThemesManager.getScriptThemeCssPath(false));
       return model;
    }
 
    private final SecurityEngine securityEngine;
+   private final CustomThemesManager customThemesManager;
+   private final PortalThemesManager portalThemesManager;
 }

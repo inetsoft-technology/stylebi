@@ -95,7 +95,8 @@ public class ScheduleService {
                           SecurityEngine securityEngine,
                           ScheduleTaskFolderService taskFolderService,
                           IndexedStorage indexedStorage,
-                          DataSourceRegistry dataSourceRegistry)
+                          DataSourceRegistry dataSourceRegistry,
+                          RenameTransformHandler renameTransformHandler)
    {
       this.analyticRepository = analyticRepository;
       this.scheduleManager = scheduleManager;
@@ -109,6 +110,7 @@ public class ScheduleService {
       this.taskFolderService = taskFolderService;
       this.indexedStorage = indexedStorage;
       this.dataSourceRegistry = dataSourceRegistry;
+      this.renameTransformHandler = renameTransformHandler;
    }
 
    /**
@@ -151,8 +153,8 @@ public class ScheduleService {
 
       if(!taskName.equals(oldName)) {
          String path = scheduleManager.getScheduleTask(oldName).getPath();
-         RenameTransformHandler.getTransformHandler().addTransformTask(
-            getDependencyInfo(oldName, taskName, path, path));
+         renameTransformHandler.addTransformTask(
+            getDependencyInfo(oldName, taskName, path, path, scheduleManager));
 
          if(renameTask(oldName, taskName, owner, principal)) {
             return taskName;
@@ -163,7 +165,8 @@ public class ScheduleService {
    }
 
    public static RenameDependencyInfo getDependencyInfo(String oname, String nname,
-                                                        String oldFolder, String newFolder)
+                                                        String oldFolder, String newFolder,
+                                                        ScheduleManager scheduleManager)
    {
       RenameDependencyInfo dinfo = new RenameDependencyInfo();
       List<RenameInfo> rinfos = new ArrayList<>();
@@ -172,7 +175,7 @@ public class ScheduleService {
       String oldKey = oentry.toIdentifier();
       List<AssetObject> entries = DependencyTransformer.getDependencies(oldKey);
       if(oldFolder == newFolder && oldFolder == null) {
-         String path = ScheduleManager.getScheduleManager().getScheduleTask(oname).getPath();
+         String path = scheduleManager.getScheduleTask(oname).getPath();
          oldFolder = path;
          newFolder = path;
       }
@@ -2183,6 +2186,7 @@ public class ScheduleService {
    private final IndexedStorage indexedStorage;
    private final ScheduleTaskFolderService taskFolderService;
    private final DataSourceRegistry dataSourceRegistry;
+   private final RenameTransformHandler renameTransformHandler;
    private long activityTimeout = 5000;
 
    private static final Logger LOG =

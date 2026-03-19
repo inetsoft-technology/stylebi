@@ -29,6 +29,7 @@ import inetsoft.report.script.viewsheet.PViewsheetScriptable;
 import inetsoft.report.style.TableStyle;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.*;
@@ -62,7 +63,8 @@ public abstract class StyleCore extends AbstractAssetEngine
    /**
     * Constructor.
     */
-   public StyleCore() {
+   public StyleCore(LibManagerProvider libManagerProvider, Cluster cluster) {
+      super(libManagerProvider, cluster);
       this.scopes = new int[] {AssetRepository.REPORT_SCOPE};
       this.istore = new XMLIndexedStorage("reportAssetRepository");
 

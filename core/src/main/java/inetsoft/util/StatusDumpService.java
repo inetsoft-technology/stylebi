@@ -58,8 +58,12 @@ import java.util.zip.ZipOutputStream;
 @Service
 @Lazy
 public class StatusDumpService {
-   public StatusDumpService(LogManager logManager) {
+   public StatusDumpService(LogManager logManager, FileSystemService fileSystemService,
+                            ExternalStorageService externalStorageService)
+   {
       this.logManager = logManager;
+      this.fileSystemService = fileSystemService;
+      this.externalStorageService = externalStorageService;
       mapper = new ObjectMapper();
       mapper.registerModule(new JavaTimeModule());
    }
@@ -69,7 +73,7 @@ public class StatusDumpService {
    }
 
    public void dumpStatus() {
-      Path file = FileSystemService.getInstance().getCacheTempFile("status-dump", ".zip").toPath();
+      Path file = fileSystemService.getCacheTempFile("status-dump", ".zip").toPath();
 
       try {
          try(ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(file))) {
@@ -88,7 +92,7 @@ public class StatusDumpService {
 
          try {
             String externalPath = getDumpName();
-            ExternalStorageService.getInstance().write(externalPath, file);
+            externalStorageService.write(externalPath, file);
             LOG.info("Wrote status dump to {}", externalPath);
          }
          catch(Exception e) {
@@ -383,6 +387,8 @@ public class StatusDumpService {
 
    private ApplicationContext applicationContext;
    private final LogManager logManager;
+   private final FileSystemService fileSystemService;
+   private final ExternalStorageService externalStorageService;
    private final ObjectMapper mapper;
    private static final Logger LOG = LoggerFactory.getLogger(StatusDumpService.class);
 

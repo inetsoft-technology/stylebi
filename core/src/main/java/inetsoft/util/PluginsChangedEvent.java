@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,15 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.test;
 
-import org.junit.jupiter.api.extension.ExtendWith;
+package inetsoft.util;
 
-import java.lang.annotation.*;
+import org.springframework.context.ApplicationEvent;
 
-@Target(ElementType.TYPE)
-@Retention(RetentionPolicy.RUNTIME)
-@ExtendWith(SreeHomeExtension.class)
-public @interface SreeHome {
-   String value() default "";
+public class PluginsChangedEvent extends ApplicationEvent {
+   public PluginsChangedEvent(Object source) {
+      super(source);
+   }
 }

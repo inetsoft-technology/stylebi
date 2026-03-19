@@ -107,7 +107,7 @@ public class RepositoryTreeChangeController {
       }
    }
 
-   @EventListener
+   @EventListener(SessionDisconnectEvent.class)
    public void handleDisconnect(SessionDisconnectEvent event) {
       removeSubscription(event);
    }

@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,15 +15,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.cluster;
 
-import java.io.Serializable;
+package inetsoft.sree.security;
 
-public class StopSchedulerMessage extends ServerClusterMessage implements Serializable {
-   @Override
-   protected String getCompletionAction() {
-      return ACTION;
+import java.security.Principal;
+
+public class SessionLoggedInEvent extends SessionEvent {
+   public SessionLoggedInEvent(Object source, Principal principal) {
+      super(source, principal);
    }
 
-   public static final String ACTION = "stop scheduler";
+   public SessionLoggedInEvent(Object source, Principal principal, boolean invalidateSession) {
+      super(source, principal, invalidateSession);
+   }
 }

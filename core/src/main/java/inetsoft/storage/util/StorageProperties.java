@@ -53,7 +53,7 @@ public class StorageProperties extends Properties implements AutoCloseable {
    public StorageProperties(String id, Properties defaults) {
       this.id = id;
       this.defaults = defaults;
-      this.storage = KeyValueStorageManager.getStorage(id);
+      this.storage = KeyValueStorageManager.getInstance().getStorage(id);
       this.storage.addListener(listener);
    }
 
@@ -266,7 +266,7 @@ public class StorageProperties extends Properties implements AutoCloseable {
    }
 
    private Object readResolve() throws ObjectStreamException {
-      this.storage = KeyValueStorageManager.getStorage(id);
+      this.storage = KeyValueStorageManager.getInstance().getStorage(id);
       this.storage.addListener(listener);
       return this;
    }

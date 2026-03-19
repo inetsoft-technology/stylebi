@@ -47,18 +47,20 @@ public class RepositoryDashboardService {
    public RepositoryDashboardService(ResourcePermissionService permissionService,
                                      SecurityProvider securityProvider,
                                      ContentRepositoryTreeService contentRepositoryTreeService,
-                                     AnalyticRepository analyticRepository,
                                      DashboardManager dashboardManager,
                                      SecurityEngine securityEngine,
-                                     DependencyHandler dependencyHandler)
+                                     DependencyHandler dependencyHandler,
+                                     DashboardRegistryManager dashboardRegistryManager,
+                                     RenameTransformHandler renameTransformHandler)
    {
       this.permissionService = permissionService;
       this.securityProvider = securityProvider;
       this.dashboardManager = dashboardManager;
       this.contentRepositoryTreeService = contentRepositoryTreeService;
-      this.analyticRepository = analyticRepository;
       this.securityEngine = securityEngine;
       this.dependencyHandler = dependencyHandler;
+      this.dashboardRegistryManager = dashboardRegistryManager;
+      this.renameTransformHandler = renameTransformHandler;
    }
 
    /**
@@ -69,8 +71,8 @@ public class RepositoryDashboardService {
    public RepositoryDashboardSettingsModel getSettings(String dashboardName, IdentityID owner,
                                                        Principal principal)
    {
-      DashboardRegistry registry = owner != null ? DashboardRegistry.getRegistry(owner) :
-         DashboardRegistry.getRegistry();
+      DashboardRegistry registry = owner != null ? dashboardRegistryManager.getRegistry(owner) :
+         dashboardRegistryManager.getRegistry();
       dashboardName = fixDashboardName(dashboardName, owner);
       VSDashboard dashboard = (VSDashboard) registry.getDashboard(dashboardName);
       final ResourcePermissionModel tableModel = owner != null ? null :
@@ -128,8 +130,8 @@ public class RepositoryDashboardService {
       try {
          actionRecord = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_EDIT, null,
                                               ActionRecord.OBJECT_TYPE_DASHBOARD);
-         DashboardRegistry registry = owner != null ? DashboardRegistry.getRegistry(owner) :
-            DashboardRegistry.getRegistry();
+         DashboardRegistry registry = owner != null ? dashboardRegistryManager.getRegistry(owner) :
+            dashboardRegistryManager.getRegistry();
          String name = model.name();
          VSDashboard dashboard = new VSDashboard();
          String desp = model.description();
@@ -177,7 +179,7 @@ public class RepositoryDashboardService {
             }
 
             RenameInfo rinfo = new RenameInfo(okey, nkey, RenameInfo.DASHBOARD);
-            RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
+            renameTransformHandler.addTransformTask(rinfo);
          }
 
          // remove the base vs if a new vs replaces it
@@ -306,7 +308,7 @@ public class RepositoryDashboardService {
          actionRecord = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_CREATE, null,
                                               ActionRecord.OBJECT_TYPE_DASHBOARD);
          IdentityID owner = parentInfo.getOwner();
-         DashboardRegistry registry = DashboardRegistry.getRegistry(owner);
+         DashboardRegistry registry = dashboardRegistryManager.getRegistry(owner);
          String dashboardName = null;
 
          for(int i = 1; i < Integer.MAX_VALUE; i++) {
@@ -376,7 +378,7 @@ public class RepositoryDashboardService {
    }
 
    public void delete(String path, IdentityID owner) throws Exception {
-      DashboardRegistry registry = DashboardRegistry.getRegistry(owner);
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry(owner);
 
       if(owner != null && SUtil.isMyDashboard(path)) {
          path = SUtil.getUnscopedPath(path);
@@ -394,7 +396,7 @@ public class RepositoryDashboardService {
 
    public RepositoryFolderDashboardSettingsModel getDashboardFolderSettings(Principal principal)
    {
-      DashboardRegistry registry = DashboardRegistry.getRegistry();
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry();
       List<String> dashboardNames = Arrays.asList(registry.getDashboardNames());
       Identity identity = getDashboardFolderIdentity(principal);
       List<String> sortedDashboards = Arrays.asList(dashboardManager.getDashboards(identity));
@@ -550,5 +552,6 @@ public class RepositoryDashboardService {
    private final DashboardManager dashboardManager;
    private final SecurityEngine securityEngine;
    private final DependencyHandler dependencyHandler;
-   private AnalyticRepository analyticRepository;
+   private final DashboardRegistryManager dashboardRegistryManager;
+   private final RenameTransformHandler renameTransformHandler;
 }

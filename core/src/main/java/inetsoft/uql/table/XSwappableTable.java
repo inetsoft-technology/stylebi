@@ -58,7 +58,7 @@ public class XSwappableTable implements XTable, Externalizable {
 
       creators = new XTableColumnCreator[0];
       this.tables = new XTableFragment[10];
-      this.monitor = XSwapper.getMonitor();
+      this.monitor = XSwapper.getSwapper().getMonitor();
       this.pos = 0;
 
       if(monitor != null) {

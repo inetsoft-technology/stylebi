@@ -18,6 +18,7 @@
 package inetsoft.util.dep;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.internal.SUtil;
@@ -435,7 +436,7 @@ public abstract class AbstractSheetAsset extends AbstractXAsset {
     */
    private LibManager getLibManager() {
       if(manager == null) {
-         manager = LibManager.getManager();
+         manager = LibManagerProvider.getInstance().getManager();
       }
 
       return manager;

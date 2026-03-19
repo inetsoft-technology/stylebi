@@ -18,6 +18,8 @@
 package inetsoft.web.security;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.AuthenticationService;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -42,6 +44,12 @@ import java.io.IOException;
  * Set to an empty string to disable the header for publicly accessible dashboards.
  */
 public class SecurityHeaderFilter extends AbstractSecurityFilter {
+   public SecurityHeaderFilter(SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                               AuthenticationService authenticationService)
+   {
+      super(sessionLicenseServiceProvider, authenticationService);
+   }
+
    @Override
    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
       throws IOException, ServletException

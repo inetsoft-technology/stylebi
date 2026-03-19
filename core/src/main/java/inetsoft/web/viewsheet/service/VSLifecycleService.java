@@ -22,11 +22,13 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.CheckMissingMVEvent;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.AffinityCallable;
-import inetsoft.sree.security.Organization;
-import inetsoft.sree.security.OrganizationContextHolder;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.security.*;
+import inetsoft.web.ServiceProxyContext;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
@@ -40,8 +42,7 @@ import inetsoft.web.ServiceProxyContext;
 import inetsoft.web.messaging.MessageAttributes;
 import inetsoft.web.messaging.MessageContextHolder;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
-import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
-import inetsoft.web.viewsheet.model.RuntimeViewsheetRefServiceProxy;
+import inetsoft.web.viewsheet.model.*;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,11 +58,16 @@ import java.util.*;
 @Component
 public class VSLifecycleService {
    @Autowired
-   public VSLifecycleService(ViewsheetService viewsheetService, AssetRepository assetRepository,
+   public VSLifecycleService(ViewsheetService viewsheetService,
+                             AssetRepository assetRepository,
                              CoreLifecycleService coreLifecycleService,
                              ParameterService parameterService,
                              VSLifecycleControllerServiceProxy serviceProxy,
-                             LogManager logManager)
+                             LogManager logManager,
+                             XSessionService sessionService,
+                             Cluster cluster,
+                             WorksheetService worksheetService,
+                             RuntimeViewsheetRefService runtimeViewsheetRefService)
    {
       this.viewsheetService = viewsheetService;
       this.assetRepository = assetRepository;
@@ -69,13 +75,17 @@ public class VSLifecycleService {
       this.parameterService = parameterService;
       this.serviceProxy = serviceProxy;
       this.logManager = logManager;
+      this.sessionService = sessionService;
+      this.cluster = cluster;
+      this.worksheetService = worksheetService;
+      this.runtimeViewsheetRefService = runtimeViewsheetRefService;
    }
 
    public String openViewsheet(OpenViewsheetEvent event, Principal principal, String linkUri)
       throws Exception
    {
       return CommandDispatcher.withDummyDispatcher(principal, dispatcher -> openViewsheet(
-         event, principal, dispatcher, new RuntimeViewsheetRef(new RuntimeViewsheetRefServiceProxy()), null,
+         event, principal, dispatcher, new RuntimeViewsheetRef(new RuntimeViewsheetRefServiceProxy(cluster, worksheetService, runtimeViewsheetRefService)), null,
          linkUri));
    }
 
@@ -223,12 +233,12 @@ public class VSLifecycleService {
       entry.setProperty("sync", Boolean.toString(event.isSync()));
 
       String userSessionId = principal == null ?
-         XSessionService.createSessionID(XSessionService.USER, null) :
+         sessionService.createSessionID(XSessionService.USER, null) :
          ((XPrincipal) principal).getSessionID();
       String objectName = entry.getDescription();
       LogUtil.PerformanceLogEntry logEntry = new LogUtil.PerformanceLogEntry(objectName);
       String execSessionId =
-         XSessionService.createSessionID(XSessionService.EXPORE_VIEW, entry.getName());
+         sessionService.createSessionID(XSessionService.EXPORE_VIEW, entry.getName());
       String objectType = ExecutionRecord.OBJECT_TYPE_VIEW;
       String execType = ExecutionRecord.EXEC_TYPE_START;
       Date execTimestamp = new Date(System.currentTimeMillis());
@@ -436,7 +446,7 @@ public class VSLifecycleService {
    }
 
    private LogManager getLogManager() {
-      return logManager != null ? logManager : LogManager.getInstance();
+      return logManager;
    }
 
    private final ViewsheetService viewsheetService;
@@ -445,5 +455,9 @@ public class VSLifecycleService {
    private final ParameterService parameterService;
    private final VSLifecycleControllerServiceProxy serviceProxy;
    private final LogManager logManager;
+   private final XSessionService sessionService;
+   private final Cluster cluster;
+   private final WorksheetService worksheetService;
+   private final RuntimeViewsheetRefService runtimeViewsheetRefService;
    private static final Logger LOG = LoggerFactory.getLogger(VSLifecycleService.class);
 }

@@ -40,11 +40,12 @@ import java.util.stream.Collectors;
 public class UploadService {
    @Autowired
    public UploadService(MavenClientService mavenClient, BlobStorageManager blobStorageManager,
-                        Cluster cluster)
+                        Cluster cluster, FileSystemService fileSystemService)
    {
       this.mavenClient = mavenClient;
       this.uploads = cluster.getMap(getClass().getName() + ".uploads");
-      this.blobStorage = blobStorageManager.getInstance("fileUploads", false);
+      this.blobStorage = blobStorageManager.getStorage("fileUploads", false);
+      this.fileSystemService = fileSystemService;
    }
 
    @PreDestroy
@@ -165,11 +166,10 @@ public class UploadService {
       info.blob = id + "/" + file.fileName();
 
       if(file.multipartFile() != null) {
-         FileSystemService fsService = FileSystemService.getInstance();
-         File localFile = fsService.getCacheTempFile("upload-" + id, ".dat");
+         File localFile = fileSystemService.getCacheTempFile("upload-" + id, ".dat");
 
          try {
-            info.filePath = fsService.getCacheFolder().toPath().toAbsolutePath()
+            info.filePath = fileSystemService.getCacheFolder().toPath().toAbsolutePath()
                .relativize(localFile.toPath().toAbsolutePath()).toString();
             store(info, Objects.requireNonNull(file.multipartFile())::getInputStream);
          }
@@ -234,7 +234,7 @@ public class UploadService {
       Path localFile = Paths.get(info.filePath);
 
       if(!localFile.isAbsolute()) {
-         localFile = FileSystemService.getInstance().getCacheFolder().toPath().resolve(localFile);
+         localFile = fileSystemService.getCacheFolder().toPath().resolve(localFile);
          processor.process(localFile);
       }
 
@@ -244,6 +244,7 @@ public class UploadService {
    private final MavenClientService mavenClient;
    private final DistributedMap<String, Upload> uploads;
    private final BlobStorage<Metadata> blobStorage;
+   private final FileSystemService fileSystemService;
    private static final Logger LOG = LoggerFactory.getLogger(UploadService.class);
 
    public static final class Metadata implements Serializable {

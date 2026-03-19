@@ -41,21 +41,13 @@ import java.util.concurrent.ConcurrentSkipListSet;
 @Service
 public class DataSpace implements AutoCloseable {
    /**
-    * No-arg fallback constructor for non-Spring environments (e.g., unit tests).
-    */
-   @SuppressWarnings("unchecked")
-   public DataSpace() {
-      this(BlobStorageManager.<Metadata>getStorage("dataSpace", true));
-   }
-
-   /**
     * Spring constructor — obtains the data space blob storage from the manager.
     *
     * @param blobStorageManager the blob storage manager.
     */
    @Autowired
    public DataSpace(BlobStorageManager blobStorageManager) {
-      this(blobStorageManager.<Metadata>getInstance("dataSpace", true));
+      this(blobStorageManager.<Metadata>getStorage("dataSpace", true));
    }
 
    private DataSpace(BlobStorage<Metadata> blobStorage) {

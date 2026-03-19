@@ -19,6 +19,7 @@ package inetsoft.web.binding;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.analytic.web.adhoc.AdHocQueryHandler;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.uql.asset.TableAssembly;
 import inetsoft.util.*;
@@ -399,10 +400,12 @@ public class VSScriptableController {
     */
    @Autowired
    public VSScriptableController(VSScriptableServiceProxy vsScriptableServiceProxy,
-                                 VSScriptableService vsScriptableService)
+                                 VSScriptableService vsScriptableService,
+                                 LibManagerProvider libManagerProvider)
    {
       this.vsScriptableServiceProxy = vsScriptableServiceProxy;
       this.vsScriptableService = vsScriptableService;
+      this.libManagerProvider = libManagerProvider;
    }
 
    @GetMapping("/api/vsscriptable/scriptTree")
@@ -486,7 +489,7 @@ public class VSScriptableController {
       String excelFunctionLabel = catalog.getString("Excel-style Functions");
       String excelFunctionName = "Excel-style Functions";
 
-      ItemMap functionMap = AdHocQueryHandler.getScriptFunctions(viewsheet);
+      ItemMap functionMap = AdHocQueryHandler.getScriptFunctions(viewsheet, libManagerProvider);
       ItemMap excelFunctionMap = AdHocQueryHandler.getExcelScriptFunctions();
 
       TreeNodeModel jsFunctionsNode = createNode(
@@ -713,4 +716,5 @@ public class VSScriptableController {
 
    private final VSScriptableServiceProxy vsScriptableServiceProxy;
    private final VSScriptableService vsScriptableService;
+   private final LibManagerProvider libManagerProvider;
 }

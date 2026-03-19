@@ -19,11 +19,18 @@ package inetsoft.report.lens;
 
 import inetsoft.report.internal.Util;
 import inetsoft.sree.SreeEnv;
-import inetsoft.test.SreeHome;
-import inetsoft.test.XTableUtil;
+import inetsoft.test.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
+@Tag("core")
 class MergeJoinTableTest {
    private static String forceHash;
 

@@ -98,9 +98,6 @@ import java.util.zip.ZipOutputStream;
  * @author InetSoft Technology Corp
  */
 public final class Tool extends CoreTool {
-   static {
-      PropertiesEngine.getInstance().addPropertyChangeListener("string.compare.casesensitive", evt -> invalidateCaseSensitive());
-   }
    /**
     * User defined type.
     */

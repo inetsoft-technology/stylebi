@@ -181,7 +181,7 @@ public class DBScriptable extends ScriptableObject {
       try {
          conn.commit();
          Thread.sleep(1000);
-         AssetDataCache.removeCacheDependence(jdbcSrc.getName());
+         AssetDataCache.getCache().removeCacheDependence(jdbcSrc.getName());
       }
       catch(Throwable ex) {
          LOG.error("Failed to commit transaction", ex);

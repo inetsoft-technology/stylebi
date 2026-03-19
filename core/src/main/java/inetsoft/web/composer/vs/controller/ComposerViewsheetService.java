@@ -72,7 +72,7 @@ public class ComposerViewsheetService {
                                       VSLayoutService vsLayoutService,
                                       VSObjectModelFactoryService objectModelService,
                                       VSCompositionService vsCompositionService,
-                                      MVManager mvManager)
+                                      MVManager mvManager, XSessionService sessionService)
    {
       this.runtimeViewsheetManager = runtimeViewsheetManager;
       this.coreLifecycleService = coreLifecycleService;
@@ -83,6 +83,7 @@ public class ComposerViewsheetService {
       this.objectModelService = objectModelService;
       this.vsCompositionService = vsCompositionService;
       this.mvManager = mvManager;
+      this.sessionService = sessionService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -93,7 +94,7 @@ public class ComposerViewsheetService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       String execSessionId =
-         XSessionService.createSessionID(XSessionService.EXPORE_VIEW, rvs.getEntry().getName());
+         sessionService.createSessionID(XSessionService.EXPORE_VIEW, rvs.getEntry().getName());
       rvs.setExecSessionID(execSessionId);
       rvs.setSocketSessionId(commandDispatcher.getSessionId());
       rvs.setSocketUserName(commandDispatcher.getUserName());
@@ -249,7 +250,7 @@ public class ComposerViewsheetService {
 
          // For auditing
          String userSessionID = principal == null ?
-            XSessionService.createSessionID(XSessionService.USER, null) :
+            sessionService.createSessionID(XSessionService.USER, null) :
             ((XPrincipal) principal).getSessionID();
          AssetEntry entry = rvs.getEntry();
          boolean sharedDashboard = VSUtil.isDefaultVSGloballyViewsheet(entry, principal);
@@ -261,7 +262,7 @@ public class ComposerViewsheetService {
 
             String objectName = entry.getDescription();
             LogUtil.PerformanceLogEntry logEntry = new LogUtil.PerformanceLogEntry(objectName);
-            String execSessionID = XSessionService.createSessionID(
+            String execSessionID = sessionService.createSessionID(
                XSessionService.EXPORE_VIEW, entry.getName());
             String objectType = ExecutionRecord.OBJECT_TYPE_VIEW;
             String execType = ExecutionRecord.EXEC_TYPE_START;
@@ -672,5 +673,6 @@ public class ComposerViewsheetService {
    private final VSObjectModelFactoryService objectModelService;
    private final VSCompositionService vsCompositionService;
    private final MVManager mvManager;
+   private final XSessionService sessionService;
    private final Logger LOG = LoggerFactory.getLogger(ComposerViewsheetService.class);
 }

@@ -29,8 +29,9 @@ import java.util.Map;
 
 @Component
 public class DeadlockHealthIndicator implements HealthIndicator {
-   public DeadlockHealthIndicator() {
-      service = DeadlockHealthService.getInstance();
+   public DeadlockHealthIndicator(DeadlockHealthService service, StatusDumpService statusDumpService) {
+      this.service = service;
+      this.statusDumpService = statusDumpService;
    }
 
    @Override
@@ -49,7 +50,7 @@ public class DeadlockHealthIndicator implements HealthIndicator {
 
          LoggerFactory.getLogger(getClass()).error(
             "DeadlockHealthIndicator DOWN: details={}", details);
-         StatusDumpService.getInstance().dumpStatus();
+         statusDumpService.dumpStatus();
          return Health.down().withDetails(details).build();
       }
 
@@ -57,4 +58,5 @@ public class DeadlockHealthIndicator implements HealthIndicator {
    }
 
    private final DeadlockHealthService service;
+   private final StatusDumpService statusDumpService;
 }

@@ -53,6 +53,7 @@ public class ViewsheetService
 
    @Autowired
    public ViewsheetService(inetsoft.analytic.composition.ViewsheetService engine,
+                           ScheduleClient scheduleClient,
                            ServerClusterClient client,
                            ViewsheetLifecycleMessageChannel viewsheetLifecycleMessageChannel,
                            MonitoringDataService monitoringDataService,
@@ -60,6 +61,7 @@ public class ViewsheetService
    {
       super(lowAttrs, medAttrs, new String[0]);
       this.engine = engine;
+      this.scheduleClient = scheduleClient;
       this.client = client;
       this.viewsheetLifecycleMessageChannel = viewsheetLifecycleMessageChannel;
       this.monitoringDataService = monitoringDataService;
@@ -349,7 +351,7 @@ public class ViewsheetService
       List<ViewsheetModel> viewsheets = new ArrayList<>();
       ScheduleViewsheetsStatus scheduleViewsheets = null;
 
-      if(!ScheduleClient.getScheduleClient().isCloud()) {
+      if(!scheduleClient.isCloud()) {
          scheduleViewsheets = getScheduleViewsheets(node);
       }
 
@@ -487,10 +489,11 @@ public class ViewsheetService
    private ScheduleViewsheetsStatus getScheduleViewsheets(String address) {
       return getScheduleMetrics(
          address,
+         scheduleClient,
          client,
          server -> {
             try {
-               return ScheduleClient.getViewsheets(null, server);
+               return scheduleClient.getViewsheets(null, server);
             }
             catch(RemoteException e) {
                throw new RuntimeException(e);
@@ -500,6 +503,7 @@ public class ViewsheetService
    }
 
    private final inetsoft.analytic.composition.ViewsheetService engine;
+   private final ScheduleClient scheduleClient;
    private final ServerClusterClient client;
    private final ViewsheetLifecycleMessageChannel viewsheetLifecycleMessageChannel;
    private final ViewsheetLifecycleEventListener listener;

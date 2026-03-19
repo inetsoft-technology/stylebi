@@ -70,7 +70,8 @@ public class DatabaseDatasourcesService {
                                      ResourcePermissionService resourcePermissionService,
                                      DataSourceStatusService dataSourceStatusService,
                                      IgniteSessionRepository sessionRepository,
-                                     DataSourceRegistry dataSourceRegistry)
+                                     DataSourceRegistry dataSourceRegistry,
+                                     RenameTransformHandler renameTransformHandler)
    {
       this.databaseTypeService = databaseTypeService;
       this.securityEngine = securityEngine;
@@ -80,6 +81,7 @@ public class DatabaseDatasourcesService {
       this.dataSourceStatusService = dataSourceStatusService;
       this.sessionRepository = sessionRepository;
       this.dataSourceRegistry = dataSourceRegistry;
+      this.renameTransformHandler = renameTransformHandler;
    }
 
    public DriverAvailability getDriverAvailability() {
@@ -226,7 +228,7 @@ public class DatabaseDatasourcesService {
             DependencyTransformer.prepareChildrenSources(path, childrenSources, repository);
             RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
                path, newPath, childrenSources);
-            RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+            renameTransformHandler.addTransformTask(dinfo);
             folder.setName(newPath);
 
             Permission permission =
@@ -290,7 +292,7 @@ public class DatabaseDatasourcesService {
       if(def != null) {
          def.setDeletable(securityEngine.checkPermission(
             principal, ResourceType.DATA_SOURCE,
-            resourcePermissionService.getDataSourceResourceName(path), ResourceAction.DELETE));
+            resourcePermissionService.getDataSourceResourceName(path, dataSourceRegistry), ResourceAction.DELETE));
       }
 
       return def;
@@ -457,7 +459,7 @@ public class DatabaseDatasourcesService {
          registry.getDataSource(newSrc.getFullName()) != null)
       {
          if(!securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE,
-            resourcePermissionService.getDataSourceResourceName(fullName),
+            resourcePermissionService.getDataSourceResourceName(fullName, dataSourceRegistry),
             ResourceAction.DELETE))
          {
             throw new SecurityException(
@@ -471,7 +473,7 @@ public class DatabaseDatasourcesService {
       }
       else if(!newDataSource && !securityEngine.checkPermission(
          principal, ResourceType.DATA_SOURCE,
-         resourcePermissionService.getDataSourceResourceName(fullName), ResourceAction.WRITE))
+         resourcePermissionService.getDataSourceResourceName(fullName, dataSourceRegistry), ResourceAction.WRITE))
       {
          throw new SecurityException(
             "User=" + principal.getName() + ", Path=/api/data/databases/*, Update=" + fullName);
@@ -739,7 +741,6 @@ public class DatabaseDatasourcesService {
          return false;
       }
 
-      XRepository repository = XFactory.getRepository();
       String[] existDataSourceNames = repository.getDataSourceNames();
 
       for(String exitName : existDataSourceNames) {
@@ -775,7 +776,6 @@ public class DatabaseDatasourcesService {
    private boolean checkAdditionalConnectionsDuplicate(String baseDataSource, String[] additionalConnections)
       throws RemoteException
    {
-      XRepository repository = XFactory.getRepository();
       String[] existDataSourceNames = repository.getDataSourceNames();
       String[] existDataSourceFullNames = repository.getDataSourceFullNames();
 
@@ -1278,7 +1278,7 @@ public class DatabaseDatasourcesService {
 
 
       if(changeTableOption) {
-         RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+         renameTransformHandler.addTransformTask(dinfo);
       }
    }
 
@@ -1310,6 +1310,7 @@ public class DatabaseDatasourcesService {
    private final XRepository repository;
    private final SecurityEngine securityEngine;
    private final DatabaseTypeService databaseTypeService;
+   private final RenameTransformHandler renameTransformHandler;
    private final DatabaseSettingsService databaseSettingsService;
    private final ResourcePermissionService resourcePermissionService;
    private final DataSourceStatusService dataSourceStatusService;

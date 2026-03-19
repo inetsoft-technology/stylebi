@@ -23,9 +23,6 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.db.DatabaseAuthenticationProvider;
 import inetsoft.storage.*;
-import inetsoft.uql.service.DataSourceRegistry;
-import inetsoft.uql.util.Config;
-import inetsoft.uql.util.Drivers;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.config.InetsoftConfig;
@@ -35,6 +32,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -45,7 +43,6 @@ import java.security.Principal;
 import java.sql.Timestamp;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -53,23 +50,13 @@ import java.util.zip.ZipInputStream;
 /**
  * Utility class used to access extensions defined in plugins.
  */
-public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoCloseable {
-   /**
-    * Creates a minimal no-op instance for non-Spring environments (e.g., unit tests).
-    */
-   Plugins() {
-      this.blobStorage = null;
-      this.pluginDirectory = null;
-      this.plugins = new ConcurrentHashMap<>();
-      this.blobChangeLock = null;
-      this.initialized = true;
-   }
-
+public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoCloseable {
    /**
     * Creates a new instance of <tt>Plugins</tt>.
     */
-   public Plugins(BlobStorage<Plugin.Descriptor> blobStorage) {
+   public Plugins(BlobStorage<Plugin.Descriptor> blobStorage, Cluster cluster, ApplicationEventPublisher eventPublisher) {
       this.blobStorage = blobStorage;
+      this.eventPublisher = eventPublisher;
       FileSystemService fileSystemService = FileSystemService.getInstance();
 
       InetsoftConfig config = InetsoftConfig.getInstance();
@@ -88,7 +75,7 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
       }
 
       this.plugins = new ConcurrentHashMap<>();
-      this.blobChangeLock = Cluster.getInstance().getLock(BLOB_CHANGE_LOCK);
+      this.blobChangeLock = cluster.getLock(BLOB_CHANGE_LOCK);
    }
 
    // must be called outside of constructor to avoid infinite recursion
@@ -154,42 +141,24 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
       }
    }
 
-   /** Holds the non-Spring bootstrap instance (thread-safe via AtomicReference). */
-   private static final AtomicReference<Plugins> NON_SPRING_INSTANCE = new AtomicReference<>();
-
    /**
     * Gets the singleton instance of <tt>Plugins</tt>.
     *
     * @return the plugin manager instance.
     */
    public static Plugins getInstance() {
-      org.springframework.context.ApplicationContext ctx =
-         ConfigurationContext.getContext().getApplicationContext();
+      Plugins plugins = ConfigurationContext.getContext().getSpringBean(Plugins.class);
 
-      if(ctx != null) {
-         Plugins plugins = ctx.getBean(Plugins.class);
-
-         if(!plugins.initialized) {
-            synchronized(plugins) {
-               if(!plugins.initialized) {
-                  plugins.init();
-                  plugins.initialized = true;
-               }
+      if(!plugins.initialized) {
+         synchronized(plugins) {
+            if(!plugins.initialized) {
+               plugins.init();
+               plugins.initialized = true;
             }
          }
-
-         return plugins;
       }
 
-      // Non-Spring fallback: return an empty no-op instance for tests.
-      return NON_SPRING_INSTANCE.updateAndGet(existing -> existing != null ? existing : new Plugins());
-   }
-
-   /**
-    * Resets the non-Spring singleton instance. Used in tests between test runs.
-    */
-   public static void resetNonSpringInstance() {
-      NON_SPRING_INSTANCE.set(null);
+      return plugins;
    }
 
    /**
@@ -594,8 +563,7 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
 
       plugins.remove(pluginId);
       blobStorage.delete(pluginId);
-      Drivers.getInstance().pluginRemoved(pluginId);
-      DataSourceRegistry.getRegistry().clearCache();
+      eventPublisher.publishEvent(new PluginRemovedEvent(this, pluginId));
       plugin.getClassLoader().close();
       resetDBProviderConnection();
       delete(plugin.getFolder());
@@ -680,8 +648,8 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
          Plugin.Descriptor descriptor = event.getNewValue().getMetadata();
          unzipPlugin(descriptor, event.getNewValue().getLastModified().toEpochMilli());
          loadPlugin(descriptor);
-         Drivers.getInstance().pluginAdded(descriptor.getId());
-         Config.reloadServices();
+         eventPublisher.publishEvent(new PluginAddedEvent(this, descriptor.getId()));
+         eventPublisher.publishEvent(new PluginsChangedEvent(this));
          fireActionEvent(descriptor.getId());
       }
       catch(Exception e) {
@@ -705,8 +673,7 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
          Plugin plugin = plugins.remove(pluginId);
 
          if(plugin != null) {
-            DataSourceRegistry.getRegistry().clearCache();
-            Drivers.getInstance().pluginRemoved(pluginId);
+            eventPublisher.publishEvent(new PluginRemovedEvent(this, pluginId));
 
             try {
                plugin.getClassLoader().close();
@@ -722,7 +689,7 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
                LOG.warn("Failed to delete plugin directory", e);
             }
 
-            Config.reloadServices();
+            eventPublisher.publishEvent(new PluginsChangedEvent(this));
             fireActionEvent(pluginId);
          }
       }
@@ -792,6 +759,7 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
    }
 
    private final BlobStorage<Plugin.Descriptor> blobStorage;
+   private final ApplicationEventPublisher eventPublisher;
    private final File pluginDirectory;
    private final Map<String, Plugin> plugins;
    private final Lock blobChangeLock;

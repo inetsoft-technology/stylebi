@@ -20,10 +20,8 @@ package inetsoft.mv.data;
 
 import inetsoft.mv.*;
 import inetsoft.report.TableLens;
-import inetsoft.report.internal.Util;
 import inetsoft.report.lens.DefaultTableLens;
-import inetsoft.test.SreeHome;
-import inetsoft.test.TestSerializeUtils;
+import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.DateRangeRef;
@@ -31,10 +29,19 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static inetsoft.test.XTableUtil.date;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
+@Tag("core")
 public class XDynamicTableTest {
    @Test
    public void testSerialize() throws Exception {

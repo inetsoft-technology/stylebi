@@ -17,13 +17,13 @@
  */
 package inetsoft.web.admin.content.repository;
 
-import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.MessageListener;
 import inetsoft.sree.security.*;
-import inetsoft.sree.web.dashboard.*;
+import inetsoft.sree.web.dashboard.DashboardChangeEvent;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.service.DataSourceRegistry;
@@ -64,10 +64,12 @@ public class RepositoryChangeController {
       SimpMessagingTemplate messagingTemplate,
       Cluster cluster,
       SecurityEngine securityEngine,
-      DataSourceRegistry dataSourceRegistry)
+      DataSourceRegistry dataSourceRegistry,
+      LibManagerProvider libManagerProvider)
    {
       this.assetRepository = assetRepository;
       this.messagingTemplate = messagingTemplate;
+      this.libManagerProvider = libManagerProvider;
       this.debouncer = new DefaultDebouncer<>();
       this.cluster = cluster;
       this.securityEngine = securityEngine;
@@ -79,7 +81,6 @@ public class RepositoryChangeController {
       RepletRegistry.getRegistry().addPropertyChangeListener(this.reportListener);
       assetRepository.addAssetChangeListener(this.assetListener);
       assetRepository.addAssetChangeListener(this.autoSaveListener);
-      DashboardManager.getManager().addDashboardChangeListener(this.dashboardListener);
       dataSourceRegistry.addRefreshedListener(dataSourceListener);
       cluster.addMessageListener(this.clusterMessageListener);
 
@@ -102,7 +103,6 @@ public class RepositoryChangeController {
       try {
          assetRepository.removeAssetChangeListener(this.assetListener);
          assetRepository.removeAssetChangeListener(this.autoSaveListener);
-         DashboardManager.getManager().removeDashboardChangeListener(this.dashboardListener);
          dataSourceRegistry.removeRefreshedListener(dataSourceListener);
          cluster.removeMessageListener(this.clusterMessageListener);
 
@@ -159,7 +159,7 @@ public class RepositoryChangeController {
       }
    }
 
-   @EventListener
+   @EventListener(SessionDisconnectEvent.class)
    public void handleDisconnect(SessionDisconnectEvent event) {
       removeSubscription(event);
    }
@@ -225,7 +225,8 @@ public class RepositoryChangeController {
       scheduleChangeMessage(null, getOrgId(event));
    }
 
-   private void dashboardChanged(DashboardChangeEvent event) {
+   @EventListener(DashboardChangeEvent.class)
+   public void dashboardChanged(DashboardChangeEvent event) {
       scheduleChangeMessage(null, event == null ? null : event.getOrgID());
    }
 
@@ -321,13 +322,13 @@ public class RepositoryChangeController {
 
    private void addLibManagerListener(String orgId) {
       if(!libManagerListenerOrgs.contains(orgId)) {
-         LibManager.getManager(orgId).addActionListener(libraryListener);
+         libManagerProvider.getManager(orgId).addActionListener(libraryListener);
          libManagerListenerOrgs.add(orgId);
       }
    }
 
    private void removeLibManagerListener(String orgId) {
-      LibManager.getManager(orgId).removeActionListener(libraryListener);
+      libManagerProvider.getManager(orgId).removeActionListener(libraryListener);
       libManagerListenerOrgs.remove(orgId);
    }
 
@@ -343,12 +344,12 @@ public class RepositoryChangeController {
    private final ReportChangeListener reportListener = new ReportChangeListener(null);
    private final AssetChangeListener assetListener = this::assetChanged;
    private final ActionListener libraryListener = this::libraryChanged;
-   private final DashboardChangeListener dashboardListener = this::dashboardChanged;
    private final PropertyChangeListener dataSourceListener = this::dataSourceChanged;
    private final AssetChangeListener autoSaveListener = this::autoSaveChanged;
    private final Cluster cluster;
    private final SecurityEngine securityEngine;
    private final DataSourceRegistry dataSourceRegistry;
+   private final LibManagerProvider libManagerProvider;
 
    private static final String CHANGE_TOPIC = "/em-content-changed";
    private static final Logger LOG = LoggerFactory.getLogger(RepositoryChangeController.class);

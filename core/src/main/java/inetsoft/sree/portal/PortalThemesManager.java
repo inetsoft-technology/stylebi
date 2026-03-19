@@ -26,6 +26,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.*;
@@ -52,11 +53,13 @@ import java.util.stream.Collectors;
 public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    // For non-Spring environments (tests, non-Spring processes)
    public PortalThemesManager() {
-      this(null);
+      this(null, DataSpace.getDataSpace());
    }
 
-   public PortalThemesManager(Cluster cluster) {
+   @Autowired
+   public PortalThemesManager(Cluster cluster, DataSpace dataSpace) {
       this.cluster = cluster;
+      this.dataSpace = dataSpace;
       this.changeListener = e -> {
          LOG.debug(e.toString());
 
@@ -562,7 +565,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
     */
    private void saveUnderLock() {
       String name = SreeEnv.getPath("portal.themes.file", "portalthemes.xml");
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = dataSpace;
 
       try {
          dmgr.removeChangeListener(space, null, name, changeListener);
@@ -944,7 +947,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
     */
    @PostConstruct
    public void loadThemes() {
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = dataSpace;
       String name = SreeEnv.getPath("portal.themes.file", "portalthemes.xml");
       boolean saveFile = false;
 
@@ -1017,6 +1020,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    }
 
    private final Cluster cluster;
+   private final DataSpace dataSpace;
 
    /**
     * Data change listener.

@@ -68,7 +68,7 @@ public class VSWizardObjectService {
                                 VSWizardBindingHandler bindingHandler,
                                 WizardViewsheetService wizardVSService,
                                 VSWizardTemporaryInfoService temporaryInfoService,
-                                MVManager mvManager)
+                                MVManager mvManager, AssetDataCache assetDataCache)
    {
       this.treeHandler = treeHandler;
       this.objectService = objectService;
@@ -80,6 +80,7 @@ public class VSWizardObjectService {
       this.coreLifecycleService = coreLifecycleService;
       this.temporaryInfoService = temporaryInfoService;
       this.mvManager = mvManager;
+      this.assetDataCache = assetDataCache;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -564,7 +565,7 @@ public class VSWizardObjectService {
 
       if(box.isPresent()) {
          box.get().cancel();
-         AssetDataCache.cancel(CACHE_ID_PREFIX + box.get().getID());
+         assetDataCache.cancel(CACHE_ID_PREFIX + box.get().getID());
       }
    }
 
@@ -629,6 +630,7 @@ public class VSWizardObjectService {
    private final VSWizardBindingHandler bindingHandler;
    private final WizardViewsheetService wizardVSService;
    private final VSWizardTemporaryInfoService temporaryInfoService;
+   private final AssetDataCache assetDataCache;
    private static final Logger LOGGER = LoggerFactory.getLogger(VSWizardObjectService.class);
 
 }

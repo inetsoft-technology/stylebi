@@ -66,27 +66,20 @@ public class DataCycleManager
    public static final String TASK_PREFIX = "DataCycle Task: ";
 
    /**
-    * Creates a new instance of DataCycleManager (non-Spring path, used by Reference.get()).
-    */
-   public DataCycleManager() {
-      this(ScheduleManager.getScheduleManager(), IndexedStorage.getIndexedStorage(),
-           SecurityEngine.getSecurity(), Cluster.getInstance(), MVManager.getManager());
-      initAfterCreate();
-   }
-
-   /**
     * Spring constructor — ScheduleManager and IndexedStorage are injected, ensuring correct
     * initialization order without requiring the distributed INIT_LOCK.
     */
    @Autowired
    public DataCycleManager(ScheduleManager scheduleManager, IndexedStorage indexedStorage,
-                           SecurityEngine securityEngine, Cluster cluster, MVManager mvManager)
+                           SecurityEngine securityEngine, Cluster cluster, MVManager mvManager,
+                           DataSpace dataSpace)
    {
       this.scheduleManager = scheduleManager;
       this.indexedStorage = indexedStorage;
       this.securityEngine = securityEngine;
       this.cluster = cluster;
       this.mvManager = mvManager;
+      this.dataSpace = dataSpace;
       scheduleManager.addScheduleExt(this);
       init();
       indexedStorage.addStorageRefreshListener(this);
@@ -485,20 +478,19 @@ public class DataCycleManager
          }
 
          String afile = SreeEnv.getProperty("cycle.file");
-         DataSpace space = DataSpace.getDataSpace();
 
-         if(!space.exists(null, afile)) {
+         if(!dataSpace.exists(null, afile)) {
             return;
          }
 
          Document doc;
 
-         try(InputStream fis = space.getInputStream(null, afile)) {
+         try(InputStream fis = dataSpace.getInputStream(null, afile)) {
             doc = Tool.parseXML(fis);
          }
 
          IndexedStorage storage = getIndexedStorage();
-         space.rename(afile, "cycle.xml.old");
+         dataSpace.rename(afile, "cycle.xml.old");
 
          Element dcycleNode = (Element) doc.getElementsByTagName("dcycle").item(0);
          setDefaultCycle(Tool.getValue(dcycleNode));
@@ -1038,18 +1030,19 @@ public class DataCycleManager
    }
 
    private ScheduleManager getScheduleManager() {
-      return scheduleManager != null ? scheduleManager : ScheduleManager.getScheduleManager();
+      return scheduleManager;
    }
 
    private IndexedStorage getIndexedStorage() {
-      return indexedStorage != null ? indexedStorage : IndexedStorage.getIndexedStorage();
+      return indexedStorage;
    }
 
-   private ScheduleManager scheduleManager;
-   private IndexedStorage indexedStorage;
+   private final ScheduleManager scheduleManager;
+   private final IndexedStorage indexedStorage;
    private final SecurityEngine securityEngine;
    private final Cluster cluster;
    private final MVManager mvManager;
+   private final DataSpace dataSpace;
    private final Map<String, Boolean> orgPregeneratedTaskLoadedStatus = new ConcurrentHashMap<>();
    private final Map<String, Vector<ScheduleTask>> pregeneratedTasksMap = new HashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(DataCycleManager.class);

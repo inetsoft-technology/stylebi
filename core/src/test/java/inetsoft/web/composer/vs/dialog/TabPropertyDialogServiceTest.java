@@ -19,10 +19,8 @@ package inetsoft.web.composer.vs.dialog;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.test.SreeHome;
-import inetsoft.uql.viewsheet.TabVSAssembly;
-import inetsoft.uql.viewsheet.TextVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.test.*;
+import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.VSObjectTreeNode;
@@ -32,18 +30,28 @@ import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.*;
+import org.junit.jupiter.api.Tag;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
 import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
 @ExtendWith(MockitoExtension.class)
+@Tag("core")
 class TabPropertyDialogServiceTest {
    // Shared viewsheet and assemblies initialised once per test in setUp.
    private Viewsheet realVS;
@@ -56,7 +64,7 @@ class TabPropertyDialogServiceTest {
          vsObjectPropertyService,
          vsObjectTreeService,
          coreLifecycleService,
-         new VSDialogService(null),      // real service — we test its interaction with the service
+         new VSDialogService(null, null),      // real service — we test its interaction with the service
          viewsheetService);
 
       // Build a minimal viewsheet with one Tab containing one Text child.

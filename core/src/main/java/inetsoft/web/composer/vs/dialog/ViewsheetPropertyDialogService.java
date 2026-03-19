@@ -72,7 +72,7 @@ public class ViewsheetPropertyDialogService {
                                          VSAssemblyInfoHandler vsAssemblyInfoHandler,
                                          SecurityEngine securityEngine,
                                          MVManager mvManager,
-                                         LicenseManager licenseManager)
+                                         LicenseManager licenseManager, DeviceRegistry deviceRegistry)
    {
       this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
@@ -82,6 +82,7 @@ public class ViewsheetPropertyDialogService {
       this.securityEngine = securityEngine;
       this.mvManager = mvManager;
       this.licenseManager = licenseManager;
+      this.deviceRegistry = deviceRegistry;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -176,8 +177,7 @@ public class ViewsheetPropertyDialogService {
                                            && assetRepository.checkPermission(
          principal, ResourceType.DEVICE, "*", EnumSet.of(ResourceAction.ACCESS)));
 
-      DeviceRegistry registry = DeviceRegistry.getRegistry();
-      List<DeviceInfo> devices = Arrays.asList(registry.getDevices());
+      List<DeviceInfo> devices = Arrays.asList(deviceRegistry.getDevices());
 
       for(DeviceInfo device : devices) {
          ScreenSizeDialogModel screenSizeDialog = new ScreenSizeDialogModel();
@@ -1565,6 +1565,7 @@ public class ViewsheetPropertyDialogService {
    private final SecurityEngine securityEngine;
    private final MVManager mvManager;
    private final LicenseManager licenseManager;
+   private final DeviceRegistry deviceRegistry;
 
    private static final double RATIO_INCH_MM = 25.4;
    private static final double RATIO_INCH_POINT = 72;

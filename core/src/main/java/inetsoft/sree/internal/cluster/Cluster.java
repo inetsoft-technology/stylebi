@@ -17,7 +17,6 @@
  */
 package inetsoft.sree.internal.cluster;
 
-import inetsoft.sree.internal.cluster.ignite.IgniteCluster;
 import inetsoft.util.ConfigurationContext;
 import org.apache.ignite.services.Service;
 
@@ -26,7 +25,6 @@ import javax.cache.expiry.ExpiryPolicy;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.function.*;
 
@@ -37,46 +35,12 @@ import java.util.function.*;
  */
 public interface Cluster extends AutoCloseable {
    /**
-    * Thread-safe holder for the pre-Spring bootstrap instance. Interface fields are
-    * {@code public static final}, so we wrap the mutable reference in an {@code AtomicReference}.
-    */
-   AtomicReference<Cluster> PRE_SPRING_INSTANCE = new AtomicReference<>();
-
-   /**
     * Gets the singleton cluster instance.
-    *
-    * <p>In the full server this returns the Spring-managed bean. In non-Spring environments
-    * (unit tests, schedule-server pre-boot) the instance stored in
-    * {@link #PRE_SPRING_INSTANCE} is returned, creating it lazily on first access.</p>
     *
     * @return the cluster instance.
     */
    static Cluster getInstance() {
-      ConfigurationContext ctx = ConfigurationContext.getContext();
-
-      if(ctx.getApplicationContext() != null) {
-         return ctx.getApplicationContext().getBean(Cluster.class);
-      }
-
-      // Non-Spring path: lazily create via the system-property override or IgniteCluster default.
-      return PRE_SPRING_INSTANCE.updateAndGet(existing -> {
-         if(existing != null) {
-            return existing;
-         }
-
-         String impl = System.getProperty("inetsoft.sree.internal.cluster.implementation");
-
-         if(impl != null) {
-            try {
-               return (Cluster) Class.forName(impl).getDeclaredConstructor().newInstance();
-            }
-            catch(Exception e) {
-               throw new RuntimeException("Failed to create Cluster: " + impl, e);
-            }
-         }
-
-         return new IgniteCluster();
-      });
+      return ConfigurationContext.getContext().getSpringBean(Cluster.class);
    }
 
    /**

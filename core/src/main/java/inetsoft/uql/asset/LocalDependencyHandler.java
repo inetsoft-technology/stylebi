@@ -20,6 +20,7 @@ package inetsoft.uql.asset;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.web.dashboard.*;
 import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.erm.vpm.VpmCondition;
 import inetsoft.util.dep.*;
@@ -29,8 +30,6 @@ import inetsoft.report.internal.binding.AssetNamedGroupInfo;
 import inetsoft.report.internal.binding.OrderInfo;
 import inetsoft.report.internal.table.TableHyperlinkAttr;
 import inetsoft.sree.schedule.*;
-import inetsoft.sree.web.dashboard.DashboardRegistry;
-import inetsoft.sree.web.dashboard.VSDashboard;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.internal.FunctionIterator;
 import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
@@ -1311,7 +1310,7 @@ public class LocalDependencyHandler implements DependencyHandler {
       }
 
       final Vector functions = new Vector();
-      LibManager manager = LibManager.getManager();
+      LibManager manager = LibManagerProvider.getInstance().getManager();
 
       FunctionIterator iterator = new FunctionIterator(script);
       Principal principal = ThreadContext.getContextPrincipal();
@@ -1927,7 +1926,7 @@ public class LocalDependencyHandler implements DependencyHandler {
       AssetEntry entry = new AssetEntry(user == null ? AssetRepository.GLOBAL_SCOPE :
          AssetRepository.USER_SCOPE, AssetEntry.Type.DASHBOARD, name, user);
 
-      VSDashboard dashboard = (VSDashboard) DashboardRegistry.getRegistry(user).getDashboard(name);
+      VSDashboard dashboard = (VSDashboard) DashboardRegistryManager.getInstance().getRegistry(user).getDashboard(name);
       String id = dashboard == null || dashboard.getViewsheet() == null ? null :
          dashboard.getViewsheet().getIdentifier();
 
@@ -2053,7 +2052,7 @@ public class LocalDependencyHandler implements DependencyHandler {
                   AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT, path, null);
             }
             else if(asset instanceof TableStyleAsset) {
-               LibManager manager = LibManager.getManager();
+               LibManager manager = LibManagerProvider.getInstance().getManager();
                String path = asset.getPath();
                XTableStyle style = manager.getTableStyle(path);
 

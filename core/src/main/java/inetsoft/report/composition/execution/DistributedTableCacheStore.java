@@ -46,8 +46,8 @@ public class DistributedTableCacheStore {
       return ConfigurationContext.getContext().getSpringBean(DistributedTableCacheStore.class);
    }
 
-   public DistributedTableCacheStore() {
-      Cluster cluster = Cluster.getInstance();
+   public DistributedTableCacheStore(Cluster cluster, BlobStorageManager blobStorageManager) {
+      this.blobStorageManager = blobStorageManager;
       clusterId = cluster.getId();
       storages = new ConcurrentHashMap<>();
 
@@ -183,7 +183,7 @@ public class DistributedTableCacheStore {
          return storages.get(storeID);
       }
       else {
-         BlobStorage<Metadata> storage = BlobStorageManager.getStorage(storeID, false);
+         BlobStorage<Metadata> storage = blobStorageManager.getStorage(storeID, false);
          storages.put(storeID, storage);
          return storage;
       }
@@ -197,6 +197,7 @@ public class DistributedTableCacheStore {
       return clusterId + "__" + DigestUtils.sha256Hex(dataKey.getValue());
    }
 
+   private final BlobStorageManager blobStorageManager;
    private final String clusterId;
    private final ConcurrentHashMap<String, BlobStorage<Metadata>> storages;
    private final Debouncer<String> debouncer;

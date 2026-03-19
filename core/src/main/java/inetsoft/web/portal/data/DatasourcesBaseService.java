@@ -54,17 +54,22 @@ public abstract class DatasourcesBaseService {
                                  SecurityEngine securityEngine,
                                  DataSourceStatusService dataSourceStatusService,
                                  DataSourceRegistry dataSourceRegistry,
-                                 LicenseManager licenseManager)
+                                 LicenseManager licenseManager, Config uqlConfig)
    {
       this.repository = repository;
       this.securityEngine = securityEngine;
       this.dataSourceStatusService = dataSourceStatusService;
       this.dataSourceRegistry = dataSourceRegistry;
       this.licenseManager = licenseManager;
+      this.uqlConfig = uqlConfig;
    }
 
    protected XRepository getRepository() {
       return repository;
+   }
+
+   protected Config getUqlConfig() {
+      return uqlConfig;
    }
 
    public DataSourceDefinition getDataSourceDefinition(@PermissionPath String path,
@@ -205,11 +210,11 @@ public abstract class DatasourcesBaseService {
    }
 
    private Object refreshAndGetDataSource(DataSourceDefinition definition) {
-      String dsClass = Config.getDataSourceClass(definition.getType());
+      String dsClass = uqlConfig.getDataSourceClass(definition.getType());
       Object ds = null;
 
       try {
-         ds = Config.getClass(definition.getType(), dsClass).getConstructor().newInstance();
+         ds = uqlConfig.getClass(definition.getType(), dsClass).getConstructor().newInstance();
       }
       catch(Exception e) {
          LOG.error("Failed to create class: " + dsClass, e);
@@ -637,5 +642,6 @@ public abstract class DatasourcesBaseService {
    private final DataSourceStatusService dataSourceStatusService;
    private final DataSourceRegistry dataSourceRegistry;
    private final LicenseManager licenseManager;
+   private final Config uqlConfig;
    private static final Logger LOG = LoggerFactory.getLogger(DatasourcesBaseService.class);
 }

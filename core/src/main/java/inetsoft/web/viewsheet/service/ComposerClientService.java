@@ -21,6 +21,7 @@ package inetsoft.web.viewsheet.service;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedMap;
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Service;
 
@@ -28,9 +29,14 @@ import java.util.Map;
 
 @Service
 public class ComposerClientService {
+   @Autowired
+   public ComposerClientService(Cluster cluster) {
+      this.cluster = cluster;
+   }
+
    @PostConstruct
    public void init() {
-      composerClients = Cluster.getInstance().getReplicatedMap(getClass().getName() + ".sessions");
+      composerClients = cluster.getReplicatedMap(getClass().getName() + ".sessions");
    }
 
    public void removeFromSessionList(StompHeaderAccessor headers) {
@@ -56,4 +62,5 @@ public class ComposerClientService {
    public static final String COMMANDS_TOPIC = "/composer-client";
    // key = simpSessionId, value = httpSessionId (cluster-wide replicated map)
    private DistributedMap<String, String> composerClients;
+   private final Cluster cluster;
 }

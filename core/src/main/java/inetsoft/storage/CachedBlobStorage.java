@@ -17,8 +17,7 @@
  */
 package inetsoft.storage;
 
-import inetsoft.sree.internal.cluster.MessageEvent;
-import inetsoft.sree.internal.cluster.MessageListener;
+import inetsoft.sree.internal.cluster.*;
 import inetsoft.storage.fs.FilesystemBlobEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,9 +47,9 @@ public final class CachedBlobStorage<T extends Serializable>
     * @param preload  preload the local cache in a background thread on initialization.
     */
    public CachedBlobStorage(String id, Path cacheDir, KeyValueStorage<Blob<T>> storage,
-                            BlobCache cache, boolean preload)
+                            BlobCache cache, Cluster cluster, boolean preload)
    {
-      super(id, storage);
+      super(id, storage, cluster);
       Objects.requireNonNull(id, "The storage identifier cannot be null");
       Objects.requireNonNull(cacheDir, "The cache directory cannot be null");
       Objects.requireNonNull(cache, "The blob storage cache cannot be null");

@@ -21,6 +21,7 @@ import com.github.zafarkhaja.semver.Version;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.storage.*;
 import inetsoft.util.*;
+import inetsoft.util.config.InetsoftConfig;
 import org.apache.commons.codec.digest.DigestUtils;
 
 import java.io.*;
@@ -49,6 +50,12 @@ public class StorageService extends AbstractStorageService {
 
          throw e;
       }
+   }
+
+   public StorageService(InetsoftConfig config, KeyValueEngine keyValueEngine, BlobEngine blobEngine) {
+      super(config);
+      this.keyValueEngine = keyValueEngine;
+      this.blobEngine = blobEngine;
    }
 
    /**

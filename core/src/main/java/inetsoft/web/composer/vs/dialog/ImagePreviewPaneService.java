@@ -48,11 +48,15 @@ public class ImagePreviewPaneService {
 
    public ImagePreviewPaneService(ViewsheetService viewsheetService,
                                   VSObjectService vsObjectService,
-                                  BinaryTransferService binaryTransferService)
+                                  BinaryTransferService binaryTransferService,
+                                  FileSystemService fileSystemService,
+                                  DataSpace dataSpace)
    {
       this.viewsheetService = viewsheetService;
       this.vsObjectService = vsObjectService;
       this.binaryTransferService = binaryTransferService;
+      this.fileSystemService = fileSystemService;
+      this.dataSpace = dataSpace;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -143,13 +147,12 @@ public class ImagePreviewPaneService {
 
       if(!Tool.isEmptyString(imageDir)) {
          try {
-            FileSystemService fileSystemService = FileSystemService.getInstance();
-            File imageFile = fileSystemService.getFile(imageDir);
-            String imgPath = fileSystemService.getPath(imageDir).toString();
+            File imageFile = this.fileSystemService.getFile(imageDir);
+            String imgPath = this.fileSystemService.getPath(imageDir).toString();
 
             if(!imageFile.isAbsolute()) {
                final String homeDir = SreeEnv.getProperty("sree.home");
-               imgPath = fileSystemService.getPath(homeDir, imageDir).toString();
+               imgPath = this.fileSystemService.getPath(homeDir, imageDir).toString();
             }
 
             getImagesFromDir(children, imgPath, "");
@@ -222,9 +225,8 @@ public class ImagePreviewPaneService {
 
    private void getImagesFromDir(List<TreeNodeModel> nodes, String root, String prefix) {
       final List<TreeNodeModel> children = new ArrayList<>();
-      final DataSpace dataspace = DataSpace.getDataSpace();
-      final FileSystemService fileSystemService = FileSystemService.getInstance();
-      final String currentPath = dataspace.getPath(fileSystemService.getPath(
+      final DataSpace dataspace = this.dataSpace;
+      final String currentPath = dataspace.getPath(this.fileSystemService.getPath(
          root, prefix).toString(), "");
       final String[] fileNames = dataspace.list(currentPath);
       assert fileNames != null;
@@ -243,7 +245,7 @@ public class ImagePreviewPaneService {
 
       for(String fileName : fileNames) {
          final String fullPath = dataspace.getPath(currentPath, fileName);
-         final String relativePath = fileSystemService.getPath(prefix, fileName).toString();
+         final String relativePath = this.fileSystemService.getPath(prefix, fileName).toString();
 
          if(dataspace.isDirectory(fullPath) && checkImageExisted(dataspace, fullPath)) {
             getImagesFromDir(children, root, relativePath);
@@ -309,6 +311,8 @@ public class ImagePreviewPaneService {
    private ViewsheetService viewsheetService;
    private VSObjectService vsObjectService;
    private BinaryTransferService binaryTransferService;
+   private final FileSystemService fileSystemService;
+   private final DataSpace dataSpace;
 
 
    private static final Logger LOG =

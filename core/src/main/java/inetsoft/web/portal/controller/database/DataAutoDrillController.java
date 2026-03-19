@@ -219,10 +219,12 @@ public class DataAutoDrillController {
    }
 
    private XRepository getXRepository() throws Exception {
-      return XFactory.getRepository();
+      return xRepository;
    }
 
    @Autowired
    private AssetRepository engine;
+   @Autowired
+   private XRepository xRepository;
    private static final Logger LOG = LoggerFactory.getLogger(DataAutoDrillController.class.getName());
 }

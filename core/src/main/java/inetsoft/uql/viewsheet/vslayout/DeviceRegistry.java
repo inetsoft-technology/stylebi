@@ -37,8 +37,8 @@ public final class DeviceRegistry {
    /**
     * Creates a new instance of <tt>DeviceRegistry</tt>.
     */
-   public DeviceRegistry() {
-      storage = KeyValueStorageManager.getStorage("devices", new LoadDevicesTask("devices"));
+   public DeviceRegistry(KeyValueStorageManager kvStorageManager) {
+      storage = kvStorageManager.getStorage("devices", new LoadDevicesTask("devices"));
    }
 
    /**

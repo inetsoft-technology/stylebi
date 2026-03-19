@@ -50,13 +50,14 @@ public class LogicalModelController {
                                  DataSourceService dataSourceService,
                                  LogicalModelService modelService,
                                  DatasourcesService datasourcesService,
-                                 LogicalModelTreeService treeService)
+                                 LogicalModelTreeService treeService, AssetDataCache assetDataCache)
    {
       this.assetRepository = assetRepository;
       this.dataSourceService = dataSourceService;
       this.modelService = modelService;
       this.datasourcesService = datasourcesService;
       this.treeService = treeService;
+      this.assetDataCache = assetDataCache;
    }
 
    /**
@@ -136,7 +137,7 @@ public class LogicalModelController {
       String folder = model != null ? model.getFolder() : null;
       LogicalModelDefinition newModel = modelService.updateModel(
          event.getDatabase(), folder, event.getName(), model, event.getParent(), principal);
-      AssetDataCache.removeCacheDependence(event.getDatabase());
+      assetDataCache.removeCacheDependence(event.getDatabase());
 
       return newModel;
    }
@@ -417,4 +418,5 @@ public class LogicalModelController {
    private final LogicalModelService modelService;
    private final DatasourcesService datasourcesService;
    private final LogicalModelTreeService treeService;
+   private final AssetDataCache assetDataCache;
 }

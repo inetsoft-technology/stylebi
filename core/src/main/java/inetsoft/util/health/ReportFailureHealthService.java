@@ -21,6 +21,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.util.ConfigurationContext;
 import inetsoft.util.audit.ExecutionRecord;
 import inetsoft.util.audit.ExecutionRecordDispatcher;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -33,13 +34,13 @@ import java.util.Map;
 public class ReportFailureHealthService
    implements AutoCloseable, ExecutionRecordDispatcher.ExecutionRecordListener
 {
-   public ReportFailureHealthService() {
-      dispatcher = ExecutionRecordDispatcher.getInstance();
-      dispatcher.addListener(this);
+   public ReportFailureHealthService(ExecutionRecordDispatcher dispatcher) {
+      this.dispatcher = dispatcher;
    }
 
-   public static ReportFailureHealthService getInstance() {
-      return ConfigurationContext.getContext().getSpringBean(ReportFailureHealthService.class);
+   @PostConstruct
+   public void addDispatcherListener() {
+      dispatcher.addListener(this);
    }
 
    public ReportFailureStatus getStatus() {

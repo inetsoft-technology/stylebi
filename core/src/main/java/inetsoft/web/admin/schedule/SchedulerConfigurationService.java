@@ -55,11 +55,12 @@ public class SchedulerConfigurationService {
    @Autowired
    public SchedulerConfigurationService(ScheduleClient scheduleClient,
                                         ResourcePermissionService permissionService,
-                                        Cluster cluster)
+                                        Cluster cluster,
+                                        ExternalStorageService externalStorageService)
    {
       this.scheduleClient = scheduleClient;
       this.permissionService = permissionService;
-      this.externalStorageService = ExternalStorageService.getInstance();
+      this.externalStorageService = externalStorageService;
       this.cluster = cluster;
    }
 
@@ -120,7 +121,7 @@ public class SchedulerConfigurationService {
       // (running off source), stop it before updating the port so the stop command can
       // reach the scheduler on the old port. In Docker/cloud deployments the scheduler
       // runs in a separate container and cannot be stopped from here.
-      int currentPort = ScheduleClient.getSchedulerPort();
+      int currentPort = scheduleClient.getSchedulerPort();
 
       if(currentPort != model.rmiPort() && scheduleClient.isAutoStart() && scheduleClient.isReady()) {
          SUtil.stopScheduler(true, false);
@@ -173,7 +174,7 @@ public class SchedulerConfigurationService {
             ScheduleClusterStatusModel.Builder clusterBuilder = ScheduleClusterStatusModel.builder();
             servers.add(nodes[i]);
             clusterBuilder = clusterBuilder.server(nodes[i]);
-            Date startTime = ScheduleClient.getScheduleStartDate(nodes[i]);
+            Date startTime = scheduleClient.getScheduleStartDate(nodes[i]);
 
             if(startTime == null) {
                clusterBuilder = clusterBuilder.uptime(catalog.getString("Not ready"));

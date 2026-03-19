@@ -17,27 +17,13 @@
  */
 package inetsoft.sree.portal;
 
-import inetsoft.sree.SreeEnv;
-import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.SecurityEngine;
-import inetsoft.sree.security.SecurityProvider;
-import inetsoft.uql.XPrincipal;
-import inetsoft.uql.util.XUtil;
-import inetsoft.util.*;
-import inetsoft.util.gui.GuiTool;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.w3c.dom.*;
+import inetsoft.util.XMLSerializable;
+import org.w3c.dom.Element;
 
-import javax.xml.xpath.*;
-import java.awt.*;
-import java.io.*;
-import java.nio.charset.StandardCharsets;
+import java.io.PrintWriter;
 import java.security.Principal;
-import java.util.List;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  *
@@ -76,19 +62,19 @@ public class CustomThemesImpl implements XMLSerializable, AutoCloseable {
    public void removeSelectedTheme(String selectedTheme) {
    }
 
-   public boolean isCustomThemeApplied() {
+   public boolean isCustomThemeApplied(CustomThemesManager customThemesManager) {
       return false;
    }
 
-   public boolean isEMDarkTheme() {
+   public boolean isEMDarkTheme(CustomThemesManager customThemesManager) {
       return false;
    }
 
-   public String getScriptThemeCssPath(boolean portal) {
+   public String getScriptThemeCssPath(boolean portal, CustomThemesManager customThemesManager) {
       return "../" + CustomTheme.ScriptTheme.ECLIPSE.getFileName();
    }
 
-   public String getSelectedTheme(Principal user) {
+   public String getSelectedTheme(Principal user, CustomThemesManager customThemesManager) {
       return "default";
    }
 

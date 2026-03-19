@@ -18,6 +18,7 @@
 package inetsoft.web.composer.script;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
@@ -41,9 +42,12 @@ import java.util.*;
 public class OpenScriptController {
    @Autowired
    public OpenScriptController(AssetRepository assetRepository,
-                               ScriptService scriptService) {
+                               ScriptService scriptService,
+                               LibManagerProvider libManagerProvider)
+   {
       this.assetRepository = assetRepository;
       this.scriptService = scriptService;
+      this.libManagerProvider = libManagerProvider;
    }
 
    @PostMapping(value = "/api/composer/save/script")
@@ -53,7 +57,7 @@ public class OpenScriptController {
          "Script Function/" + name, ActionRecord.OBJECT_TYPE_SCRIPT);
 
       try {
-         LibManager lib = LibManager.getManager(principal);
+         LibManager lib = libManagerProvider.getManager(principal);
          String function = lib.getScript(name) == null ? "" : lib.getScript(name);
          String comment = scriptModel.getComment();
          boolean change = false;
@@ -120,7 +124,7 @@ public class OpenScriptController {
          "Script Function/" + name, ActionRecord.OBJECT_TYPE_SCRIPT);
 
       try {
-         LibManager lib = LibManager.getManager(principal);
+         LibManager lib = libManagerProvider.getManager(principal);
          String scriptText = scriptModel.getText();
          scriptText = scriptText == null ? "" : scriptText;
          lib.setScript(saveModel.getName(), scriptText);
@@ -165,7 +169,7 @@ public class OpenScriptController {
 
    @RequestMapping(value = "/api/composer/script/save-script-dialog/", method=RequestMethod.POST)
    public SaveScriptDialogValidator validateSaveScript(@RequestBody SaveScriptDialogModel model, Principal principal) {
-      LibManager lib = LibManager.getManager(principal);
+      LibManager lib = libManagerProvider.getManager(principal);
       Enumeration<String> e = lib.getScripts();
       List<String> list = new ArrayList<>();
       Catalog catalog = Catalog.getCatalog();
@@ -219,4 +223,5 @@ public class OpenScriptController {
 
    private final AssetRepository assetRepository;
    private final ScriptService scriptService;
+   private final LibManagerProvider libManagerProvider;
 }

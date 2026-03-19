@@ -56,7 +56,8 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
    /**
     * Creates a new instance of {@code BlobIndexedStorage}.
     */
-   public BlobIndexedStorage() {
+   public BlobIndexedStorage(BlobStorageManager blobStorageManager) {
+      this.blobStorageManager = blobStorageManager;
    }
 
    private BlobStorage<Metadata> getMetadataStorage(String orgID) {
@@ -75,7 +76,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       }
 
       String storeID = orgID.toLowerCase() + "__" + "indexedStorage";
-      return BlobStorageManager.getStorage(storeID, true, changeListener);
+      return blobStorageManager.getStorage(storeID, true, changeListener);
    }
    @Override
    public XMLSerializable getXMLSerializable(String key, TransformListener trans) throws Exception {
@@ -391,7 +392,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
 
       for(String orgID : provider.getOrganizationIDs()) {
          String storeID = orgID.toLowerCase() + "__" + "indexedStorage";
-         storages.add(BlobStorageManager.getStorage(storeID, true, changeListener));
+         storages.add(blobStorageManager.getStorage(storeID, true, changeListener));
       }
 
       return storages;
@@ -695,6 +696,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       metadataStorage.deleteBlobStorage();
    }
 
+   private final BlobStorageManager blobStorageManager;
    private Set<String> cachedOrgIDs = new HashSet<>();
    private static final Logger LOG = LoggerFactory.getLogger(BlobIndexedStorage.class);
 

@@ -18,12 +18,14 @@
 package inetsoft.web.admin.deploy;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.*;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.web.dashboard.DashboardRegistry;
+import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.*;
@@ -32,7 +34,7 @@ import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.dep.*;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeService;
-import inetsoft.web.admin.content.repository.RepletRegistryManager;
+import inetsoft.web.admin.content.repository.RepletRegistryService;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.security.auth.MissingResourceException;
 import inetsoft.web.viewsheet.DatasourceIgnoreGlobalShare;
@@ -58,12 +60,20 @@ public class DeployService {
    public DeployService(ContentRepositoryTreeService contentRepositoryTreeService,
                         SecurityEngine securityEngine,
                         DataSourceRegistry dataSourceRegistry,
-                        IndexedStorage indexedStorage)
+                        IndexedStorage indexedStorage, DeployManagerService deployManagerService,
+                        DashboardRegistryManager dashboardRegistryManager,
+                        LibManagerProvider libManagerProvider,
+                        FileSystemService fileSystemService, RepletRegistryService registryManager)
    {
       this.contentRepositoryTreeService = contentRepositoryTreeService;
       this.securityEngine = securityEngine;
       this.dataSourceRegistry = dataSourceRegistry;
       this.indexedStorage = indexedStorage;
+      this.deployManagerService = deployManagerService;
+      this.dashboardRegistryManager = dashboardRegistryManager;
+      this.libManagerProvider = libManagerProvider;
+      this.fileSystemService = fileSystemService;
+      this.registryManager = registryManager;
    }
 
    public ImportJarProperties setJarFile(String fpath, boolean gzipped) throws Exception {
@@ -71,7 +81,7 @@ public class DeployService {
          throw new Exception(Catalog.getCatalog().getString("em.replet.uploadFile.noFile"));
       }
 
-      File file = FileSystemService.getInstance().getFile(fpath);
+      File file = fileSystemService.getFile(fpath);
       InputStream in = new BufferedInputStream(new FileInputStream(file));
 
       if(gzipped) {
@@ -141,7 +151,7 @@ public class DeployService {
                XAsset asset = DeployUtil.createAsset(entry);
 
                if(asset instanceof FolderChangeableAsset) {
-                  XAsset changeRootFolderAsset = DeployManagerService.getChangeRootFolderAsset(asset,
+                  XAsset changeRootFolderAsset = deployManagerService.getChangeRootFolderAsset(asset,
                      targetFolderInfo.getTargetFolder(), null, importCommonPrefix,
                      true, helper.getDependencies(asset), changedMap, true);
 
@@ -189,7 +199,7 @@ public class DeployService {
                XAsset asset = DeployUtil.getAsset(dependentAssets.get(i));
 
                if(asset instanceof FolderChangeableAsset || asset instanceof XQueryAsset) {
-                  XAsset changeRootFolderAsset = DeployManagerService.getChangeRootFolderAsset(asset,
+                  XAsset changeRootFolderAsset = deployManagerService.getChangeRootFolderAsset(asset,
                      targetFolderInfo.getTargetFolder(), null, importCommonPrefix,
                      true, helper.getDependencies(asset), changedMap, true);
 
@@ -601,7 +611,7 @@ public class DeployService {
       throws Exception
    {
       String filePath = properties.zipFilePath();
-      File file = FileSystemService.getInstance().getFile(filePath);
+      File file = fileSystemService.getFile(filePath);
 
       try(InputStream in = new FileInputStream(file)) {
          fn.accept(in);
@@ -934,7 +944,7 @@ public class DeployService {
 
          if(assetType != null && isEntityPermitted(entity, assetType, principal)) {
             XAsset xAsset = SUtil.getXAsset(assetType,
-               RepletRegistryManager.splitMyReportPath(entity.path()), entity.user());
+                                            RepletRegistryService.splitMyReportPath(entity.path()), entity.user());
             Long lastModifiedTime = entity.lastModifiedTime();
 
             if(entity.type() == RepositoryEntry.VIEWSHEET) {
@@ -1113,7 +1123,7 @@ public class DeployService {
    }
 
    private Stream<XAsset> getTableStyleAssets(String folder) {
-      LibManager manager = LibManager.getManager();
+      LibManager manager = libManagerProvider.getManager();
       Stream<XAsset> assets = Arrays.stream(manager.getTableStyles(folder))
          .map(XTableStyle::getName)
          .map(n -> new TableStyleAsset(n.replaceAll(LibManager.SEPARATOR, "/")));
@@ -1272,7 +1282,7 @@ public class DeployService {
    }
 
    private List<XAsset> searchDashboards(AssetSearchOptions opts) {
-      DashboardRegistry registry = DashboardRegistry.getRegistry(opts.user);
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry(opts.user);
       Pattern pattern = Pattern.compile(convertToReg(opts.path));
       List<XAsset> assets = new ArrayList<>();
 
@@ -1485,6 +1495,10 @@ public class DeployService {
    private final SecurityEngine securityEngine;
    private final DataSourceRegistry dataSourceRegistry;
    private final IndexedStorage indexedStorage;
-   private final RepletRegistryManager registryManager = new RepletRegistryManager();
+   private final DeployManagerService deployManagerService;
+   private final DashboardRegistryManager dashboardRegistryManager;
+   private final LibManagerProvider libManagerProvider;
+   private final FileSystemService fileSystemService;
+   private final RepletRegistryService registryManager;
    private static final Logger LOG = LoggerFactory.getLogger(DeployService.class);
 }

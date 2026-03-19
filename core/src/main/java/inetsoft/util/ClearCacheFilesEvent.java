@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,20 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.cluster;
 
-import java.io.Serializable;
+package inetsoft.util;
 
-/**
- * Message object used to notify cluster nodes to restart.
- *
- * @since 12.3
- */
-public class RestartMessage extends ServerClusterMessage implements Serializable {
-   @Override
-   protected String getCompletionAction() {
-      return ACTION;
+import org.springframework.context.ApplicationEvent;
+
+public class ClearCacheFilesEvent extends ApplicationEvent {
+   public ClearCacheFilesEvent(Object source) {
+      super(source);
    }
-
-   public static final String ACTION = "restart";
 }

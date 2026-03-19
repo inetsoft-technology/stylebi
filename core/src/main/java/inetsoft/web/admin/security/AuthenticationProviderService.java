@@ -74,7 +74,7 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler im
       cluster.addMessageListener(this);
    }
 
-   @EventListener
+   @EventListener(SessionDisconnectEvent.class)
    public void handleDisconnect(SessionDisconnectEvent event) {
       super.handleDisconnect(event);
    }

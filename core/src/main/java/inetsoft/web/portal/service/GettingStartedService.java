@@ -40,12 +40,14 @@ public class GettingStartedService {
    public GettingStartedService(AssetRepository assetRepository,
                                 AnalyticRepository analyticRepository,
                                 SecurityEngine securityEngine,
-                                IndexedStorage indexedStorage)
+                                IndexedStorage indexedStorage,
+                                PortalThemesManager portalThemesManager)
    {
       this.assetRepository = assetRepository;
       this.analyticRepository = analyticRepository;
       this.securityEngine = securityEngine;
       this.indexedStorage = indexedStorage;
+      this.portalThemesManager = portalThemesManager;
    }
 
    public boolean hasCreateWSPermission(Principal principal) {
@@ -62,7 +64,7 @@ public class GettingStartedService {
 
    public boolean checkCreateDatasourcePermission(Principal principal) {
       try {
-         PortalThemesManager manager = PortalThemesManager.getManager();
+         PortalThemesManager manager = portalThemesManager;
 
          if(!manager.getPortalTabs().stream().anyMatch(tab -> "Data".equals(tab.getName()))) {
             return false;
@@ -168,5 +170,6 @@ public class GettingStartedService {
    private final AnalyticRepository analyticRepository;
    private final SecurityEngine securityEngine;
    private final IndexedStorage indexedStorage;
+   private final PortalThemesManager portalThemesManager;
    private static final Logger LOG = LoggerFactory.getLogger(GettingStartedService.class);
 }

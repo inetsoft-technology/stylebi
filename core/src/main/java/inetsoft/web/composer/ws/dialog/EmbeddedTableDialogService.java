@@ -26,6 +26,7 @@ import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.internal.Util;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.Catalog;
 import inetsoft.web.composer.model.ws.EmbeddedTableDialogModel;
@@ -42,9 +43,9 @@ import java.security.Principal;
 @ClusterProxy
 public class EmbeddedTableDialogService extends WorksheetControllerService {
 
-   public EmbeddedTableDialogService(ViewsheetService viewsheetService)
+   public EmbeddedTableDialogService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

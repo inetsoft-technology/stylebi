@@ -42,11 +42,13 @@ public class ActionPermissionService {
    @Autowired
    public ActionPermissionService(ComponentAuthorizationService componentService,
                                   SecurityEngine securityEngine,
-                                  LicenseManager licenseManager)
+                                  LicenseManager licenseManager,
+                                  PortalThemesManager portalThemesManager)
    {
       this.componentService = componentService;
       this.securityEngine = securityEngine;
       this.licenseManager = licenseManager;
+      this.portalThemesManager = portalThemesManager;
    }
 
    public ActionTreeNode getActionTree(Principal principal) {
@@ -361,7 +363,7 @@ public class ActionPermissionService {
          .label(catalog.getString("Portal Tabs"))
          .folder(true)
          .actions(EnumSet.noneOf(ResourceAction.class));
-      PortalThemesManager manager = PortalThemesManager.getManager();
+      PortalThemesManager manager = portalThemesManager;
 
       for(int i = 0; i < manager.getPortalTabsCount(); i++) {
          PortalTab tab = manager.getPortalTab(i);
@@ -824,4 +826,5 @@ public class ActionPermissionService {
    private final ComponentAuthorizationService componentService;
    private final SecurityEngine securityEngine;
    private final LicenseManager licenseManager;
+   private final PortalThemesManager portalThemesManager;
 }

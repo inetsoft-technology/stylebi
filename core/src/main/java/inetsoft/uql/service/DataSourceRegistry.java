@@ -31,12 +31,13 @@ import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.util.*;
 import inetsoft.uql.xmla.Domain;
 import inetsoft.util.*;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.event.EventListener;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
-import org.xml.sax.SAXParseException;
 
 import java.beans.PropertyChangeListener;
 import java.io.Serializable;
@@ -67,18 +68,19 @@ public class DataSourceRegistry implements MessageListener {
       return ConfigurationContext.getContext().getSpringBean(DataSourceRegistry.class);
    }
 
-   @PreDestroy
-   public void shutdown() {
-      Cluster.getInstance().removeMessageListener(this);
-   }
-
    /**
     * Constructor.
     */
-   public DataSourceRegistry() throws Exception {
-      indexedStorage = initIndexedStorage();
+   public DataSourceRegistry(IndexedStorage indexedStorage, Config uqlConfig, Cluster cluster) throws Exception {
+      this.indexedStorage = indexedStorage;
+      this.uqlConfig = uqlConfig;
+      this.cluster = cluster;
+   }
+
+   @PostConstruct
+   public void setListeners() {
       initLastModified();
-      indexedStorage.addStorageRefreshListener(DataSourceRegistry.this::fireEvent);
+      indexedStorage.addStorageRefreshListener(this::fireEvent);
 
       // @by stephenwebster, For Align Kpital.
       // Using getRoot() here is problematic since the getObject method caches
@@ -89,7 +91,13 @@ public class DataSourceRegistry implements MessageListener {
       // initRoot method.  I have modified initRoot to return a boolean value
       // to indicate whether the root was setup or not.
       // This init method has been moved to the authentication service on login.
-      Cluster.getInstance().addMessageListener(this);
+      cluster.addMessageListener(this);
+   }
+
+   @PreDestroy
+   public void shutdown() {
+      cluster.removeMessageListener(this);
+      indexedStorage.removeStorageRefreshListener(this::fireEvent);
    }
 
    /**
@@ -1714,6 +1722,11 @@ public class DataSourceRegistry implements MessageListener {
       return result.toArray(new AssetEntry[0]);
    }
 
+   @EventListener(PluginRemovedEvent.class)
+   public void onPluginRemoved(PluginRemovedEvent event) {
+      clearCache();
+   }
+
    public void clearCache() {
       cachemap.clear();
       clearCache2(null);
@@ -1748,7 +1761,7 @@ public class DataSourceRegistry implements MessageListener {
          String type = source.getType();
          supported = true;
 
-         if(type != null && Config.getDataSourceClass(type) == null) {
+         if(type != null && uqlConfig.getDataSourceClass(type) == null) {
             supported = false;
          }
 
@@ -1967,6 +1980,8 @@ public class DataSourceRegistry implements MessageListener {
    private final List<PropertyChangeListener> refreshedListeners = Collections.synchronizedList(new ArrayList<>());
    private final List<PropertyChangeListener> modifiedListeners = Collections.synchronizedList(new ArrayList<>());
    private final IndexedStorage indexedStorage;
+   private final Config uqlConfig;
+   private final Cluster cluster;
    private final Map<Object, CachedObject> cachemap = new ConcurrentHashMap<>();
    private final Map<String, Map<String, List<String>>> allFolders = new ConcurrentHashMap<>();
    private final Map<String, Map<String, List<String>>> allDataSources = new ConcurrentHashMap<>();

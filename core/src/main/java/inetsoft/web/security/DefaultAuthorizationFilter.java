@@ -20,6 +20,7 @@ package inetsoft.web.security;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import inetsoft.uql.XPrincipal;
 import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
 import jakarta.servlet.*;
@@ -38,7 +39,10 @@ import java.util.Arrays;
  * restricted page and have not been authenticated.
  */
 public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
-   public DefaultAuthorizationFilter() {
+   public DefaultAuthorizationFilter(SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                                     AuthenticationService authenticationService)
+   {
+      super(sessionLicenseServiceProvider, authenticationService);
    }
 
    @Override
@@ -208,7 +212,7 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
          SRPrincipal principal = (SRPrincipal) session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
 
          if(principal != null) {
-            AuthenticationService.getInstance().logout(principal, request.getRemoteAddr(), "");
+            getAuthenticationService().logout(principal, request.getRemoteAddr(), "");
             session.invalidate();
 
             LOG.debug("Invalidated fresh anonymous session after error response for: {}",

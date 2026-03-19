@@ -17,7 +17,7 @@
  */
 package inetsoft.util.log;
 
-import inetsoft.sree.SreeEnv;
+import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
@@ -27,6 +27,7 @@ import jakarta.annotation.PreDestroy;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.*;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -57,12 +58,15 @@ public final class LogManager implements AutoCloseable, MessageListener {
     */
    // For non-Spring environments (tests, non-Spring processes)
    public LogManager() {
-      this(null, null);
+      this(null, null, null);
    }
 
-   public LogManager(SecurityEngine securityEngine, Cluster cluster) {
+   public LogManager(SecurityEngine securityEngine, Cluster cluster,
+                     FileSystemService fileSystemService)
+   {
       this.securityEngine = securityEngine;
       this.cluster = cluster;
+      this.fileSystemService = fileSystemService;
 
       for(LogContext context : LogContext.values()) {
          contextLevels.put(context, new ConcurrentHashMap<>());
@@ -75,6 +79,13 @@ public final class LogManager implements AutoCloseable, MessageListener {
 
    public static void initializeForStartup() {
       useInitializer(LogInitializer::initializeForStartup);
+   }
+
+   @EventListener(LogResetEvent.class)
+   public void handleLogReset(LogResetEvent event) {
+      initialize(
+         event.getLogFile(), event.getLogFileDiscriminator(), event.isConsole(),
+         event.getMaxFileSize(), event.getMaxFileCount(), event.isPerformance());
    }
 
    public void initialize(String logFile, String logFileDiscriminator, boolean console,
@@ -96,6 +107,11 @@ public final class LogManager implements AutoCloseable, MessageListener {
       if(cluster != null) {
          cluster.removeMessageListener(this);
       }
+   }
+
+   @EventListener(ApplicationPropertiesClearedEvent.class)
+   public void handleApplicationPropertiesCleared(ApplicationPropertiesClearedEvent event) {
+      close();
    }
 
    private static void useInitializer(Consumer<LogInitializer> fn) {
@@ -126,7 +142,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
       useInitializer(LogInitializer::reset);
    }
 
-   public LogLevel parseLevel(String level) {
+   public static LogLevel parseLevel(String level) {
       LogLevel result = Arrays.stream(LogLevel.values())
          .filter(l -> l.level().equalsIgnoreCase(level))
          .findAny()
@@ -154,6 +170,19 @@ public final class LogManager implements AutoCloseable, MessageListener {
       }
 
       return result;
+   }
+
+   @EventListener(LogLevelChangedEvent.class)
+   public void handleLogLevelChanged(LogLevelChangedEvent event) {
+      if(event.getName() == null) {
+         setLevel(event.getLevel());
+      }
+      else if(event.getContext() == null) {
+         setLevel(event.getName(), event.getLevel());
+      }
+      else {
+         setContextLevel(event.getContext(), event.getName(), event.getLevel());
+      }
    }
 
    public LogLevel getLevel() {
@@ -436,7 +465,6 @@ public final class LogManager implements AutoCloseable, MessageListener {
       }
 
       String property;
-      FileSystemService fileSystemService = FileSystemService.getInstance();
 
       if(scheduler) {
          property = SreeEnv.getProperty("schedule.log.file");
@@ -584,7 +612,6 @@ public final class LogManager implements AutoCloseable, MessageListener {
     */
    public File findLogFile(String name) {
       File file;
-      FileSystemService fileSystemService = FileSystemService.getInstance();
 
       if(name == null) {
          file = getLogFile();
@@ -674,7 +701,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
 
    private Stream<Path> getLogFiles(boolean scheduler, boolean sorted) throws IOException {
       String baseFile = getBaseLogFile(scheduler);
-      Path dirPath = FileSystemService.getInstance().getPath(baseFile).getParent();
+      Path dirPath = fileSystemService.getPath(baseFile).getParent();
       Pattern pattern = getLogFilePattern(scheduler);
       Stream<Path> stream = Files.list(dirPath)
          .filter(Files::isRegularFile)
@@ -876,6 +903,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
 
    private final SecurityEngine securityEngine;
    private final Cluster cluster;
+   private final FileSystemService fileSystemService;
    private LogFileProvider logFileProvider;
    private final Map<LogContext, Map<String, LogLevel>> contextLevels = new ConcurrentHashMap<>();
    private final Map<LogMessageListener, Boolean> messageListeners = new ConcurrentHashMap<>();

@@ -64,7 +64,9 @@ public class PhysicalModelManagerService {
                                       RuntimePartitionService runtimePartitionService,
                                       PhysicalGraphService graphService,
                                       XRepository repository,
-                                      DataSourceRegistry dataSourceRegistry)
+                                      DataSourceRegistry dataSourceRegistry,
+                                      DependencyHandler dependencyHandler,
+                                      RenameTransformHandler renameTransformHandler)
    {
       this.dataSourceService = dataSourceService;
       this.physicalModelService = physicalModelService;
@@ -72,6 +74,8 @@ public class PhysicalModelManagerService {
       this.graphService = graphService;
       this.repository = repository;
       this.dataSourceRegistry = dataSourceRegistry;
+      this.dependencyHandler = dependencyHandler;
+      this.renameTransformHandler = renameTransformHandler;
    }
 
    /**
@@ -274,7 +278,7 @@ public class PhysicalModelManagerService {
       entry = dataSourceService.getModelAssetEntry(entry);
       entry.setCreatedUsername(principal == null ? null : pId.name);
       dataSourceService.updateDataSourceAssetEntry(entry);
-      DependencyHandler.getInstance().updatePhysicalDependencies(entry, dataModel.getDataSource());
+      dependencyHandler.updatePhysicalDependencies(entry, dataModel.getDataSource());
 
       // re-shrink columns height
       partition = (XPartition) partition.deepClone(true);
@@ -424,7 +428,6 @@ public class PhysicalModelManagerService {
       entry.setCreatedUsername(user);
       entry.setCreatedDate(date);
       dataSourceService.updateDataSourceAssetEntry(entry);
-      DependencyHandler dependencyHandler = DependencyHandler.getInstance();
       dependencyHandler.updatePhysicalDependencies(entry, dataModel.getDataSource());
 
       // re-shrink columns height
@@ -492,7 +495,7 @@ public class PhysicalModelManagerService {
       RenameDependencyInfo extendModelDependencyInfo =
          DependencyTransformer.createExtendPartitionsDependencyInfo(dataModel.getPartition(newName),
             rinfo);
-      RenameTransformHandler.getTransformHandler().addTransformTask(extendModelDependencyInfo);
+      renameTransformHandler.addTransformTask(extendModelDependencyInfo);
    }
 
    /**
@@ -588,8 +591,8 @@ public class PhysicalModelManagerService {
       String path = isExtended ? dataSource + "/" + parent + "/" + name : dataSource + "/" + name;
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
                                         AssetEntry.Type.PARTITION, path, null);
-      DependencyHandler.getInstance().deleteDependencies(entry);
-      DependencyHandler.getInstance().deleteDependenciesKey(entry);
+      dependencyHandler.deleteDependencies(entry);
+      dependencyHandler.deleteDependenciesKey(entry);
       ActionRecord actionRecord = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_DELETE,
           path, ActionRecord.OBJECT_TYPE_PHYSICAL_VIEW);
       Audit.getInstance().auditAction(actionRecord, principal);
@@ -1573,4 +1576,6 @@ public class PhysicalModelManagerService {
    private final PhysicalGraphService graphService;
    private final XRepository repository;
    private final DataSourceRegistry dataSourceRegistry;
+   private final DependencyHandler dependencyHandler;
+   private final RenameTransformHandler renameTransformHandler;
 }

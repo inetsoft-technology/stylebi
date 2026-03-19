@@ -934,8 +934,8 @@ public class TabularUtil {
          XDataSource ds = XFactory.getRepository().getDataSource(dataSource);
 
          if(ds != null) {
-            String queryClass = Config.getQueryClass(ds.getType());
-            query = (TabularQuery) Config.getClass(ds.getType(), queryClass).newInstance();
+            String queryClass = Config.getConfig().getQueryClass(ds.getType());
+            query = (TabularQuery) Config.getConfig().getClass(ds.getType(), queryClass).newInstance();
             query.setDataSource(ds);
          }
       }

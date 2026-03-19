@@ -19,8 +19,8 @@ package inetsoft.util;
 
 import com.sun.jna.Platform;
 import inetsoft.report.internal.license.LicenseManager;
-import inetsoft.sree.security.*;
-import inetsoft.uql.XPrincipal;
+import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.affinity.AffinitySupport;
 import inetsoft.util.audit.*;
 import inetsoft.util.log.LogContext;
@@ -226,7 +226,7 @@ public class GroupedThread extends Thread {
       try {
          LogContext.setUser(user);
       }
-      catch(ResurrectException ignore) {
+      catch(ShutdownException ignore) {
          // server is shutting down, ignore
       }
    }

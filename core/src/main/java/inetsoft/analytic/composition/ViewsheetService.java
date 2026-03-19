@@ -24,13 +24,10 @@ import inetsoft.uql.viewsheet.VSSnapshot;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.vslayout.AbstractLayout;
 import inetsoft.util.ConfigurationContext;
-import org.springframework.context.ApplicationContext;
 
 import java.io.Serializable;
-import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Viewsheet service, includes a viewsheet repository to be the server
@@ -41,34 +38,13 @@ import java.util.concurrent.atomic.AtomicReference;
  * @author InetSoft Technology Corp
  */
 public interface ViewsheetService extends WorksheetService {
-   /** Holds the non-Spring bootstrap instance (thread-safe via AtomicReference). */
-   AtomicReference<ViewsheetService> NON_SPRING_INSTANCE = new AtomicReference<>();
-
    /**
     * Gets the shared instance of the viewsheet service.
     *
     * @return the viewsheet service.
     */
    static ViewsheetService getInstance() {
-      ApplicationContext ctx = ConfigurationContext.getContext().getApplicationContext();
-
-      if(ctx != null) {
-         return ctx.getBean(ViewsheetService.class);
-      }
-
-      return NON_SPRING_INSTANCE.updateAndGet(existing -> {
-         if(existing != null) {
-            return existing;
-         }
-
-         try {
-            return (ViewsheetService) Class.forName("inetsoft.analytic.composition.ViewsheetEngine")
-               .getDeclaredConstructor().newInstance();
-         }
-         catch(Exception e) {
-            throw new RuntimeException("Failed to create ViewsheetEngine for non-Spring context", e);
-         }
-      });
+      return ConfigurationContext.getContext().getSpringBean(ViewsheetService.class);
    }
 
 
@@ -195,13 +171,13 @@ public interface ViewsheetService extends WorksheetService {
     * Add excution id to map.
     * @param id the specified viewsheet id.
     */
-   public void addExecution(String id);
+   void addExecution(String id);
 
    /**
     * Delete the excution id from map.
     * @param id the specified viewsheet id.
     */
-   public void removeExecution(String id);
+   void removeExecution(String id);
 
    /**
     * Get the runtime viewsheets.

@@ -50,12 +50,12 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
     * @param id      the unique identifier of the blob storage.
     * @param storage the key-value store for the blob metadata.
     */
-   protected BlobStorage(String id, KeyValueStorage<Blob<T>> storage) {
+   protected BlobStorage(String id, KeyValueStorage<Blob<T>> storage, Cluster cluster) {
       Objects.requireNonNull(id, "The store identifier cannot be null");
       this.id = id;
       Objects.requireNonNull(storage, "The metadata storage cannot be null");
       this.storage = storage;
-      this.cluster = Cluster.getInstance();
+      this.cluster = cluster;
       this.lastModified = cluster.getLong("inetsoft.storage.blob.ts." + id);
       String host = cluster.getLocalMember();
       int index = host.lastIndexOf(':');
@@ -596,20 +596,23 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
    }
 
    public static <T extends Serializable> BlobStorage<T> createBlobStorage(String id,
-                                                                           boolean preload)
+                                                                           boolean preload,
+                                                                           BlobCache blobCache,
+                                                                           KeyValueStorageManager keyValueStorageManager,
+                                                                           Cluster cluster)
       throws IOException
    {
-      KeyValueStorage<Blob<T>> storage = KeyValueStorageManager.getStorage(id, new LoadBlobsTask<>(id));
+      KeyValueStorage<Blob<T>> storage = keyValueStorageManager.getStorage(id, new LoadBlobsTask<>(id));
       InetsoftConfig config = InetsoftConfig.getInstance();
       String type = config.getBlob().getType();
 
       if(type == null || type.equals("local")) {
          Path base = Paths.get(config.getBlob().getFilesystem().getDirectory());
-         return new LocalBlobStorage<>(id, base, storage);
+         return new LocalBlobStorage<>(id, base, storage, cluster);
       }
 
       Path cacheDir = Paths.get(config.getBlob().getCacheDirectory());
-      return new CachedBlobStorage<>(id, cacheDir, storage, BlobCache.getInstance(), preload);
+      return new CachedBlobStorage<>(id, cacheDir, storage, blobCache, cluster, preload);
    }
 
    private Blob<T> getBlob(String path) throws FileNotFoundException {

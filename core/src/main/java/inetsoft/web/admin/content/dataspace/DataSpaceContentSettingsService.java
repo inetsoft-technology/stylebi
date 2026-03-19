@@ -51,12 +51,16 @@ import java.util.*;
 @Service
 public class DataSpaceContentSettingsService {
    @Autowired
-   public DataSpaceContentSettingsService(LicenseManager licenseManager) {
+   public DataSpaceContentSettingsService(LicenseManager licenseManager, CustomThemesManager customThemesManager,
+                                          DataSpace dataSpace)
+   {
       this.licenseManager = licenseManager;
+      this.customThemesManager = customThemesManager;
+      this.dataSpace = dataSpace;
    }
 
    public DataSpaceTreeModel getTree(String parentPath) throws Exception {
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = this.dataSpace;
       String[] childEntries = space.list(parentPath);
       childEntries = sortEntry(parentPath, childEntries, space);
       List<DataSpaceTreeNodeModel> nodes = new ArrayList<>();
@@ -92,7 +96,7 @@ public class DataSpaceContentSettingsService {
 
 
    public DataSpaceTreeModel getTree(String parentPath, List<String> expandNodes) throws Exception {
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = this.dataSpace;
       String[] childEntries = space.list(parentPath);
       childEntries = sortEntry(parentPath, childEntries, space);
       List<DataSpaceTreeNodeModel> nodes = new ArrayList<>();
@@ -139,7 +143,7 @@ public class DataSpaceContentSettingsService {
    }
 
    private List<DataSpaceTreeNodeModel> getSubTree(String folderPath, List<String> expandNodes) throws Exception {
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = this.dataSpace;
       String[] childEntries = space.list(folderPath);
       childEntries = sortEntry(folderPath, childEntries, space);
       List<DataSpaceTreeNodeModel> children = new ArrayList<>();
@@ -184,7 +188,7 @@ public class DataSpaceContentSettingsService {
 
 
    public DataSpaceTreeNodeModel getTreeNode(String path) {
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = this.dataSpace;
       return DataSpaceTreeNodeModel.builder()
          .label(getFileName(path))
          .path(path)
@@ -213,7 +217,7 @@ public class DataSpaceContentSettingsService {
     * @param path The path used to navigate to data space node
     */
    public void deleteDataSpaceNode(String path, boolean isFolder) {
-      DataSpace dataSpace = DataSpace.getDataSpace();
+      DataSpace dataSpace = this.dataSpace;
       Principal principal = ThreadContext.getContextPrincipal();
       String objectType = isFolder ? ActionRecord.OBJECT_TYPE_FOLDER :
          ActionRecord.OBJECT_TYPE_FILE;
@@ -235,7 +239,7 @@ public class DataSpaceContentSettingsService {
          ImageShapes.clearShapes();
       }
 
-      CustomThemesManager.getManager().reloadThemes(path);
+      customThemesManager.reloadThemes(path);
       Audit.getInstance().auditAction(actionRecord, principal);
    }
 
@@ -319,7 +323,7 @@ public class DataSpaceContentSettingsService {
    public void downloadFile(String path, @AuditObjectName String name, HttpServletResponse response,
                             HttpServletRequest request) throws Exception
    {
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = this.dataSpace;
       OutputStream out = response.getOutputStream();
       String mime = "application/octet-stream";
       String suffix = "";
@@ -500,6 +504,8 @@ public class DataSpaceContentSettingsService {
    }
 
    private final LicenseManager licenseManager;
+   private final CustomThemesManager customThemesManager;
+   private final DataSpace dataSpace;
    private static final String DEFAULT_ORG_FOLDER = "portal/" + Organization.getDefaultOrganizationID();
    private static final Logger LOG = LoggerFactory.getLogger(DataSpaceContentSettingsService.class);
 }

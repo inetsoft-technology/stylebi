@@ -63,16 +63,15 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
    public VSBookmarkService(VSObjectService vsObjectService,
                             ViewsheetService viewsheetService,
                             SecurityEngine securityEngine,
-                            CoreLifecycleService coreLifecycleService,
                             ScheduleManager scheduleManager,
-                            Cluster cluster)
+                            Cluster cluster, XSessionService sessionService)
    {
       this.vsObjectService = vsObjectService;
       this.viewsheetService = viewsheetService;
       this.securityEngine = securityEngine;
-      this.coreLifecycleService = coreLifecycleService;
       this.scheduleManager = scheduleManager;
       this.cluster = cluster;
+      this.sessionService = sessionService;
    }
 
    @Override
@@ -755,12 +754,12 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
 
       // log viewsheet excecution
       String userSessionID = user == null ?
-         XSessionService.createSessionID(XSessionService.USER, null) :
+         sessionService.createSessionID(XSessionService.USER, null) :
          user.getSessionID();
       AssetEntry entry = rvs.getEntry();
       String objectName = entry.getDescription();
       LogUtil.PerformanceLogEntry logEntry = new LogUtil.PerformanceLogEntry(objectName);
-      String execSessionID = XSessionService.createSessionID(
+      String execSessionID = sessionService.createSessionID(
          XSessionService.EXPORE_VIEW, entry.getName());
       String objectType = ExecutionRecord.OBJECT_TYPE_VIEW;
       String execType = ExecutionRecord.EXEC_TYPE_START;
@@ -981,8 +980,8 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
    private final ViewsheetService viewsheetService;
    private final VSObjectService vsObjectService;
    private final SecurityEngine securityEngine;
-   private final CoreLifecycleService coreLifecycleService;
    private final ScheduleManager scheduleManager;
    private final Cluster cluster;
+   private final XSessionService sessionService;
    private static final Catalog catalog = Catalog.getCatalog();
 }

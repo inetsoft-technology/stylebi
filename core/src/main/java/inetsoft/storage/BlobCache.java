@@ -18,7 +18,6 @@
 
 package inetsoft.storage;
 
-import inetsoft.util.ConfigurationContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,13 +26,9 @@ import java.nio.file.*;
 import java.util.concurrent.TimeUnit;
 
 public class BlobCache {
-   BlobCache(Path baseDir, BlobEngine engine) {
+   public BlobCache(Path baseDir, BlobEngine engine) {
       this.baseDir = baseDir;
       this.engine = engine;
-   }
-
-   public static BlobCache getInstance() {
-      return ConfigurationContext.getContext().getSpringBean(BlobCache.class);
    }
 
    public Path get(String storeId, Blob<?> blob) throws IOException {

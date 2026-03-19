@@ -490,7 +490,7 @@ public class MVDispatcher {
             MVCreatorUtil.setupTable(def, assembly, box);
 
             // set time as now, not to use cached data when create mv
-            data = AssetDataCache.getData(null, assembly, box, null,
+            data = AssetDataCache.getCache().getData(null, assembly, box, null,
                                           AssetQuerySandbox.RUNTIME_MODE,
                                           false, System.currentTimeMillis(),
                                           box.getQueryManager());

@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,13 +15,18 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.util;
 
-/**
- * Exception thrown when a singleton has been disposed and a new instance must be created.
- */
-public class ResurrectException extends IllegalStateException {
-   public ResurrectException() {
-      super("Singleton has been disposed");
+package inetsoft.test;
+
+import inetsoft.util.ConfigurationContext;
+import org.springframework.context.ApplicationContextInitializer;
+import org.springframework.context.ConfigurableApplicationContext;
+
+public class ConfigurationContextInitializer
+   implements ApplicationContextInitializer<ConfigurableApplicationContext>
+{
+   @Override
+   public void initialize(ConfigurableApplicationContext applicationContext) {
+      ConfigurationContext.getContext().setApplicationContext(applicationContext);
    }
 }

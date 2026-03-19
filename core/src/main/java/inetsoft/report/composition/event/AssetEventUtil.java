@@ -1390,7 +1390,7 @@ public class AssetEventUtil {
    }
 
    public static boolean isDuplicateFolder(String folder1, String folder2) {
-      LibManager manager = LibManager.getManager();
+      LibManager manager = LibManagerProvider.getInstance().getManager();
 
       if(folder1 != null) {
          return manager.containsFolder(folder1 + LibManager.SEPARATOR + folder2);
@@ -1401,7 +1401,7 @@ public class AssetEventUtil {
    }
 
    public static boolean isDuplicateStyle(String folder, String name) {
-      LibManager manager = LibManager.getManager();
+      LibManager manager = LibManagerProvider.getInstance().getManager();
       XTableStyle[] tableStyles = manager.getTableStyles(folder);
 
       return Arrays.stream(tableStyles).anyMatch(xTableStyle -> Tool.equals(xTableStyle.getName(),

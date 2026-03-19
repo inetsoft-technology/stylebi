@@ -18,6 +18,7 @@
 package inetsoft.analytic.web.adhoc;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.security.*;
 import inetsoft.util.*;
 import org.slf4j.Logger;
@@ -36,14 +37,16 @@ public class AdHocQueryHandler {
     * Get the list of functions that can
     * be used in an expression
     */
-   public static ItemMap getScriptFunctions(boolean viewsheet) {
-      return getScriptFunctions(viewsheet, false);
+   public static ItemMap getScriptFunctions(boolean viewsheet, LibManagerProvider libManagerProvider) {
+      return getScriptFunctions(viewsheet, false, libManagerProvider);
    }
    /**
     * Get the list of functions that can
     * be used in an expression
     */
-   public static ItemMap getScriptFunctions(boolean viewsheet, boolean task) {
+   public static ItemMap getScriptFunctions(boolean viewsheet, boolean task,
+                                            LibManagerProvider libManagerProvider)
+   {
       String[] files = null;
 
       if(task) {
@@ -58,10 +61,10 @@ public class AdHocQueryHandler {
       }
 
       ItemMap funcs = getFunctionsMap(files);
-      List<String> list = getUserDefinedScriptFunctions();
+      List<String> list = getUserDefinedScriptFunctions(libManagerProvider);
 
       if(list.size() > 0) {
-         LibManager mgr = LibManager.getManager();
+         LibManager mgr = libManagerProvider.getManager();
          String ufolder = Catalog.getCatalog().getString("User Defined");
          StringBuilder ufuncs = new StringBuilder();
 
@@ -81,17 +84,17 @@ public class AdHocQueryHandler {
       return funcs;
    }
 
-   public static ItemMap getScriptFunctions() {
+   public static ItemMap getScriptFunctions(LibManagerProvider libManagerProvider) {
       String[] files = null;
 
       files = new String[] {"/inetsoft/report/gui/jsFunctions.tree"};
 
       ItemMap funcs = getFunctionsMap(files);
-      List<String> listAll = getUserDefinedScriptFunctions();
+      List<String> listAll = getUserDefinedScriptFunctions(libManagerProvider);
       Collections.sort(listAll, String.CASE_INSENSITIVE_ORDER);
 
       if(listAll.size() > 0) {
-         LibManager mgr = LibManager.getManager();
+         LibManager mgr = libManagerProvider.getManager();
          String ufolder = Catalog.getCatalog().getString("User Defined");
          StringBuilder ufuncs = new StringBuilder();
          List<String> list = new ArrayList<>();
@@ -199,9 +202,9 @@ public class AdHocQueryHandler {
       return funcs;
    }
 
-   public static List<String> getUserDefinedScriptFunctions() {
+   public static List<String> getUserDefinedScriptFunctions(LibManagerProvider libManagerProvider) {
       List<String> list = new ArrayList<>();
-      LibManager mgr = LibManager.getManager();
+      LibManager mgr = libManagerProvider.getManager();
       Enumeration<?> names = mgr.getScripts();
 
       while(names.hasMoreElements()) {

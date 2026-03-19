@@ -19,12 +19,11 @@ package inetsoft.util;
 
 import com.nimbusds.jose.*;
 import inetsoft.util.config.*;
-import org.springframework.context.ApplicationContext;
 
 import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.security.KeyPair;
-import java.util.*;
+import java.util.ServiceLoader;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
@@ -181,14 +180,7 @@ public interface PasswordEncryption {
     * @return a new instance.
     */
    static PasswordEncryption newInstance() {
-      ApplicationContext ctx = ConfigurationContext.getContext().getApplicationContext();
-
-      if(ctx != null) {
-         return ctx.getBean(PasswordEncryption.class);
-      }
-
-      // Non-Spring fallback (tests, schedule server): create via ServiceLoader
-      return newInstance(InetsoftConfig.getInstance().getSecrets());
+      return ConfigurationContext.getContext().getSpringBean(PasswordEncryption.class);
    }
 
    static PasswordEncryption newLocalInstance(boolean encrypt) {

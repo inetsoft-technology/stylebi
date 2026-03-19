@@ -25,6 +25,7 @@ import inetsoft.report.internal.TablePaintable;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.style.TableStyle;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.Organization;
 import inetsoft.util.*;
 import jakarta.servlet.http.HttpServletResponse;
@@ -42,6 +43,11 @@ import java.util.*;
 
 @Controller
 public class TableViewStylePaneController {
+   public TableViewStylePaneController(LibManagerProvider libManagerProvider, Cluster cluster) {
+      this.libManagerProvider = libManagerProvider;
+      this.cluster = cluster;
+   }
+
    /**
     * Get preview style, code from FlashWebHandler.process
     * @param style      image style
@@ -56,7 +62,7 @@ public class TableViewStylePaneController {
       try {
          response.setContentType("image/png");
          OutputStream out = response.getOutputStream();
-         TabularSheet sheet = new TabularSheet();
+         TabularSheet sheet = new TabularSheet(libManagerProvider, cluster);
          style = Tool.byteDecode(style);
 
          if(isStyle) {
@@ -165,6 +171,9 @@ public class TableViewStylePaneController {
          LOG.error("Failed to process request", e);
       }
    }
+
+   private final LibManagerProvider libManagerProvider;
+   private final Cluster cluster;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(TableViewStylePaneController.class);

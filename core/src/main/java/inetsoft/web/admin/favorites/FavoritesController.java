@@ -29,6 +29,10 @@ import java.util.concurrent.*;
 
 @RestController
 public class FavoritesController {
+   public FavoritesController(KeyValueStorageManager keyValueStorageManager) {
+      this.keyValueStorageManager = keyValueStorageManager;
+   }
+
    @GetMapping("/api/em/favorites")
    public FavoriteList getFavorites(Principal user) {
       FavoriteList list = favorites.get(user.getName());
@@ -58,7 +62,7 @@ public class FavoritesController {
 
    @PostConstruct
    public void initStorage() {
-      favorites = KeyValueStorageManager.getStorage("emFavorites");
+      favorites = keyValueStorageManager.getStorage("emFavorites");
    }
 
    @PreDestroy
@@ -69,5 +73,6 @@ public class FavoritesController {
       }
    }
 
+   private final KeyValueStorageManager keyValueStorageManager;
    private KeyValueStorage<FavoriteList> favorites;
 }

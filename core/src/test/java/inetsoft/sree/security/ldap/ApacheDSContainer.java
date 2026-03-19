@@ -23,7 +23,9 @@ import org.testcontainers.containers.wait.strategy.Wait;
 
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import org.junit.jupiter.api.Tag;
 
+@Tag("core")
 public class ApacheDSContainer extends GenericContainer<ApacheDSContainer> {
    public static final int APACHEDS_PORT = 10389;
    public static final String DEFAULT_IMAGE_AND_TAG = "tremolosecurity/apacheds:latest";

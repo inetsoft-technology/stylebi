@@ -37,8 +37,9 @@ import java.util.concurrent.TimeUnit;
 @Service
 @Lazy
 public class RenameTransformHandler implements AutoCloseable {
-   public RenameTransformHandler(Cluster cluster) {
+   public RenameTransformHandler(Cluster cluster, DependencyStorageService dependencyStorageService) {
       this.cluster = cluster;
+      this.dependencyStorageService = dependencyStorageService;
    }
 
    /**
@@ -80,8 +81,6 @@ public class RenameTransformHandler implements AutoCloseable {
 
    public void addExtendPartitionsTransformTask(XPartition partition, RenameInfo rinfo) {
       String[] children = partition.getPartitionNames();
-      DependencyStorageService service = DependencyStorageService.getInstance();
-
       for(String child : children) {
          String nChildPath = Tool.buildString(rinfo.getNewName(), "^", child);
          String oChildPath = Tool.buildString(rinfo.getOldName(), "^", child);
@@ -89,7 +88,7 @@ public class RenameTransformHandler implements AutoCloseable {
          addTransformTask(childInfo);
          String oldKey = DependencyTransformer.getOldKey(childInfo);
          String newKey = DependencyTransformer.getKey(childInfo, false);
-         service.rename(oldKey, newKey, rinfo.getOrganizationId());
+         dependencyStorageService.rename(oldKey, newKey, rinfo.getOrganizationId());
       }
 
       addTransformTask(rinfo);
@@ -153,10 +152,8 @@ public class RenameTransformHandler implements AutoCloseable {
     */
    @SuppressWarnings({ "unused", "BusyWait" })
    public void waitUntilRenameFinished() {
-      DependencyStorageService service = DependencyStorageService.getInstance();
-
       try {
-         while(!service.getQueue().isEmpty()) {
+         while(!dependencyStorageService.getQueue().isEmpty()) {
             try {
                Thread.sleep(5000L);
             }
@@ -172,6 +169,7 @@ public class RenameTransformHandler implements AutoCloseable {
    }
 
    private final Cluster cluster;
+   private final DependencyStorageService dependencyStorageService;
    private static final Logger LOG = LoggerFactory.getLogger(RenameTransformHandler.class);
 
 }

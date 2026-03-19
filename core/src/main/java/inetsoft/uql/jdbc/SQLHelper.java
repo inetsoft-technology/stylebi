@@ -274,7 +274,7 @@ public class SQLHelper implements KeywordProvider {
          return dx.getRuntimeProductName();
       }
 
-      String type = Config.getJDBCType(dx.getDriver());
+      String type = Config.getConfig().getJDBCType(dx.getDriver());
 
       // @by stephenwebster, For bug1424967241696
       // This is an exceptional case.  Many of the features of SQL Server or

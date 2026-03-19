@@ -22,12 +22,14 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.*;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.credential.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.*;
+import org.springframework.context.ApplicationContext;
 
 import java.io.*;
 
@@ -43,11 +45,17 @@ public class OneDriveRuntimeTests {
 
    @BeforeAll
    static void mockService() {
-      MockedStatic<CredentialService> mockedCredentialService = Mockito.mockStatic(CredentialService.class);
-      mockedCredentialService.when(() -> CredentialService.newCredential(CredentialType.CLIENT_GRANT))
-         .thenReturn(mock(LocalClientCredentialsGrant.class));
-      mockedCredentialService.when(() -> CredentialService.newCredential(CredentialType.CLIENT_GRANT, false))
-         .thenReturn(mock(LocalClientCredentialsGrant.class));
+      CredentialService credentialService = mock(CredentialService.class);
+      when(credentialService.createCredential(CredentialType.CLIENT_GRANT)).thenReturn(mock(LocalPasswordCredential.class));
+      when(credentialService.createCredential(CredentialType.CLIENT_GRANT, false)).thenReturn(mock(LocalPasswordCredential.class));
+      ApplicationContext context = mock(ApplicationContext.class);
+      when(context.getBean(CredentialService.class)).thenReturn(credentialService);
+      ConfigurationContext.getContext().setApplicationContext(context);
+   }
+
+   @AfterAll
+   static void resetContext() {
+      ConfigurationContext.getContext().setApplicationContext(null);
    }
 
    @BeforeEach

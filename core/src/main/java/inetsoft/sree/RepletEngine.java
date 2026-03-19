@@ -18,11 +18,13 @@
 package inetsoft.sree;
 
 import inetsoft.mv.*;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.filter.DefaultComparer;
 import inetsoft.report.internal.*;
 import inetsoft.report.internal.license.*;
 import inetsoft.report.pdf.FontManager;
 import inetsoft.sree.internal.*;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.*;
@@ -76,18 +78,16 @@ public class RepletEngine extends AbstractAssetEngine
    public static final String PARA_LIVE = "live";
 
    /**
-    * Main entrance.
-    */
-   public static void main(String[] args) {
-      Catalog.setCatalogGetter(UserEnv.getCatalogGetter());
-      RepletEngine engine = new RepletEngine();
-      engine.init();
-   }
-
-   /**
     * Create a default local replet engine.
     */
-   public RepletEngine() {
+   public RepletEngine(DeployManagerService deployManagerService,
+                       LibManagerProvider libManagerProvider,
+                       DataCycleManager dataCycleManager,
+                       Cluster cluster)
+   {
+      super(libManagerProvider, cluster);
+      this.deployManagerService = deployManagerService;
+      this.dataCycleManager = dataCycleManager;
       cdir = Tool.getCacheDirectory();
       // initialize global viewer actions
       this.scopes = new int[] {GLOBAL_SCOPE, REPORT_SCOPE, USER_SCOPE};
@@ -112,26 +112,6 @@ public class RepletEngine extends AbstractAssetEngine
       catch(Exception ex) {
          LOG.error("Failed to get indexed stoage", ex);
       }
-   }
-
-   /**
-    * Create a local replet engine.
-    * @param id the unique engine ID.
-    */
-   public RepletEngine(String id) {
-      this();
-
-   }
-
-   /**
-    * Create a local replet engine and evaluate against a given license key.
-    * @param id the unique engine id
-    * @param licenseKey the license key for the slave
-    */
-   @SuppressWarnings("UnusedParameters")
-   public RepletEngine(String id, String licenseKey) {
-      this();
-
    }
 
    /**
@@ -355,13 +335,11 @@ public class RepletEngine extends AbstractAssetEngine
          @Override
          public void run() {
             try {
-               DataCycleManager dmgr = DataCycleManager.getDataCycleManager();
-
-               if(dmgr != null) {
+               if(dataCycleManager != null) {
                   MVManager mgr = MVManager.getManager();
 
                   if(mgr != null) {
-                     String dcycle = dmgr.getDefaultCycle();
+                     String dcycle = dataCycleManager.getDefaultCycle();
 
                      if(dcycle != null) {
                         mgr.setDefaultCycle(dcycle);
@@ -1210,7 +1188,7 @@ public class RepletEngine extends AbstractAssetEngine
 
       try {
          List<String> failedList = new ArrayList<>();
-         DeployManagerService.importAssets(
+         deployManagerService.importAssets(
             overwriting, order, info, desktop, principal,
             ignoreList, actionRecord, failedList, targetFolderInfo, ignoreUserAssets);
          return failedList;
@@ -1236,7 +1214,7 @@ public class RepletEngine extends AbstractAssetEngine
       writeLock.lock();
 
       try {
-         DeployManagerService.getService().importAssets(data, replace, actionRecord);
+         deployManagerService.importAssets(data, replace, actionRecord);
       }
       finally {
          writeLock.unlock();
@@ -2135,6 +2113,9 @@ public class RepletEngine extends AbstractAssetEngine
    public void loggedOut(SessionEvent event) {
       // no-op
    }
+
+   private final DeployManagerService deployManagerService;
+   private final DataCycleManager dataCycleManager;
 
     // server ip address
    private static String ipAddress = null;

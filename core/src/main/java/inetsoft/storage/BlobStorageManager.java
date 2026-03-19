@@ -18,6 +18,7 @@
 package inetsoft.storage;
 
 import com.github.benmanes.caffeine.cache.*;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.ConfigurationContext;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -39,13 +40,6 @@ import java.io.*;
  */
 @Service
 public class BlobStorageManager implements AutoCloseable {
-
-   /**
-    * No-arg constructor used in non-Spring environments (e.g., unit tests).
-    */
-   public BlobStorageManager() {
-   }
-
    /**
     * Spring constructor — ensures {@link BlobEngine} and {@link KeyValueStorageManager} are
     * initialized before this manager.
@@ -54,7 +48,16 @@ public class BlobStorageManager implements AutoCloseable {
     * @param kvStorageManager the key-value storage manager (injected for startup-ordering).
     */
    @Autowired
-   public BlobStorageManager(BlobEngine blobEngine, KeyValueStorageManager kvStorageManager) {
+   public BlobStorageManager(BlobEngine blobEngine, KeyValueStorageManager kvStorageManager,
+                             BlobCache blobCache, Cluster cluster)
+   {
+      this.blobCache = blobCache;
+      this.keyValueStorageManager = kvStorageManager;
+      this.cluster = cluster;
+   }
+
+   public static BlobStorageManager getInstance() {
+      return ConfigurationContext.getContext().getSpringBean(BlobStorageManager.class);
    }
 
    /**
@@ -66,8 +69,8 @@ public class BlobStorageManager implements AutoCloseable {
     *
     * @return the storage instance.
     */
-   public <T extends Serializable> BlobStorage<T> getInstance(String storeId, boolean preload) {
-      return getInstance(storeId, preload, null);
+   public <T extends Serializable> BlobStorage<T> getStorage(String storeId, boolean preload) {
+      return getStorage(storeId, preload, null);
    }
 
    /**
@@ -82,7 +85,7 @@ public class BlobStorageManager implements AutoCloseable {
     * @return the storage instance.
     */
    @SuppressWarnings("unchecked")
-   public <T extends Serializable> BlobStorage<T> getInstance(
+   public <T extends Serializable> BlobStorage<T> getStorage(
       String storeId, boolean preload, BlobStorage.Listener<T> listener)
    {
       while(true) {
@@ -91,7 +94,7 @@ public class BlobStorageManager implements AutoCloseable {
             created[0] = true;
 
             try {
-               return BlobStorage.createBlobStorage(id, preload);
+               return BlobStorage.createBlobStorage(id, preload, blobCache, keyValueStorageManager, cluster);
             }
             catch(IOException e) {
                throw new UncheckedIOException(e);
@@ -112,25 +115,6 @@ public class BlobStorageManager implements AutoCloseable {
       }
    }
 
-   /**
-    * Gets or creates the {@link BlobStorage} with the given store ID. Static bridge for
-    * non-managed callers; delegates to the Spring bean.
-    */
-   public static <T extends Serializable> BlobStorage<T> getStorage(String storeId, boolean preload) {
-      return ConfigurationContext.getContext().getSpringBean(BlobStorageManager.class)
-         .getInstance(storeId, preload);
-   }
-
-   /**
-    * Gets or creates the {@link BlobStorage} with the given store ID and listener. Static bridge.
-    */
-   public static <T extends Serializable> BlobStorage<T> getStorage(
-      String storeId, boolean preload, BlobStorage.Listener<T> listener)
-   {
-      return ConfigurationContext.getContext().getSpringBean(BlobStorageManager.class)
-         .getInstance(storeId, preload, listener);
-   }
-
    @Override
    @PreDestroy
    public void close() {
@@ -145,6 +129,9 @@ public class BlobStorageManager implements AutoCloseable {
       storages.invalidateAll();
    }
 
+   private final BlobCache blobCache;
+   private final KeyValueStorageManager keyValueStorageManager;
+   private final Cluster cluster;
    private static final int MAX_SIZE = 50;
 
    private final Cache<String, BlobStorage<?>> storages = Caffeine.newBuilder()

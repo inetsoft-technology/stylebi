@@ -52,8 +52,9 @@ import java.util.concurrent.TimeUnit;
 @Controller
 public class GlobalStyleController implements ApplicationContextAware {
    @Autowired
-   public GlobalStyleController(SecurityEngine securityEngine) {
+   public GlobalStyleController(SecurityEngine securityEngine, CustomThemesManager customThemesManager) {
       this.securityEngine = securityEngine;
+      this.customThemesManager = customThemesManager;
    }
 
    @GetMapping({ "/app/global.css", "/em/theme.css", "/app/assets/**", "/em/assets/**",
@@ -112,9 +113,8 @@ public class GlobalStyleController implements ApplicationContextAware {
             provider.getOrganization(currOrgID).getTheme() != null)
          {
             themeId = provider.getOrganization(currOrgID).getTheme();
-            CustomThemesManager themes = CustomThemesManager.getManager();
 
-            for(CustomTheme theme : themes.getCustomThemes()) {
+            for(CustomTheme theme : customThemesManager.getCustomThemes()) {
                if(theme.getId().equals(themeId)) {
                   hasTheme = true;
                   break;
@@ -124,7 +124,7 @@ public class GlobalStyleController implements ApplicationContextAware {
       }
 
       if(Tool.isEmptyString(themeId) || !hasTheme) {
-         themeId = CustomThemesManager.getManager().getSelectedTheme(user);
+         themeId = customThemesManager.getSelectedTheme(user);
       }
 
       ResourceKey key = new ResourceKey(themeId, path);
@@ -137,11 +137,13 @@ public class GlobalStyleController implements ApplicationContextAware {
                           Caffeine.newBuilder()
                              .maximumSize(1000)
                              .expireAfterAccess(10, TimeUnit.MINUTES)
-                             .build(new CacheLoader<ResourceKey, StyleResource>() {
-                                @Override
-                                public StyleResource load(ResourceKey resourceKey) throws Exception {
-                                   return new StyleResource(resourceKey.path, resourceKey.themeId, context);
-                                }}));
+                             .build(resourceKey -> {
+                                boolean themeExists = resourceKey.themeId != null &&
+                                   customThemesManager.getCustomThemes().stream()
+                                      .anyMatch(t -> t.getId().equals(resourceKey.themeId));
+                                String themeId1 = resourceKey.themeId == null || !themeExists ? "default" : resourceKey.themeId;
+                                return new StyleResource(resourceKey.path, themeId1, context);
+                             }));
          }
 
          StyleResource resource = resources.get(orgID).get(key);
@@ -194,6 +196,7 @@ public class GlobalStyleController implements ApplicationContextAware {
 
    private ApplicationContext context;
    private final SecurityEngine securityEngine;
+   private final CustomThemesManager customThemesManager;
    private final Map<String, LoadingCache<ResourceKey, StyleResource>> resources = new HashMap<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(GlobalStyleController.class);
@@ -243,20 +246,8 @@ public class GlobalStyleController implements ApplicationContextAware {
       StyleResource(String path, String themeId, ResourcePatternResolver resolver)
          throws IOException
       {
-         StringBuilder location = new StringBuilder("theme:");
-         boolean themeExists = themeId != null &&
-            CustomThemesManager.getManager().getCustomThemes().stream()
-               .anyMatch(t -> t.getId().equals(themeId));
-
-         if(themeId == null || !themeExists) {
-            location.append("default");
-         }
-         else {
-            location.append(themeId);
-         }
-
-         location.append("/inetsoft/web/resources").append(path);
-         resource = resolver.getResource(location.toString());
+         String location = "theme:" + themeId + "/inetsoft/web/resources" + path;
+         resource = resolver.getResource(location);
          modified = resource.lastModified();
          MediaType mediaType = contentTypes.getMediaTypeForResource(resource);
 

@@ -25,9 +25,9 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
+import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.storage.KeyValueStorageManager;
-import inetsoft.uql.XFactory;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.asset.sync.DependencyTool;
@@ -66,7 +66,11 @@ public class UserTreeService {
                           DataCycleManager dataCycleManager,
                           LicenseManager licenseManager,
                           MVManager mvManager,
-                          IndexedStorage indexedStorage)
+                          IndexedStorage indexedStorage,
+                          CustomThemesManager customThemesManager,
+                          DashboardRegistryManager dashboardRegistryManager,
+                          XRepository xRepository,
+                          DependencyStorageService dependencyStorageService)
    {
       this.authenticationProviderService = authenticationProviderService;
       this.systemAdminService = systemAdminService;
@@ -75,12 +79,16 @@ public class UserTreeService {
       this.securityEngine = securityEngine;
       this.themeService = themeService;
       this.messagingTemplate = messagingTemplate;
+      this.customThemesManager = customThemesManager;
+      this.dashboardRegistryManager = dashboardRegistryManager;
       this.editOrganizationListener = new EditOrganizationListener(messagingTemplate, securityEngine);
       this.keyValueStorageManager = keyValueStorageManager;
       this.dataCycleManager = dataCycleManager;
       this.licenseManager = licenseManager;
       this.mvManager = mvManager;
       this.indexedStorage = indexedStorage;
+      this.xRepository = xRepository;
+      this.dependencyStorageService = dependencyStorageService;
    }
 
    public List<String> getOrganizationTree(String providerName, Principal principal) {
@@ -941,7 +949,7 @@ public class UserTreeService {
                   catalog.getString("em.namedUsers.exceeded", userCount, namedUserCount));
             }
 
-            editProvider.copyOrganization(fromOrg, newOrgKey.orgID, identityService, themeService, principal, false, defaultPassword);
+            editProvider.copyOrganization(fromOrg, newOrgKey.orgID, identityService, themeService, dashboardRegistryManager, dataCycleManager, principal, false, defaultPassword);
             identity = (FSOrganization) editProvider.getOrganization(newOrgKey.orgID);
          }
          else {
@@ -1064,7 +1072,7 @@ public class UserTreeService {
       }
 
       List<IdentityModel> members = getOrganizationMembers(info.getMembers(), principal);
-      Set<CustomTheme> themes = CustomThemesManager.getManager().getCustomThemes();
+      Set<CustomTheme> themes = customThemesManager.getCustomThemes();
       String themeID = null;
 
       if(setTheme) {
@@ -1761,12 +1769,11 @@ public class UserTreeService {
    }
 
    private void renameVPMRole(String oldName, String newName) throws RemoteException {
-      XRepository repository = XFactory.getRepository();
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
-      String[] dataSources = repository.getDataSourceFullNames(new IdentityID(orgID, orgID));
+      String[] dataSources = xRepository.getDataSourceFullNames(new IdentityID(orgID, orgID));
 
       for(String dataSource : dataSources) {
-         XDataModel dataModel = repository.getDataModel(dataSource);
+         XDataModel dataModel = xRepository.getDataModel(dataSource);
 
          if(dataModel == null) {
             continue;
@@ -1808,7 +1815,7 @@ public class UserTreeService {
       MVManager mvManager = this.mvManager;
       DataCycleManager cycleManager = this.dataCycleManager;
       KeyValueStorage<FavoriteList> favorites =
-         keyValueStorageManager.getInstance("emFavorites");
+         keyValueStorageManager.getStorage("emFavorites");
 
       if(favorites != null && oldID != null && newID != null &&
          favorites.contains(oldID.convertToKey()))
@@ -1822,7 +1829,7 @@ public class UserTreeService {
       mvManager.migrateUserAssetsMV(oldID, newID);
       mvManager.updateMVUser(oldID, newID);
       cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), true);
-      DependencyStorageService.getInstance().migrateStorageData(oldID, newID);
+      this.dependencyStorageService.migrateStorageData(oldID, newID);
    }
 
    private SecurityProvider getSecurityProvider() {
@@ -1921,5 +1928,9 @@ public class UserTreeService {
    private final LicenseManager licenseManager;
    private final MVManager mvManager;
    private final IndexedStorage indexedStorage;
+   private final CustomThemesManager customThemesManager;
+   private final DashboardRegistryManager dashboardRegistryManager;
+   private final XRepository xRepository;
+   private final DependencyStorageService dependencyStorageService;
    private final Set<String> propertyNames = Set.of("max.row.count", "max.col.count", "max.cell.size", "max.user.count");
 }

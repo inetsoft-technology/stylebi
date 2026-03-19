@@ -78,7 +78,7 @@ public class DataTreeChangeController {
       }
    }
 
-   @EventListener
+   @EventListener(SessionDisconnectEvent.class)
    public void onSessionDisconnect(SessionDisconnectEvent event) {
       subscriptions.remove(event.getSessionId());
    }

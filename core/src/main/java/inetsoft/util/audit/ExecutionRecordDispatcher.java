@@ -27,11 +27,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @Service
 @Lazy
 public final class ExecutionRecordDispatcher {
-
-   public static ExecutionRecordDispatcher getInstance() {
-      return ConfigurationContext.getContext().getSpringBean(ExecutionRecordDispatcher.class);
-   }
-
    public void dispatchRecord(ExecutionRecord record) {
       ExecutionRecordEvent event = null;
 

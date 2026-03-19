@@ -17,7 +17,6 @@
  */
 package inetsoft.analytic.composition;
 
-import inetsoft.analytic.AnalyticAssistant;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
@@ -31,7 +30,8 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.uql.viewsheet.vslayout.*;
-import inetsoft.util.*;
+import inetsoft.util.ThreadContext;
+import inetsoft.util.Tool;
 import inetsoft.web.ServiceProxyContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,17 +53,9 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
    /**
     * Constructor.
     */
-   public ViewsheetEngine() throws RemoteException {
-      this((AssetRepository) AnalyticAssistant.getAnalyticAssistant()
-         .getAnalyticRepository());
-      setServer(true);
-   }
-
-   /**
-    * Constructor.
-    */
-   public ViewsheetEngine(AssetRepository engine) throws RemoteException {
-      super(engine);
+   public ViewsheetEngine(AssetRepository engine, ViewsheetLifecycleMessageChannel lifecycleMessageService, Cluster cluster) throws RemoteException {
+      super(engine, cluster);
+      this.lifecycleMessageService = lifecycleMessageService;
    }
 
    /**
@@ -457,7 +449,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
 
    @Override
    public <T extends Serializable> List<T> invokeOnAll(Task<T> task) {
-      return Cluster.getInstance().affinityCallAll(CACHE_NAME, new InvokeAllTask<>(task));
+      return cluster.affinityCallAll(CACHE_NAME, new InvokeAllTask<>(task));
    }
 
    /**
@@ -836,8 +828,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
 
    private static final int NEED_SHRINK_COUNT = 100;
    private static final Logger LOG = LoggerFactory.getLogger(ViewsheetEngine.class);
-   private final ViewsheetLifecycleMessageChannel lifecycleMessageService =
-      ViewsheetLifecycleMessageChannel.getInstance();
+   private final ViewsheetLifecycleMessageChannel lifecycleMessageService;
    private int dataChangeCount;
    private final Map<AssetEntry, Long> dataChangeMap = new HashMap<>();
 

@@ -17,6 +17,7 @@
  */
 package inetsoft.sree.schedule;
 
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.util.ConfigurationContext;
 import jakarta.annotation.PreDestroy;
@@ -36,8 +37,8 @@ import java.util.concurrent.*;
 @Service
 @Lazy
 public class ScheduleStatusDao implements AutoCloseable {
-   public ScheduleStatusDao() {
-      storage = KeyValueStorage.newInstance("scheduleStatus");
+   public ScheduleStatusDao(Cluster cluster) {
+      storage = KeyValueStorage.newInstance("scheduleStatus", cluster);
    }
 
    public static ScheduleStatusDao getInstance() {

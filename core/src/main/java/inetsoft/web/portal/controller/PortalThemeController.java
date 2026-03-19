@@ -29,6 +29,7 @@ import inetsoft.util.*;
 import inetsoft.web.reportviewer.service.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.io.IOUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -39,12 +40,17 @@ import java.util.Hashtable;
 
 @Controller
 public class PortalThemeController {
+   @Autowired
+   private PortalThemesManager portalThemesManager;
+   @Autowired
+   private DataSpace dataSpace;
+
    /**
     * Get logo image
     */
    @GetMapping("/portal/logo")
    public void getPortalLogo(HttpServletResponse response, Principal principal) throws Exception {
-      PortalThemesManager manager = PortalThemesManager.getManager();
+      PortalThemesManager manager = portalThemesManager;
 
       // For modern tab style, use the theme path
       String org = OrganizationManager.getInstance().getCurrentOrgID();
@@ -66,14 +72,13 @@ public class PortalThemeController {
       response.addHeader("Cache-Control", "public, max-age=2592000");
       response.setContentType("text/css");
       String fontPath = SreeEnv.getProperty("sree.home") + "/portal/font";
-      DataSpace space = DataSpace.getDataSpace();
 
       try(PrintWriter writer = response.getWriter()) {
-         for(String font : PortalThemesManager.getManager().getUserFonts()) {
+         for(String font : portalThemesManager.getUserFonts()) {
             String css = font + ".css";
 
-            if(space.exists(fontPath, css)) {
-               try(InputStream input = space.getInputStream(fontPath, css)) {
+            if(dataSpace.exists(fontPath, css)) {
+               try(InputStream input = dataSpace.getInputStream(fontPath, css)) {
                   IOUtils.copy(input, writer);
                }
             }
@@ -94,10 +99,9 @@ public class PortalThemeController {
       response.addHeader("Cache-Control", "public, max-age=2592000");
       response.setContentType("application/octet-stream");
       String fontPath = SreeEnv.getProperty("sree.home") + "/portal/font";
-      DataSpace space = DataSpace.getDataSpace();
 
-      try(InputStream inp = space.getInputStream(fontPath, fontName)) {
-         writeFile(inp, space, response);
+      try(InputStream inp = dataSpace.getInputStream(fontPath, fontName)) {
+         writeFile(inp, dataSpace, response);
       }
    }
 
@@ -107,7 +111,7 @@ public class PortalThemeController {
    @GetMapping("/portal/favicon")
    public void getFavicon(HttpServletResponse response, Principal principal) throws Exception
    {
-      PortalThemesManager manager = PortalThemesManager.getManager();
+      PortalThemesManager manager = portalThemesManager;
       response.addHeader("Cache-Control", "public, max-age=2592000");
 
       String curOrg = OrganizationManager.getInstance().getInstance().getCurrentOrgID(principal);
@@ -124,7 +128,7 @@ public class PortalThemeController {
                                @HttpServletRequestWrapper HttpServiceRequest srequest,
                                HttpServletResponse response) throws Exception
    {
-      PortalThemesManager manager = PortalThemesManager.getManager();
+      PortalThemesManager manager = portalThemesManager;
       PortalWelcomePage welcomePage = manager.getWelcomePage();
       String org = OrganizationManager.getInstance().getCurrentOrgID();
 
@@ -188,13 +192,11 @@ public class PortalThemeController {
          throw new Exception(catalog.getString("em.portal.logoError", logo));
       }
 
-      DataSpace space = DataSpace.getDataSpace();
-
       if(!logoStyle ||
-         !space.exists(null, logo))
+         !dataSpace.exists(null, logo))
       {
          try(InputStream res = SreeEnv.class.getResourceAsStream(cpath)) {
-            space.withOutputStream(null, logo, stream -> Tool.copyTo(res, stream));
+            dataSpace.withOutputStream(null, logo, stream -> Tool.copyTo(res, stream));
          }
          catch(Throwable exc) {
             throw new Exception(
@@ -202,8 +204,8 @@ public class PortalThemeController {
          }
       }
 
-      try(InputStream inp = space.getInputStream(null, logo)) {
-         writeFile(inp, space, response);
+      try(InputStream inp = dataSpace.getInputStream(null, logo)) {
+         writeFile(inp, dataSpace, response);
       }
    }
 

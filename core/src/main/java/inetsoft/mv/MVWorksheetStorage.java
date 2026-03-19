@@ -32,7 +32,8 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 
 public class MVWorksheetStorage implements AutoCloseable {
-   public MVWorksheetStorage() {
+   public MVWorksheetStorage(BlobStorageManager blobStorageManager) {
+      this.blobStorageManager = blobStorageManager;
       transformListener = new SheetTransformListener();
    }
 
@@ -92,9 +93,10 @@ public class MVWorksheetStorage implements AutoCloseable {
 
    private BlobStorage<Metadata> getStorage(String orgID) {
       String storeID =  Tool.buildString(orgID.toLowerCase(), "__", "mvws");
-      return BlobStorageManager.getStorage(storeID, false);
+      return blobStorageManager.getStorage(storeID, false);
    }
 
+   private final BlobStorageManager blobStorageManager;
    private final TransformListener transformListener;
 
    public static final class Metadata implements Serializable {

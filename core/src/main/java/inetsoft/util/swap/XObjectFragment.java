@@ -49,8 +49,8 @@ public final class XObjectFragment<T> extends XSwappable {
       this.size = size;
       this.pos = 0;
       this.arr = new Object[isize];
-      XSwapper.cur = System.currentTimeMillis();
-      this.iaccessed = XSwapper.cur;
+      XSwapper.getSwapper().cur = System.currentTimeMillis();
+      this.iaccessed = XSwapper.getSwapper().cur;
       this.valid = true;
 
       if(getMonitor() != null) {
@@ -64,7 +64,7 @@ public final class XObjectFragment<T> extends XSwappable {
     */
    public final Object[] access() {
       Object[] arr = this.arr;
-      iaccessed = XSwapper.cur;
+      iaccessed = XSwapper.getSwapper().cur;
 
       if(isCountHM) {
          if(valid && !lastValid) {
@@ -98,7 +98,7 @@ public final class XObjectFragment<T> extends XSwappable {
          return 0;
       }
 
-      return getAgePriority(XSwapper.cur - iaccessed, alive);
+      return getAgePriority(XSwapper.getSwapper().cur - iaccessed, alive);
    }
 
    /**
@@ -720,7 +720,7 @@ public final class XObjectFragment<T> extends XSwappable {
          // @by jasons, monitor is now transient, so we need to look it up on
          // demand so a deserialized version works.
          if(monitor == null) {
-            monitor = XSwapper.getMonitor();
+            monitor = XSwapper.getSwapper().getMonitor();
          }
       }
 

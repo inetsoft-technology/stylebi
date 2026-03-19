@@ -44,7 +44,7 @@ public class ExportAssetService {
 
    @Autowired
    public ExportAssetService(DeployService deployService, BinaryTransferService binaryTransferService,
-                             Cluster cluster)
+                             Cluster cluster, FileSystemService fileSystemService)
    {
       this.deployService = deployService;
       this.binaryTransferService = binaryTransferService;
@@ -53,6 +53,7 @@ public class ExportAssetService {
       cluster.registerSpringProxyPartitionedCache(FILE_LOCATION_CACHE_NAME);
       this.fileLocationMap = cluster.getMap(FILE_LOCATION_CACHE_NAME);
       this.filePathMap = new ConcurrentHashMap<>();
+      this.fileSystemService = fileSystemService;
    }
 
    @ClusterProxyMethod(FILE_LOCATION_CACHE_NAME)
@@ -159,7 +160,7 @@ public class ExportAssetService {
       info.setSelectedEntries(entryDataArray);
       info.setDependentAssets(assetDataArray);
 
-      File zipfile = FileSystemService.getInstance().getCacheFile(name + ".zip");
+      File zipfile = fileSystemService.getCacheFile(name + ".zip");
       DeployUtil.createExport(info, new FileOutputStream(zipfile));
 
       return ExportJarProperties.builder()
@@ -192,6 +193,7 @@ public class ExportAssetService {
    private final Map<String, String> filePathMap;
    private final DeployService deployService;
    private final BinaryTransferService binaryTransferService;
+   private final FileSystemService fileSystemService;
 
    static final String FILE_LOCATION_CACHE_NAME = "exportAssetFileLocations";
 }

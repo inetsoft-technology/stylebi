@@ -31,6 +31,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.CompositeTableAssemblyInfo;
 import inetsoft.uql.asset.internal.TableAssemblyInfo;
 import inetsoft.uql.asset.sync.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -58,10 +59,13 @@ public class SaveWorksheetService extends WorksheetControllerService {
    @Autowired
    public SaveWorksheetService(AssetRepository assetRepository,
                                ViewsheetService viewsheetService,
-                               MVManager mvManager) {
-      super(viewsheetService);
+                               MVManager mvManager,
+                               DataSourceRegistry dataSourceRegistry,
+                               RenameTransformHandler renameTransformHandler) {
+      super(viewsheetService, dataSourceRegistry);
       this.assetRepository = assetRepository;
       this.mvManager = mvManager;
+      this.renameTransformHandler = renameTransformHandler;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -79,7 +83,7 @@ public class SaveWorksheetService extends WorksheetControllerService {
       RenameDependencyInfo dinfo = DependencyTransformer.createRenameInfo(rws);
 
       if(!dinfo.getDependencyMap().isEmpty()) {
-         RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+         this.renameTransformHandler.addTransformTask(dinfo);
       }
 
       initWorksheetOldName(rws);
@@ -441,5 +445,6 @@ public class SaveWorksheetService extends WorksheetControllerService {
 
    private AssetRepository assetRepository;
    private MVManager mvManager;
+   private RenameTransformHandler renameTransformHandler;
    private Catalog catalog;
 }

@@ -243,7 +243,7 @@ public class DimValueList {
             return 0;
          }
 
-         return getAgePriority(XSwapper.cur - accessed, alive * 2L);
+         return getAgePriority(XSwapper.getSwapper().cur - accessed, alive * 2L);
       }
 
       @Override
@@ -264,7 +264,7 @@ public class DimValueList {
       @Override
       public synchronized boolean swap() {
          arr = null;
-         XSwapper.deregister(this);
+         XSwapper.getSwapper().deregister(this);
          return true;
       }
 
@@ -283,7 +283,7 @@ public class DimValueList {
             }
          }
 
-         accessed = XSwapper.cur;
+         accessed = XSwapper.getSwapper().cur;
          return arr[idx];
       }
 
@@ -297,8 +297,8 @@ public class DimValueList {
             channel.position(segpos[n]);
 
             arr = MVTool.readObjects(channel, true);
-            accessed = XSwapper.cur;
-            XSwapper.register(this);
+            accessed = XSwapper.getSwapper().cur;
+            XSwapper.getSwapper().register(this);
          }
          catch(Exception ex) {
             LOG.error("Failed to read fragment: {}", n, ex);

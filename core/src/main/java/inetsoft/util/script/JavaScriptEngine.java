@@ -577,6 +577,10 @@ public class JavaScriptEngine {
       return getExecScriptable() != null;
    }
 
+   public static void resetScriptThread() {
+      execScriptable.remove();
+   }
+
    /**
     * Check if the script already threw the max number of errors specified by the
     * <code>script.max.errors</code> property

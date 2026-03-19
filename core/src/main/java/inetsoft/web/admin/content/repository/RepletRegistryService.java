@@ -18,7 +18,6 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.report.composition.event.AssetEventUtil;
-import inetsoft.report.internal.Util;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.ScheduleManager;
@@ -48,31 +47,20 @@ import java.util.*;
  * @since 12.1
  */
 @Service
-public class RepletRegistryManager {
+public class RepletRegistryService {
    /**
     * Creates a new instance of <tt>RepletRegistryManager</tt>.
     */
    @Autowired
-   public RepletRegistryManager(SecurityEngine securityEngine) {
+   public RepletRegistryService(SecurityEngine securityEngine) {
       this(true, securityEngine);
    }
 
    /**
     * Creates a new instance of <tt>RepletRegistryManager</tt>.
     */
-   public RepletRegistryManager() {
+   public RepletRegistryService() {
       this(true, null);
-   }
-
-   /**
-    * Creates a new instance of <tt>RepletRegistryManager</tt>.
-    *
-    * @param addRepositoryRootFolder <tt>true</tt> to add a "Repository" root
-    *                                folder to all repository entries.
-    */
-   public RepletRegistryManager(boolean addRepositoryRootFolder) {
-      this.addRepositoryRootFolder = addRepositoryRootFolder;
-      this.securityEngine = null;
    }
 
    /**
@@ -82,7 +70,7 @@ public class RepletRegistryManager {
     *                                folder to all repository entries.
     * @param securityEngine          the security engine.
     */
-   public RepletRegistryManager(boolean addRepositoryRootFolder, SecurityEngine securityEngine) {
+   public RepletRegistryService(boolean addRepositoryRootFolder, SecurityEngine securityEngine) {
       this.addRepositoryRootFolder = addRepositoryRootFolder;
       this.securityEngine = securityEngine;
    }
@@ -200,12 +188,11 @@ public class RepletRegistryManager {
                        principal);
          }
 
-         ScheduleManager mgr = ScheduleManager.getScheduleManager();
          AssetEntry oentry = new AssetEntry(
             AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.FOLDER, oldPath, null);
          AssetEntry nentry = new AssetEntry(
             AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.FOLDER, newPath, null);
-         mgr.renameSheetInSchedule(oentry, nentry);
+         scheduleManager.renameSheetInSchedule(oentry, nentry);
       }
 
       registryTo.setFolderDescription(newPath, description);
@@ -839,8 +826,7 @@ public class RepletRegistryManager {
                   //System.out.println("changeSheet :" + (new Date().getTime() - start.getTime()));
 
                   if(fromFolder) {
-                     DependencyHandler dependencyHandler = DependencyHandler.getInstance();
-                     RenameTransformHandler.getTransformHandler().addTransformTask(dependencyHandler.getRenameDependencyInfo(oentry, nentry), true);
+                     renameTransformHandler.addTransformTask(dependencyHandler.getRenameDependencyInfo(oentry, nentry), true);
                   }
                }
                else {
@@ -1536,7 +1522,7 @@ public class RepletRegistryManager {
    }
 
    private static final Logger LOG =
-      LoggerFactory.getLogger(RepletRegistryManager.class);
+      LoggerFactory.getLogger(RepletRegistryService.class);
 
    /**
     * Gets the repository entries in the specified folder.
@@ -1718,6 +1704,12 @@ public class RepletRegistryManager {
 
    private final boolean addRepositoryRootFolder;
    private final SecurityEngine securityEngine;
+   @Autowired
+   private ScheduleManager scheduleManager;
+   @Autowired
+   private DependencyHandler dependencyHandler;
+   @Autowired
+   private RenameTransformHandler renameTransformHandler;
 
    /**
     * Exception that indicates that an asset name is already in use.

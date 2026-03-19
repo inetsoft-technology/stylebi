@@ -51,7 +51,7 @@ public class MVService {
    @Autowired
    public MVService(ContentRepositoryTreeService treeService, MVSupportService support,
                     Cluster cluster, MVManager mvManager, DataCycleManager dataCycleManager,
-                    SecurityEngine securityEngine)
+                    SecurityEngine securityEngine, MVStorage mvStorage)
    {
       this.treeService = treeService;
       this.support = support;
@@ -59,6 +59,7 @@ public class MVService {
       this.mvManager = mvManager;
       this.dataCycleManager = dataCycleManager;
       this.securityEngine = securityEngine;
+      this.mvStorage = mvStorage;
       createMVMap = cluster.getMap(CREATE_MV_STATUS_MAP);
       updateMVMap = cluster.getMap(UPDATE_MV_STATUS_MAP);
    }
@@ -605,7 +606,7 @@ public class MVService {
       }
 
       String file = MVStorage.getFile(def.getName());
-      size = MVStorage.getInstance().getLength(file) + blength;
+      size = mvStorage.getLength(file) + blength;
 
       return format.format(size / (1024 * 1024.0));
    }
@@ -669,7 +670,7 @@ public class MVService {
     * Check a mv is avaliable or not.
     */
    private boolean isAvailable(MVDef def) {
-      MVStorage storage = MVStorage.getInstance();
+      MVStorage storage = mvStorage;
       String file = MVStorage.getFile(def.getName());
 
       if(storage.exists(file)) {
@@ -703,6 +704,7 @@ public class MVService {
    private final MVManager mvManager;
    private final DataCycleManager dataCycleManager;
    private final SecurityEngine securityEngine;
+   private final MVStorage mvStorage;
    private final Map<String, CreateMVResponse> createMVMap;
    private final Map<String, CreateMVResponse> updateMVMap;
    private static final String CREATE_MV_STATUS_MAP = "CREATE_MV_STATUS_MAP";

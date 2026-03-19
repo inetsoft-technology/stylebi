@@ -20,20 +20,34 @@ package inetsoft.sree.schedule;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.io.csv.CSVConfig;
-import inetsoft.sree.security.*;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.Organization;
+import inetsoft.test.*;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.*;
-
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+
 import java.io.OutputStream;
+
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  *  Only test some basic set and get methods.
  *  Due to too many dependencies, there is currently no suitable testing approach for the run method. We will handle it later. todo
  *  Perhaps we can use a spy for run method..
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, LibManagerTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class ViewsheetActionTest {
    ViewsheetAction viewsheetAction;
 

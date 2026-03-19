@@ -39,6 +39,7 @@ import javax.cache.integration.CompletionListener;
 import javax.cache.processor.*;
 import java.io.File;
 import java.io.Serializable;
+import java.lang.reflect.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -364,7 +365,7 @@ public class MockCluster implements Cluster {
 
    @Override
    public <T> Future<Collection<T>> submitAll(Callable<T> task) {
-      Callable<Collection<T>> wrapper = () -> List.of(task.call());
+      Callable<Collection<T>> wrapper = () -> Collections.singletonList(task.call());
       return executor.submit(wrapper);
    }
 
@@ -623,7 +624,7 @@ public class MockCluster implements Cluster {
    @Override
    public <T> List<T> affinityCallAll(String cache, AffinityCallable<T> job) {
       try {
-         return List.of(job.call());
+         return Collections.singletonList(job.call());
       }
       catch(Exception e) {
          throw new IgniteException("Failed to execute affinity call", e);
@@ -1411,7 +1412,7 @@ public class MockCluster implements Cluster {
 
       @Override
       public IgniteFuture<Boolean> containsKeyAsync(K key) throws TransactionException {
-         return null;
+         return new MockIgniteFuture<>(containsKey(key));
       }
 
       @Override
@@ -1438,7 +1439,7 @@ public class MockCluster implements Cluster {
       @Override
       public IgniteFuture<Void> putAsync(K key, V val) throws TransactionException {
          put(key, val);
-         return null;
+         return new MockIgniteFuture<>(null);
       }
 
       @Override
@@ -1448,7 +1449,7 @@ public class MockCluster implements Cluster {
 
       @Override
       public IgniteFuture<V> getAndPutAsync(K key, V val) throws TransactionException {
-         return null;
+         return new MockIgniteFuture<>(getAndPut(key, val));
       }
 
       @Override
@@ -2119,5 +2120,63 @@ public class MockCluster implements Cluster {
       private final long startTime = System.currentTimeMillis();
       private long timeout = 0L;
       private boolean rollbackOnly = false;
+   }
+
+   private static final class MockIgniteFuture<V> implements IgniteFuture<V> {
+      public MockIgniteFuture(V value) {
+         this.value = value;
+      }
+
+      @Override
+      public V get() throws IgniteException {
+         return value;
+      }
+
+      @Override
+      public V get(long timeout) throws IgniteException {
+         return value;
+      }
+
+      @Override
+      public V get(long timeout, TimeUnit unit) throws IgniteException {
+         return value;
+      }
+
+      @Override
+      public boolean cancel() throws IgniteException {
+         return true;
+      }
+
+      @Override
+      public boolean isCancelled() {
+         return false;
+      }
+
+      @Override
+      public boolean isDone() {
+         return true;
+      }
+
+      @Override
+      public void listen(IgniteInClosure<? super IgniteFuture<V>> lsnr) {
+         lsnr.apply(this);
+      }
+
+      @Override
+      public void listenAsync(IgniteInClosure<? super IgniteFuture<V>> lsnr, Executor exec) {
+         lsnr.apply(this);
+      }
+
+      @Override
+      public <T> IgniteFuture<T> chain(IgniteClosure<? super IgniteFuture<V>, T> doneCb) {
+         return null;
+      }
+
+      @Override
+      public <T> IgniteFuture<T> chainAsync(IgniteClosure<? super IgniteFuture<V>, T> doneCb, Executor exec) {
+         return null;
+      }
+
+      private final V value;
    }
 }

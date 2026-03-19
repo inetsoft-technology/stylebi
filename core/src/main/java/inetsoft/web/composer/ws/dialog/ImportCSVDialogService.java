@@ -66,15 +66,21 @@ import java.util.List;
 @Service
 @ClusterProxy
 public class ImportCSVDialogService {
-   public ImportCSVDialogService(ViewsheetService wsEngine, VSLayoutService vsLayoutService, BinaryTransferService binaryTransferService) {
+   public ImportCSVDialogService(ViewsheetService wsEngine, VSLayoutService vsLayoutService,
+                                 BinaryTransferService binaryTransferService,
+                                 AssetDataCache assetDataCache,
+                                 FileSystemService fileSystemService)
+   {
       this.wsEngine = wsEngine;
       this.vsLayoutService = vsLayoutService;
       this.binaryTransferService = binaryTransferService;
+      this.assetDataCache = assetDataCache;
+      this.fileSystemService = fileSystemService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void touchFile(@ClusterProxyKey String runtimeId) throws IOException {
-      String cdir = FileSystemService.getInstance().getCacheDirectory();
+      String cdir = fileSystemService.getCacheDirectory();
       runtimeId = Tool.normalizeFileName(Tool.byteDecode(runtimeId));
       fileCache.get(cdir + runtimeId + "_csv");
       return null;
@@ -86,7 +92,7 @@ public class ImportCSVDialogService {
                                        CommandDispatcher commandDispatcher) throws Exception
    {
       final String rid = Tool.normalizeFileName(runtimeId);
-      final File csvTemp = FileSystemService.getInstance().getCacheFile(rid + "_csv");
+      final File csvTemp = fileSystemService.getCacheFile(rid + "_csv");
       final RuntimeWorksheet rws = wsEngine.getWorksheet(runtimeId, principal);
       final CommandDispatcher dispatcher = commandDispatcher.detach();
       dispatcher.sendCommand(new ShowLoadingMaskCommand());
@@ -154,7 +160,7 @@ public class ImportCSVDialogService {
                                                   ImportCSVDialogModel model) throws Exception
    {
       String rid = Tool.normalizeFileName(runtimeId);
-      File csvTemp = FileSystemService.getInstance().getCacheFile(rid + "_csv");
+      File csvTemp = fileSystemService.getCacheFile(rid + "_csv");
       CSVInfo csvInfo = null;
       FileInputStream input = null;
       ImportCSVDialogModelValidator.Builder validator = ImportCSVDialogModelValidator.builder();
@@ -337,7 +343,7 @@ public class ImportCSVDialogService {
             }
 
             WorksheetEventUtil.loadTableData(rws, assembly.getAbsoluteName(), true, true);
-            AssetDataCache.removeCacheDependence(assembly);
+            assetDataCache.removeCacheDependence(assembly);
             WorksheetEventUtil.refreshAssembly(
                rws, assembly.getAbsoluteName(), true, commandDispatcher, principal);
             WorksheetEventUtil.layout(rws, commandDispatcher);
@@ -469,7 +475,6 @@ public class ImportCSVDialogService {
     */
    private void processUploadCSV(BinaryTransfer data, String rid) throws Exception {
       rid = Tool.normalizeFileName(rid);
-      FileSystemService fileSystemService = FileSystemService.getInstance();
       String cdir = fileSystemService.getCacheDirectory();
       File temp = fileSystemService.getCacheFile(rid + "_csv");
       String filePath = cdir + rid +"_csv";
@@ -493,7 +498,7 @@ public class ImportCSVDialogService {
       String sheets = "";
       String firstSheet = null;
 
-      String cdir = FileSystemService.getInstance().getCacheDirectory();
+      String cdir = fileSystemService.getCacheDirectory();
       File csvTemp = fileCache.get(cdir + vid + "_csv");
 
       TextFileType fileType;
@@ -1154,6 +1159,8 @@ public class ImportCSVDialogService {
    private final ViewsheetService wsEngine;
    private final VSLayoutService vsLayoutService;
    private final BinaryTransferService binaryTransferService;
+   private final AssetDataCache assetDataCache;
+   private final FileSystemService fileSystemService;
 
    private final DataCache<String, File> fileCache =
       new DataCache<>(100, 120000L) {

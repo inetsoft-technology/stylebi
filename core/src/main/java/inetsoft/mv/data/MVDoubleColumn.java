@@ -263,7 +263,7 @@ public class MVDoubleColumn extends MVDecimalColumn {
       }
 
       private double[] access() {
-         iaccessed = XSwapper.cur;
+         iaccessed = XSwapper.getSwapper().cur;
          double[] arr = this.arr;
 
          if(arr != null) {

@@ -18,13 +18,11 @@
 package inetsoft.storage;
 
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.config.InetsoftConfig;
 import org.springframework.context.ApplicationContext;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.Set;
 
 /**
  * {@code BlobEngine} is an interface for classes that handle loading and saving blobs to some
@@ -91,39 +89,8 @@ public interface BlobEngine extends AutoCloseable {
    default void close() throws Exception {
    }
 
-   /**
-    * Gets the shared instance of the blob storage engine.
-    *
-    * @return the singleton instance.
-    */
-   /** Holds the non-Spring bootstrap instance (thread-safe via AtomicReference). */
-   AtomicReference<BlobEngine> NON_SPRING_INSTANCE = new AtomicReference<>();
-
    static BlobEngine getInstance() {
-      ApplicationContext ctx = ConfigurationContext.getContext().getApplicationContext();
-
-      if(ctx != null) {
-         return ctx.getBean(BlobEngine.class);
-      }
-
-      // Non-Spring fallback: load via ServiceLoader using InetsoftConfig.
-      return NON_SPRING_INSTANCE.updateAndGet(existing -> {
-         if(existing != null) {
-            return existing;
-         }
-
-         InetsoftConfig config = InetsoftConfig.getInstance();
-         String type = "local".equals(config.getBlob().getType())
-            ? "filesystem" : config.getBlob().getType();
-
-         for(BlobEngineFactory factory : ServiceLoader.load(BlobEngineFactory.class)) {
-            if(factory.getType().equals(type)) {
-               return factory.createEngine(config);
-            }
-         }
-
-         throw new RuntimeException("No BlobEngineFactory found for type: " + config.getBlob().getType());
-      });
+      return ConfigurationContext.getContext().getSpringBean(BlobEngine.class);
    }
 
 }

@@ -41,14 +41,17 @@ import java.security.Principal;
 @RestController
 public class ChartAddShapeController {
    @Autowired
-   public ChartAddShapeController(DataSpaceContentSettingsService dataSpaceContentSettingsService) {
+   public ChartAddShapeController(DataSpaceContentSettingsService dataSpaceContentSettingsService,
+                                  DataSpace dataSpace)
+   {
       this.dataSpaceContentSettingsService = dataSpaceContentSettingsService;
+      this.dataSpace = dataSpace;
    }
 
    @PostMapping("/api/chart/shape/upload")
    public boolean uploadShape(@RequestParam("file") MultipartFile[] files, Principal principal) throws Exception {
       String folder = ImageShapes.getShapesDirectory();
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = this.dataSpace;
 
       for(MultipartFile file : files) {
          if(file.isEmpty()) {
@@ -85,5 +88,6 @@ public class ChartAddShapeController {
    }
 
    private final DataSpaceContentSettingsService dataSpaceContentSettingsService;
+   private final DataSpace dataSpace;
    private static final Logger LOG = LoggerFactory.getLogger(ChartAddShapeController.class);
 }

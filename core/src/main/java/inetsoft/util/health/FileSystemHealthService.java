@@ -19,11 +19,12 @@
 package inetsoft.util.health;
 
 import inetsoft.sree.SreeEnv;
-import inetsoft.util.ConfigurationContext;
+import inetsoft.util.FileSystemService;
 import inetsoft.util.config.InetsoftConfig;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
@@ -36,8 +37,13 @@ import java.util.List;
 @Service
 @Lazy
 public class FileSystemHealthService {
+   @Autowired
+   public FileSystemHealthService(FileSystemService fileSystemService) {
+      this.fileSystemService = fileSystemService;
+   }
+
    public static FileSystemHealthService getInstance() {
-      return ConfigurationContext.getContext().getSpringBean(FileSystemHealthService.class);
+      return inetsoft.util.ConfigurationContext.getContext().getSpringBean(FileSystemHealthService.class);
    }
 
    public FileSystemStatus getStatus() {
@@ -58,7 +64,7 @@ public class FileSystemHealthService {
             boolean available = true;
 
             try {
-               Path file = inetsoft.util.FileSystemService.getInstance().getFile(path).toPath();
+               Path file = fileSystemService.getFile(path).toPath();
                Files.readAttributes(file, BasicFileAttributes.class);
             }
             catch(Exception e) {
@@ -79,5 +85,6 @@ public class FileSystemHealthService {
       return status;
    }
 
+   private final FileSystemService fileSystemService;
    private static final Logger LOG = LoggerFactory.getLogger(FileSystemHealthService.class);
 }

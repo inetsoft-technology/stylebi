@@ -36,10 +36,12 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 
-@SreeHome(importResources = { "EmbeddedVS1.zip", "ExpRefVS.zip" })
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = ControllersTestConfiguration.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome(importResources = { "EmbeddedVS1.zip", "ExpRefVS.zip" })
+@Tag("core")
+@Tag("integration")
 public class DistributedTableCacheKeyTest {
    @Test
    void testEmbeddedTable() throws Exception {

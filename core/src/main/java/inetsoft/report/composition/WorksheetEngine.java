@@ -17,7 +17,6 @@
  */
 package inetsoft.report.composition;
 
-import inetsoft.analytic.AnalyticAssistant;
 import inetsoft.analytic.composition.SheetLibraryEngine;
 import inetsoft.report.composition.execution.BoundTableHelper;
 import inetsoft.sree.SreeEnv;
@@ -55,20 +54,11 @@ import java.util.concurrent.*;
 public class WorksheetEngine extends SheetLibraryEngine implements WorksheetService {
    /**
     * Constructor.
-    */
-   public WorksheetEngine() throws RemoteException {
-      this((AssetRepository) AnalyticAssistant.getAnalyticAssistant()
-         .getAnalyticRepository());
-      setServer(true);
-   }
-
-   /**
-    * Constructor.
     * throws RemoteException
     */
-   public WorksheetEngine(AssetRepository engine) throws RemoteException {
-      Cluster cluster = Cluster.getInstance();
-      Cluster.getInstance().registerSpringProxyPartitionedCache(CACHE_NAME);
+   public WorksheetEngine(AssetRepository engine, Cluster cluster) throws RemoteException {
+      this.cluster = cluster;
+      cluster.registerSpringProxyPartitionedCache(CACHE_NAME);
       amap = new RuntimeSheetCache(CACHE_NAME);
       emap = new ConcurrentHashMap<>();
       executionMap = new ExecutionMap();
@@ -501,7 +491,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       }
 
       if(LOG.isDebugEnabled()) {
-         LOG.debug("Opened runtime sheet {} on {}", sheetId, Cluster.getInstance().getLocalMember());
+         LOG.debug("Opened runtime sheet {} on {}", sheetId, cluster.getLocalMember());
       }
 
       return sheetId;
@@ -1201,33 +1191,11 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       return 0;
    }
 
-   /** Holds the non-Spring bootstrap instance (thread-safe via AtomicReference). */
-   private static final java.util.concurrent.atomic.AtomicReference<WorksheetService>
-      NON_SPRING_INSTANCE = new java.util.concurrent.atomic.AtomicReference<>();
-
    /**
     * Get the worksheet service.
     */
    public static WorksheetService getWorksheetService() {
-      org.springframework.context.ApplicationContext ctx =
-         ConfigurationContext.getContext().getApplicationContext();
-
-      if(ctx != null) {
-         return ctx.getBean(WorksheetService.class);
-      }
-
-      return NON_SPRING_INSTANCE.updateAndGet(existing -> {
-         if(existing != null) {
-            return existing;
-         }
-
-         try {
-            return new WorksheetEngine();
-         }
-         catch(Exception e) {
-            throw new RuntimeException("Failed to create WorksheetEngine for non-Spring context", e);
-         }
-      });
+      return ConfigurationContext.getContext().getSpringBean(WorksheetService.class);
    }
 
    /**
@@ -1282,7 +1250,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
          }
       }
       else {
-         return Cluster.getInstance().affinityCall(CACHE_NAME, key, job);
+         return cluster.affinityCall(CACHE_NAME, key, job);
       }
    }
 
@@ -1302,7 +1270,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
          }, affinityExecutor);
       }
       else {
-         return Cluster.getInstance().affinityCallAsync(CACHE_NAME, key, job);
+         return cluster.affinityCallAsync(CACHE_NAME, key, job);
       }
    }
 
@@ -1455,6 +1423,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    public static final WeakHashMap<Object, ExceptionKey> exceptionMap = new WeakHashMap<>();
 
    protected AssetRepository engine; // asset repository
+   protected final Cluster cluster;
    protected final RuntimeSheetCache amap; // runtime asset map
    protected final Map<String,Vector<ThreadDef>> emap; // id -> event threads
    protected ExecutionMap executionMap; // the executing viewsheet

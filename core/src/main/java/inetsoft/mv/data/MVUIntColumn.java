@@ -433,7 +433,7 @@ public class MVUIntColumn extends MVDecimalColumn {
       }
 
       protected int[] access() {
-         iaccessed = XSwapper.cur;
+         iaccessed = XSwapper.getSwapper().cur;
          int[] arr = this.arr;
 
          if(arr != null) {

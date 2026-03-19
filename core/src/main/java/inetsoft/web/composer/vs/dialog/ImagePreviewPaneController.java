@@ -43,10 +43,12 @@ import java.security.Principal;
 public class ImagePreviewPaneController {
 
    public ImagePreviewPaneController(ImagePreviewPaneServiceProxy imagePreviewPaneServiceProxy,
-                                     BinaryTransferService binaryTransferService)
+                                     BinaryTransferService binaryTransferService,
+                                     FileSystemService fileSystemService)
    {
       this.imagePreviewPaneServiceProxy = imagePreviewPaneServiceProxy;
       this.binaryTransferService = binaryTransferService;
+      this.fileSystemService = fileSystemService;
    }
 
    /**
@@ -88,7 +90,7 @@ public class ImagePreviewPaneController {
             final String dir = SreeEnv.getProperty("html.image.directory");
 
             if(!Tool.isEmptyString(dir)) {
-               final String path = FileSystemService.getInstance()
+               final String path = fileSystemService
                   .getPath(dir, name).toString();
                HTMLUtil.copyResource(path, response.getOutputStream(), null);
             }
@@ -201,4 +203,5 @@ public class ImagePreviewPaneController {
 
    private ImagePreviewPaneServiceProxy imagePreviewPaneServiceProxy;
    private BinaryTransferService binaryTransferService;
+   private final FileSystemService fileSystemService;
 }

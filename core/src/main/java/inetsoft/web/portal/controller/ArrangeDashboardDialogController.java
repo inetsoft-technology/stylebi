@@ -18,8 +18,7 @@
 package inetsoft.web.portal.controller;
 
 import inetsoft.sree.security.*;
-import inetsoft.sree.web.dashboard.DashboardManager;
-import inetsoft.sree.web.dashboard.DashboardRegistry;
+import inetsoft.sree.web.dashboard.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.*;
 import inetsoft.util.Catalog;
@@ -39,8 +38,13 @@ import java.util.*;
 @RestController
 public class ArrangeDashboardDialogController {
    @Autowired
-   public ArrangeDashboardDialogController(SecurityEngine securityEngine) {
+   public ArrangeDashboardDialogController(SecurityEngine securityEngine,
+                                           DashboardRegistryManager dashboardRegistryManager,
+                                           DashboardManager dashboardManager)
+   {
       this.securityEngine = securityEngine;
+      this.dashboardRegistryManager = dashboardRegistryManager;
+      this.dashboardManager = dashboardManager;
    }
 
    @GetMapping(value = "/api/portal/arrange-dashboard-dialog-model")
@@ -57,24 +61,23 @@ public class ArrangeDashboardDialogController {
       IdentityID name = principal != null ? IdentityID.getIdentityIDFromKey(principal.getName()) :
          new IdentityID(XPrincipal.ANONYMOUS, OrganizationManager.getInstance().getCurrentOrgID());
       Identity identity = getIdentity((XPrincipal) principal);
-      DashboardManager manager = DashboardManager.getManager();
 
       if(model.getDashboards() == null || model.getDashboards().size() == 0) {
-         manager.setDashboards(identity, null);
-         manager.setDeselectedDashboards(identity, manager.getUserDashboards(name));
+         dashboardManager.setDashboards(identity, null);
+         dashboardManager.setDeselectedDashboards(identity, dashboardManager.getUserDashboards(name));
       }
       else {
          Set<String> selected =
             new LinkedHashSet<>(Arrays.asList(getSelectedDashboardNames(model.getDashboards())));
          Set<String> available =
-            new LinkedHashSet<>(Arrays.asList(manager.getUserDashboards(name)));
+            new LinkedHashSet<>(Arrays.asList(dashboardManager.getUserDashboards(name)));
          List<String> deselected = new ArrayList<>();
 
          if(!selected.equals(available)) {
-            manager.setDashboards(identity, null, true);
+            dashboardManager.setDashboards(identity, null, true);
          }
 
-         available.addAll(Arrays.asList(manager.getDeselectedDashboards(identity)));
+         available.addAll(Arrays.asList(dashboardManager.getDeselectedDashboards(identity)));
 
          for(String availableName : available) {
             if(!selected.contains(availableName)) {
@@ -82,8 +85,8 @@ public class ArrangeDashboardDialogController {
             }
          }
 
-         manager.setDeselectedDashboards(identity, deselected.toArray(new String[0]));
-         manager.setDashboards(identity, selected.toArray(new String[0]));
+         dashboardManager.setDeselectedDashboards(identity, deselected.toArray(new String[0]));
+         dashboardManager.setDashboards(identity, selected.toArray(new String[0]));
       }
 
       return model;
@@ -102,15 +105,14 @@ public class ArrangeDashboardDialogController {
          identity = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
       }
 
-      DashboardManager manager = DashboardManager.getManager();
-      DashboardRegistry uregistry = DashboardRegistry.getRegistry(identity.getIdentityID());
+      DashboardRegistry uregistry = dashboardRegistryManager.getRegistry(identity.getIdentityID());
 
       // use linked hash sets to maintain original order
-      Set<String> selected = new LinkedHashSet<>(Arrays.asList(manager.getDashboards(identity)));
+      Set<String> selected = new LinkedHashSet<>(Arrays.asList(dashboardManager.getDashboards(identity)));
       Set<String> all = new LinkedHashSet<>(selected);
       all.addAll(Arrays.asList(uregistry.getDashboardNames()));
-      all.addAll(Arrays.asList(manager.getUserDashboards(identity.getIdentityID())));
-      all.addAll(Arrays.asList(manager.getDeselectedDashboards(identity)));
+      all.addAll(Arrays.asList(dashboardManager.getUserDashboards(identity.getIdentityID())));
+      all.addAll(Arrays.asList(dashboardManager.getDeselectedDashboards(identity)));
 
       List<DashboardModel> dashboardModels = new ArrayList<>();
 
@@ -187,4 +189,6 @@ public class ArrangeDashboardDialogController {
    }
 
    private final SecurityEngine securityEngine;
+   private final DashboardRegistryManager dashboardRegistryManager;
+   private final DashboardManager dashboardManager;
 }

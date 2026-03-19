@@ -52,7 +52,7 @@ public class RuntimeViewsheetManager {
 
    private DistributedMap<String, Set<String>> getOpenSheets() {
       if(openSheets == null) {
-         openSheets = (cluster != null ? cluster : Cluster.getInstance()).getReplicatedMap(OPEN_SHEETS_MAP);
+         openSheets = cluster.getReplicatedMap(OPEN_SHEETS_MAP);
       }
 
       return openSheets;

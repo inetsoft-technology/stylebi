@@ -19,6 +19,7 @@ package inetsoft.web.admin.content.repository;
 
 import inetsoft.mv.MVManager;
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.lib.logical.LogicalLibraryEntry;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.*;
@@ -61,14 +62,17 @@ public class ContentRepositoryTreeService {
    @Autowired
    public ContentRepositoryTreeService(SecurityProvider securityProvider, XRepository repository,
                                        ResourcePermissionService permissionService,
-                                       RepletRegistryManager registryManager,
+                                       RepletRegistryService registryManager,
                                        ScheduleTaskFolderService scheduleTaskFolderService,
                                        MVManager mvManager,
                                        SecurityEngine securityEngine,
                                        ScheduleManager scheduleManager,
                                        DataSourceRegistry dataSourceRegistry,
                                        DashboardManager dashboardManager,
-                                       IndexedStorage indexedStorage)
+                                       IndexedStorage indexedStorage,
+                                       DashboardRegistryManager dashboardRegistryManager,
+                                       LibManagerProvider libManagerProvider,
+                                       RecycleBin recycleBin)
    {
       this.securityProvider = securityProvider;
       this.repository = repository;
@@ -81,6 +85,9 @@ public class ContentRepositoryTreeService {
       this.dataSourceRegistry = dataSourceRegistry;
       this.dashboardManager = dashboardManager;
       this.indexedStorage = indexedStorage;
+      this.dashboardRegistryManager = dashboardRegistryManager;
+      this.libManagerProvider = libManagerProvider;
+      this.recycleBin = recycleBin;
    }
 
    public LicensedComponents getLicensedComponents() {
@@ -286,7 +293,6 @@ public class ContentRepositoryTreeService {
       throws Exception
    {
       List<UserNodes> list = new ArrayList<>();
-      RecycleBin recycleBin = RecycleBin.getRecycleBin();
       Set<IdentityID> recycleBinUsers = recycleBin.getEntries().stream()
          .map(RecycleBin.Entry::getOriginalUser)
          .filter(Objects::nonNull)
@@ -368,7 +374,6 @@ public class ContentRepositoryTreeService {
          .owner(null)
          .type(RepositoryEntry.RECYCLEBIN_FOLDER);
 
-      RecycleBin recycleBin = RecycleBin.getRecycleBin();
       List<ContentRepositoryTreeNode> userRecycled = userNodes.stream()
          .flatMap(n -> n.recycled.stream())
          .collect(Collectors.toList());
@@ -1196,7 +1201,7 @@ public class ContentRepositoryTreeService {
     * Get tree nodes for global dashboards.
     */
    private List<ContentRepositoryTreeNode> getGlobalDashboardNodes(Principal principal) {
-      DashboardRegistry registry = DashboardRegistry.getRegistry();
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry();
       List<String> dashboardNames = Arrays.asList(registry.getDashboardNames());
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
       List<IdentityID> adminUsers = OrganizationManager.getInstance().orgAdminUsers(orgID);
@@ -1224,7 +1229,7 @@ public class ContentRepositoryTreeService {
    }
 
    private ContentRepositoryTreeNode createGlobalDashboardNode(String dashboardName) {
-      DashboardRegistry registry = DashboardRegistry.getRegistry();
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry();
       VSDashboard dashboard = (VSDashboard) registry.getDashboard(dashboardName);
       String label = dashboardName.replaceFirst("__GLOBAL", "");
 
@@ -1239,7 +1244,7 @@ public class ContentRepositoryTreeService {
    }
 
    private ContentRepositoryTreeNode createUserDashboardNode(String dashboardName, IdentityID user) {
-      DashboardRegistry registry = DashboardRegistry.getRegistry(user);
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry(user);
       VSDashboard dashboard = (VSDashboard) registry.getDashboard(dashboardName);
 
       return dashboard == null ? null : ContentRepositoryTreeNode.builder()
@@ -1276,7 +1281,7 @@ public class ContentRepositoryTreeService {
    }
 
    private List<ContentRepositoryTreeNode> getUserDashboardNodeChildren(IdentityID user) {
-      DashboardRegistry registry = DashboardRegistry.getRegistry(user);
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry(user);
       return Arrays.stream(registry.getDashboardNames())
          .map(name -> ContentRepositoryTreeNode.builder()
             .label(name)
@@ -1440,7 +1445,7 @@ public class ContentRepositoryTreeService {
    }
 
    private List<ContentRepositoryTreeNode> getLibraries(String rootPath) {
-      final LibManager manager = LibManager.getManager();
+      final LibManager manager = libManagerProvider.getManager();
       final Catalog catalog = Catalog.getCatalog();
       Map<Integer, List<ContentRepositoryTreeNode>> libraries = new HashMap<>();
       addLibraryFolder(libraries, RepositoryEntry.SCRIPT, getScripts(manager), rootPath);
@@ -1485,7 +1490,7 @@ public class ContentRepositoryTreeService {
                                                            int type, String rootPath)
    {
       final List<ContentRepositoryTreeNode> nodes = new ArrayList<>();
-      final LibManager manager = LibManager.getManager();
+      final LibManager manager = libManagerProvider.getManager();
 
       while(entries.hasMoreElements()) {
          final String name = entries.nextElement();
@@ -1518,7 +1523,7 @@ public class ContentRepositoryTreeService {
       Map<Integer, List<ContentRepositoryTreeNode>> libraries, String name,
       String rootPath)
    {
-      final LibManager manager = LibManager.getManager();
+      final LibManager manager = libManagerProvider.getManager();
       Catalog catalog = Catalog.getCatalog();
       List<ContentRepositoryTreeNode> nodes = new ArrayList<>();
       List<ContentRepositoryTreeNode> tableStyles = new ArrayList<>();
@@ -2044,7 +2049,7 @@ public class ContentRepositoryTreeService {
 //   }
 
    private final SecurityProvider securityProvider;
-   private final RepletRegistryManager registryManager;
+   private final RepletRegistryService registryManager;
    private final XRepository repository;
    private final ResourcePermissionService permissionService;
 
@@ -2055,6 +2060,9 @@ public class ContentRepositoryTreeService {
    private final DataSourceRegistry dataSourceRegistry;
    private final DashboardManager dashboardManager;
    private final IndexedStorage indexedStorage;
+   private final DashboardRegistryManager dashboardRegistryManager;
+   private final LibManagerProvider libManagerProvider;
+   private final RecycleBin recycleBin;
    private final Comparator<ContentRepositoryTreeNode> nodeComparator = getNodeComparator();
 
    public static final String RECYCLE_BIN_FOLDER = "Recycle Bin";

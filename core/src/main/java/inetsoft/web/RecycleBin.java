@@ -49,7 +49,8 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
    /**
     * Creates a new instance of <tt>RecycleBin</tt>.
     */
-   public RecycleBin() {
+   public RecycleBin(KeyValueStorageManager keyValueStorageManager) {
+      this.keyValueStorageManager = keyValueStorageManager;
       getStorage();
    }
 
@@ -352,9 +353,10 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
          orgID = orgID;
       }
       String storeID = orgID.toLowerCase() + "__" + "recyclebin";
-      return KeyValueStorageManager.getStorage(storeID);
+      return keyValueStorageManager.getStorage(storeID);
    }
 
+   private final KeyValueStorageManager keyValueStorageManager;
    private static final Logger LOG = LoggerFactory.getLogger(RecycleBin.class);
 
    public static final class Entry implements XMLSerializable, Serializable {

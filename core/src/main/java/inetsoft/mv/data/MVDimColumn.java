@@ -79,7 +79,7 @@ public final class MVDimColumn extends DictDimIndex implements XMVColumn {
     * Get the value at the specified index.
     */
    public final int getValue(int idx) {
-      accessed = XSwapper.cur;
+      accessed = XSwapper.getSwapper().cur;
       return dimbuf.getValue(idx);
    }
 

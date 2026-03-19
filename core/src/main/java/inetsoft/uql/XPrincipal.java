@@ -93,7 +93,7 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
       }
 
       this.sessionID =
-         XSessionService.createSessionID(XSessionService.USER,
+         XSessionService.getService().createSessionID(XSessionService.USER,
                                          identityID != null ? identityID.convertToKey() : null);
       this.prop = new ConcurrentHashMap<>();
       this.params = new ConcurrentHashMap<>();

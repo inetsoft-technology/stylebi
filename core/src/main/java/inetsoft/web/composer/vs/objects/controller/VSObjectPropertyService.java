@@ -37,6 +37,7 @@ import inetsoft.uql.asset.internal.AssemblyInfo;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.schema.XValueNode;
 import inetsoft.uql.script.VariableScriptable;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XTableTableNode;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
@@ -78,7 +79,6 @@ public class VSObjectPropertyService {
     * Creates a new instance of <tt>VSObjectPropertyController</tt>.
     *
     * @param coreLifecycleService CoreLifecycleService instance
-    * @param viewsheetService
     */
    @Autowired
    public VSObjectPropertyService(
@@ -86,19 +86,19 @@ public class VSObjectPropertyService {
       VSColumnHandler vsColumnHandler,
       VSObjectTreeService vsObjectTreeService,
       VSAssemblyInfoHandler infoHander,
-      ViewsheetService viewsheetService,
       VSWizardTemporaryInfoService temporaryInfoService,
       VSCompositionService vsCompositionService,
-      SharedFilterService sharedFilterService)
+      SharedFilterService sharedFilterService,
+      DataSourceRegistry dataSourceRegistry)
    {
       this.coreLifecycleService = coreLifecycleService;
       this.vsColumnHandler = vsColumnHandler;
       this.vsObjectTreeService = vsObjectTreeService;
       this.infoHander = infoHander;
-      this.viewsheetService = viewsheetService;
       this.temporaryInfoService = temporaryInfoService;
       this.vsCompositionService = vsCompositionService;
       this.sharedFilterService = sharedFilterService;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    public void editObjectProperty(RuntimeViewsheet rvs, VSAssemblyInfo info, String oldName,
@@ -244,7 +244,7 @@ public class VSObjectPropertyService {
 
       AbstractVSAssembly assembly = (AbstractVSAssembly) vsAssembly;
       VSAssemblyInfo oinfo = assembly.getVSAssemblyInfo().clone();
-      VSModelTrapContext context = new VSModelTrapContext(rvs);
+      VSModelTrapContext context = new VSModelTrapContext(rvs, dataSourceRegistry);
       AbstractModelTrapContext.TrapInfo tinfo = context.isCheckTrap() ?
          context.checkTrap(oinfo, info) : null;
 
@@ -2177,11 +2177,10 @@ public class VSObjectPropertyService {
    private final VSColumnHandler vsColumnHandler;
    private final VSObjectTreeService vsObjectTreeService;
    private final VSAssemblyInfoHandler infoHander;
-   private final ViewsheetService viewsheetService;
    private final VSWizardTemporaryInfoService temporaryInfoService;
    private final VSCompositionService vsCompositionService;
    private final SharedFilterService sharedFilterService;
-   private final static String VIEWSHEET_FLAG = Catalog.getCatalog().getString("Current viewsheet");
+   private final DataSourceRegistry dataSourceRegistry;
 
    private final Logger LOG = LoggerFactory.getLogger(VSObjectPropertyService.class);
 }

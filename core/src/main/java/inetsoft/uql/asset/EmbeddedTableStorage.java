@@ -32,7 +32,8 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 public class EmbeddedTableStorage implements AutoCloseable {
-   public EmbeddedTableStorage() {
+   public EmbeddedTableStorage(BlobStorageManager blobStorageManager) {
+      this.blobStorageManager = blobStorageManager;
    }
 
    private BlobStorage<Metadata> getStorage() {
@@ -42,7 +43,7 @@ public class EmbeddedTableStorage implements AutoCloseable {
    private BlobStorage<Metadata> getStorage(String orgId) {
       orgId = orgId == null ? OrganizationManager.getInstance().getCurrentOrgID() : orgId;
       String storeID = orgId.toLowerCase() + "__pdata";
-      return BlobStorageManager.getStorage(storeID, true);
+      return blobStorageManager.getStorage(storeID, true);
    }
 
    public boolean tableExists(String path) {
@@ -180,5 +181,6 @@ public class EmbeddedTableStorage implements AutoCloseable {
       private final boolean temp;
    }
 
+   private final BlobStorageManager blobStorageManager;
    private static final Logger LOG = LoggerFactory.getLogger(EmbeddedTableStorage.class);
 }

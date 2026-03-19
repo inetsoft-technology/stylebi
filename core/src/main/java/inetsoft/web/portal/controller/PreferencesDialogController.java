@@ -47,10 +47,12 @@ public class PreferencesDialogController {
     */
    @Autowired
    public PreferencesDialogController(AnalyticRepository analyticRepository,
-                                       SecurityEngine securityEngine)
+                                       SecurityEngine securityEngine,
+                                       PortalThemesManager portalThemesManager)
    {
       this.analyticRepository = analyticRepository;
       this.securityEngine = securityEngine;
+      this.portalThemesManager = portalThemesManager;
    }
 
    @GetMapping("/api/portal/get-history-bar-status")
@@ -68,7 +70,7 @@ public class PreferencesDialogController {
    public PreferencesDialogModel getPreferencesDialogModel(
       Principal principal) throws Exception
    {
-      if(!PortalThemesManager.getManager().isButtonVisible(PortalThemesManager.PREFERENCES_BUTTON)) {
+      if(!portalThemesManager.isButtonVisible(PortalThemesManager.PREFERENCES_BUTTON)) {
          Catalog catalog = Catalog.getCatalog();
          throw new SecurityException(catalog.getString("em.common.security.no.permission",
                                                        catalog.getString("Preferences")));
@@ -106,7 +108,7 @@ public class PreferencesDialogController {
    public PreferencesDialogModel setPreferencesDialogModel(
       @RequestBody PreferencesDialogModel model, Principal principal)
    {
-      if(!PortalThemesManager.getManager().isButtonVisible(PortalThemesManager.PREFERENCES_BUTTON)) {
+      if(!portalThemesManager.isButtonVisible(PortalThemesManager.PREFERENCES_BUTTON)) {
          Catalog catalog = Catalog.getCatalog();
          throw new SecurityException(catalog.getString("em.common.security.no.permission",
                                                        catalog.getString("Preferences")));
@@ -165,6 +167,7 @@ public class PreferencesDialogController {
 
    private final AnalyticRepository analyticRepository;
    private final SecurityEngine securityEngine;
+   private final PortalThemesManager portalThemesManager;
    private static final String EMAIL_REGEX =
       "^[\\w\\d\\-_]+(\\.[\\w\\d\\-_]+)*@[\\w\\d\\-_]+(\\.[\\w\\d\\-_]+)*$";
 }

@@ -55,36 +55,11 @@ import java.util.stream.Collectors;
 @Service
 @Lazy
 public class ScheduleManager {
-   /** Holds the non-Spring bootstrap instance (thread-safe via AtomicReference). */
-   private static final java.util.concurrent.atomic.AtomicReference<ScheduleManager>
-      NON_SPRING_INSTANCE = new java.util.concurrent.atomic.AtomicReference<>();
-
-   /** Resets the non-Spring singleton instance. Used in tests between test runs. */
-   public static void resetNonSpringInstance() {
-      NON_SPRING_INSTANCE.set(null);
-   }
-
    /**
     * Get the schedule manager.
     */
    public static ScheduleManager getScheduleManager() {
-      org.springframework.context.ApplicationContext ctx =
-         ConfigurationContext.getContext().getApplicationContext();
-
-      if(ctx != null) {
-         return ctx.getBean(ScheduleManager.class);
-      }
-
-      // Non-Spring fallback: create and init internal tasks exactly once.
-      return NON_SPRING_INSTANCE.updateAndGet(existing -> {
-         if(existing != null) {
-            return existing;
-         }
-
-         ScheduleManager manager = new ScheduleManager();
-         manager.initInternalTasks();
-         return manager;
-      });
+      return ConfigurationContext.getContext().getSpringBean(ScheduleManager.class);
    }
 
    public static boolean isInternalTask(String taskName) {
@@ -133,16 +108,13 @@ public class ScheduleManager {
     * Spring-injected constructor — enforces SecurityEngine and Cluster startup ordering.
     */
    @Autowired
-   public ScheduleManager(SecurityEngine securityEngine, Cluster cluster) {
-      this();
+   public ScheduleManager(SecurityEngine securityEngine, Cluster cluster, ScheduleClient scheduleClient,
+                          DependencyHandler dependencyHandler)
+   {
       this.securityEngine = securityEngine;
       this.cluster = cluster;
-   }
-
-   /**
-    * Create a schedule manager. No-arg fallback for non-Spring environments (e.g., unit tests).
-    */
-   public ScheduleManager() {
+      this.scheduleClient = scheduleClient;
+      this.dependencyHandler = dependencyHandler;
       initMap();
    }
 
@@ -160,7 +132,7 @@ public class ScheduleManager {
     * populate map of organization scoped scheduleTaskMap
     */
    public void initMap() {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
       for(String org : provider.getOrganizationIDs())
       {
          taskMap.put(org, new ScheduleTaskMap(org));
@@ -255,7 +227,6 @@ public class ScheduleManager {
       orgID = orgID != null ? orgID : OrganizationManager.getInstance().getCurrentOrgID();
       boolean scheduler = "true".equals(System.getProperty("ScheduleServer"));
 
-      ScheduleClient client = ScheduleClient.getScheduleClient();
       Map<ExtTaskKey, ScheduleTask> oldExtensionTasks = new HashMap<>(extensionTasks);
       removeExtensionTasksOfOrg(orgID);
 
@@ -276,7 +247,7 @@ public class ScheduleManager {
 
                if(!scheduler && !task.equals(oldTask)) {
                   try {
-                     client.taskAdded(task);
+                     scheduleClient.taskAdded(task);
                   }
                   catch(RemoteException e) {
                      LOG.error("Failed to update scheduler with extension task: " +
@@ -312,7 +283,7 @@ public class ScheduleManager {
 
             // task is no longer in the new task list, remove it
             try {
-               client.taskRemoved(taskKey.name);
+               scheduleClient.taskRemoved(taskKey.name);
             }
             catch(Exception e) {
                LOG.error("Failed to remove extension task: " + taskKey.name, e);
@@ -405,7 +376,7 @@ public class ScheduleManager {
       }
 
       this.getOrgTaskMap(orgID).put(getTaskIdentifier(task.getTaskId(), orgID), task);
-      ScheduleClient.getScheduleClient().taskAdded(task);
+      scheduleClient.taskAdded(task);
       ScheduleTaskMessage message = new ScheduleTaskMessage();
       message.setTaskName(task.getTaskId());
       message.setTask(task);
@@ -557,7 +528,7 @@ public class ScheduleManager {
       Map<String, TaskActivity> result;
 
       try {
-         result = ScheduleClient.getScheduleClient().getScheduleActivities();
+         result = scheduleClient.getScheduleActivities();
       }
       catch(RemoteException e) {
          LOG.error("Failed to get schedule activities", e);
@@ -732,15 +703,15 @@ public class ScheduleManager {
 
       if(getOrgTaskMap(orgID).containsKey(getTaskIdentifier(taskId, orgID), orgID)) {
          action = ScheduleTaskMessage.Action.MODIFIED;
-         DependencyHandler.getInstance().updateTaskDependencies(getOrgTaskMap(orgID).get(getTaskIdentifier(taskId, orgID)), false);
+         dependencyHandler.updateTaskDependencies(getOrgTaskMap(orgID).get(getTaskIdentifier(taskId, orgID)), false);
       }
       else {
          action = ScheduleTaskMessage.Action.ADDED;
       }
 
       getOrgTaskMap(orgID).put(getTaskIdentifier(taskId, orgID), task, parent, orgID);
-      DependencyHandler.getInstance().updateTaskDependencies(task, true);
-      ScheduleClient.getScheduleClient().taskAdded(task);
+      dependencyHandler.updateTaskDependencies(task, true);
+      scheduleClient.taskAdded(task);
       ScheduleTaskMessage message = new ScheduleTaskMessage();
       message.setTaskName(taskId);
       message.setTask(task);
@@ -855,10 +826,10 @@ public class ScheduleManager {
       if(!ext) {
          if(task != null) {
             getOrgTaskMap(orgID).remove(getTaskIdentifier(task.getTaskId(), orgID));
-            DependencyHandler.getInstance().updateTaskDependencies(task, false);
+            dependencyHandler.updateTaskDependencies(task, false);
          }
 
-         ScheduleClient.getScheduleClient().taskRemoved(taskName);
+         scheduleClient.taskRemoved(taskName);
          ScheduleTaskMessage message = new ScheduleTaskMessage();
          message.setTaskName(taskName);
          // Bug #74338: include the task in the REMOVED message so that
@@ -1233,7 +1204,7 @@ public class ScheduleManager {
       // that portal UI removes stale entries without requiring a page refresh.
       for(String oldTaskId : removedTaskIds) {
          try {
-            ScheduleClient.getScheduleClient().taskRemoved(oldTaskId);
+            scheduleClient.taskRemoved(oldTaskId);
          }
          catch(Exception e) {
             LOG.error("Failed to notify scheduler of removed task after user rename: {}", oldTaskId, e);
@@ -1560,8 +1531,7 @@ public class ScheduleManager {
     * Rename bookmark in schedule actions.
     */
    public void bookmarkRenamed(String oldName, String newName, String viewsheet, IdentityID user) {
-      ScheduleManager manager = ScheduleManager.getScheduleManager();
-      Vector<ScheduleTask> tasks = manager.getScheduleTasks();
+      Vector<ScheduleTask> tasks = getScheduleTasks();
       Set<ScheduleTask> changedTasks = new HashSet<>();
 
       for(ScheduleTask task : tasks) {
@@ -1749,15 +1719,17 @@ public class ScheduleManager {
    }
 
    private SecurityEngine getSecurityEngine() {
-      return securityEngine != null ? securityEngine : SecurityEngine.getSecurity();
+      return securityEngine;
    }
 
    private Cluster getCluster() {
-      return cluster != null ? cluster : Cluster.getInstance();
+      return cluster;
    }
 
-   private SecurityEngine securityEngine;
-   private Cluster cluster;
+   private final SecurityEngine securityEngine;
+   private final Cluster cluster;
+   private final ScheduleClient scheduleClient;
+   private final DependencyHandler dependencyHandler;
    private final Map<String, ScheduleTaskMap> taskMap = new HashMap<>();
    private final Vector<ScheduleExt> extensions = new Vector<>();
    private final Map<ExtTaskKey, ScheduleTask> extensionTasks = new ConcurrentHashMap<>();

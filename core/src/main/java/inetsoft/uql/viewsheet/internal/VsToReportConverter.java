@@ -42,6 +42,7 @@ import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.report.lens.DefaultTextLens;
 import inetsoft.report.painter.ImagePainter;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.uql.asset.AbstractSheet;
 import inetsoft.uql.asset.Assembly;
@@ -74,8 +75,13 @@ import java.util.stream.Collectors;
  * @author InetSoft Technology Corp
  */
 public class VsToReportConverter {
-   public VsToReportConverter(ViewsheetSandbox box) {
+   public VsToReportConverter(ViewsheetSandbox box, LibManagerProvider libManagerProvider, Cluster cluster, FileSystemService fileSystemService, DataSpace dataSpace) {
       this.box = box;
+      this.libManagerProvider = libManagerProvider;
+      this.cluster = cluster;
+      this.fileSystemService = fileSystemService;
+      this.dataSpace = dataSpace;
+      this.report = new TabularSheet(libManagerProvider, cluster);
    }
 
    /**
@@ -87,7 +93,7 @@ public class VsToReportConverter {
       playout = layoutinfo.getPrintLayout();
 
       if(playout == null) {
-         return new TabularSheet();
+         return new TabularSheet(libManagerProvider, cluster);
       }
 
       TableDataPath dataPath = new TableDataPath(-1, TableDataPath.OBJECT);
@@ -271,7 +277,7 @@ public class VsToReportConverter {
     */
    private TabularSheet createReportSheet(PrintLayout playout) {
       PrintInfo pinfo = playout.getPrintInfo();
-      TabularSheet report = new TabularSheet();
+      TabularSheet report = new TabularSheet(libManagerProvider, cluster);
       report.setPageSize(getInchSize(pinfo, playout.isHorizontalScreen()));
       Margin margin = pinfo.getMargin();
       report.setMargin(margin);
@@ -2203,12 +2209,9 @@ public class VsToReportConverter {
                   final String dir = SreeEnv.getProperty("html.image.directory");
 
                   if(!Tool.isEmptyString(dir)) {
-                     final String imagePath =
-                        FileSystemService.getInstance().getPath(dir, name).toString();
+                     final String imagePath = fileSystemService.getPath(dir, name).toString();
 
-                     try(final InputStream stream =
-                            DataSpace.getDataSpace().getInputStream(null, imagePath))
-                     {
+                     try(final InputStream stream = dataSpace.getInputStream(null, imagePath)) {
                         svg = new byte[stream.available()];
                         stream.read(svg);
                      }
@@ -2303,7 +2306,7 @@ public class VsToReportConverter {
                   LOG.warn("Failed to write modified SVG to temp file", e);
                }
 
-               FileSystemService.getInstance().remove(tempFile, 10 * 60000);
+               fileSystemService.remove(tempFile, 10 * 60000);
             }
             catch(Exception ex) {
                LOG.debug("Failed to create temp file: " + ex, ex);
@@ -2968,11 +2971,16 @@ public class VsToReportConverter {
 
       return psize;
    }
+
+   private final LibManagerProvider libManagerProvider;
+   private final Cluster cluster;
+   private final FileSystemService fileSystemService;
+   private final DataSpace dataSpace;
    private int zindex = 0;
    private float scalefont = 1;
    private PrintLayout playout = null;
    private ViewsheetSandbox box = null;
-   private TabularSheet report = new TabularSheet();
+   private TabularSheet report;
    // sections used to hold content elements
    private List<LayoutSection> contentSections = new ArrayList<>();
    private SectionElementDef headerSection = null; // section of header.

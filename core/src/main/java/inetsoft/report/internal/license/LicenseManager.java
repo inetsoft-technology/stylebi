@@ -17,6 +17,7 @@
  */
 package inetsoft.report.internal.license;
 
+import inetsoft.sree.ApplicationPropertiesChangedEvent;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.MessageEvent;
 import inetsoft.sree.internal.cluster.MessageListener;
@@ -24,6 +25,7 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.util.ConfigurationContext;
 import jakarta.annotation.PreDestroy;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.event.EventListener;
 
 import java.util.*;
 
@@ -288,6 +290,11 @@ public class LicenseManager implements AutoCloseable, MessageListener {
     */
    public void replaceLicense(String oldKey, String newKey) {
       strategy.replaceLicense(oldKey, newKey);
+   }
+
+   @EventListener(ApplicationPropertiesChangedEvent.class)
+   public void handleApplicationPropertiesChanged(ApplicationPropertiesChangedEvent event) {
+      reload();
    }
 
    /**

@@ -37,19 +37,11 @@ public class CredentialService {
       return ConfigurationContext.getContext().getSpringBean(CredentialService.class);
    }
 
-   public static Credential newCredential(CredentialType type) {
-      return newCredential(type, false);
-   }
-
-   public static Credential newCredential(CredentialType type, boolean forceLocal) {
-      return CredentialService.getInstance().createCredential(type, forceLocal);
-   }
-
-   private Credential createCredential(CredentialType type) {
+   public Credential createCredential(CredentialType type) {
       return createCredential(type, false);
    }
 
-   private Credential createCredential(CredentialType type, boolean forceLocal) {
+   public Credential createCredential(CredentialType type, boolean forceLocal) {
       return factories.get(type).createCredential(forceLocal);
    }
 

@@ -27,7 +27,6 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -45,7 +44,7 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          return;
       }
 
-      storage = KeyValueStorageManager.getStorage(
+      storage = KeyValueStorageManager.getInstance().getStorage(
          "defaultSecurityPermissions", new LoadPermissionsTask());
 
       isolatePermissionForOrg();

@@ -39,7 +39,11 @@ public class ServerClusterClient {
    }
 
    public ServerClusterClient(boolean updateMembership) {
-      cluster = Cluster.getInstance();
+      this(updateMembership, Cluster.getInstance());
+   }
+
+   public ServerClusterClient(boolean updateMembership, Cluster cluster) {
+      this.cluster = cluster;
 
       if(updateMembership) {
          cluster.addMembershipListener(new MembershipListener() {
@@ -143,14 +147,6 @@ public class ServerClusterClient {
       setClusterNodeStatus(getLocalServer(cluster), updater);
    }
 
-   public boolean restartServer() {
-      return sendMessage(cluster.getLocalMember(), new RestartMessage());
-   }
-
-   public boolean restartServer(String server) {
-      return sendMessage(server, new RestartMessage());
-   }
-
    @SuppressWarnings("UnusedReturnValue")
    public boolean pauseServer(String server) {
       return updatePaused(server, true);
@@ -159,14 +155,6 @@ public class ServerClusterClient {
    @SuppressWarnings("UnusedReturnValue")
    public boolean resumeServer(String server) {
       return updatePaused(server, false);
-   }
-
-   public boolean startScheduler(String server) {
-      return sendMessage(server, new StartSchedulerMessage());
-   }
-
-   public boolean stopScheduler(String server) {
-      return sendMessage(server, new StopSchedulerMessage());
    }
 
    @SuppressWarnings("UnusedReturnValue")

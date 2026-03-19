@@ -21,8 +21,8 @@ import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.sync.RenameDependencyInfo;
-import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.erm.XLogicalModel;
+import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.xmla.XMLADataSource;
@@ -30,24 +30,12 @@ import inetsoft.util.ConfigurationContext;
 import inetsoft.util.Tool;
 import inetsoft.util.dep.*;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.context.ApplicationContext;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 
 public interface DependencyHandler {
-   /** Holds the non-Spring bootstrap instance (thread-safe via AtomicReference). */
-   AtomicReference<DependencyHandler> NON_SPRING_INSTANCE = new AtomicReference<>();
-
    static DependencyHandler getInstance() {
-      ApplicationContext ctx = ConfigurationContext.getContext().getApplicationContext();
-
-      if(ctx != null) {
-         return ctx.getBean(DependencyHandler.class);
-      }
-
-      return NON_SPRING_INSTANCE.updateAndGet(
-         existing -> existing != null ? existing : new LocalDependencyHandler());
+      return ConfigurationContext.getContext().getSpringBean(DependencyHandler.class);
    }
 
    void renameDependencies(AssetObject oentry, AssetObject nentry);

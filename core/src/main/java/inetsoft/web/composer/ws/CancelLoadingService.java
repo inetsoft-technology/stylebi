@@ -23,8 +23,9 @@ import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
-import inetsoft.uql.XFactory;
+import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.stereotype.Service;
@@ -34,8 +35,11 @@ import java.security.Principal;
 @Service
 @ClusterProxy
 public class CancelLoadingService extends WorksheetControllerService{
-   CancelLoadingService(ViewsheetService service) {
-      super(service);
+   CancelLoadingService(ViewsheetService service, DataSourceRegistry dataSourceRegistry,
+                        XRepository xRepository)
+   {
+      super(service, dataSourceRegistry);
+      this.xRepository = xRepository;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -67,10 +71,12 @@ public class CancelLoadingService extends WorksheetControllerService{
          box.getQueryManager().cancel();
       }
 
-      XFactory.getRepository().refreshMetaData();
+      xRepository.refreshMetaData();
       box.reset();
       WorksheetEventUtil.refreshWorksheet(
          rws, getWorksheetEngine(), false, false, commandDispatcher, principal);
       return null;
    }
+
+   private final XRepository xRepository;
 }

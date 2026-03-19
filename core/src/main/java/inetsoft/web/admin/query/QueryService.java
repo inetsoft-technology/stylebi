@@ -50,11 +50,12 @@ public class QueryService
    extends MonitorLevelService implements MessageListener, StatusUpdater, QueryExecutionListener
 {
    @Autowired
-   public QueryService(ServerClusterClient clusterClient,
+   public QueryService(ScheduleClient scheduleClient, ServerClusterClient clusterClient,
                        MonitoringDataService monitoringDataService,
                        Cluster cluster)
    {
       super(lowAttrs, medAttrs, new String[0]);
+      this.scheduleClient = scheduleClient;
       this.clusterClient = clusterClient;
       this.monitoringDataService = monitoringDataService;
       this.cluster = cluster;
@@ -209,10 +210,11 @@ public class QueryService
    private ScheduleQueriesStatus getScheduleQueries(String address) {
       return getScheduleMetrics(
          address,
+         scheduleClient,
          clusterClient,
          server -> {
             try {
-               return ScheduleClient.getQueries(null, server);
+               return scheduleClient.getQueries(null, server);
             }
             catch(RemoteException e) {
                throw new RuntimeException(e);
@@ -429,6 +431,7 @@ public class QueryService
       updateQueryMetrics();
    }
 
+   private final ScheduleClient scheduleClient;
    private final ServerClusterClient clusterClient;
    private final MonitoringDataService monitoringDataService;
    private final Cluster cluster;

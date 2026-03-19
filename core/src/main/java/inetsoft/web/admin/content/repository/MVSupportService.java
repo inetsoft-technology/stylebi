@@ -402,7 +402,7 @@ public class MVSupportService {
 
    private void removeAnalysisStatusEntries(List<String> mvNames) {
       Set<String> nameSet = new HashSet<>(mvNames);
-      Map<String, AnalysisStatus> map = Cluster.getInstance().getMap(ANALYSIS_STATUS_MAP);
+      Map<String, AnalysisStatus> map = cluster.getMap(ANALYSIS_STATUS_MAP);
       map.entrySet().stream()
          .filter(e -> {
             List<MVStatus> results = e.getValue().getResults();
@@ -444,7 +444,6 @@ public class MVSupportService {
     * Sets the data cycle for materialized views that have not been created yet.
     *
     * @param mvs       the names of the materialized views.
-    * @param statuses  the pending materialized view definitions.
     * @param dataCycle the name of the data cycle.
     */
    public void setDataCycle(List<String> mvs, AnalysisResult result, String dataCycle) {
@@ -836,8 +835,7 @@ public class MVSupportService {
        * Update the exist/hasData status.
        */
       public void updateStatus() {
-         MVManager manager = ConfigurationContext.getContext().getSpringBean(MVManager.class);
-         setExists(manager.get(mvDef.getName()) != null);
+         setExists(MVManager.getManager().get(mvDef.getName()) != null);
          setDataPresent(mvDef.hasData());
       }
 

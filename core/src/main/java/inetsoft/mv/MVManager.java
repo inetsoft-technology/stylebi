@@ -76,8 +76,9 @@ public final class MVManager implements MessageListener {
    /**
     * Create an instance of MVManager.
     */
-   public MVManager() {
-      Cluster.getInstance().addMessageListener(this);
+   public MVManager(Cluster cluster) {
+      this.cluster = cluster;
+      cluster.addMessageListener(this);
    }
 
    @Override
@@ -1231,7 +1232,7 @@ public final class MVManager implements MessageListener {
 
       for(String file : listFiles) {
          String defName = null;
-         Cluster.getInstance().lockKey("mv.fs.update");
+         cluster.lockKey("mv.fs.update");
 
          try {
             MV mv = (MV) mvStorage.get(file, oorgId).clone(oorgId);
@@ -1249,7 +1250,7 @@ public final class MVManager implements MessageListener {
             throw new RuntimeException(e);
          }
          finally {
-            Cluster.getInstance().unlockKey("mv.fs.update");
+            cluster.unlockKey("mv.fs.update");
          }
       }
 
@@ -1407,7 +1408,7 @@ public final class MVManager implements MessageListener {
    public void fireEvent(String src, String name, Object oval, Object nval) {
       try {
          String orgId = OrganizationManager.getInstance().getCurrentOrgID();
-         Cluster.getInstance().sendMessage(
+         cluster.sendMessage(
             new MVChangedMessage(Util.getOrgEventSourceID(src, orgId), name, oval, nval));
       }
       catch(Exception e) {
@@ -1666,6 +1667,7 @@ public final class MVManager implements MessageListener {
 
    private static final Logger LOG = LoggerFactory.getLogger(MVManager.class);
 
+   private final Cluster cluster;
    private final MVDefMap mvs = new MVDefMap();
    private final Map<Object, MVCreator> pending = new ConcurrentHashMap<>();
    private final Vector<WeakReference<PropertyChangeListener>> listeners = new Vector<>();

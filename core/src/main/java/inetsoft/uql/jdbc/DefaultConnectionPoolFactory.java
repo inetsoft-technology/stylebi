@@ -166,8 +166,8 @@ class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
       }
 
       String fullName = jdbcDataSource.getFullName();
-      Map<String, String> defaultProperties = Config.getDefaultPoolProperties(
-         Config.indexOfJDBCDriver(jdbcDataSource.getDriver()));
+      Map<String, String> defaultProperties = Config.getConfig().getDefaultPoolProperties(
+         Config.getConfig().indexOfJDBCDriver(jdbcDataSource.getDriver()));
 
       if(!(url != null && url.startsWith("jdbc:databricks:"))) {
          config.setAutoCommit("true".equals(defaultProperties.get("autoCommit")));

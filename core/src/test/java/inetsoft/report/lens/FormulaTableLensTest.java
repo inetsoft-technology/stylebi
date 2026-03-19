@@ -17,18 +17,30 @@
  */
 package inetsoft.report.lens;
 
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.TabularSheet;
 import inetsoft.report.internal.binding.FormulaHeaderInfo;
-import inetsoft.test.TestSerializeUtils;
-import inetsoft.test.XTableUtil;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import inetsoft.util.script.JavaScriptEnv;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.mockito.Mockito;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.ArrayList;
 import java.util.List;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 class FormulaTableLensTest {
    @Test
    void testFormula() {
@@ -41,8 +53,9 @@ class FormulaTableLensTest {
       });
       String[] headers = { "f1" };
       String[] formulas = { "field['col2'] + field['col3']" };
-//      SreeEnv.setProperty("license.key", "D000-6B0-DER-0000C30010AF-F2F31FE87256");
-      TabularSheet report = new TabularSheet();
+      LibManagerProvider libManagerProvider = Mockito.mock(LibManagerProvider.class);
+      Cluster cluster = Mockito.mock(Cluster.class);
+      TabularSheet report = new TabularSheet(libManagerProvider, cluster);
       FormulaTableLens joined = new FormulaTableLens(tbl1, headers, formulas, report);
       //XTableUtil.printTableAsJava(joined);
       Object[][] expected = {

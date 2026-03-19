@@ -21,8 +21,6 @@ import inetsoft.sree.ClientInfo;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
-import inetsoft.uql.XPrincipal;
-import inetsoft.uql.util.XSessionService;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
@@ -32,6 +30,7 @@ import inetsoft.web.portal.model.ChangePasswordDialogModel;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -44,9 +43,12 @@ import java.sql.Timestamp;
  */
 @RestController
 public class ChangePasswordDialogController {
-   @org.springframework.beans.factory.annotation.Autowired
-   public ChangePasswordDialogController(SecurityEngine securityEngine) {
+   @Autowired
+   public ChangePasswordDialogController(SecurityEngine securityEngine,
+                                         AuthenticationService authenticationService)
+   {
       this.securityEngine = securityEngine;
+      this.authenticationService = authenticationService;
    }
 
    @GetMapping(value = "/api/portal/change-password-dialog-model")
@@ -98,7 +100,7 @@ public class ChangePasswordDialogController {
          return true;
       }
       catch(Exception e) {
-         LOG.error("Failed to change the password of user: " + objectName, e);
+         LOG.error("Failed to change the password of user: {}", objectName, e);
          String error = catalog.getString("viewer.changePassword.failed", e.getMessage());
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
          actionRecord.setActionError(error);
@@ -114,12 +116,14 @@ public class ChangePasswordDialogController {
     * Authenticate a principal.
     */
    private Principal authenticate(HttpServletRequest req, IdentityID userName,  String password) {
-      return AuthenticationService.getInstance().authenticate(
+      return authenticationService.authenticate(
          new ClientInfo(userName, Tool.getRemoteAddr(req)),
          new DefaultTicket(userName, password));
    }
 
    private final SecurityEngine securityEngine;
+   private final AuthenticationService authenticationService;
+
    private static final Logger LOG = LoggerFactory.getLogger(RepositoryTreeController.class);
 }
 

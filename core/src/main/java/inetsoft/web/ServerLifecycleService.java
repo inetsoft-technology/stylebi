@@ -38,8 +38,15 @@ public class ServerLifecycleService implements ApplicationContextAware {
     * Creates a new instance of <tt>ServerLifecycleService</tt>.
     */
    @Autowired
-   public ServerLifecycleService(LicenseService licenseService) {
+   public ServerLifecycleService(LicenseService licenseService,
+                                 FileSystemService fileSystemService,
+                                 StatusDumpService statusDumpService,
+                                 EmbeddedTableStorage embeddedTableStorage)
+   {
       this.licenseService = licenseService;
+      this.fileSystemService = fileSystemService;
+      this.statusDumpService = statusDumpService;
+      this.embeddedTableStorage = embeddedTableStorage;
    }
 
    @PostConstruct
@@ -59,19 +66,22 @@ public class ServerLifecycleService implements ApplicationContextAware {
    @PostConstruct
    public void clearCacheFiles() {
       if("true".equals(SreeEnv.getProperty("replet.cache.clean"))) {
-         FileSystemService.getInstance().clearCacheFiles("viewer");
+         fileSystemService.clearCacheFiles("viewer");
       }
    }
 
    @Override
    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
-      StatusDumpService.getInstance().setApplicationContext(applicationContext);
+      this.statusDumpService.setApplicationContext(applicationContext);
    }
 
    @Scheduled(fixedRate = 10800000L)
    public void removeExpiredTempTables() {
-      EmbeddedTableStorage.getInstance().removeExpiredTempTables();
+      embeddedTableStorage.removeExpiredTempTables();
    }
 
    private final LicenseService licenseService;
+   private final FileSystemService fileSystemService;
+   private final StatusDumpService statusDumpService;
+   private final EmbeddedTableStorage embeddedTableStorage;
 }

@@ -26,6 +26,7 @@ import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.Catalog;
 import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
@@ -44,9 +45,10 @@ import java.util.List;
 public class SetColumnVisibleService extends WorksheetControllerService {
 
    public SetColumnVisibleService(ViewsheetService viewsheetService,
-                                  DataRefModelFactoryService dataRefModelFactoryService)
+                                  DataRefModelFactoryService dataRefModelFactoryService,
+                                  DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
       this.dataRefModelFactoryService = dataRefModelFactoryService;
    }
 

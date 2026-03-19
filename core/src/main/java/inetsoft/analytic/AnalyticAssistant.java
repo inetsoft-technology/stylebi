@@ -18,7 +18,7 @@
 package inetsoft.analytic;
 
 import inetsoft.sree.AnalyticRepository;
-import inetsoft.sree.internal.*;
+import inetsoft.sree.internal.SreeAssistant;
 import inetsoft.util.ConfigurationContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,38 +41,15 @@ public class AnalyticAssistant extends SreeAssistant {
     * Get singleton analytic assistant.
     */
    public static AnalyticAssistant getAnalyticAssistant() {
-      if(ConfigurationContext.getContext().getApplicationContext() != null) {
-         return ConfigurationContext.getContext().getSpringBean(AnalyticAssistant.class);
-      }
-
-      if(analyticAssistant == null) {
-         analyticAssistant = new AnalyticAssistant();
-      }
-
-      return analyticAssistant;
-   }
-
-   /**
-    * Create an analytic assistant.
-    */
-   private AnalyticAssistant() {
-      try {
-         engine = SUtil.getRepletRepository();
-      }
-      catch(Throwable e) {
-         LOG.warn("Repository initialization error, using local engine", e);
-         engine = new AnalyticEngine();
-         ((AnalyticEngine) engine).init();
-      }
+      return ConfigurationContext.getContext().getSpringBean(AnalyticAssistant.class);
    }
 
    /**
     * Create an analytic assistant.
     */
    public AnalyticAssistant(AnalyticRepository engine) {
-      this.engine = engine;
+      super(engine);
    }
 
-   private static AnalyticAssistant analyticAssistant = null;
    private static final Logger LOG = LoggerFactory.getLogger(AnalyticAssistant.class);
 }

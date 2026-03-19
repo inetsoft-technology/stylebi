@@ -166,7 +166,7 @@ public class JDBCUtil {
       XNode mtype = new XNode();
       mtype.setAttribute("type", "DBPROPERTIES");
       XNode root = repository.getMetaData(session, xds, mtype, true, null);
-      String datasourceType = Config.getJDBCType(xds.getDriver());
+      String datasourceType = Config.getConfig().getJDBCType(xds.getDriver());
 
       if(datasourceType.equalsIgnoreCase("oracle")) {
          SelectTable[] tables = sql.getSelectTable();

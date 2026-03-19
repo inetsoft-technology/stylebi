@@ -18,12 +18,11 @@
 package inetsoft.uql.asset;
 
 import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.report.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.util.gui.ObjectInfo;
 import inetsoft.mv.*;
-import inetsoft.report.LibManager;
-import inetsoft.report.ReportSheet;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.ScheduleManager;
@@ -64,18 +63,9 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    /**
     * Constructor.
     */
-   protected AbstractAssetEngine() {
-      super();
-   }
-
-   /**
-    * Constructor.
-    */
-   public AbstractAssetEngine(int[] scopes, IndexedStorage istore) {
-      this();
-      this.scopes = scopes;
-      Arrays.sort(this.scopes);
-      this.istore = istore;
+   protected AbstractAssetEngine(LibManagerProvider libManagerProvider, Cluster cluster) {
+      this.libManagerProvider = libManagerProvider;
+      this.cluster = cluster;
    }
 
    /**
@@ -1137,7 +1127,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    }
    private AssetEntry[] getTableStyleEntries(AssetEntry entry, ResourceAction permission, Principal user) {
       AssetEntry[] entries;
-      LibManager libManager = LibManager.getManager(user);
+      LibManager libManager = libManagerProvider.getManager(user);
       List<AssetEntry> list = new ArrayList<>();
       String folder = entry.getProperty("folder");
       folder = Tool.isEmptyString(folder) ? null : folder;
@@ -1205,7 +1195,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
    private AssetEntry[] getScriptEntries(AssetEntry entry, ResourceAction action, Principal user) {
       AssetEntry[] entries;
-      LibManager libManager = LibManager.getManager(user);
+      LibManager libManager = libManagerProvider.getManager(user);
       Enumeration<String> e = libManager.getScripts();
       List<String> list = new ArrayList<>();
 
@@ -3101,7 +3091,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          XFactory.getRepository().renameTransform(rinfo);
          RenameSheetEvent renameSheetEvent = new RenameSheetEvent(oentry);
          renameSheetEvent.setRenameInfo(rinfo);
-         Cluster.getInstance().sendMessage(renameSheetEvent);
+         cluster.sendMessage(renameSheetEvent);
       }
       else {
          if(oidentifier != nidentifier) {
@@ -4552,7 +4542,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          }
 
          clearCache(bentry);
-         Cluster.getInstance().sendMessage(new ClearAssetCacheEvent(bentry));
+         cluster.sendMessage(new ClearAssetCacheEvent(bentry));
          storage.putXMLSerializable(bidentifier, bookmark);
       }
       finally {
@@ -4615,7 +4605,6 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
       String userName = user == null ? null : user.getName();
       String lockKey = VSBookmark.getLockKey(entry2.toIdentifier(), userName);
-      Cluster cluster = Cluster.getInstance();
       cluster.lockKey(lockKey);
 
       try {
@@ -4683,6 +4672,8 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    }
 
    public static final ThreadLocal<String> LOCAL = new ThreadLocal<>();
+   private final LibManagerProvider libManagerProvider;
+   private final Cluster cluster;
    protected int[] scopes; // supported scopes
    protected IndexedStorage istore; // default indexed storage
    protected WeakReference<AssetRepository> parent; // parent asset engine

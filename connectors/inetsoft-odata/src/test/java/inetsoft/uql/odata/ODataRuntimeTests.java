@@ -24,12 +24,14 @@ import com.github.tomakehurst.wiremock.junit5.WireMockTest;
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.*;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.credential.*;
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.context.ApplicationContext;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -49,11 +51,17 @@ class ODataRuntimeTests {
 
    @BeforeAll
    static void mockService() {
-      MockedStatic<CredentialService> mockedCredentialService = Mockito.mockStatic(CredentialService.class);
-      mockedCredentialService.when(() -> CredentialService.newCredential(CredentialType.PASSWORD_OAUTH2))
-         .thenReturn(mock(LocalSecretTokenCredential.class));
-      mockedCredentialService.when(() -> CredentialService.newCredential(CredentialType.PASSWORD_OAUTH2, false))
-         .thenReturn(mock(LocalSecretTokenCredential.class));
+      CredentialService credentialService = mock(CredentialService.class);
+      when(credentialService.createCredential(CredentialType.PASSWORD_OAUTH2)).thenReturn(mock(LocalPasswordCredential.class));
+      when(credentialService.createCredential(CredentialType.PASSWORD_OAUTH2, false)).thenReturn(mock(LocalPasswordCredential.class));
+      ApplicationContext context = mock(ApplicationContext.class);
+      when(context.getBean(CredentialService.class)).thenReturn(credentialService);
+      ConfigurationContext.getContext().setApplicationContext(context);
+   }
+
+   @AfterAll
+   static void resetContext() {
+      ConfigurationContext.getContext().setApplicationContext(null);
    }
 
    @BeforeEach

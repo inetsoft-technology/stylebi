@@ -63,7 +63,8 @@ public class DataSourceController {
                                DatabaseDatasourcesService databaseDatasourcesService,
                                SecurityEngine securityEngine,
                                DataSourceStatusService dataSourceStatusService,
-                               LicenseManager licenseManager)
+                               LicenseManager licenseManager,
+                               FileSystemService fileSystemService)
    {
       this.datasourcesService = datasourcesService;
       this.dataSourceBrowserService = dataSourceBrowserService;
@@ -71,6 +72,7 @@ public class DataSourceController {
       this.securityEngine = securityEngine;
       this.dataSourceStatusService = dataSourceStatusService;
       this.licenseManager = licenseManager;
+      this.fileSystemService = fileSystemService;
    }
 
    /**
@@ -483,7 +485,7 @@ public class DataSourceController {
       }
       else {
          // get folders of relative to the path.
-         fileRoots = FileSystemService.getInstance().getFile(path + File.separator).listFiles();
+         fileRoots = fileSystemService.getFile(path + File.separator).listFiles();
       }
 
       if(fileRoots == null) {
@@ -734,6 +736,7 @@ public class DataSourceController {
    private final SecurityEngine securityEngine;
    private final DataSourceStatusService dataSourceStatusService;
    private final LicenseManager licenseManager;
+   private final FileSystemService fileSystemService;
 
    @Autowired
    private NotificationService notificationService;

@@ -18,15 +18,24 @@
 package inetsoft.sree.security;
 
 import inetsoft.sree.SreeEnv;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
+@Tag("core")
 class SecurityEngineTest {
    @BeforeAll
    static void before() {
@@ -35,8 +44,6 @@ class SecurityEngineTest {
 
    @BeforeEach
    void setup() throws Exception {
-      SecurityEngine.clear();
-      engine = SecurityEngine.getSecurity();
       engine.enableSecurity();
       final AuthenticationChain chain =
          (AuthenticationChain) engine.getSecurityProvider().getAuthenticationProvider();
@@ -45,13 +52,6 @@ class SecurityEngineTest {
          (FileAuthenticationProvider) chain.getProviders().get(0);
       provider.addUser(new FSUser(new IdentityID("Alice", OrganizationManager.getInstance().getCurrentOrgID())));
       provider.addUser(new FSUser(new IdentityID("Bob", OrganizationManager.getInstance().getCurrentOrgID())));
-   }
-
-   @AfterAll
-   static void cleanup() throws Exception {
-      SecurityEngine.getSecurity().disableSecurity();
-      SecurityEngine.clear();
-      SreeEnv.remove("security.script.everyone");
    }
 
    @Test
@@ -88,5 +88,6 @@ class SecurityEngineTest {
       assertTrue(allowed);
    }
 
-   private SecurityEngine engine;
+   @Autowired
+   SecurityEngine engine;
 }

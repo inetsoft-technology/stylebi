@@ -19,10 +19,12 @@ package inetsoft.web.composer.vs.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.vslayout.*;
+import inetsoft.util.DataSpace;
+import inetsoft.util.FileSystemService;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.dialog.ImagePreviewPaneService;
@@ -33,8 +35,12 @@ import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
 import java.util.*;
@@ -43,15 +49,19 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
 @ExtendWith(MockitoExtension.class)
+@Tag("core")
 class VSLayoutControllerServiceTest {
 
    @BeforeEach
    void setup() throws Exception {
-      BinaryTransferService binaryTransferService = new BinaryTransferService();
+      BinaryTransferService binaryTransferService = new BinaryTransferService(fileSystemService);
       ImagePreviewPaneService imagePreviewPaneService =
-         new ImagePreviewPaneService(viewsheetService, objectService, binaryTransferService);
+         new ImagePreviewPaneService(viewsheetService, objectService, binaryTransferService, fileSystemService, dataSpace);
       service = new VSLayoutControllerService(coreLifecycleService, viewsheetService,
                                               imagePreviewPaneService, objectModelService,
                                               vsLayoutService, vsObjectTreeService);
@@ -87,8 +97,7 @@ class VSLayoutControllerServiceTest {
    }
 
    @Mock RuntimeViewsheetRef runtimeViewsheetRef;
-   @Mock
-   CoreLifecycleService coreLifecycleService;
+   @Mock CoreLifecycleService coreLifecycleService;
    @Mock VSObjectService objectService;
    @Mock ViewsheetService viewsheetService;
    @Mock RuntimeViewsheet rvs;
@@ -98,5 +107,7 @@ class VSLayoutControllerServiceTest {
    @Mock VSObjectModelFactoryService objectModelService;
    @Mock VSLayoutService vsLayoutService;
    @Mock VSObjectTreeService vsObjectTreeService;
+   @Mock FileSystemService fileSystemService;
+   @Mock DataSpace dataSpace;
    private VSLayoutControllerService service;
 }

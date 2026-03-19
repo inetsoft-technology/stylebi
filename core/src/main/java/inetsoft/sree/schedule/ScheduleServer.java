@@ -31,6 +31,7 @@ import inetsoft.util.*;
 import inetsoft.util.health.HealthService;
 import inetsoft.util.health.HealthStatus;
 import inetsoft.util.log.LogManager;
+import org.springframework.beans.factory.annotation.Autowired;
 import inetsoft.web.admin.monitoring.StatusMetricsType;
 import inetsoft.web.admin.query.QueryService;
 import inetsoft.web.admin.schedule.ScheduleQueriesStatus;
@@ -62,10 +63,6 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
     */
    public ScheduleServer() throws RemoteException {
       super();
-   }
-
-   public static ScheduleServer getInstance() {
-      return ConfigurationContext.getContext().getSpringBean(ScheduleServer.class);
    }
 
    /**
@@ -243,10 +240,10 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
 
    @Override
    public HealthStatus getHealth() throws RemoteException {
-      HealthStatus status = HealthService.getInstance().getStatus();
+      HealthStatus status = healthService.getStatus();
 
       if(status.isDown()) {
-         StatusDumpService.getInstance().dumpStatus();
+         statusDumpService.dumpStatus();
       }
 
       return status;
@@ -325,112 +322,6 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
    }
 
    /**
-    * Create a new schedule process.
-    * @param args args[0] can contain the identifier for the scheduler.
-    */
-   public static void main(String[] args) {
-      System.setProperty("ScheduleServer", "true");
-      ConfigurationContext.getContext().setHome(System.getProperty("sree.home"));
-      System.setProperty("java.rmi.server.hostname", Tool.getRmiIP());
-      LogManager.initializeForStartup();
-
-      RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
-      List<String> arguments = runtimeBean.getInputArguments();
-
-      for(int i = 0; i < arguments.size() - 1; i++) {
-         if("-jar".equals(arguments.get(i))) {
-            String jar = arguments.get(i + 1);
-
-            if(jar.matches("^bootstrap.*\\.jar$")) {
-               FileSystemService.getInstance().getFile(jar).deleteOnExit();
-            }
-
-            break;
-         }
-      }
-
-      // @by billh, for a unix server, it's likely that there is no graphics
-      // env, here we set the default value of java.awt.headless as true, so
-      // that the unix server could work as well
-      if(OperatingSystem.isUnix()) {
-         String val = System.getProperty("java.awt.headless");
-
-         if(val == null || val.length() == 0) {
-            System.setProperty("java.awt.headless", "true");
-         }
-      }
-
-      Catalog.setCatalogGetter(UserEnv.getCatalogGetter());
-
-      // log must be called after sree env has been initialized.
-      LOG.info("Initializing schedule server");
-      SreeEnv.setProperty("log.output.stderr", "false");
-
-      int port = Integer.parseInt(SreeEnv.getProperty("scheduler.rmi.port"));
-      // @by: ChrisSpagnoli feature1366221225905 2014-9-30
-      // Support RMI invocation to "localhost", as alternative to the local IP
-      String host = Tool.getRmiIP();
-      String name = "//" + host + ':' + port + "/ScheduleServer";
-
-      try {
-         RMICallThread rct = new RMICallThread();
-         Registry reg = rct.getRegistry(host, port, 15000L);
-         LOG.debug("Init RMI Call thread.");
-
-         if(reg == null) {
-            throw new Exception();
-         }
-      }
-      catch(Exception exc) {
-         LOG.error("Failed to locate RMI registry, aborting", exc);
-         System.exit(-1);
-      }
-
-      try {
-         RMICallThread rct = new RMICallThread();
-         Schedule schedule = (Schedule) rct.lookup(name, 1500L, false);
-         LOG.debug("Look up RMI Call thread.");
-
-         if(schedule != null) {
-            LOG.error("Scheduler server is already running, aborting");
-            System.exit(-1);
-         }
-      }
-      catch(Exception ignore) {
-      }
-
-      try {
-         ScheduleServer obj = ScheduleServer.getInstance();
-         boolean success;
-         RMICallThread rct = new RMICallThread();
-         success = rct.rebind(name, obj, 30000);
-         LOG.debug("Rebind RMI Call thread:" + success);
-
-         if(!success) {
-            LOG.debug("Start RMI registry on port: " + port);
-            rct = new RMICallThread();
-            rct.startRegistry(host, port, 30000);
-            LOG.debug("Rebind RMI call thread");
-            rct = new RMICallThread();
-            success = rct.rebind(name, obj, 30000);
-
-            if(!success) {
-               throw new Exception();
-            }
-         }
-
-         LOG.info("Schedule server bound in RMI registry.");
-         // make sure the health services start tracking status
-         HealthService.getInstance();
-         obj.start();
-      }
-      catch(Exception exc) {
-         LOG.error("Unable to bind schedule server to RMI registry.", exc);
-         System.exit(-1);
-      }
-   }
-
-   /**
     * To test whether the remote schedule is running.
     */
    @Override
@@ -454,6 +345,10 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
       }
    }
 
+   @Autowired
+   private HealthService healthService;
+   @Autowired
+   private StatusDumpService statusDumpService;
    private ServerMetricsCalculator metricsCalculator =
       new ServerMetricsCalculator(new ServerClusterClient(), StatusMetricsType.SCHEDULE_METRICS);
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleServer.class);

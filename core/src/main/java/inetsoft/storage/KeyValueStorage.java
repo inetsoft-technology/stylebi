@@ -17,7 +17,7 @@
  */
 package inetsoft.storage;
 
-import inetsoft.util.ConfigurationContext;
+import inetsoft.sree.internal.cluster.Cluster;
 
 import java.io.Serializable;
 import java.util.*;
@@ -39,8 +39,8 @@ public interface KeyValueStorage<T extends Serializable> extends AutoCloseable {
     *
     * @return a storage instance.
     */
-   static <T extends Serializable> KeyValueStorage<T> newInstance(String id) {
-      return newInstance(id, new LoadKeyValueTask<>(id));
+   static <T extends Serializable> KeyValueStorage<T> newInstance(String id, Cluster cluster) {
+      return newInstance(id, cluster, new LoadKeyValueTask<>(id));
    }
 
    /**
@@ -54,9 +54,10 @@ public interface KeyValueStorage<T extends Serializable> extends AutoCloseable {
     * @return a storage instance.
     */
    static <T extends Serializable> KeyValueStorage<T> newInstance(String id,
+                                                                  Cluster cluster,
                                                                   LoadKeyValueTask<T> load)
    {
-      return new LocalKeyValueStorage<>(id, load);
+      return new LocalKeyValueStorage<>(id, load, cluster);
    }
 
    /**

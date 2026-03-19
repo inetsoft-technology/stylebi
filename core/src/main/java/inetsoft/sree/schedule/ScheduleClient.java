@@ -50,6 +50,10 @@ import java.util.stream.Stream;
  */
 @SuppressWarnings("WeakerAccess")
 public class ScheduleClient {
+   public ScheduleClient(Cluster cluster) {
+      this.cluster = cluster;
+   }
+
    /**
     * Starts the schedule server with a timeout of 5 minutes.
     *
@@ -517,7 +521,6 @@ public class ScheduleClient {
     */
    public boolean isRunning(String server) {
       boolean found = false;
-      Cluster cluster = Cluster.getInstance();
 
       for(String node : cluster.getClusterNodes()) {
          if(cluster.getClusterNodeHost(node).equals(server) &&
@@ -609,7 +612,6 @@ public class ScheduleClient {
     */
    public String[] getScheduleServers() {
       List<String> servers = new ArrayList<>();
-      final Cluster cluster = Cluster.getInstance();
 
       for(String node : cluster.getClusterNodes()) {
          if(Boolean.TRUE.equals(cluster.getClusterNodeProperty(node, "scheduler"))) {
@@ -715,108 +717,86 @@ public class ScheduleClient {
     * @return a singleton of this class
     */
    public static ScheduleClient getScheduleClient() {
-      ScheduleClient springBean =
-         ConfigurationContext.getContext().getSpringBean(ScheduleClient.class);
-
-      if(springBean != null) {
-         return springBean;
-      }
-
-      if(client == null) {
-         if(InetsoftConfig.getInstance().getCloudRunner() == null) {
-            client = new ScheduleClient();
-         }
-         else {
-            client = new CloudRunnerServerScheduleClient();
-         }
-
-      }
-
-      return client;
+      return ConfigurationContext.getContext().getSpringBean(ScheduleClient.class);
    }
 
    /**
     * Get the schedule start Date.
     */
-   public static Date getScheduleStartDate() {
-      return getScheduleStartDate(getScheduleClient().getSchedulerServer());
+   public Date getScheduleStartDate() {
+      return getScheduleStartDate(getSchedulerServer());
    }
 
    /**
     * Get the schedule start Date.
     */
-   public static Date getScheduleStartDate(String server) {
-      ScheduleClient client = ScheduleClient.getScheduleClient();
-
-      if(client.isReady(server)) {
+   public Date getScheduleStartDate(String server) {
+      if(isReady(server)) {
          try {
-            Schedule schedule = client.getSchedule(server);
+            Schedule schedule = getSchedule(server);
 
             if(schedule != null) {
                return schedule.getStartTime();
             }
             else {
-               LOG.error("Failed to get status of server: " + server);
+               LOG.error("Failed to get status of server: {}", server);
             }
          }
          catch(RemoteException e) {
-            LOG.error("Failed to get the start time of server: " + server, e);
+            LOG.error("Failed to get the start time of server: {}", server, e);
          }
       }
 
       return null;
    }
 
-   public static ServerMetrics getServerMetrics(ServerMetrics oldMetrics, long timestamp,
-                                                String address) throws RemoteException
+   public ServerMetrics getServerMetrics(ServerMetrics oldMetrics, long timestamp,
+                                         String address) throws RemoteException
    {
-      String server = getScheduleClient().getSchedulerServer();
+      String server = getSchedulerServer();
       ServerMetrics metrics = oldMetrics;
-      ScheduleClient client1 = ScheduleClient.getScheduleClient();
 
-      if(client1.isReady(server)) {
-         metrics = client1.getSchedule(server).getServerMetrics(oldMetrics, timestamp, address);
+      if(isReady(server)) {
+         metrics = getSchedule(server).getServerMetrics(oldMetrics, timestamp, address);
       }
 
       return metrics;
    }
 
-   public static ScheduleViewsheetsStatus getViewsheets(ScheduleViewsheetsStatus oldViewsheets)
+   public ScheduleViewsheetsStatus getViewsheets(ScheduleViewsheetsStatus oldViewsheets)
       throws RemoteException
    {
       return getViewsheets(oldViewsheets, null);
    }
 
-   public static ScheduleViewsheetsStatus getViewsheets(ScheduleViewsheetsStatus oldViewsheets,
-                                                        String address)
+   public ScheduleViewsheetsStatus getViewsheets(ScheduleViewsheetsStatus oldViewsheets,
+                                                 String address)
       throws RemoteException
    {
-      String server = address == null ? getScheduleClient().getSchedulerServer() : address;
-      ScheduleClient client1 = ScheduleClient.getScheduleClient();
+      String server = address == null ? getSchedulerServer() : address;
       ScheduleViewsheetsStatus viewsheets = oldViewsheets;
 
-      if(client1.isReady(server)) {
-         viewsheets = client1.getSchedule(server).getViewsheets();
+      if(isReady(server)) {
+         viewsheets = getSchedule(server).getViewsheets();
       }
 
       return viewsheets;
    }
 
-   public static ScheduleQueriesStatus getQueries(ScheduleQueriesStatus oldQueries)
+   public ScheduleQueriesStatus getQueries(ScheduleQueriesStatus oldQueries)
       throws RemoteException
    {
       return getQueries(oldQueries, null);
    }
 
-   public static ScheduleQueriesStatus getQueries(ScheduleQueriesStatus oldQueries, String address)
+   public ScheduleQueriesStatus getQueries(ScheduleQueriesStatus oldQueries, String address)
       throws RemoteException
    {
-      String server = address == null ? getScheduleClient().getSchedulerServer() : address;
-      ScheduleClient client1 = ScheduleClient.getScheduleClient();
+      String server = address == null ? getSchedulerServer() : address;
       ScheduleQueriesStatus queries = oldQueries;
 
-      if(client1.isReady(server)) {
-         queries = client1.getSchedule(server).getQueries();
+      if(isReady(server)) {
+         queries = getSchedule(server).getQueries();
       }
 
       return queries;
@@ -846,13 +826,13 @@ public class ScheduleClient {
     * @return int The port number to which the RMI registry is
     *             listening.
     */
-   public static int getSchedulerPort() {
+   public int getSchedulerPort() {
       int nPort = 1099;
 
       try {
          String port = SreeEnv.getProperty("scheduler.rmi.port");
 
-         if(port != null && !port.equals("")) {
+         if(port != null && !port.isEmpty()) {
             nPort = Integer.parseInt(port);
          }
       }
@@ -944,6 +924,7 @@ public class ScheduleClient {
       private ScheduleTask task;
    }
 
+   protected final Cluster cluster;
    private ArrayList<StartupTask> startupTasks = null;
    private final Map<String, AtomicInteger> attempts = new HashMap<>();
    private static ScheduleClient client = null;

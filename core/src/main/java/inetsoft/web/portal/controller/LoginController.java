@@ -20,7 +20,6 @@ package inetsoft.web.portal.controller;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.report.internal.license.LicenseManager;
-import inetsoft.sree.RepletRepository;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.*;
@@ -49,9 +48,14 @@ import java.util.*;
 @Controller
 public class LoginController {
    @Autowired
-   public LoginController(SecurityEngine securityEngine, LicenseManager licenseManager) {
+   public LoginController(SecurityEngine securityEngine, LicenseManager licenseManager,
+                          CustomThemesManager customThemesManager,
+                          PortalThemesManager portalThemesManager)
+   {
       this.securityEngine = securityEngine;
       this.licenseManager = licenseManager;
+      this.customThemesManager = customThemesManager;
+      this.portalThemesManager = portalThemesManager;
    }
 
    /**
@@ -68,8 +72,7 @@ public class LoginController {
       ModelAndView model = new ModelAndView("login");
       model.addObject("requestedUrl", requestedUrl);
 
-      PortalThemesManager manager = PortalThemesManager.getManager();
-      CustomThemesManager themes = CustomThemesManager.getManager();
+      PortalThemesManager manager = portalThemesManager;
       String recordedOrgID = getRecordedOrgId(request);
       recordedOrgID = recordedOrgID == null ? Organization.getDefaultOrganizationID() : recordedOrgID;
       PortalWelcomePage welcomePage = manager.getWelcomePage();
@@ -88,8 +91,8 @@ public class LoginController {
       // this page, but the subsequent requests will be unauthenticated, so if the current user has
       // a theme assigned, it will end up trying to load theme-variables.css from the "default"
       // theme, which doesn't exist. To avoid this, just check if the global theme is custom.
-      boolean isCustomTheme = !Tool.isEmptyString(themes.getSelectedTheme()) &&
-                              !"default".equals(themes.getSelectedTheme());
+      boolean isCustomTheme = !Tool.isEmptyString(customThemesManager.getSelectedTheme()) &&
+                              !"default".equals(customThemesManager.getSelectedTheme());
       model.addObject("customTheme", isCustomTheme);
 
       if(welcomePage != null) {
@@ -204,6 +207,8 @@ public class LoginController {
 
    private final SecurityEngine securityEngine;
    private final LicenseManager licenseManager;
+   private final CustomThemesManager customThemesManager;
+   private final PortalThemesManager portalThemesManager;
    private static final String ORG_COOKIE = "X-INETSOFT-ORGID";
    public static final String LOGIN_ONLOAD_ERROR = "LOGIN_ONLOAD_ERROR";
    private static final Logger LOG = LoggerFactory.getLogger(LoginController.class);

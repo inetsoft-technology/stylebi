@@ -874,7 +874,7 @@ public abstract class RuntimeSheet {
          this.contextPrincipal = contextPrincipal;
          this.contextOrgId = OrganizationContextHolder.getCurrentOrgId();
          this.valid = true;
-         this.monitor = XSwapper.getMonitor();
+         this.monitor = XSwapper.getSwapper().getMonitor();
 
          if(monitor != null) {
             isCountHM = monitor.isLevelQualified(XSwappableMonitor.HITS);

@@ -47,10 +47,10 @@ public final class XIntFragment extends XSwappable {
 
    private XIntFragment() {
       super();
-      XSwapper.cur = System.currentTimeMillis();
-      this.iaccessed = XSwapper.cur;
+      XSwapper.getSwapper().cur = System.currentTimeMillis();
+      this.iaccessed = XSwapper.getSwapper().cur;
       this.valid = true;
-      this.monitor = XSwapper.getMonitor();
+      this.monitor = XSwapper.getSwapper().getMonitor();
 
       if(monitor != null) {
          isCountHM = monitor.isLevelQualified(XSwappableMonitor.HITS);
@@ -73,7 +73,7 @@ public final class XIntFragment extends XSwappable {
     * Access the int fragment.
     */
    public final void access() {
-      iaccessed = XSwapper.cur;
+      iaccessed = XSwapper.getSwapper().cur;
 
       if(isCountHM) {
          if(valid && !lastValid) {
@@ -98,7 +98,7 @@ public final class XIntFragment extends XSwappable {
          return 0;
       }
 
-      return getAgePriority(XSwapper.cur - iaccessed, alive);
+      return getAgePriority(XSwapper.getSwapper().cur - iaccessed, alive);
    }
 
    /**

@@ -17,7 +17,7 @@
  */
 package inetsoft.web.admin.content.repository;
 
-import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.SreeEnv;
@@ -46,10 +46,12 @@ public class ResourcePermissionService {
    @Autowired
    public ResourcePermissionService(SecurityProvider securityProvider,
                                     SecurityEngine securityEngine,
+                                    LibManagerProvider libManagerProvider,
                                     DataSourceRegistry dataSourceRegistry)
    {
       this.securityProvider = securityProvider;
       this.securityEngine = securityEngine;
+      this.libManagerProvider = libManagerProvider;
       this.dataSourceRegistry = dataSourceRegistry;
    }
 
@@ -181,7 +183,7 @@ public class ResourcePermissionService {
                                                                      Principal principal,
                                                                      boolean tableStyleFolder)
    {
-      String resourcePath = getPermissionResourcePath(path, resourceType, tableStyleFolder);
+      String resourcePath = getPermissionResourcePath(path, resourceType, tableStyleFolder, libManagerProvider, dataSourceRegistry);
       Permission permission =
          securityProvider.getAuthorizationProvider().getPermission(resourceType, resourcePath);
 
@@ -193,17 +195,18 @@ public class ResourcePermissionService {
    }
 
    public static String getPermissionResourcePath(String path, ResourceType resourceType,
-                                                  boolean tableStyleFolder)
+                                                  boolean tableStyleFolder, LibManagerProvider libManagerProvider,
+                                                  DataSourceRegistry dataSourceRegistry)
    {
       if(path == null || resourceType == null) {
          return path;
       }
 
       if(resourceType == ResourceType.DATA_SOURCE) {
-         return getDataSourceResourceName(path);
+         return getDataSourceResourceName(path, dataSourceRegistry);
       }
       else if(!tableStyleFolder && ResourceType.TABLE_STYLE == resourceType) {
-         XTableStyle tableStyle = LibManager.getManager().getTableStyle(path);
+         XTableStyle tableStyle = libManagerProvider.getManager().getTableStyle(path);
          return tableStyle == null ? path : tableStyle.getID();
       }
 
@@ -215,14 +218,13 @@ public class ResourcePermissionService {
     *
     * @param path         path of resource
     * @param resourceType type of resource
-    * @param principal    current principal
     *
     * @return the set of organizations that use parent inheritance on the resource
     */
    private boolean hasOrgEditedPerm(String path, ResourceType resourceType, boolean tableStyleFolder)
    {
       String resourcePath =
-         getPermissionResourcePath(path, resourceType, tableStyleFolder);
+         getPermissionResourcePath(path, resourceType, tableStyleFolder, libManagerProvider, dataSourceRegistry);
       Permission permission =
          securityProvider.getAuthorizationProvider().getPermission(resourceType, resourcePath);
 
@@ -344,7 +346,7 @@ public class ResourcePermissionService {
          }
       }
 
-      String resourcePath = getPermissionResourcePath(path, resourceType, tableStyleFolder);
+      String resourcePath = getPermissionResourcePath(path, resourceType, tableStyleFolder, libManagerProvider, dataSourceRegistry);
       SreeEnv.setProperty("permission.andCondition", String.valueOf(tableModel.requiresBoth()), true);
       SreeEnv.save();
 
@@ -518,7 +520,7 @@ public class ResourcePermissionService {
          break;
       case RepositoryEntry.DATA_SOURCE:
          type = ResourceType.DATA_SOURCE;
-         resourcePath = getDataSourceResourceName(resourcePath);
+         resourcePath = getDataSourceResourceName(resourcePath, dataSourceRegistry);
          break;
       case RepositoryEntry.PARTITION:
       case RepositoryEntry.PARTITION | RepositoryEntry.FOLDER:
@@ -870,10 +872,10 @@ public class ResourcePermissionService {
       return permissions;
    }
 
-   public static String getDataSourceResourceName(String resourcePath) {
+   public static String getDataSourceResourceName(String resourcePath, DataSourceRegistry dataSourceRegistry) {
       if(resourcePath.contains("/")) {
          // may be additional connection
-         for(String ds : DataSourceRegistry.getRegistry().getDataSourceFullNames()) {
+         for(String ds : dataSourceRegistry.getDataSourceFullNames()) {
             if(resourcePath.startsWith(ds + "/")) {
                resourcePath = ds + "::" + resourcePath.substring(ds.length() + 1);
                break;
@@ -1025,6 +1027,7 @@ public class ResourcePermissionService {
 
    private final Catalog catalog = Catalog.getCatalog();
    private final SecurityEngine securityEngine;
-   private final DataSourceRegistry dataSourceRegistry;
    private final SecurityProvider securityProvider;
+   private final LibManagerProvider libManagerProvider;
+   private final DataSourceRegistry dataSourceRegistry;
 }

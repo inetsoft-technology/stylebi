@@ -19,6 +19,7 @@ package inetsoft.web.composer;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.sree.RepositoryEntry;
@@ -54,11 +55,17 @@ public class RemoveAssetController {
    @Autowired
    public RemoveAssetController(AssetRepository assetRepository,
                                 ViewsheetService viewsheetService,
-                                SecurityProvider securityProvider)
+                                SecurityProvider securityProvider,
+                                LibManagerProvider libManagerProvider,
+                                RecycleBin recycleBin,
+                                DependencyHandler dependencyHandler)
    {
       this.assetRepository = assetRepository;
       this.viewsheetService = viewsheetService;
       this.securityProvider = securityProvider;
+      this.libManagerProvider = libManagerProvider;
+      this.recycleBin = recycleBin;
+      this.dependencyHandler = dependencyHandler;
    }
 
    @PostMapping("api/composer/asset-tree/remove-asset")
@@ -67,7 +74,6 @@ public class RemoveAssetController {
       @RequestBody RemoveAssetEvent event, Principal principal) throws Exception
    {
       AssetEntry entry = event.entry();
-      RecycleBin recycleBin = RecycleBin.getRecycleBin();
 
       // log action
       String actionName = ActionRecord.ACTION_NAME_DELETE;
@@ -86,7 +92,7 @@ public class RemoveAssetController {
          }
 
          if(entry.isScript()) {
-            LibManager manager = LibManager.getManager(principal);
+            LibManager manager = libManagerProvider.getManager(principal);
 
             checkScriptRemoveable(event, entry, principal);
 
@@ -95,10 +101,10 @@ public class RemoveAssetController {
             securityProvider.removePermission(ResourceType.SCRIPT, entry.getName());
             AssetEntry scriptEntry = new AssetEntry(AssetRepository.COMPONENT_SCOPE,
                                                     AssetEntry.Type.SCRIPT, entry.getName(), null);
-            DependencyHandler.getInstance().deleteDependenciesKey(scriptEntry);
+            dependencyHandler.deleteDependenciesKey(scriptEntry);
          }
          else if(entry.isTableStyle()) {
-            LibManager manager = LibManager.getManager(principal);
+            LibManager manager = libManagerProvider.getManager(principal);
             String styleID = entry.getProperty("styleID");
             manager.removeTableStyle(styleID);
             manager.save();
@@ -106,10 +112,10 @@ public class RemoveAssetController {
             //Because the tableStyle Dependenc is stored by id, the entry needs to be recreated based on the id
             AssetEntry style = new AssetEntry(AssetRepository.COMPONENT_SCOPE,
                AssetEntry.Type.TABLE_STYLE, styleID, null);
-            DependencyHandler.getInstance().deleteDependenciesKey(style);
+            dependencyHandler.deleteDependenciesKey(style);
          }
          else if(entry.isTableStyleFolder()) {
-            LibManager manager = LibManager.getManager(principal);
+            LibManager manager = libManagerProvider.getManager(principal);
             AssetEventUtil.removeStyleFolder(entry.getProperty("folder"), manager);
             manager.save();
             securityProvider.removePermission(ResourceType.TABLE_STYLE, entry.getProperty("folder"));
@@ -255,4 +261,7 @@ public class RemoveAssetController {
    private final AssetRepository assetRepository;
    private final ViewsheetService viewsheetService;
    private final SecurityProvider securityProvider;
+   private final LibManagerProvider libManagerProvider;
+   private final RecycleBin recycleBin;
+   private final DependencyHandler dependencyHandler;
 }

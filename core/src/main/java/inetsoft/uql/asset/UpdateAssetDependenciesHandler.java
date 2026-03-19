@@ -48,8 +48,8 @@ import static inetsoft.util.dep.XAssetEnumeration.getXAssetEnumeration;
  * of file 'sree.properties' to provider asset updated flag.
  */
 public final class UpdateAssetDependenciesHandler implements AutoCloseable {
-   public UpdateAssetDependenciesHandler() {
-      Cluster cluster = Cluster.getInstance();
+   public UpdateAssetDependenciesHandler(Cluster cluster, DataSourceRegistry dataSourceRegistry) {
+      this.dataSourceRegistry = dataSourceRegistry;
       state = cluster.getLong(STATE_NAME);
       lock = cluster.getLock(LOCK_NAME);
    }
@@ -326,8 +326,7 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
    }
 
    private void fixDatasourceDependencies() {
-      DataSourceRegistry registry = DataSourceRegistry.getRegistry();
-      String[] names = registry.getDataSourceFullNames();
+      String[] names = dataSourceRegistry.getDataSourceFullNames();
 
       if(names == null || names.length == 0) {
          return;
@@ -343,8 +342,7 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
          return;
       }
 
-      DataSourceRegistry registry = DataSourceRegistry.getRegistry();
-      XDataModel model = registry.getDataModel(dsFullName);
+      XDataModel model = dataSourceRegistry.getDataModel(dsFullName);
 
       if(model != null) {
          for(String lname : model.getLogicalModelNames()) {
@@ -353,7 +351,7 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
          }
       }
 
-      XDataSource ds = registry.getDataSource(dsFullName);
+      XDataSource ds = dataSourceRegistry.getDataSource(dsFullName);
 
       if(ds instanceof XMLADataSource) {
          XDomain domain = null;
@@ -504,6 +502,8 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
    private String getUpdateKey() {
       return PROPERTY;
    }
+
+   private final DataSourceRegistry dataSourceRegistry;
 
    private Catalog catalog = Catalog.getCatalog();
    private GroupedThread thread;

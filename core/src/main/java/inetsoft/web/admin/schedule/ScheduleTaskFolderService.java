@@ -52,12 +52,14 @@ public class ScheduleTaskFolderService {
    public ScheduleTaskFolderService(ScheduleManager scheduleManager,
                                     SecurityEngine securityEngine,
                                     SecurityProvider securityProvider,
-                                    IndexedStorage indexedStorage)
+                                    IndexedStorage indexedStorage,
+                                    RenameTransformHandler renameTransformHandler)
    {
       this.scheduleManager = scheduleManager;
       this.securityEngine = securityEngine;
       this.securityProvider = securityProvider;
       this.indexedStorage = indexedStorage;
+      this.renameTransformHandler = renameTransformHandler;
    }
 
    public void addFolder(AssetEntry parentEntry, String folderPath, String parentPath,
@@ -580,8 +582,8 @@ public class ScheduleTaskFolderService {
       String newPath = parentEntry.getPath();
       task.setPath(parentEntry.getPath());
       scheduleManager.setScheduleTask(task.getTaskId(), task, parentEntry, principal);
-      RenameTransformHandler.getTransformHandler().addTransformTask(
-         ScheduleService.getDependencyInfo(task.getTaskId(), task.getTaskId(), oldPath, newPath));
+      renameTransformHandler.addTransformTask(
+         ScheduleService.getDependencyInfo(task.getTaskId(), task.getTaskId(), oldPath, newPath, scheduleManager));
    }
 
    /**
@@ -1000,8 +1002,8 @@ public class ScheduleTaskFolderService {
    private final IndexedStorage indexedStorage;
    private final ScheduleManager scheduleManager;
    private final SecurityEngine securityEngine;
-
    private final SecurityProvider securityProvider;
+   private final RenameTransformHandler renameTransformHandler;
 
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleTaskActionService.class);
 }

@@ -34,10 +34,8 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.event.ActionListener;
 import java.io.*;
-import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * This class manages the bean, table style, and script library.
@@ -97,8 +95,9 @@ public class LibManager implements AutoCloseable {
    /**
     * Constructor.
     */
-   protected LibManager(LibrarySecurity librarySecurity, String orgID) {
-      this.cluster = Cluster.getInstance();
+   protected LibManager(LibrarySecurity librarySecurity, String orgID, Cluster cluster, BlobStorageManager blobStorageManager) {
+      this.cluster = cluster;
+      this.blobStorageManager = blobStorageManager;
       cluster.addMessageListener(this.clusterMessageListener);
       final LogicalLibraryFactory factory = new LogicalLibraryFactory(librarySecurity);
       scripts = factory.createScriptLogicalLibrary();
@@ -110,9 +109,9 @@ public class LibManager implements AutoCloseable {
       init();
    }
 
-   private synchronized BlobStorage<Metadata> getStorage() {
+   synchronized BlobStorage<Metadata> getStorage() {
       if(storage == null || storage.isClosed()) {
-         storage = BlobStorageManager.getStorage(getStorageId(orgID), false);
+         storage = blobStorageManager.getStorage(getStorageId(orgID), false);
 
          try {
             storage.addListener(changeListener);
@@ -131,63 +130,6 @@ public class LibManager implements AutoCloseable {
    }
 
    /**
-    * Gets the shared instance of the library manager.
-    *
-    * @return the library manager.
-    */
-   public static LibManager getManager(Principal principal) {
-      return getManager(OrganizationManager.getInstance().getCurrentOrgID(principal));
-   }
-
-   public static LibManager getManager() {
-      return getManager(OrganizationManager.getInstance().getCurrentOrgID());
-   }
-
-   public static LibManager getManager(String orgID) {
-      MANAGER_LOCK.lock();
-      LibManager manager = ORG_MANAGERS.get(orgID);
-      try {
-         if(manager == null) {
-            manager = new LibManager(new NoopLibrarySecurity(), orgID);
-            ORG_MANAGERS.put(orgID, manager);
-         }
-         else {
-            manager.getStorage();
-         }
-      }
-      finally {
-         MANAGER_LOCK.unlock();
-      }
-      return manager;
-   }
-
-   /**
-    * Restarts the library manager.
-    */
-   public static void restart() {
-      clear();
-      for(String orgID : SecurityEngine.getSecurity().getOrganizations()) {
-         getManager(orgID);
-      }
-   }
-
-   /**
-    * Clears the cached library manager.
-    */
-   public static void clear() {
-      MANAGER_LOCK.lock();
-      try {
-         for(LibManager manager : ORG_MANAGERS.values()) {
-            manager.tearDown();
-         }
-         ORG_MANAGERS.clear();
-      }
-      finally {
-         MANAGER_LOCK.unlock();
-      }
-   }
-
-   /**
     * Initialize this library manager.
     *
     */
@@ -199,7 +141,7 @@ public class LibManager implements AutoCloseable {
                loadLibrary(storage);
             }
             else {
-               storage = BlobStorageManager.getStorage(storageId, false);
+               storage = blobStorageManager.getStorage(storageId, false);
                loadLibrary(storage);
             }
 
@@ -711,7 +653,7 @@ public class LibManager implements AutoCloseable {
       }
    }
 
-   private final BlobStorage.Listener<Metadata> changeListener = new BlobStorage.Listener<Metadata>() {
+   private final BlobStorage.Listener<Metadata> changeListener = new BlobStorage.Listener<>() {
       @Override
       public void blobAdded(BlobStorage.Event<Metadata> event) {
          fireEvent(event.getMapName(), event.getNewValue().getLastModified().toEpochMilli());
@@ -800,7 +742,7 @@ public class LibManager implements AutoCloseable {
 
    private synchronized void reloadLibrary() {
       String storeID = getStorageId(orgID);
-      BlobStorage<Metadata> storage = BlobStorageManager.getStorage(storeID, false);
+      BlobStorage<Metadata> storage = blobStorageManager.getStorage(storeID, false);
 
       try {
          storage.addListener(changeListener);
@@ -848,13 +790,12 @@ public class LibManager implements AutoCloseable {
    private final List<ActionListener> listeners = Collections.synchronizedList(new ArrayList<>());
    private volatile boolean closed = false;
    private final Cluster cluster;
+   private final BlobStorageManager blobStorageManager;
 
    private BlobStorage<Metadata> storage = null;
    private final Debouncer<String> debouncer;
 
    private static final Logger LOG = LoggerFactory.getLogger(LibManager.class);
-   private static final ReentrantLock MANAGER_LOCK = new ReentrantLock();
-   private static final Map<String, LibManager> ORG_MANAGERS = new HashMap<>();
 
    public static final class Metadata implements Serializable {
       public String getPath() {

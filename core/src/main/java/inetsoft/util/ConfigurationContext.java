@@ -53,52 +53,6 @@ public class ConfigurationContext implements AutoCloseable {
    }
 
    /**
-    * Resets the shared instance and clears any non-Spring cached instances.
-    * Used in tests to clean up between test runs.
-    */
-   public static void reset() {
-      // Close and evict non-Spring reflection instances
-      NON_SPRING_INSTANCES.values().forEach(v -> {
-         if(v instanceof AutoCloseable) {
-            try {
-               ((AutoCloseable) v).close();
-            }
-            catch(Exception ignored) {
-            }
-         }
-      });
-      NON_SPRING_INSTANCES.clear();
-
-      // Reset interface-level non-Spring singletons
-      inetsoft.sree.internal.cluster.Cluster.PRE_SPRING_INSTANCE.set(null);
-      inetsoft.storage.KeyValueEngine.NON_SPRING_INSTANCE.set(null);
-      inetsoft.storage.BlobEngine.NON_SPRING_INSTANCE.set(null);
-      inetsoft.util.IndexedStorage.NON_SPRING_INSTANCE.set(null);
-      inetsoft.sree.AnalyticRepository.NON_SPRING_INSTANCE.set(null);
-      inetsoft.uql.asset.DependencyHandler.NON_SPRING_INSTANCE.set(null);
-      inetsoft.analytic.composition.ViewsheetService.NON_SPRING_INSTANCE.set(null);
-      inetsoft.sree.schedule.ScheduleManager.resetNonSpringInstance();
-      inetsoft.util.Plugins.resetNonSpringInstance();
-      inetsoft.util.config.InetsoftConfig.BOOTSTRAP_INSTANCE = null;
-
-      ConfigurationContext old;
-
-      synchronized(ConfigurationContext.class) {
-         old = INSTANCE;
-         INSTANCE = null;
-      }
-
-      if(old != null) {
-         try {
-            old.close();
-         }
-         catch(Exception e) {
-            LOG.warn("Failed to close ConfigurationContext during reset", e);
-         }
-      }
-   }
-
-   /**
     * Gets the configuration home directory.
     *
     * @return the home directory.
@@ -230,11 +184,13 @@ public class ConfigurationContext implements AutoCloseable {
       return springContextReady;
    }
 
+   public <T> T lookupProxyTarget(Class<T> type) {
+      return getSpringBean(type);
+   }
+
    public <T> T getSpringBean(Class<T> type) {
       if(applicationContext == null) {
-         // Non-Spring fallback: create or retrieve a cached instance via reflection.
-         // Used in unit-test environments that do not start a Spring context.
-         return getNonSpringInstance(type);
+         throw new ShutdownException();
       }
 
       return applicationContext.getBean(type);
@@ -247,12 +203,7 @@ public class ConfigurationContext implements AutoCloseable {
     */
    public <T> T getOptionalSpringBean(Class<T> type) {
       if(applicationContext == null) {
-         try {
-            return getNonSpringInstance(type);
-         }
-         catch(Exception e) {
-            return null;
-         }
+         return null;
       }
 
       try {
@@ -263,40 +214,9 @@ public class ConfigurationContext implements AutoCloseable {
       }
    }
 
-   @SuppressWarnings("unchecked")
-   private <T> T getNonSpringInstance(Class<T> type) {
-      // Avoid ConcurrentHashMap.computeIfAbsent() — it throws "Recursive update" in Java 9+
-      // when the mapping function itself calls computeIfAbsent on the same map (e.g. when
-      // constructing SecurityEngine requires AuthenticationService, which also needs getNonSpringInstance).
-      Object existing = NON_SPRING_INSTANCES.get(type);
-
-      if(existing != null) {
-         return (T) existing;
-      }
-
-      @SuppressWarnings("unchecked")
-      T newInstance = (T) createInstance(type);
-      @SuppressWarnings("unchecked")
-      T previous = (T) NON_SPRING_INSTANCES.putIfAbsent(type, newInstance);
-      return previous != null ? previous : newInstance;
-   }
-
-   private Object createInstance(Class<?> type) {
-      try {
-         java.lang.reflect.Constructor<?> ctor = type.getDeclaredConstructor();
-         ctor.setAccessible(true);
-         return ctor.newInstance();
-      }
-      catch(Exception e) {
-         throw new IllegalStateException(
-            "No Spring context and cannot reflectively create " + type.getName(), e);
-      }
-   }
-
    public Object getSpringBean(String name) {
       if(applicationContext == null) {
-         throw new IllegalStateException(
-            "Spring application context is not available. The server may be starting up or shutting down.");
+         throw new ShutdownException();
       }
 
       return applicationContext.getBean(name);
@@ -304,8 +224,7 @@ public class ConfigurationContext implements AutoCloseable {
 
    public <T> T getSpringBean(String name, Class<T> type) {
       if(applicationContext == null) {
-         throw new IllegalStateException(
-            "Spring application context is not available. The server may be starting up or shutting down.");
+         throw new ShutdownException();
       }
 
       return applicationContext.getBean(name, type);
@@ -335,8 +254,5 @@ public class ConfigurationContext implements AutoCloseable {
    private ApplicationContext applicationContext;
    private final CompletableFuture<Void> springContextReady = new CompletableFuture<>();
    private static volatile ConfigurationContext INSTANCE;
-   // Cache of non-Spring instances created by reflection for test/non-Spring environments
-   private static final ConcurrentHashMap<Class<?>, Object> NON_SPRING_INSTANCES =
-      new ConcurrentHashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(ConfigurationContext.class);
 }

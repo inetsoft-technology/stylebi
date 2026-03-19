@@ -20,6 +20,7 @@ package inetsoft.web.admin.server;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.sree.web.HttpServiceRequest;
 import inetsoft.storage.ExternalStorageService;
@@ -79,7 +80,10 @@ public class ServerMonitoringController {
                                      ServerClusterClient client,
                                      UsageHistoryService usageHistoryService,
                                      ClusterCacheUsageService clusterCacheUsageService,
-                                     Cluster cluster)
+                                     Cluster cluster, CustomThemesManager customThemesManager,
+                                     ScheduleClient scheduleClient,
+                                     ExternalStorageService externalStorageService,
+                                     FileSystemService fileSystemService)
    {
       this.serverService = serverService;
       this.monitoringDataService = monitoringDataService;
@@ -91,9 +95,12 @@ public class ServerMonitoringController {
       this.usageHistoryService = usageHistoryService;
       this.clusterCacheUsageService = clusterCacheUsageService;
       this.cluster = cluster;
-      this.externalStorageService = ExternalStorageService.getInstance();
+      this.customThemesManager = customThemesManager;
+      this.externalStorageService = externalStorageService;
+      this.fileSystemService = fileSystemService;
       this.scheduleCluster = "server_cluster".equals(SreeEnv.getProperty("server.type")) ||
-         ScheduleClient.getScheduleClient().isCluster();
+         scheduleClient.isCluster();
+      this.scheduleClient = scheduleClient;
    }
 
    @SubscribeMapping("/monitoring/server/charts")
@@ -122,14 +129,14 @@ public class ServerMonitoringController {
                   serverDateTimeMap.put(node, format.format(date));
                }
 
-               if(schedule != null && ScheduleClient.getScheduleClient().isReady(node)) {
+               if(schedule != null && scheduleClient.isReady(node)) {
                   schedulerUpTimeMap.put(node, formatAge(schedule.getUpTime()));
                }
             }
 
             for(String scheduleServer : getScheduleServers()) {
-               if(ScheduleClient.getScheduleClient().isReady(scheduleServer)) {
-                  Date startDate = ScheduleClient.getScheduleStartDate(scheduleServer);
+               if(scheduleClient.isReady(scheduleServer)) {
+                  Date startDate = scheduleClient.getScheduleStartDate(scheduleServer);
 
                   if(startDate != null) {
                      schedulerUpTimeMap.put(scheduleServer,
@@ -156,7 +163,7 @@ public class ServerMonitoringController {
             .schedulerUpTimeMap(schedulerUpTimeMap)
             .timestamp(timestamp)
             .externalStoragePath(externalStorageService.getStorageLocation())
-            .isCloud(ScheduleClient.getScheduleClient().isCloud())
+            .isCloud(scheduleClient.isCloud())
             .build();
       });
    }
@@ -389,7 +396,7 @@ public class ServerMonitoringController {
          try {
             int bufferSize = 100 * 1024 * 1024;
             long offset = 0;
-            file = FileSystemService.getInstance().getCacheTempFile("HeapDump", ".hprof.gz");
+            file = fileSystemService.getCacheTempFile("HeapDump", ".hprof.gz");
 
             try(OutputStream output = new FileOutputStream(file)) {
                while(offset < length) {
@@ -401,7 +408,7 @@ public class ServerMonitoringController {
                }
             }
 
-            ExternalStorageService.getInstance().write("heapdump/" + fileName, file.toPath(), null);
+            externalStorageService.write("heapdump/" + fileName, file.toPath(), null);
          }
          catch(Exception e) {
             LOG.error("Failed to get heap dump: " + e.getMessage(), e);
@@ -661,7 +668,7 @@ public class ServerMonitoringController {
       String[] scheduleServers = getScheduleServers();
 
       for(String scheduleServer : scheduleServers) {
-         if(ScheduleClient.getScheduleClient().isReady(scheduleServer)) {
+         if(scheduleClient.isReady(scheduleServer)) {
             legends.addMemUsage(SummaryChartLegend.builder()
                .text("Scheduler(" + scheduleServer + ")/(Bytes)")
                .color(COLOR_PALETTE[counter])
@@ -752,7 +759,7 @@ public class ServerMonitoringController {
          }
 
          for(String scheduleServer : scheduleServers) {
-            if(ScheduleClient.getScheduleClient().isReady(scheduleServer)) {
+            if(scheduleClient.isReady(scheduleServer)) {
                Object[][] grid = createHistoryGrid(
                   "Scheduler(" + scheduleServer + ")",
                   schedulerMonitoringService.getMemoryHistory(scheduleServer),
@@ -787,7 +794,7 @@ public class ServerMonitoringController {
          }
 
          for(String scheduleServer : scheduleServers) {
-            if(ScheduleClient.getScheduleClient().isReady(scheduleServer)) {
+            if(scheduleClient.isReady(scheduleServer)) {
                Object[][] grid = createHistoryGrid(
                   "Scheduler(" + scheduleServer + ")",
                   schedulerMonitoringService.getCpuHistory(scheduleServer),
@@ -822,7 +829,7 @@ public class ServerMonitoringController {
          }
 
          for(String scheduleServer : scheduleServers) {
-            if(ScheduleClient.getScheduleClient().isReady(scheduleServer)) {
+            if(scheduleClient.isReady(scheduleServer)) {
                Object[][] grid = createHistoryGrid(
                   "Scheduler(" + scheduleServer + ")",
                   schedulerMonitoringService.getGcHistory(scheduleServer),
@@ -868,7 +875,7 @@ public class ServerMonitoringController {
          }
 
          for(String scheduleServer : scheduleServers) {
-            if(ScheduleClient.getScheduleClient().isReady(scheduleServer)) {
+            if(scheduleClient.isReady(scheduleServer)) {
                Object[][] grid = createHistoryGrid(
                   "Scheduler(" + scheduleServer + ")",
                   schedulerMonitoringService.getGcHistory(scheduleServer),
@@ -915,7 +922,7 @@ public class ServerMonitoringController {
          }
 
          for(String scheduleServer : scheduleServers) {
-            if(ScheduleClient.getScheduleClient().isReady(scheduleServer)) {
+            if(scheduleClient.isReady(scheduleServer)) {
                Object[][] grid = createHistoryGrid(
                   "Scheduler(" + scheduleServer + ")",
                   schedulerMonitoringService.getOffHeapHistory(scheduleServer),
@@ -979,7 +986,7 @@ public class ServerMonitoringController {
 
       if(isShowImage(data)) {
          return MonitorUtil.createMonitorImage(data, width, height, GraphTypes.CHART_LINE,
-                                               format, title, max);
+                                               format, title, max, customThemesManager);
       }
 
       return null;
@@ -1108,7 +1115,8 @@ public class ServerMonitoringController {
 
       return MonitorUtil.createMonitorImage(result, width, height,
                                             GraphTypes.CHART_LINE, null,
-                                            catalog.getString("Execution Count"), 0);
+                                            catalog.getString("Execution Count"), 0,
+                                            customThemesManager);
    }
 
    /**
@@ -1180,7 +1188,7 @@ public class ServerMonitoringController {
    }
 
    private String[] getScheduleServers() {
-      String[] allScheduleServers = ScheduleClient.getScheduleClient().getScheduleServers();
+      String[] allScheduleServers = scheduleClient.getScheduleServers();
 
       if(scheduleCluster) {
          // In enterprise embedded mode, scheduler IPs overlap with server cluster node IPs,
@@ -1206,7 +1214,10 @@ public class ServerMonitoringController {
    private final UsageHistoryService usageHistoryService;
    private final ClusterCacheUsageService clusterCacheUsageService;
    private final ExternalStorageService externalStorageService;
+   private final FileSystemService fileSystemService;
    private final Cluster cluster;
+   private final ScheduleClient scheduleClient;
+   private final CustomThemesManager customThemesManager;
    private final boolean scheduleCluster;
    private static final String[] COLOR_PALETTE = {
       "#5a9bd4", "#f15a60", "#7ac36a",

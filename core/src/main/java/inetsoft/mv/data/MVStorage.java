@@ -36,7 +36,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class MVStorage implements AutoCloseable {
-   public MVStorage() {
+   public MVStorage(BlobStorageManager blobStorageManager) {
+      this.blobStorageManager = blobStorageManager;
+
       if(getStorage() == null) {
          throw new RuntimeException("Failed to create MV definition storage");
       }
@@ -245,9 +247,10 @@ public class MVStorage implements AutoCloseable {
          orgId = OrganizationManager.getInstance().getCurrentOrgID();
       }
 
-      return BlobStorageManager.getStorage(orgId.toLowerCase() + "__mv", true);
+      return blobStorageManager.getStorage(orgId.toLowerCase() + "__mv", true);
    }
 
+   private final BlobStorageManager blobStorageManager;
    private final Map<String, MV> cache = new ConcurrentHashMap<>();
    private final Lock lock = new ReentrantLock();
 

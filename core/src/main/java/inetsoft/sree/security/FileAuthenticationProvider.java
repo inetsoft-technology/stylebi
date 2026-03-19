@@ -32,7 +32,6 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -53,12 +52,12 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
             return;
          }
 
-         roleStorage = KeyValueStorageManager.getStorage(
+         roleStorage = KeyValueStorageManager.getInstance().getStorage(
             "defaultSecurityRoles", new LoadRolesTask("defaultSecurityRoles"));
-         userStorage = KeyValueStorageManager.getStorage(
+         userStorage = KeyValueStorageManager.getInstance().getStorage(
             "defaultSecurityUsers", new LoadUsersTask("defaultSecurityUsers"));
-         groupStorage = KeyValueStorageManager.getStorage("defaultSecurityGroups");
-         organizationStorage = KeyValueStorageManager.getStorage(
+         groupStorage = KeyValueStorageManager.getInstance().getStorage("defaultSecurityGroups");
+         organizationStorage = KeyValueStorageManager.getInstance().getStorage(
             "defaultSecurityOrganizations",
             new LoadOrganizationsTask("defaultSecurityOrganizations"));
       }

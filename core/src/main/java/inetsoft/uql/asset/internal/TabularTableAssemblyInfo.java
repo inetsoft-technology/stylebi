@@ -114,7 +114,7 @@ public class TabularTableAssemblyInfo extends BoundTableAssemblyInfo {
          String type = Tool.getAttribute(node, "type");
 
          if(type != null && Objects.equals(cls, "inetsoft.uql.rest.RestQuery")) {
-            cls = Config.getQueryClass(type);
+            cls = Config.getConfig().getQueryClass(type);
          }
 
          node = Tool.getFirstChildNode(node);
@@ -124,7 +124,7 @@ public class TabularTableAssemblyInfo extends BoundTableAssemblyInfo {
          }
 
          try {
-            Class<?> pluginClass = Config.getClass(type, cls);
+            Class<?> pluginClass = Config.getConfig().getClass(type, cls);
 
             if(pluginClass != null) {
                query = (TabularQuery) pluginClass.getConstructor().newInstance();

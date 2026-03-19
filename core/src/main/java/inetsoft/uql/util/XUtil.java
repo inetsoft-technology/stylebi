@@ -3748,7 +3748,7 @@ public final class XUtil {
 
          String userSessionID = user instanceof XPrincipal
             ? ((XPrincipal) user).getSessionID()
-            : XSessionService.createSessionID(XSessionService.USER, null);
+            : XSessionService.getService().createSessionID(XSessionService.USER, null);
          String execType = QueryRecord.EXEC_TYPE_START;
          Timestamp execTimestamp = new Timestamp(System.currentTimeMillis());
          queryRecord = new QueryRecord(
@@ -3800,7 +3800,7 @@ public final class XUtil {
             }
 
             if(queryRecord != null) {
-               String execSessionID = XSessionService.createSessionID(
+               String execSessionID = XSessionService.getService().createSessionID(
                   XSessionService.WORKSHEET, entry.getPath());
                queryRecord.setExecSessionID(execSessionID);
                queryRecord.setObjectName(entry.getPath());

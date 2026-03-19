@@ -36,7 +36,6 @@ import inetsoft.util.ThreadContext;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.audit.ExecutionRecord;
 import inetsoft.util.log.LogUtil;
-import inetsoft.web.binding.handler.VSChartDataHandler;
 import inetsoft.web.composer.vs.VSObjectTreeNode;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
@@ -66,15 +65,15 @@ public class VSRefreshService {
                            ViewsheetService viewsheetService,
                            VSObjectTreeService vsObjectTreeService,
                            VSBookmarkService vsBookmarkService,
-                           VSChartDataHandler chartDataHandler,
-                           ParameterService parameterService)
+                           ParameterService parameterService,
+                           XSessionService sessionService)
    {
       this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
       this.vsObjectTreeService = vsObjectTreeService;
       this.vsBookmarkService = vsBookmarkService;
-      this.chartDataHandler = chartDataHandler;
       this.parameterService = parameterService;
+      this.sessionService = sessionService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -148,12 +147,12 @@ public class VSRefreshService {
 
       AssetEntry entry = rvs.getEntry();
       String userSessionId = principal == null ?
-         XSessionService.createSessionID(XSessionService.USER, null) :
+         sessionService.createSessionID(XSessionService.USER, null) :
          ((XPrincipal) principal).getSessionID();
       String objectName = entry != null ? entry.getDescription() : null;
       LogUtil.PerformanceLogEntry logEntry = new LogUtil.PerformanceLogEntry(objectName);
       String execSessionId =
-         XSessionService.createSessionID(XSessionService.EXPORE_VIEW,
+         sessionService.createSessionID(XSessionService.EXPORE_VIEW,
                                          entry != null ? entry.getName() : null);
       String objectType = ExecutionRecord.OBJECT_TYPE_VIEW;
       String execType = ExecutionRecord.EXEC_TYPE_START;
@@ -521,8 +520,8 @@ public class VSRefreshService {
    private final ViewsheetService viewsheetService;
    private final VSObjectTreeService vsObjectTreeService;
    private final VSBookmarkService vsBookmarkService;
-   private final VSChartDataHandler chartDataHandler;
    private final ParameterService parameterService;
+   private final XSessionService sessionService;
    private final ConcurrentMap<String, Boolean> pending = new ConcurrentHashMap<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(VSRefreshService.class);

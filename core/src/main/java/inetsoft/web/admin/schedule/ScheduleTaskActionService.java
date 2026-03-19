@@ -29,14 +29,12 @@ import inetsoft.report.filter.Highlight;
 import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.report.io.viewsheet.excel.CSVUtil;
-import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.VariableTable;
-import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.schema.UserVariable;
@@ -46,7 +44,6 @@ import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.web.RecycleUtils;
-import inetsoft.web.admin.content.repository.RepletRegistryManager;
 import inetsoft.web.admin.schedule.model.*;
 import inetsoft.web.viewsheet.model.VSBookmarkInfoModel;
 import org.apache.commons.lang3.ArrayUtils;
@@ -63,18 +60,15 @@ import java.util.stream.Collectors;
 @ClusterProxy
 public class ScheduleTaskActionService {
    @Autowired
-   public ScheduleTaskActionService(AnalyticRepository analyticRepository,
-                                    ScheduleManager scheduleManager,
+   public ScheduleTaskActionService(ScheduleManager scheduleManager,
                                     ScheduleService scheduleService,
-                                    ViewsheetService viewsheetService, XRepository xRepository,
+                                    ViewsheetService viewsheetService,
                                     SecurityEngine securityEngine,
                                     IndexedStorage indexedStorage)
    {
-      this.analyticRepository = analyticRepository;
       this.scheduleManager = scheduleManager;
       this.scheduleService = scheduleService;
       this.viewsheetService = viewsheetService;
-      this.xRepository = xRepository;
       this.securityEngine = securityEngine;
       this.indexedStorage = indexedStorage;
    }
@@ -648,14 +642,11 @@ public class ScheduleTaskActionService {
       return null;
    }
 
-   private final AnalyticRepository analyticRepository;
    private final ScheduleManager scheduleManager;
    private final ScheduleService scheduleService;
    private final ViewsheetService viewsheetService;
-   private final XRepository xRepository;
    private final SecurityEngine securityEngine;
    private final IndexedStorage indexedStorage;
-   private final RepletRegistryManager registryManager = new RepletRegistryManager();
 
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleTaskActionService.class);
 }

@@ -26,6 +26,7 @@ import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.internal.Util;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSInsertColumnsEvent;
 import inetsoft.web.composer.ws.event.WSInsertColumnsEventValidator;
@@ -38,8 +39,8 @@ import java.security.Principal;
 @Service
 @ClusterProxy
 public class InsertColumnsService extends WorksheetControllerService {
-   public InsertColumnsService(ViewsheetService viewsheetService) {
-      super(viewsheetService);
+   public InsertColumnsService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry) {
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

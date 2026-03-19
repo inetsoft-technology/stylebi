@@ -46,12 +46,14 @@ public class DatabaseDatasourcesController {
    public DatabaseDatasourcesController(DatabaseDatasourcesService databaseDatasourcesService,
                                         DatabaseModelBrowserService databaseModelBrowserService,
                                         DataModelFolderManagerService folderManagerService,
-                                        DataSourceService dataSourceService)
+                                        DataSourceService dataSourceService,
+                                        XRepository xRepository)
    {
       this.databaseDatasourcesService = databaseDatasourcesService;
       this.databaseModelBrowserService = databaseModelBrowserService;
       this.folderManagerService = folderManagerService;
       this.dataSourceService = dataSourceService;
+      this.xRepository = xRepository;
    }
 
 
@@ -122,11 +124,9 @@ public class DatabaseDatasourcesController {
    @GetMapping("/api/portal/data/datasource/refresh-metadata")
    public boolean refreshMetadata(@RequestParam("dataSource") String dataSource) {
       try {
-         XRepository repository = XFactory.getRepository();
-
-         if(dataSource != null && repository instanceof XEngine) {
-            repository.refreshMetaData(dataSource);
-            XDataSource ds = repository.getDataSource(dataSource);
+         if(dataSource != null && xRepository instanceof XEngine) {
+            xRepository.refreshMetaData(dataSource);
+            XDataSource ds = xRepository.getDataSource(dataSource);
 
             if(ds != null) {
                dataSourceService.removeDefaultMetaDataProviderCache(ds);
@@ -180,7 +180,7 @@ public class DatabaseDatasourcesController {
     * @throws Exception if the repository could not be obtained.
     */
    protected XRepository getXRepository() throws Exception {
-      return XFactory.getRepository();
+      return xRepository;
    }
 
    /**
@@ -285,4 +285,5 @@ public class DatabaseDatasourcesController {
    private final DatabaseModelBrowserService databaseModelBrowserService;
    private final DataModelFolderManagerService folderManagerService;
    private final DataSourceService dataSourceService;
+   private final XRepository xRepository;
 }

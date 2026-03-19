@@ -19,27 +19,35 @@ package inetsoft.web.admin.pageheader;
 
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.util.Tool;
-
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+
 import static org.junit.jupiter.api.Assertions.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
 @Disabled
+@Tag("core")
 class EmPageHeaderControllerTest {
-   static SecurityEngine engine;
-   static FileAuthenticationProvider provider;
+   @Autowired SecurityEngine engine;
+   FileAuthenticationProvider provider;
 
-   @BeforeAll
-   static void before() throws Exception {
-      engine = SecurityEngine.getSecurity();
+   @BeforeEach
+   void before() throws Exception {
       engine.enableSecurity();
       SUtil.setMultiTenant(true);
 
       AuthenticationChain chain =
          (AuthenticationChain) engine.getSecurityProvider().getAuthenticationProvider();
-      provider = (FileAuthenticationProvider) chain.getProviders().get(0);
+      provider = (FileAuthenticationProvider) chain.getProviders().getFirst();
 
       FSUser org_admin = new FSUser(new IdentityID("org_admin", "org0"));
       org_admin.setRoles(new IdentityID[] {new IdentityID("Organization Administrator", null)});
@@ -55,18 +63,9 @@ class EmPageHeaderControllerTest {
       provider.getOrganization("host-org").setMembers(new String[]{"sys_admin"});
    }
 
-   @AfterAll
-   static void cleanup() throws Exception {
-      provider.removeOrganization("org0");
-      provider.removeUser(new IdentityID("org_admin", "org0"));
-      provider.removeUser(new IdentityID("sys_admin", "host-org"));
-      SecurityEngine.clear();
-      SecurityEngine.getSecurity().disableSecurity();
-   }
-
    @Test
    void checkDiffUserForPageHeader() throws Exception {
-      EmPageHeaderController emPageHeaderController = new EmPageHeaderController(engine, null, null, null);
+      EmPageHeaderController emPageHeaderController = new EmPageHeaderController(engine, null, null, null, null);
 
       SRPrincipal org_admin = new SRPrincipal(new IdentityID("org_admin", "org0"), new IdentityID[] {new IdentityID("Organization Administrator", null)},
                                               new String[0], "org0",

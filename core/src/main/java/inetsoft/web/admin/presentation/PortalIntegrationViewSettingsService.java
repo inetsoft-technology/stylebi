@@ -26,6 +26,7 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.presentation.model.PortalIntegrationSettingsModel;
 import inetsoft.web.admin.presentation.model.PortalTabModel;
 import inetsoft.web.viewsheet.Audited;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -33,6 +34,8 @@ import java.util.*;
 
 @Service
 public class PortalIntegrationViewSettingsService {
+   @Autowired
+   private PortalThemesManager portalThemesManager;
    public PortalIntegrationSettingsModel getModel(Principal principal, boolean globalProperty) {
       List<PortalTabModel> tabs = new ArrayList<>();
       boolean help = false;
@@ -226,6 +229,6 @@ public class PortalIntegrationViewSettingsService {
    }
 
    private PortalThemesManager getManager() {
-      return PortalThemesManager.getManager();
+      return portalThemesManager;
    }
 }

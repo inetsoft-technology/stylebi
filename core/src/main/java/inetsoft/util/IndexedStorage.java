@@ -19,14 +19,12 @@ package inetsoft.util;
 
 import inetsoft.sree.security.Organization;
 import inetsoft.uql.util.AbstractIdentity;
-import org.springframework.context.ApplicationContext;
 import org.w3c.dom.Document;
 
 import java.beans.PropertyChangeListener;
 import java.io.Serializable;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * This interface defines the API for a storage that can store and retrieve
@@ -383,22 +381,13 @@ public interface IndexedStorage {
     */
    void removeStorage(String orgID) throws Exception;
 
-   /** Holds the non-Spring bootstrap instance (thread-safe via AtomicReference). */
-   AtomicReference<IndexedStorage> NON_SPRING_INSTANCE = new AtomicReference<>();
-
    /**
     * Gets the singleton instance of the indexed storage.
     *
     * @return the storage instance.
     */
    static IndexedStorage getIndexedStorage() {
-      ApplicationContext ctx = ConfigurationContext.getContext().getApplicationContext();
-
-      if(ctx != null) {
-         return ctx.getBean(IndexedStorage.class);
-      }
-
-      return NON_SPRING_INSTANCE.updateAndGet(existing -> existing != null ? existing : new BlobIndexedStorage());
+      return ConfigurationContext.getContext().getSpringBean(IndexedStorage.class);
    }
 
    /**

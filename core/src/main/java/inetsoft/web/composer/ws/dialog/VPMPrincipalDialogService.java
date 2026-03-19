@@ -25,6 +25,7 @@ import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XUtil;
 import inetsoft.web.composer.model.ws.VPMPrincipalDialogModel;
 import inetsoft.web.composer.ws.WorksheetControllerService;
@@ -40,9 +41,10 @@ import java.security.Principal;
 public class VPMPrincipalDialogService extends WorksheetControllerService {
 
    public VPMPrincipalDialogService(ViewsheetService viewsheetService,
-                                    SecurityEngine engine)
+                                    SecurityEngine engine,
+                                    DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
       this.engine = engine;
    }
 

@@ -17,10 +17,9 @@
  */
 package inetsoft.web.security;
 
-import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.SRPrincipal;
-import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.*;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import inetsoft.web.admin.security.SSOSettingsService;
 import inetsoft.web.admin.security.SSOType;
 import jakarta.servlet.*;
@@ -37,6 +36,12 @@ import java.io.IOException;
  */
 @Component
 public class InvalidateSessionFilter extends AbstractSecurityFilter {
+   public InvalidateSessionFilter(SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                                  AuthenticationService authenticationService)
+   {
+      super(sessionLicenseServiceProvider, authenticationService);
+   }
+
    @Override
    public void doFilter(ServletRequest request, ServletResponse response,
                         FilterChain chain) throws IOException, ServletException

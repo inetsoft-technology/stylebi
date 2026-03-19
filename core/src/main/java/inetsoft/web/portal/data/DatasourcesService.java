@@ -37,9 +37,9 @@ public class DatasourcesService extends DatasourcesBaseService {
                              SecurityEngine securityEngine,
                              DataSourceStatusService dataSourceStatusService,
                              DataSourceRegistry dataSourceRegistry,
-                             LicenseManager licenseManager)
+                             LicenseManager licenseManager, Config uqlConfig)
    {
-      super(repository, securityEngine, dataSourceStatusService, dataSourceRegistry, licenseManager);
+      super(repository, securityEngine, dataSourceStatusService, dataSourceRegistry, licenseManager, uqlConfig);
    }
 
    /**
@@ -66,10 +66,10 @@ public class DatasourcesService extends DatasourcesBaseService {
          definition.getParentPath());
 
       if(ds == null) {
-         String dsClass = Config.getDataSourceClass(definition.getType());
+         String dsClass = getUqlConfig().getDataSourceClass(definition.getType());
 
          try {
-            ds = (XDataSource) Config.getClass(definition.getType(), dsClass)
+            ds = (XDataSource) getUqlConfig().getClass(definition.getType(), dsClass)
                .getConstructor().newInstance();
          }
          catch(Exception e) {

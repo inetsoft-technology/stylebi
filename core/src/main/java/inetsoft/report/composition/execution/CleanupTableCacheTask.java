@@ -52,7 +52,7 @@ public class CleanupTableCacheTask implements Runnable, Serializable {
          for(String orgId : orgIds) {
             String storeId = orgId.toLowerCase() + "__tableCacheStore";
             BlobStorage<DistributedTableCacheStore.Metadata> storage =
-               BlobStorageManager.getStorage(storeId, false);
+               BlobStorageManager.getInstance().getStorage(storeId, false);
 
             Set<String> keysToRemove = new HashSet<>();
             storage.paths().forEach(key -> {

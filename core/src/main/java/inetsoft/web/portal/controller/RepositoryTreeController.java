@@ -69,12 +69,14 @@ public class RepositoryTreeController {
    public RepositoryTreeController(AnalyticRepository analyticRepository,
       RepositoryEntryModelFactoryService repositoryEntryModelFactoryService,
       RepositoryTreeService repositoryTreeService,
-      ScheduleManager scheduleManager)
+      ScheduleManager scheduleManager,
+      RecycleBin recycleBin)
    {
       this.analyticRepository = analyticRepository;
       this.repositoryEntryModelFactoryService = repositoryEntryModelFactoryService;
       this.repositoryTreeService = repositoryTreeService;
       this.scheduleManager = scheduleManager;
+      this.recycleBin = recycleBin;
    }
 
    /**
@@ -502,7 +504,6 @@ public class RepositoryTreeController {
    {
       RepositoryEntry entry = event.entry().createRepositoryEntry();
       UserEnv.setProperty(principal, entry.getName(), "");
-      RecycleBin recycleBin = RecycleBin.getRecycleBin();
       ActionRecord actionRecord = null;
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
 
@@ -921,5 +922,6 @@ public class RepositoryTreeController {
    private final RepositoryEntryModelFactoryService repositoryEntryModelFactoryService;
    private final RepositoryTreeService repositoryTreeService;
    private final ScheduleManager scheduleManager;
+   private final RecycleBin recycleBin;
    private static final Logger LOG = LoggerFactory.getLogger(RepositoryTreeController.class);
 }

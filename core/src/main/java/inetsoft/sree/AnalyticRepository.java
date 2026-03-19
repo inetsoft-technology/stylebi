@@ -19,11 +19,9 @@ package inetsoft.sree;
 
 import inetsoft.uql.erm.XLogicalModel;
 import inetsoft.util.ConfigurationContext;
-import org.springframework.context.ApplicationContext;
 
 import java.rmi.RemoteException;
 import java.security.Principal;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * This defines the server interface for the analytic component of the report
@@ -33,34 +31,13 @@ import java.util.concurrent.atomic.AtomicReference;
  * @version 7.0
  */
 public interface AnalyticRepository extends RepletRepository {
-   /** Holds the non-Spring bootstrap instance (thread-safe via AtomicReference). */
-   AtomicReference<AnalyticRepository> NON_SPRING_INSTANCE = new AtomicReference<>();
-
    /**
     * Gets the shared instance of the analytic repository.
     *
     * @return the analytic repository.
     */
    static AnalyticRepository getInstance() {
-      ApplicationContext ctx = ConfigurationContext.getContext().getApplicationContext();
-
-      if(ctx != null) {
-         return ctx.getBean(AnalyticRepository.class);
-      }
-
-      return NON_SPRING_INSTANCE.updateAndGet(existing -> {
-         if(existing != null) {
-            return existing;
-         }
-
-         try {
-            return (AnalyticRepository) Class.forName("inetsoft.sree.internal.AnalyticEngine")
-               .getDeclaredConstructor().newInstance();
-         }
-         catch(Exception e) {
-            throw new RuntimeException("Failed to create AnalyticEngine for non-Spring context", e);
-         }
-      });
+      return ConfigurationContext.getContext().getSpringBean(AnalyticRepository.class);
    }
 
 

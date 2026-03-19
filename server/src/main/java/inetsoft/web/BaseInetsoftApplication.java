@@ -18,13 +18,13 @@
 
 package inetsoft.web;
 
-import inetsoft.report.LibManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.sree.schedule.ScheduleTask;
-import inetsoft.sree.web.SessionLicenseService;
+import inetsoft.sree.security.AuthenticationService;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.log.LogManager;
@@ -171,10 +171,10 @@ public abstract class BaseInetsoftApplication {
    }
 
    @Bean
-   public FilterRegistrationBean<SecurityFilterChain> securityChainFilter() {
+   public FilterRegistrationBean<SecurityFilterChain> securityChainFilter(@Lazy SessionLicenseServiceProvider sessionLicenseServiceProvider, @Lazy AuthenticationService authenticationService) {
       FilterRegistrationBean<SecurityFilterChain> bean = new FilterRegistrationBean<>();
       bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 4);
-      bean.setFilter(new SecurityFilterChain());
+      bean.setFilter(new SecurityFilterChain(sessionLicenseServiceProvider, authenticationService));
       bean.setDispatcherTypes(EnumSet.allOf(DispatcherType.class));
       return bean;
    }
@@ -223,14 +223,6 @@ public abstract class BaseInetsoftApplication {
       Logger log = LoggerFactory.getLogger(getClass());
 
       try {
-         DataSpace space = DataSpace.getDataSpace();
-         space.dispose();
-      }
-      catch(Exception ex) {
-         log.debug("Failed to shut down data space", ex);
-      }
-
-      try {
          ScheduleTask.shutdownThreadPool();
       }
       catch(Exception ex) {
@@ -253,21 +245,6 @@ public abstract class BaseInetsoftApplication {
       }
       catch(Exception ex) {
          log.debug("Failed to close websocket sessions", ex);
-      }
-
-      try {
-         XSwapper.stop();
-      }
-      catch(Exception ex) {
-         log.debug("Failed to stop XSwapper", ex);
-      }
-
-      try {
-         LibManager.clear();
-         SessionLicenseService.resetServices();
-      }
-      catch(Exception ex) {
-         log.debug("Failed to reset services", ex);
       }
 
       try {

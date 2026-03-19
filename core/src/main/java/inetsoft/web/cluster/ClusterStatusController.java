@@ -18,20 +18,16 @@
 package inetsoft.web.cluster;
 
 import inetsoft.mv.MVTool;
-import inetsoft.report.XSessionManager;
 import inetsoft.sree.*;
-import inetsoft.sree.internal.*;
 import inetsoft.sree.internal.cluster.*;
-import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.AuthenticationService;
 import inetsoft.sree.security.SecurityEngine;
-import inetsoft.uql.XFactory;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.service.XEngine;
 import inetsoft.util.FileSystemService;
-import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.util.swap.XSwapper;
 import inetsoft.web.admin.schedule.SchedulerMonitoringService;
+import inetsoft.web.portal.controller.database.DataSourceService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -50,12 +46,19 @@ public class ClusterStatusController implements MessageListener {
    public ClusterStatusController(SchedulerMonitoringService schedulerMonitoringService,
                                   DataSourceService dataSourceService,
                                   Cluster cluster,
-                                  SecurityEngine securityEngine)
+                                  SecurityEngine securityEngine,
+                                  AuthenticationService authenticationService,
+                                  FileSystemService fileSystemService,
+                                  XRepository repository, XSwapper swapper)
    {
       this.schedulerMonitoringService = schedulerMonitoringService;
       this.dataSourceService = dataSourceService;
       this.cluster = cluster;
       this.securityEngine = securityEngine;
+      this.authenticationService = authenticationService;
+      this.fileSystemService = fileSystemService;
+      this.repository = repository;
+      this.swapper = swapper;
    }
 
    @PostConstruct
@@ -96,17 +99,8 @@ public class ClusterStatusController implements MessageListener {
    public void messageReceived(MessageEvent event) {
       String sender = event.getSender();
 
-      if(event.getMessage() instanceof RestartMessage) {
-         handleRestartMessage(sender);
-      }
-      else if(event.getMessage() instanceof PauseClusterMessage) {
+      if(event.getMessage() instanceof PauseClusterMessage) {
          handlePause(sender, ((PauseClusterMessage) event.getMessage()).isPaused());
-      }
-      else if(event.getMessage() instanceof StartSchedulerMessage) {
-         handleStartScheduler(sender);
-      }
-      else if(event.getMessage() instanceof StopSchedulerMessage) {
-         handleStopScheduler(sender);
       }
       else if(event.getMessage() instanceof CleanCacheMessage) {
          handleCleanCache(sender);
@@ -124,8 +118,6 @@ public class ClusterStatusController implements MessageListener {
       message.setAction(RefreshMetaDataMessage.ACTION);
 
       try {
-         XRepository repository = XFactory.getRepository();
-
          if(repository instanceof XEngine) {
             final String datasource = dataMessage.getDatasource();
 
@@ -169,8 +161,6 @@ public class ClusterStatusController implements MessageListener {
       message.setAction(RefreshMetaDataMessage.ACTION);
 
       try {
-         XRepository repository = XFactory.getRepository();
-
          if(repository instanceof XEngine) {
             final String datasource = dataMessage.getDatasource();
 
@@ -203,72 +193,6 @@ public class ClusterStatusController implements MessageListener {
       }
    }
 
-   private void handleRestartMessage(String sender) {
-      ServerClusterCompleteMessage message = new ServerClusterCompleteMessage();
-      message.setAction(RestartMessage.ACTION);
-
-      try {
-         // @by henryh, 2004-10-28
-         // save sree.home for SreeEnv.
-         String home = SreeEnv.getProperty("sree.home");
-         SreeEnv.clear();
-         SreeEnv.setProperty("sree.home", home);
-
-         handleRestart();
-         message.setSuccess(true);
-      }
-      catch(Exception exc) {
-         String msg = exc.getMessage();
-
-         if(msg == null) {
-            msg = exc.toString();
-         }
-
-         message.setFailMessage(msg);
-         message.setSuccess(false);
-         LOG.error("Failed to restart cluster node", exc);
-      }
-
-      try {
-         cluster.sendMessage(sender, message);
-      }
-      catch(Exception e) {
-         LOG.warn("Failed to send restart complete message", e);
-      }
-   }
-
-   /**
-    * Process a request to restart the service.
-    */
-   private void handleRestart() {
-      restartLock.lock();
-
-      // block incoming traffic
-      try {
-         RepletRegistry.clear();
-
-         XSessionManager.restart();
-         SecurityEngine.clear();
-
-         PortalThemesManager.clear();
-         AnalyticRepository engine = SUtil.getRepletRepository();
-
-         if(engine instanceof AnalyticEngine) {
-            ((AnalyticEngine) engine).dispose();
-            ((AnalyticEngine) engine).init();
-         }
-
-         if(!"".equals(SreeEnv.getProperty("security.provider"))) {
-            securityEngine.init();
-         }
-
-         AuthenticationService.getInstance().reset();
-      }
-      finally {
-         restartLock.unlock();
-      }
-   }
-
    private void handlePause(String sender, boolean paused) {
       ServerClusterStatus status = new ServerClusterStatus();
       status.setPaused(paused);
@@ -285,50 +209,8 @@ public class ClusterStatusController implements MessageListener {
       }
    }
 
-   private void handleStartScheduler(String sender) {
-      ServerClusterCompleteMessage message = new ServerClusterCompleteMessage();
-      message.setAction(StartSchedulerMessage.ACTION);
-
-      try {
-         schedulerMonitoringService.startScheduler();
-         message.setSuccess(true);
-      }
-      catch(Exception e) {
-         LOG.warn("Failed to start scheduler", e);
-         message.setSuccess(false);
-      }
-
-      try {
-         cluster.sendMessage(sender, message);
-      }
-      catch(Exception e) {
-         LOG.warn("Failed to send start schedule complete", e);
-      }
-   }
-
-   private void handleStopScheduler(String sender) {
-      ServerClusterCompleteMessage message = new ServerClusterCompleteMessage();
-      message.setAction(StopSchedulerMessage.ACTION);
-
-      try {
-         schedulerMonitoringService.stopScheduler();
-         message.setSuccess(true);
-      }
-      catch(Exception e) {
-         LOG.warn("Failed to stop scheduler", e);
-         message.setSuccess(false);
-      }
-
-      try {
-         cluster.sendMessage(sender, message);
-      }
-      catch(Exception e) {
-         LOG.warn("Failed to send stop schedule complete", e);
-      }
-   }
-
    private void handleCleanCache(String sender) {
-      FileSystemService.getInstance().clearCacheFiles(null);
+      this.fileSystemService.clearCacheFiles(null);
 
       ServerClusterCompleteMessage message = new ServerClusterCompleteMessage();
       message.setAction(CleanCacheMessage.ACTION);
@@ -350,7 +232,7 @@ public class ClusterStatusController implements MessageListener {
             status.setPaused(true);
             status.setStatus(ServerClusterStatus.Status.PAUSED);
          }
-         else if(!ignoreMemoryState && XSwapper.getMemoryState() <= XSwapper.BAD_MEM) {
+         else if(!ignoreMemoryState && swapper.getMemoryState() <= XSwapper.BAD_MEM) {
             status.setPaused(false);
             status.setStatus(ServerClusterStatus.Status.BUSY);
          }
@@ -366,6 +248,10 @@ public class ClusterStatusController implements MessageListener {
    private final SecurityEngine securityEngine;
    private final SchedulerMonitoringService schedulerMonitoringService;
    private final DataSourceService dataSourceService;
+   private final AuthenticationService authenticationService;
+   private final FileSystemService fileSystemService;
+   private final XRepository repository;
+   private final XSwapper swapper;
    private final ServerClusterClient client = new ServerClusterClient(true);
    private final ReentrantLock restartLock = new ReentrantLock();
    private static final Logger LOG = LoggerFactory.getLogger(ClusterStatusController.class);

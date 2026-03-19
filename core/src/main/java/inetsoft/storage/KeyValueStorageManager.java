@@ -18,6 +18,7 @@
 package inetsoft.storage;
 
 import com.github.benmanes.caffeine.cache.*;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.ConfigurationContext;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -40,20 +41,18 @@ import java.util.function.Function;
  */
 @Service
 public class KeyValueStorageManager implements AutoCloseable {
-
-   /**
-    * No-arg constructor used in non-Spring environments (e.g., unit tests).
-    */
-   public KeyValueStorageManager() {
-   }
-
    /**
     * Spring constructor — ensures {@link KeyValueEngine} is initialized before this manager.
     *
     * @param keyValueEngine the engine (injected only for startup-ordering purposes).
     */
    @Autowired
-   public KeyValueStorageManager(KeyValueEngine keyValueEngine) {
+   public KeyValueStorageManager(KeyValueEngine keyValueEngine, Cluster cluster) {
+      this.cluster = cluster;
+   }
+
+   public static KeyValueStorageManager getInstance() {
+      return ConfigurationContext.getContext().getSpringBean(KeyValueStorageManager.class);
    }
 
    /**
@@ -64,8 +63,8 @@ public class KeyValueStorageManager implements AutoCloseable {
     *
     * @return the storage instance.
     */
-   public <T extends Serializable> KeyValueStorage<T> getInstance(String id) {
-      return get(id, KeyValueStorage::newInstance);
+   public <T extends Serializable> KeyValueStorage<T> getStorage(String id) {
+      return get(id, storeId -> KeyValueStorage.newInstance(storeId, cluster));
    }
 
    /**
@@ -78,28 +77,10 @@ public class KeyValueStorageManager implements AutoCloseable {
     *
     * @return the storage instance.
     */
-   public <T extends Serializable> KeyValueStorage<T> getInstance(
+   public <T extends Serializable> KeyValueStorage<T> getStorage(
       String id, LoadKeyValueTask<T> task)
    {
-      return get(id, storeId -> KeyValueStorage.newInstance(storeId, task));
-   }
-
-   /**
-    * Gets or creates the {@link KeyValueStorage} with the given store ID. Static bridge.
-    */
-   public static <T extends Serializable> KeyValueStorage<T> getStorage(String id) {
-      return ConfigurationContext.getContext().getSpringBean(KeyValueStorageManager.class)
-         .getInstance(id);
-   }
-
-   /**
-    * Gets or creates the {@link KeyValueStorage} with the given store ID and load task. Static bridge.
-    */
-   public static <T extends Serializable> KeyValueStorage<T> getStorage(
-      String id, LoadKeyValueTask<T> task)
-   {
-      return ConfigurationContext.getContext().getSpringBean(KeyValueStorageManager.class)
-         .getInstance(id, task);
+      return get(id, storeId -> KeyValueStorage.newInstance(storeId, cluster, task));
    }
 
    @Override
@@ -136,6 +117,7 @@ public class KeyValueStorageManager implements AutoCloseable {
       }
    }
 
+   private final Cluster cluster;
    private static final int MAX_SIZE = 50;
 
    private final Cache<String, KeyValueStorage<?>> storages = Caffeine.newBuilder()

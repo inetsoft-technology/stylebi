@@ -32,6 +32,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.*;
 import inetsoft.web.binding.drm.AggregateRefModel;
 import inetsoft.web.binding.drm.ColumnRefModel;
@@ -55,10 +56,13 @@ import java.util.*;
 public class AggregateDialogService extends WorksheetControllerService {
 
    public AggregateDialogService(ViewsheetService viewsheetService,
-                                 DataRefModelFactoryService dataRefModelFactoryService)
+                                 DataRefModelFactoryService dataRefModelFactoryService,
+                                 AnalyticAssistant analyticAssistant,
+                                 DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
       this.dataRefModelFactoryService = dataRefModelFactoryService;
+      this.analyticAssistant = analyticAssistant;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -188,8 +192,7 @@ public class AggregateDialogService extends WorksheetControllerService {
       ColumnRefModel refModel = (ColumnRefModel) dataRefModelFactoryService.createDataRefModel(ref);
 
       if(table instanceof BoundTableAssembly) {
-         AnalyticRepository analyticRepository =
-            AnalyticAssistant.getAnalyticAssistant().getAnalyticRepository();
+         AnalyticRepository analyticRepository = analyticAssistant.getAnalyticRepository();
          String formula = WSBindingHelper.getModelDefaultFormula((BoundTableAssembly) table,
                                                                  ref, rws, analyticRepository);
          refModel.setDefaultFormula(formula);
@@ -806,5 +809,5 @@ public class AggregateDialogService extends WorksheetControllerService {
 
 
    private final DataRefModelFactoryService dataRefModelFactoryService;
-
+   private final AnalyticAssistant analyticAssistant;
 }

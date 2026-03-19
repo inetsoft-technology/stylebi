@@ -19,6 +19,7 @@ package inetsoft.web.composer;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.internal.Util;
@@ -51,10 +52,12 @@ public class ChangeAssetController {
     */
    @Autowired
    public ChangeAssetController(AssetRepository assetRepository,
-                                ViewsheetService viewsheetService)
+                                ViewsheetService viewsheetService,
+                                LibManagerProvider libManagerProvider)
    {
       this.assetRepository = assetRepository;
       this.viewsheetService = viewsheetService;
+      this.libManagerProvider = libManagerProvider;
    }
 
    @PostMapping("api/composer/asset-tree/change-asset")
@@ -265,7 +268,7 @@ public class ChangeAssetController {
    }
 
    private void changeTableStyle(AssetEntry parent, AssetEntry entry, Principal principal) throws Exception {
-      LibManager manager = LibManager.getManager(principal);
+      LibManager manager = libManagerProvider.getManager(principal);
       XTableStyle tableStyle = manager.getTableStyle(entry.getName());
       String folder = parent.getProperty("folder");
 
@@ -303,7 +306,7 @@ public class ChangeAssetController {
    }
 
    private void changeTableStyleFolder(AssetEntry parent, AssetEntry entry, Principal principal) {
-      LibManager manager = LibManager.getManager(principal);
+      LibManager manager = libManagerProvider.getManager(principal);
       String pfolder = parent.getProperty("folder");
       String folder = entry.getProperty("folder");
 
@@ -381,4 +384,5 @@ public class ChangeAssetController {
 
    private final AssetRepository assetRepository;
    private final ViewsheetService viewsheetService;
+   private final LibManagerProvider libManagerProvider;
 }

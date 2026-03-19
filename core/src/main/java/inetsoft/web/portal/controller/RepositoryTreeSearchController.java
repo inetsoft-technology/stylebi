@@ -55,11 +55,13 @@ public class RepositoryTreeSearchController {
    @Autowired
    public RepositoryTreeSearchController(AnalyticRepository analyticRepository,
       RepositoryTreeService repositoryTreeService,
-      RepositoryEntryModelFactoryService repositoryEntryModelFactoryService)
+      RepositoryEntryModelFactoryService repositoryEntryModelFactoryService,
+      PortalThemesManager portalThemesManager)
    {
       this.analyticRepository = analyticRepository;
       this.repositoryTreeService = repositoryTreeService;
       this.repositoryEntryModelFactoryService = repositoryEntryModelFactoryService;
+      this.portalThemesManager = portalThemesManager;
    }
 
    /**
@@ -80,7 +82,7 @@ public class RepositoryTreeSearchController {
       Principal principal)
       throws Exception
    {
-      if(!PortalThemesManager.getManager().isButtonVisible(PortalThemesManager.SEARCH_BUTTON)) {
+      if(!portalThemesManager.isButtonVisible(PortalThemesManager.SEARCH_BUTTON)) {
          Catalog catalog = Catalog.getCatalog();
          throw new SecurityException(catalog.getString("em.common.security.no.permission",
                                                        catalog.getString("Search")));
@@ -396,6 +398,7 @@ public class RepositoryTreeSearchController {
    private final AnalyticRepository analyticRepository;
    private final RepositoryTreeService repositoryTreeService;
    private final RepositoryEntryModelFactoryService repositoryEntryModelFactoryService;
+   private final PortalThemesManager portalThemesManager;
    private static final Logger LOG =
       LoggerFactory.getLogger(RepositoryTreeSearchController.class);
 

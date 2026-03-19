@@ -19,19 +19,18 @@ package inetsoft.uql.util;
 
 import com.google.common.collect.Iterables;
 import inetsoft.uql.XNode;
-import inetsoft.uql.XQuery;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.event.EventListener;
 import org.w3c.dom.*;
 
 import java.awt.*;
-import java.io.InputStream;
-import java.io.Serializable;
+import java.io.*;
 import java.net.URL;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
@@ -45,7 +44,9 @@ import java.util.stream.Collectors;
  * @author InetSoft Technology Corp
  */
 public class Config implements Serializable {
-   public Config() {
+   public Config(Plugins plugins) {
+      this.plugins = plugins;
+
       try {
          InputStream input = XNode.class.getResourceAsStream("/inetsoft/uql/config.xml");
          Document doc = Tool.parseXML(input);
@@ -130,8 +131,9 @@ public class Config implements Serializable {
     * Reloads the tabular data source services in response to a class loader
     * change.
     */
-   public static void reloadServices() {
-      getConfig().loadServices();
+   @EventListener(PluginsChangedEvent.class)
+   public void reloadServices(PluginsChangedEvent event) {
+      loadServices();
    }
 
    /**
@@ -139,7 +141,7 @@ public class Config implements Serializable {
     */
    private void loadServices() {
       List<TabularService> services =
-         Plugins.getInstance().getServices(TabularService.class, null);
+         plugins.getServices(TabularService.class, null);
 
       for(TabularService service : services) {
          String type = service.getDataSourceType();
@@ -187,8 +189,8 @@ public class Config implements Serializable {
    /**
     * Remove the dxmap's value for this plugin.
     */
-   public static void removePlugin(Plugin plugin) {
-      getConfig().removePluginValue(plugin);
+   public void removePlugin(Plugin plugin) {
+      removePluginValue(plugin);
    }
 
    /**
@@ -206,19 +208,18 @@ public class Config implements Serializable {
    /**
     * Get all configured data source types.
     */
-   public static List<String> getDataSourceTypes() {
-      return new ArrayList<>(getConfig().dxmap.keySet());
+   public List<String> getDataSourceTypes() {
+      return new ArrayList<>(dxmap.keySet());
    }
 
    /**
     * Get a list of tabular data source types.
     */
-   public static List<String> getTabularDataSourceTypes() {
-      final Config config = getConfig();
+   public List<String> getTabularDataSourceTypes() {
       List<String> types = new ArrayList<>();
 
-      for(String type : config.dxmap.keySet()) {
-         if(config.dxmap.get(type) != null && config.dxmap.get(type).isTabular()) {
+      for(String type : dxmap.keySet()) {
+         if(dxmap.get(type) != null && dxmap.get(type).isTabular()) {
             types.add(type);
          }
       }
@@ -227,139 +228,112 @@ public class Config implements Serializable {
    }
 
    /**
-    * Get the name of the data source property pane class for the
-    * specified data source type.
-    */
-   public static String getDataSourcePane(String dxtype) {
-      DSInfo ds = getConfig().dxmap.get(dxtype);
-      return (ds == null) ? null : ds.getDataSourcePane();
-   }
-
-   /**
-    * Get the name of the data source wizard class for the
-    * specified data source type.
-    */
-   public static String getDataSourceWizard(String dxtype) {
-      DSInfo ds = getConfig().dxmap.get(dxtype);
-      return (ds == null) ? null : ds.getDataSourceWizard();
-   }
-
-   /**
-    * Get the name of the query wizard class for the
-    * specified data source type.
-    */
-   public static String getQueryWizard(String dxtype) {
-      DSInfo ds = getConfig().dxmap.get(dxtype);
-      return (ds == null) ? null : ds.getQueryWizard();
-   }
-
-   /**
     * Get the name of the data source class for the specified data
     * source type.
     */
-   public static String getDataSourceClass(String dxtype) {
-      DSInfo ds = getConfig().dxmap.get(dxtype);
+   public String getDataSourceClass(String dxtype) {
+      DSInfo ds = dxmap.get(dxtype);
       return (ds == null) ? null : ds.getDataSourceClass();
    }
 
    /**
     * Get the name of the query class for the specified data source type.
     */
-   public static String getQueryClass(String dxtype) {
-      DSInfo ds = getConfig().dxmap.get(dxtype);
+   public String getQueryClass(String dxtype) {
+      DSInfo ds = dxmap.get(dxtype);
       return (ds == null) ? null : ds.getQueryClass();
    }
 
    /**
     * Get the query handler class name.
     */
-   public static String getHandlerClass(String dxtype) {
-      DSInfo ds = getConfig().dxmap.get(dxtype);
+   public String getHandlerClass(String dxtype) {
+      DSInfo ds = dxmap.get(dxtype);
       return (ds == null) ? null : ds.getHandlerClass();
    }
 
    /**
     * Get the query handler class name.
     */
-   public static String getAgentClass(String dxtype) {
-      DSInfo ds = getConfig().dxmap.get(dxtype);
+   public String getAgentClass(String dxtype) {
+      DSInfo ds = dxmap.get(dxtype);
       return (ds == null) ? null : ds.getAgentClass();
    }
 
    /**
     * Get the data source label.
     */
-   public static String getLabel(String dxtype) {
-      DSInfo ds = getConfig().dxmap.get(dxtype);
+   public String getLabel(String dxtype) {
+      DSInfo ds = dxmap.get(dxtype);
       return (ds == null) ? null : ds.getLabel();
    }
 
    /**
     * Get the data source display label.
     */
-   public static String getDisplayLabel(String dxtype) {
-      DSInfo ds = getConfig().dxmap.get(dxtype);
+   public String getDisplayLabel(String dxtype) {
+      DSInfo ds = dxmap.get(dxtype);
       return (ds == null) ? null : ds.getDisplayLabel();
    }
 
    /**
     * Get the data source display label.
     */
-   public static String getDisplayLabel(String dxtype, Locale locale) {
-      DSInfo ds = getConfig().dxmap.get(dxtype);
+   public String getDisplayLabel(String dxtype, Locale locale) {
+      DSInfo ds = dxmap.get(dxtype);
       return (ds == null) ? null : ds.getDisplayLabel(locale);
    }
 
    /**
     * Get the data source description.
     */
-   public static String getDescription(String dxtype) {
-      DSInfo ds = getConfig().dxmap.get(dxtype);
+   public String getDescription(String dxtype) {
+      DSInfo ds = dxmap.get(dxtype);
       return (ds == null) ? null : ds.getDescription();
    }
 
    /**
     * Get the tabular data source runtime.
     */
-   public static String getRuntime(String dxtype) {
-      DSInfo ds = getConfig().dxmap.get(dxtype);
+   public String getRuntime(String dxtype) {
+      DSInfo ds = dxmap.get(dxtype);
       return (ds == null) ? null : ds.getRuntime();
    }
 
    /**
     * Get the data source description.
     */
-   public static String getIconResource(String dxtype) {
-      DSInfo ds = getConfig().dxmap.get(dxtype);
+   public String getIconResource(String dxtype) {
+      DSInfo ds = dxmap.get(dxtype);
       return (ds == null) ? null : ds.getIconResource();
    }
 
    /**
     * Get the resource bundle for this data source type
     */
-   public static ResourceBundle getResourceBundle(String dxtype) {
-      DSInfo ds = getConfig().dxmap.get(dxtype);
+   public ResourceBundle getResourceBundle(String dxtype) {
+      DSInfo ds = dxmap.get(dxtype);
       return (ds == null) ? null : ds.getResourceBundle();
    }
 
    /**
     * Get the icon representing the data source.
     */
-   public static Image getIcon(String dxtype) {
-      return getConfig().imagemap.computeIfAbsent(dxtype, Config::loadIcon);
+   public Image getIcon(String dxtype) {
+      return imagemap.computeIfAbsent(dxtype, this::loadIcon);
    }
 
-   private static Image loadIcon(String dxtype) {
-      DSInfo ds = getConfig().dxmap.get(dxtype);
+   private Image loadIcon(String dxtype) {
+      DSInfo ds = dxmap.get(dxtype);
       String res = (ds == null) ? null : ds.getIconResource();
 
       if(res != null) {
          try {
-            URL url = Config.getResource(dxtype, res);
+            URL url = getResource(dxtype, res);
             return Toolkit.getDefaultToolkit().getImage(url);
          }
          catch(Exception e) {
-            LOG.error("Failed to get icon: " + res, e);
+            LOG.error("Failed to get icon: {}", res, e);
          }
       }
 
@@ -377,10 +351,10 @@ public class Config implements Serializable {
     * @throws ClassNotFoundException if a class with the specified name could not be
     *                                found.
     */
-   public static Class<?> getClass(String dxtype, String className)
+   public Class<?> getClass(String dxtype, String className)
       throws ClassNotFoundException
    {
-      DSInfo ds = getConfig().dxmap.get(dxtype);
+      DSInfo ds = dxmap.get(dxtype);
       Class<?> result;
 
       if(ds != null && ds.isTabular()) {
@@ -402,8 +376,8 @@ public class Config implements Serializable {
     *
     * @return the resource URL or <tt>null</tt> if it was not found.
     */
-   public static URL getResource(String dxtype, String name) {
-      DSInfo ds = getConfig().dxmap.get(dxtype);
+   public URL getResource(String dxtype, String name) {
+      DSInfo ds = dxmap.get(dxtype);
       URL result;
 
       if(ds != null && ds.isTabular()) {
@@ -419,8 +393,8 @@ public class Config implements Serializable {
    /**
     * Get the data model handler class name.
     */
-   public static String getModelHandlerClass(String dxtype) {
-      DSInfo ds = getConfig().dxmap.get(dxtype);
+   public String getModelHandlerClass(String dxtype) {
+      DSInfo ds = dxmap.get(dxtype);
       return (ds == null) ? null : ds.getModelHandlerClass();
    }
 
@@ -497,8 +471,8 @@ public class Config implements Serializable {
    /**
     * Get the jdbc datasource types.
     */
-   public static List<String> getJDBCDataSources() {
-      return getConfig().drivers.stream()
+   public List<String> getJDBCDataSources() {
+      return drivers.stream()
          .map(DriverInfo::getType)
          .collect(Collectors.toList());
    }
@@ -506,8 +480,8 @@ public class Config implements Serializable {
    /**
     * Get the driver for the jdbc datasource.
     */
-   public static String getJDBCDriver(String name) {
-      return getConfig().drivers.stream()
+   public String getJDBCDriver(String name) {
+      return drivers.stream()
          .filter(d -> d.getType().equals(name))
          .map(DriverInfo::getDriver)
          .findAny()
@@ -517,8 +491,8 @@ public class Config implements Serializable {
    /**
     * Get the drivers for the jdbc datasource.
     */
-   public static List<String> getJDBCDrivers(String name) {
-      return getConfig().drivers.stream()
+   public List<String> getJDBCDrivers(String name) {
+      return drivers.stream()
          .filter(d -> d.getType().equals(name))
          .map(DriverInfo::getDriver)
          .collect(Collectors.toList());
@@ -527,46 +501,37 @@ public class Config implements Serializable {
    /**
     * Get the driver for the jdbc datasource.
     */
-   public static String getJDBCDriver(int idx) {
-      final Config config = getConfig();
-
-      return idx < 0 || idx >= config.drivers.size() ? "" :
-         config.drivers.get(idx).getDriver();
+   public String getJDBCDriver(int idx) {
+      return idx < 0 || idx >= drivers.size() ? "" : drivers.get(idx).getDriver();
    }
 
    /**
     * Get the index of a jdbc driver.
     */
-   public static int indexOfJDBCDriver(String driver) {
+   public int indexOfJDBCDriver(String driver) {
       return Iterables.indexOf(
-         getConfig().drivers, d -> Objects.requireNonNull(d).getDriver().equals(driver));
+         drivers, d -> Objects.requireNonNull(d).getDriver().equals(driver));
    }
 
    /**
     * Get the description for the jdbc datasource.
     */
-   public static String getJDBCDescription(int idx) {
-      final Config config = getConfig();
-
-      return idx < 0 || idx >= config.drivers.size() ?  null :
-         config.drivers.get(idx).getDescription();
+   public String getJDBCDescription(int idx) {
+      return idx < 0 || idx >= drivers.size() ?  null : drivers.get(idx).getDescription();
    }
 
    /**
     * Get the url prefix for the jdbc datasource.
     */
-   public static String getJDBCUrl(int idx) {
-      final Config config = getConfig();
-
-      return idx < 0 || idx >= config.drivers.size() ?  null :
-         config.drivers.get(idx).getUrl();
+   public String getJDBCUrl(int idx) {
+      return idx < 0 || idx >= drivers.size() ?  null : drivers.get(idx).getUrl();
    }
 
    /**
     * Get the url prefix for the jdbc datasource.
     */
-   public static String getJDBCUrl(String name) {
-      return getConfig().drivers.stream()
+   public String getJDBCUrl(String name) {
+      return drivers.stream()
          .filter(d -> d.getType().equals(name))
          .map(DriverInfo::getUrl)
          .findAny()
@@ -576,12 +541,12 @@ public class Config implements Serializable {
    /**
     * Get the type of jdbc datasource by the driver.
     */
-   public static String getJDBCType(String driver) {
+   public String getJDBCType(String driver) {
       if(driver == null) {
          return "";
       }
 
-      for(DriverInfo info : getConfig().drivers) {
+      for(DriverInfo info : drivers) {
          if(info.getDriver().equals(driver)) {
             return info.getType();
          }
@@ -611,15 +576,14 @@ public class Config implements Serializable {
       return "";
    }
 
-   public static Map<String, String> getDefaultPoolProperties(int idx) {
-      Config config = getConfig();
-      return idx < 0 || idx >= config.drivers.size() ?
+   public Map<String, String> getDefaultPoolProperties(int idx) {
+      return idx < 0 || idx >= drivers.size() ?
          Collections.emptyMap() :
-         config.drivers.get(idx).getDefaultPoolProperties();
+         drivers.get(idx).getDefaultPoolProperties();
    }
 
-   public static Map<String, String> getDefaultPoolProperties(String name) {
-      return getConfig().drivers.stream()
+   public Map<String, String> getDefaultPoolProperties(String name) {
+      return drivers.stream()
          .filter(d -> d.getType().equals(name))
          .map(DriverInfo::getDefaultPoolProperties)
          .findAny()
@@ -818,12 +782,14 @@ public class Config implements Serializable {
       private final String url;
       private final Map<String, String> defaultPoolProperties;
 
+      @Serial
       private static final long serialVersionUID = 1L;
    }
 
-   private transient Map<String, DSInfo> dxmap = new HashMap<>();
-   private transient ConcurrentMap<String, Image> imagemap = new ConcurrentHashMap<>();
-   private List<DriverInfo> drivers = new ArrayList<>();
+   private final Plugins plugins;
+   private final transient Map<String, DSInfo> dxmap = new HashMap<>();
+   private final transient ConcurrentMap<String, Image> imagemap = new ConcurrentHashMap<>();
+   private final List<DriverInfo> drivers = new ArrayList<>();
 
    private static final String QUERY_ICON = "db-table.svg";
    private static final String LOGICAL_ICON = "logical-model.svg";

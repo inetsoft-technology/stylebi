@@ -18,8 +18,8 @@
 package inetsoft.util.health;
 
 import inetsoft.sree.SreeEnv;
-import inetsoft.util.ConfigurationContext;
 import inetsoft.util.FileSystemService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
@@ -29,13 +29,10 @@ import java.time.Instant;
 @Service
 @Lazy
 public class OutOfMemoryHealthService {
-   public OutOfMemoryHealthService() {
+   @Autowired
+   public OutOfMemoryHealthService(FileSystemService fileSystemService) {
       String path = SreeEnv.getProperty("health.outOfMemory.file", "./oom");
-      oomFile = FileSystemService.getInstance().getFile(path);
-   }
-
-   public static OutOfMemoryHealthService getInstance() {
-      return ConfigurationContext.getContext().getSpringBean(OutOfMemoryHealthService.class);
+      oomFile = fileSystemService.getFile(path);
    }
 
    public OutOfMemoryStatus getStatus() {

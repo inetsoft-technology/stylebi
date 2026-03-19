@@ -18,6 +18,7 @@
 package inetsoft.sree.internal;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.io.viewsheet.snapshot.ViewsheetAsset2;
 import inetsoft.report.io.viewsheet.snapshot.WorksheetAsset2;
@@ -39,16 +40,15 @@ import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
-import inetsoft.mv.MVManager;
 import inetsoft.util.dep.*;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.stereotype.Service;
 import inetsoft.web.admin.deploy.*;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 import org.w3c.dom.*;
 
 import java.io.*;
@@ -74,32 +74,28 @@ import java.util.stream.Collectors;
 @Service
 @Lazy
 public class DeployManagerService {
-   /**
-    * Create a DeployManagerService.
-    */
-   // For non-Spring environments (tests, non-Spring processes)
-   public DeployManagerService() {
-      this(null, null, null, null, null);
-   }
-
    @Autowired
-   public DeployManagerService(SecurityEngine securityEngine, MVManager mvManager,
+   public DeployManagerService(SecurityEngine securityEngine,
                                DependencyHandler dependencyHandler,
                                DataSourceRegistry dataSourceRegistry,
-                               DashboardManager dashboardManager)
+                               DashboardRegistryManager dashboardRegistryManager,
+                               LibManagerProvider libManagerProvider,
+                               DashboardManager dashboardManager,
+                               XRepository repository,
+                               FileSystemService fileSystemService,
+                               DataSpace dataSpace,
+                               EmbeddedTableStorage embeddedTableStorage)
    {
       this.securityEngine = securityEngine;
-      this.mvManager = mvManager;
       this.dependencyHandler = dependencyHandler;
       this.dataSourceRegistry = dataSourceRegistry;
+      this.dashboardRegistryManager = dashboardRegistryManager;
+      this.libManagerProvider = libManagerProvider;
       this.dashboardManager = dashboardManager;
-   }
-
-   /**
-    * Get the deploy manager service.
-    */
-   public static DeployManagerService getService() {
-      return ConfigurationContext.getContext().getSpringBean(DeployManagerService.class);
+      this.repository = repository;
+      this.fileSystemService = fileSystemService;
+      this.dataSpace = dataSpace;
+      this.embeddedTableStorage = embeddedTableStorage;
    }
 
    /**
@@ -121,13 +117,11 @@ public class DeployManagerService {
          in = new ByteArrayInputStream(data);
          jarIn = new JarInputStream(in);
          JarEntry jentry;
-         FileSystemService fileSystemService = FileSystemService.getInstance();
-         String cacheDirectory = fileSystemService.getCacheDirectory();
+         String cacheDirectory = this.fileSystemService.getCacheDirectory();
          String cacheFolder = cacheDirectory + File.separator +
             "partialDeploymentJarUnzip2";
-         FileSystemService fileSystemService1 = FileSystemService.getInstance();
 
-         Tool.deleteFile(fileSystemService1.getFile(cacheFolder));
+         Tool.deleteFile(this.fileSystemService.getFile(cacheFolder));
          final ArrayList<String> fileOrders = new ArrayList<>();
          Map<String, String> names = new HashMap<>();
 
@@ -137,7 +131,7 @@ public class DeployManagerService {
                "f" + Math.abs(ename.hashCode());
             String outFileName = cacheFolder + File.separator + fname;
             names.put(fname, ename);
-            File outFile = fileSystemService1.getFile(outFileName);
+            File outFile = this.fileSystemService.getFile(outFileName);
 
             if(jentry.isDirectory()) {
                if(!outFile.mkdirs()) {
@@ -159,7 +153,7 @@ public class DeployManagerService {
                   }
 
                   // wait 100 minutes for user to import files
-                  fileSystemService.remove(outFile, 6000000);
+                  this.fileSystemService.remove(outFile, 6000000);
                   fileOrders.add(outFile.getName());
                }
 
@@ -170,7 +164,7 @@ public class DeployManagerService {
          }
 
          jarIn.close();
-         File file = fileSystemService1.getFile(cacheFolder, "JarFileInfo.xml");
+         File file = this.fileSystemService.getFile(cacheFolder, "JarFileInfo.xml");
          Document infoDom = Tool.parseXML(new FileInputStream(file));
          Element root = infoDom.getDocumentElement();
          final PartialDeploymentJarInfo info = new PartialDeploymentJarInfo();
@@ -179,7 +173,6 @@ public class DeployManagerService {
          info.parseXML(root);
          Tool.deleteFile(file);
 
-         DataSpace space = DataSpace.getDataSpace();
          XAssetConfig config = new XAssetConfig();
          config.setOverwriting(replace);
          File[] files = deploymentInfo.getFiles();
@@ -250,7 +243,7 @@ public class DeployManagerService {
                   continue;
                }
 
-               if(space.exists(folder, fname)) {
+               if(dataSpace.exists(folder, fname)) {
                   if(!replace) {
                      continue;
                   }
@@ -266,7 +259,7 @@ public class DeployManagerService {
                }
 
                try(InputStream inp = new FileInputStream(file1)) {
-                  space.withOutputStream(folder, fname, os -> IOUtils.copy(inp, os));
+                  dataSpace.withOutputStream(folder, fname, os -> IOUtils.copy(inp, os));
                }
                catch(Throwable e) {
                   LOG.error(
@@ -344,7 +337,7 @@ public class DeployManagerService {
             }
          }
 
-         Tool.deleteFile(fileSystemService1.getFile(cacheFolder));
+         Tool.deleteFile(this.fileSystemService.getFile(cacheFolder));
       }
       finally {
          IOUtils.closeQuietly(jarIn);
@@ -353,7 +346,7 @@ public class DeployManagerService {
 
          // @by stephenwebster, Save the manager once to prevent unnecessary save and reloads
          // which can feel slow on the GUI.
-         LibManager manager = LibManager.getManager();
+         LibManager manager = libManagerProvider.getManager();
 
          if(manager.isDirty()) {
             manager.save();
@@ -626,15 +619,15 @@ public class DeployManagerService {
       return -1;
    }
 
-   public static void importAssets(boolean overwriting,
-                                   final List<String> order,
-                                   DeploymentInfo info,
-                                   boolean desktop, Principal principal,
-                                   List<String> ignoreList,
-                                   ActionRecord actionRecord,
-                                   List<String> failedList,
-                                   ImportTargetFolderInfo targetFolderInfo,
-                                   List<String> ignoreUserAssets)
+   public void importAssets(boolean overwriting,
+                            final List<String> order,
+                            DeploymentInfo info,
+                            boolean desktop, Principal principal,
+                            List<String> ignoreList,
+                            ActionRecord actionRecord,
+                            List<String> failedList,
+                            ImportTargetFolderInfo targetFolderInfo,
+                            List<String> ignoreUserAssets)
       throws Exception
    {
       PasswordEncryption.setDecryptForceLocal(true);
@@ -656,22 +649,20 @@ public class DeployManagerService {
       }
    }
 
-   private static void importAssets0(boolean overwriting,
-                                   final List<String> order,
-                                   DeploymentInfo info,
-                                   boolean desktop, Principal principal,
-                                   List<String> ignoreList,
-                                   ActionRecord actionRecord,
-                                   List<String> failedList,
-                                   ImportTargetFolderInfo targetFolderInfo,
-                                   List<String> ignoreUserAssets)
+   private void importAssets0(boolean overwriting,
+                              final List<String> order,
+                              DeploymentInfo info,
+                              boolean desktop, Principal principal,
+                              List<String> ignoreList,
+                              ActionRecord actionRecord,
+                              List<String> failedList,
+                              ImportTargetFolderInfo targetFolderInfo,
+                              List<String> ignoreUserAssets)
       throws Exception
    {
       List<AssetEntry> vss = new ArrayList<>();
-      DataSpace space = DataSpace.getDataSpace();
       XAssetConfig config = new XAssetConfig();
       config.setOverwriting(overwriting);
-      FileSystemService fileSystemService = FileSystemService.getInstance();
       File[] files = info.getFiles();
       Map<String, String> names = info.getNames();
       List<PartialDeploymentJarInfo.RequiredAsset> ignoreAssets = new ArrayList<>();
@@ -705,7 +696,7 @@ public class DeployManagerService {
          }
 
          sortFiles(files, order, names);
-         EmbeddedTableStorage embeddedTables = EmbeddedTableStorage.getInstance();
+         EmbeddedTableStorage embeddedTables = embeddedTableStorage;
 
          try {
             List<XAsset> assets = DeployHelper.getAssets(files, names);
@@ -803,7 +794,7 @@ public class DeployManagerService {
 
                if(asset == null) {
                   importAsset(file, null, ignoreSub, failedList, embeddedTables, ignoreAssets,
-                              vss, overwriting, actionRecord, info, desktop, config, space,
+                              vss, overwriting, actionRecord, info, desktop, config, dataSpace,
                               principal);
                   continue;
                }
@@ -912,7 +903,7 @@ public class DeployManagerService {
                   IS_IMPORTING.set(true);
                   importAsset(file, nAsset, ignoreSub, failedList, embeddedTables,
                               ignoreAssets, vss, overwriting, actionRecord, info, desktop, config,
-                              space, principal);
+                              dataSpace, principal);
                }
                finally {
                   IS_IMPORTING.remove();
@@ -922,14 +913,14 @@ public class DeployManagerService {
             for(File file : unImportedFile) {
                importAsset(file, null, ignoreSub, failedList,
                            embeddedTables, ignoreAssets,
-                           vss, overwriting, actionRecord, info, desktop, config, space,
+                           vss, overwriting, actionRecord, info, desktop, config, dataSpace,
                            principal);
             }
          }
          finally {
             // @by stephenwebster, Save the manager once to prevent unnecessary save and reloads
             // which can feel slow on the GUI.
-            LibManager manager = LibManager.getManager(principal);
+            LibManager manager = libManagerProvider.getManager(principal);
 
             if(manager.isDirty()) {
                manager.save();
@@ -937,7 +928,7 @@ public class DeployManagerService {
          }
       }
 
-      Tool.deleteFile(fileSystemService.getFile(info.getUnzipFolderPath()));
+      Tool.deleteFile(this.fileSystemService.getFile(info.getUnzipFolderPath()));
       AssetRepository repository = AssetUtil.getAssetRepository(false);
 
       try {
@@ -958,9 +949,9 @@ public class DeployManagerService {
       return DeployHelper.getAssetFileIdentifier(asset);
    }
 
-   private static void transformAssetFile(AssetObject supportEntry, File transformFile,
-                                          Set<AssetObject> dependencies,
-                                          Map<AssetObject, AssetObject> changeAssetMap)
+   private void transformAssetFile(AssetObject supportEntry, File transformFile,
+                                   Set<AssetObject> dependencies,
+                                   Map<AssetObject, AssetObject> changeAssetMap)
    {
       if(transformFile != null && dependencies != null && supportEntry != null) {
          Map<Integer, List<RenameInfo>> typeInfos =
@@ -982,7 +973,7 @@ public class DeployManagerService {
       }
    }
 
-   private static Map<Integer, List<RenameInfo>> createRenameInfos(
+   private Map<Integer, List<RenameInfo>> createRenameInfos(
       AssetObject supportEntry,
       Set<AssetObject> dependencies,
       Map<AssetObject, AssetObject> changeAssetMap)
@@ -1096,8 +1087,7 @@ public class DeployManagerService {
                int type = RenameInfo.DATA_SOURCE | RenameInfo.DATA_SOURCE_FOLDER;
 
                if(!isQuery) {
-                  XDataSource dx =
-                     getService().dataSourceRegistry.getDataSource(newPath);
+                  XDataSource dx = dataSourceRegistry.getDataSource(newPath);
 
                   if(dx == null) {
                      continue;
@@ -1277,14 +1267,14 @@ public class DeployManagerService {
       return DeployHelper.getAssetObjectByAsset(asset);
    }
 
-   private static boolean importAsset(File file, XAsset importAsAsset,
-                                      List<String> ignoreSub,
-                                      List<String> failedList, EmbeddedTableStorage embeddedTables,
-                                      List<PartialDeploymentJarInfo.RequiredAsset> ignoreAssets,
-                                      List<AssetEntry> vss, boolean overwriting,
-                                      ActionRecord actionRecord,
-                                      DeploymentInfo info, boolean desktop,
-                                      XAssetConfig config, DataSpace space, Principal principal)
+   private boolean importAsset(File file, XAsset importAsAsset,
+                               List<String> ignoreSub,
+                               List<String> failedList, EmbeddedTableStorage embeddedTables,
+                               List<PartialDeploymentJarInfo.RequiredAsset> ignoreAssets,
+                               List<AssetEntry> vss, boolean overwriting,
+                               ActionRecord actionRecord,
+                               DeploymentInfo info, boolean desktop,
+                               XAssetConfig config, DataSpace space, Principal principal)
       throws IOException
    {
       return importAsset(file, importAsAsset, ignoreSub, failedList, embeddedTables, ignoreAssets,
@@ -1292,16 +1282,16 @@ public class DeployManagerService {
          false, null);
    }
 
-   private static boolean importAsset(File file, XAsset importAsAsset,
-                                      List<String> ignoreSub,
-                                      List<String> failedList, EmbeddedTableStorage embeddedTables,
-                                      List<PartialDeploymentJarInfo.RequiredAsset> ignoreAssets,
-                                      List<AssetEntry> vss, boolean overwriting,
-                                      ActionRecord actionRecord,
-                                      DeploymentInfo info, boolean desktop,
-                                      XAssetConfig config, DataSpace space, Principal principal,
-                                      boolean autoRenameExistSrt,
-                                      Consumer<String> newTemplatePathProcess)
+   private boolean importAsset(File file, XAsset importAsAsset,
+                               List<String> ignoreSub,
+                               List<String> failedList, EmbeddedTableStorage embeddedTables,
+                               List<PartialDeploymentJarInfo.RequiredAsset> ignoreAssets,
+                               List<AssetEntry> vss, boolean overwriting,
+                               ActionRecord actionRecord,
+                               DeploymentInfo info, boolean desktop,
+                               XAssetConfig config, DataSpace space, Principal principal,
+                               boolean autoRenameExistSrt,
+                               Consumer<String> newTemplatePathProcess)
       throws IOException
    {
       if(file.isDirectory()) {
@@ -1544,7 +1534,7 @@ public class DeployManagerService {
                   // user is the owner or it has admin permission on owner
                   IdentityID owner = asset.getUser();
 
-                  if(!(principal.getName().equals(owner.convertToKey()) || getService().securityEngine.checkPermission(
+                  if(!(principal.getName().equals(owner.convertToKey()) || securityEngine.checkPermission(
                      principal, ResourceType.SECURITY_USER, owner, ResourceAction.ADMIN)) ||
                      !Tool.equals(owner.getOrgID(), OrganizationManager.getInstance().getCurrentOrgID()))
                   {
@@ -1558,7 +1548,7 @@ public class DeployManagerService {
                else {
                   ResourceAction action = AssetUtil.getAssetDeployPermission(resource);
 
-                  if(!getService().securityEngine.checkPermission(
+                  if(!securityEngine.checkPermission(
                      principal, resource.getType(), resource.getPath(), action))
                   {
                      String assetName = null;
@@ -1672,16 +1662,16 @@ public class DeployManagerService {
                asset.parseContent(input, config, true, OrganizationManager.getInstance().isSiteAdmin(principal));
 
                if(asset instanceof ScheduleTaskAsset) {
-                  getService().dependencyHandler.updateTaskDependencies((ScheduleTaskAsset) asset);
+                  dependencyHandler.updateTaskDependencies((ScheduleTaskAsset) asset);
                }
 
                if(asset instanceof XDataSourceAsset) {
                   String dpath = ((XDataSourceAsset) asset).getDatasource();
-                  XDataSource source = getService().dataSourceRegistry.getDataSource(dpath);
+                  XDataSource source = dataSourceRegistry.getDataSource(dpath);
 
                   if(source instanceof XMLADataSource) {
-                     XDomain domain = XFactory.getRepository().getDomain(dpath);
-                     getService().dependencyHandler.updateCubeDomainDependencies(domain, true);
+                     XDomain domain = repository.getDomain(dpath);
+                     dependencyHandler.updateCubeDomainDependencies(domain, true);
                   }
                }
             }
@@ -1711,7 +1701,7 @@ public class DeployManagerService {
                AssetEntry entry = new AssetEntry(AssetRepository.USER_SCOPE,
                   AssetEntry.Type.DASHBOARD, name, user);
                VSDashboard dashboard =
-                  (VSDashboard) DashboardRegistry.getRegistry(user).getDashboard(name);
+                  (VSDashboard) dashboardRegistryManager.getRegistry(user).getDashboard(name);
 
                if(dashboard != null && dashboard.getViewsheet() != null) {
                   String id = dashboard.getViewsheet().getIdentifier();
@@ -1720,7 +1710,7 @@ public class DeployManagerService {
                   if(user != null) {
                      Identity identity = new User(user, new String[0], new String[0],
                                                   new IdentityID[0], null, null);
-                     DashboardManager.getManager().addDashboard(identity, name);
+                     dashboardManager.addDashboard(identity, name);
                   }
                }
             }
@@ -1781,14 +1771,14 @@ public class DeployManagerService {
       return SUtil.findIdleFileNameInSpace(targetPath, fname, null);
    }
 
-   public static XAsset getChangeRootFolderAsset(XAsset asset,
-                                                 AssetEntry targetFolder,
-                                                 Set<String> importedNewObjs,
-                                                 AssetEntry commonPrefixFolder,
-                                                 boolean createUserFolder,
-                                                 Set<AssetObject> dependencies,
-                                                 Map<AssetObject, AssetObject> changeAssetMap,
-                                                 boolean justUpdatePath)
+   public XAsset getChangeRootFolderAsset(XAsset asset,
+                                          AssetEntry targetFolder,
+                                          Set<String> importedNewObjs,
+                                          AssetEntry commonPrefixFolder,
+                                          boolean createUserFolder,
+                                          Set<AssetObject> dependencies,
+                                          Map<AssetObject, AssetObject> changeAssetMap,
+                                          boolean justUpdatePath)
    {
       try {
          String nIdentifier = changeFolder(asset, targetFolder, commonPrefixFolder,
@@ -1919,13 +1909,13 @@ public class DeployManagerService {
       return null;
    }
 
-   private static XAsset autoRenameDataSourceAsset(XAsset xAsset) {
+   private XAsset autoRenameDataSourceAsset(XAsset xAsset) {
       return autoRenameDataSourceAsset(xAsset, null, null, null);
    }
 
-   private static XAsset autoRenameDataSourceAsset(XAsset xAsset, Set<AssetObject> dependencies,
-                                                   Map<AssetObject, AssetObject> changeAssetMap,
-                                                   Supplier<AssetObject> getParentFunc)
+   private XAsset autoRenameDataSourceAsset(XAsset xAsset, Set<AssetObject> dependencies,
+                                            Map<AssetObject, AssetObject> changeAssetMap,
+                                            Supplier<AssetObject> getParentFunc)
    {
       boolean justUpdatePath = dependencies == null && changeAssetMap == null;
       XDataSourceAsset parent = null;
@@ -1949,7 +1939,7 @@ public class DeployManagerService {
       String assetName = idx >= 0 ? path.substring(idx + 1) : path;
 
       if(xAsset instanceof XDataSourceAsset dasset) {
-         String[] existNames = getService().dataSourceRegistry.getDataSourceNames();
+         String[] existNames = dataSourceRegistry.getDataSourceNames();
          String existDsFullName = dasset.getDataSourceName(dasset.getDatasource());
 
          // not same folder, auto rename avoid relocate the exist one.
@@ -2166,10 +2156,15 @@ public class DeployManagerService {
    }
 
    private final SecurityEngine securityEngine;
-   private final MVManager mvManager;
    private final DependencyHandler dependencyHandler;
    private final DataSourceRegistry dataSourceRegistry;
+   private final DashboardRegistryManager dashboardRegistryManager;
+   private final LibManagerProvider libManagerProvider;
    private final DashboardManager dashboardManager;
+   private final XRepository repository;
+   private final FileSystemService fileSystemService;
+   private final DataSpace dataSpace;
+   private final EmbeddedTableStorage embeddedTableStorage;
    public static final ThreadLocal<Boolean> IS_IMPORTING = ThreadLocal.withInitial(() -> Boolean.FALSE);
    private static final Logger LOG = LoggerFactory.getLogger(DeployManagerService.class);
 }

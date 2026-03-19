@@ -161,7 +161,7 @@ public class ReportWorksheetProcessor implements WorksheetProcessor {
       if("true".equals(vars.get("__refresh_report__"))) {
          DataKey key = AssetDataCache.getCacheKey(
             assembly, box, null, AssetQuerySandbox.RUNTIME_MODE, true);
-         AssetDataCache.removeCachedData(key);
+         AssetDataCache.getCache().removeCachedData(key);
       }
 
       // @by billh, fix customer bug bug1299280932445
@@ -201,7 +201,7 @@ public class ReportWorksheetProcessor implements WorksheetProcessor {
 
       // if query failed, need to use the original table assembly and bindingAttr
       // since the merged table/bindingAttr is no longer valid (49077).
-      table = AssetDataCache.getData(null, assembly0, box, qmgr);
+      table = AssetDataCache.getCache().getData(null, assembly0, box, qmgr);
 
       if(table == null || !table.moreRows(0)) {
          return table;

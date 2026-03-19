@@ -132,7 +132,7 @@ public class MVIntColumn extends DictDimIndex implements MVMeasureColumn {
    @Override
    public final double getValue(int idx) {
       int result = dimbuf.getValue(idx);
-      accessed = XSwapper.cur;
+      accessed = XSwapper.getSwapper().cur;
 
       if(hasMin) {
          if(result == 0) {

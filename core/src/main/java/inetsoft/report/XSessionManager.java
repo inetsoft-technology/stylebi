@@ -98,17 +98,12 @@ public class XSessionManager {
    /**
     * Create a session manager with specific key.
     */
-   public XSessionManager() throws RemoteException {
-      service = XFactory.getDataService();
-   }
-
-   /**
-    * Create a session manager from a data service and session. The session
-    * should be the object returned by the service.bind() call.
-    */
-   public XSessionManager(XDataService service, Object session) {
-      this.service = service;
-      this.session = session;
+   public XSessionManager(XDataService dataService, XSessionService sessionService,
+                          DataSourceRegistry dataSourceRegistry) throws RemoteException
+   {
+      service = dataService;
+      xSessionService = sessionService;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    /**
@@ -139,9 +134,8 @@ public class XSessionManager {
          setCacheData(prop.equalsIgnoreCase("true"));
       }
 
-      DataSourceRegistry registry = DataSourceRegistry.getRegistry();
-      registry.addRefreshedListener(refreshedListener);
-      registry.addModifiedListener(modifiedListener);
+      dataSourceRegistry.addRefreshedListener(refreshedListener);
+      dataSourceRegistry.addModifiedListener(modifiedListener);
 
       bind(System.getProperty("user.name"));
    }
@@ -151,9 +145,8 @@ public class XSessionManager {
     */
    @PreDestroy
    public void destroyInstance() {
-      DataSourceRegistry registry = DataSourceRegistry.getRegistry();
-      registry.removeRefreshedListener(refreshedListener);
-      registry.removeModifiedListener(modifiedListener);
+      dataSourceRegistry.removeRefreshedListener(refreshedListener);
+      dataSourceRegistry.removeModifiedListener(modifiedListener);
       tearDown();
    }
 
@@ -804,7 +797,7 @@ public class XSessionManager {
       }
 
       String asset = infos.size() > 0 ? infos.get(0) : null;
-      String queryId = XSessionService.createSessionID(XSessionService.QUERY, queryName);
+      String queryId = xSessionService.createSessionID(XSessionService.QUERY, queryName);
       infos.add(1, queryId);
       QueryInfo qinfo = new QueryInfo(queryId,
          "Thread" + Thread.currentThread().getId(), queryName, user, asset, 0, new Date());
@@ -960,6 +953,8 @@ public class XSessionManager {
    private final Map<ReportSheet, String> executemap = new ConcurrentHashMap<>();
    private final DataCache<String, CEntry> dataCache = new DataCache<>();
    private boolean useCache = false;
+   private final XSessionService xSessionService;
+   private final DataSourceRegistry dataSourceRegistry;
    private static final Set<QueryExecutionListener> queryExecutionListeners = new HashSet<>();
 
    private final PropertyChangeListener refreshedListener = evt -> {

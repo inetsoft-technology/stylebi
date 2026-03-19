@@ -63,13 +63,17 @@ public class DataSourceBrowserService {
                                    RepositoryObjectService repositoryObjectService,
                                    XRepository repository,
                                    DataSourceService dataSourceService,
-                                   DataSourceRegistry dataSourceRegistry)
+                                   DataSourceRegistry dataSourceRegistry,
+                                   Config uqlConfig,
+                                   RenameTransformHandler renameTransformHandler)
    {
       this.securityEngine = securityEngine;
       this.repository = repository;
       this.repositoryObjectService = repositoryObjectService;
       this.dataSourceService = dataSourceService;
       this.dataSourceRegistry = dataSourceRegistry;
+      this.uqlConfig = uqlConfig;
+      this.renameTransformHandler = renameTransformHandler;
    }
 
    public List<DataSourceInfo> getDataSources(String path, boolean root, String[] movingFolders,
@@ -260,12 +264,12 @@ public class DataSourceBrowserService {
          }
       }
 
-      for(String type : Config.getTabularDataSourceTypes()) {
+      for(String type : uqlConfig.getTabularDataSourceTypes()) {
          if(!existing.contains(type)) {
             TabularDataSourceTypeModel model = new TabularDataSourceTypeModel();
             model.setName(type);
             model.setDataSource(null);
-            model.setLabel(Config.getDisplayLabel(type, locale));
+            model.setLabel(uqlConfig.getDisplayLabel(type, locale));
             model.setExists(false);
             models.add(model);
          }
@@ -318,7 +322,7 @@ public class DataSourceBrowserService {
    {
       boolean isJDBC = dataSource instanceof JDBCDataSource;
       String label = isJDBC ? Catalog.getCatalog().getString("Database") :
-         Config.getDisplayLabel(dataSource.getType(), locale);
+         uqlConfig.getDisplayLabel(dataSource.getType(), locale);
       String typeName;
 
       if(isJDBC) {
@@ -418,7 +422,7 @@ public class DataSourceBrowserService {
          DependencyTransformer.prepareChildrenSources(path, childrenSources, repository);
          RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
             path, newPath, childrenSources);
-         RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+         renameTransformHandler.addTransformTask(dinfo);
 
          folder.setName(newPath);
          Permission permission =
@@ -661,7 +665,7 @@ public class DataSourceBrowserService {
                registry.renameDataSourceFolder(oname, nname);
 
                for(RenameDependencyInfo renameDependencyInfo : renameDependencyInfos) {
-                  RenameTransformHandler.getTransformHandler().addTransformTask(renameDependencyInfo);
+                  this.renameTransformHandler.addTransformTask(renameDependencyInfo);
                }
 
                objectName = Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER,
@@ -696,12 +700,12 @@ public class DataSourceBrowserService {
                   if(ds instanceof XMLADataSource) {
                      RenameDependencyInfo dinfo = DependencyTransformer.createCubeDependencyInfo(
                         oname, ds.getFullName());
-                     RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+                     renameTransformHandler.addTransformTask(dinfo);
                   }
                   else {
                      RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
                         oname, ds.getFullName());
-                     RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+                     renameTransformHandler.addTransformTask(dinfo);
                   }
                }
 
@@ -787,6 +791,8 @@ public class DataSourceBrowserService {
    private final RepositoryObjectService repositoryObjectService;
    private final DataSourceService dataSourceService;
    private final DataSourceRegistry dataSourceRegistry;
+   private final Config uqlConfig;
+   private final RenameTransformHandler renameTransformHandler;
 
    private static final Logger LOG = LoggerFactory.getLogger(DataSourceBrowserService.class);
 }

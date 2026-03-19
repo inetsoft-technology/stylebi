@@ -24,6 +24,7 @@ import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AbstractModelTrapContext;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
@@ -52,13 +53,15 @@ public class VSWizardConvertColumnService {
                                        VSWizardBindingHandler bindingHandler,
                                        VSChartHandler chartHandler,
                                        VSChartDataHandler vsChartDataHandler,
-                                       VSWizardTemporaryInfoService temporaryInfoService)
+                                       VSWizardTemporaryInfoService temporaryInfoService,
+                                       DataSourceRegistry dataSourceRegistry)
    {
       this.bindingHandler = bindingHandler;
       this.chartHandler = chartHandler;
       this.viewsheetService = viewsheetService;
       this.vsChartDataHandler = vsChartDataHandler;
       this.temporaryInfoService = temporaryInfoService;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -96,7 +99,7 @@ public class VSWizardConvertColumnService {
       }
 
       tempChartInfo.clearRuntime();
-      VSModelTrapContext context = new VSModelTrapContext(rvs, true);
+      VSModelTrapContext context = new VSModelTrapContext(rvs, dataSourceRegistry, true);
       AbstractModelTrapContext.TrapInfo trapInfo = context.checkTrap(old, tempChart.getVSAssemblyInfo());
       tempChartInfo.setAggregateInfo(ainfo);
       tempChart.setVSAssemblyInfo(old);
@@ -174,4 +177,5 @@ public class VSWizardConvertColumnService {
    private final ViewsheetService viewsheetService;
    private final VSWizardBindingHandler bindingHandler;
    private final VSWizardTemporaryInfoService temporaryInfoService;
+   private final DataSourceRegistry dataSourceRegistry;
 }

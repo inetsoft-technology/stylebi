@@ -24,9 +24,11 @@ import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.RenameInfo;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
+import inetsoft.uql.util.ColumnCache;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.erm.vpm.VpmCondition;
@@ -71,13 +73,19 @@ public class VPMController {
    public VPMController(DataRefModelFactoryService dataRefModelFactoryService,
                         DatabaseTreeService databaseTreeService,
                         DataSourceService dataSourceService, XRepository repository,
-                        SecurityEngine securityEngine)
+                        SecurityEngine securityEngine,
+                        DependencyHandler dependencyHandler,
+                        RenameTransformHandler renameTransformHandler,
+                        ColumnCache columnCache)
    {
       this.dataRefModelFactoryService = dataRefModelFactoryService;
       this.databaseTreeService = databaseTreeService;
       this.dataSourceService = dataSourceService;
       this.repository = repository;
       this.securityEngine = securityEngine;
+      this.dependencyHandler = dependencyHandler;
+      this.renameTransformHandler = renameTransformHandler;
+      this.columnCache = columnCache;
    }
 
    /**
@@ -272,7 +280,6 @@ public class VPMController {
       }
 
       if(!view) {
-         XRepository repository = XFactory.getRepository();
          JDBCDataSource jdx = (JDBCDataSource) dataSourceService.getDataSource(
             dataModel.getDataSource());
          DefaultMetaDataProvider metaData =
@@ -378,7 +385,6 @@ public class VPMController {
          IdentityID.getIdentityIDFromKey(principal.getName()).getName() : null;
       entry.setCreatedUsername(createdUsername);
       dataSourceService.updateDataSourceAssetEntry(entry);
-      DependencyHandler dependencyHandler = DependencyHandler.getInstance();
       dependencyHandler.updateVPMDependencies(vpm, null, database, entry);
    }
 
@@ -438,8 +444,8 @@ public class VPMController {
       path = database + "/" + newName;
       AssetEntry nentry = new AssetEntry(
          AssetRepository.QUERY_SCOPE, AssetEntry.Type.VPM, path, null);
-      DependencyHandler.getInstance().updateDependencies(entry, nentry);
-      RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
+      dependencyHandler.updateDependencies(entry, nentry);
+      renameTransformHandler.addTransformTask(rinfo);
       nentry = dataSourceService.getModelAssetEntry(nentry);
 
       nentry.setCreatedUsername(user);
@@ -495,7 +501,6 @@ public class VPMController {
       VirtualPrivateModel nvpm = createVPM(vpm);
       dataModel.addVirtualPrivateModel(nvpm, true);
       repository.updateDataModel(dataModel);
-      DependencyHandler dependencyHandler = DependencyHandler.getInstance();
       dependencyHandler.updateVPMDependencies(nvpm, ovpm, database, entry);
 
       entry = dataSourceService.getModelAssetEntry(entry);
@@ -544,7 +549,7 @@ public class VPMController {
          String path = database + "/" + name;
          AssetEntry entry = new AssetEntry(
             AssetRepository.QUERY_SCOPE, AssetEntry.Type.VPM, path, null);
-         DependencyHandler.getInstance().deleteDependencies(entry);
+         dependencyHandler.deleteDependencies(entry);
       }
 
       repository.updateDataModel(dataModel);
@@ -903,7 +908,7 @@ public class VPMController {
 
       XQuery query = new JDBCQuery();
       query.setName(dataSource);
-      XDataSource xds = XFactory.getRepository().getDataSource(dataSource);
+      XDataSource xds = repository.getDataSource(dataSource);
       query.setDataSource(xds);
       BrowsedData browsedData = new BrowsedData(query, dataRef.getEntity(), dataRef.getAttribute(),
          dataRef.getDataType(), null, null, false, true);
@@ -1327,7 +1332,7 @@ public class VPMController {
       query.setSQLDefinition(sql);
       query.setDataSource(jdx);
 
-      ColumnCache cache = ColumnCache.getColumnCache();
+      ColumnCache cache = columnCache;
       String[][] bdata = cache.getColumnDataString(
          query, tableName, column, type, null, null, true);
 
@@ -1488,4 +1493,7 @@ public class VPMController {
    private final DataSourceService dataSourceService;
    private final XRepository repository;
    private final SecurityEngine securityEngine;
+   private final DependencyHandler dependencyHandler;
+   private final RenameTransformHandler renameTransformHandler;
+   private final ColumnCache columnCache;
 }

@@ -20,13 +20,13 @@ package inetsoft.uql.datagov;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.credential.*;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
-import org.mockito.Mockito;
+import org.junit.jupiter.api.*;
+import org.springframework.context.ApplicationContext;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.net.URL;
 import java.util.ArrayList;
@@ -37,6 +37,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit test cases for <tt>DatagovRuntime</tt>.
@@ -45,11 +46,17 @@ import static org.mockito.Mockito.mock;
 class DatagovRuntimeTest {
    @BeforeAll
    static void mockService() {
-      MockedStatic<CredentialService> mockedCredentialService = Mockito.mockStatic(CredentialService.class);
-      mockedCredentialService.when(() -> CredentialService.newCredential(CredentialType.PASSWORD))
-         .thenReturn(mock(LocalPasswordCredential.class));
-      mockedCredentialService.when(() -> CredentialService.newCredential(CredentialType.PASSWORD, false))
-         .thenReturn(mock(LocalPasswordCredential.class));
+      CredentialService credentialService = mock(CredentialService.class);
+      when(credentialService.createCredential(CredentialType.PASSWORD)).thenReturn(mock(LocalPasswordCredential.class));
+      when(credentialService.createCredential(CredentialType.PASSWORD, false)).thenReturn(mock(LocalPasswordCredential.class));
+      ApplicationContext context = mock(ApplicationContext.class);
+      when(context.getBean(CredentialService.class)).thenReturn(credentialService);
+      ConfigurationContext.getContext().setApplicationContext(context);
+   }
+
+   @AfterAll
+   static void resetContext() {
+      ConfigurationContext.getContext().setApplicationContext(null);
    }
 
    /**

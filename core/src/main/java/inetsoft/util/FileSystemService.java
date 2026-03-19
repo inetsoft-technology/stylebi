@@ -22,9 +22,9 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.uql.DriverCache;
 import inetsoft.uql.asset.SnapshotEmbeddedTableAssembly;
 import inetsoft.util.swap.XSwapper;
-import inetsoft.web.service.LocalizationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -32,7 +32,6 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.FileTime;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -45,12 +44,8 @@ import java.util.stream.Stream;
  */
 @Service
 public class FileSystemService {
-   // For non-Spring environments (tests, non-Spring processes)
-   public FileSystemService() {
-      this(null);
-   }
-
-   public FileSystemService(Cluster cluster) {
+   public FileSystemService(Cluster cluster, ApplicationEventPublisher eventPublisher) {
+      this.eventPublisher = eventPublisher;
       this.cluster = cluster;
    }
 
@@ -566,8 +561,6 @@ public class FileSystemService {
 
       if(Files.isDirectory(filePath)) {
          final File[] files = filePath.toFile().listFiles();
-         localizationService = localizationService == null ?
-            new LocalizationService() : localizationService;
 
          // delete in background in case there is a large number of files
          (new Thread() {
@@ -577,27 +570,14 @@ public class FileSystemService {
 
             @Override
             public void run() {
-               try {
-                  localizationService.clearI18nCache();
-               }
-               catch(IOException e) {
-                  if(LOG.isDebugEnabled()) {
-                     LOG.warn("Failed to delete I18n cache", e);
-                  }
-                  else {
-                     LOG.warn("Failed to delete I18n cache");
-                  }
-               }
+               eventPublisher.publishEvent(new ClearCacheFilesEvent(FileSystemService.this));
 
-
-               Cluster cluster = FileSystemService.this.cluster != null
-                  ? FileSystemService.this.cluster : Cluster.getInstance();
-               Lock lock = cluster.getLock(XSwapper.SWAP_FILE_MAP_LOCK);
+               Lock lock = FileSystemService.this.cluster.getLock(XSwapper.SWAP_FILE_MAP_LOCK);
                lock.lock();
 
                try {
-                  Map<String, Integer> map = cluster.getMap(XSwapper.SWAP_FILE_MAP);
-                  Map<String, Integer> snapshotMap = cluster.getMap(SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP);
+                  Map<String, Integer> map = FileSystemService.this.cluster.getMap(XSwapper.SWAP_FILE_MAP);
+                  Map<String, Integer> snapshotMap = FileSystemService.this.cluster.getMap(SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP);
 
                   for(int i = 0; files != null && i < files.length; i++) {
                      if(!files[i].isDirectory() &&
@@ -767,9 +747,8 @@ public class FileSystemService {
    private List<FileEntry> list = new ArrayList<>();
    private String SREE_CACHE = null;
    private String CACHE = null;
-   private LocalizationService localizationService;
    private final Cluster cluster;
+   private final ApplicationEventPublisher eventPublisher;
 
-   private static final Logger LOG =
-      LoggerFactory.getLogger(FileSystemService.class);
+   private static final Logger LOG = LoggerFactory.getLogger(FileSystemService.class);
 }

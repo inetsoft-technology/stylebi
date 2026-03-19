@@ -17,7 +17,7 @@
  */
 package inetsoft.util.health;
 
-import inetsoft.util.ConfigurationContext;
+import inetsoft.util.swap.XSwapper;
 import jakarta.annotation.PreDestroy;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -28,12 +28,9 @@ import java.util.concurrent.atomic.AtomicReference;
 @Service
 @Lazy
 public class CacheSwapHealthService implements AutoCloseable {
-   public CacheSwapHealthService() {
+   public CacheSwapHealthService(XSwapper swapper) {
+      this.swapper = swapper;
       executor.scheduleAtFixedRate(this::checkHealth, 180L, 30L, TimeUnit.SECONDS);
-   }
-
-   public static CacheSwapHealthService getInstance() {
-      return ConfigurationContext.getContext().getSpringBean(CacheSwapHealthService.class);
    }
 
    public CacheSwapStatus getStatus() {
@@ -47,9 +44,10 @@ public class CacheSwapHealthService implements AutoCloseable {
    }
 
    private void checkHealth() {
-      status.set(new CacheSwapStatus(status.get()));
+      status.set(new CacheSwapStatus(status.get(), swapper));
    }
 
+   private final XSwapper swapper;
    private final AtomicReference<CacheSwapStatus> status =
       new AtomicReference<>(new CacheSwapStatus());
    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(r -> {

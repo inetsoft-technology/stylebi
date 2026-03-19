@@ -18,6 +18,7 @@
 package inetsoft.web.composer;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.SecurityEngine;
@@ -73,6 +74,11 @@ public class AssetTreeRefreshController {
       this.dataSourceRegistry = dataSourceRegistry;
    }
 
+   @Autowired
+   public void setLibManagerProvider(LibManagerProvider libManagerProvider) {
+      this.libManagerProvider = libManagerProvider;
+   }
+
    @PostConstruct
    public void addListeners() {
       assetRepository.addAssetChangeListener(listener);
@@ -123,7 +129,7 @@ public class AssetTreeRefreshController {
       }
    }
 
-   @EventListener
+   @EventListener(SessionDisconnectEvent.class)
    public void handleDisconnect(SessionDisconnectEvent event) {
       removeSubscription(event);
    }
@@ -190,13 +196,13 @@ public class AssetTreeRefreshController {
 
    private void addLibManagerListener(String orgId) {
       if(!libManagerListenerOrgs.contains(orgId)) {
-         LibManager.getManager(orgId).addActionListener(libraryListener);
+         libManagerProvider.getManager(orgId).addActionListener(libraryListener);
          libManagerListenerOrgs.add(orgId);
       }
    }
 
    private void removeLibManagerListener(String orgId) {
-      LibManager.getManager(orgId).removeActionListener(libraryListener);
+      libManagerProvider.getManager(orgId).removeActionListener(libraryListener);
       libManagerListenerOrgs.remove(orgId);
    }
 
@@ -204,6 +210,7 @@ public class AssetTreeRefreshController {
    private SimpMessagingTemplate messagingTemplate;
    private SecurityEngine securityEngine;
    private DataSourceRegistry dataSourceRegistry;
+   private LibManagerProvider libManagerProvider;
    private final Map<String, Principal> subscriptions = new ConcurrentHashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(AssetTreeRefreshController.class);
 

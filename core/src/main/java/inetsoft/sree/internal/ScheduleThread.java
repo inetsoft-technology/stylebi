@@ -20,7 +20,7 @@ package inetsoft.sree.internal;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.ScheduleClient;
-import inetsoft.util.ResurrectException;
+import inetsoft.util.ShutdownException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,7 +49,7 @@ public class ScheduleThread implements Runnable {
                sendEmail = true;
             }
          }
-         catch(ResurrectException e) {
+         catch(ShutdownException e) {
             LOG.debug("Server is shutting down, stopping schedule monitor thread");
             break;
          }

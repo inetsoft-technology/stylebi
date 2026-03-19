@@ -64,7 +64,7 @@ public class SessionExpirationController {
       }
    }
 
-   @EventListener
+   @EventListener(SessionDisconnectEvent.class)
    public void onSessionDisconnect(SessionDisconnectEvent event) {
       synchronized(subscribedSessionIds) {
          subscribedSessionIds.remove(event.getSessionId());

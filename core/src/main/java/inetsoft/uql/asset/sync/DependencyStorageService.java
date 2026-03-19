@@ -18,9 +18,7 @@
 package inetsoft.uql.asset.sync;
 
 import inetsoft.sree.security.*;
-import inetsoft.storage.KeyValuePair;
-import inetsoft.storage.KeyValueStorage;
-import inetsoft.storage.KeyValueStorageManager;
+import inetsoft.storage.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.util.*;
@@ -32,7 +30,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -41,7 +38,8 @@ import java.util.stream.Collectors;
 @Service
 @Lazy
 public final class DependencyStorageService {
-   DependencyStorageService() {
+   DependencyStorageService(KeyValueStorageManager keyValueStorageManager) {
+      this.keyValueStorageManager = keyValueStorageManager;
    }
 
    /**
@@ -244,15 +242,16 @@ public final class DependencyStorageService {
       return getDependencyStorage(null);
    }
 
-   @SuppressWarnings("unchecked")
    private KeyValueStorage<RenameTransformObject> getDependencyStorage(String orgID) {
       if(orgID == null) {
          orgID = OrganizationManager.getInstance().getCurrentOrgID();
       }
 
       String storeID = orgID.toLowerCase() + "__" + "dependencyStorage";
-      return KeyValueStorageManager.getStorage(storeID, new LoadDependencyStorageTask(storeID));
+      return keyValueStorageManager.getStorage(storeID, new LoadDependencyStorageTask(storeID));
    }
+
+   private final KeyValueStorageManager keyValueStorageManager;
 
    static final String QUEUE_KEY = "1^0^__NULL__^rename_queue";
    private static final Logger LOG = LoggerFactory.getLogger(DependencyStorageService.class);
