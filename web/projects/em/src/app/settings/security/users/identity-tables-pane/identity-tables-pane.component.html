@@ -43,7 +43,7 @@
                           [editable]="editable"
                           [showCopyPaste]="true"
                           [copyPasteContext]="copyPasteContextRoles"
-                          [pasteContexts]="[copyPasteContextRoles, copyPasteContextMembers]"
+                          [pasteContexts]="rolesPasteContexts"
                           [pasteTypeFilter]="rolesPasteTypeFilter"
                           [pasteExcludeIdentities]="selfIdentity"
                           (dropOnTable)="addRoles([$event])"

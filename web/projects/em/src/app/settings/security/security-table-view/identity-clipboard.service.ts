@@ -123,6 +123,10 @@ export class IdentityClipboardService implements OnDestroy {
    }
 
    copy(identities: IdentityModel[], context: IdentityCopyPasteContext | null = null): void {
+      if(!identities.length) {
+         return;
+      }
+
       this.copiedIdentities = Tool.clone(identities);
       this.contextAtCopy = context;
    }

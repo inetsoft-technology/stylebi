@@ -141,7 +141,7 @@ describe("IdentityClipboardService", () => {
          expect(service.copiedCount(COPY_PASTE_CONTEXT_IDENTITY_MEMBERS)).toBe(2);
       });
 
-      it("should be 0 after copying an empty array", () => {
+      it("should be 0 after attempting to copy an empty array", () => {
          service.copy([], COPY_PASTE_CONTEXT_IDENTITY_MEMBERS);
          expect(service.copiedCount(COPY_PASTE_CONTEXT_IDENTITY_MEMBERS)).toBe(0);
       });
@@ -256,13 +256,14 @@ describe("IdentityClipboardService", () => {
          expect(result2[0].identityID.name).toBe("alice");
       });
 
-      it("should return an empty array when an empty array was copied", () => {
+      it("should not overwrite existing clipboard content when an empty array is copied", () => {
+         service.copy([createIdentity("alice")], COPY_PASTE_CONTEXT_IDENTITY_MEMBERS);
          service.copy([], COPY_PASTE_CONTEXT_IDENTITY_MEMBERS);
 
          expect(service.canPaste(COPY_PASTE_CONTEXT_IDENTITY_MEMBERS)).toBe(true);
          const result = service.paste(COPY_PASTE_CONTEXT_IDENTITY_MEMBERS);
          expect(result).not.toBeNull();
-         expect(result).toEqual([]);
+         expect(result![0].identityID.name).toBe("alice");
       });
 
       it("should not allow pasting members context into roles context", () => {

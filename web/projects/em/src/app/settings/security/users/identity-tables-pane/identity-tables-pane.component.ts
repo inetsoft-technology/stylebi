@@ -27,7 +27,8 @@ import {convertToKey, IdentityId} from "../identity-id";
 import {
    COPY_PASTE_CONTEXT_IDENTITY_MEMBERS,
    COPY_PASTE_CONTEXT_IDENTITY_PERMISSIONS,
-   COPY_PASTE_CONTEXT_IDENTITY_ROLES
+   COPY_PASTE_CONTEXT_IDENTITY_ROLES,
+   IdentityCopyPasteContext
 } from "../../security-table-view/identity-clipboard.service";
 
 @Component({
@@ -355,6 +356,7 @@ export class IdentityTablesPaneComponent implements OnChanges {
    // members list can be pasted into the roles table (filtered to ROLE type by rolesPasteTypeFilter).
    // pasteTypeFilter is a first pass (type restriction); addMembers/addRoles do a second pass for
    // runtime guards (self-reference, deduplication) that the stateless clipboard service can't check.
+   readonly rolesPasteContexts: IdentityCopyPasteContext[] = [COPY_PASTE_CONTEXT_IDENTITY_ROLES, COPY_PASTE_CONTEXT_IDENTITY_MEMBERS];
    readonly rolesPasteTypeFilter: IdentityType[] = [IdentityType.ROLE];
    membersPasteTypeFilter: IdentityType[] | null = null;
 

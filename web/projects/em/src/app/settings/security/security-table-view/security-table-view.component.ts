@@ -29,6 +29,7 @@ import { SecurityTreeDialogComponent } from "../security-tree-dialog/security-tr
 import { SecurityTreeDialogData } from "../security-tree-dialog/security-tree-dialog-data";
 import { MatPaginator } from "@angular/material/paginator";
 import { MatSnackBar } from "@angular/material/snack-bar";
+import { take } from "rxjs/operators";
 import { IdentityClipboardService, IdentityCopyPasteContext } from "./identity-clipboard.service";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 
@@ -234,7 +235,7 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
             content: "_#(js:em.security.pasteIdentities.confirm)",
             type: MessageDialogType.CONFIRMATION
          }
-      }).afterClosed().subscribe(confirmed => {
+      }).afterClosed().pipe(take(1)).subscribe(confirmed => {
          if(confirmed) {
             this.pasteReplaceIdentities.emit(pasted);
             this.snackBar.open("_#(js:em.security.identitiesPasted)", null, { duration: Tool.SNACKBAR_DURATION });
