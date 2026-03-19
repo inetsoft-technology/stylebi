@@ -192,7 +192,7 @@ export class IdentityTablesPaneComponent {
       });
    }
 
-   removeMembers0(members: IdentityModel[]) {
+   private removeMembers0(members: IdentityModel[]) {
       const identityMap = this.getIdentityMap(this.members);
 
       members.forEach(member => {
@@ -394,6 +394,7 @@ export class IdentityTablesPaneComponent {
          list => this.rolesChanged.emit(list));
    }
 
+   // No pasteExcludeIdentities for permissions: an entity can grant itself admin permissions.
    pastePermittedIdentities(identities: IdentityModel[]): void {
       this.pasteReplace(identities, this.permittedIdentities,
          list => this.permittedIdentities = list,
@@ -413,6 +414,7 @@ export class IdentityTablesPaneComponent {
       addFn(identities);
       const result = getList();
 
+      // Intentionally checks identities (not previous): show "no match" even when previous was empty.
       if(result.length === 0 && identities.length > 0) {
          setList(previous);
          emitChanged(previous);
