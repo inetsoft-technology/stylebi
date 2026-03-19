@@ -280,7 +280,6 @@ const appRoutes: Routes = [
          {
             path: "tab/wiz-portal",
             component: WizPortalTabComponent,
-            canActivate: [canTabActivate],
          },
          {
             path: "tab/custom/:name",
