@@ -113,8 +113,8 @@ describe("IdentityTablesPaneComponent", () => {
          // alice is the current identity (self-reference) and editorRole is a ROLE — both blocked by addMembers
          component.pasteMembers([alice, editorRole]);
          expect(component.members).toEqual([bob]);
-         // addMembers emits first (empty), then pasteReplace restores and re-emits the original list
-         expect(emitted[emitted.length - 1]).toEqual([bob]);
+         expect(emitted.length).toBe(1);
+         expect(emitted[0]).toEqual([bob]);
       });
 
       it("pasteMembers should allow empty result when previous list was also empty", () => {

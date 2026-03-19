@@ -137,6 +137,11 @@ export class IdentityTablesPaneComponent {
    };
 
    addMembers(members: IdentityModel[]) {
+      this.addMembersCore(members);
+      this.membersChanged.emit(this.members);
+   }
+
+   private addMembersCore(members: IdentityModel[]) {
       const identityMap = this.getIdentityMap(this.members);
 
       members.forEach(member => {
@@ -153,7 +158,6 @@ export class IdentityTablesPaneComponent {
       });
 
       this.members = this.members.slice(0);
-      this.membersChanged.emit(this.members);
    }
 
    removeMembers(members: IdentityModel[]) {
@@ -208,6 +212,11 @@ export class IdentityTablesPaneComponent {
    }
 
    addRoles(roles: IdentityModel[]) {
+      this.addRolesCore(roles);
+      this.rolesChanged.emit(this.roles);
+   }
+
+   private addRolesCore(roles: IdentityModel[]) {
       const identityMap = this.getIdentityMap(this.roles);
 
       roles.forEach(role => {
@@ -220,7 +229,6 @@ export class IdentityTablesPaneComponent {
       });
 
       this.roles = this.roles.slice(0);
-      this.rolesChanged.emit(this.roles);
    }
 
    removeRoles(roles: IdentityModel[]) {
@@ -243,6 +251,11 @@ export class IdentityTablesPaneComponent {
    }
 
    addPermittedIdentities(identities: IdentityModel[]) {
+      this.addPermittedIdentitiesCore(identities);
+      this.permittedIdentitiesChanged.emit(this.permittedIdentities);
+   }
+
+   private addPermittedIdentitiesCore(identities: IdentityModel[]) {
       const identityMap = this.getIdentityMap(this.permittedIdentities);
 
       identities.forEach(identity => {
@@ -253,7 +266,6 @@ export class IdentityTablesPaneComponent {
       });
 
       this.permittedIdentities = this.permittedIdentities.slice(0);
-      this.permittedIdentitiesChanged.emit(this.permittedIdentities);
    }
 
    addProperties(models: PropertyModel[]) {
@@ -369,7 +381,7 @@ export class IdentityTablesPaneComponent {
    pasteMembers(identities: IdentityModel[]): void {
       this.pasteReplace(identities, this.members,
          list => this.members = list,
-         ids => this.addMembers(ids),
+         ids => this.addMembersCore(ids),
          () => this.members,
          list => this.membersChanged.emit(list));
    }
@@ -377,7 +389,7 @@ export class IdentityTablesPaneComponent {
    pasteRoles(identities: IdentityModel[]): void {
       this.pasteReplace(identities, this.roles,
          list => this.roles = list,
-         ids => this.addRoles(ids),
+         ids => this.addRolesCore(ids),
          () => this.roles,
          list => this.rolesChanged.emit(list));
    }
@@ -385,7 +397,7 @@ export class IdentityTablesPaneComponent {
    pastePermittedIdentities(identities: IdentityModel[]): void {
       this.pasteReplace(identities, this.permittedIdentities,
          list => this.permittedIdentities = list,
-         ids => this.addPermittedIdentities(ids),
+         ids => this.addPermittedIdentitiesCore(ids),
          () => this.permittedIdentities,
          list => this.permittedIdentitiesChanged.emit(list));
    }
@@ -399,13 +411,15 @@ export class IdentityTablesPaneComponent {
    {
       setList([]);
       addFn(identities);
+      const result = getList();
 
-      if(getList().length === 0 && previous.length > 0) {
+      if(result.length === 0 && previous.length > 0) {
          setList(previous);
          emitChanged(previous);
          this.snackBar.open("_#(js:em.security.clipboard.noMatchingIdentities)", null, { duration: Tool.SNACKBAR_DURATION });
       }
       else {
+         emitChanged(result);
          this.snackBar.open("_#(js:em.security.identitiesPasted)", null, { duration: Tool.SNACKBAR_DURATION });
       }
    }
