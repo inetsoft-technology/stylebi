@@ -69,6 +69,8 @@ export class IdentityTablesPaneComponent implements OnChanges {
    readonly copyPasteContextRoles = COPY_PASTE_CONTEXT_IDENTITY_ROLES;
    readonly copyPasteContextPermissions = COPY_PASTE_CONTEXT_IDENTITY_PERMISSIONS;
 
+   // dataSource is intentionally not passed as pasteExcludeIdentities: paste replaces the full list,
+   // so the badge count equals the number of entries the list will contain after pasting.
    get selfIdentity(): IdentityModel[] {
       return this.name ? [{ identityID: { name: this.name, orgID: null }, type: this.type }] : [];
    }

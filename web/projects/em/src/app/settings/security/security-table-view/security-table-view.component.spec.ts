@@ -146,6 +146,15 @@ describe("SecurityTableViewComponent", () => {
       expect(dialogSpy).not.toHaveBeenCalled();
     });
 
+    it("should not open dialog when paste returns empty array", () => {
+      mockClipboardService.paste.mockReturnValue([]);
+      const dialogSpy = jest.spyOn(component["dialog"], "open");
+
+      component.pasteIdentities();
+
+      expect(dialogSpy).not.toHaveBeenCalled();
+    });
+
     it("should emit pasteReplaceIdentities when dialog is confirmed", () => {
       const identities = [makeIdentity("alice")];
       mockClipboardService.paste.mockReturnValue(identities);
