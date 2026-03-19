@@ -154,8 +154,8 @@
         </li>
       </ng-template>
       <li *ngIf="!mobile" class="nav-item portal-nav-item"
-          [class.bb-highlight-filler]="!currentUrl?.includes('tab/wiz-portal')"
-          [class.bb-highlight-primary]="currentUrl?.includes('tab/wiz-portal')">
+          [class.bb-highlight-filler]="!currentUrl?.includes(PortalTabs.WIZ_PORTAL)"
+          [class.bb-highlight-primary]="currentUrl?.includes(PortalTabs.WIZ_PORTAL)">
         <a class="nav-link nav-icon nav-icon-size"
            routerLink="/portal/tab/wiz-portal"
            routerLinkActive="active"
