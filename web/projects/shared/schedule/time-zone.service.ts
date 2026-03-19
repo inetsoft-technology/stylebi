@@ -63,10 +63,12 @@ export class TimeZoneService {
          }
 
          const condTimeZoneId = (condition as TimeConditionModel).timeZone;
+         const condLabel = (condition as TimeConditionModel).timeZoneLabel;
 
          // check if id already exists in the list
-         if(!condTimeZoneId ||
-            timeZoneOptions.find((opt) => opt.timeZoneId == condTimeZoneId))
+         // allow two entries with the same IANA ID but different labels to coexist
+         if(!condTimeZoneId || timeZoneOptions.find(opt =>
+            opt.timeZoneId === condTimeZoneId && (!condLabel || opt.label === condLabel)))
          {
             continue;
          }
@@ -76,8 +78,9 @@ export class TimeZoneService {
          // the same task in another time zone, making the time zone option no longer available
          const missingTimeZone = <TimeZoneModel>{
             timeZoneId: condTimeZoneId,
-            label: this.getTimeZoneName(condTimeZoneId),
-            hourOffset: this.getUTCOffset(condTimeZoneId)
+            label: condLabel ?? this.getTimeZoneName(condTimeZoneId),
+            hourOffset: this.getUTCOffset(condTimeZoneId),
+            minuteOffset: this.calculateTimezoneOffset(condTimeZoneId) / 60000
          };
 
          timeZoneOptions.push(missingTimeZone);

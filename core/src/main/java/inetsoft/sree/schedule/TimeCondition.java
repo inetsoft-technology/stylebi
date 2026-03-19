@@ -269,6 +269,21 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
    }
 
    /**
+    * Set the display label of the selected time zone option, for disambiguation
+    * when multiple options share the same IANA ID (e.g. local vs. server).
+    */
+   public void setTimeZoneLabel(String timeZoneLabel) {
+      this.timeZoneLabel = timeZoneLabel;
+   }
+
+   /**
+    * Get the display label of the selected time zone option.
+    */
+   public String getTimeZoneLabel() {
+      return timeZoneLabel;
+   }
+
+   /**
     * Check the condition.
     * @param curr current time.
     * @return true if the condition is met.
@@ -958,6 +973,10 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
             .append(tz.getID()).append("\"");
       }
 
+      if(timeZoneLabel != null) {
+         buffer.append(" timeZoneLabel=\"").append(Tool.escape(timeZoneLabel)).append("\"");
+      }
+
       if(type == AT) {
          buffer.append(" time=\"").append(getDate().getTime());
 
@@ -1196,6 +1215,8 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          this.tz = TimeZone.getTimeZone(id);
       }
 
+      this.timeZoneLabel = Tool.getAttribute(tag, "timeZoneLabel");
+
       Element element;
 
       if((element = Tool.getChildNodeByTagName(tag, "timeRange")) != null) {
@@ -1402,6 +1423,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
       writer.writeBoolean("ajax", ajax);
       writer.writeObject("timeRange", timeRange);
       writer.writeString("tz", tz.getID());
+      writer.writeString("timeZoneLabel", timeZoneLabel);
    }
 
    @Override
@@ -1427,6 +1449,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
       this.ajax = reader.readBoolean("ajax");
       this.timeRange = reader.readObject("timeRange");
       this.tz = TimeZone.getTimeZone(reader.readString("tz"));
+      this.timeZoneLabel = reader.readString("timeZoneLabel");
    }
 
    private static final long ONE_HOUR = 1000 * 60 * 60;
@@ -1445,6 +1468,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
    private int minute_end = -1;
    private int second_end = -1;
    private transient TimeZone tz = TimeZone.getDefault();
+   private String timeZoneLabel;
    private transient DateFormat dateFmt;
    private transient DateFormat timeFmt;
    private int type; // condition type

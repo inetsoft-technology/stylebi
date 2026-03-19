@@ -88,18 +88,20 @@ public interface TimeZoneModel {
       };
 
       ArrayList<TimeZoneModel> tzList = new ArrayList<>();
+      Date now = new Date();
+      TimeZone defaultTz = TimeZone.getDefault();
       tzList.add(TimeZoneModel.builder()
-                    .timeZoneId(TimeZone.getDefault().getID())
-                    .label(TimeZone.getDefault().getDisplayName() + " (" + Catalog.getCatalog().getString("em.scheduler.servertimezone") + ")")
+                    .timeZoneId(defaultTz.getID())
+                    .label(defaultTz.getDisplayName(defaultTz.inDaylightTime(now), TimeZone.LONG) + " (" + Catalog.getCatalog().getString("em.scheduler.servertimezone") + ")")
                     .hourOffset(Catalog.getCatalog().getString(""))
-                    .minuteOffset(TimeZone.getDefault().getRawOffset()/60000)
+                    .minuteOffset(defaultTz.getOffset(now.getTime()) / 60000)
                     .build());
 
-      LocalDateTime now = LocalDateTime.now();
+      LocalDateTime localNow = LocalDateTime.now();
 
       for(String id : tZIds) {
          TimeZone tz = TimeZone.getTimeZone(id);
-         String offset = now.atZone(tz.toZoneId()).getOffset()
+         String offset = localNow.atZone(tz.toZoneId()).getOffset()
             .getId()
             .replace("Z", "+00:00");
          offset = "(UTC" + offset + ")";
@@ -107,9 +109,9 @@ public interface TimeZoneModel {
 
          tzList.add(TimeZoneModel.builder()
                        .timeZoneId(id)
-                       .label(tz.getDisplayName())
+                       .label(tz.getDisplayName(tz.inDaylightTime(now), TimeZone.LONG))
                        .hourOffset(offset)
-                       .minuteOffset(tz.getRawOffset()/60000)
+                       .minuteOffset(tz.getOffset(now.getTime()) / 60000)
                        .build());
       }
 

@@ -48,19 +48,13 @@ export class DailyConditionEditorComponent implements OnInit {
       const oldCondition = this._condition;
       this._condition = Object.assign({}, value);
 
-      if(oldCondition != null &&
-         oldCondition.label === value.label &&
-         oldCondition.timeZoneOffset === value.timeZoneOffset &&
-         oldCondition.hour === value.hour &&
-         oldCondition.minute === value.minute &&
-         oldCondition.second === value.second &&
-         oldCondition.weekdayOnly === value.weekdayOnly &&
-         oldCondition.interval === value.interval &&
-         oldCondition.timeRange === value.timeRange &&
-         oldCondition.timeZone === value.timeZone)
-      {
+      if(Tool.isEquals(oldCondition, value)) {
          return;
       }
+
+      this.timeZoneLabel = this.dateTimeService
+         .getTimeZoneLabel(this.timeZoneOptions, this._condition.timeZone, this.timeZone,
+            this._condition.timeZoneLabel);
 
       this.form.get("weekdayOnly").setValue(this._condition.weekdayOnly || false);
       this.form.get("interval").setValue(this._condition.interval || 0);
@@ -78,9 +72,6 @@ export class DailyConditionEditorComponent implements OnInit {
       if(!!this.startTimeData) {
          this.timeZoneEnabled = this.startTimeData.startTimeSelected;
       }
-
-      this.timeZoneLabel = this.dateTimeService
-         .getTimeZoneLabel(this.timeZoneOptions, this._condition.timeZone, this.timeZone);
    }
 
    get weekdayOnly(): boolean {
@@ -104,7 +95,8 @@ export class DailyConditionEditorComponent implements OnInit {
 
    ngOnInit() {
       this.timeZoneLabel = this.dateTimeService
-         .getTimeZoneLabel(this.timeZoneOptions, this.condition?.timeZone, this.timeZone);
+         .getTimeZoneLabel(this.timeZoneOptions, this.condition?.timeZone, this.timeZone,
+            this.condition?.timeZoneLabel);
 
       if(!!this.startTimeData) {
          this.timeZoneEnabled = this.startTimeData.startTimeSelected;
@@ -130,6 +122,7 @@ export class DailyConditionEditorComponent implements OnInit {
 
    setTimeZoneLabel(label: string): void {
       this.timeZoneLabel = label;
+      this.condition.timeZoneLabel = label;
    }
 
    fireModelChanged(): void {

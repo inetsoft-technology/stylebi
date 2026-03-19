@@ -101,13 +101,22 @@ export class DateTimeService {
    }
 
    getTimeZoneLabel(timeZoneOptions: TimeZoneModel[], timeZoneID: string,
-                    defaultTimeZone: string): string
+                    defaultTimeZone: string, preferredLabel?: string): string
    {
       if(!timeZoneOptions) {
          return "";
       }
 
-      let tz = timeZoneOptions.find(option => option.timeZoneId == timeZoneID);
+      let tz: TimeZoneModel;
+
+      if(preferredLabel) {
+         tz = timeZoneOptions.find(option =>
+            option.timeZoneId === timeZoneID && option.label === preferredLabel);
+      }
+
+      if(!tz) {
+         tz = timeZoneOptions.find(option => option.timeZoneId == timeZoneID);
+      }
 
       if(!tz) {
          return defaultTimeZone;

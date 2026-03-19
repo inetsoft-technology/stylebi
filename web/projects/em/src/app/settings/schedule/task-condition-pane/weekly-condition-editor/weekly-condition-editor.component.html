@@ -28,6 +28,7 @@
       (startTimeChanged)="onStartTimeChanged($event)"
     >
       <em-time-zone-select formControlName="timeZone"
+                           [timeZoneLabel]="timeZoneLabel"
                            [startTimeEnabled]="startTimeEnabled"
                            [timeZoneOptions]="timeZoneOptions" [serverTimeZone]="timeZone" [enabled]="timeZoneEnabled"
                            (labelChanged)="setTimeZoneLabel($event)" (changed)="fireModelChanged()">

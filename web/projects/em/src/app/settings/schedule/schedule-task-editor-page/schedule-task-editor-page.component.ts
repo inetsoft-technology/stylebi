@@ -430,6 +430,7 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
 
    private appendCondition(appendItem: boolean = false): void {
       const defaultTimeZone = this.model.timeZoneOptions[0].timeZoneId;
+      const defaultTimeZoneLabel = this.model.timeZoneOptions[0].label;
       const condition: TimeConditionModel = {
          label: "_#(js:New Condition)",
          hour: 1,
@@ -439,7 +440,8 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
          conditionType: "TimeCondition",
          type: TimeConditionType.EVERY_DAY,
          timeZoneOffset: this.model.taskConditionPaneModel.timeZoneOffset || 0,
-         timeZone: defaultTimeZone
+         timeZone: defaultTimeZone,
+         timeZoneLabel: defaultTimeZoneLabel
       };
 
       this.model.taskConditionPaneModel.conditions.push(condition);

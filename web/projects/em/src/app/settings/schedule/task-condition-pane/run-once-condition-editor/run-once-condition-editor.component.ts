@@ -50,17 +50,20 @@ export class RunOnceConditionEditorComponent implements OnInit {
          oldCondition.label === value.label &&
          oldCondition.timeZoneOffset === value.timeZoneOffset &&
          oldCondition.date === value.date &&
-         oldCondition.timeZone === value.timeZone)
+         oldCondition.timeZone === value.timeZone &&
+         oldCondition.timeZoneLabel === value.timeZoneLabel)
       {
          return;
       }
       const date = dayjs(this._condition.date)
          .utcOffset(this.timeZoneService.calculateTimezoneOffset(this._condition.timeZone) / 60000);
       this.dateValue = new Date(date.year(), date.month(), date.date(), date.hour(), date.minute());
+      this.timeZoneLabel = this.dateTimeService
+         .getTimeZoneLabel(this.timeZoneOptions, this._condition.timeZone, this.timeZone,
+            this._condition.timeZoneLabel);
+
       this.form.get("startTime").setValue(this.dateTimeService.getTimeString(this.dateValue), {emitEvent: false});
       this.form.get("timeZone").setValue(this._condition.timeZone || "", {emitEvent: false});
-      this.timeZoneLabel = this.dateTimeService
-         .getTimeZoneLabel(this.timeZoneOptions, this._condition.timeZone, this.timeZone);
       this.dateTimeService.resetTimeOfDate(this.dateValue);
    }
 
@@ -89,11 +92,13 @@ export class RunOnceConditionEditorComponent implements OnInit {
 
    ngOnInit(): void {
       this.timeZoneLabel = this.dateTimeService
-         .getTimeZoneLabel(this.timeZoneOptions, this.condition?.timeZone, this.timeZone);
+         .getTimeZoneLabel(this.timeZoneOptions, this.condition?.timeZone, this.timeZone,
+            this.condition?.timeZoneLabel);
     }
 
    setTimeZoneLabel(label: string): void {
       this.timeZoneLabel = label;
+      this.condition.timeZoneLabel = label;
    }
 
    fireModelChanged(_date?: Date): void {

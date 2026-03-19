@@ -15,10 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, forwardRef, Input, OnInit, Output } from "@angular/core";
+import { Component, EventEmitter, forwardRef, Input, OnChanges, OnInit, Output, SimpleChanges } from "@angular/core";
 import { ControlValueAccessor, NG_VALUE_ACCESSOR, } from "@angular/forms";
 import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-zone-model";
-import { DateTimeService } from "../date-time.service";
 
 @Component({
    selector: "em-time-zone-select",
@@ -32,8 +31,9 @@ import { DateTimeService } from "../date-time.service";
       }
    ]
 })
-export class TimeZoneSelectComponent implements OnInit, ControlValueAccessor {
-   timeZoneId: string;
+export class TimeZoneSelectComponent implements OnInit, OnChanges, ControlValueAccessor {
+   selectedTimeZone: TimeZoneModel;
+   @Input()  timeZoneLabel: string;
    @Input()  timeZoneOptions: TimeZoneModel[];
    @Input()  startTimeEnabled: boolean = true;
    @Input()  serverTimeZone: string;
@@ -43,12 +43,26 @@ export class TimeZoneSelectComponent implements OnInit, ControlValueAccessor {
    private onChange = (fn: any) => {};
    private onTouched: any;
 
-   constructor(private dateTimeService: DateTimeService) {
-   }
+   compareTimeZones = (a: TimeZoneModel, b: TimeZoneModel) =>
+      a?.timeZoneId === b?.timeZoneId && a?.label === b?.label;
 
    ngOnInit(): void {
-      if(!this.timeZoneId) {
-         this.timeZoneId = this.timeZoneOptions[0].timeZoneId;
+      if(!this.selectedTimeZone) {
+         this.selectedTimeZone = this.timeZoneOptions[0];
+      }
+   }
+
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes.timeZoneLabel && this.selectedTimeZone && this.timeZoneOptions) {
+         const newLabel = changes.timeZoneLabel.currentValue as string;
+         const candidates = this.timeZoneOptions.filter(o => o.timeZoneId === this.selectedTimeZone.timeZoneId);
+         const matched = newLabel
+            ? candidates.find(c => c.label === newLabel)
+            : null;
+
+         if(matched && matched !== this.selectedTimeZone) {
+            this.selectedTimeZone = matched;
+         }
       }
    }
 
@@ -61,26 +75,26 @@ export class TimeZoneSelectComponent implements OnInit, ControlValueAccessor {
    }
 
    writeValue(obj: any): void {
-      if((!obj || !this.timeZoneOptions.find(option => option.timeZoneId == obj))) {
-         this.timeZoneId = this.timeZoneOptions[0].timeZoneId;
+      const candidates = this.timeZoneOptions.filter(o => o.timeZoneId === obj);
+
+      if(!obj || candidates.length === 0) {
+         this.selectedTimeZone = this.timeZoneOptions[0];
       }
       else {
-         this.timeZoneId = obj;
+         const matched = this.timeZoneLabel
+            ? candidates.find(c => c.label === this.timeZoneLabel)
+            : null;
+         this.selectedTimeZone = matched ?? candidates[0];
       }
-   }
-
-   isEmpty(id: string) {
-      return !this.timeZoneId;
    }
 
    setTimeZoneLabel(changed: boolean) {
-      const localTimeZoneId = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      let timeZoneLabel = this.dateTimeService.getTimeZoneLabel(this.timeZoneOptions, this.timeZoneId, localTimeZoneId);
-      this.labelChanged.emit(timeZoneLabel);
+      const label = this.selectedTimeZone?.label ?? "";
+      this.labelChanged.emit(label);
 
       if(changed) {
-         this.onChange(this.timeZoneId);
-         this.changed.emit(this.timeZoneId);
+         this.onChange(this.selectedTimeZone?.timeZoneId);
+         this.changed.emit(this.selectedTimeZone?.timeZoneId);
       }
    }
 }

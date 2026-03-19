@@ -30,6 +30,7 @@ import {
    TimeConditionType, TimeRange
 } from "../../../../../../../shared/schedule/model/time-condition-model";
 import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-zone-model";
+import { Tool } from "../../../../../../../shared/util/tool";
 import { DateTimeService } from "../date-time.service";
 import { StartTimeChange, StartTimeData } from "../start-time-editor/start-time-editor.component";
 import { TaskConditionChanges } from "../task-condition-pane.component";
@@ -62,22 +63,13 @@ export class MonthlyConditionEditorComponent implements OnInit {
       const oldCondition = this._condition;
       this._condition = Object.assign({}, value);
 
-      if(oldCondition != null &&
-         oldCondition.label === value.label &&
-         oldCondition.timeZoneOffset === value.timeZoneOffset &&
-         oldCondition.hour === value.hour &&
-         oldCondition.minute === value.minute &&
-         oldCondition.second === value.second &&
-         oldCondition.monthlyDaySelected === value.monthlyDaySelected &&
-         oldCondition.dayOfMonth === value.dayOfMonth &&
-         oldCondition.weekOfMonth === value.weekOfMonth &&
-         oldCondition.dayOfWeek === value.dayOfWeek &&
-         oldCondition.monthsOfYear === value.monthsOfYear &&
-         oldCondition.timeRange === value.timeRange &&
-         oldCondition.timeZone === value.timeZone)
-      {
+      if(Tool.isEquals(oldCondition, value)) {
          return;
       }
+      this.timeZoneLabel = this.dateTimeService
+         .getTimeZoneLabel(this.timeZoneOptions, this._condition.timeZone, this.timeZone,
+            this._condition.timeZoneLabel);
+
       this.form.get("monthlyDaySelected").setValue(this._condition.monthlyDaySelected !== false);
       this.form.get("dayOfMonth").setValue(this._condition.dayOfMonth || 1);
       this.form.get("weekOfMonth").setValue(
@@ -95,8 +87,6 @@ export class MonthlyConditionEditorComponent implements OnInit {
       this.startTimeValid = !!this.startTimeData.startTime || !!this.startTimeData.timeRange;
 
       this.onTypeChanged();
-      this.timeZoneLabel = this.dateTimeService
-         .getTimeZoneLabel(this.timeZoneOptions, this._condition.timeZone, this.timeZone);
    }
 
    form: UntypedFormGroup;
@@ -143,7 +133,8 @@ export class MonthlyConditionEditorComponent implements OnInit {
 
    ngOnInit() {
       this.timeZoneLabel = this.dateTimeService
-         .getTimeZoneLabel(this.timeZoneOptions, this.condition?.timeZone, this.timeZone);
+         .getTimeZoneLabel(this.timeZoneOptions, this.condition?.timeZone, this.timeZone,
+            this.condition?.timeZoneLabel);
 
       if(!!this.startTimeData) {
          this.timeZoneEnabled = this.startTimeData.startTimeSelected;
@@ -175,6 +166,7 @@ export class MonthlyConditionEditorComponent implements OnInit {
 
    setTimeZoneLabel(label: string): void {
       this.timeZoneLabel = label;
+      this.condition.timeZoneLabel = label;
    }
 
    fireModelChanged() {
