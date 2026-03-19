@@ -232,8 +232,8 @@ public class VirtualAuthenticationProvider
          catch(IllegalStateException e) {
             throw new IllegalStateException(
                "The security configuration file '" + fileName + "' was not found in the data space " +
-               "and the INETSOFT_ADMIN_PASSWORD environment variable is not set. " +
-               "Set INETSOFT_ADMIN_PASSWORD or ensure storage initialization has completed successfully.", e);
+               "and the INETSOFT_ADMIN_PASSWORD environment variable is not set or does not meet strength requirements." +
+               "\nSet INETSOFT_ADMIN_PASSWORD or ensure storage initialization has completed successfully.", e);
          }
 
          admin = new FSUser(new IdentityID("admin", Organization.getDefaultOrganizationID()));
