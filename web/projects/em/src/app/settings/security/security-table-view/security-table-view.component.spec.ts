@@ -199,6 +199,22 @@ describe("SecurityTableViewComponent", () => {
         null
       );
     });
+
+    it("should forward pasteExcludeIdentities to paste()", () => {
+      const self = makeIdentity("alice");
+      component.copyPasteContext = COPY_PASTE_CONTEXT_IDENTITY_MEMBERS;
+      component.pasteExcludeIdentities = [self];
+      mockClipboardService.paste.mockReturnValue([makeIdentity("bob")]);
+      jest.spyOn(component["dialog"], "open").mockReturnValue({ afterClosed: () => of(true) } as any);
+
+      component.pasteIdentities();
+
+      expect(mockClipboardService.paste).toHaveBeenCalledWith(
+        COPY_PASTE_CONTEXT_IDENTITY_MEMBERS,
+        null,
+        [self]
+      );
+    });
   });
 
   describe("pasteTooltip", () => {

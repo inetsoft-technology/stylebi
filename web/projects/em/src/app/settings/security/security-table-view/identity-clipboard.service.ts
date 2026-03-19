@@ -96,7 +96,8 @@ export class IdentityClipboardService implements OnDestroy {
          : this.copiedIdentities!.filter(i => typeFilter.includes(i.type));
 
       if(excludeIdentities != null && excludeIdentities.length > 0) {
-         result = result.filter(i => !excludeIdentities.some(e => e.type === i.type && e.identityID.name === i.identityID.name));
+         result = result.filter(i => !excludeIdentities.some(
+            e => e.type === i.type && e.identityID.name === i.identityID.name));
       }
 
       return result.length;
