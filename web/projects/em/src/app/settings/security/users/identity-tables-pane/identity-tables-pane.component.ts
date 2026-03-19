@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from "@angular/core";
+import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { IdentityModel } from "../../security-table-view/identity-model";
 import { IdentityType } from "../../../../../../../shared/data/identity-type";
@@ -36,7 +36,7 @@ import {
    templateUrl: "./identity-tables-pane.component.html",
    styleUrls: ["./identity-tables-pane.component.scss"]
 })
-export class IdentityTablesPaneComponent implements OnChanges {
+export class IdentityTablesPaneComponent {
    @Input() name: string;
    @Input() globalRole: boolean = false;
    @Input() type: number;
@@ -77,12 +77,6 @@ export class IdentityTablesPaneComponent implements OnChanges {
    }
 
    constructor(private dialog: MatDialog) {
-   }
-
-   ngOnChanges(changes: SimpleChanges): void {
-      if(changes.type) {
-         this.membersPasteTypeFilter = this.computeMembersPasteTypeFilter();
-      }
    }
 
    get userTableLabel(): string {
@@ -358,14 +352,15 @@ export class IdentityTablesPaneComponent implements OnChanges {
    // runtime guards (self-reference, deduplication) that the stateless clipboard service can't check.
    readonly rolesPasteContexts: IdentityCopyPasteContext[] = [COPY_PASTE_CONTEXT_IDENTITY_ROLES, COPY_PASTE_CONTEXT_IDENTITY_MEMBERS];
    readonly rolesPasteTypeFilter: IdentityType[] = [IdentityType.ROLE];
-   membersPasteTypeFilter: IdentityType[] | null = null;
+   private static readonly USER_MEMBER_PASTE_FILTER: IdentityType[] = [IdentityType.GROUP];
+   private static readonly GROUP_ROLE_MEMBER_PASTE_FILTER: IdentityType[] = [IdentityType.USER, IdentityType.GROUP];
 
-   private computeMembersPasteTypeFilter(): IdentityType[] | null {
+   get membersPasteTypeFilter(): IdentityType[] | null {
       switch(this.type) {
-         case IdentityType.USER: return [IdentityType.GROUP];
+         case IdentityType.USER: return IdentityTablesPaneComponent.USER_MEMBER_PASTE_FILTER;
          // ROLE members are users/groups assigned to the role; ROLEs are excluded because addMembers() blocks them anyway.
          case IdentityType.GROUP:
-         case IdentityType.ROLE: return [IdentityType.USER, IdentityType.GROUP];
+         case IdentityType.ROLE: return IdentityTablesPaneComponent.GROUP_ROLE_MEMBER_PASTE_FILTER;
          default: return null;  // ORGANIZATION: accept all member types
       }
    }

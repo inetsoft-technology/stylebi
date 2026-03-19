@@ -16,7 +16,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
-import { SimpleChange } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { IdentityType } from "../../../../../../../shared/data/identity-type";
 import { IdentityModel } from "../../security-table-view/identity-model";
@@ -94,6 +93,16 @@ describe("IdentityTablesPaneComponent", () => {
          expect(emitted).toEqual([[alice]]);
       });
 
+      it("pasteMembers should replace a non-empty members list", () => {
+         const bob: IdentityModel = { identityID: { name: "bob", orgID: null }, type: IdentityType.USER };
+         component.members = [alice];
+         const emitted: IdentityModel[][] = [];
+         component.membersChanged.subscribe(v => emitted.push(v));
+         component.pasteMembers([bob]);
+         expect(component.members).toEqual([bob]);
+         expect(emitted).toEqual([[bob]]);
+      });
+
       it("pasteMembers should emit empty array when all pasted identities are filtered by addMembers guards", () => {
          component.type = IdentityType.USER;
          component.name = "alice";
@@ -124,36 +133,31 @@ describe("IdentityTablesPaneComponent", () => {
    });
 
    describe("membersPasteTypeFilter", () => {
-      function setType(type: IdentityType): void {
-         component.type = type;
-         component.ngOnChanges({ type: new SimpleChange(null, type, false) });
-      }
-
       it("should be [GROUP] for USER type", () => {
-         setType(IdentityType.USER);
+         component.type = IdentityType.USER;
          expect(component.membersPasteTypeFilter).toEqual([IdentityType.GROUP]);
       });
 
       it("should be [USER, GROUP] for GROUP type", () => {
-         setType(IdentityType.GROUP);
+         component.type = IdentityType.GROUP;
          expect(component.membersPasteTypeFilter).toEqual([IdentityType.USER, IdentityType.GROUP]);
       });
 
       it("should be [USER, GROUP] for ROLE type", () => {
-         setType(IdentityType.ROLE);
+         component.type = IdentityType.ROLE;
          expect(component.membersPasteTypeFilter).toEqual([IdentityType.USER, IdentityType.GROUP]);
       });
 
       it("should be null for ORGANIZATION type", () => {
-         setType(IdentityType.ORGANIZATION);
+         component.type = IdentityType.ORGANIZATION;
          expect(component.membersPasteTypeFilter).toBeNull();
       });
 
       it("should update when type changes", () => {
-         setType(IdentityType.USER);
+         component.type = IdentityType.USER;
          expect(component.membersPasteTypeFilter).toEqual([IdentityType.GROUP]);
 
-         setType(IdentityType.GROUP);
+         component.type = IdentityType.GROUP;
          expect(component.membersPasteTypeFilter).toEqual([IdentityType.USER, IdentityType.GROUP]);
       });
    });

@@ -91,16 +91,7 @@ export class IdentityClipboardService implements OnDestroy {
          return 0;
       }
 
-      let result = typeFilter == null
-         ? this.copiedIdentities!
-         : this.copiedIdentities!.filter(i => typeFilter.includes(i.type));
-
-      if(excludeIdentities != null && excludeIdentities.length > 0) {
-         result = result.filter(i => !excludeIdentities.some(
-            e => e.type === i.type && e.identityID.name === i.identityID.name));
-      }
-
-      return result.length;
+      return this.applyFilters(this.copiedIdentities!, typeFilter, excludeIdentities).length;
    }
 
    /**
@@ -141,7 +132,17 @@ export class IdentityClipboardService implements OnDestroy {
       }
 
       const cloned = Tool.clone(this.copiedIdentities!);
-      let result = typeFilter == null ? cloned : cloned.filter(i => typeFilter.includes(i.type));
+      return this.applyFilters(cloned, typeFilter, excludeIdentities);
+   }
+
+   private applyFilters(
+      identities: IdentityModel[],
+      typeFilter: IdentityType[] | null,
+      excludeIdentities: IdentityModel[] | null
+   ): IdentityModel[] {
+      let result = typeFilter == null
+         ? identities
+         : identities.filter(i => typeFilter.includes(i.type));
 
       if(excludeIdentities != null && excludeIdentities.length > 0) {
          result = result.filter(i => !excludeIdentities.some(
