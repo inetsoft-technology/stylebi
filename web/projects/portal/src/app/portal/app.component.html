@@ -153,11 +153,13 @@
           </div>
         </li>
       </ng-template>
-      <li *ngIf="!mobile" class="nav-item portal-nav-item bb-highlight-filler">
+      <li *ngIf="!mobile" class="nav-item portal-nav-item"
+          [class.bb-highlight-filler]="!currentUrl?.includes('tab/wiz-portal')"
+          [class.bb-highlight-primary]="currentUrl?.includes('tab/wiz-portal')">
         <a class="nav-link nav-icon nav-icon-size"
-           (click)="wizPortalDialogService.openWizPortalDialog()"
-           (keyup.enter)="wizPortalDialogService.openWizPortalDialog()"
-           title="_#(Wiz Portal)" aria-label="_#(Wiz Portal)" tabindex="0" enterClick>
+           routerLink="/portal/tab/wiz-portal"
+           routerLinkActive="active"
+           title="_#(Wiz Portal)" aria-label="_#(Wiz Portal)">
           <i class="wiz-portal-icon nav-icon-size portal-toolbar-icon"></i>
           <span class="visually-hidden">_#(Wiz Portal)</span>
         </a>
