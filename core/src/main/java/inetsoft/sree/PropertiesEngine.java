@@ -353,10 +353,10 @@ public class PropertiesEngine {
          return propertyName;
       }
 
-      // getCurrentOrgID() already returns lowercase
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
       if(orgID != null) {
+         orgID = orgID.toLowerCase();
          init();
          Properties prop = getInternalProperties();
          String orgPropertyName = "inetsoft.org." + orgID + "." + propertyName;

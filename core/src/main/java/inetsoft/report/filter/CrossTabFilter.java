@@ -7227,7 +7227,7 @@ public class CrossTabFilter extends AbstractTableLens
    private String dcMergePartRef;
    private boolean sortOthersLast = true; // whether sort others last
    private int appliedMaxRows = -1;
-   private int runtimeMaxRows = -1; // cached value to avoid repeated property lookups
+   private volatile int runtimeMaxRows = -1; // cached value to avoid repeated property lookups
    private int dcDataRefColIndex = -1;
    private Date dcStartDate;
    private Boolean dcRefInRow;
