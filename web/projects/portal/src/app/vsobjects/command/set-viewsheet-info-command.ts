@@ -53,4 +53,5 @@ export interface SetViewsheetInfoCommand extends ViewsheetCommand {
    hideNotifications?: boolean;
    assetId?: string;
    hasScript?: boolean;
+   chatSessionId?: string;
 }

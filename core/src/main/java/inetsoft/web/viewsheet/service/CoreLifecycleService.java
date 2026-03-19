@@ -330,6 +330,7 @@ public class CoreLifecycleService {
 
          command.setLayouts(layouts);
          command.setLinkUri(linkUri);
+         command.setChatSessionId(vs.getChatSessionId());
       }
 
       dispatcher.sendCommand(command);

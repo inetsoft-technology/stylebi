@@ -196,6 +196,10 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
       if(command.linkUri) {
          this.currentVisualization.linkUri = command.linkUri;
       }
+
+      if(command.chatSessionId) {
+         this.currentVisualization.chatSessionId = command.chatSessionId;
+      }
    }
 
    private processSetRuntimeIdCommand(command: SetRuntimeIdCommand): void {
