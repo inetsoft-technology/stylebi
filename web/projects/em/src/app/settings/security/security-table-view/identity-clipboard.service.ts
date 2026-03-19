@@ -73,7 +73,7 @@ export class IdentityClipboardService implements OnDestroy {
     * Use to distinguish an empty clipboard from a context mismatch in UI messages.
     */
    hasContent(): boolean {
-      return this.copiedIdentities != null;
+      return this.copiedIdentities != null && this.copiedIdentities.length > 0;
    }
 
    /**
@@ -91,7 +91,9 @@ export class IdentityClipboardService implements OnDestroy {
          return 0;
       }
 
-      let result = typeFilter == null ? this.copiedIdentities! : this.copiedIdentities!.filter(i => typeFilter.includes(i.type));
+      let result = typeFilter == null
+         ? this.copiedIdentities!
+         : this.copiedIdentities!.filter(i => typeFilter.includes(i.type));
 
       if(excludeIdentities != null && excludeIdentities.length > 0) {
          result = result.filter(i => !excludeIdentities.some(e => e.type === i.type && e.identityID.name === i.identityID.name));
@@ -123,7 +125,7 @@ export class IdentityClipboardService implements OnDestroy {
    }
 
    paste(context: IdentityCopyPasteContext | IdentityCopyPasteContext[] | null = null, typeFilter: IdentityType[] | null = null): IdentityModel[] | null {
-      if(!this.copiedIdentities || !this.anyContextMatches(context, this.contextAtCopy)) {
+      if(!this.canPaste(context)) {
          return null;
       }
 

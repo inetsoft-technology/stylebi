@@ -87,6 +87,18 @@ describe("IdentityTablesPaneComponent", () => {
          expect(emitted).toEqual([[alice]]);
       });
 
+      it("pasteMembers should emit empty array when all pasted identities are filtered by addMembers guards", () => {
+         component.type = IdentityType.USER;
+         component.name = "alice";
+         component.members = [];
+         const emitted: IdentityModel[][] = [];
+         component.membersChanged.subscribe(v => emitted.push(v));
+         // alice is the current identity (self-reference) and editorRole is a ROLE — both blocked by addMembers
+         component.pasteMembers([alice, editorRole]);
+         expect(component.members).toEqual([]);
+         expect(emitted).toEqual([[]]);
+      });
+
       it("pasteRoles should replace roles and emit rolesChanged", () => {
          const emitted: IdentityModel[][] = [];
          component.rolesChanged.subscribe(v => emitted.push(v));

@@ -359,6 +359,7 @@ export class IdentityTablesPaneComponent implements OnChanges {
    private computeMembersPasteTypeFilter(): IdentityType[] | null {
       switch(this.type) {
          case IdentityType.USER: return [IdentityType.GROUP];
+         // ROLE members are users/groups assigned to the role; ROLEs are excluded because addMembers() blocks them anyway.
          case IdentityType.GROUP:
          case IdentityType.ROLE: return [IdentityType.USER, IdentityType.GROUP];
          default: return null;  // ORGANIZATION: accept all member types
