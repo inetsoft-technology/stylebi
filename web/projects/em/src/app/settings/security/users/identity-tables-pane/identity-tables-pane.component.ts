@@ -413,7 +413,7 @@ export class IdentityTablesPaneComponent {
       addFn(identities);
       const result = getList();
 
-      if(result.length === 0 && previous.length > 0) {
+      if(result.length === 0 && identities.length > 0) {
          setList(previous);
          emitChanged(previous);
          this.snackBar.open("_#(js:em.security.clipboard.noMatchingIdentities)", null, { duration: Tool.SNACKBAR_DURATION });
