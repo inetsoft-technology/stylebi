@@ -221,7 +221,7 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
    }
 
    pasteIdentities(): void {
-      const pasted = this.clipboardService.paste(this.effectivePasteContext, this.pasteTypeFilter);
+      const pasted = this.clipboardService.paste(this.effectivePasteContext, this.pasteTypeFilter, this.pasteExcludeIdentities);
 
       if(!pasted || !pasted.length) {
          return;

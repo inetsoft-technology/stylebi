@@ -195,6 +195,7 @@ describe("SecurityTableViewComponent", () => {
 
       expect(mockClipboardService.paste).toHaveBeenCalledWith(
         [COPY_PASTE_CONTEXT_IDENTITY_ROLES, COPY_PASTE_CONTEXT_IDENTITY_MEMBERS],
+        null,
         null
       );
     });

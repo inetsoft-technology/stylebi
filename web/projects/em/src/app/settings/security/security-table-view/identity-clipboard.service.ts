@@ -126,14 +126,22 @@ export class IdentityClipboardService implements OnDestroy {
 
    paste(
       context: IdentityCopyPasteContext | IdentityCopyPasteContext[] | null = null,
-      typeFilter: IdentityType[] | null = null
+      typeFilter: IdentityType[] | null = null,
+      excludeIdentities: IdentityModel[] | null = null
    ): IdentityModel[] | null {
       if(!this.canPaste(context)) {
          return null;
       }
 
       const cloned = Tool.clone(this.copiedIdentities!);
-      return typeFilter == null ? cloned : cloned.filter(i => typeFilter.includes(i.type));
+      let result = typeFilter == null ? cloned : cloned.filter(i => typeFilter.includes(i.type));
+
+      if(excludeIdentities != null && excludeIdentities.length > 0) {
+         result = result.filter(i => !excludeIdentities.some(
+            e => e.type === i.type && e.identityID.name === i.identityID.name));
+      }
+
+      return result;
    }
 
    private anyContextMatches(

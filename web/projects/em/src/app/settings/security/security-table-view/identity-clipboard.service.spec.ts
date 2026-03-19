@@ -303,6 +303,24 @@ describe("IdentityClipboardService", () => {
 
          expect(service.paste([COPY_PASTE_CONTEXT_IDENTITY_ROLES, COPY_PASTE_CONTEXT_IDENTITY_MEMBERS])).toBeNull();
       });
+
+      it("should exclude identities matching excludeIdentities by type and name", () => {
+         service.copy([
+            createIdentity("alice", IdentityType.USER),
+            createIdentity("bob", IdentityType.USER)
+         ], COPY_PASTE_CONTEXT_IDENTITY_MEMBERS);
+
+         const result = service.paste(COPY_PASTE_CONTEXT_IDENTITY_MEMBERS, null, [createIdentity("alice", IdentityType.USER)]);
+         expect(result.length).toBe(1);
+         expect(result[0].identityID.name).toBe("bob");
+      });
+
+      it("should not exclude identities whose type differs even if name matches in excludeIdentities", () => {
+         service.copy([createIdentity("alice", IdentityType.USER)], COPY_PASTE_CONTEXT_IDENTITY_MEMBERS);
+
+         const result = service.paste(COPY_PASTE_CONTEXT_IDENTITY_MEMBERS, null, [createIdentity("alice", IdentityType.GROUP)]);
+         expect(result.length).toBe(1);
+      });
    });
 
    describe("org change", () => {
