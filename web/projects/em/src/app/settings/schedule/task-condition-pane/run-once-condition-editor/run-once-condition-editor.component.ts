@@ -46,13 +46,7 @@ export class RunOnceConditionEditorComponent implements OnInit {
       const oldCondition = this._condition;
       this._condition = Object.assign({}, value);
 
-      if(oldCondition != null &&
-         oldCondition.label === value.label &&
-         oldCondition.timeZoneOffset === value.timeZoneOffset &&
-         oldCondition.date === value.date &&
-         oldCondition.timeZone === value.timeZone &&
-         oldCondition.timeZoneLabel === value.timeZoneLabel)
-      {
+      if(Tool.isEquals(oldCondition, value)) {
          return;
       }
       const date = dayjs(this._condition.date)

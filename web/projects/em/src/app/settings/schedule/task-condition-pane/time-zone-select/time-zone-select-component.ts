@@ -47,7 +47,7 @@ export class TimeZoneSelectComponent implements OnInit, OnChanges, ControlValueA
       a?.timeZoneId === b?.timeZoneId && a?.label === b?.label;
 
    ngOnInit(): void {
-      if(!this.selectedTimeZone) {
+      if(!this.selectedTimeZone && this.timeZoneOptions?.length) {
          this.selectedTimeZone = this.timeZoneOptions[0];
       }
    }
