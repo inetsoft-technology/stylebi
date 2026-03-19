@@ -221,13 +221,20 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
       this.snackBar.open("_#(js:em.security.identitiesCopied)", null, { duration: Tool.SNACKBAR_DURATION });
    }
 
+   private pasteDialogOpen = false;
+
    pasteIdentities(): void {
+      if(this.pasteDialogOpen) {
+         return;
+      }
+
       const pasted = this.clipboardService.paste(this.effectivePasteContext, this.pasteTypeFilter, this.pasteExcludeIdentities);
 
       if(!pasted || !pasted.length) {
          return;
       }
 
+      this.pasteDialogOpen = true;
       this.dialog.open(MessageDialog, {
          width: "350px",
          data: {
@@ -236,6 +243,8 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
             type: MessageDialogType.CONFIRMATION
          }
       }).afterClosed().pipe(take(1)).subscribe(confirmed => {
+         this.pasteDialogOpen = false;
+
          if(confirmed) {
             this.pasteReplaceIdentities.emit(pasted);
          }

@@ -422,7 +422,8 @@ export class IdentityTablesPaneComponent {
                          getList: () => IdentityModel[],
                          emitChanged: (list: IdentityModel[]) => void): void
    {
-      setList([]); // safe: addFn is synchronous and cannot throw
+      // No try/catch: addFn (addMembersCore etc.) only does array push + slice on pre-validated data.
+      setList([]);
       addFn(identities);
       const result = getList();
 

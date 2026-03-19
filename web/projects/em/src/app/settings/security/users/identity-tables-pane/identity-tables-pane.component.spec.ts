@@ -117,7 +117,7 @@ describe("IdentityTablesPaneComponent", () => {
          expect(emitted[0]).toEqual([bob]);
       });
 
-      it("pasteMembers should allow empty result when previous list was also empty", () => {
+      it("pasteMembers should restore empty previous list when all pasted identities are rejected", () => {
          component.type = IdentityType.USER;
          component.name = "alice";
          component.members = [];

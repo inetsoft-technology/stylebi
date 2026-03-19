@@ -27,7 +27,7 @@ import { MatPaginatorModule } from "@angular/material/paginator";
 import { MatSnackBarModule } from "@angular/material/snack-bar";
 import { MatTableModule } from "@angular/material/table";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { of } from "rxjs";
+import { of, Subject } from "rxjs";
 import { IdentityType } from "../../../../../../shared/data/identity-type";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { MatTooltipModule } from "@angular/material/tooltip";
@@ -198,6 +198,26 @@ describe("SecurityTableViewComponent", () => {
         null,
         null
       );
+    });
+
+    it("should not open a second dialog while paste confirmation is already open", () => {
+      const identities = [makeIdentity("alice")];
+      mockClipboardService.paste.mockReturnValue(identities);
+      const dialogClose$ = new Subject<boolean>();
+      const dialogSpy = jest.spyOn(component["dialog"], "open")
+        .mockReturnValue({ afterClosed: () => dialogClose$ } as any);
+
+      component.pasteIdentities();
+      expect(dialogSpy).toHaveBeenCalledTimes(1);
+
+      component.pasteIdentities();
+      expect(dialogSpy).toHaveBeenCalledTimes(1);
+
+      dialogClose$.next(false);
+      dialogClose$.complete();
+
+      component.pasteIdentities();
+      expect(dialogSpy).toHaveBeenCalledTimes(2);
     });
 
     it("should forward pasteExcludeIdentities to paste()", () => {

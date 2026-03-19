@@ -135,6 +135,7 @@ export class IdentityClipboardService implements OnDestroy {
       return this.applyFilters(cloned, typeFilter, excludeIdentities);
    }
 
+   // No dedup needed: clipboard data comes from table dataSource which is already deduplicated.
    private applyFilters(
       identities: IdentityModel[],
       typeFilter: IdentityType[] | null,
