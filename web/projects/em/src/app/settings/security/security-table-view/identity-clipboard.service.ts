@@ -132,7 +132,7 @@ export class IdentityClipboardService implements OnDestroy {
          return null;
       }
 
-      const cloned = Tool.clone(this.copiedIdentities);
+      const cloned = Tool.clone(this.copiedIdentities!);
       return typeFilter == null ? cloned : cloned.filter(i => typeFilter.includes(i.type));
    }
 

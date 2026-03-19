@@ -30,6 +30,7 @@ import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { of } from "rxjs";
 import { IdentityType } from "../../../../../../shared/data/identity-type";
 import { MatSnackBar } from "@angular/material/snack-bar";
+import { MatTooltipModule } from "@angular/material/tooltip";
 import { SecurityTreeDialogModule } from "../security-tree-dialog/security-tree-dialog.module";
 import { IdentityModel } from "./identity-model";
 import { SecurityTableViewComponent } from "./security-table-view.component";
@@ -65,6 +66,7 @@ describe("SecurityTableViewComponent", () => {
         MatCardModule,
         MatIconModule,
         MatSnackBarModule,
+        MatTooltipModule,
         SecurityTreeDialogModule,
         MatPaginatorModule
       ],
