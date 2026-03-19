@@ -973,7 +973,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
             .append(tz.getID()).append("\"");
       }
 
-      if(timeZoneLabel != null) {
+      if(timeZoneLabel != null && !timeZoneLabel.isEmpty()) {
          buffer.append(" timeZoneLabel=\"").append(Tool.escape(timeZoneLabel)).append("\"");
       }
 

@@ -105,7 +105,6 @@ public interface TimeZoneModel {
             .getId()
             .replace("Z", "+00:00");
          offset = "(UTC" + offset + ")";
-         int minuteOffset = 0;
 
          tzList.add(TimeZoneModel.builder()
                        .timeZoneId(id)

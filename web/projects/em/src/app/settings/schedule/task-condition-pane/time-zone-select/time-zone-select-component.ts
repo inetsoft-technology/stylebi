@@ -33,11 +33,11 @@ import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-z
 })
 export class TimeZoneSelectComponent implements OnInit, OnChanges, ControlValueAccessor {
    selectedTimeZone: TimeZoneModel;
-   @Input()  timeZoneLabel: string;
-   @Input()  timeZoneOptions: TimeZoneModel[];
-   @Input()  startTimeEnabled: boolean = true;
-   @Input()  serverTimeZone: string;
-   @Input()  enabled: boolean = true;
+   @Input() timeZoneLabel: string;
+   @Input() timeZoneOptions: TimeZoneModel[];
+   @Input() startTimeEnabled: boolean = true;
+   @Input() serverTimeZone: string;
+   @Input() enabled: boolean = true;
    @Output() labelChanged = new EventEmitter<string>();
    @Output() changed = new EventEmitter<string>();
    private onChange = (fn: any) => {};
