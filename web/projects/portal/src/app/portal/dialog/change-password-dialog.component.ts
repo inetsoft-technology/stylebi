@@ -53,8 +53,7 @@ export class ChangePasswordDialog implements OnInit {
          oldPassword: new UntypedFormControl(null, Validators.required),
          newPassword: new UntypedFormControl(null, [
             Validators.required,
-            Validators.minLength(8),
-            FormValidators.containsNumberAndLetterOrNonAlphanumeric
+            FormValidators.passwordComplexity
          ]),
          confirmNewPassword: new UntypedFormControl(null, [
             Validators.required

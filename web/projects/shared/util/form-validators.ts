@@ -803,17 +803,6 @@ export class FormValidators {
       return null;
    }
 
-   public static containsNumberAndLetterOrNonAlphanumeric(control: UntypedFormControl): ValidationErrors {
-      if(!control.value) {
-         return null;
-      }
-
-      const value: string = control.value;
-      const valid = /[A-Z]/.test(value) && /[a-z]/.test(value) &&
-                    /[0-9]/.test(value) && /[^A-Za-z0-9]/.test(value);
-
-      return valid ? null : {missingCharType: true};
-   }
 
    public static emailListRequired(): ValidatorFn {
       return (control) => {
