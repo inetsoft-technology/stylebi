@@ -1020,5 +1020,5 @@ public class VSFrameVisitor {
    private FrameInitializer initializer;
    // When false (e.g. data tip render with filtered data), skip saving the shape frame back to the
    // shared context to avoid depleted cmap entries contaminating subsequent renders.
-   private boolean hasFullData;
+   private final boolean hasFullData;
 }

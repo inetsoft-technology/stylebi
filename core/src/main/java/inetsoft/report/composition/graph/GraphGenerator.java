@@ -251,6 +251,8 @@ public abstract class GraphGenerator {
       // True for full-data renders (regular or brushed). False for filtered renders such as data
       // tip and flyover, which set TipConditionList on the assembly before execution. Used to
       // prevent a depleted CategoricalShapeFrame cmap from being written to the shared context.
+      // adata != null means brushing is active; getBrushDataSet merges all rows so the shape frame
+      // cmap will not be depleted even if a tip condition is also present.
       final boolean hasFullData = adata != null ||
          assembly == null || assembly.getTipConditionList() == null;
 
