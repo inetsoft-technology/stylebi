@@ -73,8 +73,20 @@ export class IdentityTablesPaneComponent {
 
    // dataSource is intentionally not passed as pasteExcludeIdentities: paste replaces the full list,
    // so the badge count equals the number of entries the list will contain after pasting.
+   private _selfIdentity: IdentityModel[] = [];
+   private _selfIdentityName: string;
+   private _selfIdentityType: number;
+
    get selfIdentity(): IdentityModel[] {
-      return this.name ? [{ identityID: { name: this.name, orgID: null }, type: this.type }] : [];
+      if(this.name !== this._selfIdentityName || this.type !== this._selfIdentityType) {
+         this._selfIdentityName = this.name;
+         this._selfIdentityType = this.type;
+         this._selfIdentity = this.name
+            ? [{ identityID: { name: this.name, orgID: null }, type: this.type }]
+            : [];
+      }
+
+      return this._selfIdentity;
    }
 
    constructor(private dialog: MatDialog, private snackBar: MatSnackBar) {
@@ -410,7 +422,7 @@ export class IdentityTablesPaneComponent {
                          getList: () => IdentityModel[],
                          emitChanged: (list: IdentityModel[]) => void): void
    {
-      setList([]);
+      setList([]); // safe: addFn is synchronous and cannot throw
       addFn(identities);
       const result = getList();
 
@@ -421,7 +433,7 @@ export class IdentityTablesPaneComponent {
          this.snackBar.open("_#(js:em.security.clipboard.noMatchingIdentities)", null, { duration: Tool.SNACKBAR_DURATION });
       }
       else {
-         emitChanged(result);
+         emitChanged(result); // filtering count already shown via paste button badge ("N of M")
          this.snackBar.open("_#(js:em.security.identitiesPasted)", null, { duration: Tool.SNACKBAR_DURATION });
       }
    }
