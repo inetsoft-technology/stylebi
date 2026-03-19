@@ -27,11 +27,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.net.ssl.*;
 import java.net.URI;
 import java.net.http.*;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
@@ -181,44 +178,13 @@ public class AIAssistantController {
       return null;
    }
 
-   private static SSLContext createTrustAllSslContext() {
-      try {
-         TrustManager[] trustAll = {
-            new X509TrustManager() {
-               public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
-               public void checkClientTrusted(X509Certificate[] c, String a) {}
-               public void checkServerTrusted(X509Certificate[] c, String a) {}
-            }
-         };
-         SSLContext ctx = SSLContext.getInstance("TLS");
-         ctx.init(null, trustAll, new SecureRandom());
-         return ctx;
-      }
-      catch(Exception e) {
-         throw new RuntimeException("Failed to create trust-all SSL context", e);
-      }
-   }
-
    public static final String CHAT_APP_SERVER_URL = "chat.app.server.url";
    public static final String CHAT_APP_INTERNAL_URL = "chat.app.internal.url";
    public static final String PROXY_PATH_PREFIX = "/api/assistant/proxy";
    public static final String AI_ASSISTANT_VISIBLE = "portal.ai.assistant.visible";
    private static final Logger LOG = LoggerFactory.getLogger(AIAssistantController.class);
 
-   /**
-    * Shared HttpClient for health checks. Initialized once at class load since
-    * {@code chat.app.server.ssl.verify} requires a server restart to take effect.
-    */
-   private static final HttpClient HEALTH_CLIENT;
-
-   static {
-      HttpClient.Builder builder = HttpClient.newBuilder()
-         .connectTimeout(Duration.ofSeconds(3));
-
-      if(!isSslVerifyEnabled()) {
-         builder.sslContext(createTrustAllSslContext());
-      }
-
-      HEALTH_CLIENT = builder.build();
-   }
+   private static final HttpClient HEALTH_CLIENT = HttpClient.newBuilder()
+      .connectTimeout(Duration.ofSeconds(3))
+      .build();
 }
