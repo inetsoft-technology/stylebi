@@ -212,18 +212,21 @@ public class StorageInitializer implements Callable<Integer> {
          user.setRoles(new IdentityID[]{ new IdentityID("Administrator", null) });
          Path temp = Files.createTempFile("virtual_security", ".xml");
 
-         try(PrintWriter writer = new PrintWriter(Files.newBufferedWriter(temp, StandardCharsets.UTF_8))) {
-            writer.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-            writer.println("<virtualSecurityProvider>");
-            user.writeXML(writer);
-            writer.println("</virtualSecurityProvider>");
-         }
+         try {
+            try(PrintWriter writer = new PrintWriter(Files.newBufferedWriter(temp, StandardCharsets.UTF_8))) {
+               writer.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+               writer.println("<virtualSecurityProvider>");
+               user.writeXML(writer);
+               writer.println("</virtualSecurityProvider>");
+            }
 
-         try(StorageService service = new StorageService(configDirectory.getAbsolutePath())) {
-            service.write("virtual_security.xml", temp.toFile());
+            try(StorageService service = new StorageService(configDirectory.getAbsolutePath())) {
+               service.write("virtual_security.xml", temp.toFile());
+            }
          }
-
-         Files.delete(temp);
+         finally {
+            Files.deleteIfExists(temp);
+         }
       }
 
       return applyExtensions(context, extensions, (c, e) -> e.afterSecurityConfigured(c));
