@@ -35,8 +35,11 @@ export class FormValidators {
 
    public static passwordComplexity(control: AbstractControl): ValidationErrors | null {
       if(control.value) {
-         if(control.value.length < 8 || control.value.length > 72 ||
-            !/[A-Za-z]/g.test(control.value) || !/[0-9]/g.test(control.value))
+         const value: string = control.value;
+
+         if(value.length < 8 || value.length > 72 ||
+            !/[A-Z]/.test(value) || !/[a-z]/.test(value) ||
+            !/[0-9]/.test(value) || !/[^A-Za-z0-9]/.test(value))
          {
             return { passwordComplexity: true };
          }
@@ -801,11 +804,15 @@ export class FormValidators {
    }
 
    public static containsNumberAndLetterOrNonAlphanumeric(control: UntypedFormControl): ValidationErrors {
-      const includesNumeric: boolean = /\d/.test(control.value);
-      const includesLetterOrNonAlphanumeric: boolean =
-         /[a-z!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/i.test(control.value);
+      if(!control.value) {
+         return null;
+      }
 
-      return includesNumeric && includesLetterOrNonAlphanumeric ? null : {missingCharType: true};
+      const value: string = control.value;
+      const valid = /[A-Z]/.test(value) && /[a-z]/.test(value) &&
+                    /[0-9]/.test(value) && /[^A-Za-z0-9]/.test(value);
+
+      return valid ? null : {missingCharType: true};
    }
 
    public static emailListRequired(): ValidatorFn {
