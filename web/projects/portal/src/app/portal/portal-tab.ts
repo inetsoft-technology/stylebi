@@ -30,5 +30,5 @@ export enum PortalTabs {
    REPORT = "Report",
    SCHEDULE = "Schedule",
    VIEWER = "Viewer",
-   WIZ_PORTAL = "WizPortal",
+   WIZ_PORTAL = "wiz-portal",
 }

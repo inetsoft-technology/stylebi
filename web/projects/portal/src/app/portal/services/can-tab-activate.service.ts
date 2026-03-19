@@ -54,7 +54,8 @@ const URL_TAB_MAP = {
    "tab/schedule": "Schedule",
    "tab/dashboard": "Dashboard",
    "tab/report": "Report",
-   "tab/data": "Data"
+   "tab/data": "Data",
+   "tab/wiz-portal": "WizPortal"
 };
 
 function routeToTabName(path: string): string {
