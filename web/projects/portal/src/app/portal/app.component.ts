@@ -31,7 +31,6 @@ import { AiAssistantDialogService } from "../common/services/ai-assistant-dialog
 import { FirstDayOfWeekService } from "../common/services/first-day-of-week.service";
 import { LicenseInfoService } from "../common/services/license-info.service";
 import { OpenComposerService } from "../common/services/open-composer.service";
-import { WizPortalDialogService } from "../common/services/wiz-portal-dialog.service";
 import { ComponentTool } from "../common/util/component-tool";
 import { GuiTool } from "../common/util/gui-tool";
 import { GettingStartedService } from "../widget/dialog/getting-started-dialog/service/getting-started.service";
@@ -81,7 +80,6 @@ export class PortalAppComponent implements OnInit, OnDestroy {
 
    constructor(public aiAssistantService: AiAssistantService,
                public aiAssistantDialogService: AiAssistantDialogService,
-               public wizPortalDialogService: WizPortalDialogService,
                private modalService: NgbModal,
                private http: HttpClient,
                private portalTabsService: PortalTabsService,
