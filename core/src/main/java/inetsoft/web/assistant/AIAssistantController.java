@@ -27,8 +27,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.net.ssl.*;
 import java.net.URI;
 import java.net.http.*;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
@@ -184,7 +188,31 @@ public class AIAssistantController {
    public static final String AI_ASSISTANT_VISIBLE = "portal.ai.assistant.visible";
    private static final Logger LOG = LoggerFactory.getLogger(AIAssistantController.class);
 
-   private static final HttpClient HEALTH_CLIENT = HttpClient.newBuilder()
-      .connectTimeout(Duration.ofSeconds(3))
-      .build();
+   private static final HttpClient HEALTH_CLIENT = buildHealthClient();
+
+   private static HttpClient buildHealthClient() {
+      HttpClient.Builder builder = HttpClient.newBuilder()
+         .connectTimeout(Duration.ofSeconds(3));
+
+      if(!isSslVerifyEnabled()) {
+         try {
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, new TrustManager[] {
+               new X509TrustManager() {
+                  public void checkClientTrusted(X509Certificate[] chain, String authType) {}
+                  public void checkServerTrusted(X509Certificate[] chain, String authType) {}
+                  public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+               }
+            }, null);
+            SSLParameters sslParameters = new SSLParameters();
+            sslParameters.setEndpointIdentificationAlgorithm("");
+            builder.sslContext(sslContext).sslParameters(sslParameters);
+         }
+         catch(NoSuchAlgorithmException | KeyManagementException e) {
+            LOG.warn("Could not configure trust-all SSL context for AI assistant health check", e);
+         }
+      }
+
+      return builder.build();
+   }
 }
