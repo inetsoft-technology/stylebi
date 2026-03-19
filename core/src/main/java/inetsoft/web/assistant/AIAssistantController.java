@@ -195,6 +195,10 @@ public class AIAssistantController {
          .connectTimeout(Duration.ofSeconds(3));
 
       if(!isSslVerifyEnabled()) {
+         LOG.warn("SSL certificate verification is disabled for AI assistant health check " +
+            "connections (chat.app.server.ssl.verify=false). Set to true in production when " +
+            "the assistant server uses a CA-signed certificate.");
+
          try {
             SSLContext sslContext = SSLContext.getInstance("TLS");
             sslContext.init(null, new TrustManager[] {
