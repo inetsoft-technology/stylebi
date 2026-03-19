@@ -248,6 +248,11 @@ public abstract class GraphGenerator {
       this.vs = chart.getViewsheet();
       VSAssembly assembly = vs == null ? null : vs.getAssembly(chart.getName());
       this.cubeType = assembly == null ? null : VSAQuery.getCubeType(assembly);
+      // True for full-data renders (regular or brushed). False for filtered renders such as data
+      // tip and flyover, which set TipConditionList on the assembly before execution. Used to
+      // prevent a depleted CategoricalShapeFrame cmap from being written to the shared context.
+      final boolean hasFullData = adata != null ||
+         assembly == null || assembly.getTipConditionList() == null;
 
       xdims = new ArrayList<>();
       xmeasures = new ArrayList<>();
@@ -333,8 +338,10 @@ public abstract class GraphGenerator {
 
          // create shape frame
          shpstrategy = new VSShapeFrameStrategy(info);
+         // Pass hasFullData=false for filtered renders (data tip / flyover) so that a depleted
+         // CategoricalShapeFrame cmap is not written back to the shared context.
          shpvisitor = new VSFrameVisitor(info, fdata, shpstrategy, global,
-            vdata, cubeType, vsrc, sourceType, getFrameInitializer());
+            vdata, cubeType, vsrc, sourceType, hasFullData, getFrameInitializer());
          // create texture frame
          tstrategy = new VSTextureFrameStrategy(info);
          tvisitor = new VSFrameVisitor(info, fdata, tstrategy, global, vdata,

@@ -66,7 +66,23 @@ public class VSFrameVisitor {
                          boolean separated, DataSet vdata, String cubeType,
                          String src, int sourceType, FrameInitializer initializer)
    {
-      this(info, data, strategy, separated, vdata, cubeType, src, sourceType, null, initializer);
+      this(info, data, strategy, separated, vdata, cubeType, src, sourceType, null, true, initializer);
+   }
+
+   /**
+    * Constructor.
+    *
+    * @param vdata       the full data set without zoom condition.
+    * @param hasFullData false when the data is filtered (e.g. a data tip render), which prevents
+    *                    a depleted CategoricalShapeFrame cmap from being saved back to the shared
+    *                    context and corrupting subsequent renders.
+    * @param initializer
+    */
+   public VSFrameVisitor(ChartInfo info, DataSet data, VSFrameStrategy strategy,
+                         boolean separated, DataSet vdata, String cubeType,
+                         String src, int sourceType, boolean hasFullData, FrameInitializer initializer)
+   {
+      this(info, data, strategy, separated, vdata, cubeType, src, sourceType, null, hasFullData, initializer);
    }
 
    /**
@@ -80,6 +96,14 @@ public class VSFrameVisitor {
                          String src, int sourceType, DateComparisonInfo dc,
                          FrameInitializer initializer)
    {
+      this(info, data, strategy, separated, vdata, cubeType, src, sourceType, dc, true, initializer);
+   }
+
+   private VSFrameVisitor(ChartInfo info, DataSet data, VSFrameStrategy strategy,
+                          boolean separated, DataSet vdata, String cubeType,
+                          String src, int sourceType, DateComparisonInfo dc,
+                          boolean hasFullData, FrameInitializer initializer)
+   {
       super();
       this.info = info;
       this.data = data;
@@ -92,6 +116,7 @@ public class VSFrameVisitor {
       this.src = src;
       this.sourceType = sourceType;
       this.dc = dc;
+      this.hasFullData = hasFullData;
       this.initializer = initializer;
       this.frame = createFrame();
    }
@@ -452,12 +477,17 @@ public class VSFrameVisitor {
       initFrame(frame, tref);
       syncCategoricalFrame(frame, data, ref, dc, tref.isRuntime());
 
-      if(col != null && frame instanceof CategoricalShapeFrame) {
+      if(col != null && frame instanceof CategoricalShapeFrame && hasFullData) {
          // Save the fully-initialised frame (after initFrame + second syncCategoricalFrame) so
          // that cmap contains complete value→shape entries. Unlike the color path (which saves
          // after the first sync), shape frames must be saved here because syncShapes() only
          // populates cmap during the sync that follows initFrame. Saving earlier would give an
          // empty cmap. The stale scale is harmless because it is always rebuilt on load. (74067)
+         //
+         // Only save when hasFullData=true. When rendering with filtered data (e.g. a data tip
+         // view), initFrame depletes the cmap to only the visible category's entries. Saving that
+         // depleted frame to the shared context would corrupt subsequent renders by stripping
+         // SVGShape assignments for all other categories. (74191-related)
          String columnName = resolveColumnName(col, tref);
 
          final CategoricalColorFrameContext context = CategoricalColorFrameContext.getContext();
@@ -988,4 +1018,7 @@ public class VSFrameVisitor {
    private final int sourceType;
    private final DateComparisonInfo dc;
    private FrameInitializer initializer;
+   // When false (e.g. data tip render with filtered data), skip saving the shape frame back to the
+   // shared context to avoid depleted cmap entries contaminating subsequent renders.
+   private boolean hasFullData;
 }
