@@ -39,7 +39,14 @@ describe("IdentityTablesPaneComponent", () => {
    let fixture: ComponentFixture<IdentityTablesPaneComponent>;
 
    beforeEach(() => {
-      const mockClipboardService = { canPaste: () => false, hasContent: () => false, copiedCount: () => 0, copiedTotal: () => 0, copy: () => {}, paste: () => null } as any;
+      const mockClipboardService = {
+         canPaste: () => false,
+         hasContent: () => false,
+         copiedCount: () => 0,
+         copiedTotal: () => 0,
+         copy: () => {},
+         paste: () => null
+      } as any;
 
       TestBed.configureTestingModule({
          imports: [

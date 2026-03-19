@@ -124,7 +124,10 @@ export class IdentityClipboardService implements OnDestroy {
       this.contextAtCopy = context;
    }
 
-   paste(context: IdentityCopyPasteContext | IdentityCopyPasteContext[] | null = null, typeFilter: IdentityType[] | null = null): IdentityModel[] | null {
+   paste(
+      context: IdentityCopyPasteContext | IdentityCopyPasteContext[] | null = null,
+      typeFilter: IdentityType[] | null = null
+   ): IdentityModel[] | null {
       if(!this.canPaste(context)) {
          return null;
       }
