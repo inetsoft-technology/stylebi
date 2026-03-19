@@ -36,7 +36,6 @@ export class TimeZoneSelectComponent implements OnInit, OnChanges, ControlValueA
    @Input() timeZoneLabel: string;
    @Input() timeZoneOptions: TimeZoneModel[];
    @Input() startTimeEnabled: boolean = true;
-   @Input() serverTimeZone: string;
    @Input() enabled: boolean = true;
    @Output() labelChanged = new EventEmitter<string>();
    @Output() changed = new EventEmitter<string>();
@@ -52,7 +51,9 @@ export class TimeZoneSelectComponent implements OnInit, OnChanges, ControlValueA
       }
    }
 
-   // selectedTimeZone is null on the first call; writeValue handles that case via timeZoneLabel
+   // First render: selectedTimeZone is null, so ngOnChanges is a no-op; writeValue
+   // handles label-based matching. Subsequent renders: ngOnChanges fires before writeValue
+   // (via form valueChanges), so this.timeZoneLabel is already updated when writeValue runs.
    ngOnChanges(changes: SimpleChanges): void {
       if(changes.timeZoneLabel && this.selectedTimeZone && this.timeZoneOptions) {
          const newLabel = changes.timeZoneLabel.currentValue as string;

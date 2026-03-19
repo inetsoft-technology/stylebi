@@ -59,6 +59,7 @@ export class HourlyConditionEditorComponent implements OnInit {
       if(Tool.isEquals(oldCondition, value)) {
          return;
       }
+
       this.timeZoneLabel = this.dateTimeService
          .getTimeZoneLabel(this.timeZoneOptions, this._condition.timeZone, this.timeZone,
             this._condition.timeZoneLabel);
@@ -181,7 +182,4 @@ export class HourlyConditionEditorComponent implements OnInit {
       return null;
    };
 
-   private numberEquals(number1: number, number2: number): boolean {
-      return number1 === number2 || Number.isNaN(number1) && Number.isNaN(number2);
-   }
 }

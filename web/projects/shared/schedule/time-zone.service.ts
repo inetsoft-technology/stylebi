@@ -73,9 +73,11 @@ export class TimeZoneService {
             continue;
          }
 
-         // add missing time zone to the list of available choices
-         // for example a user added a condition with a local time zone option and then opened
-         // the same task in another time zone, making the time zone option no longer available
+         // Add missing time zone to the list of available choices.
+         // For example a user added a condition with a local time zone option and then opened
+         // the same task in another time zone, making the time zone option no longer available.
+         // These synthetic entries do not accumulate: timeZoneOptions is rebuilt from a fresh
+         // server response on each page load.
          const missingTimeZone = <TimeZoneModel>{
             timeZoneId: condTimeZoneId,
             label: condLabel ?? this.getTimeZoneName(condTimeZoneId),
