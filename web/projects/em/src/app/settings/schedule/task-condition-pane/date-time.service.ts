@@ -115,7 +115,7 @@ export class DateTimeService {
       }
 
       if(!tz) {
-         tz = timeZoneOptions.find(option => option.timeZoneId == timeZoneID);
+         tz = timeZoneOptions.find(option => option.timeZoneId === timeZoneID);
       }
 
       if(!tz) {

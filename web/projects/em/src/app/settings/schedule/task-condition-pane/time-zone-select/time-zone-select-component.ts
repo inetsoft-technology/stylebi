@@ -52,6 +52,7 @@ export class TimeZoneSelectComponent implements OnInit, OnChanges, ControlValueA
       }
    }
 
+   // selectedTimeZone is null on the first call; writeValue handles that case via timeZoneLabel
    ngOnChanges(changes: SimpleChanges): void {
       if(changes.timeZoneLabel && this.selectedTimeZone && this.timeZoneOptions) {
          const newLabel = changes.timeZoneLabel.currentValue as string;
@@ -75,6 +76,10 @@ export class TimeZoneSelectComponent implements OnInit, OnChanges, ControlValueA
    }
 
    writeValue(obj: any): void {
+      if(!this.timeZoneOptions?.length) {
+         return;
+      }
+
       const candidates = this.timeZoneOptions.filter(o => o.timeZoneId === obj);
 
       if(!obj || candidates.length === 0) {
