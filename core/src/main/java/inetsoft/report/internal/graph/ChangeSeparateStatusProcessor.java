@@ -302,7 +302,8 @@ public class ChangeSeparateStatusProcessor extends ChangeChartProcessor {
     */
    private Font convertFont(Font font) {
       if(font instanceof StyleFont) {
-         return (Font) ((StyleFont) font).clone();
+         // StyleFont is immutable after construction, no need to clone
+         return font;
       }
       else {
          return new Font(font.getName(), font.getStyle(), font.getSize());

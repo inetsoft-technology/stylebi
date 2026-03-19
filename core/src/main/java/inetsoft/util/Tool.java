@@ -2858,27 +2858,38 @@ public final class Tool extends CoreTool {
    public static SimpleDateFormat getDateFormat(Locale locale) {
       String prop = SreeEnv.getProperty("format.date");
       String key = locale + ":date:" + prop;
-      SimpleDateFormat dateFmt = dateFmts.get(key);
 
-      if(dateFmt == null) {
+      // Check thread-local cache first to avoid cloning on every call
+      Map<String, SimpleDateFormat> threadCache = threadDateFmts.get();
+      SimpleDateFormat dateFmt = threadCache.get(key);
+
+      if(dateFmt != null) {
+         return dateFmt;
+      }
+
+      // Check master cache
+      SimpleDateFormat masterFmt = dateFmts.get(key);
+
+      if(masterFmt == null) {
          if(prop == null || prop.equals("")) {
             prop = DEFAULT_DATE_PATTERN;
          }
 
          try {
-            dateFmt = Tool.createDateFormat(prop, locale);
-            dateFmt.format(new Date());
+            masterFmt = Tool.createDateFormat(prop, locale);
+            masterFmt.format(new Date());
          }
          catch(Exception ex) {
             LOG.warn("Failed to create date format: " + prop, ex);
-            dateFmt = Tool.createDateFormat(DEFAULT_DATE_PATTERN, locale);
+            masterFmt = Tool.createDateFormat(DEFAULT_DATE_PATTERN, locale);
          }
 
-         dateFmts.put(key, dateFmt);
+         dateFmts.put(key, masterFmt);
       }
-      else {
-         dateFmt = (SimpleDateFormat) dateFmt.clone();
-      }
+
+      // Clone for this thread and cache it
+      dateFmt = (SimpleDateFormat) masterFmt.clone();
+      threadCache.put(key, dateFmt);
 
       return dateFmt;
    }
@@ -2939,9 +2950,18 @@ public final class Tool extends CoreTool {
          key += ":schedule:" + twelveHourSystem;
       }
 
-      SimpleDateFormat timeFmt = dateFmts.get(key);
+      // Check thread-local cache first to avoid cloning on every call
+      Map<String, SimpleDateFormat> threadCache = threadDateFmts.get();
+      SimpleDateFormat timeFmt = threadCache.get(key);
 
-      if(timeFmt == null) {
+      if(timeFmt != null) {
+         return timeFmt;
+      }
+
+      // Check master cache
+      SimpleDateFormat masterFmt = dateFmts.get(key);
+
+      if(masterFmt == null) {
          if(prop == null || prop.equals("")) {
             prop = DEFAULT_TIME_PATTERN;
          }
@@ -2951,19 +2971,20 @@ public final class Tool extends CoreTool {
          }
 
          try {
-            timeFmt = Tool.createDateFormat(prop, locale);
-            timeFmt.format(new Date());
+            masterFmt = Tool.createDateFormat(prop, locale);
+            masterFmt.format(new Date());
          }
          catch(Exception ex) {
             LOG.warn("Failed to create time format: " + prop, ex);
-            timeFmt = Tool.createDateFormat(DEFAULT_TIME_PATTERN, locale);
+            masterFmt = Tool.createDateFormat(DEFAULT_TIME_PATTERN, locale);
          }
 
-         dateFmts.put(key, timeFmt);
+         dateFmts.put(key, masterFmt);
       }
-      else {
-         timeFmt = (SimpleDateFormat) timeFmt.clone();
-      }
+
+      // Clone for this thread and cache it
+      timeFmt = (SimpleDateFormat) masterFmt.clone();
+      threadCache.put(key, timeFmt);
 
       return timeFmt;
    }
@@ -2995,27 +3016,38 @@ public final class Tool extends CoreTool {
    public static SimpleDateFormat getDateTimeFormat(Locale locale) {
       String prop = SreeEnv.getProperty("format.date.time");
       String key = locale + ":datetime:" + prop;
-      SimpleDateFormat datetimeFmt = dateFmts.get(key);
 
-      if(datetimeFmt == null) {
+      // Check thread-local cache first to avoid cloning on every call
+      Map<String, SimpleDateFormat> threadCache = threadDateFmts.get();
+      SimpleDateFormat datetimeFmt = threadCache.get(key);
+
+      if(datetimeFmt != null) {
+         return datetimeFmt;
+      }
+
+      // Check master cache
+      SimpleDateFormat masterFmt = dateFmts.get(key);
+
+      if(masterFmt == null) {
          if(prop == null || prop.equals("")) {
             prop = DEFAULT_DATETIME_PATTERN;
          }
 
          try {
-            datetimeFmt = Tool.createDateFormat(prop, locale);
-            datetimeFmt.format(new Date());
+            masterFmt = Tool.createDateFormat(prop, locale);
+            masterFmt.format(new Date());
          }
          catch(Exception ex) {
             LOG.warn("Failed to create date/time format: " + prop, ex);
-            datetimeFmt = Tool.createDateFormat(DEFAULT_DATETIME_PATTERN, locale);
+            masterFmt = Tool.createDateFormat(DEFAULT_DATETIME_PATTERN, locale);
          }
 
-         dateFmts.put(key, datetimeFmt);
+         dateFmts.put(key, masterFmt);
       }
-      else {
-         datetimeFmt = (SimpleDateFormat) datetimeFmt.clone();
-      }
+
+      // Clone for this thread and cache it
+      datetimeFmt = (SimpleDateFormat) masterFmt.clone();
+      threadCache.put(key, datetimeFmt);
 
       return datetimeFmt;
    }
@@ -5191,6 +5223,9 @@ public final class Tool extends CoreTool {
    public static final String TIMESTAMP_PARAMETER_PREFIX = "^TIMESTAMP^";
    public static final String DATETIME_WITH_MILLIS_FORMAT_KEY = "TIMESTAMP:WITHMILLIS";
    private static final Map<String,SimpleDateFormat> dateFmts = new ConcurrentHashMap<>();
+   // ThreadLocal cache to avoid cloning on every call - each thread clones once per format key
+   private static final ThreadLocal<Map<String, SimpleDateFormat>> threadDateFmts =
+      ThreadLocal.withInitial(HashMap::new);
    private static SreeEnv.Value firstDayProperty = new SreeEnv.Value("week.start", 30000);
 
    enum NumberFormats {

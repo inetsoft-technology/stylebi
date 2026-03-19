@@ -96,7 +96,7 @@ public class XNodeTable implements XTable {
       }
 
       // only mark as cancelled if not completed.
-      cancelled = cancelled || delegate.getRowCount() >= 0;
+      cancelled = cancelled || delegate.getRowCount() < 0;
 
       if(root instanceof XTableNode) {
          ((XTableNode) root).cancel();
