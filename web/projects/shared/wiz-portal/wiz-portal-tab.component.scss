@@ -1,4 +1,4 @@
-/*
+/*!
  * This file is part of StyleBI.
  * Copyright (C) 2026  InetSoft Technology
  *
@@ -16,31 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { Component } from "@angular/core";
-import { WizPortalService } from "./wiz-portal.service";
+:host {
+  display: block;
+  height: 100%;
+  width: 100%;
+}
 
-@Component({
-   selector: "wiz-portal-dialog",
-   templateUrl: "./wiz-portal-dialog.component.html",
-   styleUrls: ["./wiz-portal-dialog.component.scss"]
-})
-export class WizPortalDialogComponent {
-   get styleBIUrl(): string {
-      return this.wizPortalService.styleBIUrl;
-   }
-
-   get wizServiceUrl(): string {
-      return this.wizPortalService.wizServiceUrl;
-   }
-
-   get userId(): string {
-      return this.wizPortalService.userId;
-   }
-
-   get domain(): string {
-      return this.wizPortalService.domain;
-   }
-
-   constructor(private wizPortalService: WizPortalService) {
-   }
+.wiz-portal-tab-container {
+  height: 100%;
+  width: 100%;
 }

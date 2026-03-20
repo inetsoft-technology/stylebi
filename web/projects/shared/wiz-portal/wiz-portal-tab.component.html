@@ -16,10 +16,10 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 
-<div id="wiz-portal-dialog-container" style="position: relative; height: 100%; width: 100%;">
-  <stylebi-wiz-portal [attr.stylebi-url]="styleBIUrl"
-                      [attr.wiz-service-url]="wizServiceUrl"
-                      [attr.expected-user-id]="userId || null"
-                      [attr.domain]="domain || null">
+<div class="wiz-portal-tab-container">
+  <stylebi-wiz-portal [attr.stylebi-url]="wizPortalService.styleBIUrl"
+                      [attr.wiz-service-url]="wizPortalService.wizServiceUrl"
+                      [attr.expected-user-id]="wizPortalService.userId || null"
+                      [attr.domain]="wizPortalService.domain || null">
   </stylebi-wiz-portal>
 </div>

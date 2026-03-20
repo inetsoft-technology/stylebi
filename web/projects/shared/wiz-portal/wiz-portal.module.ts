@@ -17,11 +17,11 @@
  */
 
 import { CUSTOM_ELEMENTS_SCHEMA, NgModule } from "@angular/core";
-import { WizPortalDialogComponent } from "./wiz-portal-dialog.component";
+import { WizPortalTabComponent } from "./wiz-portal-tab.component";
 
 @NgModule({
-   exports: [WizPortalDialogComponent],
-   declarations: [WizPortalDialogComponent],
+   exports: [WizPortalTabComponent],
+   declarations: [WizPortalTabComponent],
    schemas: [CUSTOM_ELEMENTS_SCHEMA]
 })
 export class WizPortalModule {

@@ -105,24 +105,8 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
    private connected: boolean = false;
    private heartbeatSubscription: Subscription = Subscription.EMPTY;
 
-   get styleBIUrl(): string {
-      return this.wizPortalService.styleBIUrl;
-   }
-
-   get wizServiceUrl(): string {
-      return this.wizPortalService.wizServiceUrl;
-   }
-
-   get userId(): string {
-      return this.wizPortalService.userId;
-   }
-
-   get domain(): string {
-      return this.wizPortalService.domain;
-   }
-
    constructor(private viewsheetClient: ViewsheetClientService, zone: NgZone,
-               private wizService: WizService, private wizPortalService: WizPortalService)
+               private wizService: WizService, public wizPortalService: WizPortalService)
    {
       super(viewsheetClient, zone, true);
    }

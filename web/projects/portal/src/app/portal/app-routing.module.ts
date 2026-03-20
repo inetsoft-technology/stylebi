@@ -46,6 +46,7 @@ import { scheduleSaveGuard } from "./schedule/schedule-save.guard";
 import { ScheduleTabComponent } from "./schedule/schedule-tab.component";
 import { ScheduleTaskEditorComponent } from "./schedule/schedule-task-editor/schedule-task-editor.component";
 import { ScheduleTaskListComponent } from "./schedule/schedule-task-list/schedule-task-list.component";
+import { WizPortalTabComponent } from "../../../../shared/wiz-portal/wiz-portal-tab.component";
 import { canDatabaseCreateActivate } from "./services/can-database-create-activate.service";
 import { canDatabaseModelActivate } from "./services/can-database-model-activate.service";
 import { canTabActivate } from "./services/can-tab-activate.service";
@@ -275,6 +276,10 @@ const appRoutes: Routes = [
                   ]
                }
             ]
+         },
+         {
+            path: "tab/wiz-portal",
+            component: WizPortalTabComponent,
          },
          {
             path: "tab/custom/:name",

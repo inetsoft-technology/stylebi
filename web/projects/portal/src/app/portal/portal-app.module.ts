@@ -38,8 +38,6 @@ import { ScheduleTaskNamesService } from "../../../../shared/schedule/schedule-t
 import { PORTAL, ScheduleUsersService } from "../../../../shared/schedule/schedule-users.service";
 import { CodemirrorService } from "../../../../shared/util/codemirror/codemirror.service";
 import { DefaultCodemirrorService } from "../../../../shared/util/codemirror/default-codemirror.service";
-import { WizPortalService } from "../../../../shared/wiz-portal/wiz-portal.service";
-import { WizPortalDialogService } from "../common/services/wiz-portal-dialog.service";
 import { UIContextService } from "../common/services/ui-context.service";
 import { FormatModule } from "../format/format.module";
 import { DataTreeValidatorService } from "../vsobjects/dialog/data-tree-validator.service";
@@ -399,8 +397,6 @@ import { PortalTabsService } from "./services/portal-tabs.service";
       },
       DataQueryModelService,
       AiAssistantService,
-      WizPortalService,
-      WizPortalDialogService,
    ]
 })
 export class PortalAppModule {

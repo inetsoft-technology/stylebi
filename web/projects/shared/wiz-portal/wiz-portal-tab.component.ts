@@ -1,4 +1,4 @@
-/*!
+/*
  * This file is part of StyleBI.
  * Copyright (C) 2026  InetSoft Technology
  *
@@ -16,6 +16,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-::ng-deep #wiz-portal-dialog-container stylebi-wiz-portal {
-  border-radius: 8px;
+import { Component } from "@angular/core";
+import { WizPortalService } from "./wiz-portal.service";
+
+@Component({
+   selector: "p-wiz-portal-tab",
+   templateUrl: "./wiz-portal-tab.component.html",
+   styleUrls: ["./wiz-portal-tab.component.scss"]
+})
+export class WizPortalTabComponent {
+   constructor(public wizPortalService: WizPortalService) {
+   }
 }
