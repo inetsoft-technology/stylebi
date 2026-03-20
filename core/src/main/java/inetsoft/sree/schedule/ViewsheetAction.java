@@ -566,8 +566,18 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
 
                if(alertSandboxVars != null && alertBookmarkVs != null) {
                   for(Assembly assembly : alertBookmarkVs.getAssemblies()) {
-                     if(assembly instanceof InputVSAssembly) {
+                     if(assembly instanceof InputVSAssembly inputAssembly) {
                         alertSandboxVars.remove(assembly.getName());
+                        String tname = inputAssembly.getTableName();
+
+                        if(inputAssembly.isVariable() && tname != null && !tname.isEmpty()) {
+                           if(tname.startsWith("$(") && tname.endsWith(")")) {
+                              alertSandboxVars.remove(tname.substring(2, tname.length() - 1));
+                           }
+                           else {
+                              alertSandboxVars.remove(tname);
+                           }
+                        }
                      }
                   }
                }
@@ -1368,8 +1378,18 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
 
          if(sandboxVars != null && bookmarkVs != null) {
             for(Assembly assembly : bookmarkVs.getAssemblies()) {
-               if(assembly instanceof InputVSAssembly) {
+               if(assembly instanceof InputVSAssembly inputAssembly) {
                   sandboxVars.remove(assembly.getName());
+                  String tname = inputAssembly.getTableName();
+
+                  if(inputAssembly.isVariable() && tname != null && !tname.isEmpty()) {
+                     if(tname.startsWith("$(") && tname.endsWith(")")) {
+                        sandboxVars.remove(tname.substring(2, tname.length() - 1));
+                     }
+                     else {
+                        sandboxVars.remove(tname);
+                     }
+                  }
                }
             }
          }
