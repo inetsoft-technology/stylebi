@@ -781,6 +781,12 @@ div.loading-indicator.loading::after {
   text-decoration: none;
 }
 
+.restricted-action-btn--primary:focus-visible {
+  outline: 2px solid var(--ln-border-focus);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px var(--ln-glow);
+}
+
 /* Secondary action — M3 Outlined Button using theme secondary colour */
 .restricted-action-btn:not(.restricted-action-btn--primary) {
   display: block;
@@ -802,4 +808,10 @@ div.loading-indicator.loading::after {
   background: var(--inet-button-default-hover-bg-color,   #105e5a);
   color:      var(--inet-button-default-hover-text-color, #cdf7f6);
   text-decoration: none;
+}
+
+.restricted-action-btn:not(.restricted-action-btn--primary):focus-visible {
+  outline: 2px solid var(--ln-border-focus);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px var(--ln-glow);
 }

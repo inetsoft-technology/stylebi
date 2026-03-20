@@ -51,7 +51,7 @@
           Please sign in
         </div>
         <div class="card-body">
-          <form novalidate>
+          <form id="login-form" novalidate>
             <div class="signup-text" data-th-if="${selfSignUpEnabled && isNotTenantServer}">
               <a href="./signup.html" target="_self" data-th-text="#{login.create.account.label}">Create an account</a>
             </div>
@@ -59,7 +59,7 @@
               <label class="required-field" for="loginUserName"
                      data-th-text="#{login.username.label}">User name</label>
               <input type="text" class="form-control" id="loginUserName"
-                     name="loginUserName" autofocus/>
+                     name="loginUserName" autocomplete="username" autofocus/>
               <div id="userNameError" class="invalid-feedback" style="display: none;"
                    data-th-text="#{login.username.required}">
                 Please enter your user name.
@@ -69,7 +69,7 @@
               <label class="required-field" for="loginPassword"
                      data-th-text="#{login.password.label}">Password</label>
               <input type="password" class="form-control" id="loginPassword"
-                     name="loginPassword"/>
+                     name="loginPassword" autocomplete="current-password"/>
               <div id="passwordError" class="invalid-feedback" style="display: none;"
                    data-th-text="#{login.password.required}">
                 Please enter your password.
@@ -99,7 +99,7 @@
         </div>
         <div class="card-footer">
           <button id="loginButton" class="btn btn-primary w-100"
-                  data-th-text="#{login.signIn}">
+                  form="login-form" data-th-text="#{login.signIn}">
             Sign in
           </button>
         </div>
@@ -191,7 +191,7 @@
         <button type="button" class="btn-close close" data-bs-dismiss="modal" aria-label="Close">
         </button>
       </div>
-      <div class="modal-body text-info" data-th-utext="#{login.warning.activeSession(${currentUser})}"></div>
+      <div class="modal-body text-info" data-th-text="#{login.warning.activeSession(${currentUser})}"></div>
       <div class="modal-footer">
         <button type="button" id="confirmLogin" class="btn btn-primary" data-th-text="#{Yes}">Yes</button>
         <button type="button" class="btn btn-default" data-bs-dismiss="modal" data-th-text="#{No}">No</button>
