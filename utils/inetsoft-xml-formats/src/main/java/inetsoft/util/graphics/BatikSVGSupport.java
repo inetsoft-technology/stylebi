@@ -287,6 +287,12 @@ public class BatikSVGSupport implements SVGSupport {
    }
 
    @Override
+   public SVGTransformer createSVGTransformer(InputStream input) throws IOException {
+      Document doc = SVGUtil.createDocument(input);
+      return new BatikSVGTransformer(doc);
+   }
+
+   @Override
    public void fixPNG(Document document) {
       SVGUtil.fixPNG(document);
    }

@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Rectangle2D;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.URL;
 
@@ -201,8 +202,7 @@ public class SVGShape extends GShape {
          Dimension bsize = new Dimension();
          bsize.setSize(bw, bh);
          Tuple tuple = new Tuple(resource, bsize);
-         Image img = (Image)
-            ResourceCache2.getResourceCache().get(tuple);
+         Image img = ResourceCache2.getResourceCache().get(tuple);
 
          if(g.getColor() != null) {
             img = GTool.changeHue(img, g.getColor());
@@ -222,7 +222,7 @@ public class SVGShape extends GShape {
       Tuple tuple = new Tuple(resource, size);
 
       try {
-         return (Image) ResourceCache2.getResourceCache().get(tuple);
+         return ResourceCache2.getResourceCache().get(tuple);
       }
       catch(Exception ex) {
          LOG.warn("Failed to get the image", ex);
@@ -253,11 +253,11 @@ public class SVGShape extends GShape {
    /**
     * Icon resource cache.
     */
-   private static class ResourceCache2 extends ResourceCache {
+   private static class ResourceCache2 extends ResourceCache<Tuple, Image> {
       /**
        * Get the resource cache.
        */
-      public static ResourceCache getResourceCache() {
+      public static ResourceCache<Tuple, Image> getResourceCache() {
          if(cache == null) {
             cache = new ResourceCache2();
          }
@@ -269,14 +269,35 @@ public class SVGShape extends GShape {
        * Create a resource.
        */
       @Override
-      protected Object create(Object key) throws Exception {
-         Tuple tuple = (Tuple) key;
+      protected Image create(Tuple tuple) throws Exception {
          String uri = tuple.resource;
          Dimension size = tuple.size;
 
-         try(InputStream input = DataSpace.getDataSpace().getInputStream(null, uri)) {
-            if(input != null) {
-               return SVGSupport.getInstance().getSVGImage(input, size.width, size.height);
+         try(InputStream rawInput = DataSpace.getDataSpace().getInputStream(null, uri)) {
+            if(rawInput != null) {
+               byte[] svgData = rawInput.readAllBytes();
+
+               SVGSupport svgSupport = SVGSupport.getInstance();
+
+               try {
+                  SVGTransformer svg = svgSupport
+                     .createSVGTransformer(new ByteArrayInputStream(svgData));
+                  Dimension isize = svg.getDefaultSize();
+
+                  if(isize.width > 0 && isize.height > 0) {
+                     svg.setSize(size);
+                     svg.setTransform(AffineTransform.getScaleInstance(
+                        ((double) size.width) / ((double) isize.width),
+                        ((double) size.height) / ((double) isize.height)));
+                     return svg.getImage();
+                  }
+               }
+               catch(Exception ex) {
+                  LOG.debug("SVG transformer failed, falling back to getSVGImage for: {}", uri, ex);
+               }
+
+               return svgSupport.getSVGImage(
+                  new ByteArrayInputStream(svgData), size.width, size.height);
             }
          }
 
@@ -287,16 +308,21 @@ public class SVGShape extends GShape {
 
          SVGTransformer svg = SVGSupport.getInstance().createSVGTransformer(new URL(uri));
          Dimension isize = svg.getDefaultSize();
-         svg.setSize(size);
-         svg.setTransform(AffineTransform.getScaleInstance(
-            ((double) size.width) / ((double) isize.width),
-            ((double) size.height) / ((double) isize.height)));
 
-         return svg.getImage();
+         if(isize.width > 0 && isize.height > 0) {
+            svg.setSize(size);
+            svg.setTransform(AffineTransform.getScaleInstance(
+               ((double) size.width) / ((double) isize.width),
+               ((double) size.height) / ((double) isize.height)));
+
+            return svg.getImage();
+         }
+
+         return null;
       }
    }
 
-   private class Tuple {
+   private static class Tuple {
       public Tuple(String resource, Dimension size) {
          this.resource = resource;
          this.size = size;
@@ -307,11 +333,9 @@ public class SVGShape extends GShape {
       }
 
       public boolean equals(Object obj) {
-         if(!(obj instanceof Tuple)) {
+         if(!(obj instanceof Tuple tuple)) {
             return false;
          }
-
-         Tuple tuple = (Tuple) obj;
 
          return Tool.equals(resource, tuple.resource) && Tool.equals(size, tuple.size);
       }
