@@ -48,7 +48,7 @@ export class TimeZoneService {
          minuteOffset: this.calculateTimezoneOffset(localTimeZoneId) / 60000
       };
 
-      if(timeZoneOptions[0].label != localTimeZone.label) {
+      if(!timeZoneOptions.length || timeZoneOptions[0].label != localTimeZone.label) {
          timeZoneOptions.unshift(localTimeZone);
       }
 

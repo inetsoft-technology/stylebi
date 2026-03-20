@@ -93,14 +93,12 @@ export class TimeZoneSelectComponent implements OnInit, ControlValueAccessor {
       }
    }
 
-   onSelectionChanged(changed: boolean) {
-      if(changed) {
-         const value: TimeZoneValue = {
-            timeZoneId: this.selectedTimeZone?.timeZoneId ?? "",
-            timeZoneLabel: this.selectedTimeZone?.label ?? ""
-         };
-         this.onChange(value);
-         this.changed.emit(this.selectedTimeZone?.timeZoneId);
-      }
+   onSelectionChanged() {
+      const value: TimeZoneValue = {
+         timeZoneId: this.selectedTimeZone?.timeZoneId ?? "",
+         timeZoneLabel: this.selectedTimeZone?.label ?? ""
+      };
+      this.onChange(value);
+      this.changed.emit(this.selectedTimeZone?.timeZoneId);
    }
 }
