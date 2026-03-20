@@ -48,6 +48,10 @@ describe("PermissionClipboardService", () => {
       service = new PermissionClipboardService(mockOrgDropdownService);
    });
 
+   afterEach(() => {
+      service.ngOnDestroy();
+   });
+
    describe("canPaste", () => {
       it("should be false initially", () => {
          expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(false);
@@ -353,7 +357,7 @@ describe("PermissionClipboardService", () => {
          expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(true);
       });
 
-      it("should not clear clipboard when nothing has been copied yet", () => {
+      it("should not error when provider changes and nothing has been copied", () => {
          refreshSubject.next({ provider: "provider-b", providerChanged: true });
 
          expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(false);
