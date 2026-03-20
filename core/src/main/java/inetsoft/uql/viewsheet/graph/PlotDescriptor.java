@@ -1469,7 +1469,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       }
 
       val = Tool.getAttribute(node, "barCornerRadius");
-      barCornerRadius = val != null ? Double.parseDouble(val) : 0.0;
+      setBarCornerRadius(val != null ? Double.parseDouble(val) : 0.0);
       barRoundAllCorners = "true".equals(Tool.getAttribute(node, "barRoundAllCorners"));
 
       String lonMin = Tool.getAttribute(node, "lonMin");

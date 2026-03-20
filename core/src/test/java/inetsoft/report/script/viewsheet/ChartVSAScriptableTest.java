@@ -125,6 +125,10 @@ public class ChartVSAScriptableTest {
       chartVSAScriptable.put("barRoundAllCorners", null, true);
       assertTrue(plot.isBarRoundAllCorners());
       assertTrue((boolean) chartVSAScriptable.get("barRoundAllCorners", null));
+
+      chartVSAScriptable.put("barRoundAllCorners", null, false);
+      assertFalse(plot.isBarRoundAllCorners());
+      assertFalse((boolean) chartVSAScriptable.get("barRoundAllCorners", null));
    }
 
    @Test
