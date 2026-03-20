@@ -28,39 +28,37 @@
    ============================================================ */
 :root {
   /* Surfaces */
-  --ln-bg:          var(--inet-navbar-bg-color,          #424242); /* right panel + body overflow */
-  --ln-left:        var(--inet-main-panel-bg-color,      #ffffff); /* left/form panel */
-  --ln-surface:     var(--inet-main-panel-bg-color,      #ffffff); /* input default bg */
+  --ln-bg:          var(--inet-navbar-bg-color,            #424242); /* right panel + body overflow */
+  --ln-left:        var(--inet-main-panel-bg-color,        #ffffff); /* left/form panel */
+  --ln-surface:     var(--inet-main-panel-bg-color,        #ffffff); /* input default bg */
   --ln-surface-hi:  var(--inet-portal-side-panel-bg-color, #f9f9f9); /* input hover bg */
 
   /* Text */
-  --ln-text:        var(--inet-text-color,   #212529);
-  --ln-text-soft:   var(--inet-icon-color,   #6d6d6d);
+  --ln-text:        var(--inet-text-color,  #212529);
+  --ln-text-soft:   var(--inet-icon-color,  #6d6d6d);
   --ln-text-dim:    #aaaaaa;
 
   /* Borders */
   --ln-border:       var(--inet-default-border-color, #e0e0e0);
   --ln-border-focus: var(--inet-primary-color,        #ed711c);
-  --ln-glow:         rgba(237, 113, 28, 0.20);
+  /* Glow derives from the theme primary so custom themes propagate.
+     color-mix() is baseline-supported in all evergreen browsers. */
+  --ln-glow: color-mix(in srgb, var(--inet-primary-color, #ed711c) 20%, transparent);
 
   /* Accent — follows the app's primary button colour chain */
-  --ln-accent:      var(--inet-button-primary-bg-color,       #ed711c);
-  --ln-accent-dark: var(--inet-button-primary-hover-bg-color, #d25f11);
-  --ln-danger:      var(--inet-danger-color,  #fe688b);
-  --ln-font:        var(--inet-font-family,   "Roboto", "Helvetica Neue", Arial, sans-serif);
+  --ln-accent: var(--inet-button-primary-bg-color, #ed711c);
+  --ln-danger: var(--inet-danger-color,            #fe688b);
+  --ln-font:   var(--inet-font-family,             "Roboto", "Helvetica Neue", Arial, sans-serif);
 
   /* M3 state-layer opacities */
   --m3-hover:  0.08;
   --m3-focus:  0.12;
   --m3-press:  0.12;
 
-  /* M3 shape tokens */
-  --m3-shape-xs:   4px;
-  --m3-shape-sm:   8px;
-  --m3-shape-md:   12px;
-  --m3-shape-lg:   16px;
-  --m3-shape-xl:   28px;
-  --m3-shape-full: 50px;
+  /* M3 shape tokens (only the values actively used are kept) */
+  --m3-shape-xs:   4px;   /* inputs, alerts, banners */
+  --m3-shape-xl:   28px;  /* modal dialog */
+  --m3-shape-full: 50px;  /* pill buttons */
 
   /* Layout */
   --ln-nav-h:   54px;
@@ -80,6 +78,7 @@ html, body {
 }
 
 body {
+  /* Prevents double scrollbars; .login-left handles its own overflow-y */
   overflow: hidden;
 }
 
@@ -99,7 +98,7 @@ body {
 }
 
 .custom-logo {
-  height: 32px;
+  height: 50px; /* restored to original; 32px was a regression */
   vertical-align: middle;
 }
 
@@ -121,6 +120,7 @@ body {
 .login-left {
   width: var(--ln-left-w);
   min-width: 300px;
+  max-width: 480px; /* prevent overly wide form panel on 4K+ displays */
   flex-shrink: 0;
   background: var(--ln-left);
   display: flex;
@@ -131,7 +131,6 @@ body {
   overflow-x: hidden;
   position: relative;
   z-index: 2;
-  /* Lighter shadow appropriate for white-on-dark transition */
   box-shadow: 4px 0 32px rgba(0, 0, 0, 0.18);
   animation: loginPanelIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -149,13 +148,15 @@ body {
 }
 
 /* ============================================================
-   Card — transparent container on the light panel
+   Card — transparent container on the light panel.
+   Scoped selectors give sufficient specificity to override
+   Bootstrap without needing !important on every property.
    ============================================================ */
 .login-left .card {
-  background: transparent !important;
-  border: none !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
   margin: 0;
   width: 100%;
   max-width: 100%;
@@ -164,8 +165,8 @@ body {
 
 /* M3 Expressive headline — dark on light */
 .login-left .card-header {
-  background: transparent !important;
-  border: none !important;
+  background: transparent;
+  border: none;
   padding: 0 0 36px 0;
   font-size: 2rem;
   font-weight: 700;
@@ -180,13 +181,15 @@ body {
 }
 
 .login-left .card-footer {
-  background: transparent !important;
-  border: none !important;
+  background: transparent;
+  border: none;
   padding: 28px 0 0 0;
 }
 
 /* ============================================================
-   Form elements — M3 Outlined Text Field on light surface
+   Form elements — M3 Outlined Text Field on light surface.
+   Selector specificity (0,2,0) overrides Bootstrap (0,1,0)
+   without requiring !important on individual properties.
    ============================================================ */
 
 /* Stagger form groups */
@@ -205,7 +208,7 @@ body {
 }
 
 /* M3 Label Medium */
-.form-group label {
+.login-left .form-group label {
   display: block;
   margin-bottom: 7px;
   font-size: 0.75rem;
@@ -219,15 +222,15 @@ body {
   color: var(--ln-accent);
 }
 
-/* M3 Outlined Text Field — shape.corner.extra-small = 4dp, light theme */
-.form-control {
-  background: var(--ln-surface) !important;
-  border: 1px solid var(--ln-border) !important;
-  border-radius: var(--m3-shape-xs) !important;
-  color: var(--ln-text) !important;
-  padding: 12px 14px !important;
-  font-size: 0.93rem !important;
-  font-family: var(--ln-font) !important;
+/* M3 Outlined Text Field — shape.corner.extra-small = 4dp */
+.login-left .form-control {
+  background: var(--ln-surface);
+  border: 1px solid var(--ln-border);
+  border-radius: var(--m3-shape-xs);
+  color: var(--ln-text);
+  padding: 12px 14px;
+  font-size: 0.93rem;
+  font-family: var(--ln-font);
   width: 100%;
   transition:
     border-color 0.15s ease,
@@ -237,29 +240,32 @@ body {
   appearance: none;
 }
 
-.form-control:hover {
-  border-color: var(--inet-gray2, #bdbdbd) !important;
-  background: var(--ln-surface-hi) !important;
+.login-left .form-control:hover {
+  border-color: var(--inet-gray2, #bdbdbd);
+  background: var(--ln-surface-hi);
 }
 
-/* M3 focus: 2px primary border + subtle orange glow */
-.form-control:focus {
-  outline: none !important;
-  background: var(--ln-surface) !important;
-  border: 2px solid var(--ln-border-focus) !important;
-  padding: 11px 13px !important; /* compensate for extra border px */
-  color: var(--ln-text) !important;
-  box-shadow: 0 0 0 3px var(--ln-glow) !important;
+/* M3 focus: 2px primary border + subtle themed glow */
+.login-left .form-control:focus {
+  outline: none;
+  background: var(--ln-surface);
+  border: 2px solid var(--ln-border-focus);
+  padding: 11px 13px; /* compensate for extra border pixel */
+  color: var(--ln-text);
+  box-shadow: 0 0 0 3px var(--ln-glow);
 }
 
-.form-control::placeholder {
-  color: var(--ln-text-dim) !important;
+.login-left .form-control::placeholder {
+  color: var(--ln-text-dim);
 }
 
-select.form-control {
+/* The browser's native select arrow is hidden; the .select-wrapper
+   pseudo-element renders a themed arrow instead. transition:none
+   prevents a flash during option-list open on some browsers. */
+.login-left select.form-control {
   cursor: pointer;
-  background-image: none !important;
-  padding-right: 34px !important;
+  background-image: none;
+  padding-right: 34px;
   transition: none;
 }
 
@@ -267,7 +273,7 @@ select.form-control {
   position: relative;
 }
 
-/* Dark arrow for light background — fades via opacity */
+/* Custom dropdown arrow for light background */
 .select-wrapper::after {
   content: '';
   position: absolute;
@@ -280,20 +286,15 @@ select.form-control {
   background-repeat: no-repeat;
   background-size: contain;
   pointer-events: none;
-  transition: opacity 0.15s ease;
 }
 
-.select-wrapper:hover::after {
-  opacity: 0;
-}
-
-select.form-control option {
+.login-left select.form-control option {
   background: var(--ln-surface);
   color: var(--ln-text);
 }
 
-.invalid-feedback {
-  color: var(--ln-danger) !important;
+.login-left .invalid-feedback {
+  color: var(--ln-danger);
   font-size: 0.8rem;
   margin-top: 4px;
 }
@@ -313,32 +314,32 @@ select.form-control option {
 .signup-text a:hover { opacity: 0.75; }
 
 /* ============================================================
-   Sign-in button — M3 Filled Button, pill shape
+   Sign-in button — M3 Filled Button, pill shape.
+   ID selector on #loginButton gives (1,1,0) specificity which
+   beats Bootstrap's (0,1,0) without needing !important.
    ============================================================ */
 #loginButton.btn-primary,
 .login-left .btn-primary {
   position: relative;
   overflow: hidden;
-  background: var(--ln-accent) !important;
-  border: none !important;
-  border-radius: var(--m3-shape-full) !important;
-  color: var(--inet-button-primary-text-color, #fff) !important;
-  font-family: var(--ln-font) !important;
-  font-size: 0.9rem !important;
-  font-weight: 500 !important;
-  letter-spacing: 0.01em !important;
-  text-transform: none !important;
-  padding: 14px 24px !important;
+  background: var(--ln-accent);
+  border: none;
+  border-radius: var(--m3-shape-full);
+  color: var(--inet-button-primary-text-color, #fff);
+  font-family: var(--ln-font);
+  font-size: 0.9rem;
+  font-weight: 500;           /* M3 Label Large */
+  letter-spacing: 0.01em;
+  text-transform: none;       /* M3 dropped ALL-CAPS */
+  padding: 14px 24px;
   width: 100%;
   cursor: pointer;
-  transition: background 0.15s ease;
-  box-shadow:
-    0px 1px 2px rgba(0,0,0,0.3),
-    0px 1px 3px 1px rgba(0,0,0,0.15) !important;
+  transition: box-shadow 0.15s ease;
+  box-shadow: 0px 1px 2px rgba(0,0,0,0.3), 0px 1px 3px 1px rgba(0,0,0,0.15);
   animation: loginItemIn 0.5s 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* M3 state layer */
+/* M3 state layer: translucent white overlay */
 #loginButton.btn-primary::after,
 .login-left .btn-primary::after {
   content: '';
@@ -352,17 +353,15 @@ select.form-control option {
 }
 
 #loginButton.btn-primary:hover::after,
-.login-left .btn-primary:hover::after   { opacity: var(--m3-hover); }
+.login-left .btn-primary:hover::after  { opacity: var(--m3-hover); }
 #loginButton.btn-primary:focus::after,
-.login-left .btn-primary:focus::after   { opacity: var(--m3-focus); }
+.login-left .btn-primary:focus::after  { opacity: var(--m3-focus); }
 #loginButton.btn-primary:active::after,
-.login-left .btn-primary:active::after  { opacity: var(--m3-press); }
+.login-left .btn-primary:active::after { opacity: var(--m3-press); }
 
 #loginButton.btn-primary:hover,
 .login-left .btn-primary:hover {
-  box-shadow:
-    0px 1px 2px rgba(0,0,0,0.3),
-    0px 2px 6px 2px rgba(0,0,0,0.15) !important;
+  box-shadow: 0px 1px 2px rgba(0,0,0,0.3), 0px 2px 6px 2px rgba(0,0,0,0.15);
 }
 
 /* ============================================================
@@ -402,17 +401,21 @@ select.form-control option {
 /* ============================================================
    Login banner — M3 outlined card on light surface
    ============================================================ */
-.loginBanner {
-  border: 1px solid var(--ln-border) !important;
-  background: var(--inet-portal-side-panel-bg-color, #f9f9f9) !important;
-  color: var(--ln-text) !important;
-  border-radius: var(--m3-shape-xs) !important;
+.loginBanner:empty {
+  display: none;
+}
+
+.login-left .loginBanner {
+  border: 1px solid var(--ln-border);
+  background: var(--inet-portal-side-panel-bg-color, #f9f9f9);
+  color: var(--ln-text);
+  border-radius: var(--m3-shape-xs);
   padding: 14px 16px;
   margin: 14px 0 0 0;
   font-size: 0.875rem;
   width: 100%;
   max-width: 100%;
-  box-shadow: none !important;
+  box-shadow: none;
 }
 
 pre.loginBanner {
@@ -422,9 +425,9 @@ pre.loginBanner {
 }
 
 /* ============================================================
-   Alerts — use the theme's light-mode colour variants
+   Alerts — theme light-mode colour variants
    ============================================================ */
-div.alert {
+.login-left div.alert {
   margin: 10px 0 0 0;
   width: 100%;
   max-width: 100%;
@@ -432,52 +435,53 @@ div.alert {
   font-size: 0.875rem;
 }
 
-.alert-danger {
-  background: var(--inet-danger-color-light,  #fff3f5) !important;
-  color:      var(--inet-danger-color-dark,   #85646c) !important;
-  border: 1px solid var(--inet-danger-color,  #fe688b) !important;
+.login-left .alert-danger {
+  background: var(--inet-danger-color-light,  #fff3f5);
+  color:      var(--inet-danger-color-dark,   #85646c);
+  border: 1px solid var(--inet-danger-color,  #fe688b);
 }
 
-.alert-warning {
-  background: var(--inet-warning-color-light, #fcfdef) !important;
-  color:      var(--inet-warning-color-dark,  #7e7e5a) !important;
-  border: 1px solid var(--inet-warning-color, #f2f3ae) !important;
+.login-left .alert-warning {
+  background: var(--inet-warning-color-light, #fcfdef);
+  color:      var(--inet-warning-color-dark,  #7e7e5a);
+  border: 1px solid var(--inet-warning-color, #f2f3ae);
 }
 
 /* ============================================================
-   Modal — uses theme dialog colours (light surface by default)
+   Modal — scoped to #activeSession for specificity over
+   Bootstrap's (0,1,0) without needing !important.
    M3 Dialog: shape.corner.extra-large = 28dp
    ============================================================ */
-.modal-content {
-  background: var(--inet-dialog-bg-color, #ffffff) !important;
-  border: 1px solid var(--ln-border) !important;
-  border-radius: var(--m3-shape-xl) !important;
+#activeSession .modal-content {
+  background: var(--inet-dialog-bg-color, #ffffff);
+  border: 1px solid var(--ln-border);
+  border-radius: var(--m3-shape-xl);
   color: var(--ln-text);
 }
 
-.modal-header {
-  border-bottom: 1px solid var(--ln-border) !important;
+#activeSession .modal-header {
+  border-bottom: 1px solid var(--ln-border);
   padding: 20px 28px;
-  background: transparent !important;
-  border-radius: var(--m3-shape-xl) var(--m3-shape-xl) 0 0 !important;
+  background: transparent;
+  border-radius: var(--m3-shape-xl) var(--m3-shape-xl) 0 0;
 }
 
-.modal-title {
+#activeSession .modal-title {
   font-size: 1rem;
   font-weight: 600;
   color: var(--ln-text);
 }
 
-.modal-body {
+#activeSession .modal-body {
   padding: 24px 28px;
   font-size: 0.9rem;
 }
 
-.modal-footer {
-  border-top: 1px solid var(--ln-border) !important;
+#activeSession .modal-footer {
+  border-top: 1px solid var(--ln-border);
   padding: 16px 28px;
-  background: transparent !important;
-  border-radius: 0 0 var(--m3-shape-xl) var(--m3-shape-xl) !important;
+  background: transparent;
+  border-radius: 0 0 var(--m3-shape-xl) var(--m3-shape-xl);
   display: flex;
   gap: 10px;
 }
@@ -486,20 +490,20 @@ div.alert {
   margin-left: auto;
 }
 
-/* Default close icon works on light modal without filter override */
+/* Light modal — default close icon is already dark, no filter needed */
 .btn-close {
   filter: none;
 }
 
-/* M3 Outlined Button using the theme's default button vars */
+/* M3 Outlined Button using the theme's default button colour vars */
 .btn-default {
   position: relative;
   overflow: hidden;
-  background: var(--inet-button-default-bg-color,     transparent) !important;
-  border: 1px solid var(--inet-button-default-border-color, #105e5a) !important;
-  color: var(--inet-button-default-text-color,        #105e5a) !important;
-  border-radius: var(--m3-shape-full) !important;
-  padding: 9px 20px !important;
+  background: var(--inet-button-default-bg-color,     transparent);
+  border: 1px solid var(--inet-button-default-border-color, #105e5a);
+  color: var(--inet-button-default-text-color,        #105e5a);
+  border-radius: var(--m3-shape-full);
+  padding: 9px 20px;
   font-family: var(--ln-font);
   font-size: 0.875rem;
   font-weight: 500;
@@ -508,17 +512,17 @@ div.alert {
 }
 
 .btn-default:hover {
-  background: var(--inet-button-default-hover-bg-color,   #105e5a) !important;
-  color:      var(--inet-button-default-hover-text-color, #cdf7f6) !important;
+  background: var(--inet-button-default-hover-bg-color,   #105e5a);
+  color:      var(--inet-button-default-hover-text-color, #cdf7f6);
 }
 
-.modal-footer .btn-primary {
-  border-radius: var(--m3-shape-full) !important;
-  padding: 9px 20px !important;
+#activeSession .modal-footer .btn-primary {
+  border-radius: var(--m3-shape-full);
+  padding: 9px 20px;
 }
 
 .text-info {
-  color: var(--ln-text-soft) !important;
+  color: var(--ln-text-soft) !important; /* Bootstrap utility — !important intentional */
 }
 
 /* ============================================================
@@ -548,6 +552,33 @@ div.loading-indicator.loading {
   to   { opacity: 1; }
 }
 
+/* Brand-colour scan line sweeps top→bottom while waiting,
+   giving the overlay a "data processing" feel */
+div.loading-indicator.loading::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -2px;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--ln-accent) 40%,
+    var(--ln-accent) 60%,
+    transparent 100%
+  );
+  opacity: 0.6;
+  animation: scanLine 2.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes scanLine {
+  0%   { top: -2px;  opacity: 0;   }
+  8%   {             opacity: 0.6; }
+  92%  {             opacity: 0.6; }
+  100% { top: 100%;  opacity: 0;   }
+}
 
 /* Content wrapper — spring entrance */
 .ln-loading-content {
@@ -609,11 +640,13 @@ div.loading-indicator.loading {
   overflow: hidden;
 }
 
+/* Merged: positioning + pulse animation in one rule */
 .login-right svg {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+  animation: arcPulse 6s 1.5s ease-in-out infinite;
 }
 
 .radar-arc {
@@ -632,10 +665,6 @@ div.loading-indicator.loading {
 @keyframes arcIn {
   from { opacity: 0; }
   to   { opacity: 1; }
-}
-
-.login-right svg {
-  animation: arcPulse 6s 1.5s ease-in-out infinite;
 }
 
 @keyframes arcPulse {
@@ -660,10 +689,39 @@ div.loading-indicator.loading {
   .login-left {
     width: 100%;
     min-width: 0;
+    max-width: none;
     padding: 36px 28px;
     animation: none;
     opacity: 1;
     transform: none;
+  }
+}
+
+/* ============================================================
+   Reduced-motion: disable all entrance and ambient animations
+   for users who prefer reduced motion (accessibility).
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .login-left,
+  .login-left .card-header,
+  .login-left .card-body .form-group,
+  .login-left .card-footer,
+  #loginButton.btn-primary,
+  .login-left .btn-primary,
+  .radar-arc,
+  .ln-loading-content,
+  .ln-spinner,
+  .ln-spinner__arc {
+    animation: none;
+    transition: none;
+  }
+
+  .login-right svg {
+    animation: none;
+  }
+
+  div.loading-indicator.loading::after {
+    animation: none;
   }
 }
 

@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <title data-th-text="#{login.pageTitle}">Login</title>
@@ -75,6 +75,8 @@
                 Please enter your password.
               </div>
             </div>
+            <!-- loginAsGroup: data-th-if controls server-side rendering; style="display:none"
+                 is the initial JS state — login.js reveals it when loginAs users are loaded -->
             <div id="loginAsGroup" class="form-group" data-th-if="${loginAs}"
                  style="display: none">
               <label for="loginAsName" data-th-text="#{Login as}">Login as</label>
@@ -184,7 +186,7 @@
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="activeSessoinTitle" data-th-text="#{Confirm}">Confirm</h5>
+        <h5 class="modal-title" id="activeSessionTitle" data-th-text="#{Confirm}">Confirm</h5>
         <button type="button" class="btn-close close" data-bs-dismiss="modal" aria-label="Close">
         </button>
       </div>
