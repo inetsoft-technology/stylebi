@@ -22,16 +22,16 @@
   <title data-th-text="#{login.pageTitle}">Login</title>
   <meta name="description" content="Style Intelligence">
   <meta name="author" content="InetSoft Technology Corp">
-  <!-- Mobile Specific Metas					     ================================================== -->
+  <!-- Mobile Specific Metas                                   ================================================== -->
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 
-  <!-- CSS					     ================================================== -->
+  <!-- CSS                                                     ================================================== -->
   <link rel="stylesheet" type="text/css" href="webjars/bootstrap/css/bootstrap.min.css"/>
   <link rel="stylesheet" type="text/css" href="app/global.css"/>
   <link th:if="${customTheme} == true" rel="stylesheet" type="text/css" href="app/theme-variables.css">
   <link rel="stylesheet" type="text/css" href="css/login.css"/>
 
-  <!-- Favicons				     ================================================== -->
+  <!-- Favicons                                                ================================================== -->
   <link rel="shortcut icon" data-th-href="@{/portal/favicon}" href="portal/favicon">
 </head>
 <body>
@@ -43,86 +43,140 @@
     </th-block>
   </div>
   <div class="container-fluid login-root">
-    <div class="card">
-      <div class="card-header" data-th-text="#{login.title}">
-        Please sign in
-      </div>
-      <div class="card-body">
-        <form novalidate>
-          <div class="signup-text" data-th-if="${selfSignUpEnabled && isNotTenantServer}">
-            <a href="./signup.html" target="_self" data-th-text="#{login.create.account.label}">Create an account</a>
-          </div>
-          <div id="userNameGroup" class="form-group">
-            <label class="required-field" for="loginUserName"
-                   data-th-text="#{login.username.label}">User name</label>
-            <input type="text" class="form-control" id="loginUserName"
-                   name="loginUserName" autofocus/>
-            <div id="userNameError" class="invalid-feedback" style="display: none;"
-                 data-th-text="#{login.username.required}">
-              Please enter your user name.
+
+    <!-- ── Left panel: branding + form ── -->
+    <div class="login-left">
+      <div class="card">
+        <div class="card-header" data-th-text="#{login.title}">
+          Please sign in
+        </div>
+        <div class="card-body">
+          <form novalidate>
+            <div class="signup-text" data-th-if="${selfSignUpEnabled && isNotTenantServer}">
+              <a href="./signup.html" target="_self" data-th-text="#{login.create.account.label}">Create an account</a>
             </div>
-          </div>
-          <div id="passwordGroup" class="form-group">
-            <label class="required-field" for="loginPassword"
-                   data-th-text="#{login.password.label}">Password</label>
-            <input type="password" class="form-control" id="loginPassword"
-                   name="loginPassword"/>
-            <div id="passwordError" class="invalid-feedback" style="display: none;"
-                 data-th-text="#{login.password.required}">
-              Please enter your password.
+            <div id="userNameGroup" class="form-group">
+              <label class="required-field" for="loginUserName"
+                     data-th-text="#{login.username.label}">User name</label>
+              <input type="text" class="form-control" id="loginUserName"
+                     name="loginUserName" autofocus/>
+              <div id="userNameError" class="invalid-feedback" style="display: none;"
+                   data-th-text="#{login.username.required}">
+                Please enter your user name.
+              </div>
             </div>
-          </div>
-          <div id="loginAsGroup" class="form-group" data-th-if="${loginAs}"
-               style="display: none">
-            <label for="loginAsName" data-th-text="#{Login as}">Login as</label>
-            <select class="form-control" id="loginAsName" name="loginAsName">
-            </select>
-          </div>
-          <div class="form-group" data-th-if="${locales != null}">
-            <label for="loginLocale" data-th-text="#{login.locale.label}">Locale</label>
-            <select id="loginLocale" name="loginLocale" class="form-control">
-              <option value="My Locale" data-th-text="#{My Locale}"></option>
-              <option data-th-each="locale : ${locales}" data-th-value="${locale.value()}"
-                      data-th-text="${locale.label()}"></option>
-            </select>
-          </div>
-        </form>
+            <div id="passwordGroup" class="form-group">
+              <label class="required-field" for="loginPassword"
+                     data-th-text="#{login.password.label}">Password</label>
+              <input type="password" class="form-control" id="loginPassword"
+                     name="loginPassword"/>
+              <div id="passwordError" class="invalid-feedback" style="display: none;"
+                   data-th-text="#{login.password.required}">
+                Please enter your password.
+              </div>
+            </div>
+            <div id="loginAsGroup" class="form-group" data-th-if="${loginAs}"
+                 style="display: none">
+              <label for="loginAsName" data-th-text="#{Login as}">Login as</label>
+              <div class="select-wrapper">
+                <select class="form-control" id="loginAsName" name="loginAsName">
+                </select>
+              </div>
+            </div>
+            <div class="form-group" data-th-if="${locales != null}">
+              <label for="loginLocale" data-th-text="#{login.locale.label}">Locale</label>
+              <div class="select-wrapper">
+                <select id="loginLocale" name="loginLocale" class="form-control">
+                  <option value="My Locale" data-th-text="#{My Locale}"></option>
+                  <option data-th-each="locale : ${locales}" data-th-value="${locale.value()}"
+                          data-th-text="${locale.label()}"></option>
+                </select>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="card-footer">
+          <button id="loginButton" class="btn btn-primary w-100"
+                  data-th-text="#{login.signIn}">
+            Sign in
+          </button>
+        </div>
       </div>
-      <div class="card-footer">
-        <button id="loginButton" class="btn btn-primary w-100"
-                data-th-text="#{login.signIn}">
-          Sign in
-        </button>
+      <div class="social-login-div" data-th-if="${gClientId != null}">
+        <div class="separator-div">
+          <hr class="separator-line">
+          <span class="separator-text"> OR </span>
+          <hr class="separator-line">
+        </div>
+        <div class="g_id_signin"
+             data-th-attr="data-state=${gState}"
+             data-type="standard"
+             data-shape="rectangular"
+             data-theme="outline"
+             data-text="signin_with"
+             data-size="large"
+             data-logo_alignment="left">
+        </div>
+      </div>
+      <div class="card loginBanner" data-th-if="${loginBanner != null and loginBanner.type == 1}"
+           data-th-utext="${loginBanner.bannerText}"></div>
+      <pre class="card loginBanner" data-th-if="${loginBanner != null and loginBanner.type == 0}"
+           data-th-text="${loginBanner.bannerText}"></pre>
+      <div id="notifications" class="alert alert-danger" style="display: none"></div>
+      <div id="sessionExpiredMessage" class="alert alert-warning" style="display: none" data-th-text="#{login.session.expired}">
+        For your security, you were logged out of the system due to inactivity.
       </div>
     </div>
-    <div class="social-login-div" data-th-if="${gClientId != null}">
-      <div class="separator-div">
-        <hr class="separator-line">
-        <span class="separator-text"> OR </span>
-        <hr class="separator-line">
-      </div>
-      <div class="g_id_signin"
-           data-th-attr="data-state=${gState}"
-           data-type="standard"
-           data-shape="rectangular"
-           data-theme="outline"
-           data-text="signin_with"
-           data-size="large"
-           data-logo_alignment="left">
-      </div>
+    <!-- ── end left panel ── -->
+
+    <!-- ── Right panel: data-radar arc decoration ── -->
+    <!--
+      Six concentric arcs emanate from the bottom-right focal point.
+      viewBox: 1000 × 700 reference units (SVG stretches to fill the panel).
+      All arcs are centred at (1000, 700) = bottom-right corner.
+      sweep-flag=1 → clockwise in SVG coords → arcs sweep through the
+      upper-left quadrant of the panel, fading in opacity with distance.
+      Stroke colour uses --inet-primary-color so custom themes apply here.
+    -->
+    <div class="login-right" aria-hidden="true">
+      <svg viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid slice"
+           xmlns="http://www.w3.org/2000/svg">
+        <!-- r=200 -->
+        <path class="radar-arc" d="M 800 700 A 200 200 0 0 1 1000 500"
+              stroke-width="1.4" stroke-opacity="0.50"/>
+        <!-- r=350 -->
+        <path class="radar-arc" d="M 650 700 A 350 350 0 0 1 1000 350"
+              stroke-width="1.3" stroke-opacity="0.40"/>
+        <!-- r=500 -->
+        <path class="radar-arc" d="M 500 700 A 500 500 0 0 1 1000 200"
+              stroke-width="1.2" stroke-opacity="0.30"/>
+        <!-- r=650  (exits near top edge) -->
+        <path class="radar-arc" d="M 350 700 A 650 650 0 0 1 1000 50"
+              stroke-width="1.1" stroke-opacity="0.22"/>
+        <!-- r=765  (clips at top: x≈704) -->
+        <path class="radar-arc" d="M 235 700 A 765 765 0 0 1 704 0"
+              stroke-width="1.0" stroke-opacity="0.15"/>
+        <!-- r=880  (clips at top: x≈484) -->
+        <path class="radar-arc" d="M 120 700 A 880 880 0 0 1 484 0"
+              stroke-width="0.9" stroke-opacity="0.09"/>
+      </svg>
     </div>
-    <div class="card loginBanner" data-th-if="${loginBanner != null and loginBanner.type == 1}"
-         data-th-utext="${loginBanner.bannerText}"></div>
-    <pre class="card loginBanner" data-th-if="${loginBanner != null and loginBanner.type == 0}"
-         data-th-text="${loginBanner.bannerText}"></pre>
-    <div id="notifications" class="alert alert-danger" style="display: none"></div>
-    <div id="sessionExpiredMessage" class="alert alert-warning" style="display: none" data-th-text="#{login.session.expired}">
-      For your security, you were logged out of the system due to inactivity.
-    </div>
+    <!-- ── end right panel ── -->
+
   </div>
-  <div class="loading-indicator">
-    <div>
-      <i class="loading-icon loading-icon--spin icon-size-xlarge" aria-hidden="true"></i>
+  <!--
+    Loading overlay: shown while authentication request is in flight and
+    remains visible during browser navigation to the portal (page-exit effect).
+    JS toggles the "loading" class via login.js — no JS changes needed here.
+  -->
+  <div class="loading-indicator" role="status" aria-label="Signing in…">
+    <div class="ln-loading-content">
+      <!-- M3 indeterminate circular progress -->
+      <svg class="ln-spinner" viewBox="0 0 56 56" fill="none"
+           xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle class="ln-spinner__track" cx="28" cy="28" r="22"/>
+        <circle class="ln-spinner__arc"   cx="28" cy="28" r="22"/>
+      </svg>
     </div>
   </div>
 <!-- Modal -->

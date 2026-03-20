@@ -22,16 +22,16 @@
   <title data-th-text="#{em.restricted.title}">Login</title>
   <meta name="description" content="Style Intelligence">
   <meta name="author" content="InetSoft Technology Corp">
-  <!-- Mobile Specific Metas					     ================================================== -->
+  <!-- Mobile Specific Metas                                   ================================================== -->
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 
-  <!-- CSS					     ================================================== -->
+  <!-- CSS                                                     ================================================== -->
   <link rel="stylesheet" type="text/css" href="webjars/bootstrap/css/bootstrap.min.css" data-th-href="${linkUri + 'css/bootstrap.min.css'}"/>
   <link rel="stylesheet" type="text/css" href="app/global.css" data-th-href="${linkUri + 'app/global.css'}"/>
   <link rel="stylesheet" type="text/css" href="css/login.css" data-th-href="${linkUri + 'css/login.css'}"/>
   <link th:if="${customTheme} == true" rel="stylesheet" type="text/css" href="app/theme-variables.css" data-th-href="${linkUri + 'app/theme-variables.css'}">
 
-  <!-- Favicons				     ================================================== -->
+  <!-- Favicons                                                ================================================== -->
   <link rel="shortcut icon" data-th-href="@{/portal/favicon}" href="portal/favicon">
 </head>
 <body>
@@ -39,21 +39,58 @@
   <img class="custom-logo" src="portal/logo" data-th-src="${linkUri + 'portal/logo'}" data-th-case="${true}">
   <th-block data-th-case="*">
     <i class="inetsoft-logo inetsoft-icon icon-size-logo txt-primary"></i>
-    <span class="inetsoft-logo txt-light" > InetSoft </span>
+    <span class="inetsoft-logo txt-light"> InetSoft </span>
   </th-block>
 </div>
 <div class="container-fluid login-root">
-  <div class="card">
-    <div class="card-body">
-      <p data-th-text="#{em.restricted.note}">You do not have permission to access the Enterprise Manager. Select an option from below.</p>
-      <p>
-        <a href="logout" data-th-href="${logoutUrl}" data-th-text="#{em.restricted.logout}">Log in as a different user.</a>
-      </p>
-      <p>
-        <a href="app/portal" data-th-href="${linkUri + 'app/portal'}" data-th-text="#{em.restricted.return}">Return to the user portal.</a>
-      </p>
+
+  <!-- ── Left panel ── -->
+  <div class="login-left">
+    <div class="card">
+      <div class="card-header" data-th-text="#{em.restricted.title}">
+        Access Restricted
+      </div>
+      <div class="card-body">
+        <p class="restricted-note" data-th-text="#{em.restricted.note}">
+          You do not have permission to access the Enterprise Manager. Select an option from below.
+        </p>
+        <div class="restricted-actions">
+          <a class="restricted-action-btn restricted-action-btn--primary"
+             href="logout" data-th-href="${logoutUrl}"
+             data-th-text="#{em.restricted.logout}">
+            Log in as a different user
+          </a>
+          <a class="restricted-action-btn"
+             href="app/portal" data-th-href="${linkUri + 'app/portal'}"
+             data-th-text="#{em.restricted.return}">
+            Return to the user portal
+          </a>
+        </div>
+      </div>
     </div>
   </div>
+  <!-- ── end left panel ── -->
+
+  <!-- ── Right panel: data-radar arc decoration ── -->
+  <div class="login-right" aria-hidden="true">
+    <svg viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid slice"
+         xmlns="http://www.w3.org/2000/svg">
+      <path class="radar-arc" d="M 800 700 A 200 200 0 0 1 1000 500"
+            stroke-width="1.4" stroke-opacity="0.50"/>
+      <path class="radar-arc" d="M 650 700 A 350 350 0 0 1 1000 350"
+            stroke-width="1.3" stroke-opacity="0.40"/>
+      <path class="radar-arc" d="M 500 700 A 500 500 0 0 1 1000 200"
+            stroke-width="1.2" stroke-opacity="0.30"/>
+      <path class="radar-arc" d="M 350 700 A 650 650 0 0 1 1000 50"
+            stroke-width="1.1" stroke-opacity="0.22"/>
+      <path class="radar-arc" d="M 235 700 A 765 765 0 0 1 704 0"
+            stroke-width="1.0" stroke-opacity="0.15"/>
+      <path class="radar-arc" d="M 120 700 A 880 880 0 0 1 484 0"
+            stroke-width="0.9" stroke-opacity="0.09"/>
+    </svg>
+  </div>
+  <!-- ── end right panel ── -->
+
 </div>
 <script type="text/javascript" src="webjars/jquery/jquery.min.js" data-th-src="${linkUri + 'webjars/jquery/jquery.min.js'}"></script>
 <script type="text/javascript" src="webjars/bootstrap/js/bootstrap.min.js" data-th-src="${linkUri + 'webjars/bootstrap/js/bootstrap.min.js'}"></script>

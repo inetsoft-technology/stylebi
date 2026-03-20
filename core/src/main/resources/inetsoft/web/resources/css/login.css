@@ -15,87 +15,716 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.login-root {
-  left: 0;
-  bottom: 0;
-  right: 0;
-  overflow: auto;
+
+/* ============================================================
+   Design tokens — derived directly from --inet-* theme vars.
+   Fallbacks match the default InetSoft palette so the page
+   renders correctly even before global.css / theme-variables.css
+   have been parsed.
+
+   Left panel  → uses the app's surface colours  (light)
+   Right panel → uses --inet-navbar-bg-color      (dark neutral)
+   Accent      → uses --inet-primary-color        (orange)
+   ============================================================ */
+:root {
+  /* Surfaces */
+  --ln-bg:          var(--inet-navbar-bg-color,          #424242); /* right panel + body overflow */
+  --ln-left:        var(--inet-main-panel-bg-color,      #ffffff); /* left/form panel */
+  --ln-surface:     var(--inet-main-panel-bg-color,      #ffffff); /* input default bg */
+  --ln-surface-hi:  var(--inet-portal-side-panel-bg-color, #f9f9f9); /* input hover bg */
+
+  /* Text */
+  --ln-text:        var(--inet-text-color,   #212529);
+  --ln-text-soft:   var(--inet-icon-color,   #6d6d6d);
+  --ln-text-dim:    #aaaaaa;
+
+  /* Borders */
+  --ln-border:       var(--inet-default-border-color, #e0e0e0);
+  --ln-border-focus: var(--inet-primary-color,        #ed711c);
+  --ln-glow:         rgba(237, 113, 28, 0.20);
+
+  /* Accent — follows the app's primary button colour chain */
+  --ln-accent:      var(--inet-button-primary-bg-color,       #ed711c);
+  --ln-accent-dark: var(--inet-button-primary-hover-bg-color, #d25f11);
+  --ln-danger:      var(--inet-danger-color,  #fe688b);
+  --ln-font:        var(--inet-font-family,   "Roboto", "Helvetica Neue", Arial, sans-serif);
+
+  /* M3 state-layer opacities */
+  --m3-hover:  0.08;
+  --m3-focus:  0.12;
+  --m3-press:  0.12;
+
+  /* M3 shape tokens */
+  --m3-shape-xs:   4px;
+  --m3-shape-sm:   8px;
+  --m3-shape-md:   12px;
+  --m3-shape-lg:   16px;
+  --m3-shape-xl:   28px;
+  --m3-shape-full: 50px;
+
+  /* Layout */
+  --ln-nav-h:   54px;
+  --ln-left-w:  30%;
 }
 
-.card {
-  margin: 16px auto;
-  width: 600px;
-  max-width: 90%;
+/* ============================================================
+   Base
+   ============================================================ */
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--ln-bg);
+  color: var(--ln-text);
+  font-family: var(--ln-font);
+}
+
+body {
+  overflow: hidden;
+}
+
+/* ============================================================
+   Navbar  (background + logo colour provided by global.css)
+   ============================================================ */
+.bg-navbar-top {
+  height: var(--ln-nav-h);
+  padding: 0 28px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  z-index: 20;
+  flex-shrink: 0;
+}
+
+.custom-logo {
+  height: 32px;
+  vertical-align: middle;
+}
+
+/* ============================================================
+   Split-panel root
+   ============================================================ */
+.login-root {
+  display: flex;
+  flex-direction: row;
+  height: calc(100vh - var(--ln-nav-h));
+  overflow: hidden;
+  padding: 0;
+  max-width: 100%;
+}
+
+/* ============================================================
+   Left panel — light surface, spring entrance
+   ============================================================ */
+.login-left {
+  width: var(--ln-left-w);
+  min-width: 300px;
+  flex-shrink: 0;
+  background: var(--ln-left);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 48px 52px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  z-index: 2;
+  /* Lighter shadow appropriate for white-on-dark transition */
+  box-shadow: 4px 0 32px rgba(0, 0, 0, 0.18);
+  animation: loginPanelIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes loginPanelIn {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.login-left::-webkit-scrollbar { width: 4px; }
+.login-left::-webkit-scrollbar-track { background: transparent; }
+.login-left::-webkit-scrollbar-thumb {
+  background: var(--ln-border);
+  border-radius: 2px;
+}
+
+/* ============================================================
+   Card — transparent container on the light panel
+   ============================================================ */
+.login-left .card {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  margin: 0;
+  width: 100%;
+  max-width: 100%;
+  color: var(--ln-text);
+}
+
+/* M3 Expressive headline — dark on light */
+.login-left .card-header {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 0 36px 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--inet-dark-color, #202020);
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  animation: loginItemIn 0.5s 0.10s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.login-left .card-body {
+  padding: 0;
+}
+
+.login-left .card-footer {
+  background: transparent !important;
+  border: none !important;
+  padding: 28px 0 0 0;
+}
+
+/* ============================================================
+   Form elements — M3 Outlined Text Field on light surface
+   ============================================================ */
+
+/* Stagger form groups */
+.login-left .card-body .form-group:nth-child(1) { animation: loginItemIn 0.5s 0.18s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.login-left .card-body .form-group:nth-child(2) { animation: loginItemIn 0.5s 0.24s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.login-left .card-body .form-group:nth-child(3) { animation: loginItemIn 0.5s 0.30s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.login-left .card-body .form-group:nth-child(4) { animation: loginItemIn 0.5s 0.36s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes loginItemIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+/* M3 Label Medium */
+.form-group label {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--ln-text-soft);
+  letter-spacing: 0.04em;
+}
+
+.required-field::after {
+  content: " *";
+  color: var(--ln-accent);
+}
+
+/* M3 Outlined Text Field — shape.corner.extra-small = 4dp, light theme */
+.form-control {
+  background: var(--ln-surface) !important;
+  border: 1px solid var(--ln-border) !important;
+  border-radius: var(--m3-shape-xs) !important;
+  color: var(--ln-text) !important;
+  padding: 12px 14px !important;
+  font-size: 0.93rem !important;
+  font-family: var(--ln-font) !important;
+  width: 100%;
+  transition:
+    border-color 0.15s ease,
+    background   0.15s ease,
+    box-shadow   0.15s ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.form-control:hover {
+  border-color: var(--inet-gray2, #bdbdbd) !important;
+  background: var(--ln-surface-hi) !important;
+}
+
+/* M3 focus: 2px primary border + subtle orange glow */
+.form-control:focus {
+  outline: none !important;
+  background: var(--ln-surface) !important;
+  border: 2px solid var(--ln-border-focus) !important;
+  padding: 11px 13px !important; /* compensate for extra border px */
+  color: var(--ln-text) !important;
+  box-shadow: 0 0 0 3px var(--ln-glow) !important;
+}
+
+.form-control::placeholder {
+  color: var(--ln-text-dim) !important;
+}
+
+select.form-control {
+  cursor: pointer;
+  background-image: none !important;
+  padding-right: 34px !important;
+  transition: none;
+}
+
+.select-wrapper {
+  position: relative;
+}
+
+/* Dark arrow for light background — fades via opacity */
+.select-wrapper::after {
+  content: '';
+  position: absolute;
+  right: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 8px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%236d6d6d' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: contain;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.select-wrapper:hover::after {
+  opacity: 0;
+}
+
+select.form-control option {
+  background: var(--ln-surface);
+  color: var(--ln-text);
+}
+
+.invalid-feedback {
+  color: var(--ln-danger) !important;
+  font-size: 0.8rem;
+  margin-top: 4px;
 }
 
 .signup-text {
   text-align: end;
+  margin-bottom: 20px;
 }
 
-.loginBanner {
-  border: none;
+.signup-text a {
+  color: var(--ln-accent);
+  font-size: 0.85rem;
+  text-decoration: none;
+  transition: opacity 0.15s;
 }
 
-div.alert {
-  margin: 2px auto;
-  width: 600px;
-  max-width: 90%;
-}
+.signup-text a:hover { opacity: 0.75; }
 
-div.loading-indicator {
-  display: none;
-  position: absolute;
+/* ============================================================
+   Sign-in button — M3 Filled Button, pill shape
+   ============================================================ */
+#loginButton.btn-primary,
+.login-left .btn-primary {
+  position: relative;
+  overflow: hidden;
+  background: var(--ln-accent) !important;
+  border: none !important;
+  border-radius: var(--m3-shape-full) !important;
+  color: var(--inet-button-primary-text-color, #fff) !important;
+  font-family: var(--ln-font) !important;
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.01em !important;
+  text-transform: none !important;
+  padding: 14px 24px !important;
   width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.33);
-  z-index: 9999;
-  top: 0;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  box-shadow:
+    0px 1px 2px rgba(0,0,0,0.3),
+    0px 1px 3px 1px rgba(0,0,0,0.15) !important;
+  animation: loginItemIn 0.5s 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* M3 state layer */
+#loginButton.btn-primary::after,
+.login-left .btn-primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: white;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+#loginButton.btn-primary:hover::after,
+.login-left .btn-primary:hover::after   { opacity: var(--m3-hover); }
+#loginButton.btn-primary:focus::after,
+.login-left .btn-primary:focus::after   { opacity: var(--m3-focus); }
+#loginButton.btn-primary:active::after,
+.login-left .btn-primary:active::after  { opacity: var(--m3-press); }
+
+#loginButton.btn-primary:hover,
+.login-left .btn-primary:hover {
+  box-shadow:
+    0px 1px 2px rgba(0,0,0,0.3),
+    0px 2px 6px 2px rgba(0,0,0,0.15) !important;
+}
+
+/* ============================================================
+   Social / Google login
+   ============================================================ */
+.social-login-div {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  width: 100%;
+  margin: 20px 0 0 0;
+}
+
+.separator-div {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+  width: 100%;
+}
+
+.separator-line {
+  flex-grow: 1;
+  height: 1px;
+  background: var(--ln-border);
+  border: none;
+  display: block;
+}
+
+.separator-text {
+  color: var(--ln-text-soft);
+  padding: 0 14px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+/* ============================================================
+   Login banner — M3 outlined card on light surface
+   ============================================================ */
+.loginBanner {
+  border: 1px solid var(--ln-border) !important;
+  background: var(--inet-portal-side-panel-bg-color, #f9f9f9) !important;
+  color: var(--ln-text) !important;
+  border-radius: var(--m3-shape-xs) !important;
+  padding: 14px 16px;
+  margin: 14px 0 0 0;
+  font-size: 0.875rem;
+  width: 100%;
+  max-width: 100%;
+  box-shadow: none !important;
+}
+
+pre.loginBanner {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--ln-font);
+}
+
+/* ============================================================
+   Alerts — use the theme's light-mode colour variants
+   ============================================================ */
+div.alert {
+  margin: 10px 0 0 0;
+  width: 100%;
+  max-width: 100%;
+  border-radius: var(--m3-shape-xs);
+  font-size: 0.875rem;
+}
+
+.alert-danger {
+  background: var(--inet-danger-color-light,  #fff3f5) !important;
+  color:      var(--inet-danger-color-dark,   #85646c) !important;
+  border: 1px solid var(--inet-danger-color,  #fe688b) !important;
+}
+
+.alert-warning {
+  background: var(--inet-warning-color-light, #fcfdef) !important;
+  color:      var(--inet-warning-color-dark,  #7e7e5a) !important;
+  border: 1px solid var(--inet-warning-color, #f2f3ae) !important;
+}
+
+/* ============================================================
+   Modal — uses theme dialog colours (light surface by default)
+   M3 Dialog: shape.corner.extra-large = 28dp
+   ============================================================ */
+.modal-content {
+  background: var(--inet-dialog-bg-color, #ffffff) !important;
+  border: 1px solid var(--ln-border) !important;
+  border-radius: var(--m3-shape-xl) !important;
+  color: var(--ln-text);
+}
+
+.modal-header {
+  border-bottom: 1px solid var(--ln-border) !important;
+  padding: 20px 28px;
+  background: transparent !important;
+  border-radius: var(--m3-shape-xl) var(--m3-shape-xl) 0 0 !important;
+}
+
+.modal-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ln-text);
+}
+
+.modal-body {
+  padding: 24px 28px;
+  font-size: 0.9rem;
+}
+
+.modal-footer {
+  border-top: 1px solid var(--ln-border) !important;
+  padding: 16px 28px;
+  background: transparent !important;
+  border-radius: 0 0 var(--m3-shape-xl) var(--m3-shape-xl) !important;
+  display: flex;
+  gap: 10px;
 }
 
 .modal-header .close {
   margin-left: auto;
 }
 
+/* Default close icon works on light modal without filter override */
+.btn-close {
+  filter: none;
+}
+
+/* M3 Outlined Button using the theme's default button vars */
+.btn-default {
+  position: relative;
+  overflow: hidden;
+  background: var(--inet-button-default-bg-color,     transparent) !important;
+  border: 1px solid var(--inet-button-default-border-color, #105e5a) !important;
+  color: var(--inet-button-default-text-color,        #105e5a) !important;
+  border-radius: var(--m3-shape-full) !important;
+  padding: 9px 20px !important;
+  font-family: var(--ln-font);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.btn-default:hover {
+  background: var(--inet-button-default-hover-bg-color,   #105e5a) !important;
+  color:      var(--inet-button-default-hover-text-color, #cdf7f6) !important;
+}
+
+.modal-footer .btn-primary {
+  border-radius: var(--m3-shape-full) !important;
+  padding: 9px 20px !important;
+}
+
+.text-info {
+  color: var(--ln-text-soft) !important;
+}
+
+/* ============================================================
+   Loading indicator + page-exit transition
+   (Always dark — hardcoded so it works on any theme.)
+   ============================================================ */
+div.loading-indicator {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(30, 30, 30, 0.90);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
 div.loading-indicator.loading {
-  display: table;
-}
-
-div.loading-indicator > div {
-  display: table-cell;
-  text-align: center;
-  vertical-align: middle;
-}
-
-.custom-logo {
-  height: 50px;
-  vertical-align: middle;
-}
-
-.social-login-div {
   display: flex;
-  align-items: center;
+  animation: overlayIn 0.25s ease both;
+}
+
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+
+/* Content wrapper — spring entrance */
+.ln-loading-content {
+  display: flex;
   flex-direction: column;
-  width: 600px;
-  margin: 16px auto;
-}
-
-.separator-div {
-  display: flex;
   align-items: center;
-  margin-top: calc(1rem - 16px);
-  margin-bottom: 1rem;
+  animation: spinnerIn 0.45s cubic-bezier(0.34, 1.38, 0.64, 1) both;
+}
+
+@keyframes spinnerIn {
+  from { opacity: 0; transform: scale(0.6); }
+  to   { opacity: 1; transform: scale(1);   }
+}
+
+/* ── M3 Indeterminate Circular Progress ──────────────────── */
+.ln-spinner {
+  width: 52px;
+  height: 52px;
+  animation: spinnerRotate 1.5s linear infinite;
+}
+
+@keyframes spinnerRotate {
+  100% { transform: rotate(360deg); }
+}
+
+.ln-spinner__track {
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 4;
+}
+
+/* Arc grows and shrinks; circumference for r=22: 2π×22 ≈ 138.2 */
+.ln-spinner__arc {
+  stroke: var(--ln-accent);
+  stroke-width: 4;
+  stroke-linecap: round;
+  animation: spinnerDash 1.5s ease-in-out infinite;
+}
+
+@keyframes spinnerDash {
+  0%   { stroke-dasharray: 1,   138.2; stroke-dashoffset: 0;      }
+  50%  { stroke-dasharray: 104, 138.2; stroke-dashoffset: -35;    }
+  100% { stroke-dasharray: 104, 138.2; stroke-dashoffset: -138.2; }
+}
+
+/* ============================================================
+   Right panel — dark neutral from --inet-navbar-bg-color,
+   with brand-colour radial glow anchoring the radar arcs.
+   ============================================================ */
+.login-right {
+  flex: 1;
+  background:
+    radial-gradient(
+      ellipse 75% 55% at 100% 100%,
+      rgba(237, 113, 28, 0.11) 0%,
+      transparent 68%
+    ),
+    var(--ln-bg);
+  position: relative;
+  overflow: hidden;
+}
+
+.login-right svg {
+  position: absolute;
+  inset: 0;
   width: 100%;
+  height: 100%;
 }
 
-.separator-line {
+.radar-arc {
+  stroke: var(--ln-accent);
+  fill: none;
+  stroke-linecap: round;
+}
+
+.radar-arc:nth-child(1) { animation: arcIn 0.7s 0.10s ease both; }
+.radar-arc:nth-child(2) { animation: arcIn 0.7s 0.20s ease both; }
+.radar-arc:nth-child(3) { animation: arcIn 0.7s 0.30s ease both; }
+.radar-arc:nth-child(4) { animation: arcIn 0.7s 0.40s ease both; }
+.radar-arc:nth-child(5) { animation: arcIn 0.7s 0.50s ease both; }
+.radar-arc:nth-child(6) { animation: arcIn 0.7s 0.60s ease both; }
+
+@keyframes arcIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.login-right svg {
+  animation: arcPulse 6s 1.5s ease-in-out infinite;
+}
+
+@keyframes arcPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 768px) {
+  body { overflow: auto; }
+
+  .login-root {
+    height: auto;
+    min-height: calc(100vh - var(--ln-nav-h));
+    overflow: visible;
+  }
+
+  .login-right { display: none; }
+
+  .login-left {
+    width: 100%;
+    min-width: 0;
+    padding: 36px 28px;
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ============================================================
+   Restricted access page  (restricted.html shares login.css)
+   ============================================================ */
+.restricted-note {
+  font-size: 0.925rem;
+  color: var(--ln-text-soft);
+  line-height: 1.6;
+  margin: 0 0 32px 0;
+}
+
+.restricted-actions {
   display: flex;
-  flex-grow: 1;
-  height: 1px;
-  background-color: #d6d6d6;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.separator-text {
-  color: #434343;
-  padding-left: 1rem;
-  padding-right: 1rem;
+/* Primary action — M3 Filled Button */
+.restricted-action-btn--primary {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  background: var(--ln-accent);
+  color: var(--inet-button-primary-text-color, #fff);
+  border-radius: var(--m3-shape-full);
+  padding: 13px 24px;
+  font-family: var(--ln-font);
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  box-shadow: 0px 1px 2px rgba(0,0,0,0.2), 0px 1px 3px 1px rgba(0,0,0,0.1);
+  transition: opacity 0.15s;
+}
+
+.restricted-action-btn--primary:hover {
+  color: var(--inet-button-primary-text-color, #fff);
+  opacity: 0.88;
+  text-decoration: none;
+}
+
+/* Secondary action — M3 Outlined Button using theme secondary colour */
+.restricted-action-btn:not(.restricted-action-btn--primary) {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  background: var(--inet-button-default-bg-color,     transparent);
+  color:      var(--inet-button-default-text-color,   #105e5a);
+  border: 1px solid var(--inet-button-default-border-color, #105e5a);
+  border-radius: var(--m3-shape-full);
+  padding: 12px 24px;
+  font-family: var(--ln-font);
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  transition: background 0.15s, color 0.15s;
+}
+
+.restricted-action-btn:not(.restricted-action-btn--primary):hover {
+  background: var(--inet-button-default-hover-bg-color,   #105e5a);
+  color:      var(--inet-button-default-hover-text-color, #cdf7f6);
+  text-decoration: none;
 }
