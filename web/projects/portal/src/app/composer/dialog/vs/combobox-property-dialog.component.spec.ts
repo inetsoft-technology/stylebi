@@ -27,12 +27,12 @@ let createModel: () => ComboboxPropertyDialogModel = () => {
       comboboxGeneralPaneModel: {
          generalPropPaneModel: null,
          listValuesPaneModel: null,
-         sizePositionPaneModel: null,
-         titlePropPaneModel: null
+         sizePositionPaneModel: null
       },
       dataInputPaneModel: null,
-      vsAssemblyScriptPaneModel: {}
-   };
+      vsAssemblyScriptPaneModel: {},
+      inputLabelPaneModel: null
+   } as any;
 };
 
 let createListModel: () => ListValuesPaneModel = () => {
@@ -117,5 +117,46 @@ describe("radiobutton property dialog componnet unit case", () => {
       const checkTrap = jest.spyOn(comboBoxDialog, "checkTrap");
       comboBoxDialog.ok();
       expect(checkTrap).not.toHaveBeenCalled();
+   });
+
+   describe("effectiveDataType", () => {
+      it("should return query column data type when query is enabled", () => {
+         radioProDialog.model.comboboxGeneralPaneModel.listValuesPaneModel = createListModel();
+         const combo = radioProDialog.model.comboboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel;
+         combo.query = true;
+         combo.dataType = "string";
+         combo.selectionListDialogModel.selectionListEditorModel.dataType = "date";
+         expect(radioProDialog.effectiveDataType).toBe("date");
+      });
+
+      it("should return embedded data type when query is disabled", () => {
+         radioProDialog.model.comboboxGeneralPaneModel.listValuesPaneModel = createListModel();
+         const combo = radioProDialog.model.comboboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel;
+         combo.query = false;
+         combo.dataType = "date";
+         expect(radioProDialog.effectiveDataType).toBe("date");
+      });
+
+      it("should fall back to embedded data type when query has no data type", () => {
+         radioProDialog.model.comboboxGeneralPaneModel.listValuesPaneModel = createListModel();
+         const combo = radioProDialog.model.comboboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel;
+         combo.query = true;
+         combo.dataType = "double";
+         combo.selectionListDialogModel.selectionListEditorModel.dataType = null;
+         expect(radioProDialog.effectiveDataType).toBe("double");
+      });
+
+      it("should return empty string when listValuesPaneModel is null", () => {
+         expect(radioProDialog.effectiveDataType).toBe("");
+      });
+
+      it("should return query type over embedded type when both are set", () => {
+         radioProDialog.model.comboboxGeneralPaneModel.listValuesPaneModel = createListModel();
+         const combo = radioProDialog.model.comboboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel;
+         combo.query = true;
+         combo.dataType = "date";
+         combo.selectionListDialogModel.selectionListEditorModel.dataType = "double";
+         expect(radioProDialog.effectiveDataType).toBe("double");
+      });
    });
 });
