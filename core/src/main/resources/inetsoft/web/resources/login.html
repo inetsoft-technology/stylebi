@@ -23,7 +23,7 @@
   <meta name="description" content="Style Intelligence">
   <meta name="author" content="InetSoft Technology Corp">
   <!-- Mobile Specific Metas                                   ================================================== -->
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <!-- CSS                                                     ================================================== -->
   <link rel="stylesheet" type="text/css" href="webjars/bootstrap/css/bootstrap.min.css"/>
@@ -208,7 +208,7 @@
   <script type="text/javascript" src="webjars/jquery/jquery.min.js"></script>
   <script type="text/javascript" src="webjars/bootstrap/js/bootstrap.min.js"></script>
   <script type="text/javascript" src="js/login.js"></script>
-  <script src="https://accounts.google.com/gsi/client" async></script>
+  <script data-th-if="${gClientId != null}" src="https://accounts.google.com/gsi/client" async></script>
   <script data-th-inline="javascript">
     /*<![CDATA[*/
     $(document).ready(function() {

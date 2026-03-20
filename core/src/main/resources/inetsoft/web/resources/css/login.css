@@ -203,7 +203,7 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-.form-group {
+.login-left .form-group {
   margin-bottom: 20px;
 }
 
@@ -675,7 +675,7 @@ div.loading-indicator.loading::after {
 /* ============================================================
    Responsive
    ============================================================ */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   body { overflow: auto; }
 
   .login-root {
