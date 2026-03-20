@@ -25,6 +25,7 @@ import inetsoft.sree.schedule.*;
 import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.log.LogManager;
+import inetsoft.web.messaging.SessionConnectionService;
 import inetsoft.web.metrics.*;
 import inetsoft.web.security.*;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -36,6 +37,7 @@ import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.boot.*;
 import org.springframework.boot.actuate.endpoint.web.EndpointMediaTypes;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.core.Ordered;
@@ -219,6 +221,15 @@ public abstract class BaseInetsoftApplication {
       }
 
       try {
+         if(sessionConnectionService != null) {
+            sessionConnectionService.closeAllSessions();
+         }
+      }
+      catch(Exception ex) {
+         log.debug("Failed to close websocket sessions", ex);
+      }
+
+      try {
          SingletonManager.reset();
       }
       catch(Exception ex) {
@@ -263,6 +274,9 @@ public abstract class BaseInetsoftApplication {
          Cluster.getInstance().setLocalNodeProperty("reportServer", "true");
       }
    }
+
+   @Autowired(required = false)
+   private SessionConnectionService sessionConnectionService;
 
    private static final AtomicBoolean configured = new AtomicBoolean(false);
 }

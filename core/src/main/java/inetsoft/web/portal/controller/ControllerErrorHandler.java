@@ -89,7 +89,13 @@ public class ControllerErrorHandler extends ResponseEntityExceptionHandler {
    @ExceptionHandler(Exception.class)
    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
    public ResponseEntity<String> handleException(Exception e) {
-      if(GlobalExceptionHandler.isClientAbortException(e.getClass().getName())) {
+      if(GlobalExceptionHandler.isCacheStoppedException(e)) {
+         LOG.debug("Cache stopped during request", e);
+         return new ResponseEntity<>(
+            Catalog.getCatalog().getString("common.cacheStoppedError"), null,
+            HttpStatus.SERVICE_UNAVAILABLE);
+      }
+      else if(GlobalExceptionHandler.isClientAbortException(e.getClass().getName())) {
          LOG.debug("Client closed connection", e);
       }
       else {

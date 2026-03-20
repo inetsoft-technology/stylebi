@@ -165,6 +165,27 @@ public class SessionConnectionService implements MapSessionRepository.SessionExp
       }
    }
 
+   public void closeAllSessions() {
+      synchronized(httpSessions) {
+         for(Iterator<WebSocketSessionRef> i = webSocketSessions.values().iterator(); i.hasNext();)
+         {
+            WebSocketSession wsSession = i.next().getSession();
+            i.remove();
+
+            if(wsSession != null) {
+               try {
+                  wsSession.close(CloseStatus.GOING_AWAY);
+               }
+               catch(IOException e) {
+                  LOG.warn("Failed to close websocket connection on shutdown", e);
+               }
+            }
+         }
+
+         httpSessions.clear();
+      }
+   }
+
    private void cleanReferences() {
       synchronized(httpSessions) {
          for(Iterator<WebSocketSessionRef> i = webSocketSessions.values().iterator(); i.hasNext();)
