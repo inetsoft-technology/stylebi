@@ -1242,7 +1242,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    }
 
    public void setBarCornerRadius(double barCornerRadius) {
-      this.barCornerRadius = barCornerRadius;
+      this.barCornerRadius = Math.max(0, Math.min(0.5, barCornerRadius));
    }
 
    public boolean isBarRoundAllCorners() {
