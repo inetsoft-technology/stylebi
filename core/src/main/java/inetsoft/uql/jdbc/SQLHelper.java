@@ -1584,7 +1584,7 @@ public class SQLHelper implements KeywordProvider {
 
       if(table == null || alias == null) {
          if(table != null && column != null) {
-            return form + quoteTableName(table, false) + "." + quoteColumnAlias(column) + ')';
+            return form + getQuotedTableName(table, true) + "." + quoteColumnAlias(column) + ')';
          }
 
          if(XUtil.isQualifiedName(npath)) {
