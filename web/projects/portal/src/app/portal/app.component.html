@@ -157,7 +157,7 @@
           [class.bb-highlight-filler]="!currentUrl?.includes(PortalTabs.WIZ_PORTAL)"
           [class.bb-highlight-primary]="currentUrl?.includes(PortalTabs.WIZ_PORTAL)">
         <a class="nav-link nav-icon nav-icon-size"
-           routerLink="/portal/tab/wiz-portal"
+           routerLink="/portal/tab/{{PortalTabs.WIZ_PORTAL}}"
            routerLinkActive="active"
            title="_#(Wiz Portal)" aria-label="_#(Wiz Portal)">
           <i class="wiz-portal-icon nav-icon-size portal-toolbar-icon"></i>

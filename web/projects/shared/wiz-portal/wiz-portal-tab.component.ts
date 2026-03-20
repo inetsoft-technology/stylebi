@@ -25,22 +25,6 @@ import { WizPortalService } from "./wiz-portal.service";
    styleUrls: ["./wiz-portal-tab.component.scss"]
 })
 export class WizPortalTabComponent {
-   get styleBIUrl(): string {
-      return this.wizPortalService.styleBIUrl;
-   }
-
-   get wizServiceUrl(): string {
-      return this.wizPortalService.wizServiceUrl;
-   }
-
-   get userId(): string {
-      return this.wizPortalService.userId;
-   }
-
-   get domain(): string {
-      return this.wizPortalService.domain;
-   }
-
-   constructor(private wizPortalService: WizPortalService) {
+   constructor(public wizPortalService: WizPortalService) {
    }
 }
