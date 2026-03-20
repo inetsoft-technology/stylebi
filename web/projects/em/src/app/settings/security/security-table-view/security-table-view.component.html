@@ -50,7 +50,7 @@
           </ng-container>
         </ng-container>
         <tr mat-header-row *matHeaderRowDef="displayColumns"></tr>
-        <tr mat-row *matRowDef="let row; columns: displayColumns;" (click)="selection.toggle(row.name)"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayColumns;" (click)="selection.toggle(row)"></tr>
       </table>
       <mat-paginator [pageSizeOptions]="[10, 25, 100]" [showFirstLastButtons]="true"></mat-paginator>
     </div>
@@ -60,6 +60,17 @@
     </button>
     <button mat-raised-button (click)="removeSelection.emit(selection.selected)"
             [disabled]="!selection || selection.selected.length == 0 || !editable">_#(Remove)
+    </button>
+    <button mat-stroked-button
+            *ngIf="showCopyPaste && copyPasteContext"
+            [disabled]="!dataSource?.length"
+            (click)="copyIdentities()">_#(js:Copy)
+    </button>
+    <button mat-stroked-button
+            *ngIf="showCopyPaste && (copyPasteContext || pasteContexts)"
+            [disabled]="pasteCount === 0 || !editable"
+            [matTooltip]="pasteTooltip"
+            (click)="pasteIdentities()">_#(js:Paste){{pasteBadgeLabel}}
     </button>
   </mat-card-actions>
 </mat-card>

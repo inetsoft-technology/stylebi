@@ -17,7 +17,7 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Injectable, OnDestroy } from "@angular/core";
-import { Subject, Subscription } from "rxjs";
+import { Observable, Subject, Subscription } from "rxjs";
 import { map } from "rxjs/operators";
 import { CurrentUser } from "../../../../portal/src/app/portal/current-user";
 import { StompClientConnection } from "../../../../shared/stomp/stomp-client-connection";
@@ -33,6 +33,7 @@ import {
 export class OrganizationDropdownService implements OnDestroy  {
    private provider: string;
    private refreshSubject: Subject<any>;
+   private orgChangeSubject = new Subject<void>();
    private connection: StompClientConnection;
    private subscription = new Subscription();
    public authenticationProviders: string[];
@@ -113,6 +114,14 @@ export class OrganizationDropdownService implements OnDestroy  {
       return this.refreshSubject;
    }
 
+   public get onOrgChange(): Observable<void> {
+      return this.orgChangeSubject.asObservable();
+   }
+
+   public notifyOrgChange(): void {
+      this.orgChangeSubject.next();
+   }
+
    refreshProviders(): void {
       this.loadAuthenticationProviders();
    }
@@ -135,5 +144,7 @@ export class OrganizationDropdownService implements OnDestroy  {
          this.refreshSubject.unsubscribe();
          this.refreshSubject = null;
       }
+
+      this.orgChangeSubject.complete();
    }
 }
