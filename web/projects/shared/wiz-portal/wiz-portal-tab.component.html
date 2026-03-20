@@ -17,9 +17,9 @@
   -->
 
 <div class="wiz-portal-tab-container">
-  <stylebi-wiz-portal [attr.stylebi-url]="styleBIUrl"
-                      [attr.wiz-service-url]="wizServiceUrl"
-                      [attr.expected-user-id]="userId || null"
-                      [attr.domain]="domain || null">
+  <stylebi-wiz-portal [attr.stylebi-url]="wizPortalService.styleBIUrl"
+                      [attr.wiz-service-url]="wizPortalService.wizServiceUrl"
+                      [attr.expected-user-id]="wizPortalService.userId || null"
+                      [attr.domain]="wizPortalService.domain || null">
   </stylebi-wiz-portal>
 </div>

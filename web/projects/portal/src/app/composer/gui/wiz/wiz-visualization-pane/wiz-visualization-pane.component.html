@@ -24,12 +24,12 @@
   <!-- Left: AI dialog placeholder (web component will be embedded here) -->
   <div class="wiz-dialog-panel split">
     <wiz-chat *ngIf="!!currentVisualization?.runtimeId" class="wiz-chat-pane"
-              [attr.stylebi-url]="styleBIUrl"
+              [attr.stylebi-url]="wizPortalService.styleBIUrl"
               [attr.visualization-runtime-id]="currentVisualization?.runtimeId"
               [attr.chat-session-id]="currentVisualization?.chatSessionId"
-              [attr.wiz-service-url]="wizServiceUrl"
-              [attr.expected-user-id]="userId || null"
-              [attr.domain]="domain || null"
+              [attr.wiz-service-url]="wizPortalService.wizServiceUrl"
+              [attr.expected-user-id]="wizPortalService.userId || null"
+              [attr.domain]="wizPortalService.domain || null"
               (refreshViewsheet)="refreshVisualization()">
     </wiz-chat>
   </div>
