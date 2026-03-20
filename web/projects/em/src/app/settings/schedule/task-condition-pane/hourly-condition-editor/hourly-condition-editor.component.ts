@@ -33,6 +33,7 @@ import {FormValidators} from "../../../../../../../shared/util/form-validators";
 import {Tool} from "../../../../../../../shared/util/tool";
 import {DateTimeService} from "../date-time.service";
 import {TaskConditionChanges} from "../task-condition-pane.component";
+import {TimeZoneValue} from "../time-zone-select/time-zone-select-component";
 
 @Component({
    selector: "em-hourly-condition-editor",
@@ -60,23 +61,25 @@ export class HourlyConditionEditorComponent implements OnInit {
          return;
       }
 
-      this.timeZoneLabel = this.dateTimeService
-         .getTimeZoneLabel(this.timeZoneOptions, this._condition.timeZone, this.timeZone,
-            this._condition.timeZoneLabel);
-
       this.form.get("startTime").setValue(
          this.dateTimeService.getStartTime(this._condition), { emitEvent: false });
       this.form.get("endTime").setValue(
          this.dateTimeService.getEndTime(this._condition), { emitEvent: false });
       this.form.get("interval").setValue(this._condition.hourlyInterval || 0, { emitEvent: false });
       this.form.get("weekdays").setValue(this._condition.daysOfWeek || [], { emitEvent: false });
-      this.form.get("timeZone").setValue(this._condition.timeZone || "", { emitEvent: false });
+      this.form.get("timeZone").setValue({
+         timeZoneId: this._condition.timeZone || "",
+         timeZoneLabel: this._condition.timeZoneLabel || ""
+      } as TimeZoneValue, { emitEvent: false });
    }
 
    form: UntypedFormGroup;
    endTimeErrorMatcher: ErrorStateMatcher;
-   timeZoneLabel: string;
    private _condition: TimeConditionModel;
+
+   get timeZoneLabel(): string {
+      return (this.form.get("timeZone").value as TimeZoneValue)?.timeZoneLabel || "";
+   }
 
    constructor(private dateTimeService: DateTimeService, fb: UntypedFormBuilder,
                defaultErrorMatcher: ErrorStateMatcher)
@@ -85,7 +88,7 @@ export class HourlyConditionEditorComponent implements OnInit {
          {
             startTime: [this.dateTimeService.getTimeString(new Date()), [Validators.required]],
             endTime: [this.dateTimeService.getTimeString(new Date()), [Validators.required]],
-            timeZone: [[], []],
+            timeZone: [{ timeZoneId: "", timeZoneLabel: "" } as TimeZoneValue, []],
             interval: [1, [Validators.required, FormValidators.positiveNonZeroInRange]],
             weekdays: [[], [Validators.required]]
          },
@@ -102,10 +105,6 @@ export class HourlyConditionEditorComponent implements OnInit {
    }
 
    ngOnInit() {
-      this.timeZoneLabel = this.dateTimeService
-         .getTimeZoneLabel(this.timeZoneOptions, this.condition?.timeZone, this.timeZone,
-            this.condition?.timeZoneLabel);
-
       this.form.get("startTime").valueChanges.subscribe((val) => {
          if(this.startTime != (!val ? val : val.toString())) {
             this.startTime = val.toString();
@@ -123,7 +122,8 @@ export class HourlyConditionEditorComponent implements OnInit {
 
    fireModelChanged(): void {
       const oldTZ = this.condition.timeZone;
-      const newTZ = this.form.get("timeZone").value;
+      const tzValue = this.form.get("timeZone").value as TimeZoneValue;
+      const newTZ = tzValue?.timeZoneId || "";
       const format = DateTypeFormatter.ISO_8601_TIME_FORMAT;
       this.startTime = DateTypeFormatter
          .formatStr(this.dateTimeService.validateTimeValue(this.form.get("startTime")?.value), format);
@@ -141,17 +141,13 @@ export class HourlyConditionEditorComponent implements OnInit {
       this.dateTimeService.setEndTime(this.form.get("endTime").value, this.condition);
       this.condition.hourlyInterval = this.form.get("interval").value;
       this.condition.daysOfWeek = this.form.get("weekdays").value;
-      this.condition.timeZone = this.form.get("timeZone").value;
+      this.condition.timeZone = newTZ;
+      this.condition.timeZoneLabel = tzValue?.timeZoneLabel || "";
 
       this.modelChanged.emit({
          valid: this.form.valid,
          model: this.condition
       });
-   }
-
-   setTimeZoneLabel(label: string): void {
-      this.timeZoneLabel = label;
-      this.condition.timeZoneLabel = label;
    }
 
    private timeChronological: (FormGroup) => ValidationErrors | null = (group: UntypedFormGroup) => {

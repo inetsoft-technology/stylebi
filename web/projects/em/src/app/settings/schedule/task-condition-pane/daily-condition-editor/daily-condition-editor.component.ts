@@ -24,6 +24,7 @@ import {Tool} from "../../../../../../../shared/util/tool";
 import {DateTimeService} from "../date-time.service";
 import {StartTimeChange, StartTimeData} from "../start-time-editor/start-time-editor.component";
 import {TaskConditionChanges} from "../task-condition-pane.component";
+import {TimeZoneValue} from "../time-zone-select/time-zone-select-component";
 
 @Component({
    selector: "em-daily-condition-editor",
@@ -52,13 +53,12 @@ export class DailyConditionEditorComponent implements OnInit {
          return;
       }
 
-      this.timeZoneLabel = this.dateTimeService
-         .getTimeZoneLabel(this.timeZoneOptions, this._condition.timeZone, this.timeZone,
-            this._condition.timeZoneLabel);
-
       this.form.get("weekdayOnly").setValue(this._condition.weekdayOnly || false);
       this.form.get("interval").setValue(this._condition.interval || 0);
-      this.form.get("timeZone").setValue(this._condition.timeZone || "");
+      this.form.get("timeZone").setValue({
+         timeZoneId: this._condition.timeZone || "",
+         timeZoneLabel: this._condition.timeZoneLabel || ""
+      } as TimeZoneValue);
       this.initFormState();
 
       this.startTimeData = {
@@ -80,8 +80,11 @@ export class DailyConditionEditorComponent implements OnInit {
 
    form: UntypedFormGroup;
    startTimeData: StartTimeData;
-   timeZoneLabel: string;
    timeZoneEnabled = true;
+
+   get timeZoneLabel(): string {
+      return (this.form.get("timeZone").value as TimeZoneValue)?.timeZoneLabel || "";
+   }
    private _condition: TimeConditionModel;
    private startTimeValid = false;
 
@@ -89,15 +92,11 @@ export class DailyConditionEditorComponent implements OnInit {
       this.form = fb.group({
          interval: [1, [Validators.required, FormValidators.positiveNonZeroIntegerInRange]],
          weekdayOnly: [false],
-         timeZone: [""]
+         timeZone: [{ timeZoneId: "", timeZoneLabel: "" } as TimeZoneValue]
       });
    }
 
    ngOnInit() {
-      this.timeZoneLabel = this.dateTimeService
-         .getTimeZoneLabel(this.timeZoneOptions, this.condition?.timeZone, this.timeZone,
-            this.condition?.timeZoneLabel);
-
       if(!!this.startTimeData) {
          this.timeZoneEnabled = this.startTimeData.startTimeSelected;
       }
@@ -120,15 +119,12 @@ export class DailyConditionEditorComponent implements OnInit {
       this.fireModelChanged();
    }
 
-   setTimeZoneLabel(label: string): void {
-      this.timeZoneLabel = label;
-      this.condition.timeZoneLabel = label;
-   }
-
    fireModelChanged(): void {
       const oldTZ = this.condition.timeZone;
+      const tzValue = this.form.get("timeZone").value as TimeZoneValue;
       this.condition.interval = this.form.get("interval").value;
-      this.condition.timeZone = this.form.get("timeZone").value;
+      this.condition.timeZone = tzValue?.timeZoneId || "";
+      this.condition.timeZoneLabel = tzValue?.timeZoneLabel || "";
       this.condition.weekdayOnly = this.weekdayOnly;
       this.initFormState();
 

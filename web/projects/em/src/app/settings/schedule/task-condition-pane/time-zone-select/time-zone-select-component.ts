@@ -15,9 +15,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, forwardRef, Input, OnChanges, OnInit, Output, SimpleChanges } from "@angular/core";
+import { Component, EventEmitter, forwardRef, Input, OnInit, Output } from "@angular/core";
 import { ControlValueAccessor, NG_VALUE_ACCESSOR, } from "@angular/forms";
 import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-zone-model";
+
+export interface TimeZoneValue {
+   timeZoneId: string;
+   timeZoneLabel: string;
+}
 
 @Component({
    selector: "em-time-zone-select",
@@ -31,13 +36,11 @@ import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-z
       }
    ]
 })
-export class TimeZoneSelectComponent implements OnInit, OnChanges, ControlValueAccessor {
+export class TimeZoneSelectComponent implements OnInit, ControlValueAccessor {
    selectedTimeZone: TimeZoneModel;
-   @Input() timeZoneLabel: string;
    @Input() timeZoneOptions: TimeZoneModel[];
    @Input() startTimeEnabled: boolean = true;
    @Input() enabled: boolean = true;
-   @Output() labelChanged = new EventEmitter<string>();
    @Output() changed = new EventEmitter<string>();
    private onChange = (fn: any) => {};
    private onTouched: any;
@@ -48,23 +51,6 @@ export class TimeZoneSelectComponent implements OnInit, OnChanges, ControlValueA
    ngOnInit(): void {
       if(!this.selectedTimeZone && this.timeZoneOptions?.length) {
          this.selectedTimeZone = this.timeZoneOptions[0];
-      }
-   }
-
-   // First render: selectedTimeZone is null, so ngOnChanges is a no-op; writeValue
-   // handles label-based matching. Subsequent renders: ngOnChanges fires before writeValue
-   // (via form valueChanges), so this.timeZoneLabel is already updated when writeValue runs.
-   ngOnChanges(changes: SimpleChanges): void {
-      if(changes.timeZoneLabel && this.selectedTimeZone && this.timeZoneOptions) {
-         const newLabel = changes.timeZoneLabel.currentValue as string;
-         const candidates = this.timeZoneOptions.filter(o => o.timeZoneId === this.selectedTimeZone.timeZoneId);
-         const matched = newLabel
-            ? candidates.find(c => c.label === newLabel)
-            : null;
-
-         if(matched && matched !== this.selectedTimeZone) {
-            this.selectedTimeZone = matched;
-         }
       }
    }
 
@@ -81,25 +67,28 @@ export class TimeZoneSelectComponent implements OnInit, OnChanges, ControlValueA
          return;
       }
 
-      const candidates = this.timeZoneOptions.filter(o => o.timeZoneId === obj);
+      const id = typeof obj === "string" ? obj : (obj as TimeZoneValue)?.timeZoneId;
+      const label = typeof obj === "string" ? null : (obj as TimeZoneValue)?.timeZoneLabel;
+      const candidates = this.timeZoneOptions.filter(o => o.timeZoneId === id);
 
-      if(!obj || candidates.length === 0) {
+      if(!id || candidates.length === 0) {
          this.selectedTimeZone = this.timeZoneOptions[0];
       }
       else {
-         const matched = this.timeZoneLabel
-            ? candidates.find(c => c.label === this.timeZoneLabel)
+         const matched = label
+            ? candidates.find(c => c.label === label)
             : null;
          this.selectedTimeZone = matched ?? candidates[0];
       }
    }
 
    setTimeZoneLabel(changed: boolean) {
-      const label = this.selectedTimeZone?.label ?? "";
-      this.labelChanged.emit(label);
-
       if(changed) {
-         this.onChange(this.selectedTimeZone?.timeZoneId);
+         const value: TimeZoneValue = {
+            timeZoneId: this.selectedTimeZone?.timeZoneId ?? "",
+            timeZoneLabel: this.selectedTimeZone?.label ?? ""
+         };
+         this.onChange(value);
          this.changed.emit(this.selectedTimeZone?.timeZoneId);
       }
    }

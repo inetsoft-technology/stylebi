@@ -18,7 +18,6 @@
 import { Injectable } from "@angular/core";
 import dayjs from "dayjs";
 import { TimeConditionModel } from "../../../../../../shared/schedule/model/time-condition-model";
-import { TimeZoneModel } from "../../../../../../shared/schedule/model/time-zone-model";
 import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
 import { Tool } from "../../../../../../shared/util/tool";
 import { StartTimeData } from "./start-time-editor/start-time-editor.component";
@@ -98,31 +97,6 @@ export class DateTimeService {
       }
 
       return localTimeZoneOffset;
-   }
-
-   getTimeZoneLabel(timeZoneOptions: TimeZoneModel[], timeZoneID: string,
-                    defaultTimeZone: string, preferredLabel?: string): string
-   {
-      if(!timeZoneOptions) {
-         return "";
-      }
-
-      let tz: TimeZoneModel;
-
-      if(preferredLabel) {
-         tz = timeZoneOptions.find(option =>
-            option.timeZoneId === timeZoneID && option.label === preferredLabel);
-      }
-
-      if(!tz) {
-         tz = timeZoneOptions.find(option => option.timeZoneId === timeZoneID);
-      }
-
-      if(!tz) {
-         return defaultTimeZone;
-      }
-
-      return tz.label;
    }
 
    updateStartTimeDataTimeZone(startTimeData: StartTimeData, oldTZ: string, newTZ: string): StartTimeData {

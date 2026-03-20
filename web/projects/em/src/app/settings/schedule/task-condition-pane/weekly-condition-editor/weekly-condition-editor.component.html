@@ -28,10 +28,9 @@
       (startTimeChanged)="onStartTimeChanged($event)"
     >
       <em-time-zone-select formControlName="timeZone"
-                           [timeZoneLabel]="timeZoneLabel"
                            [startTimeEnabled]="startTimeEnabled"
                            [timeZoneOptions]="timeZoneOptions" [enabled]="timeZoneEnabled"
-                           (labelChanged)="setTimeZoneLabel($event)" (changed)="fireModelChanged()">
+                           (changed)="fireModelChanged()">
       </em-time-zone-select>
     </em-start-time-editor>
     <mat-form-field appearance="outline" color="accent">

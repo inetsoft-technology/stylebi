@@ -25,6 +25,7 @@ import { DateTypeFormatter } from "../../../../../../../shared/util/date-type-fo
 import { Tool } from "../../../../../../../shared/util/tool";
 import { DateTimeService } from "../date-time.service";
 import { TaskConditionChanges } from "../task-condition-pane.component";
+import { TimeZoneValue } from "../time-zone-select/time-zone-select-component";
 
 @Component({
    selector: "em-run-once-condition-editor",
@@ -52,12 +53,11 @@ export class RunOnceConditionEditorComponent implements OnInit {
       const date = dayjs(this._condition.date)
          .utcOffset(this.timeZoneService.calculateTimezoneOffset(this._condition.timeZone) / 60000);
       this.dateValue = new Date(date.year(), date.month(), date.date(), date.hour(), date.minute());
-      this.timeZoneLabel = this.dateTimeService
-         .getTimeZoneLabel(this.timeZoneOptions, this._condition.timeZone, this.timeZone,
-            this._condition.timeZoneLabel);
-
       this.form.get("startTime").setValue(this.dateTimeService.getTimeString(this.dateValue), {emitEvent: false});
-      this.form.get("timeZone").setValue(this._condition.timeZone || "", {emitEvent: false});
+      this.form.get("timeZone").setValue({
+         timeZoneId: this._condition.timeZone || "",
+         timeZoneLabel: this._condition.timeZoneLabel || ""
+      } as TimeZoneValue, {emitEvent: false});
       this.dateTimeService.resetTimeOfDate(this.dateValue);
    }
 
@@ -65,7 +65,10 @@ export class RunOnceConditionEditorComponent implements OnInit {
    private _condition: TimeConditionModel;
    dateValue: Date;
    timeValue: string;
-   timeZoneLabel: string;
+
+   get timeZoneLabel(): string {
+      return (this.form.get("timeZone").value as TimeZoneValue)?.timeZoneLabel || "";
+   }
 
    constructor(private dateTimeService: DateTimeService, fb: UntypedFormBuilder,
                private timeZoneService: TimeZoneService)
@@ -73,7 +76,7 @@ export class RunOnceConditionEditorComponent implements OnInit {
       this.form = fb.group({
          date: new UntypedFormGroup({}),
          startTime: [this.dateTimeService.getTimeString(new Date()), [Validators.required]],
-         timeZone: [""]
+         timeZone: [{ timeZoneId: "", timeZoneLabel: "" } as TimeZoneValue]
       });
 
       this.form.get("startTime").valueChanges.subscribe(value => {
@@ -85,19 +88,12 @@ export class RunOnceConditionEditorComponent implements OnInit {
    }
 
    ngOnInit(): void {
-      this.timeZoneLabel = this.dateTimeService
-         .getTimeZoneLabel(this.timeZoneOptions, this.condition?.timeZone, this.timeZone,
-            this.condition?.timeZoneLabel);
-    }
-
-   setTimeZoneLabel(label: string): void {
-      this.timeZoneLabel = label;
-      this.condition.timeZoneLabel = label;
    }
 
    fireModelChanged(_date?: Date): void {
       const oldTZ = this.condition.timeZone;
-      const newTZ = this.form.get("timeZone").value;
+      const tzValue = this.form.get("timeZone").value as TimeZoneValue;
+      const newTZ = tzValue?.timeZoneId || "";
       let newDateTime = this.dateTimeService.applyDateTimeZoneOffsetDifference(this.form.get("startTime").value,
          oldTZ, newTZ, this.dateValue);
 
@@ -117,7 +113,8 @@ export class RunOnceConditionEditorComponent implements OnInit {
       this.dateValue = !!_date ? _date : this.dateValue;
       const date = this.dateValue || new Date();
       const time = this.form.get("startTime").value || "00:00:00";
-      this.condition.timeZone = this.form.get("timeZone").value;
+      this.condition.timeZone = newTZ;
+      this.condition.timeZoneLabel = tzValue?.timeZoneLabel || "";
       this.dateTimeService.setDate(
          DateTypeFormatter.format(date, DateTypeFormatter.ISO_8601_DATE_FORMAT),
          time, this.timeZoneService.calculateTimezoneOffset(this.condition.timeZone),
