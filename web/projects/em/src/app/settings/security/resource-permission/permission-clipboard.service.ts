@@ -35,6 +35,7 @@ export class PermissionClipboardService implements OnDestroy {
 
    constructor(orgDropdownService: OrganizationDropdownService) {
       orgDropdownService.onRefresh.pipe(takeUntil(this.destroy$)).subscribe(({ provider }) => {
+         // null guard: skip clear when nothing has been copied yet
          if(this.providerAtCopy !== null && this.providerAtCopy !== provider) {
             this.clearClipboard();
          }

@@ -376,5 +376,19 @@ describe("PermissionClipboardService", () => {
 
          expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(false);
       });
+
+      it("should allow copying again after org change clears clipboard", () => {
+         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider-a", COPY_PASTE_CONTEXT_REPOSITORY);
+         orgChangeSubject.next();
+         expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(false);
+
+         service.copy([createPermission("editors", [ResourceAction.WRITE])], true, "provider-a", COPY_PASTE_CONTEXT_REPOSITORY);
+         expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(true);
+
+         const result = service.paste(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.WRITE]);
+         expect(result.permissions.length).toBe(1);
+         expect(result.permissions[0].identityID.name).toBe("editors");
+         expect(result.requiresBoth).toBe(true);
+      });
    });
 });
