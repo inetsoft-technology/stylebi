@@ -158,5 +158,14 @@ describe("radiobutton property dialog componnet unit case", () => {
          combo.selectionListDialogModel.selectionListEditorModel.dataType = "double";
          expect(radioProDialog.effectiveDataType).toBe("double");
       });
+
+      it("should fall back to embedded data type when selectionListDialogModel is null", () => {
+         radioProDialog.model.comboboxGeneralPaneModel.listValuesPaneModel = createListModel();
+         const combo = radioProDialog.model.comboboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel;
+         combo.query = true;
+         combo.dataType = "date";
+         combo.selectionListDialogModel = null;
+         expect(radioProDialog.effectiveDataType).toBe("date");
+      });
    });
 });
