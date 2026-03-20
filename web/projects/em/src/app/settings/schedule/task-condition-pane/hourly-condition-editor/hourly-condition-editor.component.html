@@ -45,8 +45,8 @@
       </mat-error>
     </div>
     <em-time-zone-select formControlName="timeZone"
-                         [timeZoneOptions]="timeZoneOptions" [serverTimeZone]="timeZone"
-                         (labelChanged)="setTimeZoneLabel($event)" (changed)="fireModelChanged()">
+                         [timeZoneOptions]="timeZoneOptions"
+                         (changed)="fireModelChanged()">
     </em-time-zone-select>
     <mat-form-field appearance="outline" color="accent">
       <mat-label>_#(Interval)</mat-label>

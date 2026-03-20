@@ -48,7 +48,7 @@ export class TimeZoneService {
          minuteOffset: this.calculateTimezoneOffset(localTimeZoneId) / 60000
       };
 
-      if(timeZoneOptions[0].label != localTimeZone.label) {
+      if(!timeZoneOptions.length || timeZoneOptions[0].label != localTimeZone.label) {
          timeZoneOptions.unshift(localTimeZone);
       }
 
@@ -63,21 +63,26 @@ export class TimeZoneService {
          }
 
          const condTimeZoneId = (condition as TimeConditionModel).timeZone;
+         const condLabel = (condition as TimeConditionModel).timeZoneLabel;
 
          // check if id already exists in the list
-         if(!condTimeZoneId ||
-            timeZoneOptions.find((opt) => opt.timeZoneId == condTimeZoneId))
+         // allow two entries with the same IANA ID but different labels to coexist
+         if(!condTimeZoneId || timeZoneOptions.find(opt =>
+            opt.timeZoneId === condTimeZoneId && (!condLabel || opt.label === condLabel)))
          {
             continue;
          }
 
-         // add missing time zone to the list of available choices
-         // for example a user added a condition with a local time zone option and then opened
-         // the same task in another time zone, making the time zone option no longer available
+         // Add missing time zone to the list of available choices.
+         // For example a user added a condition with a local time zone option and then opened
+         // the same task in another time zone, making the time zone option no longer available.
+         // These synthetic entries do not accumulate: timeZoneOptions is rebuilt from a fresh
+         // server response on each page load.
          const missingTimeZone = <TimeZoneModel>{
             timeZoneId: condTimeZoneId,
-            label: this.getTimeZoneName(condTimeZoneId),
-            hourOffset: this.getUTCOffset(condTimeZoneId)
+            label: condLabel ?? this.getTimeZoneName(condTimeZoneId),
+            hourOffset: this.getUTCOffset(condTimeZoneId),
+            minuteOffset: this.calculateTimezoneOffset(condTimeZoneId) / 60000
          };
 
          timeZoneOptions.push(missingTimeZone);
