@@ -632,7 +632,7 @@ div.loading-indicator.loading::after {
   background:
     radial-gradient(
       ellipse 75% 55% at 100% 100%,
-      rgba(237, 113, 28, 0.11) 0%,
+      color-mix(in srgb, var(--inet-primary-color, #ed711c) 11%, transparent) 0%,
       transparent 68%
     ),
     var(--ln-bg);
@@ -700,15 +700,20 @@ div.loading-indicator.loading::after {
 /* ============================================================
    Reduced-motion: disable all entrance and ambient animations
    for users who prefer reduced motion (accessibility).
+   Note: :nth-child(n) selectors below match the specificity
+   (0,4,0) of the stagger rules above, ensuring they are
+   correctly suppressed.
    ============================================================ */
 @media (prefers-reduced-motion: reduce) {
   .login-left,
   .login-left .card-header,
   .login-left .card-body .form-group,
+  .login-left .card-body .form-group:nth-child(n),
   .login-left .card-footer,
   #loginButton.btn-primary,
   .login-left .btn-primary,
   .radar-arc,
+  .radar-arc:nth-child(n),
   .ln-loading-content,
   .ln-spinner,
   .ln-spinner__arc {
@@ -717,6 +722,10 @@ div.loading-indicator.loading::after {
   }
 
   .login-right svg {
+    animation: none;
+  }
+
+  div.loading-indicator.loading {
     animation: none;
   }
 

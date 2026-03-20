@@ -124,8 +124,8 @@
            data-th-utext="${loginBanner.bannerText}"></div>
       <pre class="card loginBanner" data-th-if="${loginBanner != null and loginBanner.type == 0}"
            data-th-text="${loginBanner.bannerText}"></pre>
-      <div id="notifications" class="alert alert-danger" style="display: none"></div>
-      <div id="sessionExpiredMessage" class="alert alert-warning" style="display: none" data-th-text="#{login.session.expired}">
+      <div id="notifications" class="alert alert-danger" style="display: none" aria-live="assertive" aria-atomic="true"></div>
+      <div id="sessionExpiredMessage" class="alert alert-warning" style="display: none" aria-live="polite" aria-atomic="true" data-th-text="#{login.session.expired}">
         For your security, you were logged out of the system due to inactivity.
       </div>
     </div>
