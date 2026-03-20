@@ -27,6 +27,7 @@ import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
+import inetsoft.web.admin.security.IdentityService;
 import inetsoft.web.portal.model.ChangePasswordDialogModel;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -83,6 +84,8 @@ public class ChangePasswordDialogController {
          actionRecord.setActionError(error);
          throw new SRSecurityException(error);
       }
+
+      IdentityService.validatePasswordStrength(model.getNewPassword());
 
       try {
          SecurityEngine engine = SecurityEngine.getSecurity();
