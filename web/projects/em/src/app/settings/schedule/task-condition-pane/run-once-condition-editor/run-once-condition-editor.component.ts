@@ -33,7 +33,6 @@ import { TimeZoneValue } from "../time-zone-select/time-zone-select-component";
    styleUrls: ["./run-once-condition-editor.component.scss"]
 })
 export class RunOnceConditionEditorComponent implements OnInit {
-   @Input() timeZone: string;
    @Input() timeZoneOptions: TimeZoneModel[];
    @Input() showMeridian: boolean;
    @Output() modelChanged = new EventEmitter<TaskConditionChanges>();

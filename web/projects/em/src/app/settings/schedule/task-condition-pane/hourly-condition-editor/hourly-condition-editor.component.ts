@@ -41,7 +41,6 @@ import {TimeZoneValue} from "../time-zone-select/time-zone-select-component";
    styleUrls: ["./hourly-condition-editor.component.scss"]
 })
 export class HourlyConditionEditorComponent implements OnInit {
-   @Input() timeZone: string;
    @Input() showMeridian: boolean;
    @Input()  timeZoneOptions: TimeZoneModel[];
    @Output() modelChanged = new EventEmitter<TaskConditionChanges>();

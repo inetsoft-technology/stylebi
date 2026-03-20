@@ -52,7 +52,7 @@ export class TimeZoneSelectComponent implements OnInit, ControlValueAccessor {
    @Output() changed = new EventEmitter<string>();
    private onChange = (fn: any) => {};
    private onTouched: any;
-   private pendingValue: any = null;
+   private pendingValue: TimeZoneValue | string | null = null;
 
    compareTimeZones = (a: TimeZoneModel, b: TimeZoneModel) =>
       a?.timeZoneId === b?.timeZoneId && a?.label === b?.label;
