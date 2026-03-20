@@ -88,6 +88,16 @@ public interface EditUserPaneModel extends EntityModel {
       return false;
    }
 
+   @Value.Default
+   default boolean newUser() {
+      return false;
+   }
+
+   @Value.Default
+   default boolean hasPassword() {
+      return false;
+   }
+
    static EditUserPaneModel.Builder builder() {
       return new EditUserPaneModel.Builder();
    }

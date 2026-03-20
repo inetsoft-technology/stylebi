@@ -373,6 +373,12 @@
     </dependency>
 
     <dependency>
+      <groupId>org.passay</groupId>
+      <artifactId>passay</artifactId>
+      <scope>compile</scope>
+    </dependency>
+
+    <dependency>
       <groupId>com.onelogin</groupId>
       <artifactId>java-saml-core</artifactId>
       <scope>compile</scope>

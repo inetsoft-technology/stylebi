@@ -18,6 +18,7 @@
 package inetsoft.sree.internal.cluster.ignite;
 
 import org.apache.ignite.Ignite;
+import org.apache.ignite.IgniteInterruptedException;
 import org.apache.ignite.resources.IgniteInstanceResource;
 import org.apache.ignite.services.Service;
 import org.slf4j.Logger;
@@ -65,6 +66,11 @@ public class ServiceTaskExecutorImpl implements Service {
             if(request != null) {
                processRequest(request, loader);
             }
+         }
+         catch(IgniteInterruptedException e) {
+            // Normal service shutdown — Ignite interrupted the thread when the node stopped.
+            Thread.currentThread().interrupt();
+            break;
          }
          catch(Exception e) {
             LOG.error("Error processing service task for {}", serviceId, e);

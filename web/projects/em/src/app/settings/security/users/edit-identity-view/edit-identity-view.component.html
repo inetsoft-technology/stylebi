@@ -107,11 +107,11 @@
             </mat-form-field>
           </div>
           <ng-container *ngIf="user && userModel.supportChangePassword">
-            <mat-checkbox class="mat-checkbox-field checkbox-block" formControlName="changePasswordEnabled"
+            <mat-checkbox *ngIf="!isNewUser && userModel.hasPassword" class="mat-checkbox-field checkbox-block" formControlName="changePasswordEnabled"
                           (change)="updateModel()">
               _#(Change Password)
             </mat-checkbox>
-            <div [formGroup]="pwForm" *ngIf="form.controls.changePasswordEnabled?.value" class="flex-col change-password-box">
+            <div [formGroup]="pwForm" *ngIf="isNewUser || !userModel.hasPassword || form.controls.changePasswordEnabled?.value" class="flex-col change-password-box">
               <mat-form-field appearance="outline" color="accent" class="password-field">
                 <mat-label>_#(Password)</mat-label>
                 <input matInput placeholder="_#(Password)" type="password" formControlName="password">

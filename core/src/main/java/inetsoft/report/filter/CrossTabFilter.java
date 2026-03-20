@@ -4559,10 +4559,23 @@ public class CrossTabFilter extends AbstractTableLens
       r.add((Tuple) p.value1);
       c.add((Tuple) p.value2);
 
-      if(Util.getRuntimeMaxRows() > 0 && r.size() > Util.getRuntimeMaxRows()) {
-         appliedMaxRows = Util.getRuntimeMaxRows();
+      int maxRows = getRuntimeMaxRowsCached();
+
+      if(maxRows > 0 && r.size() > maxRows) {
+         appliedMaxRows = maxRows;
          throw new MaxRowsException();
       }
+   }
+
+   /**
+    * Get runtime max rows, caching the value to avoid repeated property lookups.
+    */
+   private int getRuntimeMaxRowsCached() {
+      if(runtimeMaxRows < 0) {
+         runtimeMaxRows = Util.getRuntimeMaxRows();
+      }
+
+      return runtimeMaxRows;
    }
 
    /**
@@ -7214,6 +7227,7 @@ public class CrossTabFilter extends AbstractTableLens
    private String dcMergePartRef;
    private boolean sortOthersLast = true; // whether sort others last
    private int appliedMaxRows = -1;
+   private volatile int runtimeMaxRows = -1; // cached value to avoid repeated property lookups
    private int dcDataRefColIndex = -1;
    private Date dcStartDate;
    private Boolean dcRefInRow;
