@@ -38,12 +38,21 @@ export interface TimeZoneValue {
 })
 export class TimeZoneSelectComponent implements OnInit, ControlValueAccessor {
    selectedTimeZone: TimeZoneModel;
-   @Input() timeZoneOptions: TimeZoneModel[];
+   private _timeZoneOptions: TimeZoneModel[];
+   @Input()
+   get timeZoneOptions(): TimeZoneModel[] { return this._timeZoneOptions; }
+   set timeZoneOptions(value: TimeZoneModel[]) {
+      this._timeZoneOptions = value;
+      if(this.pendingValue != null && value?.length) {
+         this.writeValue(this.pendingValue);
+      }
+   }
    @Input() startTimeEnabled: boolean = true;
    @Input() enabled: boolean = true;
    @Output() changed = new EventEmitter<string>();
    private onChange = (fn: any) => {};
    private onTouched: any;
+   private pendingValue: any = null;
 
    compareTimeZones = (a: TimeZoneModel, b: TimeZoneModel) =>
       a?.timeZoneId === b?.timeZoneId && a?.label === b?.label;
@@ -64,9 +73,11 @@ export class TimeZoneSelectComponent implements OnInit, ControlValueAccessor {
 
    writeValue(obj: any): void {
       if(!this.timeZoneOptions?.length) {
+         this.pendingValue = obj;
          return;
       }
 
+      this.pendingValue = null;
       const id = typeof obj === "string" ? obj : (obj as TimeZoneValue)?.timeZoneId;
       const label = typeof obj === "string" ? null : (obj as TimeZoneValue)?.timeZoneLabel;
       const candidates = this.timeZoneOptions.filter(o => o.timeZoneId === id);
@@ -82,7 +93,7 @@ export class TimeZoneSelectComponent implements OnInit, ControlValueAccessor {
       }
    }
 
-   setTimeZoneLabel(changed: boolean) {
+   onSelectionChanged(changed: boolean) {
       if(changed) {
          const value: TimeZoneValue = {
             timeZoneId: this.selectedTimeZone?.timeZoneId ?? "",

@@ -1305,7 +1305,8 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          isEquals(tc.getMonthsOfYear(), months_of_year) &&
          tc.getInterval() == interval &&
          tc.getHourlyInterval() == hourlyInterval &&
-         tc.isWeekdayOnly() == weekdayOnly;
+         tc.isWeekdayOnly() == weekdayOnly &&
+         Tool.equals(tc.getTimeZoneLabel(), timeZoneLabel);
    }
 
    /**

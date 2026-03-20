@@ -100,6 +100,7 @@ export class TaskOptionsPane {
          this.optionsForm.get("taskEnabled").setValue(this.model.enabled || false);
          this.optionsForm.get("deleteIfNotScheduledToRun").setValue(this.model.deleteIfNotScheduledToRun || false);
          this.optionsForm.get("description").setValue(this.model.description);
+         // empty label: TaskOptionsPaneModel doesn't persist timeZoneLabel; duplicate IDs share offsets
          this.optionsForm.get("timeZone").setValue({ timeZoneId: this.model.timeZone, timeZoneLabel: "" } as TimeZoneValue);
          this.optionsForm.get("locale").setValue(this.model.locale || TaskOptionsPane.DEFAULT_LOCALE);
          this.optionsForm.get("owner").setValue(this.model.owner);
