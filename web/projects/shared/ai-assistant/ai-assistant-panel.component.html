@@ -45,6 +45,14 @@
     </div>
   </div>
   <div class="panel-body">
-    <ai-assistant-dialog></ai-assistant-dialog>
+    <ng-container [ngSwitch]="serverState">
+      <div *ngSwitchCase="'checking'" class="assistant-server-status">
+        <span>_#(Connecting to AI assistant...)</span>
+      </div>
+      <div *ngSwitchCase="'offline'" class="assistant-server-status assistant-server-offline">
+        <span>_#(The AI assistant server is currently unavailable. Please contact your administrator.)</span>
+      </div>
+      <ai-assistant-dialog *ngSwitchCase="'online'"></ai-assistant-dialog>
+    </ng-container>
   </div>
 </div>
