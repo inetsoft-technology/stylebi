@@ -1802,7 +1802,7 @@ public class SUtil {
       try {
          boolean isMyReport = isMyReport(path);
          user = isMyReport ? user : null;
-         RepletRegistry registry = RepletRegistry.getRegistry(user);
+         RepletRegistry registry = RepletRegistryManager.getInstance().getRegistry(user);
          boolean result = registry != null && registry.isFolder(path);
 
          if(type == RepositoryEntry.VIEWSHEET) {
@@ -1973,10 +1973,10 @@ public class SUtil {
 
       try {
          if(principal != null && path.startsWith(MY_REPORT)) {
-            registry = RepletRegistry.getRegistry(IdentityID.getIdentityIDFromKey(principal.getName()));
+            registry = RepletRegistryManager.getInstance().getRegistry(IdentityID.getIdentityIDFromKey(principal.getName()));
          }
 
-         dregistry = RepletRegistry.getRegistry();
+         dregistry = RepletRegistryManager.getInstance().getRegistry();
       }
       catch(Exception ex) {
          LOG.error("Failed to get replet registry for localization", ex);

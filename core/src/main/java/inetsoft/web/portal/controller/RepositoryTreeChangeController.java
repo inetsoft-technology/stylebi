@@ -18,6 +18,7 @@
 package inetsoft.web.portal.controller;
 
 import inetsoft.sree.RepletRegistry;
+import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
@@ -60,27 +61,29 @@ public class RepositoryTreeChangeController {
     */
    @Autowired
    public RepositoryTreeChangeController(AssetRepository assetRepository,
-                                         SimpMessagingTemplate messagingTemplate)
+                                         SimpMessagingTemplate messagingTemplate,
+                                         RepletRegistryManager repletRegistryManager)
    {
       this.assetRepository = assetRepository;
       this.messagingTemplate = messagingTemplate;
+      this.repletRegistryManager = repletRegistryManager;
    }
 
    @PostConstruct
    public void postConstruct() throws Exception {
-      RepletRegistry.getRegistry().addPropertyChangeListener(this.reportListener);
+      repletRegistryManager.getRegistry().addPropertyChangeListener(this.reportListener);
       assetRepository.addAssetChangeListener(this.viewsheetListener);
    }
 
    @PreDestroy
    public void preDestroy() {
       try {
-         RepletRegistry.getRegistry().removePropertyChangeListener(this.reportListener);
+         repletRegistryManager.getRegistry().removePropertyChangeListener(this.reportListener);
          assetRepository.removeAssetChangeListener(this.viewsheetListener);
 
          for(Map.Entry<Principal, PropertyChangeListener> e : reportListeners.entrySet()) {
             IdentityID pId = IdentityID.getIdentityIDFromKey(e.getKey().getName());
-            RepletRegistry registry = RepletRegistry.getRegistry(pId, false);
+            RepletRegistry registry = repletRegistryManager.getRegistry(pId, false);
 
             if(registry != null) {
                registry.removePropertyChangeListener(e.getValue());
@@ -103,7 +106,7 @@ public class RepositoryTreeChangeController {
          IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
          PropertyChangeListener listener = new ReportListener(principal);
          reportListeners.put(principal, listener);
-         RepletRegistry.getRegistry(pId).addPropertyChangeListener(listener);
+         repletRegistryManager.getRegistry(pId).addPropertyChangeListener(listener);
       }
    }
 
@@ -127,7 +130,7 @@ public class RepositoryTreeChangeController {
             if(listener != null) {
                try {
                   IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-                  RepletRegistry.getRegistry(pId).removePropertyChangeListener(listener);
+                  repletRegistryManager.getRegistry(pId).removePropertyChangeListener(listener);
                }
                catch(Exception e) {
                   LOG.warn(
@@ -171,6 +174,7 @@ public class RepositoryTreeChangeController {
 
    private final AssetRepository assetRepository;
    private final SimpMessagingTemplate messagingTemplate;
+   private final RepletRegistryManager repletRegistryManager;
    private final PropertyChangeListener reportListener = this::handleReportChanged;
    private final Map<String, Principal> subscriptions = new ConcurrentHashMap<>();
    private final Map<Principal, PropertyChangeListener> reportListeners = new ConcurrentHashMap<>();

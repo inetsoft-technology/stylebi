@@ -156,8 +156,6 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
       thread.start();
       thread.join(120000L);
 
-      JavaScriptEngine.resetScriptThread();
-
       try {
          FileUtils.deleteDirectory(clusterDir.toFile());
       }

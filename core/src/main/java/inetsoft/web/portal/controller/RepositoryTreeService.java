@@ -23,7 +23,6 @@ import inetsoft.sree.internal.AnalyticEngine;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
-import inetsoft.uql.util.XUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.TreeNodeModel;
@@ -54,11 +53,13 @@ public class RepositoryTreeService {
    public RepositoryTreeService(
       AnalyticRepository analyticRepository,
       SecurityProvider securityProvider,
-      RepositoryEntryModelFactoryService repositoryEntryModelFactoryService)
+      RepositoryEntryModelFactoryService repositoryEntryModelFactoryService,
+      RepletRegistryManager repletRegistryManager)
    {
       this.analyticRepository = analyticRepository;
       this.securityProvider = securityProvider;
       this.repositoryEntryModelFactoryService = repositoryEntryModelFactoryService;
+      this.repletRegistryManager = repletRegistryManager;
    }
 
    /**
@@ -148,8 +149,8 @@ public class RepositoryTreeService {
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
 
       return SUtil.isMyReport(name) && !Tool.MY_DASHBOARD.equals(name) ?
-         RepletRegistry.getRegistry(pId) :
-         RepletRegistry.getRegistry();
+         repletRegistryManager.getRegistry(pId) :
+         repletRegistryManager.getRegistry();
    }
 
    public final EnumSet<RepositoryTreeAction> getSupportedOperations(RepositoryEntry entry,
@@ -317,5 +318,6 @@ public class RepositoryTreeService {
    private final AnalyticRepository analyticRepository;
    private final SecurityProvider securityProvider;
    private final RepositoryEntryModelFactoryService repositoryEntryModelFactoryService;
+   private final RepletRegistryManager repletRegistryManager;
    private static final Logger LOG = LoggerFactory.getLogger(RepositoryTreeController.class);
 }

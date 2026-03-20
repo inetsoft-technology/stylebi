@@ -33,7 +33,6 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.FileNotFoundException;
@@ -50,29 +49,20 @@ import java.util.*;
 public class RepletRegistryService {
    /**
     * Creates a new instance of <tt>RepletRegistryManager</tt>.
-    */
-   @Autowired
-   public RepletRegistryService(SecurityEngine securityEngine) {
-      this(true, securityEngine);
-   }
-
-   /**
-    * Creates a new instance of <tt>RepletRegistryManager</tt>.
-    */
-   public RepletRegistryService() {
-      this(true, null);
-   }
-
-   /**
-    * Creates a new instance of <tt>RepletRegistryManager</tt>.
     *
-    * @param addRepositoryRootFolder <tt>true</tt> to add a "Repository" root
-    *                                folder to all repository entries.
     * @param securityEngine          the security engine.
     */
-   public RepletRegistryService(boolean addRepositoryRootFolder, SecurityEngine securityEngine) {
-      this.addRepositoryRootFolder = addRepositoryRootFolder;
+   public RepletRegistryService(SecurityEngine securityEngine,
+                                ScheduleManager scheduleManager,
+                                DependencyHandler dependencyHandler,
+                                RenameTransformHandler renameTransformHandler,
+                                RepletRegistryManager registryManager)
+   {
       this.securityEngine = securityEngine;
+      this.scheduleManager = scheduleManager;
+      this.dependencyHandler = dependencyHandler;
+      this.renameTransformHandler = renameTransformHandler;
+      this.repletRegistryManager = registryManager;
    }
 
    /**
@@ -95,9 +85,7 @@ public class RepletRegistryService {
          return true;
       }
 
-      if(!oldPath.equals(newPath) &&
-         isDuplicateWorksheetName(newPath, user, true, principal))
-      {
+      if(isDuplicateWorksheetName(newPath, user, true, principal)) {
          return false;
       }
 
@@ -142,8 +130,8 @@ public class RepletRegistryService {
                                       String ruleDate, Principal principal)
       throws Exception
    {
-      RepletRegistry registry = RepletRegistry.getRegistry(oldUser);
-      RepletRegistry registryTo = RepletRegistry.getRegistry(newUser);
+      RepletRegistry registry = repletRegistryManager.getRegistry(oldUser);
+      RepletRegistry registryTo = repletRegistryManager.getRegistry(newUser);
       boolean sameScope = Tool.equals(oldUser, newUser);
 
       if(!newPath.equals(oldPath) || !sameScope) {
@@ -373,8 +361,7 @@ public class RepletRegistryService {
                           Map<String, List<String>> infos, Principal principal)
       throws Exception
    {
-      List<String> warnings = infos == null ? new ArrayList<>() :
-         infos.get("warning");
+      List<String> warnings = infos == null ? new ArrayList<>() : infos.get("warning");
       boolean isWS = false;
       Catalog catalog = Catalog.getCatalog();
       AssetEntry.Type newType = AssetEntry.Type.UNKNOWN;
@@ -444,7 +431,7 @@ public class RepletRegistryService {
          }
       }
       else if((type & RepositoryEntry.FOLDER) != 0) {
-         RepletRegistry registry = RepletRegistry.getRegistry(user);
+         RepletRegistry registry = repletRegistryManager.getRegistry(user);
          String[] repletFolders = registry.getFolders(path);
 
          try {
@@ -564,7 +551,7 @@ public class RepletRegistryService {
       Catalog catalog = Catalog.getCatalog();
 
       String oto = pathTo;
-      RepletRegistry registryTo = RepletRegistry.getRegistry(userTo);
+      RepletRegistry registryTo = repletRegistryManager.getRegistry(userTo);
       pathTo = "".equals(pathTo) || "/".equals(pathTo) ? "" : pathTo + "/";
       pathTo += entryName;
       String identifier = null;
@@ -620,7 +607,7 @@ public class RepletRegistryService {
          }
       }
 
-      RepletRegistry registryFrom = RepletRegistry.getRegistry(userFrom);
+      RepletRegistry registryFrom = repletRegistryManager.getRegistry(userFrom);
       // the folder already exist? use it directly
       checkPermission(pathTo, ResourceType.REPORT, ResourceAction.DELETE, principal);
       registryTo.addFolder(pathTo);
@@ -908,7 +895,7 @@ public class RepletRegistryService {
                                    String description, IdentityID user)
       throws Exception
    {
-      RepletRegistry registry = RepletRegistry.getRegistry(user);
+      RepletRegistry registry = repletRegistryManager.getRegistry(user);
 
       if(!registry.addFolder(folderName)) {
          throw new Exception("Failed to add folder " + folderName);
@@ -1271,7 +1258,7 @@ public class RepletRegistryService {
     * @throws Exception if an error prevented a duplicate from being detected.
     */
    public boolean isDuplicatedName(String nname, String oname, IdentityID user) throws Exception {
-      return isDuplicatedName(RepletRegistry.getRegistry(user), nname, oname, user);
+      return isDuplicatedName(repletRegistryManager.getRegistry(user), nname, oname, user);
    }
 
    /**
@@ -1543,7 +1530,7 @@ public class RepletRegistryService {
       RepletRegistry registry = null;
 
       if(((filter & RepositoryEntry.LIVE_REPORTS) == RepositoryEntry.LIVE_REPORTS)) {
-         registry = RepletRegistry.getRegistry(user);
+         registry = repletRegistryManager.getRegistry(user);
       }
 
       return getRepositoryEntries(parent, filter, user, type, registry, principal, isDefaultOrgAsset);
@@ -1661,8 +1648,7 @@ public class RepletRegistryService {
     * @return the converted path.
     */
    String getPath(String path, IdentityID user) {
-      return addRepositoryRootFolder && user == null ?
-         RepositoryEntry.REPOSITORY_FOLDER + "/" + path : path;
+      return user == null ? RepositoryEntry.REPOSITORY_FOLDER + "/" + path : path;
    }
 
    /**
@@ -1696,20 +1682,17 @@ public class RepletRegistryService {
          alias = entry.getAlias();
       }
       else if(type == RepositoryEntry.FOLDER) {
-         alias = RepletRegistry.getRegistry(user).getFolderAlias(path);
+         alias = repletRegistryManager.getRegistry(user).getFolderAlias(path);
       }
 
       return alias;
    }
 
-   private final boolean addRepositoryRootFolder;
    private final SecurityEngine securityEngine;
-   @Autowired
-   private ScheduleManager scheduleManager;
-   @Autowired
-   private DependencyHandler dependencyHandler;
-   @Autowired
-   private RenameTransformHandler renameTransformHandler;
+   private final ScheduleManager scheduleManager;
+   private final DependencyHandler dependencyHandler;
+   private final RenameTransformHandler renameTransformHandler;
+   private final RepletRegistryManager repletRegistryManager;
 
    /**
     * Exception that indicates that an asset name is already in use.

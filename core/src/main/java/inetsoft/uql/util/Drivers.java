@@ -32,8 +32,9 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 public class Drivers {
-   public Drivers(Plugins plugins) {
+   public Drivers(Plugins plugins, ConnectionPoolFactory connectionPoolFactory) {
       this.plugins = plugins;
+      this.connectionPoolFactory = connectionPoolFactory;
    }
 
    public static Drivers getInstance() {
@@ -171,9 +172,8 @@ public class Drivers {
                .flatMap(d -> d.getDrivers().stream())
                .collect(Collectors.toSet());
 
-            ConnectionPoolFactory factory = JDBCHandler.getConnectionPoolFactory();
-            factory.closeConnectionPools(
-               ds -> drivers.stream().anyMatch(d -> factory.isDriverUsed(ds, d)));
+            connectionPoolFactory.closeConnectionPools(
+               ds -> drivers.stream().anyMatch(d -> connectionPoolFactory.isDriverUsed(ds, d)));
             Set<Driver> deregistered = DriverManager.drivers()
                .filter(d -> drivers.contains(d.getClass().getName()))
                .collect(Collectors.toSet());
@@ -300,6 +300,7 @@ public class Drivers {
    }
 
    private final Plugins plugins;
+   private final ConnectionPoolFactory connectionPoolFactory;
    private DriverProvider provider;
    private final ReadWriteLock driverServicesLock = new ReentrantReadWriteLock();
    private Map<String, List<DriverService>> driverServices = null;

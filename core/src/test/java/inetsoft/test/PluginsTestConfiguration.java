@@ -20,11 +20,14 @@ package inetsoft.test;
 
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.storage.BlobStorageManager;
+import inetsoft.uql.jdbc.ConnectionPoolFactory;
 import inetsoft.uql.util.Drivers;
 import inetsoft.util.Plugins;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import static org.mockito.Mockito.mock;
 
 @Configuration
 public class PluginsTestConfiguration {
@@ -35,6 +38,6 @@ public class PluginsTestConfiguration {
 
    @Bean
    public Drivers drivers(Plugins plugins) {
-      return new Drivers(plugins);
+      return new Drivers(plugins, mock(ConnectionPoolFactory.class));
    }
 }

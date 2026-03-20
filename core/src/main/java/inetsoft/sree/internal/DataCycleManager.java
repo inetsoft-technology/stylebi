@@ -20,8 +20,7 @@ package inetsoft.sree.internal;
 import inetsoft.mv.MVDef;
 import inetsoft.mv.MVManager;
 import inetsoft.report.internal.Util;
-import inetsoft.sree.RepletRegistry;
-import inetsoft.sree.SreeEnv;
+import inetsoft.sree.*;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
@@ -72,7 +71,7 @@ public class DataCycleManager
    @Autowired
    public DataCycleManager(ScheduleManager scheduleManager, IndexedStorage indexedStorage,
                            SecurityEngine securityEngine, Cluster cluster, MVManager mvManager,
-                           DataSpace dataSpace)
+                           DataSpace dataSpace, RepletRegistryManager repletRegistryManager)
    {
       this.scheduleManager = scheduleManager;
       this.indexedStorage = indexedStorage;
@@ -80,6 +79,7 @@ public class DataCycleManager
       this.cluster = cluster;
       this.mvManager = mvManager;
       this.dataSpace = dataSpace;
+      this.repletRegistryManager = repletRegistryManager;
       scheduleManager.addScheduleExt(this);
       init();
       indexedStorage.addStorageRefreshListener(this);
@@ -105,7 +105,7 @@ public class DataCycleManager
       getScheduleManager().initialize();
 
       try {
-         RepletRegistry.getRegistry().addPropertyChangeListener(this);
+         repletRegistryManager.getRegistry().addPropertyChangeListener(this);
       }
       catch(Exception ex) {
          LOG.error("Failed to add property change listener to replet registry", ex);
@@ -1043,6 +1043,7 @@ public class DataCycleManager
    private final Cluster cluster;
    private final MVManager mvManager;
    private final DataSpace dataSpace;
+   private final RepletRegistryManager repletRegistryManager;
    private final Map<String, Boolean> orgPregeneratedTaskLoadedStatus = new ConcurrentHashMap<>();
    private final Map<String, Vector<ScheduleTask>> pregeneratedTasksMap = new HashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(DataCycleManager.class);

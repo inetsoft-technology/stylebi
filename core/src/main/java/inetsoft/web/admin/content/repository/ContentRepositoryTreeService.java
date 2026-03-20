@@ -72,7 +72,8 @@ public class ContentRepositoryTreeService {
                                        IndexedStorage indexedStorage,
                                        DashboardRegistryManager dashboardRegistryManager,
                                        LibManagerProvider libManagerProvider,
-                                       RecycleBin recycleBin)
+                                       RecycleBin recycleBin,
+                                       RepletRegistryManager repletRegistryManager)
    {
       this.securityProvider = securityProvider;
       this.repository = repository;
@@ -88,6 +89,7 @@ public class ContentRepositoryTreeService {
       this.dashboardRegistryManager = dashboardRegistryManager;
       this.libManagerProvider = libManagerProvider;
       this.recycleBin = recycleBin;
+      this.repletRegistryManager = repletRegistryManager;
    }
 
    public LicensedComponents getLicensedComponents() {
@@ -139,7 +141,7 @@ public class ContentRepositoryTreeService {
 
    List<ContentRepositoryTreeNode> getRootNodes(Principal principal, List<String> usersToLoad) throws Exception {
       List<UserNodes> userNodes = createUserNodes(principal, usersToLoad);
-      RegistrySupplier registryFn = new RegistrySupplier();
+      RegistrySupplier registryFn = new RegistrySupplier(repletRegistryManager);
       Catalog catalog = Catalog.getCatalog();
       Principal contextPrincipal = ThreadContext.getContextPrincipal();
       ExecutorService executor =
@@ -306,7 +308,7 @@ public class ContentRepositoryTreeService {
          boolean loadUser = usersToLoad.contains(user.convertToKey());
 
          if(loadUser || recycleBinUsers.contains(user)) {
-            registry = RepletRegistry.getRegistry(user);
+            registry = repletRegistryManager.getRegistry(user);
          }
 
          nodes.reports = getUserReports(user, loadUser ? registry : null, principal);
@@ -917,7 +919,7 @@ public class ContentRepositoryTreeService {
                                                          RegistrySupplier registryFn)
       throws Exception
    {
-      final RepletRegistry registry = RepletRegistry.getRegistry();
+      final RepletRegistry registry = repletRegistryManager.getRegistry();
       Map<AssetEntry, List<AssetEntry>> parentEntries = getParentAssetEntryMap();
 
       // build tree from root nodes (repository/worksheet)
@@ -934,7 +936,7 @@ public class ContentRepositoryTreeService {
    public Map<AssetEntry, List<AssetEntry>> getParentAssetEntryMap() throws Exception {
       final AssetRepository assetRepository = AssetUtil.getAssetRepository(false);
       assetRepository.syncFolders(null);
-      final RepletRegistry registry = RepletRegistry.getRegistry();
+      final RepletRegistry registry = repletRegistryManager.getRegistry();
       final AssetEntry[] entries = indexedStorage.getKeys(Objects::nonNull)
          .stream()
          .filter(key -> key != null && !key.contains("^" + Tool.MY_DASHBOARD + "/"))
@@ -2063,6 +2065,7 @@ public class ContentRepositoryTreeService {
    private final DashboardRegistryManager dashboardRegistryManager;
    private final LibManagerProvider libManagerProvider;
    private final RecycleBin recycleBin;
+   private final RepletRegistryManager repletRegistryManager;
    private final Comparator<ContentRepositoryTreeNode> nodeComparator = getNodeComparator();
 
    public static final String RECYCLE_BIN_FOLDER = "Recycle Bin";
@@ -2088,14 +2091,18 @@ public class ContentRepositoryTreeService {
     * of users, this adds up quickly.
     */
    private static final class RegistrySupplier {
+      private RegistrySupplier(RepletRegistryManager repletRegistryManager) {
+         this.repletRegistryManager = repletRegistryManager;
+      }
+
       public RepletRegistry get(IdentityID user) {
          if(!Objects.equals(user, this.user) || registry == null) {
             try {
                if(user == null) {
-                  registry = RepletRegistry.getRegistry();
+                  registry = repletRegistryManager.getRegistry();
                }
                else {
-                  registry = RepletRegistry.getRegistry(user);
+                  registry = repletRegistryManager.getRegistry(user);
                }
             }
             catch(Exception e) {
@@ -2108,6 +2115,7 @@ public class ContentRepositoryTreeService {
          return registry;
       }
 
+      private final RepletRegistryManager repletRegistryManager;
       private IdentityID user;
       private RepletRegistry registry;
    }

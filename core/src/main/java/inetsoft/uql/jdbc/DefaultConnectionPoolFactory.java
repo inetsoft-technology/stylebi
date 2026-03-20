@@ -43,7 +43,7 @@ import java.util.function.Predicate;
  *
  * @since 12.2
  */
-class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
+public class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
    /**
     * Creates a new instance of <tt>DefaultConnectionPoolFactory</tt>.
     */

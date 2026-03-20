@@ -29,6 +29,7 @@ import inetsoft.report.composition.execution.DistributedTableCacheStore;
 import inetsoft.report.internal.DesignSession;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.AnalyticRepository;
+import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.internal.*;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.*;
@@ -40,6 +41,7 @@ import inetsoft.uql.XDataService;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.jdbc.ConnectionPoolFactory;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.service.XEngine;
 import inetsoft.uql.util.*;
@@ -245,8 +247,8 @@ public class IntegrationTestConfiguration {
    }
 
    @Bean
-   public Drivers drivers(Plugins plugins) {
-      return new Drivers(plugins);
+   public Drivers drivers(Plugins plugins, ConnectionPoolFactory connectionPoolFactory) {
+      return new Drivers(plugins, connectionPoolFactory);
    }
 
    @Bean
@@ -265,8 +267,8 @@ public class IntegrationTestConfiguration {
    }
 
    @Bean
-   public XRepository xRepository(Cluster cluster, Config config, DataSourceRegistry dataSourceRegistry) {
-      return new XEngine(cluster, config, dataSourceRegistry);
+   public XRepository xRepository(Cluster cluster, Config config, DataSourceRegistry dataSourceRegistry, ConnectionPoolFactory connectionPoolFactory) {
+      return new XEngine(cluster, config, dataSourceRegistry, connectionPoolFactory);
    }
 
    @Bean
@@ -275,8 +277,8 @@ public class IntegrationTestConfiguration {
    }
 
    @Bean
-   public DeployManagerService deployManagerService(SecurityEngine securityEngine, DataSourceRegistry dataSourceRegistry, LibManagerProvider libManagerProvider, XRepository xRepository, FileSystemService fileSystemService, DataSpace dataSpace, EmbeddedTableStorage embeddedTableStorage) {
-      return new DeployManagerService(securityEngine, mock(DependencyHandler.class), dataSourceRegistry, mock(DashboardRegistryManager.class), libManagerProvider, mock(DashboardManager.class), xRepository, fileSystemService, dataSpace, embeddedTableStorage);
+   public DeployManagerService deployManagerService(SecurityEngine securityEngine, DataSourceRegistry dataSourceRegistry, LibManagerProvider libManagerProvider, XRepository xRepository, FileSystemService fileSystemService, DataSpace dataSpace, EmbeddedTableStorage embeddedTableStorage, RepletRegistryManager repletRegistryManager) {
+      return new DeployManagerService(securityEngine, mock(DependencyHandler.class), dataSourceRegistry, mock(DashboardRegistryManager.class), libManagerProvider, mock(DashboardManager.class), xRepository, fileSystemService, dataSpace, embeddedTableStorage, repletRegistryManager);
    }
 
    @Bean
@@ -285,8 +287,8 @@ public class IntegrationTestConfiguration {
    }
 
    @Bean
-   public AnalyticRepository analyticRepository(DeployManagerService deployManagerService, DesignSession designSession, LibManagerProvider libManagerProvider, Cluster cluster) {
-      AnalyticEngine engine = new AnalyticEngine(deployManagerService, designSession, libManagerProvider, mock(DataCycleManager.class), cluster);
+   public AnalyticRepository analyticRepository(DeployManagerService deployManagerService, DesignSession designSession, LibManagerProvider libManagerProvider, Cluster cluster, RepletRegistryManager repletRegistryManager) {
+      AnalyticEngine engine = new AnalyticEngine(deployManagerService, designSession, libManagerProvider, mock(DataCycleManager.class), cluster, repletRegistryManager);
       AssetUtil.setAssetRepository(false, engine);
       engine.init();
       return engine;
@@ -474,5 +476,15 @@ public class IntegrationTestConfiguration {
    @Bean
    public AnalyticAssistant analyticAssistant(AnalyticRepository analyticRepository) {
       return new AnalyticAssistant(analyticRepository);
+   }
+
+   @Bean
+   public RepletRegistryManager repletRegistryManager(DataSpace dataSpace) {
+      return new RepletRegistryManager(dataSpace);
+   }
+
+   @Bean
+   public ConnectionPoolFactory connectionPoolFactory() {
+      return mock(ConnectionPoolFactory.class);
    }
 }

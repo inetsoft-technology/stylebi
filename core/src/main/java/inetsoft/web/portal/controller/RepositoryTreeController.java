@@ -67,16 +67,18 @@ public class RepositoryTreeController {
     */
    @Autowired
    public RepositoryTreeController(AnalyticRepository analyticRepository,
-      RepositoryEntryModelFactoryService repositoryEntryModelFactoryService,
-      RepositoryTreeService repositoryTreeService,
-      ScheduleManager scheduleManager,
-      RecycleBin recycleBin)
+                                   RepositoryEntryModelFactoryService repositoryEntryModelFactoryService,
+                                   RepositoryTreeService repositoryTreeService,
+                                   ScheduleManager scheduleManager,
+                                   RecycleBin recycleBin,
+                                   RepletRegistryManager repletRegistryManager)
    {
       this.analyticRepository = analyticRepository;
       this.repositoryEntryModelFactoryService = repositoryEntryModelFactoryService;
       this.repositoryTreeService = repositoryTreeService;
       this.scheduleManager = scheduleManager;
       this.recycleBin = recycleBin;
+      this.repletRegistryManager = repletRegistryManager;
    }
 
    /**
@@ -362,7 +364,7 @@ public class RepositoryTreeController {
    {
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
       RepletRegistry registry = SUtil.isMyReport(entry.getPath()) ?
-              RepletRegistry.getRegistry(pId) : RepletRegistry.getRegistry();
+         repletRegistryManager.getRegistry(pId) : repletRegistryManager.getRegistry();
       Catalog catalog = Catalog.getCatalog(principal);
       String oldName = entry.getPath();
       newName = SUtil.removeControlChars(newName);
@@ -635,7 +637,7 @@ public class RepositoryTreeController {
          }
 
          RepletRegistry registry = SUtil.isMyReport(entry.getPath()) ?
-            RepletRegistry.getRegistry(pId) : RepletRegistry.getRegistry();
+            repletRegistryManager.getRegistry(pId) : repletRegistryManager.getRegistry();
 
          // don't rename if the name did not change
          if(!entry.getName().equals(name)) {
@@ -923,5 +925,6 @@ public class RepositoryTreeController {
    private final RepositoryTreeService repositoryTreeService;
    private final ScheduleManager scheduleManager;
    private final RecycleBin recycleBin;
+   private final RepletRegistryManager repletRegistryManager;
    private static final Logger LOG = LoggerFactory.getLogger(RepositoryTreeController.class);
 }

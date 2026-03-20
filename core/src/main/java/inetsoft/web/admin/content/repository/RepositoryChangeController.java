@@ -19,6 +19,7 @@ package inetsoft.web.admin.content.repository;
 
 import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.RepletRegistry;
+import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.MessageListener;
@@ -65,11 +66,13 @@ public class RepositoryChangeController {
       Cluster cluster,
       SecurityEngine securityEngine,
       DataSourceRegistry dataSourceRegistry,
-      LibManagerProvider libManagerProvider)
+      LibManagerProvider libManagerProvider,
+      RepletRegistryManager repletRegistryManager)
    {
       this.assetRepository = assetRepository;
       this.messagingTemplate = messagingTemplate;
       this.libManagerProvider = libManagerProvider;
+      this.repletRegistryManager = repletRegistryManager;
       this.debouncer = new DefaultDebouncer<>();
       this.cluster = cluster;
       this.securityEngine = securityEngine;
@@ -78,7 +81,7 @@ public class RepositoryChangeController {
 
    @PostConstruct
    public void addListeners() throws Exception {
-      RepletRegistry.getRegistry().addPropertyChangeListener(this.reportListener);
+      repletRegistryManager.getRegistry().addPropertyChangeListener(this.reportListener);
       assetRepository.addAssetChangeListener(this.assetListener);
       assetRepository.addAssetChangeListener(this.autoSaveListener);
       dataSourceRegistry.addRefreshedListener(dataSourceListener);
@@ -94,7 +97,7 @@ public class RepositoryChangeController {
       closed = true;
 
       try {
-         RepletRegistry.getRegistry().removePropertyChangeListener(this.reportListener);
+         repletRegistryManager.getRegistry().removePropertyChangeListener(this.reportListener);
       }
       catch(Exception e) {
          LOG.debug("Exception occurred while removing listener, this usually indicates a shutdown in progress", e);
@@ -107,12 +110,12 @@ public class RepositoryChangeController {
          cluster.removeMessageListener(this.clusterMessageListener);
 
          for(PropertyChangeListener listener : adminReportListeners.values()) {
-            RepletRegistry.removeGlobalPropertyChangeListener(listener);
+            repletRegistryManager.removeGlobalPropertyChangeListener(listener);
          }
 
          for(Map.Entry<Principal, PropertyChangeListener> entry : userReportListeners.entrySet()) {
             IdentityID pId = IdentityID.getIdentityIDFromKey(entry.getKey().getName());
-            RepletRegistry registry = RepletRegistry.getRegistry(pId, false);
+            RepletRegistry registry = repletRegistryManager.getRegistry(pId, false);
 
             if(registry != null) {
                registry.removePropertyChangeListener(entry.getValue());
@@ -144,12 +147,12 @@ public class RepositoryChangeController {
          if(isSysAdmin) {
             PropertyChangeListener listener = new ReportChangeListener(null);
             adminReportListeners.put(principal, listener);
-            RepletRegistry.addGlobalPropertyChangeListener(listener);
+            repletRegistryManager.addGlobalPropertyChangeListener(listener);
          }
          else {
             PropertyChangeListener listener = new ReportChangeListener(principal);
             userReportListeners.put(principal, listener);
-            RepletRegistry.getRegistry(pId).addPropertyChangeListener(listener);
+            repletRegistryManager.getRegistry(pId).addPropertyChangeListener(listener);
          }
       }
 
@@ -177,7 +180,7 @@ public class RepositoryChangeController {
             PropertyChangeListener listener = adminReportListeners.remove(principal);
 
             if(listener != null) {
-               RepletRegistry.removeGlobalPropertyChangeListener(listener);
+               repletRegistryManager.removeGlobalPropertyChangeListener(listener);
             }
 
             listener = userReportListeners.remove(principal);
@@ -185,7 +188,7 @@ public class RepositoryChangeController {
             if(listener != null) {
                try {
                   IdentityID identityId = IdentityID.getIdentityIDFromKey(principal.getName());
-                  RepletRegistry.getRegistry(identityId).removePropertyChangeListener(listener);
+                  repletRegistryManager.getRegistry(identityId).removePropertyChangeListener(listener);
                }
                catch(Exception e) {
                   LOG.warn("Failed to remove registry listener for user {}", principal.getName(), e);
@@ -350,6 +353,7 @@ public class RepositoryChangeController {
    private final SecurityEngine securityEngine;
    private final DataSourceRegistry dataSourceRegistry;
    private final LibManagerProvider libManagerProvider;
+   private final RepletRegistryManager repletRegistryManager;
 
    private static final String CHANGE_TOPIC = "/em-content-changed";
    private static final Logger LOG = LoggerFactory.getLogger(RepositoryChangeController.class);

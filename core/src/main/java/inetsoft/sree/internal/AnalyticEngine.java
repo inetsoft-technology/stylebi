@@ -46,9 +46,9 @@ public class AnalyticEngine extends RepletEngine implements AnalyticRepository {
     */
    public AnalyticEngine(DeployManagerService deployManagerService, DesignSession designSession,
                          LibManagerProvider libManagerProvider, DataCycleManager dataCycleManager,
-                         Cluster cluster)
+                         Cluster cluster, RepletRegistryManager repletRegistryManager)
    {
-      super(deployManagerService, libManagerProvider, dataCycleManager, cluster);
+      super(deployManagerService, libManagerProvider, dataCycleManager, cluster, repletRegistryManager);
       this.designSession = designSession;
    }
 

@@ -22,8 +22,7 @@ import inetsoft.report.LibManagerProvider;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.io.viewsheet.snapshot.ViewsheetAsset2;
 import inetsoft.report.io.viewsheet.snapshot.WorksheetAsset2;
-import inetsoft.sree.RepletRegistry;
-import inetsoft.sree.SreeEnv;
+import inetsoft.sree.*;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.*;
 import inetsoft.uql.*;
@@ -84,7 +83,8 @@ public class DeployManagerService {
                                XRepository repository,
                                FileSystemService fileSystemService,
                                DataSpace dataSpace,
-                               EmbeddedTableStorage embeddedTableStorage)
+                               EmbeddedTableStorage embeddedTableStorage,
+                               RepletRegistryManager repletRegistryManager)
    {
       this.securityEngine = securityEngine;
       this.dependencyHandler = dependencyHandler;
@@ -96,6 +96,7 @@ public class DeployManagerService {
       this.fileSystemService = fileSystemService;
       this.dataSpace = dataSpace;
       this.embeddedTableStorage = embeddedTableStorage;
+      this.repletRegistryManager = repletRegistryManager;
    }
 
    /**
@@ -404,7 +405,7 @@ public class DeployManagerService {
    private void setFolderProperty(String folder, PartialDeploymentJarInfo info)
       throws Exception
    {
-      RepletRegistry registry = RepletRegistry.getRegistry();
+      RepletRegistry registry = repletRegistryManager.getRegistry();
       String[] values = Tool.split(folder, '/');
       String newFolder = "";
 
@@ -2072,7 +2073,7 @@ public class DeployManagerService {
    //public
    private static void setFolderProperty(String folder, IdentityID user,
                                          PartialDeploymentJarInfo info) throws Exception {
-      RepletRegistry registry = RepletRegistry.getRegistry(user);
+      RepletRegistry registry = RepletRegistryManager.getInstance().getRegistry(user);
       String[] values = Tool.split(folder, '/');
       String newFolder = "";
 
@@ -2165,6 +2166,7 @@ public class DeployManagerService {
    private final FileSystemService fileSystemService;
    private final DataSpace dataSpace;
    private final EmbeddedTableStorage embeddedTableStorage;
+   private final RepletRegistryManager repletRegistryManager;
    public static final ThreadLocal<Boolean> IS_IMPORTING = ThreadLocal.withInitial(() -> Boolean.FALSE);
    private static final Logger LOG = LoggerFactory.getLogger(DeployManagerService.class);
 }

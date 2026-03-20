@@ -21,8 +21,7 @@ import inetsoft.mv.fs.FSService;
 import inetsoft.mv.fs.internal.AbstractFileSystem;
 import inetsoft.mv.fs.internal.DefaultBlockSystem;
 import inetsoft.mv.mr.XJobPool;
-import inetsoft.sree.RepletRegistry;
-import inetsoft.sree.SreeEnv;
+import inetsoft.sree.*;
 import inetsoft.sree.internal.AnalyticEngine;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.portal.*;
@@ -287,7 +286,7 @@ public abstract class AbstractEditableAuthenticationProvider
          XJobPool.resetOrgCache(fromOrgId);
          manager.removeCSSEntry(fromOrgId);
          manager.save();
-         RepletRegistry.clearOrgCache(fromOrgId);
+         RepletRegistryManager.getInstance().clearOrgCache(fromOrgId);
 
          try{
             identityService.updateRepletRegistry(fromOrgId, null);

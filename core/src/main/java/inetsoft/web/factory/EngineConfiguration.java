@@ -31,7 +31,7 @@ import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.report.composition.execution.DistributedTableCacheStore;
 import inetsoft.report.internal.*;
 import inetsoft.report.internal.license.*;
-import inetsoft.sree.AnalyticRepository;
+import inetsoft.sree.*;
 import inetsoft.sree.internal.*;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.*;
@@ -43,6 +43,7 @@ import inetsoft.uql.XDataService;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.jdbc.*;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.service.XEngine;
 import inetsoft.uql.util.*;
@@ -53,6 +54,7 @@ import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.config.SecretsConfig;
 import inetsoft.web.cluster.ServerClusterClient;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -93,9 +95,10 @@ public class EngineConfiguration {
                                                 @Lazy DesignSession designSession,
                                                 @Lazy LibManagerProvider libManagerProvider,
                                                 @Lazy DataCycleManager dataCycleManager,
-                                                @Lazy Cluster cluster)
+                                                @Lazy Cluster cluster,
+                                                @Lazy RepletRegistryManager repletRegistryManager)
    {
-      AnalyticEngine engine = new AnalyticEngine(deployManagerService, designSession, libManagerProvider, dataCycleManager, cluster);
+      AnalyticEngine engine = new AnalyticEngine(deployManagerService, designSession, libManagerProvider, dataCycleManager, cluster, repletRegistryManager);
       AssetUtil.setAssetRepository(false, engine);
       engine.init();
       return engine;
@@ -108,8 +111,8 @@ public class EngineConfiguration {
     */
    @Bean
    @Lazy
-   public XRepository xRepository(@Lazy Cluster cluster, @Lazy Config config, @Lazy DataSourceRegistry dataSourceRegistry) {
-      return new XEngine(cluster, config, dataSourceRegistry);
+   public XRepository xRepository(@Lazy Cluster cluster, @Lazy Config config, @Lazy DataSourceRegistry dataSourceRegistry, @Lazy ConnectionPoolFactory connectionPoolFactory, @Lazy SecurityEngine securityEngine) {
+      return new XEngine(cluster, config, dataSourceRegistry, connectionPoolFactory);
    }
 
    @Bean
@@ -223,8 +226,8 @@ public class EngineConfiguration {
     */
    @Bean
    @Lazy
-   public Drivers drivers(@Lazy Plugins plugins) {
-      return new Drivers(plugins);
+   public Drivers drivers(@Lazy Plugins plugins, @Lazy ConnectionPoolFactory connectionPoolFactory) {
+      return new Drivers(plugins, connectionPoolFactory);
    }
 
    /**
@@ -449,6 +452,60 @@ public class EngineConfiguration {
 
       throw new BeanCreationException("passwordEncryption",
                                       "No PasswordEncryptionFactory found for type: " + type);
+   }
+
+   @Bean
+   @Lazy
+   public ConnectionPoolFactory connectionPoolFactory() {
+      ConnectionPoolFactory factory = null;
+      String className = SreeEnv.getProperty("inetsoft.uql.jdbc.ConnectionPoolFactory");
+
+      if(className != null) {
+         try {
+            factory = (ConnectionPoolFactory) Class.forName(className).newInstance();
+         }
+         catch(Exception e) {
+            LoggerFactory.getLogger(getClass()).warn(
+               "Failed to instantiate custom connection pool factory: {}", className, e);
+         }
+      }
+
+      if(factory == null) {
+         className = SreeEnv.getProperty("jdbc.connection.pool");
+
+         if(className != null && !className.isEmpty() && !className.equals("false")) {
+            if("inetsoft.uql.jdbc.TomcatConnectionPool".equals(className)) {
+               factory = new JNDIConnectionPoolFactory(
+                  JNDIConnectionPoolFactory.Type.TOMCAT);
+            }
+            else if("inetsoft.uql.jdbc.WebLogicConnectionPool".equals(className)) {
+               factory = new JNDIConnectionPoolFactory(
+                  JNDIConnectionPoolFactory.Type.WEBLOGIC);
+            }
+            else if("inetsoft.uql.jdbc.WebSphereConnectionPool".equals(className)) {
+               factory = new JNDIConnectionPoolFactory(
+                  JNDIConnectionPoolFactory.Type.WEBSPHERE);
+            }
+            else {
+               LoggerFactory.getLogger(getClass()).warn(
+                  "Deprecated connection pool implementation being used");
+
+               try {
+                  factory = new LegacyConnectionPoolFactory();
+               }
+               catch(Exception e) {
+                  LoggerFactory.getLogger(getClass()).warn(
+                     "Failed to instantiate legacy connection pool factory", e);
+               }
+            }
+         }
+
+         if(factory == null) {
+            factory = new DefaultConnectionPoolFactory();
+         }
+      }
+
+      return factory;
    }
 
 }

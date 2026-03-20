@@ -26,18 +26,20 @@ import inetsoft.mv.mr.XJobPool;
 import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
 import inetsoft.report.internal.license.LicenseManager;
-import inetsoft.sree.RepletRegistry;
-import inetsoft.sree.SreeEnv;
+import inetsoft.sree.*;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.portal.*;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
-import inetsoft.sree.web.*;
-import inetsoft.sree.web.dashboard.*;
+import inetsoft.sree.web.SessionLicenseManager;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
+import inetsoft.sree.web.dashboard.DashboardManager;
+import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.storage.*;
-import inetsoft.uql.*;
+import inetsoft.uql.XPrincipal;
+import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.service.DataSourceRegistry;
@@ -94,7 +96,8 @@ public class IdentityService {
                           DataSpace dataSpace,
                           DependencyStorageService dependencyStorageService,
                           ExternalStorageService externalStorageService,
-                          XRepository xRepository)
+                          XRepository xRepository,
+                          RepletRegistryManager repletRegistryManager)
    {
       this.securityEngine = securityEngine;
       this.securityProvider = securityProvider;
@@ -123,6 +126,7 @@ public class IdentityService {
       this.dependencyStorageService = dependencyStorageService;
       this.externalStorageService = externalStorageService;
       this.xRepository = xRepository;
+      this.repletRegistryManager = repletRegistryManager;
    }
 
    private AuthenticationProvider getProvider(String providerName) {
@@ -460,7 +464,7 @@ public class IdentityService {
          //AssetRepository rep = AssetUtil.getAssetRepository(false);
          if(oID == null) {
             //delete user identityId inside of permissions
-            RepletRegistry.removeUser(identityId);
+            repletRegistryManager.removeUser(identityId);
             //rep.removeUser(identityId);
             dashboardRegistryManager.clear(identityId);
             eprovider.removeUser(identityId);
@@ -471,7 +475,7 @@ public class IdentityService {
             if(!identityId.equals(oID)) {
                String orgId = identityId.orgID;
                //rep.renameUser(oID, identityId);
-               RepletRegistry.renameUser(oID, identityId);
+               repletRegistryManager.renameUser(oID, identityId);
                dashboardRegistryManager.clear(identityId);
                dashboardRegistryManager.renameUser(oID, identityId);
                dashboardRegistryManager.clear(oID);
@@ -509,7 +513,7 @@ public class IdentityService {
                dataSourceRegistry.clearCache(orgID);
                FSService.clearServerNodeCache(orgID);
                XJobPool.resetOrgCache(orgID);
-               RepletRegistry.clearOrgCache(orgID);
+               repletRegistryManager.clearOrgCache(orgID);
                logManager.removeOrgLogLevels(orgID);
             }
 
@@ -661,7 +665,7 @@ public class IdentityService {
 
          if(orgID.equals(user.getOrganizationID())) {
             //users are tied to org, delete if deleted
-            RepletRegistry.removeUser(user.getIdentityID());
+            repletRegistryManager.removeUser(user.getIdentityID());
             eprovider.removeUser(user.getIdentityID());
             addCopiedIdentityPermission(user.getIdentityID(), null, "", Identity.USER, false);
 
@@ -743,13 +747,13 @@ public class IdentityService {
 
             if(orgIdChange || orgNameChanged) {
                //Update replet registry here.
-               RepletRegistry.changeOrgID(oldID, OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), false);
+               repletRegistryManager.changeOrgID(oldID, OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), false);
                dashboardRegistryManager.migrateRegistry(oldID, securityProvider.getOrganization(OrganizationManager.getInstance().getCurrentOrgID()), identity);
             }
 
             eprovider.setUser(user.getIdentityID(), user);
             eprovider.removeUser(oldID);
-            RepletRegistry.renameUser(oldID, user.getIdentityID());
+            repletRegistryManager.renameUser(oldID, user.getIdentityID());
             // Move em favorites to new user
             FavoriteList userFav = favorites.get(oldID.convertToKey());
 
@@ -1098,8 +1102,8 @@ public class IdentityService {
    }
 
    public void updateRepletRegistry(String oOID, String nOID) throws Exception {
-      RepletRegistry oldRegistry = RepletRegistry.getRegistry(oOID);
-      RepletRegistry newRegistry = RepletRegistry.getRegistry(oOID);
+      RepletRegistry oldRegistry = repletRegistryManager.getRegistry(oOID);
+      RepletRegistry newRegistry = repletRegistryManager.getRegistry(oOID);
       String[] oldFolders = oldRegistry.getAllFolders();
       boolean removeOrg = nOID == null;
 
@@ -1119,8 +1123,8 @@ public class IdentityService {
       OrganizationManager.getInstance().setCurrentOrgID(nOID);
 
       try {
-         RepletRegistry oldRegistry = RepletRegistry.getRegistry(oOID);
-         RepletRegistry newRegistry = RepletRegistry.getRegistry(nOID);
+         RepletRegistry oldRegistry = repletRegistryManager.getRegistry(oOID);
+         RepletRegistry newRegistry = repletRegistryManager.getRegistry(nOID);
          String[] oldFolders = oldRegistry.getAllFolders();
 
          for(String oldFolder : oldFolders) {
@@ -1129,13 +1133,13 @@ public class IdentityService {
             }
          }
 
-         RepletRegistry.copyFolderContextMap(oOID, nOID);
+         repletRegistryManager.copyFolderContextMap(oOID, nOID);
          IdentityID[] orgUsers = securityEngine.getOrgUsers(oOID);
 
          if(orgUsers != null) {
             for(IdentityID orgUser : orgUsers) {
                IdentityID newUser = new IdentityID(orgUser.name, nOID);
-               RepletRegistry.copyUser(orgUser, newUser);
+               repletRegistryManager.copyUser(orgUser, newUser);
             }
          }
 
@@ -1986,7 +1990,7 @@ public class IdentityService {
 
       if(fromOrg != null && !Tool.equals(fromOrg, newOrg)) {
          dashboardRegistryManager.migrateRegistry(null, fromOrg, newOrg);
-         RepletRegistry.getRegistry(fromOrgID).shutdown();
+         repletRegistryManager.getRegistry(fromOrgID).shutdown();
          updateOrgScopedDataSpace(fromOrg, newOrg);
       }
 
@@ -2653,4 +2657,5 @@ public class IdentityService {
    private final DependencyStorageService dependencyStorageService;
    private final ExternalStorageService externalStorageService;
    private final XRepository xRepository;
+   private final RepletRegistryManager repletRegistryManager;
 }

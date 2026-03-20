@@ -22,8 +22,7 @@ import inetsoft.report.LibManagerProvider;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.internal.Util;
 import inetsoft.report.style.XTableStyle;
-import inetsoft.sree.RepletRegistry;
-import inetsoft.sree.RepositoryEntry;
+import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
@@ -59,7 +58,8 @@ import static inetsoft.uql.util.XUtil.DATAMODEL_FOLDER_SPLITER;
 @Service
 public class RepositoryObjectService {
    @Autowired
-   public RepositoryObjectService(RepletRegistryService registryManager, ContentRepositoryTreeService treeService,
+   public RepositoryObjectService(RepletRegistryService registryManager,
+                                  ContentRepositoryTreeService treeService,
                                   SecurityProvider securityProvider,
                                   ResourcePermissionService resourcePermissionService,
                                   XRepository xRepository,
@@ -69,7 +69,8 @@ public class RepositoryObjectService {
                                   LibManagerProvider libManagerProvider,
                                   RecycleBin recycleBin,
                                   DependencyHandler dependencyHandler,
-                                  RenameTransformHandler renameTransformHandler)
+                                  RenameTransformHandler renameTransformHandler,
+                                  RepletRegistryManager repletRegistryManager)
    {
       this.registryManager = registryManager;
       this.treeService = treeService;
@@ -83,6 +84,7 @@ public class RepositoryObjectService {
       this.recycleBin = recycleBin;
       this.dependencyHandler = dependencyHandler;
       this.renameTransformHandler = renameTransformHandler;
+      this.repletRegistryManager = repletRegistryManager;
    }
 
    public ConnectionStatus deleteNodes(TreeNodeInfo[] nodes, Principal principal, boolean force,
@@ -156,7 +158,7 @@ public class RepositoryObjectService {
             ActionRecord.ACTION_NAME_DELETE, objectName, getActionRecordType(node.type()));
 
          try {
-            final RepletRegistry registry = RepletRegistry.getRegistry(node.owner());
+            final RepletRegistry registry = repletRegistryManager.getRegistry(node.owner());
 
             switch(node.type()) {
             case RepositoryEntry.VIEWSHEET:
@@ -953,7 +955,7 @@ public class RepositoryObjectService {
       }
       else {
          if(move) {
-            RepletRegistry registryTo = RepletRegistry.getRegistry(userTo);
+            RepletRegistry registryTo = repletRegistryManager.getRegistry(userTo);
             registryTo.save();
          }
       }
@@ -1282,4 +1284,5 @@ public class RepositoryObjectService {
    private final RecycleBin recycleBin;
    private final DependencyHandler dependencyHandler;
    private final RenameTransformHandler renameTransformHandler;
+   private final RepletRegistryManager repletRegistryManager;
 }

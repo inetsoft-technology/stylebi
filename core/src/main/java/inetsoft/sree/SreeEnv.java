@@ -298,13 +298,6 @@ public class SreeEnv {
    }
 
    /**
-    * Clear and reload the properties.
-    */
-   public static void clear() {
-      PropertiesEngine.getInstance().clear();
-   }
-
-   /**
     * Initialize the environment.
     */
    public static void init() {

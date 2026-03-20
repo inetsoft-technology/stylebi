@@ -19,6 +19,7 @@ package inetsoft.web.portal.controller;
 
 import inetsoft.report.LibManagerProvider;
 import inetsoft.report.internal.DesignSession;
+import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.*;
 import inetsoft.sree.internal.cluster.Cluster;
@@ -67,7 +68,8 @@ class GettingStartedControllerTest {
       DesignSession designSession = Mockito.mock(DesignSession.class);
       LibManagerProvider libManagerProvider = Mockito.mock(LibManagerProvider.class);
       DataCycleManager dataCycleManager = Mockito.mock(DataCycleManager.class);
-      AnalyticEngine engine = new AnalyticEngine(deployManagerService, designSession, libManagerProvider, dataCycleManager, cluster);
+      RepletRegistryManager repletRegistryManager = Mockito.mock(RepletRegistryManager.class);
+      AnalyticEngine engine = new AnalyticEngine(deployManagerService, designSession, libManagerProvider, dataCycleManager, cluster, repletRegistryManager);
       PortalThemesManager portalThemesManager = Mockito.mock(PortalThemesManager.class);
       GettingStartedService gettingStartedService = new GettingStartedService(assetRepository, engine, securityEngine, indexedStorage, portalThemesManager);
       gettingStartedController = new GettingStartedController(gettingStartedService, securityEngine);

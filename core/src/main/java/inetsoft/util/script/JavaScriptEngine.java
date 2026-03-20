@@ -56,7 +56,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class JavaScriptEngine {
    // increment script error count
    public static void incrementError(Object error) {
-      scriptErrors.get().compute(error, (o, i) -> (i == null) ? 1 : ++i);
+      getThreadLocals().scriptErrors.get().compute(error, (o, i) -> (i == null) ? 1 : ++i);
    }
 
    /**
@@ -444,7 +444,7 @@ public class JavaScriptEngine {
       Thread.currentThread().setContextClassLoader(getClass().getClassLoader());
       Context cx = TimeoutContext.enter();
       Object val = null;
-      Stack<Scriptable> stack = execScriptable.get();
+      Stack<Scriptable> stack = getThreadLocals().execScriptable.get();
       stack.push((Scriptable) scope);
 
       if(scope instanceof DynamicScope) {
@@ -550,7 +550,7 @@ public class JavaScriptEngine {
          stack.pop();
 
          if(stack.isEmpty()) {
-            execScriptable.remove();
+            getThreadLocals().execScriptable.remove();
          }
 
          if(scope instanceof DynamicScope) {
@@ -569,7 +569,7 @@ public class JavaScriptEngine {
     * Get the scriptable executing the actual script.
     */
    public static Scriptable getExecScriptable() {
-      Stack<Scriptable> stack = execScriptable.get();
+      Stack<Scriptable> stack = getThreadLocals().execScriptable.get();
       return stack.isEmpty() ? null : stack.peek();
    }
 
@@ -578,7 +578,7 @@ public class JavaScriptEngine {
    }
 
    public static void resetScriptThread() {
-      execScriptable.remove();
+      getThreadLocals().execScriptable.remove();
    }
 
    /**
@@ -593,11 +593,11 @@ public class JavaScriptEngine {
          return false;
       }
 
-      int errorCount = scriptErrors.get().getOrDefault(error, 0);
+      int errorCount = getThreadLocals().scriptErrors.get().getOrDefault(error, 0);
 
       if(errorCount == maxErrors) {
          LOG.warn("Script Max Errors Exceeded (error count: {})", maxErrors);
-         scriptErrors.get().put(error, ++errorCount);
+         getThreadLocals().scriptErrors.get().put(error, ++errorCount);
       }
 
       return errorCount > maxErrors;
@@ -1162,7 +1162,7 @@ public class JavaScriptEngine {
 
       if(fmt != null) {
          try {
-            Map<String, DateFormat> fmts = dateFormats.get();
+            Map<String, DateFormat> fmts = getThreadLocals().dateFormats.get();
             DateFormat datefmt = fmts.get(fmt);
 
             if(datefmt == null) {
@@ -2141,11 +2141,11 @@ public class JavaScriptEngine {
    }
 
    public static void setOnClickScript(boolean value) {
-      onClickScript.set(value);
+      getThreadLocals().onClickScript.set(value);
    }
 
    public static boolean isOnClickScript() {
-      return onClickScript.get();
+      return getThreadLocals().onClickScript.get();
    }
 
    /**
@@ -2315,6 +2315,10 @@ public class JavaScriptEngine {
          !Character.isUpperCase(cls.charAt(cls.length() - 1));
    }
 
+   private static ThreadLocals getThreadLocals() {
+      return ConfigurationContext.getContext().computeIfAbsent(THREAD_LOCALS,  k -> new ThreadLocals());
+   }
+
    private static class EvalFunc extends BaseFunction {
       public EvalFunc(Scriptable top) {
          this.globalScope = top;
@@ -2337,13 +2341,6 @@ public class JavaScriptEngine {
    private static final int ID = 0; // id selector
    private static final int ID_NAME = 1; // id name selector
    private static final int ID_DISPLAY_NAME = 2; // id display name selector
-   private static final ThreadLocal<Stack<Scriptable>> execScriptable =
-      ThreadLocal.withInitial(Stack::new);
-   private static final ThreadLocal<Map<Object, Integer>> scriptErrors =
-      ThreadLocal.withInitial(HashMap::new);
-   private static final ThreadLocal<Map<String, DateFormat>> dateFormats =
-      ThreadLocal.withInitial(ConcurrentHashMap::new);
-   private static final ThreadLocal<Boolean> onClickScript = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
    private static final String GLOBAL_SCOPE_KEY =
       JavaScriptEngine.class.getName() + ".globalScope";
@@ -2355,6 +2352,17 @@ public class JavaScriptEngine {
    // dynamic scope lib
    private LibScriptable dynamicLib;
 
-   private static final Logger LOG =
-      LoggerFactory.getLogger(JavaScriptEngine.class);
+   private static final Logger LOG = LoggerFactory.getLogger(JavaScriptEngine.class);
+
+   private static final String THREAD_LOCALS = JavaScriptEngine.class.getName() + ".threadLocals";
+
+   private static final class ThreadLocals {
+      private final ThreadLocal<Stack<Scriptable>> execScriptable =
+         ThreadLocal.withInitial(Stack::new);
+      private final ThreadLocal<Map<Object, Integer>> scriptErrors =
+         ThreadLocal.withInitial(HashMap::new);
+      private final ThreadLocal<Map<String, DateFormat>> dateFormats =
+         ThreadLocal.withInitial(ConcurrentHashMap::new);
+      private final ThreadLocal<Boolean> onClickScript = ThreadLocal.withInitial(() -> Boolean.FALSE);
+   }
 }

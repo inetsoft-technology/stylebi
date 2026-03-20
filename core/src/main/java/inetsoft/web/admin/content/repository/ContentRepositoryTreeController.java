@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.content.repository;
 
+import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.security.*;
 import inetsoft.util.*;
 import inetsoft.util.data.CommonKVModel;
@@ -36,10 +37,12 @@ import java.util.List;
 public class ContentRepositoryTreeController {
    @Autowired
    public ContentRepositoryTreeController(ContentRepositoryTreeService treeService,
-                                          SecurityEngine securityEngine)
+                                          SecurityEngine securityEngine,
+                                          RepletRegistryManager repletRegistryManager)
    {
       this.treeService = treeService;
       this.securityEngine = securityEngine;
+      this.repletRegistryManager = repletRegistryManager;
    }
 
    /**
@@ -68,7 +71,7 @@ public class ContentRepositoryTreeController {
       for(CommonKVModel<String, String> user : users) {
          IdentityID owner = IdentityID.getIdentityIDFromKey(user.getKey());
          String path = user.getValue();
-         RepletRegistry registry = RepletRegistry.getRegistry(owner);
+         RepletRegistry registry = repletRegistryManager.getRegistry(owner);
 
          if(Tool.MY_DASHBOARD.equals(path)) {
             nodes.addAll(treeService.getUserReports(owner, registry, principal).children());
@@ -91,7 +94,7 @@ public class ContentRepositoryTreeController {
    {
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
       List<ContentRepositoryTreeNode> nodes = null;
-      RepletRegistry registry = RepletRegistry.getRegistry(ownerID);
+      RepletRegistry registry = repletRegistryManager.getRegistry(ownerID);
 
       if(Tool.MY_DASHBOARD.equals(path)) {
          nodes = treeService.getUserReports(ownerID, registry, principal).children();
@@ -137,4 +140,5 @@ public class ContentRepositoryTreeController {
 
    private final ContentRepositoryTreeService treeService;
    private final SecurityEngine securityEngine;
+   private final RepletRegistryManager repletRegistryManager;
 }

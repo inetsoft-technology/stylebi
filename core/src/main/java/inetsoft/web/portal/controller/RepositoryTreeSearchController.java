@@ -54,14 +54,16 @@ public class RepositoryTreeSearchController {
     */
    @Autowired
    public RepositoryTreeSearchController(AnalyticRepository analyticRepository,
-      RepositoryTreeService repositoryTreeService,
-      RepositoryEntryModelFactoryService repositoryEntryModelFactoryService,
-      PortalThemesManager portalThemesManager)
+                                         RepositoryTreeService repositoryTreeService,
+                                         RepositoryEntryModelFactoryService repositoryEntryModelFactoryService,
+                                         PortalThemesManager portalThemesManager,
+                                         RepletRegistryManager repletRegistryManager)
    {
       this.analyticRepository = analyticRepository;
       this.repositoryTreeService = repositoryTreeService;
       this.repositoryEntryModelFactoryService = repositoryEntryModelFactoryService;
       this.portalThemesManager = portalThemesManager;
+      this.repletRegistryManager = repletRegistryManager;
    }
 
    /**
@@ -273,8 +275,8 @@ public class RepositoryTreeSearchController {
          String dragName = null;
 
          RepletRegistry registry = SUtil.isMyReport(folder.path) ?
-            RepletRegistry.getRegistry(pId) :
-            RepletRegistry.getRegistry();
+            repletRegistryManager.getRegistry(pId) :
+            repletRegistryManager.getRegistry();
 
          dragName = "RepositoryEntry";
 
@@ -310,8 +312,8 @@ public class RepositoryTreeSearchController {
       }
       else {
          RepletRegistry registry = SUtil.isMyReport(folder.path) ?
-            RepletRegistry.getRegistry(pId) :
-            RepletRegistry.getRegistry();
+            repletRegistryManager.getRegistry(pId) :
+            repletRegistryManager.getRegistry();
 
          label = registry.getFolderAlias(folder.path);
 
@@ -399,6 +401,7 @@ public class RepositoryTreeSearchController {
    private final RepositoryTreeService repositoryTreeService;
    private final RepositoryEntryModelFactoryService repositoryEntryModelFactoryService;
    private final PortalThemesManager portalThemesManager;
+   private final RepletRegistryManager repletRegistryManager;
    private static final Logger LOG =
       LoggerFactory.getLogger(RepositoryTreeSearchController.class);
 

@@ -19,8 +19,7 @@ package inetsoft.util.dep;
 
 import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
-import inetsoft.sree.RepletRegistry;
-import inetsoft.sree.RepositoryEntry;
+import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
@@ -148,7 +147,7 @@ public abstract class AbstractSheetAsset extends AbstractXAsset {
 
       if(pentry.isRepositoryFolder()) {
          String ppath = entry.getParentPath();
-         RepletRegistry registry = RepletRegistry.getRegistry(getUser());
+         RepletRegistry registry = RepletRegistryManager.getInstance().getRegistry(getUser());
 
          if(getUser() != null && ppath != null && !Tool.equals(ppath, "/") &&
             !ppath.startsWith(Tool.MY_DASHBOARD))

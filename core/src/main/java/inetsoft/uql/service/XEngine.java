@@ -63,10 +63,13 @@ public class XEngine implements XRepository, XQueryRepository {
    /**
     * Create an query engine.u
     */
-   public XEngine(Cluster cluster, Config uqlConfig, DataSourceRegistry dataSourceRegistry) {
+   public XEngine(Cluster cluster, Config uqlConfig, DataSourceRegistry dataSourceRegistry,
+                  ConnectionPoolFactory connectionPoolFactory)
+   {
       this.cluster = cluster;
       this.uqlConfig = uqlConfig;
       this.dataSourceRegistry = dataSourceRegistry;
+      this.connectionPoolFactory = connectionPoolFactory;
    }
 
    @PostConstruct
@@ -1892,7 +1895,7 @@ public class XEngine implements XRepository, XQueryRepository {
          handler.reset();
       }
 
-      JDBCHandler.getConnectionPoolFactory().closeAllConnectionsPools();
+      connectionPoolFactory.closeAllConnectionsPools();
    }
 
    /**
@@ -2126,7 +2129,7 @@ public class XEngine implements XRepository, XQueryRepository {
          .filter(JDBCHandler.class::isInstance)
          .map(JDBCHandler.class::cast)
          .forEach(JDBCHandler::resetConnection);
-      JDBCHandler.getConnectionPoolFactory().closeAllConnectionsPools();
+      connectionPoolFactory.closeAllConnectionsPools();
    }
 
    public class MetaDataLoader implements Runnable {
@@ -2175,7 +2178,8 @@ public class XEngine implements XRepository, XQueryRepository {
    private final Cluster cluster;
    private final Config uqlConfig;
    private final DataSourceRegistry dataSourceRegistry;
-   private DefaultDebouncer<DataSourceRegistry.DataSourceConnectionChangedMessage>
+   private final ConnectionPoolFactory connectionPoolFactory;
+   private final DefaultDebouncer<DataSourceRegistry.DataSourceConnectionChangedMessage>
    changeDebouncer = new DefaultDebouncer<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(XEngine.class);

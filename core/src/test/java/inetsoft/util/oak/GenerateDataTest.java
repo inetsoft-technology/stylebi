@@ -17,7 +17,7 @@
  */
 package inetsoft.util.oak;
 
-import inetsoft.sree.RepletRegistry;
+import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.IdentityID;
@@ -26,7 +26,6 @@ import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetFolder;
-import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.schema.XSchema;
@@ -37,6 +36,7 @@ import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.util.IndexedStorage;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -49,22 +49,26 @@ import java.util.ArrayList;
 import java.util.List;
 
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome("Put the path to the target sree.home here")
 @Disabled
 @Tag("core")
 public class GenerateDataTest {
-   private AssetRepository assetRepository;
-   private XRepository xRepository;
+   @Autowired
+   AnalyticRepository analyticRepository;
+   @Autowired
+   XRepository xRepository;
+   @Autowired
+   RepletRegistryManager repletRegistryManager;
    private RepletRegistry repletRegistry;
+   private AssetRepository assetRepository;
    private XEmbeddedTable embeddedTable;
 
    @BeforeEach
    void beforeEach() throws Exception {
-      assetRepository = AssetUtil.getAssetRepository(false);
-      xRepository = XFactory.getRepository();
-      repletRegistry = RepletRegistry.getRegistry();
+      assetRepository = analyticRepository.unwrap(AssetRepository.class);
+      repletRegistry = repletRegistryManager.getRegistry();
 
       String[] types = {
          XSchema.INTEGER, XSchema.STRING, XSchema.STRING, XSchema.STRING, XSchema.STRING,

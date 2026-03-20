@@ -30,6 +30,7 @@ import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.report.io.viewsheet.excel.CSVUtil;
 import inetsoft.sree.RepletRegistry;
+import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
@@ -64,13 +65,15 @@ public class ScheduleTaskActionService {
                                     ScheduleService scheduleService,
                                     ViewsheetService viewsheetService,
                                     SecurityEngine securityEngine,
-                                    IndexedStorage indexedStorage)
+                                    IndexedStorage indexedStorage,
+                                    RepletRegistryManager repletRegistryManager)
    {
       this.scheduleManager = scheduleManager;
       this.scheduleService = scheduleService;
       this.viewsheetService = viewsheetService;
       this.securityEngine = securityEngine;
       this.indexedStorage = indexedStorage;
+      this.repletRegistryManager = repletRegistryManager;
    }
 
    public ScheduleActionModel getTaskAction(String taskName, int index,
@@ -561,7 +564,7 @@ public class ScheduleTaskActionService {
       }
       else if(entry.getType() == AssetEntry.Type.REPOSITORY_FOLDER) {
          try {
-            alias = RepletRegistry.getRegistry(entry.getUser()).getFolderAlias(entry.getPath());
+            alias = repletRegistryManager.getRegistry(entry.getUser()).getFolderAlias(entry.getPath());
          }
          catch(Exception e) {
             throw new RuntimeException("Failed to get replet registry", e);
@@ -647,6 +650,7 @@ public class ScheduleTaskActionService {
    private final ViewsheetService viewsheetService;
    private final SecurityEngine securityEngine;
    private final IndexedStorage indexedStorage;
+   private final RepletRegistryManager repletRegistryManager;
 
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleTaskActionService.class);
 }
