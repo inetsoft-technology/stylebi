@@ -1140,8 +1140,23 @@ public class TablePaintable extends BasePaintable {
                            row, col);
 
                         if(!paintNotationText(g, info, bounds)) {
+                           // Bug #74150: info.bounds.height doesn't include line spacing,
+                           // but paintText clips to it. Adjust height to prevent clipping.
+                           // Bug #73491: also extend the paint clip by the cell padding so
+                           // that float precision in font-height calculations (Math.ceil in
+                           // calculateRowHeight vs fractional values in processText) cannot
+                           // push the last wrapped line past the 0.1F clip threshold in
+                           // paintText.
+                           Bounds textBounds = new Bounds(info.bounds);
+                           textBounds.height += Math.max(0, info.lines.size() - 1) *
+                              elem.getSpacing();
+
+                           if(padding != null) {
+                              textBounds.height += padding.top + padding.bottom;
+                           }
+
                            Common.paintText(g, info.text, info.lines, bounds,
-                                            info.bounds, false, info.lineoff,
+                                            textBounds, false, info.lineoff,
                                             elem.getSpacing(), true);
                         }
 
