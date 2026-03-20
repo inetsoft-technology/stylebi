@@ -766,11 +766,15 @@ export class TaskConditionPane implements OnInit, OnChanges {
          this.convertToTimeZone(this.timeZoneService.calculateTimezoneOffset(oldLocalTimeZoneId),
             this.localTimeZoneOffset);
       }
+
+      const selectedTz = this.findTimeZone(this.localTimeZoneId, this.localTimeZoneLabel);
+      this.form?.get("timeZone")?.setValue(selectedTz, { emitEvent: false });
    }
 
    initForm() {
       let startControl: UntypedFormControl;
-      let timeZoneControl = new UntypedFormControl({value: this.localTimeZoneId || ""});
+      let timeZoneControl = new UntypedFormControl(
+         this.findTimeZone(this.localTimeZoneId, this.timeCondition?.timeZoneLabel));
 
       if(this.selectedOption === TimeConditionType.AT ||
          this.selectedOption === TimeConditionType.EVERY_HOUR)
@@ -906,6 +910,12 @@ export class TaskConditionPane implements OnInit, OnChanges {
             "task": new UntypedFormControl(completionCondition.taskName, Validators.required)
          });
       }
+
+      this.form.get("timeZone")?.valueChanges.subscribe((tz: TimeZoneModel) => {
+         if(tz) {
+            this.onTimeZoneSelectChanged(tz);
+         }
+      });
    }
 
    private addIntervalControl(): void {
@@ -1196,6 +1206,15 @@ export class TaskConditionPane implements OnInit, OnChanges {
     */
    private initTimeZone(edit?: boolean): void {
       this.setLocalTimeZone(this.timeCondition.timeZone);
+
+      if(this.timeCondition?.timeZoneLabel) {
+         const tz = this.findTimeZone(this.timeCondition.timeZone, this.timeCondition.timeZoneLabel);
+
+         if(tz) {
+            this.localTimeZoneLabel = tz.label;
+         }
+      }
+
       this.localTimeZoneOffset = this.timeZoneService.calculateTimezoneOffset(this.localTimeZoneId);
       const serverTZ: string = LocalStorage.getItem(TZ_STORAGE_KEY);
       this.changeServerTimeZone(serverTZ ? serverTZ == "true" : false);
@@ -1240,6 +1259,12 @@ export class TaskConditionPane implements OnInit, OnChanges {
          //only update if timezone is not set, otherwise overwrites user selection if type of time condition is changed
          if(this.isTimeCondition(this.condition) && this.timeCondition.timeZone == null) {
             this.timeCondition.timeZone = this.serverTimeZoneId;
+            const serverTz = this.findServerTimeZone();
+
+            if(serverTz) {
+               this.timeCondition.timeZoneLabel = serverTz.label;
+               this.form?.get("timeZone")?.setValue(serverTz, { emitEvent: false });
+            }
          }
 
          this.form?.get("timeZone")?.disable();
@@ -1247,8 +1272,11 @@ export class TaskConditionPane implements OnInit, OnChanges {
       else {
          if(this.isTimeCondition(this.condition)) {
             this.timeCondition.timeZone = this.localTimeZoneId;
+            this.timeCondition.timeZoneLabel = this.localTimeZoneLabel;
          }
 
+         const localTz = this.findTimeZone(this.localTimeZoneId, this.localTimeZoneLabel);
+         this.form?.get("timeZone")?.setValue(localTz, { emitEvent: false });
          this.form?.get("timeZone")?.enable();
       }
 
@@ -1321,6 +1349,66 @@ export class TaskConditionPane implements OnInit, OnChanges {
          minute: newTime.minute(),
          second: newTime.second()
       } as NgbTimeStruct;
+   }
+
+   compareTimeZones = (a: TimeZoneModel, b: TimeZoneModel): boolean =>
+      a?.timeZoneId === b?.timeZoneId && a?.label === b?.label;
+
+   private findTimeZone(id: string, label?: string): TimeZoneModel {
+      if(!this.timeZoneOptions?.length) {
+         return null;
+      }
+
+      if(!id) {
+         return this.timeZoneOptions[0];
+      }
+
+      if(label) {
+         const match = this.timeZoneOptions.find(o => o.timeZoneId === id && o.label === label);
+
+         if(match) {
+            return match;
+         }
+      }
+
+      return this.timeZoneOptions.find(o => o.timeZoneId === id) ?? this.timeZoneOptions[0];
+   }
+
+   private findServerTimeZone(): TimeZoneModel {
+      if(!this.timeZoneOptions?.length || !this.serverTimeZoneId) {
+         return null;
+      }
+
+      const matching = this.timeZoneOptions.filter(o => o.timeZoneId === this.serverTimeZoneId);
+
+      if(matching.length === 1) {
+         return matching[0];
+      }
+
+      // When local and server share the same ID, pick the option that isn't the local one
+      return matching.find(o => o.label !== this.localTimeZoneLabel) ?? matching[0];
+   }
+
+   private onTimeZoneSelectChanged(tz: TimeZoneModel): void {
+      const oldLocalTimeZoneId = this.localTimeZoneId;
+      this.localTimeZoneId = tz.timeZoneId;
+      this.localTimeZoneLabel = tz.label;
+
+      if(this.isTimeCondition(this.condition)) {
+         this.timeCondition.timeZone = tz.timeZoneId;
+         this.timeCondition.timeZoneLabel = tz.label;
+      }
+
+      this.localTimeZoneOffset = this.timeZoneService.calculateTimezoneOffset(this.localTimeZoneId);
+      this.timeZoneName = tz.label;
+
+      if(!this.serverTimeZone && oldLocalTimeZoneId != null &&
+         oldLocalTimeZoneId !== tz.timeZoneId)
+      {
+         this.convertToTimeZone(
+            this.timeZoneService.calculateTimezoneOffset(oldLocalTimeZoneId),
+            this.localTimeZoneOffset);
+      }
    }
 
    private isTimeCondition(condition: ScheduleConditionModel): boolean {

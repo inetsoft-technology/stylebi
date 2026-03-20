@@ -51,9 +51,8 @@
                 <div class="form-row-float-label row" *ngIf="startTimeEnabled">
                   <div class="col">
                     <div class="form-floating">
-                      <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="setLocalTimeZone($event)"
-                              formControlName="timeZone">
-                        <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
+                      <select class="form-control" formControlName="timeZone" [compareWith]="compareTimeZones">
+                        <option *ngFor="let tz of timeZoneOptions" [ngValue]="tz" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
                       </select>
                       <label>_#(Time Zone)</label>
                     </div>
@@ -119,9 +118,8 @@
               <ng-container>
                 <div class="form-row-float-label row" *ngIf="startTimeEnabled">
                   <div class="col form-floating">
-                    <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="setLocalTimeZone($event)"
-                            formControlName="timeZone">
-                      <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
+                    <select class="form-control" formControlName="timeZone" [compareWith]="compareTimeZones">
+                      <option *ngFor="let tz of timeZoneOptions" [ngValue]="tz" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
                     </select>
                     <label>_#(Time Zone)</label>
                   </div>
@@ -191,9 +189,8 @@
               <ng-container>
                 <div class="form-row-float-label row" *ngIf="startTimeEnabled">
                   <div class="col form-floating">
-                    <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="setLocalTimeZone($event)"
-                            formControlName="timeZone">
-                      <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
+                    <select class="form-control" formControlName="timeZone" [compareWith]="compareTimeZones">
+                      <option *ngFor="let tz of timeZoneOptions" [ngValue]="tz" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
                     </select>
                     <label>_#(Time Zone)</label>
                   </div>
@@ -319,9 +316,8 @@
                 <ng-container>
                   <div class="form-row-float-label row">
                     <div class="col form-floating">
-                      <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="setLocalTimeZone($event)"
-                              formControlName="timeZone">
-                        <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
+                      <select class="form-control" formControlName="timeZone" [compareWith]="compareTimeZones">
+                        <option *ngFor="let tz of timeZoneOptions" [ngValue]="tz" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
                       </select>
                       <label>_#(Time Zone)</label>
                     </div>
@@ -401,9 +397,8 @@
                 <ng-container>
                   <div class="form-row-float-label row">
                     <div class="col form-floating">
-                      <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="setLocalTimeZone($event)"
-                              formControlName="timeZone">
-                        <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
+                      <select class="form-control" formControlName="timeZone" [compareWith]="compareTimeZones">
+                        <option *ngFor="let tz of timeZoneOptions" [ngValue]="tz" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
                       </select>
                       <label>_#(Time Zone)</label>
                     </div>
