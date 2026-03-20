@@ -175,7 +175,7 @@ public class OpenViewsheetController {
       if(!existing && !event.isViewer()) {
          AssetEntry entry = AssetEntry.createAssetEntry(event.getEntryId());
 
-         if(entry.getScope() != AssetRepository.TEMPORARY_SCOPE) {
+         if(entry != null && entry.getScope() != AssetRepository.TEMPORARY_SCOPE) {
             VSEventUtil.deleteAutoSavedFile(entry, principal);
          }
 
