@@ -111,7 +111,8 @@
             ],
             "setupFiles": [
               "jest-canvas-mock"
-            ]
+            ],
+            "setupFilesAfterEnv": "<rootDir>/setup-jest.ts"
           }
         },
         "lint": {
@@ -230,7 +231,8 @@
             ],
             "setupFiles": [
               "jest-canvas-mock"
-            ]
+            ],
+            "setupFilesAfterEnv": "<rootDir>/setup-jest.ts"
           }
         },
         "lint": {
