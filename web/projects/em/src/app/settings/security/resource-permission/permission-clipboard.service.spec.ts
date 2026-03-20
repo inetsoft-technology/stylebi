@@ -359,6 +359,11 @@ describe("PermissionClipboardService", () => {
          expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(false);
       });
 
+      it("should not error when org changes and nothing has been copied", () => {
+         orgChangeSubject.next();
+         expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(false);
+      });
+
       it("should clear clipboard when the organization changes within the same provider", () => {
          service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider-a", COPY_PASTE_CONTEXT_REPOSITORY);
          expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(true);
