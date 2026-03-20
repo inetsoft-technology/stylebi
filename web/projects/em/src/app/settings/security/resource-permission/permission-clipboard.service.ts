@@ -36,10 +36,12 @@ export class PermissionClipboardService implements OnDestroy {
    constructor(orgDropdownService: OrganizationDropdownService) {
       orgDropdownService.onRefresh.pipe(takeUntil(this.destroy$)).subscribe(({ provider }) => {
          if(this.providerAtCopy !== null && this.providerAtCopy !== provider) {
-            this.copiedPermissions = null;
-            this.providerAtCopy = null;
-            this.contextAtCopy = null;
+            this.clearClipboard();
          }
+      });
+
+      orgDropdownService.onOrgChange.pipe(takeUntil(this.destroy$)).subscribe(() => {
+         this.clearClipboard();
       });
    }
 
@@ -129,6 +131,12 @@ export class PermissionClipboardService implements OnDestroy {
          permissions: pastedPermissions,
          requiresBoth: this.copiedPermissions.requiresBoth
       };
+   }
+
+   private clearClipboard(): void {
+      this.copiedPermissions = null;
+      this.providerAtCopy = null;
+      this.contextAtCopy = null;
    }
 
    private contextsMatch(a: CopyPasteContext | null, b: CopyPasteContext | null): boolean {
