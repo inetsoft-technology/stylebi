@@ -346,10 +346,7 @@ public class TextFormat implements AssetObject {
    public Object clone() {
       try {
          TextFormat obj = (TextFormat) super.clone();
-
-         if(font instanceof StyleFont) {
-            obj.font = (Font) ((StyleFont) font).clone();
-         }
+         // StyleFont is immutable after construction, no need to clone
 
          if(fmt != null) {
             obj.fmt = (XFormatInfo) fmt.clone();

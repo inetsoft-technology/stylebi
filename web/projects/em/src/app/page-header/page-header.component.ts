@@ -114,6 +114,8 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
             this.pageTitle.currentOrgId = result.currOrgID;
 
             if(oldOrg != null && this.model != null && this.model.currOrgID != oldOrg) {
+               // Notify of an externally-detected org change (e.g. changed from another session or admin action).
+               this.orgDropdownService.notifyOrgChange();
                let currRoute = this.router.url;
                this.routeToPath(currRoute);
                this.usersService.loadScheduleUsers();
@@ -147,6 +149,8 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
 
       this.http.post("../api/em/pageheader/organization", this.model)
          .subscribe(() => {
+            // Notify of the user-initiated org change before routing, so clipboard is cleared immediately.
+            this.orgDropdownService.notifyOrgChange();
             let currRoute = this.router.url;
             this.routeToPath(currRoute);
             this.usersService.loadScheduleUsers();

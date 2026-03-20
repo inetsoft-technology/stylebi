@@ -248,6 +248,13 @@ public abstract class GraphGenerator {
       this.vs = chart.getViewsheet();
       VSAssembly assembly = vs == null ? null : vs.getAssembly(chart.getName());
       this.cubeType = assembly == null ? null : VSAQuery.getCubeType(assembly);
+      // True for full-data renders (regular or brushed). False for filtered renders such as data
+      // tip and flyover, which set TipConditionList on the assembly before execution. Used to
+      // prevent a depleted CategoricalShapeFrame cmap from being written to the shared context.
+      // adata != null means brushing is active; getBrushDataSet merges all rows so the shape frame
+      // cmap will not be depleted even if a tip condition is also present.
+      final boolean hasFullData = adata != null ||
+         assembly == null || assembly.getTipConditionList() == null;
 
       xdims = new ArrayList<>();
       xmeasures = new ArrayList<>();
@@ -333,8 +340,10 @@ public abstract class GraphGenerator {
 
          // create shape frame
          shpstrategy = new VSShapeFrameStrategy(info);
+         // Pass hasFullData=false for filtered renders (data tip / flyover) so that a depleted
+         // CategoricalShapeFrame cmap is not written back to the shared context.
          shpvisitor = new VSFrameVisitor(info, fdata, shpstrategy, global,
-            vdata, cubeType, vsrc, sourceType, getFrameInitializer());
+            vdata, cubeType, vsrc, sourceType, hasFullData, getFrameInitializer());
          // create texture frame
          tstrategy = new VSTextureFrameStrategy(info);
          tvisitor = new VSFrameVisitor(info, fdata, tstrategy, global, vdata,
@@ -3710,6 +3719,9 @@ public abstract class GraphGenerator {
       else if(GraphTypes.isInterval(chartType)) {
          IntervalElement elem = new IntervalElement();
          elem.setZeroHeight(1);
+         elem.setCornerRadius(desc.getPlotDescriptor().getBarCornerRadius());
+         // Both ends are value ends (no fixed zero anchor), so always round all corners.
+         elem.setRoundAllCorners(true);
          elements.add(elem);
       }
       else if(GraphTypes.isScatteredContour(chartType)) {

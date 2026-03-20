@@ -18,7 +18,8 @@
 
 import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
-import { BehaviorSubject } from "rxjs";
+import { BehaviorSubject, Observable, of } from "rxjs";
+import { catchError, map, timeout } from "rxjs/operators";
 import { convertToKey } from "../../em/src/app/settings/security/users/identity-id";
 import { BindingModel } from "../../portal/src/app/binding/data/binding-model";
 import { ChartBindingModel } from "../../portal/src/app/binding/data/chart/chart-binding-model";
@@ -79,6 +80,14 @@ export class AiAssistantService {
       this.http.get("../api/assistant/get-stylebi-url").subscribe((url: string) => {
          this.styleBIUrl = url || "";
       });
+   }
+
+   checkHealth(): Observable<boolean> {
+      return this.http.get<boolean>("../api/assistant/health").pipe(
+         timeout(5000),
+         map(online => online === true),
+         catchError(() => of(false))
+      );
    }
 
    set lastBindingObject(value: string) {

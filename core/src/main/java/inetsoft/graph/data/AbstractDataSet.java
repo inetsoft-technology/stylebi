@@ -337,6 +337,12 @@ public abstract class AbstractDataSet implements DataSet {
    @Override
    @TernMethod
    public final int getColCount() {
+      int cached = cachedColCount;
+
+      if(cached >= 0) {
+         return cached;
+      }
+
       int calcCols = 0;
 
       List<CalcColumn> calcs = this.calcs;
@@ -350,7 +356,9 @@ public abstract class AbstractDataSet implements DataSet {
       }
 
       calcCols = calcvals != null && calcs != null ? calcs.size() : 0;
-      return getColCount0() + calcCols;
+      cached = getColCount0() + calcCols;
+      cachedColCount = cached;
+      return cached;
    }
 
    /**
@@ -662,6 +670,7 @@ public abstract class AbstractDataSet implements DataSet {
       for(int i = 0; i < calcs.size(); i++) {
          if(calcs.get(i).getHeader().equals(col.getHeader())) {
             calcs.set(i, col);
+            cachedColCount = -1;
             return;
          }
       }
@@ -670,6 +679,7 @@ public abstract class AbstractDataSet implements DataSet {
       calcvals = null;
       rcalcvals = null;
       idxmap = null;
+      cachedColCount = -1;
    }
 
    /**
@@ -698,6 +708,7 @@ public abstract class AbstractDataSet implements DataSet {
    public synchronized void removeCalcColumns() {
       calcs = null;
       idxmap = null;
+      cachedColCount = -1;
    }
 
    /**
@@ -759,6 +770,7 @@ public abstract class AbstractDataSet implements DataSet {
       calcvals = null;
       rcalcvals = null;
       idxmap = null;
+      cachedColCount = -1;
    }
 
    @Override
@@ -766,6 +778,7 @@ public abstract class AbstractDataSet implements DataSet {
    public synchronized void removeCalcColValues() {
       calcvals = null;
       idxmap = null;
+      cachedColCount = -1;
    }
 
    @Override
@@ -798,6 +811,7 @@ public abstract class AbstractDataSet implements DataSet {
       // need to recalculate (51059)
       obj.cacheNumber = null;
       obj.cacheDate = null;
+      obj.cachedColCount = -1;
 
       if(rcalcvals != null) {
          obj.rcalcvals = new Vector<>(this.rcalcvals);
@@ -1646,6 +1660,8 @@ public abstract class AbstractDataSet implements DataSet {
    // true if contains valid calc value
    private Set<String> validCalcs = new HashSet<>();
    private String innerDim;
+   // cached column count, -1 means not cached
+   private volatile int cachedColCount = -1;
 
    protected int rowsProjectedForward = 0;
    private String projectColumn;

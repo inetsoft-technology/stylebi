@@ -62,6 +62,7 @@ import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.IOUtils;
+import org.passay.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -1644,6 +1645,7 @@ public class IdentityService {
 
       if(oldUser == null || Tool.isEmptyString(oldUser.getGoogleSSOId())) {
          if(model.password() != null) {
+            validatePasswordStrength(model.password());
             HashedPassword npw = Tool.hash(model.password(), "bcrypt");
 
             if(oldUser != null && npw != null) {
@@ -1671,6 +1673,26 @@ public class IdentityService {
       syncIdentity(eprovider, user, oIdentity);
 
       return user;
+   }
+
+   private static final PasswordValidator PASSWORD_VALIDATOR = new PasswordValidator(
+      new LengthRule(8, 72),
+      new CharacterRule(EnglishCharacterData.UpperCase, 1),
+      new CharacterRule(EnglishCharacterData.LowerCase, 1),
+      new CharacterRule(EnglishCharacterData.Digit, 1),
+      new CharacterRule(EnglishCharacterData.Special, 1)
+   );
+
+   public static void validatePasswordStrength(String password) {
+      if(password == null) {
+         throw new MessageException(Catalog.getCatalog().getString("viewer.password.pwdRule"));
+      }
+
+      RuleResult result = PASSWORD_VALIDATOR.validate(new PasswordData(password));
+
+      if(!result.isValid()) {
+         throw new MessageException(Catalog.getCatalog().getString("viewer.password.pwdRule"));
+      }
    }
 
    /**

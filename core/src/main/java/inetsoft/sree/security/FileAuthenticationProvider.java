@@ -961,12 +961,22 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
       @Override
       protected Class<FSUser> initialize(Map<String, FSUser> map) {
+         String rawPassword = System.getenv("INETSOFT_ADMIN_PASSWORD");
+
+         if(rawPassword == null || rawPassword.isBlank()) {
+            // INETSOFT_ADMIN_PASSWORD is not set — this container is not the init-storage
+            // container, or storage initialization did not complete successfully.
+            // Skip default admin creation; the operator must re-run init-storage.
+            LOG.error(
+               "The user store is empty and INETSOFT_ADMIN_PASSWORD is not set. " +
+               "No default admin user will be created. Re-run storage initialization " +
+               "with INETSOFT_ADMIN_PASSWORD set to restore access.");
+            return null;
+         }
+
          String defaultOrg = Organization.getDefaultOrganizationID();
          FSUser user = new FSUser(new IdentityID("admin", defaultOrg));
-         String envPassword = System.getenv("INETSOFT_ADMIN_PASSWORD");
-         String trimmedEnvPassword = envPassword != null ? envPassword.trim() : null;
-         boolean useEnvPassword = trimmedEnvPassword != null && !trimmedEnvPassword.isBlank();
-         HashedPassword hash = Tool.hash(useEnvPassword ? trimmedEnvPassword : "admin", "bcrypt");
+         HashedPassword hash = Tool.hash(AdminCredentialUtil.getRequiredAdminPassword(), "bcrypt");
          user.setPassword(hash.getHash());
          user.setPasswordAlgorithm(hash.getAlgorithm());
          user.setRoles(new IdentityID[] { new IdentityID("Administrator", null),

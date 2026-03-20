@@ -48,6 +48,8 @@ export interface EditUserPaneModel extends EditIdentityPaneModel {
    currentUser: boolean;
    localesList: string[];
    supportChangePassword?: boolean;
+   newUser?: boolean;
+   hasPassword?: boolean;
 }
 
 export interface EditIdentityPaneModel {

@@ -240,7 +240,6 @@ public class HomePageController {
     *       {@code {chat.app.server.url}/web-component/ai-assistant.umd.js}.</li>
     * </ul>
     */
-   @SuppressWarnings("unchecked")
    private void addChatAppScript(ModelAndView model, String linkUri) {
       String internalUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_INTERNAL_URL);
       String chatAppUrl;
@@ -263,9 +262,7 @@ public class HomePageController {
             : serverUrl.trim();
       }
 
-      List<String> scripts = (List<String>) model.getModel()
-         .computeIfAbsent("additionalScripts", k -> new ArrayList<>());
-      scripts.add(chatAppUrl + "/web-component/ai-assistant.umd.js");
+      model.addObject("chatAppScript", chatAppUrl + "/web-component/ai-assistant.umd.js");
    }
 
    private void addDataSpaceTags(ModelAndView model, String linkUrl) {

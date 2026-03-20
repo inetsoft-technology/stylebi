@@ -20,13 +20,64 @@ package inetsoft.web.assistant;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.net.ssl.*;
+import java.net.URI;
+import java.net.http.*;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.X509Certificate;
+import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+
 @RestController
 public class AIAssistantController {
+
+   @PostConstruct
+   public void createHealthClient() {
+      HttpClient.Builder builder = HttpClient.newBuilder()
+         .connectTimeout(Duration.ofSeconds(3));
+
+      if(!isSslVerifyEnabled()) {
+         LOG.warn("SSL certificate verification is disabled for AI assistant health check " +
+                     "connections (chat.app.server.ssl.verify=false). Set to true in production when " +
+                     "the assistant server uses a CA-signed certificate.");
+
+         try {
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, new TrustManager[] {
+               new X509TrustManager() {
+                  public void checkClientTrusted(X509Certificate[] chain, String authType) {}
+                  public void checkServerTrusted(X509Certificate[] chain, String authType) {}
+                  public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+               }
+            }, null);
+            SSLParameters sslParameters = new SSLParameters();
+            sslParameters.setEndpointIdentificationAlgorithm("");
+            builder.sslContext(sslContext).sslParameters(sslParameters);
+         }
+         catch(NoSuchAlgorithmException | KeyManagementException e) {
+            LOG.warn("Could not configure trust-all SSL context for AI assistant health check", e);
+         }
+      }
+
+      healthClient = builder.build();
+   }
+
+   @PreDestroy
+   public void closeHealthClient() {
+      if(healthClient != null) {
+         healthClient.close();
+      }
+   }
 
    /**
     * Returns the base URL that the browser should use for all AI assistant API calls.
@@ -118,8 +169,64 @@ public class AIAssistantController {
       return "true".equalsIgnoreCase(SreeEnv.getProperty("chat.app.server.ssl.verify", "false"));
    }
 
+   /**
+    * Checks whether the AI assistant server is currently reachable.
+    *
+    * <p>Always returns HTTP 200 with a boolean body ({@code true} = online, {@code false} =
+    * unreachable). Using a non-error status code avoids triggering any application-level HTTP
+    * interceptors that treat 4xx/5xx as fatal errors.
+    *
+    * <p>Returns 204 No Content when the assistant is not configured at all.
+    * Uses a 3-second connect and read timeout. Non-blocking: the servlet thread is released
+    * immediately while the upstream check runs on the HttpClient's own thread pool.
+    */
+   @GetMapping("/api/assistant/health")
+   public CompletableFuture<ResponseEntity<Boolean>> checkAssistantHealth() {
+      String upstreamBase = resolveUpstreamBase();
+
+      if(upstreamBase == null) {
+         return CompletableFuture.completedFuture(ResponseEntity.noContent().build());
+      }
+
+      String url = upstreamBase.endsWith("/")
+         ? upstreamBase + "health"
+         : upstreamBase + "/health";
+
+      HttpRequest req = HttpRequest.newBuilder()
+         .uri(URI.create(url))
+         .timeout(Duration.ofSeconds(3))
+         .method("HEAD", HttpRequest.BodyPublishers.noBody())
+         .build();
+
+      return healthClient.sendAsync(req, HttpResponse.BodyHandlers.discarding())
+         .thenApply(r -> ResponseEntity.ok(r.statusCode() < 500))
+         .exceptionally(e -> {
+            LOG.debug("AI assistant health check failed for {}: {}", url, e.getMessage());
+            return ResponseEntity.ok(false);
+         });
+   }
+
+   private String resolveUpstreamBase() {
+      String internalUrl = SreeEnv.getProperty(CHAT_APP_INTERNAL_URL);
+
+      if(internalUrl != null && !internalUrl.trim().isEmpty()) {
+         return internalUrl.trim();
+      }
+
+      String serverUrl = SreeEnv.getProperty(CHAT_APP_SERVER_URL);
+
+      if(serverUrl != null && !serverUrl.trim().isEmpty()) {
+         return serverUrl.trim();
+      }
+
+      return null;
+   }
+
+   private HttpClient healthClient;
+
    public static final String CHAT_APP_SERVER_URL = "chat.app.server.url";
    public static final String CHAT_APP_INTERNAL_URL = "chat.app.internal.url";
    public static final String PROXY_PATH_PREFIX = "/api/assistant/proxy";
    public static final String AI_ASSISTANT_VISIBLE = "portal.ai.assistant.visible";
+   private static final Logger LOG = LoggerFactory.getLogger(AIAssistantController.class);
 }

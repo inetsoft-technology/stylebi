@@ -228,7 +228,7 @@
                   formControlName="barCornerRadius">
            <label><span>_#(Bar Corner Radius)</span></label>
          </div>
-         <div class="col-auto" *ngIf="model.barCornerRadiusVisible && model.barCornerRadius">
+         <div class="col-auto" *ngIf="model.barRoundAllCornersVisible && model.barCornerRadius">
             <div class="form-check">
                <input type="checkbox" class="form-check-input" id="barRoundAllCorners"
                       [(ngModel)]="model.barRoundAllCorners"

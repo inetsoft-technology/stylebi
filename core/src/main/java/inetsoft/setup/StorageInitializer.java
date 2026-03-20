@@ -31,7 +31,6 @@ import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.config.SecretsConfig;
 import inetsoft.util.log.LogUtil;
 import inetsoft.util.log.logback.AuditLogFilter;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
 
@@ -212,19 +211,18 @@ public class StorageInitializer implements Callable<Integer> {
       throws Exception
    {
       if(!context.initialized()) {
-         String password = System.getenv("INETSOFT_ADMIN_PASSWORD");
+         String password = AdminCredentialUtil.getRequiredAdminPassword();
+         HashedPassword hash = getPasswordEncryption().hash(password, "bcrypt", null, false);
+         FSUser user =
+            new FSUser(new IdentityID("admin", Organization.getDefaultOrganizationID()));
+         user.setPassword(hash.getHash());
+         user.setPasswordAlgorithm(hash.getAlgorithm());
+         user.setPasswordSalt(null);
+         user.setAppendPasswordSalt(false);
+         user.setRoles(new IdentityID[]{ new IdentityID("Administrator", null) });
+         Path temp = Files.createTempFile("virtual_security", ".xml");
 
-         if(!StringUtils.isEmpty(password)) {
-            HashedPassword hash = getPasswordEncryption().hash(password, "bcrypt", null, false);
-            FSUser user =
-               new FSUser(new IdentityID("admin", Organization.getDefaultOrganizationID()));
-            user.setPassword(hash.getHash());
-            user.setPasswordAlgorithm(hash.getAlgorithm());
-            user.setPasswordSalt(null);
-            user.setAppendPasswordSalt(false);
-            user.setRoles(new IdentityID[]{ new IdentityID("Administrator", null) });
-            Path temp = Files.createTempFile("virtual_security", ".xml");
-
+         try {
             try(PrintWriter writer = new PrintWriter(Files.newBufferedWriter(temp, StandardCharsets.UTF_8))) {
                writer.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
                writer.println("<virtualSecurityProvider>");
@@ -235,8 +233,9 @@ public class StorageInitializer implements Callable<Integer> {
             try(StorageService service = new StorageService(configDirectory.getAbsolutePath())) {
                service.write("virtual_security.xml", temp.toFile());
             }
-
-            Files.delete(temp);
+         }
+         finally {
+            Files.deleteIfExists(temp);
          }
       }
 
@@ -338,13 +337,11 @@ public class StorageInitializer implements Callable<Integer> {
             "createLocalClient", String.class, IdentityID.class, String.class);
          String path = configDirectory.getAbsolutePath();
          IdentityID username = new IdentityID("admin", Organization.getDefaultOrganizationID());
-         String password = System.getenv("INETSOFT_ADMIN_PASSWORD");
-
-         if(password == null) {
-            password = "admin";
-         }
-
+         String password = AdminCredentialUtil.getRequiredAdminPassword();
          return (AutoCloseable) method.invoke(clientFactory, path, username, password);
+      }
+      catch(IllegalStateException e) {
+         throw e;
       }
       catch(Exception e) {
          throw new RuntimeException("Failed to create local client", e);
