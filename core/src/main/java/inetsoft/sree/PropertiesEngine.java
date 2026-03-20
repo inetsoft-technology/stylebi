@@ -313,7 +313,15 @@ public class PropertiesEngine {
    }
 
    private String fixPropertyNameCase(String name) {
-      if(name != null && !name.startsWith("log.level.") &&
+      if(name == null) {
+         return null;
+      }
+
+      return propertyNameCaseCache.computeIfAbsent(name, this::computePropertyNameCase);
+   }
+
+   private String computePropertyNameCase(String name) {
+      if(!name.startsWith("log.level.") &&
          !name.startsWith("plugin.extra.classpath.") &&
          !name.matches("^log\\.[A-Z_]+\\.level\\..+$") &&
          !name.matches("^inetsoft\\.uql\\.jdbc\\.pool\\..+\\.connectionTestQuery$"))
@@ -321,7 +329,7 @@ public class PropertiesEngine {
          return name.toLowerCase();
       }
 
-      if(name != null && name.startsWith("inetsoft.org.")) {
+      if(name.startsWith("inetsoft.org.")) {
          int index = name.substring(13).indexOf('.');
 
          if(index >= 0) {
@@ -333,22 +341,22 @@ public class PropertiesEngine {
    }
 
    private String useAvailableOrgProperty(String propertyName) {
+      // Fast path: check excluded properties first before any expensive operations
+      if(EXCLUDED_ORG_PROPERTIES.contains(propertyName)) {
+         return propertyName;
+      }
+
       XPrincipal principal = (XPrincipal) ThreadContext.getPrincipal();
       principal = principal == null ? (XPrincipal) ThreadContext.getContextPrincipal() : principal;
-      String orgID;
+
       if(principal == null) {
-         orgID = null;
-      }
-      else {
-         orgID = OrganizationManager.getInstance().getCurrentOrgID().toLowerCase();
+         return propertyName;
       }
 
-      List<String> excludedProps = Arrays.asList(
-         "security.enabled", "sree.security.listeners", "security.cache", "security.cache.interval");
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(orgID != null && !excludedProps.contains(propertyName) &&
-         !"inetsoft.sree.security.CheckPermissionStrategy".equals(propertyName))
-      {
+      if(orgID != null) {
+         orgID = orgID.toLowerCase();
          init();
          Properties prop = getInternalProperties();
          String orgPropertyName = "inetsoft.org." + orgID + "." + propertyName;
@@ -1133,5 +1141,9 @@ public class PropertiesEngine {
    private static final Lock DEBOUNCER_LOCK = new ReentrantLock();
    private static final Map<String, Object> cache = new ConcurrentHashMap<>(); // cached objects
    private static final Map<String, Font> fontMap = new ConcurrentHashMap<>();
+   private static final Map<String, String> propertyNameCaseCache = new ConcurrentHashMap<>();
+   private static final Set<String> EXCLUDED_ORG_PROPERTIES = Set.of(
+      "security.enabled", "sree.security.listeners", "security.cache", "security.cache.interval",
+      "inetsoft.sree.security.CheckPermissionStrategy");
    private static final Logger LOG = LoggerFactory.getLogger(PropertiesEngine.class);
 }
