@@ -3782,13 +3782,13 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
       this.viewerToolbarMessageService.refreshButtonDefinitions([
          {
-            name: "_#(js:Previous Page)",
+            name: "_#(js:Undo)",
             visible: toolbarVisible && this.isPreviousPageVisible(),
             disabled: this.isPreviousPageDisabled(),
             action: () => this.previousPage()
          },
          {
-            name: "_#(js:Next Page)",
+            name: "_#(js:Redo)",
             visible: toolbarVisible && this.isNextPageVisible(),
             disabled: false,
             action: () => this.nextPage()
@@ -4027,16 +4027,16 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       const actions: AssemblyAction[] = [
          {
             id: () => "mobile previous page)",
-            label: () => "_#(js:Previous Page)",
-            icon: () => "arrow-left-circle-outline-icon",
+            label: () => "_#(js:Undo)",
+            icon: () => "undo-icon",
             visible: () => this.isPreviousPageVisible(),
             enabled: () => !this.isPreviousPageDisabled(),
             action: () => this.previousPage(),
          },
          {
             id: () => "mobile next page",
-            label: () => "_#(js:Next Page)",
-            icon: () => "arrow-right-circle-outline-icon",
+            label: () => "_#(js:Redo)",
+            icon: () => "redo-icon",
             visible: () => this.isNextPageVisible(),
             enabled: () => !this.isNextPageDisabled(),
             action: () => this.nextPage(),
