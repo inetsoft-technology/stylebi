@@ -44,7 +44,7 @@
           Sign Up
         </div>
         <div class="card-body">
-          <form novalidate>
+          <form id="signup-detail-form" novalidate>
             <div id="signupUserFirstNameGroup" class="form-group">
               <label class="required-field" for="signupUserFirstName"
                      data-th-text="#{signup.firstname.label}">First name</label>
@@ -93,7 +93,7 @@
                      data-th-text="#{signup.email.verify.code.label}">Verification Code</label>
               <div class="input-group">
                 <input class="form-control" id="emailCode"
-                       name="signupVerifyPassword" autocomplete="one-time-code"
+                       name="emailCode" autocomplete="one-time-code"
                        placeholder="Enter 6-digit code from email"
                        data-th-attr="placeholder=#{signup.email.verify.code.tooltip}"/>
                 <span type="button" id="resendCodeBtn" class="btn resendCodeBtn text-primary"
@@ -108,7 +108,7 @@
         </div>
         <div class="card-footer">
           <button type="button" id="signupButton" class="btn btn-primary w-100"
-                  data-th-text="#{signup.title}">
+                  form="signup-detail-form" data-th-text="#{signup.title}">
             Sign up
           </button>
         </div>
@@ -125,7 +125,6 @@
   <script type="text/javascript" src="webjars/jquery/jquery.min.js"></script>
   <script type="text/javascript" src="webjars/bootstrap/js/bootstrap.min.js"></script>
   <script type="text/javascript" src="js/signup.js"></script>
-  <script type="text/javascript" src="js/login.js"></script>
   <script data-th-inline="javascript">
     /*<![CDATA[*/
     $(document).ready(function() {
