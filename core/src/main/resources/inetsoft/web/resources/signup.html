@@ -51,7 +51,7 @@
                 <div id="emailGroup" class="form-group">
                   <input type="email" class="form-control" id="email" placeholder="Your Email"
                          name="userEmail" autocomplete="email" autofocus/>
-                  <div id="emailError" class="invalid-feedback" style="display: none;">
+                  <div id="emailError" class="invalid-feedback" style="display: none;" aria-live="assertive" aria-atomic="true">
                     <span id="emailRequiredError" data-th-text="#{signup.email.required}">Please enter your email.</span>
                     <span id="emailFormatError" data-th-text="#{signup.email.invalid}">Invalid email address.</span>
                   </div>

@@ -57,7 +57,7 @@
                      data-th-text="#{login.username.label}">User name</label>
               <input type="text" class="form-control" id="loginUserName"
                      name="loginUserName" autocomplete="username" autofocus/>
-              <div id="userNameError" class="invalid-feedback" style="display: none;"
+              <div id="userNameError" class="invalid-feedback" style="display: none;" aria-live="assertive" aria-atomic="true"
                    data-th-text="#{login.username.required}">
                 Please enter your user name.
               </div>
@@ -67,7 +67,7 @@
                      data-th-text="#{login.password.label}">Password</label>
               <input type="password" class="form-control" id="loginPassword"
                      name="loginPassword" autocomplete="current-password"/>
-              <div id="passwordError" class="invalid-feedback" style="display: none;"
+              <div id="passwordError" class="invalid-feedback" style="display: none;" aria-live="assertive" aria-atomic="true"
                    data-th-text="#{login.password.required}">
                 Please enter your password.
               </div>
