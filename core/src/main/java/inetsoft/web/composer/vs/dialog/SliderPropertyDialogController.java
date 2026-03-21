@@ -32,9 +32,11 @@ import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.awt.*;
 import java.security.Principal;
@@ -94,12 +96,17 @@ public class SliderPropertyDialogController {
          rvs = viewsheetService.getViewsheet(runtimeId, principal);
          vs = rvs.getViewsheet();
          sliderAssembly = (SliderVSAssembly) vs.getAssembly(objectId);
-         sliderAssemblyInfo = (SliderVSAssemblyInfo) sliderAssembly.getVSAssemblyInfo();
       }
       catch(Exception e) {
          //TODO decide what to do with exception
          throw e;
       }
+
+      if(sliderAssembly == null) {
+         throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Slider not found: " + objectId);
+      }
+
+      sliderAssemblyInfo = (SliderVSAssemblyInfo) sliderAssembly.getVSAssemblyInfo();
 
       SliderPropertyDialogModel result = new SliderPropertyDialogModel();
       SliderGeneralPaneModel sliderGeneralPaneModel = result.getSliderGeneralPaneModel();
@@ -186,15 +193,22 @@ public class SliderPropertyDialogController {
       RuntimeViewsheet viewsheet;
       SliderVSAssemblyInfo sliderAssemblyInfo;
 
+      SliderVSAssembly sliderAssembly;
+
       try {
          viewsheet = viewsheetService.getViewsheet(this.runtimeViewsheetRef.getRuntimeId(), principal);
-         SliderVSAssembly sliderAssembly = (SliderVSAssembly) viewsheet.getViewsheet().getAssembly(objectId);
-         sliderAssemblyInfo = (SliderVSAssemblyInfo) Tool.clone(sliderAssembly.getVSAssemblyInfo());
+         sliderAssembly = (SliderVSAssembly) viewsheet.getViewsheet().getAssembly(objectId);
       }
       catch(Exception e) {
          //TODO decide what to do with exception
          throw e;
       }
+
+      if(sliderAssembly == null) {
+         throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Slider not found: " + objectId);
+      }
+
+      sliderAssemblyInfo = (SliderVSAssemblyInfo) Tool.clone(sliderAssembly.getVSAssemblyInfo());
 
       SliderGeneralPaneModel sliderGeneralPaneModel = value.getSliderGeneralPaneModel();
       NumericRangePaneModel numericRangePaneModel = sliderGeneralPaneModel.getNumericRangePaneModel();
