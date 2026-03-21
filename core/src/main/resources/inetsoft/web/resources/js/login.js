@@ -158,7 +158,7 @@ function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewa
                    message = defaultErrorMessage;
                 }
 
-                $notifications.html(message);
+                $notifications.text(message);
                 $notifications.show();
              },
              () => {
@@ -171,10 +171,9 @@ function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewa
       }
    };
 
-   $(document).on("keypress", function(e) {
+   $userNameField.add($passwordField).add($loginAsNameField).on("keypress", function(e) {
       if(e.which == 13) {
-         $("#activeSession").modal("hide");
-         authenticate(true);
+         authenticate(false);
       }
    });
 

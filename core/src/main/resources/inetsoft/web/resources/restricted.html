@@ -44,34 +44,7 @@
 </div>
 <div class="container-fluid login-root">
 
-  <!-- ── Left panel ── -->
-  <main class="login-left">
-    <div class="card">
-      <div class="card-header" data-th-text="#{em.restricted.title}">
-        Access Restricted
-      </div>
-      <div class="card-body">
-        <p class="restricted-note" data-th-text="#{em.restricted.note}">
-          You do not have permission to access the Enterprise Manager. Select an option from below.
-        </p>
-        <div class="restricted-actions">
-          <a class="restricted-action-btn restricted-action-btn--primary"
-             href="logout" data-th-href="${logoutUrl}"
-             data-th-text="#{em.restricted.logout}">
-            Log in as a different user
-          </a>
-          <a class="restricted-action-btn"
-             href="app/portal" data-th-href="${linkUri + 'app/portal'}"
-             data-th-text="#{em.restricted.return}">
-            Return to the user portal
-          </a>
-        </div>
-      </div>
-    </div>
-  </main>
-  <!-- ── end left panel ── -->
-
-  <!-- ── Right panel: data-radar arc decoration ── -->
+  <!-- ── Background decoration: data-radar arcs, full-bleed behind card ── -->
   <div class="login-right" aria-hidden="true">
     <div class="dot-grid"></div>
     <svg viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid slice"
@@ -96,7 +69,34 @@
             stroke-width="0.9" stroke-opacity="0.09"/>
     </svg>
   </div>
-  <!-- ── end right panel ── -->
+  <!-- ── end background ── -->
+
+  <!-- ── Floating card ── -->
+  <main class="login-left">
+    <div class="card">
+      <div class="card-header" data-th-text="#{em.restricted.title}">
+        Access Restricted
+      </div>
+      <div class="card-body">
+        <p class="restricted-note" data-th-text="#{em.restricted.note}">
+          You do not have permission to access the Enterprise Manager. Select an option from below.
+        </p>
+        <div class="restricted-actions">
+          <a class="restricted-action-btn restricted-action-btn--primary"
+             href="logout" data-th-href="${logoutUrl}"
+             data-th-text="#{em.restricted.logout}">
+            Log in as a different user
+          </a>
+          <a class="restricted-action-btn"
+             href="app/portal" data-th-href="${linkUri + 'app/portal'}"
+             data-th-text="#{em.restricted.return}">
+            Return to the user portal
+          </a>
+        </div>
+      </div>
+    </div>
+  </main>
+  <!-- ── end floating card ── -->
 
 </div>
 <script type="text/javascript" src="webjars/jquery/jquery.min.js" data-th-src="${linkUri + 'webjars/jquery/jquery.min.js'}"></script>

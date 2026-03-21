@@ -78,8 +78,7 @@ html, body {
 }
 
 body {
-  /* Prevents double scrollbars; .login-left handles its own overflow-y */
-  overflow: hidden;
+  overflow: auto;
 }
 
 /* ============================================================
@@ -103,41 +102,50 @@ body {
 }
 
 /* ============================================================
-   Split-panel root
+   Full-viewport background — centres the floating card
    ============================================================ */
 .login-root {
   display: flex;
-  flex-direction: row;
-  height: calc(100vh - var(--ln-nav-h));
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - var(--ln-nav-h));
+  position: relative;
   overflow: hidden;
-  padding: 0;
-  max-width: 100%;
+  padding: 48px 24px;
+  background:
+    linear-gradient(rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.25)),
+    radial-gradient(
+      ellipse 75% 55% at 100% 100%,
+      color-mix(in srgb, var(--inet-primary-color, #ed711c) 11%, transparent) 0%,
+      transparent 68%
+    ),
+    var(--ln-bg);
 }
 
 /* ============================================================
-   Left panel — light surface, spring entrance
+   Floating card — elevated surface centered over the background
    ============================================================ */
 .login-left {
-  width: var(--ln-left-w);
-  min-width: 300px;
-  max-width: 480px; /* prevent overly wide form panel on 4K+ displays */
-  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 440px;
   background: var(--ln-left);
+  border-radius: var(--m3-shape-xl);
   display: flex;
   flex-direction: column;
-  justify-content: center;
   padding: 48px 52px;
   overflow-y: auto;
   overflow-x: hidden;
-  position: relative;
-  z-index: 2;
-  box-shadow: 4px 0 32px rgba(0, 0, 0, 0.18);
-  animation: loginPanelIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.40),
+    0 2px 8px  rgba(0, 0, 0, 0.20);
+  animation: loginPanelIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @keyframes loginPanelIn {
-  from { opacity: 0; transform: translateX(-20px); }
-  to   { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: scale(0.96) translateY(16px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
 }
 
 .login-left::-webkit-scrollbar { width: 4px; }
@@ -358,7 +366,7 @@ body {
   width: 100%;
   cursor: pointer;
   transition: box-shadow 0.15s ease;
-  box-shadow: 0px 1px 2px rgba(0,0,0,0.3), 0px 1px 3px 1px rgba(0,0,0,0.15);
+  box-shadow: none;
   animation: loginItemIn 0.5s 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -647,20 +655,12 @@ div.loading-indicator.loading::after {
 }
 
 /* ============================================================
-   Right panel — dark neutral from --inet-navbar-bg-color,
-   with brand-colour radial glow anchoring the radar arcs.
+   Background decoration layer — full-bleed behind the card
    ============================================================ */
 .login-right {
-  flex: 1;
-  background:
-    linear-gradient(rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.25)),
-    radial-gradient(
-      ellipse 75% 55% at 100% 100%,
-      color-mix(in srgb, var(--inet-primary-color, #ed711c) 11%, transparent) 0%,
-      transparent 68%
-    ),
-    var(--ln-bg);
-  position: relative;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
   overflow: hidden;
 }
 
@@ -706,21 +706,15 @@ div.loading-indicator.loading::after {
 /* ============================================================
    Responsive
    ============================================================ */
-@media (max-width: 900px) {
-  body { overflow: auto; }
-
+@media (max-width: 600px) {
   .login-root {
-    height: auto;
-    min-height: calc(100vh - var(--ln-nav-h));
-    overflow: visible;
+    align-items: flex-start;
+    padding: 24px 16px;
   }
 
-  .login-right { display: none; }
-
   .login-left {
-    width: 100%;
-    min-width: 0;
     max-width: none;
+    border-radius: var(--m3-shape-xs);
     padding: 36px 28px;
     animation: none;
     opacity: 1;
@@ -794,14 +788,14 @@ div.loading-indicator.loading::after {
   font-size: 0.9rem;
   font-weight: 500;
   letter-spacing: 0.01em;
-  box-shadow: 0px 1px 2px rgba(0,0,0,0.2), 0px 1px 3px 1px rgba(0,0,0,0.1);
-  transition: opacity 0.15s;
+  box-shadow: none;
+  transition: box-shadow 0.15s ease;
 }
 
 .restricted-action-btn--primary:hover {
   color: var(--inet-button-primary-text-color, #fff);
-  opacity: 0.88;
   text-decoration: none;
+  box-shadow: 0px 1px 2px rgba(0,0,0,0.3), 0px 2px 6px 2px rgba(0,0,0,0.15);
 }
 
 .restricted-action-btn--primary:focus-visible {
