@@ -45,13 +45,13 @@
   <div class="container-fluid login-root">
 
     <!-- ── Left panel: branding + form ── -->
-    <div class="login-left">
+    <main class="login-left">
       <div class="card">
         <div class="card-header" data-th-text="#{login.title}">
           Please sign in
         </div>
         <div class="card-body">
-          <form id="login-form" novalidate>
+          <form novalidate>
             <div class="signup-text" data-th-if="${selfSignUpEnabled && isNotTenantServer}">
               <a href="./signup.html" target="_self" data-th-text="#{login.create.account.label}">Create an account</a>
             </div>
@@ -98,8 +98,8 @@
           </form>
         </div>
         <div class="card-footer">
-          <button id="loginButton" class="btn btn-primary w-100"
-                  form="login-form" data-th-text="#{login.signIn}">
+          <button id="loginButton" type="button" class="btn btn-primary w-100"
+                  data-th-text="#{login.signIn}">
             Sign in
           </button>
         </div>
@@ -128,7 +128,7 @@
       <div id="sessionExpiredMessage" class="alert alert-warning" style="display: none" aria-live="polite" aria-atomic="true" data-th-text="#{login.session.expired}">
         For your security, you were logged out of the system due to inactivity.
       </div>
-    </div>
+    </main>
     <!-- ── end left panel ── -->
 
     <!-- ── Right panel: data-radar arc decoration ── -->

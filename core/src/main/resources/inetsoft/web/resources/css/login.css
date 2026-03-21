@@ -259,6 +259,29 @@ body {
   color: var(--ln-text-dim);
 }
 
+/* Override browser autofill highlight (Chrome/Edge/Safari use a blue/yellow tint).
+   background-color is ignored on autofilled inputs; a large inset box-shadow
+   paints over the UA-supplied colour instead. The transition delay prevents a
+   flash when the autofill is first applied.
+   Focus state combines the inset background with the M3 glow ring so both
+   are visible simultaneously — box-shadow is a single property and a plain
+   inset would suppress the outer glow if listed alone. */
+.login-left input.form-control:-webkit-autofill,
+.login-left input.form-control:-webkit-autofill:hover {
+  -webkit-box-shadow: 0 0 0 1000px var(--ln-surface) inset;
+  box-shadow: 0 0 0 1000px var(--ln-surface) inset;
+  -webkit-text-fill-color: var(--ln-text);
+  transition: background-color 9999s ease-in-out 0s;
+  caret-color: var(--ln-text);
+}
+
+.login-left input.form-control:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px var(--ln-surface) inset, 0 0 0 3px var(--ln-glow);
+  box-shadow: 0 0 0 1000px var(--ln-surface) inset, 0 0 0 3px var(--ln-glow);
+  -webkit-text-fill-color: var(--ln-text);
+  caret-color: var(--ln-text);
+}
+
 /* The browser's native select arrow is hidden; the .select-wrapper
    pseudo-element renders a themed arrow instead. transition:none
    prevents a flash during option-list open on some browsers. */
