@@ -583,34 +583,6 @@ div.loading-indicator.loading {
   to   { opacity: 1; }
 }
 
-/* Brand-colour scan line sweeps top→bottom while waiting,
-   giving the overlay a "data processing" feel */
-div.loading-indicator.loading::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -2px;
-  height: 2px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    var(--ln-accent) 40%,
-    var(--ln-accent) 60%,
-    transparent 100%
-  );
-  opacity: 0.6;
-  animation: scanLine 2.2s ease-in-out infinite;
-  pointer-events: none;
-}
-
-@keyframes scanLine {
-  0%   { top: -2px;  opacity: 0;   }
-  8%   {             opacity: 0.6; }
-  92%  {             opacity: 0.6; }
-  100% { top: 100%;  opacity: 0;   }
-}
-
 /* Content wrapper — spring entrance */
 .ln-loading-content {
   display: flex;
@@ -751,10 +723,6 @@ div.loading-indicator.loading::after {
   }
 
   div.loading-indicator.loading {
-    animation: none;
-  }
-
-  div.loading-indicator.loading::after {
     animation: none;
   }
 }
