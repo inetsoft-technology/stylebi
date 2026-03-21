@@ -230,7 +230,7 @@ function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewa
    validateForm();
 
    if(onloadError) {
-      $notifications.html(onloadError);
+      $notifications.text(onloadError);
       $notifications.show();
    }
 }
