@@ -81,13 +81,12 @@ public class AssetTreeController {
       @RequestParam(value = "reportRepositoryEnabled", required = false) boolean reportRepositoryEnabled,
       @RequestParam(value = "readOnly", required = false, defaultValue = "false") boolean readOnly,
       @RequestParam(value = "physical", required = false, defaultValue = "true") boolean physical,
-      @RequestParam(value = "onlyWizAssets", required = false, defaultValue = "false") boolean onlyWizAssets,
       @RequestBody LoadAssetTreeNodesEvent event, Principal principal)
       throws Exception
    {
       return assetTreeService.getNodes(includeDatasources, includeColumns, includeWorksheets, includeViewsheets,
                                        includeTableStyles, includeScripts, includeLibrary, reportRepositoryEnabled, readOnly,
-                                       physical, onlyWizAssets, event, principal);
+                                       physical, event, principal);
    }
 
    @PostMapping("/api/composer/asset_tree/set-connection-variables")

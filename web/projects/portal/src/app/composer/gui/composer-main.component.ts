@@ -135,6 +135,14 @@ import { ComposerObjectService } from "./vs/composer-object.service";
 import { CloseSheetEvent } from "./vs/event/close-sheet-event";
 import { LayoutUndoRedoEvent } from "./vs/event/layout-undo-redo-event";
 import { WizService } from "./wiz/services/wiz.service";
+import {
+   NewVisualizationDialog,
+   NewVisualizationDialogModel
+} from "./wiz/new-visualization-dialog/new-visualization-dialog.component";
+import {
+   SaveWizVisualizationDialog,
+   SaveWizVisualizationDialogModel
+} from "./wiz/save-wiz-visualization-dialog/save-wiz-visualization-dialog.component";
 import { SaveSheetEvent } from "./ws/socket/save-sheet-event";
 import { DashboardTabModel } from "../../portal/dashboard/dashboard-tab-model";
 import { DashboardTabService } from "../../portal/services/dashboard-tab.service";
@@ -305,6 +313,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    private lastWS: string = null; // last saved ws
    wizardEditMode = false;
    wizardModel: VsWizardModel;
+   wizVisualizationMode = false;
+   currentWizVisualization: WizDashboard = null;
    importDialogOpen = false;
    tabContentEleToChild: ElementRef;
    openedTabs: ComposerTabModel[] = [];
@@ -452,16 +462,21 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       this.subscriptions.add(this.dashboardTabService.getDashboardTabModel()
          .subscribe({
             next: data => { this.dashboardTabModel = data; },
-            error: err => console.error('Failed to load dashboard tab model', err)
+            error: err => console.error("Failed to load dashboard tab model", err)
          }));
 
+      this.subscriptions.add(this.wizService.showVisualization.subscribe((vs: WizDashboard) => {
+         this.currentWizVisualization = vs;
+         this.wizVisualizationMode = true;
+      }));
+
+      this.subscriptions.add(this.wizService.exitVisualization.subscribe(() => {
+         this.wizVisualizationMode = false;
+         this.currentWizVisualization = null;
+      }));
+
       this.subscriptions.add(this.wizService.saveVisualization.subscribe((vs: WizDashboard) => {
-         if(vs.newSheet) {
-            this.saveViewsheetAs(vs, false);
-         }
-         else {
-            this.saveViewsheet(vs, false);
-         }
+         this.saveWizVisualization(vs);
       }));
    }
 
@@ -844,8 +859,13 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    trackByFn(index: number, tab: ComposerTabModel) {
-      return tab?.asset?.type == "viewsheet" || tab?.asset?.type == "worksheet" ?
-         (<Sheet>tab.asset).localId : (<LibraryAsset>tab.asset).id;
+      const type = tab?.asset?.type;
+
+      if(type == "viewsheet" || type == "worksheet" || type == "wiz") {
+         return (<Sheet>tab.asset).localId;
+      }
+
+      return (<LibraryAsset>tab.asset).id;
    }
 
    closePreview(index: number, hasClosedOnServer: boolean = false): void {
@@ -1658,12 +1678,13 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       }
    }
 
-   openNewViewsheet(baseEntry: AssetEntry, gettingStarted?: boolean): void {
+   openNewViewsheet(baseEntry: AssetEntry, gettingStarted?: boolean, isWiz?: boolean): void {
       if(baseEntry && baseEntry.folder && baseEntry.type === AssetType.FOLDER) {
          baseEntry = null;
       }
 
-      const vs: Viewsheet = this.showingWiz ? new WizDashboard(this.fontService) : new Viewsheet(this.fontService);
+      const vs: Viewsheet = isWiz ? new WizDashboard(this.fontService) : new Viewsheet(this.fontService);
+
       vs.localId = sheetCounter++;
       vs.newSheet = true;
       vs.label = "";
@@ -1727,7 +1748,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                break;
             case "wiz":
             case "viewsheet":
-               const vs = this.showingWiz && type == "wiz" ? new WizDashboard(this.fontService) : new Viewsheet(this.fontService);
+               const vs = type == "wiz" ? new WizDashboard(this.fontService) : new Viewsheet(this.fontService);
                vs.localId = sheetCounter++;
                vs.label = "";
                vs.id = id;
@@ -2035,6 +2056,48 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
             }
          });
 
+   }
+
+   saveWizVisualization(vs: WizDashboard): void {
+      if(!vs.newSheet) {
+         this.wizVisualizationMode = false;
+         this.currentWizVisualization = null;
+         vs.saving = true;
+         this.saveViewsheet0(vs, false, false);
+         return;
+      }
+
+      const modelUri = SAVE_VIEWSHEET_DIALOG_REST_URI + Tool.byteEncode(vs.runtimeId);
+      const entry = createAssetEntry(vs.id);
+      this.defaultFolder = entry ? AssetEntryHelper.getParent(entry) : null;
+      vs.onSave();
+
+      this.modelService.getModel(modelUri).toPromise().then(
+         (data: any) => {
+            const visualizationScope = vs.standaloneVisualization ? "public" : "private";
+            const model: SaveWizVisualizationDialogModel = {
+               ...(<SaveViewsheetDialogModel>data),
+               visualizationScope: visualizationScope
+            };
+
+            const dialog = ComponentTool.showDialog(this.modalService, SaveWizVisualizationDialog,
+               (result: SaveWizVisualizationDialogModel) => {
+                  vs.saving = true;
+                  this.designSaved = true;
+                  result.updateDepend = false;
+                  vs.socketConnection.sendEvent(SAVE_VIEWSHEET_DIALOG_SOCKET_URI, result);
+                  this.wizVisualizationMode = false;
+                  this.currentWizVisualization = null;
+               });
+            dialog.model = model;
+            dialog.defaultFolder = this.defaultFolder;
+            dialog.runtimeId = vs.runtimeId;
+            dialog.standaloneVisualization = vs.standaloneVisualization;
+         },
+         (error: any) => {
+            console.error("Failed to load save viewsheet model: ", error);
+         }
+      );
    }
 
    saveViewsheet(sheet: Viewsheet, close: boolean = false) {
@@ -3081,7 +3144,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
 
    fullViewVisible(): boolean {
       const vs = this.focusedViewsheet;
-      return (vs == null || !vs.bindingEditMode) && !this.wizardEditMode;
+      return (vs == null || !vs.bindingEditMode) && !this.wizardEditMode && !this.wizVisualizationMode;
    }
 
    processPreviewMessageCommand(command: MessageCommand, sheet: Viewsheet): void {
@@ -3160,11 +3223,23 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    createNewWiz(): void {
-      this.openNewViewsheet(null, false);
-
+      this.openNewViewsheet(null, false, true);
    }
 
    createNewVisualization() {
-      this.wizService.onOpenVisualization();
+      const vs = new WizDashboard(this.fontService);
+      vs.label = "Untitled Visualization";
+
+      ComponentTool.showDialog(this.modalService, NewVisualizationDialog,
+         (model: NewVisualizationDialogModel) => {
+            vs.standaloneVisualization = true;
+            vs.baseEntries = model?.baseEntries;
+            vs.id = "";
+            vs.localId = sheetCounter++;
+            vs.newSheet = true;
+            vs.visualization = true;
+            this.currentWizVisualization = vs;
+            this.wizVisualizationMode = true;
+         }, {});
    }
 }

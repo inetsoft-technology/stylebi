@@ -37,7 +37,6 @@ const COMPOSER_CUSTOM_MESSAGE_URI: string = "../api/composer/customMessage";
    styleUrls: ["composer-empty-editor.component.scss"]
 })
 export class ComposerEmptyEditor implements OnInit {
-   @Input() wiz: boolean;
    @Output() onOpenSheet = new EventEmitter<OpenSheetEvent>();
    @Output() onOpenLibraryAsset = new EventEmitter<OpenLibraryAssetEvent>();
    customMessageModel: ComposerCustomMessageModel;

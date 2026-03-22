@@ -47,5 +47,20 @@ public class VisualizationController {
       return visualizationServiceProxy.getVisualizations(runtimeId, principal);
    }
 
+   @GetMapping(value = "/api/composer/wiz/components")
+   public TreeNodeModel getComponents(
+      @RequestParam("runtimeId")
+      @Parameter(
+         name = "runtimeId",
+         description = "The runtime ID of the viewsheet.",
+         in = ParameterIn.QUERY,
+         required = true
+      )
+      String runtimeId,
+      Principal principal) throws Exception
+   {
+      return visualizationServiceProxy.getComponents(runtimeId, principal);
+   }
+
    private final VisualizationServiceProxy visualizationServiceProxy;
 }

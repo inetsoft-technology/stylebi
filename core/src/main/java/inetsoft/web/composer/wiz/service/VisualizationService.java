@@ -22,8 +22,11 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.util.Tool;
 import inetsoft.web.composer.model.TreeNodeModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,7 +44,7 @@ public class VisualizationService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public TreeNodeModel getVisualizations(@ClusterProxyKey String runtimeId, Principal principal) throws Exception {
+   public TreeNodeModel getComponents(@ClusterProxyKey String runtimeId, Principal principal) throws Exception {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
 
       if(rvs == null || rvs.getViewsheet() == null || rvs.getViewsheet().getWizInfo() == null ||
@@ -70,6 +73,10 @@ public class VisualizationService {
                continue;
             }
 
+            if(!Tool.equals(assetEntry.getProperty("visualizationScope"), "private")) {
+               continue;
+            }
+
             TreeNodeModel.Builder builder = TreeNodeModel.builder()
                .icon("viewsheet-icon")
                .dragName("dragVisualization")
@@ -88,6 +95,46 @@ public class VisualizationService {
          }
          catch(Exception e) {
             LOG.error("Failed to load visualization entry: {}", visualization, e);
+         }
+      }
+
+      return TreeNodeModel.builder()
+         .children(children)
+         .build();
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public TreeNodeModel getVisualizations(@ClusterProxyKey String runtimeId, Principal principal) throws Exception {
+      IdentityID user = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
+      AssetEntry visualizationsEntry = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER, "visualizations", user);
+      AssetEntry.Selector assetSelector = new AssetEntry.Selector(
+         AssetEntry.Type.FOLDER, AssetEntry.Type.VIEWSHEET, AssetEntry.Type.REPOSITORY_FOLDER);
+      AssetEntry[] entries = assetRepository.getEntries(
+         visualizationsEntry, principal, ResourceAction.READ, assetSelector);
+      List<TreeNodeModel> children = new ArrayList<>();
+
+      if(entries != null) {
+         for(AssetEntry entry : entries) {
+            if(!"shared".equals(entry.getProperty("visualizationScope"))) {
+               continue;
+            }
+
+            TreeNodeModel.Builder builder = TreeNodeModel.builder()
+               .icon("viewsheet-icon")
+               .dragName("dragVisualization")
+               .data(entry)
+               .leaf(true);
+
+            if(VSUtil.isWizCopyEntry(entry, true)) {
+               AssetEntry wizOriginalVisualization = VSUtil.createWizOriginalVisualization(entry);
+               builder.label(wizOriginalVisualization.getName());
+            }
+            else {
+               builder.label(entry.getName());
+            }
+
+            children.add(builder.build());
          }
       }
 
