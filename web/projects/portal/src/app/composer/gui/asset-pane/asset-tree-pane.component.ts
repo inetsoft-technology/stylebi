@@ -100,7 +100,6 @@ export class AssetTreePane implements OnChanges, OnInit {
    @Input() openedSheets: Sheet[];
    @Input() opendTabs: ComposerTabModel[];
    @Input() viewsheetPermission = true;
-   @Input() wizAssets: boolean = false;
    @Output() onOpenLibraryAsset = new EventEmitter<OpenLibraryAssetEvent>();
    @Output() onOpenSheet = new EventEmitter<OpenSheetEvent>();
    @Output() onNewViewsheet: EventEmitter<AssetEntry> = new EventEmitter<AssetEntry>();
@@ -292,10 +291,6 @@ export class AssetTreePane implements OnChanges, OnInit {
       else if(AssetEntryHelper.isRoot(entry) && entry.scope !== AssetConstants.QUERY_SCOPE &&
          !AssetEntryHelper.isScriptFolder(entry) && !AssetEntryHelper.isLibraryFolder(entry))
       {
-         if(this.wizAssets) {
-            group.actions.push(this.createNewWizAction(entry));
-         }
-
          group.actions.push(this.createNewFolderAction(entry));
       }
       else if(AssetEntryHelper.isViewsheet(entry) || AssetEntryHelper.isVSSnapshot(entry)) {
@@ -349,10 +344,6 @@ export class AssetTreePane implements OnChanges, OnInit {
             group.actions.push(this.createNewScriptAction(entry));
          }
          else if(AssetEntryHelper.isFolder(entry)) {
-            if(this.wizAssets) {
-               group.actions.push(this.createNewWizAction(entry));
-            }
-
             group.actions.push(this.createNewFolderAction(entry));
             group.actions.push(this.createRenameFolderAction(node));
             group.actions.push(this.createDeleteFolderAction(entries));

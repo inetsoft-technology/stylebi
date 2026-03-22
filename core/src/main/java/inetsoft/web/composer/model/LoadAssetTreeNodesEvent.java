@@ -40,13 +40,29 @@ public abstract class LoadAssetTreeNodesEvent {
    public abstract String[] path();
 
    @Value.Default
-   public int index() { return 0; }
+   public int index() {
+      return 0;
+   }
 
    @Value.Default
-   public int scope() { return 0; }
+   public int scope() {
+      return 0;
+   }
 
    @Value.Default
-   public boolean loadAll() { return false; }
+   public boolean loadAll() {
+      return false;
+   }
+
+   @Value.Default
+   public boolean publish() {
+      return false;
+   }
+
+   @Value.Default
+   public boolean shared() {
+      return false;
+   }
 
    public static Builder builder() {
       return new Builder();

@@ -24,6 +24,8 @@ export class LoadAssetTreeNodesEvent {
    private index: number = 0;
    private scope: number = 0;
    private loadAll: boolean = false;
+   private publish: boolean = false;
+   private shared: boolean = false;
 
    getTargetEntry(): AssetEntry {
       return this.targetEntry;
@@ -72,4 +74,21 @@ export class LoadAssetTreeNodesEvent {
    setLoadAll(value: boolean) {
       this.loadAll = value;
    }
+
+   isPublish(): boolean {
+      return this.publish;
+   }
+
+   setPublish(value: boolean) {
+      this.publish = value;
+   }
+
+   isShared(): boolean {
+      return this.shared;
+   }
+
+   setShared(value: boolean) {
+      this.shared = value;
+   }
+
 }

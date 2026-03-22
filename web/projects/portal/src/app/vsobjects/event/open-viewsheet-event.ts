@@ -170,6 +170,11 @@ export class OpenViewsheetEvent implements ViewsheetEvent {
    public wizVisualization: boolean = false;
 
    /**
+    * standalone wiz visualization mode
+    */
+   public standaloneVisualization: boolean = false;
+
+   /**
     * wiz visualization parent sheet.
     */
    public visualizationSheet: string;
@@ -196,7 +201,7 @@ export class OpenViewsheetEvent implements ViewsheetEvent {
     */
    constructor(entryId: string, width: number, height: number, mobile: boolean, userAgent: string,
                meta?: boolean, newSheet?: boolean, wizSheet?: boolean, wizVisualization?: boolean,
-               visualizationSheet?: string, wizSheetRuntimeId?: string)
+               standaloneVisualization?: boolean, visualizationSheet?: string, wizSheetRuntimeId?: string)
    {
       this.entryId = entryId;
       this.width = width;
@@ -207,6 +212,7 @@ export class OpenViewsheetEvent implements ViewsheetEvent {
       this.newSheet = newSheet;
       this.wizSheet = wizSheet;
       this.wizVisualization = wizVisualization;
+      this.standaloneVisualization = standaloneVisualization;
       this.visualizationSheet = visualizationSheet;
       this.wizSheetRuntimeId = wizSheetRuntimeId;
    }

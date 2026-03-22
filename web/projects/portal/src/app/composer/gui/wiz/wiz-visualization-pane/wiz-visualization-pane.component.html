@@ -1,6 +1,6 @@
 <!--
   ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
+  ~ Copyright (C) 2026  InetSoft Technology
   ~
   ~ This program is free software: you can redistribute it and/or modify
   ~ it under the terms of the GNU Affero General Public License as published by
@@ -15,15 +15,16 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div *ngIf="initError" class="wiz-init-error">
-  <span class="wiz-init-error-message">{{initError}}</span>
-  <button type="button" class="btn btn-default" (click)="exit()">_#(Exit)</button>
-</div>
-<split-pane *ngIf="!initError" direction="horizontal" [sizes]="[50, 50]" [minSize]="200"
+<split-pane *ngIf="!initError" direction="horizontal" [sizes]="[60, 40]" [minSize]="200"
            [snapOffset]="0" [gutterSize]="4">
-  <!-- Left: AI dialog placeholder (web component will be embedded here) -->
+  <!-- Left: Viewsheet object preview -->
+  <div class="wiz-preview-panel split bordered-box">
+    <wiz-vs-preview [viewsheet]="currentVisualization"></wiz-vs-preview>
+  </div>
+
+  <!-- Right: AI dialog placeholder (web component will be embedded here) -->
   <div class="wiz-dialog-panel split">
-    <wiz-chat *ngIf="!!currentVisualization?.runtimeId" class="wiz-chat-pane"
+    <wiz-chat *ngIf="!!currentVisualization?.runtimeId || currentVisualization?.standaloneVisualization" class="wiz-chat-pane"
               [attr.stylebi-url]="wizPortalService.styleBIUrl"
               [attr.visualization-runtime-id]="currentVisualization?.runtimeId"
               [attr.chat-session-id]="currentVisualization?.chatSessionId"
@@ -32,14 +33,5 @@
               [attr.domain]="wizPortalService.domain || null"
               (refreshViewsheet)="refreshVisualization()">
     </wiz-chat>
-  </div>
-
-  <!-- Right: Viewsheet object preview -->
-  <div class="wiz-preview-panel split bordered-box">
-    <div class="wiz-action-bar">
-      <button type="button" class="btn btn-default" (click)="exit()">_#(Exit)</button>
-      <button type="button" class="btn btn-primary" (click)="accept()">_#(Accept)</button>
-    </div>
-    <wiz-vs-preview [viewsheet]="currentVisualization"></wiz-vs-preview>
   </div>
 </split-pane>

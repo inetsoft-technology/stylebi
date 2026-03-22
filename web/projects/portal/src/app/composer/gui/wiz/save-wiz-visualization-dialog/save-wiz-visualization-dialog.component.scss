@@ -1,4 +1,4 @@
-/*
+/*!
  * This file is part of StyleBI.
  * Copyright (C) 2026  InetSoft Technology
  *
@@ -15,18 +15,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+.rep-tree {
+   height: 360px;
+   overflow: auto;
+}
 
-import { AssetEntry } from "../../../../../../shared/data/asset-entry";
-import { FontService } from "../../../widget/services/font.service";
-import { Viewsheet } from "./viewsheet";
+.save-type-container {
+   padding: 1rem 0;
+}
 
-export class WizDashboard extends Viewsheet {
-   baseEntries: AssetEntry[];
-   wizSheetRuntimeId: string;
-   standaloneVisualization: boolean;
+.save-type-label {
+   margin-bottom: 1rem;
+   font-weight: 500;
+}
 
-   constructor(fontService: FontService = null, sheet: Viewsheet = null, public visualization: boolean = false, public visualizationSheet?: string) {
-      super(fontService, sheet);
-      this.type = "wiz";
-   }
+.save-type-option {
+   margin-bottom: 0.75rem;
 }

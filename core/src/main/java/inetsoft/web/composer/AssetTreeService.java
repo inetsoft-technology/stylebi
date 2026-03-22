@@ -141,13 +141,13 @@ public class AssetTreeService {
                                                boolean includeTableStyles, boolean includeScripts,
                                                boolean includeLibrary,
                                                boolean reportRepositoryEnabled, boolean readOnly,
-                                               boolean physical, boolean onlyWizAssets,LoadAssetTreeNodesEvent event,
+                                               boolean physical, LoadAssetTreeNodesEvent event,
                                                Principal principal)
       throws Exception
    {
       return getNodes(includeDatasources, includeColumns, includeWorksheets, includeViewsheets,
                       includeTableStyles, includeScripts, includeLibrary, false,
-                      reportRepositoryEnabled, readOnly, physical, onlyWizAssets, event, principal);
+                      reportRepositoryEnabled, readOnly, physical, event, principal);
    }
 
    /**
@@ -160,13 +160,13 @@ public class AssetTreeService {
                                                boolean includeTableStyles, boolean includeScripts,
                                                boolean includeLibrary, boolean includeModel,
                                                boolean reportRepositoryEnabled, boolean readOnly,
-                                               boolean physical, boolean onlyWizAssets, LoadAssetTreeNodesEvent event,
+                                               boolean physical, LoadAssetTreeNodesEvent event,
                                                Principal principal)
       throws Exception
    {
       return getNodes0(includeDatasources, includeColumns, includeWorksheets, includeViewsheets,
                        includeTableStyles, includeScripts, includeLibrary, includeModel,
-                       reportRepositoryEnabled, readOnly, physical, onlyWizAssets, event, principal,
+                       reportRepositoryEnabled, readOnly, physical, event, principal,
                        readOnly || assetRepository.checkPermission(
                           principal, ResourceType.WORKSHEET, "*", EnumSet.of(ResourceAction.ACCESS)),
                        SecurityEngine.getSecurity().checkPermission(
@@ -192,21 +192,9 @@ public class AssetTreeService {
       boolean reportRepositoryEnabled,
       boolean readOnly,
       boolean physical,
-      boolean onlyWizAssets,
       LoadAssetTreeNodesEvent event, Principal principal, boolean worksheetPermission, boolean sqlEnabled, boolean viewsheetPermission)
       throws Exception
    {
-      if(onlyWizAssets) {
-         includeDatasources = false;
-         includeColumns = false;
-         includeWorksheets = false;
-         includeTableStyles =  false;
-         includeScripts = false;
-         includeLibrary = false;
-         includeModel = false;
-         physical = false;
-      }
-
       LoadAssetTreeNodesValidator result;
       TreeNodeModel treeNodeModel;
       Catalog catalog = Catalog.getCatalog(principal);
@@ -246,7 +234,13 @@ public class AssetTreeService {
          }
 
          if(includeViewsheets && viewsheetPermission) {
-            addViewsheetRootNodes(children, user, onlyWizAssets, principal);
+            if(event.publish()) {
+               addViewsheetRootNodes(children, user, principal);
+            }
+
+            if(event.shared()) {
+               addVisualizationRootNodes(children, user, principal);
+            }
          }
 
          if(includeLibrary && (viewsheetPermission || worksheetPermission)) {
@@ -324,8 +318,8 @@ public class AssetTreeService {
                children = getChildren(expandedEntry, principal, assetSelector);
             }
 
-            if(onlyWizAssets && children != null && children.length > 0) {
-               children = Arrays.stream(children).filter(e -> !e.isViewsheet() || "true".equals(e.getProperty("isWizSheet"))).toArray(AssetEntry[]::new);
+            if(children != null && children.length > 0 && (event.publish() || event.shared())) {
+               children = filterByVisualizationScope(children, event.publish(), event.shared());
             }
 
             if(expandedEntry.isRoot() && expandedEntry.getScope() == AssetRepository.GLOBAL_SCOPE) {
@@ -338,12 +332,12 @@ public class AssetTreeService {
                                              physical, event);
                   updatedChildren.add(userWSRootModel);
                }
-               else if(expandedEntry.getType() == AssetEntry.Type.REPOSITORY_FOLDER && !onlyWizAssets) {
+               else if(expandedEntry.getType() == AssetEntry.Type.REPOSITORY_FOLDER) {
                   TreeNodeModel userVSRootModel =
                      createUserViewsheetRoot(principal, includeDatasources, includeColumns,
                                              includeWorksheets, includeViewsheets,
                                              reportRepositoryEnabled,
-                                             readOnly, physical, onlyWizAssets, event);
+                                             readOnly, physical, event);
                   updatedChildren.add(userVSRootModel);
                }
             }
@@ -402,7 +396,7 @@ public class AssetTreeService {
                                          includeWorksheets, includeViewsheets,
                                          includeTableStyles, includeScripts, includeLibrary, includeModel,
                                          reportRepositoryEnabled, readOnly,
-                                         physical, onlyWizAssets, childEvent, principal, worksheetPermission,
+                                         physical, childEvent, principal, worksheetPermission,
                                          sqlEnabled, viewsheetPermission)
                                   .treeNodeModel().children())
                .expanded(childEventOptional.isPresent())
@@ -413,7 +407,7 @@ public class AssetTreeService {
          {
             child = loadAllChildren(includeDatasources, includeColumns, includeWorksheets,
                                     includeViewsheets, includeTableStyles, includeScripts, includeLibrary, reportRepositoryEnabled, readOnly,
-                                    physical, onlyWizAssets, child, childEvent, principal,
+                                    physical, child, childEvent, principal,
                                     assetEntry -> assetEntry != null && assetEntry.isDataSourceFolder(),
                                     assetEntry -> assetEntry != null && assetEntry.isDataSource());
          }
@@ -423,7 +417,7 @@ public class AssetTreeService {
             child = loadAllChildren(includeDatasources, includeColumns, includeWorksheets,
                                     includeViewsheets, includeTableStyles, includeScripts, includeLibrary,
                                     reportRepositoryEnabled, readOnly,
-                                    physical, onlyWizAssets, child, childEvent, principal,
+                                    physical, child, childEvent, principal,
                                     assetEntry -> assetEntry != null && assetEntry.isDataModelFolder(),
                                     assetEntry -> assetEntry != null && assetEntry.isLogicModel());
          }
@@ -508,7 +502,7 @@ public class AssetTreeService {
                List<TreeNodeModel> childNodes = getNodes0(
                   includeDatasources, includeColumns, includeWorksheets,
                   includeViewsheets, includeTableStyles, includeScripts, includeLibrary, includeModel,
-                  reportRepositoryEnabled, readOnly, physical, onlyWizAssets, childEvent, principal,
+                  reportRepositoryEnabled, readOnly, physical, childEvent, principal,
                   worksheetPermission, sqlEnabled, viewsheetPermission)
                   .treeNodeModel().children();
 
@@ -557,7 +551,7 @@ public class AssetTreeService {
                                          boolean includeWorksheets, boolean includeViewsheets,
                                          boolean includeTableStyles, boolean includeScripts, boolean includeLibrary,
                                          boolean reportRepositoryEnabled,
-                                         boolean readOnly, boolean physical, boolean wizAssets,
+                                         boolean readOnly, boolean physical,
                                          TreeNodeModel treeNodeModel, LoadAssetTreeNodesEvent event,
                                          Principal principal,
                                          Function<AssetEntry, Boolean> folderMatcher,
@@ -581,7 +575,7 @@ public class AssetTreeService {
          if(folderMatcher.apply(centry)) {
             updateChild = loadAllChildren(includeDatasources, includeColumns, includeWorksheets,
                                           includeViewsheets, includeTableStyles, includeScripts, includeLibrary, reportRepositoryEnabled,
-                                          readOnly, physical, wizAssets, child, event, principal,
+                                          readOnly, physical, child, event, principal,
                                           folderMatcher, assetMatcher);
          }
          else if(assetMatcher.apply(centry)) {
@@ -595,7 +589,7 @@ public class AssetTreeService {
                   .addAllChildren(getNodes(includeDatasources, includeColumns, includeWorksheets,
                                            includeViewsheets, includeTableStyles, includeScripts, includeLibrary,
                                            reportRepositoryEnabled, readOnly,
-                                           physical, wizAssets, childEvent, principal)
+                                           physical, childEvent, principal)
                                      .treeNodeModel().children())
                   .expanded(false)
                   .build();
@@ -617,6 +611,34 @@ public class AssetTreeService {
    {
       return assetRepository.getEntries(
          expandedEntry, principal, ResourceAction.READ, assetSelector);
+   }
+
+   /**
+    * Filters entries based on the visualizationScope property.
+    * publish=true: keep entries where visualizationScope is null/absent or "public", plus all folders.
+    * shared=true:  keep entries where visualizationScope is "shared", plus all folders.
+    */
+   private AssetEntry[] filterByVisualizationScope(AssetEntry[] entries,
+                                                   boolean publish, boolean shared)
+   {
+      return Arrays.stream(entries)
+         .filter(e -> {
+            if(e.isFolder() || e.isRepositoryFolder()) {
+               return true;
+            }
+
+            String scope = e.getProperty("visualizationScope");
+
+            if(publish) {
+               return scope == null || "public".equals(scope);
+            }
+            else if(shared) {
+               return "shared".equals(scope);
+            }
+
+            return true;
+         })
+         .toArray(AssetEntry[]::new);
    }
 
    private AssetEntry[] getReportRepositoryChildren(
@@ -713,7 +735,7 @@ public class AssetTreeService {
       return userWSRootModel;
    }
 
-   private void addViewsheetRootNodes(List<TreeNodeModel> children, IdentityID user, boolean onlyWizAssets,
+   private void addViewsheetRootNodes(List<TreeNodeModel> children, IdentityID user,
                                       Principal principal)
    {
       AssetEntry entry = new AssetEntry(
@@ -721,7 +743,19 @@ public class AssetTreeService {
          "/", user);
       Catalog catalog = Catalog.getCatalog();
 
-      children.add(createNodeFromEntry(entry, catalog.getString(onlyWizAssets ? "Wiz Dashboard" : "Global Viewsheet"), principal));
+      children.add(createNodeFromEntry(entry, catalog.getString("Global Viewsheet"), principal));
+   }
+
+   private void addVisualizationRootNodes(List<TreeNodeModel> children, IdentityID user,
+                                          Principal principal)
+   {
+      AssetEntry entry = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER,
+         "visualizations", user);
+      Catalog catalog = Catalog.getCatalog();
+      entry.setProperty("visualizationRoot", "true");
+
+      children.add(createNodeFromEntry(entry, catalog.getString("Visualizations"), principal));
    }
 
    private void addLibraryRootNodes(List<TreeNodeModel> children, IdentityID user,
@@ -753,7 +787,7 @@ public class AssetTreeService {
    private TreeNodeModel createUserViewsheetRoot(
       Principal principal, boolean includeDatasources, boolean includeColumns,
       boolean includeWorksheets, boolean includeViewsheets, boolean reportRepositoryEnabled,
-      boolean readOnly, boolean physical, boolean wizAssets, LoadAssetTreeNodesEvent event)
+      boolean readOnly, boolean physical, LoadAssetTreeNodesEvent event)
       throws Exception
    {
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
@@ -783,7 +817,7 @@ public class AssetTreeService {
             .addAllChildren(getNodes(includeDatasources, includeColumns, includeWorksheets,
                                      includeViewsheets, false, false, false,
                                      reportRepositoryEnabled, readOnly,
-                                     physical, wizAssets, childEvent, principal)
+                                     physical, childEvent, principal)
                                .treeNodeModel().children())
             .expanded(childEventOptional.isPresent())
             .build();

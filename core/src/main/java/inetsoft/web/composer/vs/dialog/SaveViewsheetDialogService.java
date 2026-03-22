@@ -261,6 +261,11 @@ public class SaveViewsheetDialogService {
          }
       }
 
+      if(model.getVisualizationScope() != null) {
+         entry.setProperty("visualizationScope", model.getVisualizationScope());
+         ensureParentFolderExists(entry.getParent(), principal);
+      }
+
       String objectName = parent.getDescription() + "/" + model.getName();
       ActionRecord actionRecord = SUtil.getActionRecord(principal,
                                                         ActionRecord.ACTION_NAME_CREATE,
@@ -347,6 +352,21 @@ public class SaveViewsheetDialogService {
    public java.lang.Void addWizSheetVisualization(@ClusterProxyKey String rId, String entryId, Principal principal) throws Exception
    {
       return WizViewsheetService.updateWizSheetByCopyVisualization(viewsheetService.getViewsheet(rId, principal), entryId);
+   }
+
+   private void ensureParentFolderExists(AssetEntry folder, Principal principal) {
+      if(folder == null || folder.isRoot()) {
+         return;
+      }
+
+      try {
+         if(!assetRepository.containsEntry(folder)) {
+            assetRepository.addFolder(folder, principal);
+         }
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to ensure visualization folder exists: {}", folder, ex);
+      }
    }
 
    private static final class IsDuplicateTask implements ViewsheetService.Task<Boolean> {

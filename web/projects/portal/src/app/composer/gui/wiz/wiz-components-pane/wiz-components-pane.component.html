@@ -16,6 +16,12 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div class="wiz-components-pane">
+  <div class="wiz-components-toolbar">
+    <button type="button" class="btn btn-default btn-sm new-chat-btn" (click)="newVisualization()">
+      <i class="new-viewsheet-icon icon-size-small"></i>
+      _#(js:New Chat)
+    </button>
+  </div>
   <tree *ngIf="root" [root]="root" [showRoot]="false" [draggable]="true" [contextmenu]="true" [hasMenuFunction]="hasMenuFunction()"
         [initExpanded]="true" [nodeSelectable]="false" (onContextmenu)="openContextmenu($event)" (dblclickNode)="openVisualization($event)">
   </tree>

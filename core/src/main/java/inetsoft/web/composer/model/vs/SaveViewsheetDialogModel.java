@@ -17,9 +17,11 @@
  */
 package inetsoft.web.composer.model.vs;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class SaveViewsheetDialogModel implements Serializable {
    public String getName() {
       return name;
@@ -60,8 +62,17 @@ public class SaveViewsheetDialogModel implements Serializable {
       this.updateDepend = updateDepend;
    }
 
+   public String getVisualizationScope() {
+      return visualizationScope;
+   }
+
+   public void setVisualizationScope(String visualizationScope) {
+      this.visualizationScope = visualizationScope;
+   }
+
    private String name;
    private String parentId;
    private VSOptionsPaneModel viewsheetOptionsPaneModel;
    private boolean updateDepend;
+   private String visualizationScope;
 }
