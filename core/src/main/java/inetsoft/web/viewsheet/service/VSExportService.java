@@ -813,6 +813,19 @@ public class VSExportService {
             abox.refreshVariableTable(rbox.getVariableTable());
          }
 
+         // Clear input assembly variables from the sandbox variable table before reset.
+         // During reset, applyParameterToInput() reads from this table and would otherwise
+         // overwrite bookmark-restored assembly selections (checkbox, radio button, etc.)
+         VariableTable sandboxVars = sandbox.getVariableTable();
+
+         if(sandboxVars != null) {
+            for(Assembly assembly : vs.getAssemblies()) {
+               if(assembly instanceof InputVSAssembly) {
+                  sandboxVars.remove(assembly.getName());
+               }
+            }
+         }
+
          try {
             sandbox.processOnInit();
             sandbox.reset(null, vs.getAssemblies(),
