@@ -32,11 +32,13 @@ import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
+
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Controller;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import inetsoft.util.MessageException;
 
 import java.awt.*;
 import java.security.Principal;
@@ -205,7 +207,7 @@ public class SliderPropertyDialogController {
       }
 
       if(sliderAssembly == null) {
-         throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Slider not found: " + objectId);
+         throw new MessageException("Slider not found: " + objectId);
       }
 
       sliderAssemblyInfo = (SliderVSAssemblyInfo) Tool.clone(sliderAssembly.getVSAssemblyInfo());

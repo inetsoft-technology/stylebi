@@ -1037,6 +1037,12 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
       Element anode = Tool.getChildNodeByTagName(elem, "absoluteName");
       aname = Tool.getValue(anode);
 
+      // Legacy exports written before bug #74209 serialized a null absoluteName as the
+      // string "null". Sanitize it here so old ZIPs import correctly.
+      if("null".equals(aname)) {
+         aname = null;
+      }
+
       Element lnode = Tool.getChildNodeByTagName(elem, "hyperLink");
 
       if(lnode != null) {
