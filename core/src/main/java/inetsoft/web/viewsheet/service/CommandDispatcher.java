@@ -66,8 +66,12 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
       this.clientId = null;
       this.sessionRepository = sessionRepository;
       String sessionId = headerAccessor.getSessionId();
-      this.sessionState = sessionId != null
-         ? SESSION_STATES.computeIfAbsent(sessionId, k -> new SessionDispatchState())
+      MessageAttributes msgAttrs = MessageContextHolder.currentMessageAttributes();
+      String runtimeId = msgAttrs != null ? (String) msgAttrs.getAttribute(RUNTIME_ID_ATTR) : null;
+      this.sessionState = (sessionId != null && runtimeId != null)
+         ? SESSION_STATES
+              .computeIfAbsent(sessionId, k -> new ConcurrentHashMap<>())
+              .computeIfAbsent(runtimeId, k -> new SessionDispatchState())
          : new SessionDispatchState();
    }
 
@@ -437,9 +441,9 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
       TimerTask timerTask = null; // accessed only under synchronized(pending)
    }
 
-   /** Per-session shared dispatch state, keyed by STOMP session ID. */
-   private static final ConcurrentHashMap<String, SessionDispatchState> SESSION_STATES =
-      new ConcurrentHashMap<>();
+   /** Per-session shared dispatch state, keyed by STOMP session ID then viewsheet runtime ID. */
+   private static final ConcurrentHashMap<String, ConcurrentHashMap<String, SessionDispatchState>>
+      SESSION_STATES = new ConcurrentHashMap<>();
 
    /**
     * Removes the shared dispatch state for a session on disconnect, preventing a memory leak.
