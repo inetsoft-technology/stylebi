@@ -19,14 +19,12 @@ package inetsoft.web.composer.wiz.controller;
 
 import inetsoft.web.composer.wiz.event.AddFilterEvent;
 import inetsoft.web.composer.wiz.event.AddVisualizationEvent;
-import inetsoft.web.composer.wiz.service.AddVisualizationService;
 import inetsoft.web.composer.wiz.service.AddVisualizationServiceProxy;
 import inetsoft.web.viewsheet.controller.VSRefreshServiceProxy;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.LinkUri;
-import inetsoft.web.viewsheet.command.InitGridCommand;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
@@ -66,7 +64,7 @@ public class WizComposerController {
          runtimeId, event.getEntry(), event.getxOffset(), event.getyOffset(),
          event.getScale(), principal);
       vsRefreshServiceProxy.refreshViewsheetAsync(this.runtimeViewsheetRef.getRuntimeId(),
-                                                  VSRefreshEvent.builder().confirmed(false).build(), principal, dispatcher, linkUri);
+         VSRefreshEvent.builder().confirmed(false).build(), principal, dispatcher, linkUri);
    }
 
    /**

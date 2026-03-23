@@ -124,11 +124,14 @@ public class AddVisualizationService {
       if(dashVS.getBaseEntry() != null) {
          dashWS = (Worksheet) assetRepository.getSheet(
             dashVS.getBaseEntry(), principal, false, AssetContent.ALL);
-      }
 
-      if(dashVS.getBaseEntry() == null) {
+         if(dashWS == null) {
+            throw new Exception("Could not load worksheet for visualization: " + dashVS.getBaseEntry());
+         }
+      }
+      else {
          // First visualization: create a transient worksheet and register it on the dashboard VS.
-         // A TEMPORARY_SCOPE entry is used because this worksheet is synthesised at runtime and
+         // A GLOBAL_SCOPE entry is used because this worksheet is synthesised at runtime and
          // never persisted as a standalone repository asset.
          dashWS = new Worksheet();
          AssetEntry tempWsEntry = new AssetEntry(
@@ -339,12 +342,12 @@ public class AddVisualizationService {
       String mirrorName = ensureUniqueName(
          WIZ_MIRROR_PREFIX + vizSuffix + "_" + base.getName(), dashWS);
 
-      ColumnSelection vizCols = (ColumnSelection) srcTable.getColumnSelection(true).clone();
+      ColumnSelection vizCols = srcTable.getColumnSelection(true).clone();
 
       MirrorTableAssembly mirror = new MirrorTableAssembly(dashWS, mirrorName, base);
       mirror.setColumnSelection(vizCols, true);
-      mirror.setPreConditionList(srcTable.getPreConditionList());
-      mirror.setPostConditionList(srcTable.getPostConditionList());
+      mirror.setPreConditionList((ConditionListWrapper) srcTable.getPreConditionList().clone());
+      mirror.setPostConditionList((ConditionListWrapper) srcTable.getPostConditionList().clone());;
       mirror.setAggregateInfo((AggregateInfo) srcTable.getAggregateInfo().clone());
       dashWS.addAssembly(mirror);
 
@@ -363,6 +366,10 @@ public class AddVisualizationService {
                                 Map<String, String> wsRenameMap,
                                 int xOffset, int yOffset, float scale)
    {
+      if(scale <= 0f) {
+         scale = 1f;
+      }
+
       int offsetX = (int) (xOffset / scale);
       int offsetY = (int) (yOffset / scale);
 
