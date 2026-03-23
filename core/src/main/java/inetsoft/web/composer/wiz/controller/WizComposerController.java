@@ -19,6 +19,9 @@ package inetsoft.web.composer.wiz.controller;
 
 import inetsoft.web.composer.wiz.event.AddFilterEvent;
 import inetsoft.web.composer.wiz.event.AddVisualizationEvent;
+import inetsoft.web.composer.wiz.service.AddVisualizationServiceProxy;
+import inetsoft.web.viewsheet.controller.VSRefreshServiceProxy;
+import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.LinkUri;
@@ -33,8 +36,12 @@ import java.security.Principal;
  */
 @Controller
 public class WizComposerController {
-   public WizComposerController(RuntimeViewsheetRef runtimeViewsheetRef) {
+   public WizComposerController(RuntimeViewsheetRef runtimeViewsheetRef,
+                                AddVisualizationServiceProxy addVisualizationServiceProxy, VSRefreshServiceProxy vsRefreshServiceProxy)
+   {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.addVisualizationServiceProxy = addVisualizationServiceProxy;
+      this.vsRefreshServiceProxy = vsRefreshServiceProxy;
    }
 
    /**
@@ -53,7 +60,11 @@ public class WizComposerController {
       throws Exception
    {
       String runtimeId = runtimeViewsheetRef.getRuntimeId();
-      // TODO: implement adding the visualization (entry) to the dashboard viewsheet
+      addVisualizationServiceProxy.addVisualization(
+         runtimeId, event.getEntry(), event.getxOffset(), event.getyOffset(),
+         event.getScale(), principal);
+      vsRefreshServiceProxy.refreshViewsheetAsync(this.runtimeViewsheetRef.getRuntimeId(),
+         VSRefreshEvent.builder().confirmed(false).build(), principal, dispatcher, linkUri);
    }
 
    /**
@@ -80,4 +91,6 @@ public class WizComposerController {
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final AddVisualizationServiceProxy addVisualizationServiceProxy;
+   private final VSRefreshServiceProxy vsRefreshServiceProxy;
 }
