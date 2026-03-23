@@ -31,6 +31,7 @@ import inetsoft.web.notifications.NotificationService;
 import inetsoft.web.viewsheet.command.ExpiredSheetCommand;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
+import inetsoft.web.GlobalExceptionHandler;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
@@ -156,6 +157,15 @@ public class ComposerControllerErrorHandler {
    @MessageExceptionHandler(Exception.class)
    public void handleException(Exception e, CommandDispatcher commandDispatcher) throws Exception {
       MessageCommand command = new MessageCommand();
+
+      if(GlobalExceptionHandler.isCacheStoppedException(e)) {
+         LOG.debug("Cache stopped during request", e);
+         command.setMessage(Catalog.getCatalog().getString("common.cacheStoppedError"));
+         command.setType(MessageCommand.Type.ERROR);
+         commandDispatcher.sendCommand(command);
+         return;
+      }
+
       String msg = e.getMessage();
       command.setMessage(Catalog.getCatalog().getString("internal.error") +
                          (msg != null ? " " + msg : ""));

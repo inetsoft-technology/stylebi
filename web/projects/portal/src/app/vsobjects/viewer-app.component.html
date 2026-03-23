@@ -67,18 +67,18 @@
               (click)="previousPage()"
               *ngIf="isPreviousPageVisible()"
               [disabled]="isPreviousPageDisabled()"
-              title="_#(Previous Page)"
+              title="_#(Undo)"
               (vsToolbarButton)="onToolbarButtonFocus($event)">
-        <i class="arrow-left-circle-outline-icon viewer-toolbar-icon-align" aria-hidden="true"
+        <i class="undo-icon viewer-toolbar-icon-align" aria-hidden="true"
            [class.icon-disabled]="!undoEnabled || maxMode"></i>
-        <span class="visually-hidden">_#(Previous Page)</span>
+        <span class="visually-hidden">_#(Undo)</span>
       </button>
       <button type="button" class="viewer-toolbar-btn icon-hover-bg bg-white1" (click)="nextPage()"
               *ngIf="isNextPageVisible()" [disabled]="isNextPageDisabled()"
-              title="_#(Next Page)"
+              title="_#(Redo)"
               (vsToolbarButton)="onToolbarButtonFocus($event)">
-        <i class="arrow-right-circle-outline-icon viewer-toolbar-icon-align" [class.icon-disabled] = "!redoEnabled" aria-hidden="true"></i>
-        <span class="visually-hidden">_#(Next Page)</span>
+        <i class="redo-icon viewer-toolbar-icon-align" [class.icon-disabled]="!redoEnabled" aria-hidden="true"></i>
+        <span class="visually-hidden">_#(Redo)</span>
       </button>
       <ng-container>
         <button type="button" class="viewer-toolbar-btn icon-hover-bg bg-white1" (click)="editViewsheet()"

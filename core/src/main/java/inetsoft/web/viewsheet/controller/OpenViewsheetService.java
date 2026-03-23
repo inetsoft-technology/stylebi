@@ -53,7 +53,7 @@ public class OpenViewsheetService {
                              CommandDispatcher commandDispatcher, Principal principal) throws Exception {
       AssetEntry entry = AssetEntry.createAssetEntry(eventEntryId);
 
-      if(entry.getScope() != AssetRepository.TEMPORARY_SCOPE) {
+      if(entry != null && entry.getScope() != AssetRepository.TEMPORARY_SCOPE) {
          VSEventUtil.deleteAutoSavedFile(entry, principal);
       }
 

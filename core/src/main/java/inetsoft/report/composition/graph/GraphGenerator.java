@@ -2303,7 +2303,7 @@ public abstract class GraphGenerator {
             }
 
             AxisDescriptor axisD = getAxisDescriptor(scale, null);
-            setupAxisSpec(axis, axisD, scale.getFields(), false);
+            setupAxisSpec(axis, axisD, scale.getFields(), false, scale instanceof LinearScale);
 
             if(scale instanceof TimeScale) {
                ((TimeScale) scale).setIncrement(axisD.getIncrement());
@@ -2342,7 +2342,7 @@ public abstract class GraphGenerator {
             boolean isY = scale instanceof LinearScale;
             AxisSpec axis = createAxisSpec(axisD, plotdesc, flds, scale, false, true, !isY);
 
-            setupAxisSpec(axis, axisD, scale.getFields(), false);
+            setupAxisSpec(axis, axisD, scale.getFields(), false, isY);
 
             if(axisD.isNoNull()) {
                scale.setScaleOption(scale.getScaleOption() | Scale.NO_NULL);
@@ -2491,7 +2491,9 @@ public abstract class GraphGenerator {
    }
 
    // set AxisSpec from axis descriptor
-   protected void setupAxisSpec(AxisSpec axis, AxisDescriptor axisD, String[] flds, boolean secondary) {
+   protected void setupAxisSpec(AxisSpec axis, AxisDescriptor axisD, String[] flds, boolean secondary,
+                                boolean linear)
+   {
       CompositeTextFormat format = getAxisLabelFormat(axisD, flds, secondary);
       // should only use the first field's default format (e.g. date comparison %change&value)
       String fld = flds.length > 0 ? flds[0] : null;
@@ -2511,9 +2513,10 @@ public abstract class GraphGenerator {
       axis.setTruncate(axisD.isTruncate());
       axis.setLabelGap(axisD.getLabelGap());
       // Bug #74171: pareto uses the right y-axis for its percentage scale, so
-      // labelOnSecondaryAxis would hide the primary measure axis. Ignore the setting.
+      // labelOnSecondaryAxis would hide the primary measure axis. Ignore the setting for
+      // measure (linear) axes only; dimension axes on y are not affected. (Bug #74191)
       axis.setLabelOnSecondaryAxis(axisD.isLabelOnSecondaryAxis() &&
-                                   info.getChartType() != CHART_PARETO);
+                                   !(GraphTypes.isPareto(info.getChartType()) && linear));
    }
 
    private void assignAxisCSS(AxisDescriptor axisDesc, String axis) {
@@ -2671,7 +2674,7 @@ public abstract class GraphGenerator {
          spec.setMaxLabelSpacing(continous ? 3 : 2);
       }
 
-      setupAxisSpec(spec, xdesc, flds, secondary);
+      setupAxisSpec(spec, xdesc, flds, secondary, scale instanceof LinearScale);
       addHighlightToAxis(spec, flds);
 
       return spec;
