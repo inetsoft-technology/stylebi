@@ -147,7 +147,7 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
          const event = new OpenViewsheetEvent(
             this.currentVisualization.id, size[0], size[1], mobile,
             window.navigator.userAgent, this.currentVisualization.meta,
-            false, false, true, null, this.currentVisualization.wizSheetRuntimeId);
+            false, false, true, false, null, this.currentVisualization.wizSheetRuntimeId);
          event.viewer = false;
 
          this.viewsheetClient.sendEvent("/events/open", event);

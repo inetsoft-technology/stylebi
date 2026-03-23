@@ -38,6 +38,7 @@ import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.RecycleUtils;
 import inetsoft.web.composer.model.*;
+import inetsoft.web.composer.wiz.service.VisualizationService;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
 import org.springframework.stereotype.Service;
 
@@ -625,6 +626,10 @@ public class AssetTreeService {
    {
       return Arrays.stream(entries)
          .filter(e -> {
+            if(Tool.equals(e.getPath(), VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH)) {
+               return false;
+            }
+
             if(e.isFolder() || e.isRepositoryFolder()) {
                return true;
             }
@@ -753,9 +758,8 @@ public class AssetTreeService {
    {
       AssetEntry entry = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER,
-         "visualizations", user);
+         VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH, user);
       Catalog catalog = Catalog.getCatalog();
-      entry.setProperty("visualizationRoot", "true");
 
       children.add(createNodeFromEntry(entry, catalog.getString("Visualizations"), principal));
    }

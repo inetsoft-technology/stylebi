@@ -200,11 +200,12 @@ export class WizComponentsPane implements OnInit, OnChanges {
    }
 
    openVisualization(node: TreeNodeModel) {
-      if(!node?.data?.properties || node.data.properties.isWizVisualization !== "true" || node.data.type !== AssetType.VIEWSHEET) {
+      if(!node?.data?.properties || node.data.type !== AssetType.VIEWSHEET) {
          return;
       }
 
-      this.wizService.onOpenVisualization(node.data.identifier);
+      const standaloneVisualization = node.data?.properties?.visualizationScope !== "private";
+      this.wizService.onOpenVisualization(node.data.identifier, standaloneVisualization);
    }
 
    hasMenuFunction(): any {
@@ -233,17 +234,17 @@ export class WizComponentsPane implements OnInit, OnChanges {
       let groups = [group];
       let node = event[1];
 
-      if(node?.data?.visualizationRoot) {
+      if(node?.data?.visualizationRoot || node?.data?.componentsRoot) {
          group.actions.push({
             id: () => "new-wiz-visualization",
             label: () => "_#(js:New Visualization)",
             icon: () => "",
             enabled: () => true,
             visible: () => true,
-            action: () => this.wizService.onOpenVisualization()
+            action: () => this.wizService.onOpenVisualization(undefined, node?.data?.visualizationRoot)
          });
       }
-      else if(node?.data?.type === AssetType.VIEWSHEET && node?.data?.properties?.isWizVisualization === "true") {
+      else if(node?.data?.type === AssetType.VIEWSHEET) {
          group.actions.push({
             id: () => "open-wiz-visualization",
             label: () => "_#(js:Open)",

@@ -4,12 +4,33 @@
   height: 100%;
 
   .wiz-components-toolbar {
-    padding: 4px;
-    border-bottom: 1px solid var(--inet-border-color, #dee2e6);
+    padding: 10px;
+    border-bottom: 1px solid var(--inet-border-color);
     flex-shrink: 0;
 
     .new-chat-btn {
       width: 100%;
+      padding: 6px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      border: 1px solid var(--inet-primary-color);
+      color: var(--inet-primary-color);
+      background: transparent;
+      transition: background 0.15s ease, color 0.15s ease;
+
+      &:hover {
+        background: var(--inet-primary-color);
+        color: #fff;
+      }
+
+      i {
+        flex-shrink: 0;
+      }
     }
   }
 

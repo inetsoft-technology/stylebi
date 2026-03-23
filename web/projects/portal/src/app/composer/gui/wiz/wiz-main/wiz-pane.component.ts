@@ -34,9 +34,9 @@ export class WizPane implements OnDestroy {
    constructor(private wizService: WizService, private fontService: FontService,
                private modalService: NgbModal)
    {
-      this.subscriptions.add(wizService.openVisualization.subscribe((value: string) => {
+      this.subscriptions.add(wizService.openVisualization.subscribe(({value, standaloneVisualization}) => {
          if(this.active) {
-            this.createVisualization(value);
+            this.createVisualization(value, standaloneVisualization);
          }
       }));
    }
@@ -45,7 +45,7 @@ export class WizPane implements OnDestroy {
       this.subscriptions.unsubscribe();
    }
 
-   createVisualization(value: string) {
+   createVisualization(value: string, standaloneVisualization?: boolean) {
       if(!this.currentDashboard) {
          return;
       }
@@ -59,6 +59,7 @@ export class WizPane implements OnDestroy {
          vs.id = value;
          vs.newSheet = false;
          vs.localId = wizDashboardCounter++;
+         vs.standaloneVisualization = standaloneVisualization;
          this.wizService.onShowVisualization(vs);
       }
       else {
@@ -71,6 +72,7 @@ export class WizPane implements OnDestroy {
                vs.localId = wizDashboardCounter++;
                vs.newSheet = true;
                vs.visualization = true;
+               vs.standaloneVisualization = standaloneVisualization;
                vs.visualizationSheet = this.currentDashboard?.id;
                this.wizService.onShowVisualization(vs);
             }, {});

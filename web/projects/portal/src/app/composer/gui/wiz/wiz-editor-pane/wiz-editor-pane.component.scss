@@ -41,14 +41,14 @@
   }
 }
 
-// Styles from editor-title-bar.component.scss
 .editor-tool-bar {
   width: 100%;
   height: 52px;
   max-height: 52px;
 
   .btn-toolbar-pull-right {
-    right: 120px;
+    position: absolute;
+    right: 10px;
   }
 }
 
