@@ -68,11 +68,18 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
       String sessionId = headerAccessor.getSessionId();
       MessageAttributes msgAttrs = MessageContextHolder.currentMessageAttributes();
       String runtimeId = msgAttrs != null ? (String) msgAttrs.getAttribute(RUNTIME_ID_ATTR) : null;
-      this.sessionState = (sessionId != null && runtimeId != null)
-         ? SESSION_STATES
-              .computeIfAbsent(sessionId, k -> new ConcurrentHashMap<>())
-              .computeIfAbsent(runtimeId, k -> new SessionDispatchState())
-         : new SessionDispatchState();
+      if(sessionId != null && runtimeId != null) {
+         ConcurrentHashMap<String, SessionDispatchState> inner =
+            SESSION_STATES.computeIfAbsent(sessionId, k -> new ConcurrentHashMap<>());
+         SessionDispatchState state = inner.computeIfAbsent(runtimeId, k -> new SessionDispatchState());
+         // Guard against a disconnect event that fired between the two computeIfAbsent calls:
+         // if the outer entry was removed while we were creating the inner map, the inner map
+         // is now orphaned. Fall back to a private state so this one request isn't lost.
+         this.sessionState = SESSION_STATES.containsKey(sessionId) ? state : new SessionDispatchState();
+      }
+      else {
+         this.sessionState = new SessionDispatchState();
+      }
    }
 
    /**
@@ -360,6 +367,9 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
       public void run() {
          try {
             synchronized(sessionState.pending) {
+               // Null out timerTask first so the state is clean after this flush,
+               // regardless of whether the timer fired naturally or was cancelled.
+               sessionState.timerTask = null;
                dispatchPending();
                sessionState.pending.clear();
             }
@@ -454,6 +464,21 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
       }
    }
 
+   /**
+    * Removes the shared dispatch state for a single viewsheet within an active session.
+    * Call this when a viewsheet is closed (but the WebSocket session remains open) to
+    * reclaim the per-runtimeId entry and prevent unbounded growth for long-running sessions
+    * that open and close many viewsheets.
+    */
+   public static void removeRuntimeState(String sessionId, String runtimeId) {
+      if(sessionId != null && runtimeId != null) {
+         SESSION_STATES.computeIfPresent(sessionId, (k, inner) -> {
+            inner.remove(runtimeId);
+            return inner.isEmpty() ? null : inner;
+         });
+      }
+   }
+
    private final FindByIndexNameSessionRepository<? extends Session> sessionRepository;
    private final StompHeaderAccessor headerAccessor;
    private final SimpMessagingTemplate messagingTemplate;
@@ -463,6 +488,8 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
    private String sharedHint;
    private Map<String, Object> detachedAttributes = null;
    private boolean detached = false;
+   // CommandDebouncer is stateless (it only modifies the pending list passed to it),
+   // so each CommandDispatcher instance can have its own without affecting shared state.
    private CommandDebouncer debouncer = new CommandDebouncer();
 
    public static final String RUNTIME_ID_ATTR = "sheetRuntimeId";
