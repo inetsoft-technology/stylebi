@@ -44,6 +44,12 @@ export class WizComponentsPane implements OnInit, OnChanges {
       },
       children: []
    };
+   private components: TreeNodeModel = {
+      label: "_#(js:Components)",
+      icon: "folder-toolbox-icon",
+      data: { componentsRoot: true },
+      children: []
+   };
    private filter: TreeNodeModel = {
       label: "_#(js:Filter)",
       icon: "condition-icon",
@@ -60,6 +66,7 @@ export class WizComponentsPane implements OnInit, OnChanges {
    ngOnInit(): void {
       this.initStaticNodes();
       this.loadVisualizations();
+      this.loadComponents();
       this.loadFilters();
       this.buildRoot();
    }
@@ -67,6 +74,7 @@ export class WizComponentsPane implements OnInit, OnChanges {
    ngOnChanges(changes: SimpleChanges): void {
       if(changes["runtimeId"] && !changes["runtimeId"].firstChange) {
          this.loadVisualizations();
+         this.loadComponents();
          this.loadFilters();
       }
    }
@@ -88,6 +96,29 @@ export class WizComponentsPane implements OnInit, OnChanges {
                this.visualizations.children = [];
             }
          });
+   }
+
+   private loadComponents(): void {
+      if(!this.runtimeId) {
+         this.components.children = [];
+         return;
+      }
+
+      const params = new HttpParams().set("runtimeId", this.runtimeId);
+
+      this.http.get<TreeNodeModel>("../api/composer/wiz/components", { params })
+         .subscribe({
+            next: (result) => {
+               this.components.children = result.children || [];
+            },
+            error: () => {
+               this.components.children = [];
+            }
+         });
+   }
+
+   newVisualization(): void {
+      this.wizService.onOpenVisualization();
    }
 
    private loadFilters(): void {
@@ -113,6 +144,7 @@ export class WizComponentsPane implements OnInit, OnChanges {
       this.root = {
          children: [
             this.visualizations,
+            this.components,
             this.filter,
             this.output,
             this.shape
@@ -168,11 +200,12 @@ export class WizComponentsPane implements OnInit, OnChanges {
    }
 
    openVisualization(node: TreeNodeModel) {
-      if(!node?.data?.properties || node.data.properties.isWizVisualization !== "true" || node.data.type !== AssetType.VIEWSHEET) {
+      if(!node?.data?.properties || node.data.type !== AssetType.VIEWSHEET) {
          return;
       }
 
-      this.wizService.onOpenVisualization(node.data.identifier);
+      const standaloneVisualization = node.data?.properties?.visualizationScope !== "private";
+      this.wizService.onOpenVisualization(node.data.identifier, standaloneVisualization);
    }
 
    hasMenuFunction(): any {
@@ -201,17 +234,17 @@ export class WizComponentsPane implements OnInit, OnChanges {
       let groups = [group];
       let node = event[1];
 
-      if(node?.data?.visualizationRoot) {
+      if(node?.data?.visualizationRoot || node?.data?.componentsRoot) {
          group.actions.push({
             id: () => "new-wiz-visualization",
             label: () => "_#(js:New Visualization)",
             icon: () => "",
             enabled: () => true,
             visible: () => true,
-            action: () => this.wizService.onOpenVisualization()
+            action: () => this.wizService.onOpenVisualization(undefined, node?.data?.visualizationRoot)
          });
       }
-      else if(node?.data?.type === AssetType.VIEWSHEET && node?.data?.properties?.isWizVisualization === "true") {
+      else if(node?.data?.type === AssetType.VIEWSHEET) {
          group.actions.push({
             id: () => "open-wiz-visualization",
             label: () => "_#(js:Open)",

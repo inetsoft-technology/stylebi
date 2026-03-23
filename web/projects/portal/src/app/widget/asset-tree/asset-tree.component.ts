@@ -86,13 +86,14 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    @Input() dataSourceScope: number = null;
    @Input() defaultFolder: AssetEntry = null;
    @Input() readOnly = false;
+   @Input() publish: boolean = true;
+   @Input() shared: boolean = false;
    @Input() forceType: string = null;
    @Input() recentEnabled: boolean;
    @Input() getRecentTreeFun: () => Observable<TreeNodeModel[]>;
    @Input() initSelectedNodesExpanded: boolean;
    @Input() manyNodesUseVirtualScroll: boolean;
    @Input() stickySearch: boolean = false;
-   @Input() wizAssets: boolean = false;
    @Output() nodesSelected = new EventEmitter<TreeNodeModel[]>();
    @Output() nodeSelected = new EventEmitter<TreeNodeModel>();
    @Output() pathSelected = new EventEmitter<TreeNodeModel[]>();
@@ -156,6 +157,8 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
 
    loadAssetTree() {
       const loadAssetTreeNodesEvent: LoadAssetTreeNodesEvent  = new LoadAssetTreeNodesEvent();
+      loadAssetTreeNodesEvent.setPublish(this.publish);
+      loadAssetTreeNodesEvent.setShared(this.shared);
 
       if(this.dataSourcePath) {
          loadAssetTreeNodesEvent.setPath(this.dataSourcePath.split("/"));
@@ -173,7 +176,7 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
                                              this.columns, this.worksheets, this.viewsheets,
                                              this.tableStyles, this.scripts, this.library,
                                              this.reportRepositoryEnabled,
-                                             this.readOnly, this.physical, this.wizAssets)
+                                             this.readOnly, this.physical)
          .subscribe((res) => {
             this.root = res.treeNodeModel;
             this.activeRoot = this.root;
@@ -234,9 +237,6 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
       }
       else if(changes.dataSourcePath && !this.dataSourcePath) {
          this.selectedNodes = [];
-      }
-      else if(changes?.wizAssets) {
-         this.loadAssetTree();
       }
 
       if(refreshWsRoot) {
@@ -405,7 +405,7 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
                                                          this.columns, this.worksheets, this.viewsheets,
                                                          this.tableStyles, this.scripts, this.library,
                                                          this.reportRepositoryEnabled,
-                                                         this.readOnly, this.physical, this.wizAssets);
+                                                         this.readOnly, this.physical);
 
       obs.pipe(
          catchError((error) => {
@@ -570,6 +570,8 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
       let event = new LoadAssetTreeNodesEvent();
       event.setTargetEntry(entry);
       event.setLoadAll(loadAll);
+      event.setPublish(this.publish);
+      event.setShared(this.shared);
 
       if(!loadAll && root && entry && !root.leaf) {
          if(root.expanded && root.children && root.children.length > 0) {
@@ -640,6 +642,8 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
          let entry: AssetEntry = node.data;
          let event = new LoadAssetTreeNodesEvent();
          event.setTargetEntry(entry);
+         event.setPublish(this.publish);
+         event.setShared(this.shared);
          this.refreshNodeChildren(node, event, true);
       }
    }
