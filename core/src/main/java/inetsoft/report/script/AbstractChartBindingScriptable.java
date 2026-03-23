@@ -652,6 +652,11 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
 
          if(hasRef) {
             ref.setVisualFrame(frame);
+
+            // clear the reset flag since user explicitly set the frame (bug #74224)
+            if(getInfo() instanceof VSChartInfo) {
+               ((VSChartInfo) getInfo()).setNeedResetShape(false);
+            }
          }
 
          if(!multi) {
