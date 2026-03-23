@@ -2072,8 +2072,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       this.defaultFolder = entry ? AssetEntryHelper.getParent(entry) : null;
       vs.onSave();
 
-      this.modelService.getModel(modelUri).toPromise().then(
-         (data: any) => {
+      this.modelService.getModel(modelUri).subscribe({
+         next: (data: any) => {
             const visualizationScope = vs.standaloneVisualization ? "public" : "private";
             const model: SaveWizVisualizationDialogModel = {
                ...(<SaveViewsheetDialogModel>data),
@@ -2094,10 +2094,10 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
             dialog.runtimeId = vs.runtimeId;
             dialog.standaloneVisualization = vs.standaloneVisualization;
          },
-         (error: any) => {
+         error: (error: any) => {
             console.error("Failed to load save viewsheet model: ", error);
          }
-      );
+      });
    }
 
    saveViewsheet(sheet: Viewsheet, close: boolean = false) {
