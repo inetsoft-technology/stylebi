@@ -864,15 +864,10 @@ public class RuntimeViewsheet extends RuntimeSheet {
                   // value under the variable name rather than the assembly name. Clear that key
                   // too, otherwise applyParameterToInput() will find the stale variable value
                   // and overwrite the bookmark-restored selection. (Bug #74212)
-                  String tname = inputAssembly.getTableName();
+                  String varKey = inputAssembly.getVariableTableKey();
 
-                  if(inputAssembly.isVariable() && tname != null && !tname.isEmpty()) {
-                     if(tname.startsWith("$(") && tname.endsWith(")")) {
-                        sandboxVars.remove(tname.substring(2, tname.length() - 1));
-                     }
-                     else {
-                        sandboxVars.remove(tname);
-                     }
+                  if(varKey != null) {
+                     sandboxVars.remove(varKey);
                   }
                }
             }

@@ -838,15 +838,10 @@ public class VSExportService {
             for(Assembly assembly : vs.getAssemblies()) {
                if(assembly instanceof InputVSAssembly inputAssembly) {
                   sandboxVars.remove(assembly.getName());
-                  String tname = inputAssembly.getTableName();
+                  String varKey = inputAssembly.getVariableTableKey();
 
-                  if(inputAssembly.isVariable() && tname != null && !tname.isEmpty()) {
-                     if(tname.startsWith("$(") && tname.endsWith(")")) {
-                        sandboxVars.remove(tname.substring(2, tname.length() - 1));
-                     }
-                     else {
-                        sandboxVars.remove(tname);
-                     }
+                  if(varKey != null) {
+                     sandboxVars.remove(varKey);
                   }
                }
             }

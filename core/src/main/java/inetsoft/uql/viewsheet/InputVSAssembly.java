@@ -220,6 +220,32 @@ public abstract class InputVSAssembly extends AbstractVSAssembly implements Bind
       getInputVSAssemblyInfo().setVariable(variable);
    }
 
+   /**
+    * Returns the key under which {@code ViewsheetSandbox.refreshVariable()} stores this
+    * assembly's selected value in the sandbox variable table, or {@code null} if the assembly
+    * is not variable-bound.
+    *
+    * <p>When the table name uses the {@code $(varname)} syntax the stored key is the bare
+    * variable name; otherwise the raw table name is used as the key.
+    */
+   public String getVariableTableKey() {
+      if(!isVariable()) {
+         return null;
+      }
+
+      String tname = getTableName();
+
+      if(tname == null || tname.isEmpty()) {
+         return null;
+      }
+
+      if(tname.startsWith("$(") && tname.endsWith(")")) {
+         return tname.substring(2, tname.length() - 1);
+      }
+
+      return tname;
+   }
+
    @Override
    public void removeBindingCol(String ref) {
       // do nothing
