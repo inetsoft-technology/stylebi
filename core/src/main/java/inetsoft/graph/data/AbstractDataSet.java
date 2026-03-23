@@ -211,6 +211,7 @@ public abstract class AbstractDataSet implements DataSet {
       // add column, so calc row will be full columns
       this.calcvals = calcvals;
       idxmap = null;
+      cachedColCount = -1;
    }
 
    /**
@@ -230,6 +231,7 @@ public abstract class AbstractDataSet implements DataSet {
       }
 
       this.rcalcvals = rcalcvals;
+      cachedColCount = -1;
    }
 
    @Override
