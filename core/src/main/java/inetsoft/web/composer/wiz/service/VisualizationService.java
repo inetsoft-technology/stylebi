@@ -73,12 +73,12 @@ public class VisualizationService {
                continue;
             }
 
-            if(!Tool.equals(assetEntry.getProperty("visualizationScope"), "private")) {
+            if(!Tool.equals(vEntry.getProperty("visualizationScope"), "private")) {
                continue;
             }
 
             TreeNodeModel.Builder builder = TreeNodeModel.builder()
-               .icon("viewsheet-icon")
+               .icon("new-viewsheet-icon")
                .dragName("dragVisualization")
                .data(vEntry)
                .leaf(true);
@@ -107,7 +107,8 @@ public class VisualizationService {
    public TreeNodeModel getVisualizations(@ClusterProxyKey String runtimeId, Principal principal) throws Exception {
       IdentityID user = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
       AssetEntry visualizationsEntry = new AssetEntry(
-         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER, "visualizations", user);
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER,
+         VISUALIZATION_ROOT_FOLDER_PATH, user);
       AssetEntry.Selector assetSelector = new AssetEntry.Selector(
          AssetEntry.Type.FOLDER, AssetEntry.Type.VIEWSHEET, AssetEntry.Type.REPOSITORY_FOLDER);
       AssetEntry[] entries = assetRepository.getEntries(
@@ -116,25 +117,31 @@ public class VisualizationService {
 
       if(entries != null) {
          for(AssetEntry entry : entries) {
-            if(!"shared".equals(entry.getProperty("visualizationScope"))) {
-               continue;
+            if(entry.isFolder()) {
+               children.add(TreeNodeModel.builder()
+                  .label(entry.getName())
+                  .icon("folder-toolbox-icon")
+                  .data(entry)
+                  .leaf(false)
+                  .build());
             }
+            else if("shared".equals(entry.getProperty("visualizationScope"))) {
+               TreeNodeModel.Builder builder = TreeNodeModel.builder()
+                  .icon("new-viewsheet-icon")
+                  .dragName("dragVisualization")
+                  .data(entry)
+                  .leaf(true);
 
-            TreeNodeModel.Builder builder = TreeNodeModel.builder()
-               .icon("viewsheet-icon")
-               .dragName("dragVisualization")
-               .data(entry)
-               .leaf(true);
+               if(VSUtil.isWizCopyEntry(entry, true)) {
+                  AssetEntry wizOriginalVisualization = VSUtil.createWizOriginalVisualization(entry);
+                  builder.label(wizOriginalVisualization.getName());
+               }
+               else {
+                  builder.label(entry.getName());
+               }
 
-            if(VSUtil.isWizCopyEntry(entry, true)) {
-               AssetEntry wizOriginalVisualization = VSUtil.createWizOriginalVisualization(entry);
-               builder.label(wizOriginalVisualization.getName());
+               children.add(builder.build());
             }
-            else {
-               builder.label(entry.getName());
-            }
-
-            children.add(builder.build());
          }
       }
 
@@ -143,6 +150,7 @@ public class VisualizationService {
          .build();
    }
 
+   public static final String VISUALIZATION_ROOT_FOLDER_PATH = "visualizations-593bb4a4-fd6d-4178-b3f0-c89dad407f02";
    private final ViewsheetService viewsheetService;
    private final AssetRepository assetRepository;
    private static final Logger LOG = LoggerFactory.getLogger(VisualizationService.class);

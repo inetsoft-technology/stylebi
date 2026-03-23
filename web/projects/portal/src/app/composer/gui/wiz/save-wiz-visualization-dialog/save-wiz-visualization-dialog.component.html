@@ -26,44 +26,66 @@
       <!-- Radio mode (standaloneVisualization=true): Publish As Dashboard / Shared Component -->
       <ng-container *ngIf="standaloneVisualization">
         <p class="save-type-label">_#(Select how to save this visualization:)</p>
-        <div class="form-check save-type-option">
-          <input class="form-check-input" type="radio" id="publishAsDashboard"
-                 name="visualizationScope" value="public"
-                 [(ngModel)]="model.visualizationScope">
-          <label class="form-check-label" for="publishAsDashboard">
-            _#(Publish As Dashboard)
-          </label>
+        <div class="save-type-option">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" id="publishAsDashboard"
+                   name="visualizationScope" value="public"
+                   [(ngModel)]="model.visualizationScope">
+            <label class="form-check-label" for="publishAsDashboard">
+              _#(Publish As Dashboard)
+            </label>
+          </div>
+          <p class="save-type-desc">_#(Visible in the dashboard list as a full dashboard.)</p>
         </div>
-        <div class="form-check save-type-option">
-          <input class="form-check-input" type="radio" id="sharedComponent"
-                 name="visualizationScope" value="shared"
-                 [(ngModel)]="model.visualizationScope">
-          <label class="form-check-label" for="sharedComponent">
-            _#(Shared Component)
-          </label>
+        <div class="save-type-option">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" id="sharedComponent"
+                   name="visualizationScope" value="shared"
+                   [(ngModel)]="model.visualizationScope">
+            <label class="form-check-label" for="sharedComponent">
+              _#(Shared Component)
+            </label>
+          </div>
+          <p class="save-type-desc">_#(Available in composer for all dashboards to reuse.)</p>
         </div>
       </ng-container>
 
-      <!-- Checkbox mode (standaloneVisualization=false): single Shared Component checkbox -->
+      <!-- Radio mode (standaloneVisualization=false): Private Component / Shared Component -->
       <ng-container *ngIf="!standaloneVisualization">
-        <div class="form-check save-type-option">
-          <input class="form-check-input" type="checkbox" id="sharedComponentCheck"
-                 [ngModel]="model.visualizationScope === 'shared'"
-                 (ngModelChange)="model.visualizationScope = $event ? 'shared' : 'private'">
-          <label class="form-check-label" for="sharedComponentCheck">
-            _#(Shared Component)
-          </label>
+        <p class="save-type-label">_#(Select how to save this visualization:)</p>
+        <div class="save-type-option">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" id="privateComponent"
+                   name="visualizationScope" value="private"
+                   [(ngModel)]="model.visualizationScope">
+            <label class="form-check-label" for="privateComponent">
+              _#(Private Component)
+            </label>
+          </div>
+          <p class="save-type-desc">_#(Only available within the current dashboard.)</p>
+        </div>
+        <div class="save-type-option">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" id="sharedComponentCheck"
+                   name="visualizationScope" value="shared"
+                   [(ngModel)]="model.visualizationScope">
+            <label class="form-check-label" for="sharedComponentCheck">
+              _#(Shared Component)
+            </label>
+          </div>
+          <p class="save-type-desc">_#(Available in composer for all dashboards to reuse.)</p>
         </div>
       </ng-container>
 
     </div>
   </div>
   <div class="modal-footer">
-    <button type="button" class="btn btn-primary" (click)="next()" [disabled]="!canNext">
+    <button *ngIf="standaloneVisualization || model.visualizationScope === 'shared'"
+            type="button" class="btn btn-primary" (click)="next()" [disabled]="!canNext">
       _#(Next)
     </button>
-    <button *ngIf="!standaloneVisualization" type="button" class="btn btn-primary"
-            [disabled]="model.visualizationScope === 'shared'" (click)="okDirect()">
+    <button *ngIf="!standaloneVisualization && model.visualizationScope !== 'shared'"
+            type="button" class="btn btn-primary" (click)="okDirect()">
       _#(OK)
     </button>
     <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancelChanges()">

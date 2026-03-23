@@ -38,6 +38,7 @@ import inetsoft.util.audit.Audit;
 import inetsoft.util.log.LogLevel;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.composer.model.vs.*;
+import inetsoft.web.composer.wiz.service.VisualizationService;
 import inetsoft.web.viewsheet.command.SaveSheetCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
@@ -47,6 +48,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.UUID;
 import java.util.Vector;
 
 @Service
@@ -151,6 +153,8 @@ public class SaveViewsheetDialogService {
          parent = AssetEntry.createGlobalRoot();
       }
 
+      fixParentPath(parent, model);
+
       String permissionDenied = "";
 
       try {
@@ -230,8 +234,18 @@ public class SaveViewsheetDialogService {
          parent = AssetEntry.createGlobalRoot();
       }
 
-      model.setName(model.getName() == null ?
-                       model.getName() : SUtil.removeControlChars(model.getName()));
+      fixParentPath(parent, model);
+
+      String name = model.getName();
+
+      if(Tool.isEmptyString(name) && Tool.equals(model.getVisualizationScope(), "private")) {
+         name = UUID.randomUUID().toString();
+      }
+      else if(!Tool.isEmptyString(name)) {
+         name = SUtil.removeControlChars(name);
+      }
+
+      model.setName(name);
       String nname = parent.isRoot() ? model.getName() : parent.getPath() +
          "/" + model.getName();
       entry = new AssetEntry(parent.getScope(), AssetEntry.Type.VIEWSHEET,
@@ -256,7 +270,9 @@ public class SaveViewsheetDialogService {
          if(wizSheetRuntimeId == null) {
             LOG.warn("Wiz sheet runtime id is missing for wiz visualization; skipping wiz copy entry creation.");
          }
-         else if(oentry.getScope() == AssetRepository.TEMPORARY_SCOPE) {
+         else if(oentry.getScope() == AssetRepository.TEMPORARY_SCOPE &&
+            Tool.equals(model.getVisualizationScope(), "private"))
+         {
             entry = VSUtil.createCopyEntryForWiz(entry, true);
          }
       }
@@ -366,6 +382,18 @@ public class SaveViewsheetDialogService {
       }
       catch(Exception ex) {
          LOG.warn("Failed to ensure visualization folder exists: {}", folder, ex);
+      }
+   }
+
+   private void fixParentPath(AssetEntry entry, SaveViewsheetDialogModel model) {
+      if(entry == null || model == null) {
+         return;
+      }
+
+      if(entry.isRoot() && (Tool.equals(model.getVisualizationScope(), "shared") ||
+         Tool.equals(model.getVisualizationScope(), "private")))
+      {
+         entry.setPath(VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH);
       }
    }
 

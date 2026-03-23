@@ -114,7 +114,6 @@ export class SaveWizVisualizationDialog implements OnInit, AfterViewInit {
    }
 
    selectFolder(node: TreeNodeModel) {
-      console.log(node);
       if(!node.leaf) {
          this.model.parentId = node.data.identifier;
       }

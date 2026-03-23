@@ -527,7 +527,10 @@ export class GuiTool {
             css += " data-source-folder-icon";
             break;
          case AssetType.VIEWSHEET:
-            if(node.materialized) {
+            if(properties["isWizSheet"] === "true" || properties["visualizationScope"] === "public") {
+               css += " new-viewsheet-icon";
+            }
+            else if(node.materialized) {
                css += " materialized-viewsheet-icon";
             }
             else {
