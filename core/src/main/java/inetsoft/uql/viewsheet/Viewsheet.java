@@ -204,7 +204,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
     * Set the base worksheet to this viewsheet.
     * @param ws the specified base worksheet.
     */
-   private void setBaseWorksheet(Worksheet ws) {
+   public void setBaseWorksheet(Worksheet ws) {
       if(ws == null) {
          ws = new Worksheet();
       }
@@ -5557,12 +5557,25 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          visualizations.remove(visualization);
       }
 
+      public void addMergedVisualization(String identifier) {
+         if(mergedVisualizations == null) {
+            mergedVisualizations = new HashSet<>();
+         }
+
+         mergedVisualizations.add(identifier);
+      }
+
+      public Set<String> getMergedVisualizations() {
+         return mergedVisualizations == null ? Collections.emptySet() : new HashSet<>(mergedVisualizations);
+      }
+
       @Override
       public WizInfo clone() {
          try {
             WizInfo clone = (WizInfo) super.clone();
             clone.visualizations = (Set<String>) Tool.clone(visualizations);
             clone.sources = (List<AssetEntry>) Tool.clone(sources);
+            clone.mergedVisualizations = (Set<String>) Tool.clone(mergedVisualizations);
             return clone;
          }
          catch(CloneNotSupportedException ex) {
@@ -5580,8 +5593,9 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
          boolean hasSources = sources != null && !sources.isEmpty();
          boolean hasVisualizations = visualizations != null && !visualizations.isEmpty();
+         boolean hasMerged = mergedVisualizations != null && !mergedVisualizations.isEmpty();
 
-         if(hasSources || hasVisualizations) {
+         if(hasSources || hasVisualizations || hasMerged) {
             writer.println(">");
 
             if(hasSources) {
@@ -5602,6 +5616,16 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
                }
 
                writer.println("</visualizations>");
+            }
+
+            if(hasMerged) {
+               writer.println("<mergedVisualizations>");
+
+               for(String merged : mergedVisualizations) {
+                  writer.println("<mergedVisualization><![CDATA[" + merged + "]]></mergedVisualization>");
+               }
+
+               writer.println("</mergedVisualizations>");
             }
 
             writer.println("</wizInfo>");
@@ -5663,12 +5687,31 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
             }
          }
 
+         Element mergedNode = Tool.getChildNodeByTagName(elem, "mergedVisualizations");
+
+         if(mergedNode != null) {
+            NodeList mergedItems = mergedNode.getChildNodes();
+
+            for(int i = 0; i < mergedItems.getLength(); i++) {
+               Node node = mergedItems.item(i);
+
+               if(node instanceof Element mergedElem) {
+                  String merged = Tool.getValue(mergedElem);
+
+                  if(merged != null) {
+                     info.addMergedVisualization(merged);
+                  }
+               }
+            }
+         }
+
          return info;
       }
 
       //For wiz viewsheet.
       private boolean wizSheet;
       private Set<String> visualizations;
+      private Set<String> mergedVisualizations;
 
       //For wiz visualization
       private boolean wizVisualization;
