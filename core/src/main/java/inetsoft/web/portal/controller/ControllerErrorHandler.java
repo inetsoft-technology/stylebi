@@ -87,7 +87,6 @@ public class ControllerErrorHandler extends ResponseEntityExceptionHandler {
     * class.
     */
    @ExceptionHandler(Exception.class)
-   @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
    public ResponseEntity<String> handleException(Exception e) {
       if(GlobalExceptionHandler.isCacheStoppedException(e)) {
          LOG.debug("Cache stopped during request", e);

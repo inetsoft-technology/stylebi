@@ -162,18 +162,17 @@ public class ComposerControllerErrorHandler {
       if(GlobalExceptionHandler.isCacheStoppedException(e)) {
          LOG.debug("Cache stopped during request", e);
          command.setMessage(Catalog.getCatalog().getString("common.cacheStoppedError"));
-      }
-      else {
-         String msg = e.getMessage();
-         command.setMessage(Catalog.getCatalog().getString("internal.error") +
-                            (msg != null ? " " + msg : ""));
          command.setType(MessageCommand.Type.ERROR);
          commandDispatcher.sendCommand(command);
-         throw e;
+         return;
       }
 
+      String msg = e.getMessage();
+      command.setMessage(Catalog.getCatalog().getString("internal.error") +
+                         (msg != null ? " " + msg : ""));
       command.setType(MessageCommand.Type.ERROR);
       commandDispatcher.sendCommand(command);
+      throw e;
    }
 
    @ExceptionHandler(InvalidDependencyException.class)
