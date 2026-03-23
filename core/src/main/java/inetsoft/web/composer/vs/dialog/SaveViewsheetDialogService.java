@@ -31,7 +31,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
-import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.WizUtil;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -42,7 +42,7 @@ import inetsoft.web.composer.wiz.service.VisualizationService;
 import inetsoft.web.viewsheet.command.SaveSheetCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
-import inetsoft.web.wiz.service.WizViewsheetService;
+import inetsoft.web.wiz.service.WizViewsheetServiceProxy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -58,12 +58,14 @@ public class SaveViewsheetDialogService {
    public SaveViewsheetDialogService(CoreLifecycleService coreLifecycleService,
                                      AssetRepository assetRepository,
                                      ViewsheetService viewsheetService,
-                                     ViewsheetSettingsService viewsheetSettingsService)
+                                     ViewsheetSettingsService viewsheetSettingsService,
+                                     WizViewsheetServiceProxy wizViewsheetServiceProxy)
    {
       this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
       this.viewsheetSettingsService = viewsheetSettingsService;
       this.assetRepository = assetRepository;
+      this.wizViewsheetServiceProxy = wizViewsheetServiceProxy;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -270,10 +272,8 @@ public class SaveViewsheetDialogService {
          if(wizSheetRuntimeId == null) {
             LOG.warn("Wiz sheet runtime id is missing for wiz visualization; skipping wiz copy entry creation.");
          }
-         else if(oentry.getScope() == AssetRepository.TEMPORARY_SCOPE &&
-            Tool.equals(model.getVisualizationScope(), "private"))
-         {
-            entry = VSUtil.createCopyEntryForWiz(entry, true);
+         else if(oentry.getScope() == AssetRepository.TEMPORARY_SCOPE) {
+            entry = WizUtil.createCopyEntryForWiz(entry, true);
          }
       }
 
@@ -322,7 +322,7 @@ public class SaveViewsheetDialogService {
             .getViewsheetOptionsPaneModel().getViewsheetParametersDialogModel();
          viewsheetSettingsService.setViewsheetParameterInfo(info, vsParametersDialogModel);
          final AssetEntry finalEntry = entry;
-         VSUtil.saveWizSheet(rvs, principal, entry,
+         WizUtil.saveWizSheet(rvs, principal, entry,
             () -> vsService.setViewsheet(viewsheet, finalEntry, principal, true, true));
 
          if(model.isUpdateDepend()) {
@@ -343,7 +343,7 @@ public class SaveViewsheetDialogService {
 
          if("true".equals(oentry.getProperty("isWizVisualization"))) {
             if(oentry.getScope() == AssetRepository.TEMPORARY_SCOPE && rvs.getWizSheetRuntimeId() != null) {
-               addWizSheetVisualization(rvs.getWizSheetRuntimeId(), entry.toIdentifier(), principal);
+               wizViewsheetServiceProxy.updateWizSheetByCopyVisualization(rvs.getWizSheetRuntimeId(), entry.toIdentifier(), principal);
             }
          }
       }
@@ -364,38 +364,7 @@ public class SaveViewsheetDialogService {
       return null;
    }
 
-   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public java.lang.Void addWizSheetVisualization(@ClusterProxyKey String rId, String entryId, Principal principal) throws Exception
-   {
-      return WizViewsheetService.updateWizSheetByCopyVisualization(viewsheetService.getViewsheet(rId, principal), entryId);
-   }
 
-   private void ensureParentFolderExists(AssetEntry folder, Principal principal) {
-      if(folder == null || folder.isRoot()) {
-         return;
-      }
-
-      try {
-         if(!assetRepository.containsEntry(folder)) {
-            assetRepository.addFolder(folder, principal);
-         }
-      }
-      catch(Exception ex) {
-         LOG.warn("Failed to ensure visualization folder exists: {}", folder, ex);
-      }
-   }
-
-   private void fixParentPath(AssetEntry entry, SaveViewsheetDialogModel model) {
-      if(entry == null || model == null) {
-         return;
-      }
-
-      if(entry.isRoot() && (Tool.equals(model.getVisualizationScope(), "shared") ||
-         Tool.equals(model.getVisualizationScope(), "private")))
-      {
-         entry.setPath(VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH);
-      }
-   }
 
    private static final class IsDuplicateTask implements ViewsheetService.Task<Boolean> {
       public IsDuplicateTask(String runtimeId, AssetEntry entry) {
@@ -438,5 +407,6 @@ public class SaveViewsheetDialogService {
    private final ViewsheetSettingsService viewsheetSettingsService;
    private final Catalog catalog = Catalog.getCatalog();
    private final AssetRepository assetRepository;
+   private final WizViewsheetServiceProxy wizViewsheetServiceProxy;
    private static final Logger LOG = LoggerFactory.getLogger(SaveViewsheetDialogService.class);
 }

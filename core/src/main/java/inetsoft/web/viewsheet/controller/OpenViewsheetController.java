@@ -23,7 +23,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
-import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.WizUtil;
 import inetsoft.util.*;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.composer.ws.event.OpenSheetEventValidator;
@@ -156,8 +156,8 @@ public class OpenViewsheetController {
          if(event.isWizVisualization()) {
             AssetEntry entry = AssetEntry.createAssetEntry(event.getEntryId());
 
-            if(entry != null && !VSUtil.isWizCopyEntry(entry)) {
-               wizCopyEntry = VSUtil.copyViewsheetForWiz(entry, false, principal);
+            if(entry != null && !WizUtil.isWizCopyEntry(entry)) {
+               wizCopyEntry = WizUtil.copyViewsheetForWiz(entry, false, principal);
 
                if(wizCopyEntry != null) {
                   event.setEntryId(wizCopyEntry.toIdentifier());
@@ -201,7 +201,7 @@ public class OpenViewsheetController {
       }
       catch(Exception ex) {
          if(wizCopyEntry != null) {
-            VSUtil.deleteWizCopyViewsheet(wizCopyEntry, principal);
+            WizUtil.deleteWizCopyViewsheet(wizCopyEntry, principal);
          }
          throw ex;
       }
