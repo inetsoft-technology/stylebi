@@ -858,8 +858,17 @@ public class RuntimeViewsheet extends RuntimeSheet {
 
          if(sandboxVars != null) {
             for(Assembly assembly : processedViewsheet.getAssemblies()) {
-               if(assembly instanceof InputVSAssembly) {
+               if(assembly instanceof InputVSAssembly inputAssembly) {
                   sandboxVars.remove(assembly.getName());
+                  // For assemblies bound to a worksheet variable the variable table stores the
+                  // value under the variable name rather than the assembly name. Clear that key
+                  // too, otherwise applyParameterToInput() will find the stale variable value
+                  // and overwrite the bookmark-restored selection. (Bug #74212)
+                  String varKey = inputAssembly.getVariableTableKey();
+
+                  if(varKey != null) {
+                     sandboxVars.remove(varKey);
+                  }
                }
             }
          }

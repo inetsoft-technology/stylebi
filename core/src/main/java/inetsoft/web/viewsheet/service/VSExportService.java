@@ -836,8 +836,13 @@ public class VSExportService {
 
          if(sandboxVars != null) {
             for(Assembly assembly : vs.getAssemblies()) {
-               if(assembly instanceof InputVSAssembly) {
+               if(assembly instanceof InputVSAssembly inputAssembly) {
                   sandboxVars.remove(assembly.getName());
+                  String varKey = inputAssembly.getVariableTableKey();
+
+                  if(varKey != null) {
+                     sandboxVars.remove(varKey);
+                  }
                }
             }
          }
