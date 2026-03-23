@@ -19,6 +19,9 @@ package inetsoft.web.composer.wiz.controller;
 
 import inetsoft.web.composer.wiz.event.AddFilterEvent;
 import inetsoft.web.composer.wiz.event.AddVisualizationEvent;
+import inetsoft.web.composer.wiz.service.AddVisualizationServiceProxy;
+import inetsoft.web.viewsheet.controller.VSRefreshServiceProxy;
+import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.LinkUri;
@@ -33,8 +36,13 @@ import java.security.Principal;
  */
 @Controller
 public class WizComposerController {
-   public WizComposerController(RuntimeViewsheetRef runtimeViewsheetRef) {
+   public WizComposerController(RuntimeViewsheetRef runtimeViewsheetRef,
+                                AddVisualizationServiceProxy addVisualizationServiceProxy,
+                                VSRefreshServiceProxy vsRefreshServiceProxy)
+   {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.addVisualizationServiceProxy = addVisualizationServiceProxy;
+      this.vsRefreshServiceProxy = vsRefreshServiceProxy;
    }
 
    /**
@@ -53,7 +61,11 @@ public class WizComposerController {
       throws Exception
    {
       String runtimeId = runtimeViewsheetRef.getRuntimeId();
-      // TODO: implement adding the visualization (entry) to the dashboard viewsheet
+      addVisualizationServiceProxy.addVisualization(
+         runtimeId, event.getEntry(), event.getxOffset(), event.getyOffset(),
+         event.getScale(), principal);
+      vsRefreshServiceProxy.refreshViewsheetAsync(this.runtimeViewsheetRef.getRuntimeId(),
+         VSRefreshEvent.builder().confirmed(false).build(), principal, dispatcher, linkUri);
    }
 
    /**
@@ -71,13 +83,10 @@ public class WizComposerController {
                          @LinkUri String linkUri)
       throws Exception
    {
-      String runtimeId = runtimeViewsheetRef.getRuntimeId();
-      // TODO: implement adding the filter assembly to the dashboard viewsheet
-      //   1. Retrieve RuntimeViewsheet via ViewsheetService using runtimeId + principal
-      //   2. Resolve the filter field from event.getEntry()
-      //   3. Create and add a selection-list or condition assembly at (xOffset, yOffset)
-      //   4. Dispatch AddVSObjectCommand / RefreshVSObjectCommand back to the client
+      throw new UnsupportedOperationException("addFilter is not yet implemented");
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final AddVisualizationServiceProxy addVisualizationServiceProxy;
+   private final VSRefreshServiceProxy vsRefreshServiceProxy;
 }

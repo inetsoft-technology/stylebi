@@ -23,7 +23,7 @@ import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.uql.asset.*;
-import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.WizUtil;
 import inetsoft.web.composer.model.TreeNodeModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,8 +76,8 @@ public class VisualizationService {
                .data(vEntry)
                .leaf(true);
 
-            if(VSUtil.isWizCopyEntry(vEntry, true)) {
-               AssetEntry wizOriginalVisualization = VSUtil.createWizOriginalVisualization(vEntry);
+            if(WizUtil.isWizCopyEntry(vEntry, true)) {
+               AssetEntry wizOriginalVisualization = WizUtil.createWizOriginalVisualization(vEntry);
                builder.label(wizOriginalVisualization.getName());
             }
             else {
