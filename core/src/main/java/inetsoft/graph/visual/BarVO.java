@@ -215,7 +215,7 @@ public class BarVO extends ElementVO {
          IntervalElement ielem = (IntervalElement) ((ElementGeometry) getGeometry()).getElement();
          double r = ielem.getCornerRadius();
 
-         if(r > 0 && !(this instanceof Bar3DVO)) {
+         if(r > 0 && !(this instanceof Bar3DVO) && getOuterArc(path0) == null) {
             IntervalGeometry geom = (IntervalGeometry) getGeometry();
             boolean stdOrientation = GTool.isHorizontal(getScreenTransform());
             // Direction of the open (value) end in Y-up screen space.
