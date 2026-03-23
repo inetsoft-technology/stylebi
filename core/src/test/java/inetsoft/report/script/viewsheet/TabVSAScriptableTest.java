@@ -160,10 +160,10 @@ public class TabVSAScriptableTest {
       tabVSAScriptable.setBottomTabs(true);
 
       assertTrue(tabVSAssemblyInfo.isBottomTabs());
-      // Tab bar should have moved below the child (30 + 100 = 130)
-      assertEquals(130, tabVSAssemblyInfo.getPixelOffset().y);
-      // Child should now be above the tab bar (130 - 100 = 30)
-      assertEquals(30, child.getVSAssemblyInfo().getPixelOffset().y);
+      // Tab bar should have moved below the child's bottom edge (60 + 100 = 160)
+      assertEquals(160, tabVSAssemblyInfo.getPixelOffset().y);
+      // Child stays in place; bottom edge (60 + 100 = 160) flush with tab top
+      assertEquals(60, child.getVSAssemblyInfo().getPixelOffset().y);
    }
 
    @Test
@@ -184,10 +184,10 @@ public class TabVSAScriptableTest {
       tabVSAScriptable.setBottomTabs(false);
 
       assertFalse(tabVSAssemblyInfo.isBottomTabs());
-      // Tab bar should have moved back up (130 - 100 = 30)
-      assertEquals(30, tabVSAssemblyInfo.getPixelOffset().y);
-      // Child should now be flush below the tab bar (30 + 30 = 60)
-      assertEquals(60, child.getVSAssemblyInfo().getPixelOffset().y);
+      // Tab bar should have moved above the child's top edge (30 - 30 = 0)
+      assertEquals(0, tabVSAssemblyInfo.getPixelOffset().y);
+      // Child stays in place; top edge (30) flush with tab bottom (0 + 30 = 30)
+      assertEquals(30, child.getVSAssemblyInfo().getPixelOffset().y);
    }
 
    @ParameterizedTest

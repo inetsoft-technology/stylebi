@@ -350,13 +350,11 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    }
 
    /**
-    * Adjusts child assembly positions and the tab bar position when the bottomTabs property
-    * is toggled. Callers must guard against redundant calls — calling this method twice with
-    * the same value will shift the tab bar and children twice. Use
-    * {@link #isBottomTabs()} to check the current flag before calling.
+    * Moves the tab bar when the bottomTabs property is toggled. Children stay in place.
+    * Callers must guard against redundant calls.
     *
-    * Top-tabs: every child's top edge is flush with the tab bar bottom.
-    * Bottom-tabs: every child's bottom edge is flush with the tab bar top.
+    * Bottom-tabs: tab bar moves below the lowest child's bottom edge.
+    * Top-tabs: tab bar moves above the highest child's top edge.
     */
    public static void repositionForBottomTabs(TabVSAssemblyInfo tabInfo,
                                               Viewsheet vs,
@@ -382,28 +380,10 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
 
       int tabHeight = tabDim.height;
 
-      int maxChildHeight = 0;
-
-      for(String childName : children) {
-         VSAssembly child = (VSAssembly) vs.getAssembly(childName);
-
-         if(child != null && child.getPixelSize() != null) {
-            maxChildHeight = Math.max(maxChildHeight, child.getPixelSize().height);
-         }
-      }
-
-      if(maxChildHeight == 0) {
-         return;
-      }
-
-      int tabDy = toBottomTabs ? maxChildHeight : -maxChildHeight;
-      int newTabY = Math.max(0, tabPos.y + tabDy);
-      int actualTabDy = newTabY - tabPos.y;
-      tabInfo.setPixelOffset(new Point(tabPos.x, newTabY));
-
-      if(tabInfo.getLayoutPosition() != null) {
-         tabInfo.getLayoutPosition().translate(0, actualTabDy);
-      }
+      // find the child extent needed to position the tab bar
+      int maxChildBottom = Integer.MIN_VALUE;
+      int minChildTop = Integer.MAX_VALUE;
+      boolean hasValidChild = false;
 
       for(String childName : children) {
          VSAssembly child = (VSAssembly) vs.getAssembly(childName);
@@ -412,28 +392,61 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
             continue;
          }
 
-         VSAssemblyInfo childInfo = child.getVSAssemblyInfo();
+         Point childPos = child.getPixelOffset();
          int childHeight = child.getPixelSize() != null ? child.getPixelSize().height : 0;
 
-         if(childHeight == 0) {
-            continue; // no valid size yet; consistent with TabVSAssembly.updateChildPosition
-         }
-
-         int newChildY = toBottomTabs
-            ? Math.max(0, newTabY - childHeight)
-            : newTabY + tabHeight;
-
-         Point childPos = child.getPixelOffset();
-
-         if(childPos == null) {
+         if(childPos == null || childHeight == 0) {
             continue;
          }
 
-         int actualDy = newChildY - childPos.y;
-         childInfo.setPixelOffset(new Point(childPos.x, newChildY));
+         maxChildBottom = Math.max(maxChildBottom, childPos.y + childHeight);
+         minChildTop = Math.min(minChildTop, childPos.y);
+         hasValidChild = true;
+      }
 
-         if(childInfo.getLayoutPosition() != null) {
-            childInfo.getLayoutPosition().translate(0, actualDy);
+      if(!hasValidChild) {
+         return;
+      }
+
+      // move the tab bar; align children so every bottom (or top) edge is flush
+      int newTabY = toBottomTabs
+         ? maxChildBottom
+         : Math.max(0, minChildTop - tabHeight);
+
+      int actualTabDy = newTabY - tabPos.y;
+      tabInfo.setPixelOffset(new Point(tabPos.x, newTabY));
+
+      if(tabInfo.getLayoutPosition() != null) {
+         tabInfo.getLayoutPosition().translate(0, actualTabDy);
+      }
+
+      // reposition children whose edges aren't flush with the tab bar
+      for(String childName : children) {
+         VSAssembly child = (VSAssembly) vs.getAssembly(childName);
+
+         if(child == null) {
+            continue;
+         }
+
+         VSAssemblyInfo childInfo = child.getVSAssemblyInfo();
+         Point childPos = child.getPixelOffset();
+         int childHeight = child.getPixelSize() != null ? child.getPixelSize().height : 0;
+
+         if(childPos == null || childHeight == 0) {
+            continue;
+         }
+
+         int newChildY = toBottomTabs
+            ? newTabY - childHeight   // bottom edge flush with tab bar top
+            : newTabY + tabHeight;    // top edge flush with tab bar bottom
+
+         if(newChildY != childPos.y) {
+            int childDy = newChildY - childPos.y;
+            childInfo.setPixelOffset(new Point(childPos.x, newChildY));
+
+            if(childInfo.getLayoutPosition() != null) {
+               childInfo.getLayoutPosition().translate(0, childDy);
+            }
          }
       }
    }

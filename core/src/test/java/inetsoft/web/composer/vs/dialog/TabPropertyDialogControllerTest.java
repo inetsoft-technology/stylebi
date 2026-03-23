@@ -93,8 +93,8 @@ class TabPropertyDialogControllerTest {
     * Flip from top-tabs to bottom-tabs while keeping the submitted position identical
     * to the current position.  After the call:
     * - the assembly info passed to editObjectProperty must report bottomTabs=true
-    * - the child must be repositioned flush above the tab bar (childY = tabY - childHeight = 0)
-    * - the tab bar must remain at its original Y
+    * - the tab bar must move below the child's bottom edge
+    * - the child must stay in place
     */
    @Test
    void testFlipToBottomTabsKeepsSamePosition() throws Exception {
@@ -109,17 +109,18 @@ class TabPropertyDialogControllerTest {
 
       TabVSAssemblyInfo captured = captor.getValue();
       assertTrue(captured.getBottomTabsValue(), "bottomTabs must be persisted as true");
-      assertEquals(200, captured.getPixelOffset().y,
-                   "tab bar Y must remain at the originally submitted position");
+      // tab moves below child bottom edge: 230 + 200 = 430
+      assertEquals(430, captured.getPixelOffset().y,
+                   "tab bar Y must move below child bottom edge");
 
-      // Child (height 200) must be flush above the tab bar at Y=200: 200 - 200 = 0
-      assertEquals(0, child.getVSAssemblyInfo().getPixelOffset().y,
-                   "child must be repositioned flush above the tab bar");
+      // child stays in place; bottom edge (230 + 200 = 430) flush with tab top
+      assertEquals(230, child.getVSAssemblyInfo().getPixelOffset().y,
+                   "child must stay in place");
    }
 
    /**
     * Flip from top-tabs to bottom-tabs while simultaneously moving the tab bar to a
-    * new Y.  The child must end up flush above the NEW tab bar position.
+    * new Y.  The reposition overrides the submitted position.
     */
    @Test
    void testFlipToBottomTabsWithNewPosition() throws Exception {
@@ -135,28 +136,19 @@ class TabPropertyDialogControllerTest {
 
       TabVSAssemblyInfo captured = captor.getValue();
       assertTrue(captured.getBottomTabsValue(), "bottomTabs must be persisted as true");
-      assertEquals(300, captured.getPixelOffset().y,
-                   "tab bar Y must be at the user-submitted position");
+      // reposition moves tab below child bottom edge: 230 + 200 = 430
+      assertEquals(430, captured.getPixelOffset().y,
+                   "tab bar Y must move below child bottom edge");
 
-      // Child (height 200) must be flush above tab at Y=300: 300 - 200 = 100
-      assertEquals(100, child.getVSAssemblyInfo().getPixelOffset().y,
-                   "child must be flush above the new tab bar position");
+      // child stays in place
+      assertEquals(230, child.getVSAssemblyInfo().getPixelOffset().y,
+                   "child must stay in place");
    }
 
    /**
     * Flip from top-tabs to bottom-tabs while simultaneously growing the tab bar height.
-    * The height-change correction in {@code setContainerPosition} must NOT be applied in
-    * bottom-tabs mode.  After the call:
-    * - the assembly info must report bottomTabs=true
-    * - the tab bar must be at the user-submitted Y
-    * - the child must be flush above the tab bar (childY = tabY - childHeight)
-    *
-    * <p>This test guards the interaction between the DynamicValue dvalue fallback in
-    * {@link inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo#isBottomTabs()} and the
-    * height-change correction in
-    * {@link inetsoft.web.viewsheet.service.VSDialogService#setContainerPosition}.
-    * After {@code setBottomTabsValue(true)}, {@code isBottomTabs()} must return {@code true}
-    * (via the {@code DynamicValue.getRValue()} dvalue fallback), so the correction is skipped.
+    * The reposition overrides the submitted position; the height-change correction in
+    * {@code setContainerPosition} must NOT be applied in bottom-tabs mode.
     */
    @Test
    void testFlipToBottomTabsWithHeightChange() throws Exception {
@@ -172,19 +164,19 @@ class TabPropertyDialogControllerTest {
 
       TabVSAssemblyInfo captured = captor.getValue();
       assertTrue(captured.getBottomTabsValue(), "bottomTabs must be persisted as true");
-      assertEquals(300, captured.getPixelOffset().y,
-                   "tab bar Y must be at the user-submitted position");
+      // reposition moves tab below child bottom edge: 230 + 200 = 430
+      assertEquals(430, captured.getPixelOffset().y,
+                   "tab bar Y must move below child bottom edge");
 
-      // Child (height 200) must be flush above tab at Y=300: 300 - 200 = 100.
-      // If the height-change correction (+20) were wrongly applied the child would land at 120.
-      assertEquals(100, child.getVSAssemblyInfo().getPixelOffset().y,
-                   "child must be flush above the tab bar (correction must NOT be applied in bottom-tabs mode)");
+      // child stays in place
+      assertEquals(230, child.getVSAssemblyInfo().getPixelOffset().y,
+                   "child must stay in place");
    }
 
    /**
     * Flip from bottom-tabs to top-tabs while simultaneously growing the tab bar height.
-    * The height-change correction in {@code setContainerPosition} MUST be applied in
-    * top-tabs mode so children remain flush below the new (taller) tab bar bottom.
+    * The reposition moves the tab above the child; the height-change correction in
+    * {@code setContainerPosition} MUST be applied in top-tabs mode.
     */
    @Test
    void testFlipToTopTabsWithHeightChange() throws Exception {
@@ -205,20 +197,21 @@ class TabPropertyDialogControllerTest {
 
       TabVSAssemblyInfo captured = captor.getValue();
       assertFalse(captured.getBottomTabsValue(), "bottomTabs must be persisted as false");
-      assertEquals(400, captured.getPixelOffset().y,
-                   "tab bar Y must remain at the originally submitted position");
+      // reposition moves tab above child top edge: max(0, 200 - 30) = 170
+      assertEquals(170, captured.getPixelOffset().y,
+                   "tab bar Y must move above child top edge");
 
-      // In top-tabs mode with height=50, children must be at tabY + tabHeight = 400 + 50 = 450.
-      // If the height-change correction (+20) were NOT applied the child would be at 430.
-      assertEquals(450, child.getVSAssemblyInfo().getPixelOffset().y,
-                   "child must be flush below the new (taller) tab bar bottom");
+      // height correction (+20) applied to child: 200 + 20 = 220
+      assertEquals(220, child.getVSAssemblyInfo().getPixelOffset().y,
+                   "child must shift down by height-change correction");
    }
 
    /**
     * Flip from bottom-tabs back to top-tabs while keeping the submitted position
     * identical to the current position.  After the call:
     * - the assembly info must report bottomTabs=false
-    * - the child must be repositioned flush below the tab bar (childY = tabY + tabHeight)
+    * - the tab bar must move above the child's top edge
+    * - the child must stay in place
     */
    @Test
    void testFlipToTopTabsKeepsSamePosition() throws Exception {
@@ -239,12 +232,13 @@ class TabPropertyDialogControllerTest {
 
       TabVSAssemblyInfo captured = captor.getValue();
       assertFalse(captured.getBottomTabsValue(), "bottomTabs must be persisted as false");
-      assertEquals(400, captured.getPixelOffset().y,
-                   "tab bar Y must remain at the originally submitted position");
+      // reposition moves tab above child top edge: max(0, 200 - 30) = 170
+      assertEquals(170, captured.getPixelOffset().y,
+                   "tab bar Y must move above child top edge");
 
-      // Child (height 200) must be flush below the tab bar at Y=400: 400 + 30 = 430
-      assertEquals(430, child.getVSAssemblyInfo().getPixelOffset().y,
-                   "child must be repositioned flush below the tab bar");
+      // child stays in place; top edge (200) flush with tab bottom (170 + 30 = 200)
+      assertEquals(200, child.getVSAssemblyInfo().getPixelOffset().y,
+                   "child must stay in place");
    }
 
    // -------------------------------------------------------------------------
