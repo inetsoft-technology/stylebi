@@ -190,5 +190,6 @@ describe("VSInputLabelWrapper", () => {
 
       expect(component.hostHeight).toBe(30);
       expect(component.contentStyle).toEqual({});
+      expect(component.wrapperClass).toBe("");
    });
 });

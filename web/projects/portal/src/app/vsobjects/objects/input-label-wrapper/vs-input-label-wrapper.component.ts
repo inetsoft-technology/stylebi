@@ -26,11 +26,11 @@ import { VSInputLabelModel } from "../../model/vs-input-label-model";
 export class VSInputLabelWrapper {
    @Input() labelModel: VSInputLabelModel;
    @Input() labelSelected: boolean = false;
-   @Input() objectHeight: number;
+   @Input() objectHeight: number | undefined;
    @Output() selectLabel = new EventEmitter<MouseEvent>();
 
    @HostBinding("style.height.px")
-   get hostHeight(): number | null {
+   get hostHeight(): number | null | undefined {
       return this.isVerticalLabel ? null : this.objectHeight;
    }
 
@@ -65,7 +65,7 @@ export class VSInputLabelWrapper {
    }
 
    get wrapperClass(): string {
-      return `label-${this.labelPosition}`;
+      return this.showLabel ? `label-${this.labelPosition}` : "";
    }
 
    get isVerticalLabel(): boolean {
