@@ -180,7 +180,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    {
       this.passwordErrorMatcher = {
          isErrorState: (control: UntypedFormControl | null, form: FormGroupDirective | NgForm | null) =>
-            !!this.pwForm.errors && !!this.pwForm.errors.passwordsMatch ||
+            (!!control?.dirty || !!control?.touched) && !!this.pwForm.errors && !!this.pwForm.errors.passwordsMatch ||
             defaultErrorMatcher.isErrorState(control, form)
       };
    }
