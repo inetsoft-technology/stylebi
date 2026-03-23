@@ -120,7 +120,8 @@ class TabPropertyDialogControllerTest {
 
    /**
     * Flip from top-tabs to bottom-tabs while simultaneously moving the tab bar to a
-    * new Y.  The reposition overrides the submitted position.
+    * new Y.  The user's submitted position is honored; setContainerPosition translates
+    * the whole group so the flush layout from repositionForBottomTabs is preserved.
     */
    @Test
    void testFlipToBottomTabsWithNewPosition() throws Exception {
@@ -136,18 +137,17 @@ class TabPropertyDialogControllerTest {
 
       TabVSAssemblyInfo captured = captor.getValue();
       assertTrue(captured.getBottomTabsValue(), "bottomTabs must be persisted as true");
-      // reposition moves tab below child bottom edge: 230 + 200 = 430
-      assertEquals(430, captured.getPixelOffset().y,
-                   "tab bar Y must move below child bottom edge");
+      // user submitted Y=300; child (h=200) flush above: 300 - 200 = 100
+      assertEquals(300, captured.getPixelOffset().y,
+                   "tab bar Y must honor the user-submitted position");
 
-      // child stays in place
-      assertEquals(230, child.getVSAssemblyInfo().getPixelOffset().y,
-                   "child must stay in place");
+      assertEquals(100, child.getVSAssemblyInfo().getPixelOffset().y,
+                   "child bottom edge (300) must be flush with tab top");
    }
 
    /**
     * Flip from top-tabs to bottom-tabs while simultaneously growing the tab bar height.
-    * The reposition overrides the submitted position; the height-change correction in
+    * The user's submitted position is honored; the height-change correction in
     * {@code setContainerPosition} must NOT be applied in bottom-tabs mode.
     */
    @Test
@@ -164,13 +164,13 @@ class TabPropertyDialogControllerTest {
 
       TabVSAssemblyInfo captured = captor.getValue();
       assertTrue(captured.getBottomTabsValue(), "bottomTabs must be persisted as true");
-      // reposition moves tab below child bottom edge: 230 + 200 = 430
-      assertEquals(430, captured.getPixelOffset().y,
-                   "tab bar Y must move below child bottom edge");
+      // user submitted Y=300; child (h=200) flush above: 300 - 200 = 100
+      assertEquals(300, captured.getPixelOffset().y,
+                   "tab bar Y must honor the user-submitted position");
 
-      // child stays in place
-      assertEquals(230, child.getVSAssemblyInfo().getPixelOffset().y,
-                   "child must stay in place");
+      // height correction not applied in bottom-tabs mode; child stays flush
+      assertEquals(100, child.getVSAssemblyInfo().getPixelOffset().y,
+                   "child bottom edge (300) must be flush with tab top");
    }
 
    /**
@@ -239,6 +239,38 @@ class TabPropertyDialogControllerTest {
       // child stays in place; top edge (200) flush with tab bottom (170 + 30 = 200)
       assertEquals(200, child.getVSAssemblyInfo().getPixelOffset().y,
                    "child must stay in place");
+   }
+
+   /**
+    * Flip from bottom-tabs to top-tabs while simultaneously moving the tab bar to a
+    * new Y.  The user's submitted position is honored; setContainerPosition translates
+    * the whole group so the flush layout from repositionForBottomTabs is preserved.
+    */
+   @Test
+   void testFlipToTopTabsWithNewPosition() throws Exception {
+      TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getVSAssemblyInfo();
+      tabInfo.setBottomTabsValue(true);
+      tabInfo.setPixelOffset(new Point(10, 400));
+      child.getVSAssemblyInfo().setPixelOffset(new Point(10, 200));
+
+      // User moves the tab to Y=500 and switches to top-tabs.
+      TabPropertyDialogModel model = buildModel("Tab1", false, 10, 500, 200, 30);
+
+      controller.setTabPropertyDialogModel("Tab1", model, "", null, commandDispatcher);
+
+      ArgumentCaptor<TabVSAssemblyInfo> captor = ArgumentCaptor.forClass(TabVSAssemblyInfo.class);
+      verify(vsObjectPropertyService).editObjectProperty(
+         any(RuntimeViewsheet.class), captor.capture(), anyString(), anyString(),
+         anyString(), nullable(Principal.class), any(CommandDispatcher.class));
+
+      TabVSAssemblyInfo captured = captor.getValue();
+      assertFalse(captured.getBottomTabsValue(), "bottomTabs must be persisted as false");
+      // user submitted Y=500; child flush below: 500 + 30 = 530
+      assertEquals(500, captured.getPixelOffset().y,
+                   "tab bar Y must honor the user-submitted position");
+
+      assertEquals(530, child.getVSAssemblyInfo().getPixelOffset().y,
+                   "child top edge (530) must be flush with tab bottom");
    }
 
    // -------------------------------------------------------------------------

@@ -206,20 +206,24 @@ public class TabPropertyDialogController {
       tabAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       tabAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
 
+      // must precede repositionForBottomTabs: isBottomTabs() uses the dvalue fallback
       tabAssemblyInfo.setBottomTabsValue(tabGeneralPaneModel.getBottomTabs());
 
-      // repositionForBottomTabs only moves the tab bar (children stay in place).
-      // sync the position model afterward so setContainerPosition doesn't undo it.
       if(oldBottomTabs != tabGeneralPaneModel.getBottomTabs()) {
+         int originalTop = tabAssemblyInfo.getPixelOffset() != null
+            ? tabAssemblyInfo.getPixelOffset().y : -1;
+
          TabVSAssemblyInfo.repositionForBottomTabs(tabAssemblyInfo, vs,
                                                    tabGeneralPaneModel.getBottomTabs());
 
-         // sync position model to the new tab bar position so setContainerPosition
-         // doesn't undo the reposition by computing a delta against the old position
-         Point newTabPos = tabAssemblyInfo.getPixelOffset();
+         // sync position model only when the user didn't explicitly change the position;
+         // if they did, let setContainerPosition translate the whole group to the new Y
+         if(sizePositionPaneModel.getTop() == originalTop) {
+            Point newTabPos = tabAssemblyInfo.getPixelOffset();
 
-         if(newTabPos != null) {
-            sizePositionPaneModel.setTop(newTabPos.y);
+            if(newTabPos != null) {
+               sizePositionPaneModel.setTop(newTabPos.y);
+            }
          }
       }
 

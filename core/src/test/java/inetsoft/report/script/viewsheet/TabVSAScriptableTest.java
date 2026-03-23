@@ -190,6 +190,36 @@ public class TabVSAScriptableTest {
       assertEquals(30, child.getVSAssemblyInfo().getPixelOffset().y);
    }
 
+   @Test
+   void testSetBottomTabsMultiChildFlushesShortChild() {
+      when(viewsheetSandbox.isRuntime()).thenReturn(true);
+
+      TextVSAssembly tall = new TextVSAssembly();
+      tall.getVSAssemblyInfo().setName("Tall");
+      tall.getVSAssemblyInfo().setPixelOffset(new Point(0, 60));
+      tall.getVSAssemblyInfo().setPixelSize(new Dimension(180, 100));
+      viewsheet.addAssembly(tall);
+
+      TextVSAssembly shortChild = new TextVSAssembly();
+      shortChild.getVSAssemblyInfo().setName("Short");
+      shortChild.getVSAssemblyInfo().setPixelOffset(new Point(0, 60));
+      shortChild.getVSAssemblyInfo().setPixelSize(new Dimension(180, 50));
+      viewsheet.addAssembly(shortChild);
+
+      tabVSAssemblyInfo.setAssemblies(new String[]{"Tall", "Short"});
+      tabVSAssemblyInfo.setPixelOffset(new Point(0, 30));
+      tabVSAssemblyInfo.setPixelSize(new Dimension(180, 30));
+
+      tabVSAScriptable.setBottomTabs(true);
+
+      // tab moves below the tallest child's bottom edge (60 + 100 = 160)
+      assertEquals(160, tabVSAssemblyInfo.getPixelOffset().y);
+      // tall child stays in place; bottom edge (60 + 100 = 160) flush with tab top
+      assertEquals(60, tall.getVSAssemblyInfo().getPixelOffset().y);
+      // short child moves down so bottom edge is flush (160 - 50 = 110)
+      assertEquals(110, shortChild.getVSAssemblyInfo().getPixelOffset().y);
+   }
+
    @ParameterizedTest
    @CsvSource({
       "labels, []",

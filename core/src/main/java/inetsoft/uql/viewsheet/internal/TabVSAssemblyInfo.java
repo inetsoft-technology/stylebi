@@ -350,8 +350,8 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    }
 
    /**
-    * Moves the tab bar when the bottomTabs property is toggled. Children stay in place.
-    * Callers must guard against redundant calls.
+    * Repositions the tab bar and adjusts children to be flush when the bottomTabs
+    * property is toggled. Callers must guard against redundant calls.
     *
     * Bottom-tabs: tab bar moves below the lowest child's bottom edge.
     * Top-tabs: tab bar moves above the highest child's top edge.
@@ -408,7 +408,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
          return;
       }
 
-      // move the tab bar; align children so every bottom (or top) edge is flush
+      // move the tab bar
       int newTabY = toBottomTabs
          ? maxChildBottom
          : Math.max(0, minChildTop - tabHeight);
