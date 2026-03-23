@@ -38,6 +38,7 @@ import org.springframework.session.Session;
 import java.lang.invoke.MethodHandles;
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
@@ -64,7 +65,14 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
       this.messagingTemplate = messagingTemplate;
       this.clientId = null;
       this.sessionRepository = sessionRepository;
-      this.pending = new ArrayList<>();
+      String sessionId = headerAccessor.getSessionId();
+      MessageAttributes msgAttrs = MessageContextHolder.currentMessageAttributes();
+      String runtimeId = msgAttrs != null ? (String) msgAttrs.getAttribute(RUNTIME_ID_ATTR) : null;
+      this.sessionState = (sessionId != null && runtimeId != null)
+         ? SESSION_STATES
+              .computeIfAbsent(sessionId, k -> new ConcurrentHashMap<>())
+              .computeIfAbsent(runtimeId, k -> new SessionDispatchState())
+         : new SessionDispatchState();
    }
 
    /**
@@ -77,7 +85,7 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
       this.clientId = clientId;
       this.commands.addAll(source.commands);
       this.sessionRepository = source.sessionRepository;
-      this.pending = source.pending;
+      this.sessionState = source.sessionState;
    }
 
    /**
@@ -127,10 +135,10 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
          return;
       }
 
-      synchronized(pending) {
-         if(timerTask != null) {
-            timerTask.cancel();
-            timerTask = null;
+      synchronized(sessionState.pending) {
+         if(sessionState.timerTask != null) {
+            sessionState.timerTask.cancel();
+            sessionState.timerTask = null;
          }
 
          SimpMessageHeaderAccessor headerAccessor = SimpMessageHeaderAccessor.create();
@@ -142,8 +150,8 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
 
          PendingCommand pcmd = new PendingCommand(assemblyName, command, headerAccessor);
 
-         if(debouncer.debounce(pending, pcmd)) {
-            getTimer().schedule(timerTask = new FlushPendingTask(), 300);
+         if(debouncer.debounce(sessionState.pending, pcmd)) {
+            getTimer().schedule(sessionState.timerTask = new FlushPendingTask(), 300);
          }
          else {
             new FlushPendingTask().run();
@@ -169,7 +177,14 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
     * Force pending command to be sent.
     */
    public void flush() {
-      new FlushPendingTask().run();
+      synchronized(sessionState.pending) {
+         if(sessionState.timerTask != null) {
+            sessionState.timerTask.cancel();
+            sessionState.timerTask = null;
+         }
+
+         new FlushPendingTask().run();
+      }
    }
 
    @Override
@@ -344,9 +359,9 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
    private class FlushPendingTask extends TimerTask {
       public void run() {
          try {
-            synchronized(pending) {
+            synchronized(sessionState.pending) {
                dispatchPending();
-               pending.clear();
+               sessionState.pending.clear();
             }
          }
          catch(Exception ex) {
@@ -365,7 +380,7 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
 
          runtimeSessions = Collections.emptyList();
 
-         pending.forEach(c -> {
+         sessionState.pending.forEach(c -> {
             final ViewsheetCommand command = c.getCommand();
             final MessageHeaders headers = c.getHeaderAccessor().getMessageHeaders();
 
@@ -414,16 +429,40 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
       private String assembly;
    }
 
+   /**
+    * Holds the pending command queue and active timer for a single WebSocket session.
+    * All CommandDispatcher instances for the same session share one SessionDispatchState
+    * so that commands queued by concurrent handlers (e.g. changeValue still in-flight when
+    * undo arrives) are visible to the debouncer and can be overwritten in-place rather than
+    * sent as stale updates after an undo/redo has already applied a newer model.
+    */
+   static final class SessionDispatchState {
+      final List<PendingCommand> pending = new ArrayList<>();
+      TimerTask timerTask = null; // accessed only under synchronized(pending)
+   }
+
+   /** Per-session shared dispatch state, keyed by STOMP session ID then viewsheet runtime ID. */
+   private static final ConcurrentHashMap<String, ConcurrentHashMap<String, SessionDispatchState>>
+      SESSION_STATES = new ConcurrentHashMap<>();
+
+   /**
+    * Removes the shared dispatch state for a session on disconnect, preventing a memory leak.
+    */
+   public static void removeSessionState(String sessionId) {
+      if(sessionId != null) {
+         SESSION_STATES.remove(sessionId);
+      }
+   }
+
    private final FindByIndexNameSessionRepository<? extends Session> sessionRepository;
    private final StompHeaderAccessor headerAccessor;
    private final SimpMessagingTemplate messagingTemplate;
    private final List<Command> commands = new ArrayList<>();
-   private final List<PendingCommand> pending; // R-W access should be thread-safe.
+   private final SessionDispatchState sessionState;
    private final String clientId;
    private String sharedHint;
    private Map<String, Object> detachedAttributes = null;
    private boolean detached = false;
-   private TimerTask timerTask = null;
    private CommandDebouncer debouncer = new CommandDebouncer();
 
    public static final String RUNTIME_ID_ATTR = "sheetRuntimeId";
