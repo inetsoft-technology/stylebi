@@ -204,7 +204,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
     * Set the base worksheet to this viewsheet.
     * @param ws the specified base worksheet.
     */
-   public void setBaseWorksheet(Worksheet ws) {
+   private void setBaseWorksheet(Worksheet ws) {
       if(ws == null) {
          ws = new Worksheet();
       }
