@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
+import { Subscription } from "rxjs";
 import {
    Component,
    EventEmitter,
@@ -209,6 +210,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
    localTimeZoneOffset = 0;
    localTimeZoneId: string;
    localTimeZoneLabel: string;
+   private timeZoneSubscription: Subscription;
 
    private readonly COPY_OF_PREFIX = "_#(js:Copy of) ";
 
@@ -753,12 +755,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
          this.localTimeZoneId = this.timeZoneOptions[0].timeZoneId;
       }
 
-      if(tz == this.timeZoneOptions[0]) {
-         this.localTimeZoneLabel = new Date().toTimeString().match(/\((.+)\)/)[1];
-      }
-      else {
-         this.localTimeZoneLabel = tz.label;
-      }
+      this.localTimeZoneLabel = tz.label;
 
       this.updateTimeZone();
 
@@ -772,6 +769,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
    }
 
    initForm() {
+      this.timeZoneSubscription?.unsubscribe();
       let startControl: UntypedFormControl;
       let timeZoneControl = new UntypedFormControl(
          this.findTimeZone(this.localTimeZoneId, this.timeCondition?.timeZoneLabel));
@@ -911,7 +909,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
          });
       }
 
-      this.form.get("timeZone")?.valueChanges.subscribe((tz: TimeZoneModel) => {
+      this.timeZoneSubscription = this.form.get("timeZone")?.valueChanges.subscribe((tz: TimeZoneModel) => {
          if(tz) {
             this.onTimeZoneSelectChanged(tz);
          }
@@ -1174,7 +1172,9 @@ export class TaskConditionPane implements OnInit, OnChanges {
          monthsOfYear: [],
          monthlyDaySelected: true,
          date: new Date().getTime(),
-         timeZoneOffset: (<TimeConditionModel> this.condition).timeZoneOffset || this.serverTimeZoneOffset
+         timeZoneOffset: (<TimeConditionModel> this.condition).timeZoneOffset || this.serverTimeZoneOffset,
+         timeZone: (<TimeConditionModel> this.condition).timeZone,
+         timeZoneLabel: (<TimeConditionModel> this.condition).timeZoneLabel
       };
    }
 
