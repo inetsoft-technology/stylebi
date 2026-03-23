@@ -22,7 +22,7 @@ import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dro
 import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { DataInputPaneModel } from "../../data/vs/data-input-pane-model";
-import { DatePipe } from '@angular/common';
+import { DatePipe } from "@angular/common";
 import { XSchema } from "../../../common/data/xschema";
 
 const ROW_URI: string = "../vs/dataInput/rows/";
@@ -68,7 +68,7 @@ export class DataInputPane implements OnInit, OnChanges {
    }
 
    ngOnChanges(changes: SimpleChanges) {
-      if(changes['dataType'] && !changes['dataType'].firstChange && !this.isDateType) {
+      if(changes["dataType"] && !changes["dataType"].firstChange && !this.isDateType) {
          this.model.queryDateFormat = false;
          this.setDateFormatInvalid(false);
       }

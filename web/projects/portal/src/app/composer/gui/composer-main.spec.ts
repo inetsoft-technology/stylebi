@@ -103,7 +103,7 @@ describe("ComposerMain Unit Tests", () => {
 
       stompClientService = { connect: jest.fn(() => observableOf(stompClientConnection)) };
 
-      httpService = { get: jest.fn(() => EMPTY), post: jest.fn() };
+      httpService = { get: jest.fn(() => EMPTY), post: jest.fn(() => observableOf({})) };
 
       appInfoService = {
          getCurrentOrgInfo: jest.fn(() => observableOf({})),

@@ -20,6 +20,7 @@ import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { Component, NgZone, NO_ERRORS_SCHEMA, ViewChild } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MatButtonModule } from "@angular/material/button";
 import { MatCheckboxModule } from "@angular/material/checkbox";
 import { MatDialog, MatDialogModule } from "@angular/material/dialog";
 import { MatIconModule } from "@angular/material/icon";
@@ -66,8 +67,9 @@ describe("RepositoryTreeViewComponent", () => {
             HttpClientTestingModule,
             FormsModule,
             ReactiveFormsModule,
-            MatMenuModule,
             MatCheckboxModule,
+            MatMenuModule,
+            MatButtonModule,
             MatIconModule,
             MatDialogModule
          ],

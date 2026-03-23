@@ -187,11 +187,11 @@ describe("Viewsheet Pane Test", () => {
          defaultFont: "Roboto"
       };
 
-      aiAssistantService = {};
-      aiAssistantDialogService = { setViewsheetScriptContext: jest.fn() };
+      const aiAssistantService = {};
+      const aiAssistantDialogService = { setViewsheetScriptContext: jest.fn() };
 
       viewsheetPane = new VSPane(
-         aiAssistantService, aiAssistantDialogService,
+         aiAssistantService as any, aiAssistantDialogService as any,
          elementRef, composerObjectService, viewsheetClientService,
          treeService, changeDetectorRef, modelService, modalService,
          downloadService, dragService, scaleService, renderer, actionFactory,
