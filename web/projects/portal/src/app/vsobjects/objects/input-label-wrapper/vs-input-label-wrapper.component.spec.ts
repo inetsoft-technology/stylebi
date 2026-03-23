@@ -123,4 +123,72 @@ describe("VSInputLabelWrapper", () => {
       expect(styles["text-align"]).toBe("center");
       expect(styles["text-decoration"]).toBe("underline");
    });
+
+   it("should return objectHeight as hostHeight for left/right labels", () => {
+      component.labelModel = {
+         showLabel: true,
+         labelText: "Test",
+         labelPosition: "left"
+      };
+      component.objectHeight = 30;
+
+      expect(component.hostHeight).toBe(30);
+
+      component.labelModel = { ...component.labelModel, labelPosition: "right" };
+
+      expect(component.hostHeight).toBe(30);
+   });
+
+   it("should return null hostHeight for top/bottom labels", () => {
+      component.objectHeight = 30;
+      component.labelModel = {
+         showLabel: true,
+         labelText: "Test",
+         labelPosition: "top"
+      };
+
+      expect(component.hostHeight).toBeNull();
+
+      component.labelModel = { ...component.labelModel, labelPosition: "bottom" };
+
+      expect(component.hostHeight).toBeNull();
+   });
+
+   it("should set content height for top/bottom labels", () => {
+      component.objectHeight = 30;
+      component.labelModel = {
+         showLabel: true,
+         labelText: "Test",
+         labelPosition: "top"
+      };
+
+      expect(component.contentStyle).toEqual({ "height": "30px" });
+
+      component.labelModel = { ...component.labelModel, labelPosition: "bottom" };
+
+      expect(component.contentStyle).toEqual({ "height": "30px" });
+   });
+
+   it("should return empty contentStyle for left/right labels", () => {
+      component.objectHeight = 30;
+      component.labelModel = {
+         showLabel: true,
+         labelText: "Test",
+         labelPosition: "left"
+      };
+
+      expect(component.contentStyle).toEqual({});
+   });
+
+   it("should return objectHeight as hostHeight when label is hidden", () => {
+      component.objectHeight = 30;
+      component.labelModel = {
+         showLabel: false,
+         labelText: "Test",
+         labelPosition: "top"
+      };
+
+      expect(component.hostHeight).toBe(30);
+      expect(component.contentStyle).toEqual({});
+   });
 });
