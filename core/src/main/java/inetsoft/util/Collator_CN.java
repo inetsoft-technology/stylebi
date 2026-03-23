@@ -27,6 +27,7 @@ import java.text.CollationKey;
 import java.text.Collator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ForkJoinPool;
 
 /*
  * Collator_CN, basing on file, it can compare polyphone words properly. For a
@@ -41,59 +42,10 @@ import java.util.Map;
  */
 public class Collator_CN extends Collator {
    /**
-    * Initialize this collator.
-    */
-   private static void init() {
-      if(!inited) {
-         synchronized(Collator_CN.class) {
-            if(!inited) {
-               init0();
-            }
-         }
-      }
-   }
-
-   /**
-    * Initialize this collator internally.
-    */
-   private static void init0() {
-      InputStream input =
-         Collator_CN.class.getResourceAsStream("/inetsoft/util/collator_map.properties");
-
-      if(input != null) {
-         try {
-            BufferedReader reader =
-               new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8));
-            map = new HashMap<>();
-            String line;
-
-            while((line = reader.readLine()) != null) {
-               line = line.trim();
-               int index = line.indexOf('=');
-
-               if(index >= 0) {
-                  map.put(line.substring(0, index), line.substring(index + 1));
-               }
-            }
-         }
-         catch(Exception ex) {
-            LOG.error("Failed to read collator map file", ex);
-         }
-         finally {
-            inited = true;
-            IOUtils.closeQuietly(input);
-         }
-      }
-   }
-
-   /**
     * Get the collator.
     */
    public static Collator getCollator() {
-      init();
-
-      return map == null ? Collator.getInstance() :
-         new Collator_CN();
+      return map == null ? Collator.getInstance() : new Collator_CN();
    }
 
    /**
@@ -131,7 +83,40 @@ public class Collator_CN extends Collator {
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(Collator_CN.class);
-   private static Map<String, String> map;
-   private static volatile boolean inited;
+   private static volatile Map<String, String> map;
+
+   static {
+      ForkJoinPool.commonPool().execute(() -> {
+         InputStream input =
+            Collator_CN.class.getResourceAsStream("/inetsoft/util/collator_map.properties");
+
+         if(input != null) {
+            try {
+               BufferedReader reader =
+                  new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8));
+               Map<String, String> m = new HashMap<>();
+               String line;
+
+               while((line = reader.readLine()) != null) {
+                  line = line.trim();
+                  int index = line.indexOf('=');
+
+                  if(index >= 0) {
+                     m.put(line.substring(0, index), line.substring(index + 1));
+                  }
+               }
+
+               map = m;
+            }
+            catch(Exception ex) {
+               LOG.error("Failed to read collator map file", ex);
+            }
+            finally {
+               IOUtils.closeQuietly(input);
+            }
+         }
+      });
+   }
+
    private final Collator base;
 }
