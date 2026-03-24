@@ -291,11 +291,11 @@ public class LabelInfo implements AssetObject {
     * @param writer the specified writer.
     */
    protected void writeAttributes(PrintWriter writer) {
-      writer.print(" labelVisible=\"" + isLabelVisible() + "\"");
+      writer.print(" labelVisible=\"" + getLabelVisibleValue() + "\"");
       writer.print(" labelVisibleValue=\"" + getLabelVisibleValue() + "\"");
-      writer.print(" labelPosition=\"" + getLabelPosition() + "\"");
+      writer.print(" labelPosition=\"" + getLabelPositionValue() + "\"");
       writer.print(" labelPositionValue=\"" + getLabelPositionValue() + "\"");
-      writer.print(" labelGap=\"" + getLabelGap() + "\"");
+      writer.print(" labelGap=\"" + getLabelGapValue() + "\"");
       writer.print(" labelGapValue=\"" + getLabelGapValue() + "\"");
    }
 
