@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { DebugElement, NO_ERRORS_SCHEMA } from "@angular/core";
 import { async, ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
@@ -53,7 +54,7 @@ describe("Reorder Columns Dialog Test", () => {
       tooltipService = { createToolTip: jest.fn() };
 
       TestBed.configureTestingModule({
-         imports: [ NgbModule ],
+         imports: [ HttpClientTestingModule, NgbModule ],
          declarations: [
             ReorderColumnsDialog, EnterSubmitDirective, LargeFormFieldComponent, TooltipDirective, ModalHeaderComponent
          ],

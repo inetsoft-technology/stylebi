@@ -52,6 +52,7 @@ describe("Calc Data Pane Unit Test", () => {
          getCellBinding: jest.fn(),
          getCellNames: jest.fn(),
          getCellScript: jest.fn(),
+         loadCellScript: jest.fn(),
          setCellBinding: jest.fn(),
          getSelectCells: jest.fn(),
          getCellNamesWithDefaults: jest.fn(),

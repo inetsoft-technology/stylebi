@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -29,7 +30,7 @@ describe("Table Unpivot Dialog Tests", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            HttpClientTestingModule, FormsModule, ReactiveFormsModule, NgbModule
          ],
          declarations: [
             TableUnpivotDialog, EnterSubmitDirective, ModalHeaderComponent

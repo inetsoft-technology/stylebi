@@ -31,6 +31,12 @@ import { PopComponentService } from "../data-tip/pop-component.service";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSSlider } from "./vs-slider.component";
 
+global.ResizeObserver = jest.fn().mockImplementation(() => ({
+   observe: jest.fn(),
+   unobserve: jest.fn(),
+   disconnect: jest.fn()
+}));
+
 describe("VSSlider Unit Tests", () => {
    let stompClient: any;
    let dataTipService: any;

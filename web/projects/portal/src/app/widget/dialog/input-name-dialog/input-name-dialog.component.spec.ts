@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { async, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
@@ -38,7 +39,7 @@ describe("Input Name Dialog Unit Test", () => {
    beforeEach(async(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            HttpClientTestingModule, FormsModule, ReactiveFormsModule, NgbModule
          ],
          declarations: [
             InputNameDialog,
