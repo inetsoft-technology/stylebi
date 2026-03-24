@@ -65,6 +65,7 @@ public class ImageShapes {
          String key = getKey();
          singleton.cache.remove(key);
          singleton.lastByOrg.remove(key);
+         SVGShape.clearCache();
       }
    }
 
