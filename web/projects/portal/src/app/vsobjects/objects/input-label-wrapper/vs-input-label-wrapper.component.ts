@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, Output } from "@angular/core";
+import { Component, EventEmitter, HostBinding, Input, Output } from "@angular/core";
 import { VSInputLabelModel } from "../../model/vs-input-label-model";
 
 @Component({
@@ -26,7 +26,13 @@ import { VSInputLabelModel } from "../../model/vs-input-label-model";
 export class VSInputLabelWrapper {
    @Input() labelModel: VSInputLabelModel;
    @Input() labelSelected: boolean = false;
+   @Input() objectHeight: number | undefined;
    @Output() selectLabel = new EventEmitter<MouseEvent>();
+
+   @HostBinding("style.height.px")
+   get hostHeight(): number | null {
+      return this.isVerticalLabel ? null : (this.objectHeight ?? null);
+   }
 
    onLabelClick(event: MouseEvent): void {
       // Don't stop propagation - let it bubble up to editable-object-container for proper selection
@@ -59,11 +65,24 @@ export class VSInputLabelWrapper {
    }
 
    get wrapperClass(): string {
-      return `label-${this.labelPosition}`;
+      return this.showLabel ? `label-${this.labelPosition}` : "";
+   }
+
+   get isVerticalLabel(): boolean {
+      return this.showLabel &&
+         (this.labelPosition === "top" || this.labelPosition === "bottom");
    }
 
    get gapStyle(): { [key: string]: string } {
       return { "gap": `${this.labelGap}px` };
+   }
+
+   get contentStyle(): { [key: string]: string } {
+      if(this.isVerticalLabel && this.objectHeight !== undefined) {
+         return { "height": `${this.objectHeight}px` };
+      }
+
+      return {};
    }
 
    get labelStyles(): { [key: string]: string } {
