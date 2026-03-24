@@ -42,6 +42,8 @@ import inetsoft.util.log.*;
 import inetsoft.web.binding.command.SetGrayedOutFieldsCommand;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
+import inetsoft.web.messaging.MessageAttributes;
+import inetsoft.web.messaging.MessageContextHolder;
 import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
@@ -192,6 +194,16 @@ public class VSLifecycleService {
 
          if(runtimeViewsheetManager != null) {
             runtimeViewsheetManager.sheetClosed(runtimeId);
+         }
+
+         // Evict the per-runtimeId dispatch state so it doesn't accumulate in long-running
+         // sessions that open and close many viewsheets. (getMessageAttributes returns null
+         // when this is called outside a WebSocket message context, e.g. quota eviction.)
+         MessageAttributes msgAttrs = MessageContextHolder.getMessageAttributes();
+
+         if(msgAttrs != null) {
+            String sessionId = msgAttrs.getHeaderAccessor().getSessionId();
+            CommandDispatcher.removeRuntimeState(sessionId, runtimeId);
          }
       }
       catch(Exception e) {
