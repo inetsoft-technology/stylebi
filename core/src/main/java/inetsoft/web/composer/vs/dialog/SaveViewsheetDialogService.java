@@ -240,7 +240,7 @@ public class SaveViewsheetDialogService {
 
       String name = model.getName();
 
-      if(Tool.isEmptyString(name) && Tool.equals(model.getVisualizationScope(), "private")) {
+      if(Tool.isEmptyString(name) && Tool.equals(model.getVisualizationScope(), WizUtil.VisualizationScope.PRIVATE.getValue())) {
          name = UUID.randomUUID().toString();
       }
       else if(!Tool.isEmptyString(name)) {
@@ -272,7 +272,9 @@ public class SaveViewsheetDialogService {
          if(wizSheetRuntimeId == null) {
             LOG.warn("Wiz sheet runtime id is missing for wiz visualization; skipping wiz copy entry creation.");
          }
-         else if(oentry.getScope() == AssetRepository.TEMPORARY_SCOPE) {
+         else if(oentry.getScope() == AssetRepository.TEMPORARY_SCOPE &&
+            Tool.equals(model.getVisualizationScope(), WizUtil.VisualizationScope.PRIVATE.getValue()))
+         {
             entry = WizUtil.createCopyEntryForWiz(entry, true);
          }
       }
@@ -365,6 +367,27 @@ public class SaveViewsheetDialogService {
    }
 
 
+      try {
+         if(!assetRepository.containsEntry(folder)) {
+            assetRepository.addFolder(folder, principal);
+         }
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to ensure visualization folder exists: {}", folder, ex);
+      }
+   }
+
+   private void fixParentPath(AssetEntry entry, SaveViewsheetDialogModel model) {
+      if(entry == null || model == null) {
+         return;
+      }
+
+      if(entry.isRoot() && (Tool.equals(model.getVisualizationScope(), WizUtil.VisualizationScope.SHARED.getValue()) ||
+         Tool.equals(model.getVisualizationScope(), WizUtil.VisualizationScope.PRIVATE.getValue())))
+      {
+         entry.setPath(VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH);
+      }
+   }
 
    private static final class IsDuplicateTask implements ViewsheetService.Task<Boolean> {
       public IsDuplicateTask(String runtimeId, AssetEntry entry) {
