@@ -212,6 +212,7 @@ public abstract class AbstractDataSet implements DataSet {
       this.calcvals = calcvals;
       cachedColCount = -1;
       idxmap = null;
+      cachedColCount = -1;
    }
 
    /**
@@ -231,6 +232,7 @@ public abstract class AbstractDataSet implements DataSet {
       }
 
       this.rcalcvals = rcalcvals;
+      cachedColCount = -1;
    }
 
    @Override

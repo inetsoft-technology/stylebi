@@ -418,6 +418,10 @@ public class BrushDataSet extends AbstractDataSetFilter {
     */
    @Override
    protected Object getData0(int col, int row) {
+      if(col < 0) {
+         return null;
+      }
+
       // base data
       if(row < brow) {
          if(col < bcol) {
@@ -579,6 +583,10 @@ public class BrushDataSet extends AbstractDataSetFilter {
       }
 
       col = convertToField(col);
+
+      if(col < 0) {
+         return null;
+      }
 
       // base data
       if(row < brow) {
