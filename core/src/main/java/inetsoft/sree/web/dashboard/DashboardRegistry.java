@@ -342,7 +342,10 @@ public class DashboardRegistry implements SessionListener {
 
          if(registry != null) {
             clear(nname);
-            registry.dashboardsMap.clear();
+
+            synchronized(registry) {
+               registry.dashboardsMap.clear();
+            }
 
             try {
                registry.save();
@@ -361,7 +364,7 @@ public class DashboardRegistry implements SessionListener {
             LOG.error(ex.getMessage(), ex);
          }
 
-         for(String name : registry.dashboardsMap.keySet()) {
+         for(String name : registry.getDashboardNames()) {
             fireChangeEvent(DashboardChangeEvent.Type.REMOVED, name, null, oname);
             fireChangeEvent(DashboardChangeEvent.Type.CREATED, null, name, nname);
          }
@@ -373,8 +376,7 @@ public class DashboardRegistry implements SessionListener {
          return;
       }
 
-      Map<String, Dashboard> dmap = registry.dashboardsMap;
-      Map<String, Dashboard> dmap2 = new LinkedHashMap<>(dmap);
+      Map<String, Dashboard> dmap2 = registry.getDashboardsMapSnapshot();
 
       for(Dashboard d : dmap2.values()) {
          if(d instanceof VSDashboard) {
@@ -392,7 +394,7 @@ public class DashboardRegistry implements SessionListener {
 
       registry = global ? registry : DashboardRegistry.getRegistry(nname);
       clear(global ? null : oname);
-      registry.dashboardsMap = dmap2;
+      registry.setDashboardsMap(dmap2);
 
       try {
          registry.save();
@@ -401,7 +403,7 @@ public class DashboardRegistry implements SessionListener {
          LOG.error(ex.getMessage(), ex);
       }
 
-      for(String name : registry.dashboardsMap.keySet()) {
+      for(String name : registry.getDashboardNames()) {
          fireChangeEvent(DashboardChangeEvent.Type.REMOVED, name, null, oname);
          fireChangeEvent(DashboardChangeEvent.Type.CREATED, null, name, nname);
          DependencyHandler.getInstance().updateDashboardDependencies(global ? null : nname, name, true);
@@ -412,25 +414,36 @@ public class DashboardRegistry implements SessionListener {
     * Get dashboard with the specified name.
     * @return a dashboard with the specified name.
     */
-   public Dashboard getDashboard(String name) {
+   public synchronized Dashboard getDashboard(String name) {
       return dashboardsMap.get(name);
    }
 
    /**
     * Get all dashboard names.
     */
-   @SuppressWarnings("SynchronizeOnNonFinalField")
-   public String[] getDashboardNames() {
-      synchronized(dashboardsMap) {
-         Object[] objs = dashboardsMap.keySet().toArray();
-         String[] arr = new String[objs.length];
+   public synchronized String[] getDashboardNames() {
+      Object[] objs = dashboardsMap.keySet().toArray();
+      String[] arr = new String[objs.length];
 
-         for(int i = 0; i < objs.length; i++) {
-            arr[i] = objs[i].toString();
-         }
-
-         return arr;
+      for(int i = 0; i < objs.length; i++) {
+         arr[i] = objs[i].toString();
       }
+
+      return arr;
+   }
+
+   /**
+    * Returns a snapshot copy of dashboardsMap, holding this instance's lock.
+    */
+   synchronized Map<String, Dashboard> getDashboardsMapSnapshot() {
+      return new LinkedHashMap<>(dashboardsMap);
+   }
+
+   /**
+    * Replaces dashboardsMap atomically under this instance's lock.
+    */
+   synchronized void setDashboardsMap(Map<String, Dashboard> map) {
+      this.dashboardsMap = map;
    }
 
    /**
@@ -466,7 +479,7 @@ public class DashboardRegistry implements SessionListener {
     * Method to parse an xml segment.
     * @param tag the specified xml element.
     */
-   private boolean parseXML(Element tag) throws Exception {
+   private synchronized boolean parseXML(Element tag) throws Exception {
       Element vnode = Tool.getChildNodeByTagName(tag, "Version");
       String version = Tool.getValue(vnode);
       boolean needsPort = !FileVersions.DASHBOARD_REGISTRY.equals(version);
