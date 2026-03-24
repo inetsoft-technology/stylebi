@@ -18,96 +18,102 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title data-th-text="#{signup.login.pageTitle}">Signup or Sign in</title>
-    <link rel="stylesheet" type="text/css" href="webjars/bootstrap/css/bootstrap.min.css"/>
-    <link rel="stylesheet" type="text/css" href="app/global.css"/>
-    <link rel="stylesheet" type="text/css" href="css/signup.css"/>
-    <link th:if="${customTheme} == true" rel="stylesheet" type="text/css" href="app/theme-variables.css">
+  <meta charset="UTF-8">
+  <title data-th-text="#{signup.login.pageTitle}">Signup or Sign in</title>
+  <meta name="description" content="Style Intelligence">
+  <meta name="author" content="InetSoft Technology Corp">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" type="text/css" href="webjars/bootstrap/css/bootstrap.min.css"/>
+  <link rel="stylesheet" type="text/css" href="app/global.css"/>
+  <link th:if="${customTheme} == true" rel="stylesheet" type="text/css" href="app/theme-variables.css">
+  <link rel="stylesheet" type="text/css" href="css/login.css"/>
+  <link rel="stylesheet" type="text/css" href="css/signup.css"/>
+  <link rel="shortcut icon" data-th-href="@{/portal/favicon}" href="portal/favicon">
 </head>
 <body>
-    <div class="d-flex align-items-center bg-navbar-top" data-th-switch="${customLogo}">
-        <img class="custom-logo" src="portal/logo" data-th-case="${true}">
-        <th-block data-th-case="*">
-            <i class="inetsoft-logo inetsoft-icon icon-size-logo txt-primary"></i>
-            <span class="inetsoft-logo txt-light"> InetSoft </span>
-        </th-block>
-    </div>
-    <div class="container-fluid login-root">
-        <div class="card">
-            <div class="card-header" data-th-text="#{signup.login.pageTitle}">
-                Signup or sign in
-            </div>
-            <div class="card-body">
-                <div class="view-container">
-                    <div id="start-view">
-                        <div class="start-text layout-item" data-th-text="#{signup.login.title}">Start Visualizing Your Data</div>
-                        <form id="start-form" novalidate>
-                            <div id="emailGroup" class="form-group">
-                                <input type="email" class="form-control" id="email" placeholder="Your Email"
-                                       name="userEmail" autocomplete="email" autofocus/>
-                                <div id="emailError" class="invalid-feedback" style="display: none;">
-                                    <span id="emailRequiredError" data-th-text="#{signup.email.required}">Please enter your email.</span>
-                                    <span id="emailFormatError" data-th-text="#{signup.email.invalid}">Invalid email address.</span>
-                                </div>
-                            </div>
-                        </form>
-                        <div class="row btn-center-container layout-item">
-                            <button id="signupButton" class="btn btn-primary signup-btn" data-th-text="#{signup.pageTitle}">
-                                Sign up
-                            </button>
-                        </div>
-                        <div class="layout-item">
-                            <a href="./login.html" target="_self" data-th-text="#{signup.hasAccount}">Already have an account</a>
-                        </div>
-                        <div class="layout-item" data-th-if="${gClientId != null}">
-                            <div class="separator-div">
-                                <hr class="separator-line">
-                                <span class="separator-text" data-th-text="#{OR}"> OR </span>
-                                <hr class="separator-line">
-                            </div>
-                        </div>
-                        <div class="layout-item btn-center-container d-flex align-items-center"
-                             data-th-if="${gClientId != null}">
-                            <div class="g_id_signin"
-                                 data-type="standard"
-                                 data-shape="rectangular"
-                                 data-theme="outline"
-                                 data-text="signup_with"
-                                 data-size="large"
-                                 data-logo_alignment="left">
-                            </div>
-                        </div>
-                    </div>
+  <div data-th-replace="~{fragments :: navbar('portal/logo')}"></div>
+  <div class="container-fluid login-root">
+
+    <!-- ── Background decoration ── -->
+    <div data-th-replace="~{fragments :: login-background}"></div>
+
+    <!-- ── Floating card ── -->
+    <main class="login-left">
+      <div class="card">
+        <div class="card-header" data-th-text="#{signup.login.pageTitle}">
+          Signup or sign in
+        </div>
+        <div class="card-body">
+          <div class="view-container">
+            <div id="start-view">
+              <div class="start-text layout-item" data-th-text="#{signup.login.title}">Start Visualizing Your Data</div>
+              <form id="start-form" novalidate>
+                <div id="emailGroup" class="form-group">
+                  <input type="email" class="form-control" id="email" placeholder="Your Email"
+                         name="userEmail" autocomplete="email" autofocus/>
+                  <div id="emailError" class="invalid-feedback" style="display: none;" aria-live="assertive" aria-atomic="true">
+                    <span id="emailRequiredError" data-th-text="#{signup.email.required}">Please enter your email.</span>
+                    <span id="emailFormatError" data-th-text="#{signup.email.invalid}">Invalid email address.</span>
+                  </div>
                 </div>
+              </form>
+              <div class="row btn-center-container layout-item">
+                <button id="signupButton" type="button" class="btn btn-primary"
+                        form="start-form" data-th-text="#{signup.pageTitle}">
+                  Sign up
+                </button>
+              </div>
+              <div class="layout-item">
+                <a href="./login.html" target="_self" data-th-text="#{signup.hasAccount}">Already have an account</a>
+              </div>
+              <div class="layout-item" data-th-if="${gClientId != null}">
+                <div class="separator-div">
+                  <hr class="separator-line">
+                  <span class="separator-text" data-th-text="#{OR}"> OR </span>
+                  <hr class="separator-line">
+                </div>
+              </div>
+              <div class="layout-item btn-center-container d-flex align-items-center"
+                   data-th-if="${gClientId != null}">
+                <div class="g_id_signin"
+                     data-type="standard"
+                     data-shape="rectangular"
+                     data-theme="outline"
+                     data-text="signup_with"
+                     data-size="large"
+                     data-logo_alignment="left">
+                </div>
+              </div>
             </div>
+          </div>
         </div>
-        <div id="notifications" class="alert alert-danger" style="display: none"></div>
-    </div>
-    <div class="loading-indicator">
-        <div>
-            <i class="loading-icon loading-icon--spin fa-spin icon-4x fa-fw" aria-hidden="true"></i>
-            <span class="sr-only" data-th-text="#{login.loading}">Loading</span>
-        </div>
-    </div>
-    <div id="g_id_onload" data-th-if="${gClientId != null}"
-         data-th-attr="data-client_id=${gClientId}, data-login_uri=${gLoginUri}, data-scope=${gScopes}"
-         data-context="signin"
-         data-ux_mode="redirect"
-         data-auto_select="true"
-         data-itp_support="true">
-    </div>
-    <script type="text/javascript" src="webjars/jquery/jquery.min.js"></script>
-    <script type="text/javascript" src="webjars/bootstrap/js/bootstrap.min.js"></script>
-    <script type="text/javascript" src="js/signup.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto" rel="stylesheet">
-    <script src="https://accounts.google.com/gsi/client" async></script>
-    <script>
-        /*<![CDATA[*/
-        $(document).ready(function() {
-            initSignUpView();
-        });
-        /*]]>*/
-    </script>
+      </div>
+      <div id="notifications" class="alert alert-danger" style="display: none"
+           aria-live="assertive" aria-atomic="true"></div>
+    </main>
+    <!-- ── end floating card ── -->
+
+  </div>
+
+  <div data-th-replace="~{fragments :: loading-spinner('Loading…')}"></div>
+
+  <div id="g_id_onload" data-th-if="${gClientId != null}"
+       data-th-attr="data-client_id=${gClientId}, data-login_uri=${gLoginUri}, data-scope=${gScopes}"
+       data-context="signin"
+       data-ux_mode="redirect"
+       data-auto_select="true"
+       data-itp_support="true">
+  </div>
+  <script type="text/javascript" src="webjars/jquery/jquery.min.js"></script>
+  <script type="text/javascript" src="webjars/bootstrap/js/bootstrap.min.js"></script>
+  <script type="text/javascript" src="js/signup.js"></script>
+  <script data-th-if="${gClientId != null}" src="https://accounts.google.com/gsi/client" async></script>
+  <script>
+    /*<![CDATA[*/
+    $(document).ready(function() {
+      initSignUpView();
+    });
+    /*]]>*/
+  </script>
 </body>
 </html>
