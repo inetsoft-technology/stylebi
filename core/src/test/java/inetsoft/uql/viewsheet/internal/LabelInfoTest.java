@@ -122,9 +122,36 @@ class LabelInfoTest {
          "XML should persist design-time visibility, not runtime override");
    }
 
+   @Test
+   void clonePreservesDesignAndRuntimeValues() {
+      labelInfo.setLabelPositionValue(LabelInfo.BOTTOM);
+      labelInfo.setLabelPosition(LabelInfo.TOP);
+      labelInfo.setLabelGapValue(10);
+      labelInfo.setLabelGap(20);
+
+      LabelInfo cloned = (LabelInfo) labelInfo.clone();
+
+      assertEquals(LabelInfo.TOP, cloned.getLabelPosition(),
+         "clone should preserve runtime position");
+      assertEquals(LabelInfo.BOTTOM, cloned.getLabelPositionValue(),
+         "clone should preserve design-time position");
+      assertEquals(20, cloned.getLabelGap(),
+         "clone should preserve runtime gap");
+      assertEquals(10, cloned.getLabelGapValue(),
+         "clone should preserve design-time gap");
+
+      // modifying clone should not affect original
+      cloned.setLabelPosition(LabelInfo.RIGHT);
+      assertEquals(LabelInfo.TOP, labelInfo.getLabelPosition(),
+         "modifying clone should not affect original");
+   }
+
    private static Element parseXmlString(String xml) throws Exception {
-      Document doc = DocumentBuilderFactory.newInstance()
-         .newDocumentBuilder()
+      DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+      factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+      factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+      factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+      Document doc = factory.newDocumentBuilder()
          .parse(new ByteArrayInputStream(xml.getBytes()));
       return doc.getDocumentElement();
    }

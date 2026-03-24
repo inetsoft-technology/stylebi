@@ -202,7 +202,13 @@ public class LabelInfo implements AssetObject {
     * @return the gap in pixels.
     */
    public int getLabelGap() {
-      return labelGap.getIntValue(false, getLabelGapValue());
+      try {
+         return labelGap.getIntValue(false, getLabelGapValue());
+      }
+      catch(NumberFormatException e) {
+         LOG.warn("Invalid label gap value, defaulting to design-time value");
+         return getLabelGapValue();
+      }
    }
 
    /**
@@ -305,7 +311,12 @@ public class LabelInfo implements AssetObject {
     * @param elem the specified xml element.
     */
    protected void parseAttributes(Element elem) {
-      setLabelVisibleValue(Tool.getAttribute(elem, "labelVisibleValue"));
+      // labelVisible was already a DynamicValue2, so labelVisibleValue always exists in saved assets
+      String visibleValue = Tool.getAttribute(elem, "labelVisibleValue");
+
+      if(visibleValue != null) {
+         setLabelVisibleValue(visibleValue);
+      }
 
       String positionValue = Tool.getAttribute(elem, "labelPositionValue");
 
