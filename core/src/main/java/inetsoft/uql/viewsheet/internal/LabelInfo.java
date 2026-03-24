@@ -70,7 +70,7 @@ public class LabelInfo implements AssetObject {
 
       this.labelText = new DynamicValue2("", XSchema.STRING);
       this.labelVisible = new DynamicValue2("false", XSchema.BOOLEAN);
-      this.labelPosition = LEFT;
+      this.labelPosition = new DynamicValue2(LEFT, XSchema.STRING);
       this.labelGap = new DynamicValue2(DEFAULT_GAP + "", XSchema.INTEGER);
    }
 
@@ -83,7 +83,7 @@ public class LabelInfo implements AssetObject {
 
       this.labelText = new DynamicValue2(text, XSchema.STRING);
       this.labelVisible = new DynamicValue2("true", XSchema.BOOLEAN);
-      this.labelPosition = LEFT;
+      this.labelPosition = new DynamicValue2(LEFT, XSchema.STRING);
       this.labelGap = new DynamicValue2(DEFAULT_GAP + "", XSchema.INTEGER);
    }
 
@@ -153,26 +153,43 @@ public class LabelInfo implements AssetObject {
    }
 
    /**
-    * Get the label position relative to the input.
+    * Get the runtime label position relative to the input.
     * @return the label position (top, bottom, left, right).
     */
    public String getLabelPosition() {
-      return labelPosition;
+      Object rval = labelPosition.getRValue();
+      String pos = rval != null ? rval.toString() : getLabelPositionValue();
+      return isValidPosition(pos) ? pos : LEFT;
    }
 
    /**
-    * Set the label position relative to the input.
+    * Set the runtime label position relative to the input.
     * @param position the label position (top, bottom, left, right).
     */
    public void setLabelPosition(String position) {
-      if(TOP.equals(position) || BOTTOM.equals(position) ||
-         LEFT.equals(position) || RIGHT.equals(position))
-      {
-         this.labelPosition = position;
-      }
-      else {
-         this.labelPosition = LEFT;
-      }
+      labelPosition.setRValue(isValidPosition(position) ? position : LEFT);
+   }
+
+   /**
+    * Get the design time label position relative to the input.
+    * @return the label position (top, bottom, left, right).
+    */
+   public String getLabelPositionValue() {
+      String pos = labelPosition.getDValue();
+      return isValidPosition(pos) ? pos : LEFT;
+   }
+
+   /**
+    * Set the design time label position relative to the input.
+    * @param position the label position (top, bottom, left, right).
+    */
+   public void setLabelPositionValue(String position) {
+      labelPosition.setDValue(isValidPosition(position) ? position : LEFT);
+   }
+
+   private static boolean isValidPosition(String position) {
+      return TOP.equals(position) || BOTTOM.equals(position) ||
+         LEFT.equals(position) || RIGHT.equals(position);
    }
 
    /**
@@ -272,6 +289,7 @@ public class LabelInfo implements AssetObject {
       writer.print(" labelVisible=\"" + isLabelVisible() + "\"");
       writer.print(" labelVisibleValue=\"" + getLabelVisibleValue() + "\"");
       writer.print(" labelPosition=\"" + getLabelPosition() + "\"");
+      writer.print(" labelPositionValue=\"" + getLabelPositionValue() + "\"");
       writer.print(" labelGap=\"" + getLabelGap() + "\"");
       writer.print(" labelGapValue=\"" + getLabelGapValue() + "\"");
    }
@@ -283,10 +301,18 @@ public class LabelInfo implements AssetObject {
    protected void parseAttributes(Element elem) {
       setLabelVisibleValue(Tool.getAttribute(elem, "labelVisibleValue"));
 
-      String position = Tool.getAttribute(elem, "labelPosition");
+      String positionValue = Tool.getAttribute(elem, "labelPositionValue");
 
-      if(position != null) {
-         setLabelPosition(position);
+      if(positionValue != null) {
+         setLabelPositionValue(positionValue);
+      }
+      else {
+         // backward compatibility: read from labelPosition if labelPositionValue not present
+         String position = Tool.getAttribute(elem, "labelPosition");
+
+         if(position != null) {
+            setLabelPositionValue(position);
+         }
       }
 
       String gapStr = Tool.getAttribute(elem, "labelGapValue");
@@ -385,6 +411,7 @@ public class LabelInfo implements AssetObject {
          LabelInfo info = (LabelInfo) super.clone();
          info.labelText = (DynamicValue2) labelText.clone();
          info.labelVisible = (DynamicValue2) labelVisible.clone();
+         info.labelPosition = (DynamicValue2) labelPosition.clone();
          info.labelGap = (DynamicValue2) labelGap.clone();
 
          if(labelFormat != null) {
@@ -408,6 +435,7 @@ public class LabelInfo implements AssetObject {
       List<DynamicValue> list = new ArrayList<>();
       list.add(labelText);
       list.add(labelVisible);
+      list.add(labelPosition);
       list.add(labelGap);
       return list;
    }
@@ -418,12 +446,13 @@ public class LabelInfo implements AssetObject {
    public void resetRuntimeValues() {
       labelText.setRValue(null);
       labelVisible.setRValue(null);
+      labelPosition.setRValue(null);
       labelGap.setRValue(null);
    }
 
    private DynamicValue2 labelText;
    private DynamicValue2 labelVisible;
-   private String labelPosition;
+   private DynamicValue2 labelPosition;
    private DynamicValue2 labelGap;
    private VSCompositeFormat labelFormat;
 
