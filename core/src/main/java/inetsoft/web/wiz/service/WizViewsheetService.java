@@ -22,7 +22,7 @@ import inetsoft.cluster.*;
 import inetsoft.report.composition.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.WizUtil;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -54,7 +54,7 @@ public class WizViewsheetService {
          throw new IllegalArgumentException("Invalid Viewsheet");
       }
 
-      AssetEntry originalEntry = VSUtil.createWizOriginalVisualization(visualizationEntry);
+      AssetEntry originalEntry = WizUtil.createWizOriginalVisualization(visualizationEntry);
       Viewsheet.WizInfo wizInfo = rvs.getViewsheet().getWizInfo();
       wizInfo.removeVisualization(originalEntry.toIdentifier());
       wizInfo.addVisualization(entryId);

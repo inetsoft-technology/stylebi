@@ -36,6 +36,7 @@ import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.AnnotationVSUtil;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.WizUtil;
 import inetsoft.uql.viewsheet.vslayout.AbstractLayout;
 import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
 import inetsoft.util.*;
@@ -135,7 +136,7 @@ public class ComposerViewsheetService {
             rvs.setProperty("mvconfirmed", "true");
          }
 
-         VSUtil.saveWizSheet(rvs, principal, entry,
+         WizUtil.saveWizSheet(rvs, principal, entry,
             () -> vsService.setViewsheet(rvs.getViewsheet(), entry, principal, true,
                                          !event.isUpdateDepend()));
 

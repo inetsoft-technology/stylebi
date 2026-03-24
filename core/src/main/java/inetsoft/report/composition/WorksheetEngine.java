@@ -1162,6 +1162,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
 
                if(timedout && rs != null) {
                   rs.dispose();
+                  onSheetExpired(id, rs);
                }
             }
          }
@@ -1169,6 +1170,17 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
             LOG.error("An error occurred while cleaning up worksheets", ex);
          }
       }
+   }
+
+   /**
+    * Called when a runtime sheet is removed by the timeout recycler.
+    * Subclasses may override to perform additional cleanup (e.g. deleting temporary
+    * repository assets created for the session).
+    *
+    * @param id the runtime sheet identifier.
+    * @param rs the timed-out {@link RuntimeSheet}.
+    */
+   protected void onSheetExpired(String id, RuntimeSheet rs) {
    }
 
    private void clearPreviewTarget(RuntimeSheet runtimeSheet, String id) {
