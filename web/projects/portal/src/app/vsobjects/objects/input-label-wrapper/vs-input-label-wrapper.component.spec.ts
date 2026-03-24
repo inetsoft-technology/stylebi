@@ -195,4 +195,19 @@ describe("VSInputLabelWrapper", () => {
       expect(component.contentStyle).toEqual({});
       expect(component.wrapperClass).toBe("");
    });
+
+   it("should return null hostHeight and empty contentStyle when objectHeight is undefined", () => {
+      component.objectHeight = undefined;
+
+      for(const position of ["top", "bottom", "left", "right"] as const) {
+         component.labelModel = {
+            showLabel: true,
+            labelText: "Test",
+            labelPosition: position
+         };
+
+         expect(component.hostHeight).toBeNull();
+         expect(component.contentStyle).toEqual({});
+      }
+   });
 });

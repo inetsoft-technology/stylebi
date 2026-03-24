@@ -30,8 +30,8 @@ export class VSInputLabelWrapper {
    @Output() selectLabel = new EventEmitter<MouseEvent>();
 
    @HostBinding("style.height.px")
-   get hostHeight(): number | null | undefined {
-      return this.isVerticalLabel ? null : this.objectHeight;
+   get hostHeight(): number | null {
+      return this.isVerticalLabel ? null : (this.objectHeight ?? null);
    }
 
    onLabelClick(event: MouseEvent): void {
