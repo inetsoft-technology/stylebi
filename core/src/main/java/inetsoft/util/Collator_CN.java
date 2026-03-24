@@ -17,7 +17,6 @@
  */
 package inetsoft.util;
 
-import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,7 +26,6 @@ import java.text.CollationKey;
 import java.text.Collator;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ForkJoinPool;
 
 /*
  * Collator_CN, basing on file, it can compare polyphone words properly. For a
@@ -46,6 +44,13 @@ public class Collator_CN extends Collator {
     */
    public static Collator getCollator() {
       return map == null ? Collator.getInstance() : new Collator_CN();
+   }
+
+   /**
+    * Returns true if the polyphone map has been loaded from disk.
+    */
+   public static boolean isMapLoaded() {
+      return map != null;
    }
 
    /**
@@ -68,9 +73,10 @@ public class Collator_CN extends Collator {
     */
    @Override
    public int compare(String source, String target) {
-      String val = map == null ? null : map.get(source);
+      Map<String, String> m = map; // single volatile read
+      String val = m == null ? null : m.get(source);
       source = val == null ? source : val;
-      val = map == null ? null : map.get(target);
+      val = m == null ? null : m.get(target);
       target = val == null ? target : val;
       return base.compare(source, target);
    }
@@ -86,36 +92,40 @@ public class Collator_CN extends Collator {
    private static volatile Map<String, String> map;
 
    static {
-      ForkJoinPool.commonPool().execute(() -> {
-         InputStream input =
-            Collator_CN.class.getResourceAsStream("/inetsoft/util/collator_map.properties");
+      Thread loader = new Thread(() -> {
+         try(InputStream input =
+               Collator_CN.class.getResourceAsStream("/inetsoft/util/collator_map.properties"))
+         {
+            if(input != null) {
+               try(BufferedReader reader =
+                     new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8)))
+               {
+                  Map<String, String> m = new HashMap<>();
+                  String line;
 
-         if(input != null) {
-            try {
-               BufferedReader reader =
-                  new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8));
-               Map<String, String> m = new HashMap<>();
-               String line;
+                  while((line = reader.readLine()) != null) {
+                     line = line.trim();
+                     int index = line.indexOf('=');
 
-               while((line = reader.readLine()) != null) {
-                  line = line.trim();
-                  int index = line.indexOf('=');
-
-                  if(index >= 0) {
-                     m.put(line.substring(0, index), line.substring(index + 1));
+                     if(index >= 0) {
+                        m.put(line.substring(0, index), line.substring(index + 1));
+                     }
                   }
-               }
 
-               map = m;
+                  map = m;
+               }
             }
-            catch(Exception ex) {
-               LOG.error("Failed to read collator map file", ex);
-            }
-            finally {
-               IOUtils.closeQuietly(input);
+            else {
+               LOG.warn("collator_map.properties not found on classpath; " +
+                  "Chinese polyphone sorting will be unavailable");
             }
          }
-      });
+         catch(Exception ex) {
+            LOG.error("Failed to read collator map file", ex);
+         }
+      }, "Collator_CN-loader");
+      loader.setDaemon(true);
+      loader.start();
    }
 
    private final Collator base;
