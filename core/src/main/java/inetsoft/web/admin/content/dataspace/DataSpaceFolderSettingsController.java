@@ -191,6 +191,14 @@ public class DataSpaceFolderSettingsController {
          uploadService.remove(uploadId);
          Audit.getInstance().auditAction(actionRecord, principal);
       }
+
+      if(dir.equals(ImageShapes.getShapesDirectory()) ||
+         dir.equals(ImageShapes.getGlobalShapesDirectory()) ||
+         dir.startsWith(ImageShapes.getShapesDirectory() + "/") ||
+         dir.startsWith(ImageShapes.getGlobalShapesDirectory() + "/"))
+      {
+         ImageShapes.clearShapes();
+      }
    }
 
    @GetMapping("/em/content/data-space/folder/download")
