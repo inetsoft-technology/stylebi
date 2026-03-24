@@ -15,13 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { CommonModule } from "@angular/common";
-import { ChangeDetectorRef, NO_ERRORS_SCHEMA } from "@angular/core";
-import { ComponentFixture, inject, TestBed } from "@angular/core/testing";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
+import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
-import { NgbDateParserFormatter, NgbModule } from "@ng-bootstrap/ng-bootstrap";
-import { XSchema } from "../../common/data/xschema";
+import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { TestUtils } from "../../common/test/test-utils";
 import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
 import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
@@ -43,7 +42,7 @@ describe("input parameter dialog component unit case", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule],
          declarations: [InputParameterDialog, EnterSubmitDirective, ModalHeaderComponent],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();

@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { HttpResponse } from "@angular/common/http";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { async, ComponentFixture, TestBed } from "@angular/core/testing";
@@ -44,7 +45,7 @@ describe("Add Repository Folder  Dialog Unit Test", () => {
    beforeEach(async(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            HttpClientTestingModule, FormsModule, ReactiveFormsModule, NgbModule
          ],
          declarations: [
             AddRepositoryFolderDialog, StandardDialogComponent,

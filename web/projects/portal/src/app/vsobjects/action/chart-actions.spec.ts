@@ -1641,7 +1641,8 @@ describe("ChartActions", () => {
          dateComparisonEnabled: false,
          dateComparisonDefined: false,
          appliedDateComparison: false,
-         dateComparisonDescription: ""
+         dateComparisonDescription: "",
+         dataTipOnClick: false
       }, TestUtils.createMockVSObjectModel("VSChart", "chart1"));
 
       const actions = new ChartActions(model, popService, composerContext, false, null, dataTipService);

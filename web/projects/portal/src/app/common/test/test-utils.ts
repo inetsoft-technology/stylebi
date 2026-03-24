@@ -340,7 +340,8 @@ export namespace TestUtils {
          dateComparisonEnabled: false,
          dateComparisonDefined: false,
          appliedDateComparison: false,
-         dateComparisonDescription: ""
+         dateComparisonDescription: "",
+         dataTipOnClick: false
       }, createMockVSObjectModel("VSChart", name));
    }
 
@@ -489,7 +490,8 @@ export namespace TestUtils {
          highlightedCells: [],
          isHighlightCopied: false,
          maxMode: false,
-         editedByWizard: false
+         editedByWizard: false,
+         isTipOnClick: false
       }, createMockVSObjectModel("VSTable", name));
    }
 
@@ -708,7 +710,8 @@ export namespace TestUtils {
          source: createMockSourceInfo(type),
          sqlMergeable: true,
          availableFields: null,
-         type: type
+         type: type,
+         tables: []
       };
    }
 
@@ -1307,7 +1310,9 @@ export namespace TestUtils {
          childrenNames: ["table1", "table2"],
          selected: "table1",
          activeFormat: createMockVSFormatModel(),
-         roundTopCornersOnly: true
+         roundTopCornersOnly: true,
+         roundBottomCornersOnly: false,
+         bottomTabs: false
       }, createMockVSObjectModel("VSTab", name));
    }
 
