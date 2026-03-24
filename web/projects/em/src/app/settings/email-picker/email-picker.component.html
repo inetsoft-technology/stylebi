@@ -18,7 +18,7 @@
 <div>
   <mat-form-field [class.mobile]="mobile">
     <mat-label>{{placeholder}}</mat-label>
-    <input type="text" [title]="emails" matInput [formControl]="emailsControl" (blur)="onTouched()"/>
+    <input type="text" [title]="emails" matInput [formControl]="emailsControl" autocomplete="off" (blur)="onTouched()"/>
     <button *ngIf="isEmailBrowserEnabled" matSuffix mat-icon-button aria-label="_#(Select Emails)"
             title="_#(Select Emails)" [disabled]="!editable" (click)="openEmailDialog()">
       <mat-icon fontSet="ineticons" fontIcon="edit-icon"></mat-icon>
