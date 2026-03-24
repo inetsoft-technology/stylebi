@@ -111,7 +111,7 @@
                           (change)="updateModel()">
               _#(Change Password)
             </mat-checkbox>
-            <div [formGroup]="pwForm" *ngIf="isNewUser || !userModel.hasPassword || form.controls.changePasswordEnabled?.value" class="flex-col change-password-box">
+            <div [formGroup]="pwForm" *ngIf="isNewUser || !userModel.hasPassword || form.controls.changePasswordEnabled?.value" class="flex-col" [class.change-password-box]="!isNewUser && userModel.hasPassword">
               <mat-form-field appearance="outline" color="accent" class="password-field">
                 <mat-label>_#(Password)</mat-label>
                 <input matInput placeholder="_#(Password)" type="password" formControlName="password">
