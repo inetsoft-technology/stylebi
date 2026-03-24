@@ -83,6 +83,9 @@ public class LoadKeyValueTask<T extends Serializable>
             map.putAll(temp);
          }
       }
+      catch(RuntimeException e) {
+         throw e;
+      }
       catch(Exception e) {
          LoggerFactory.getLogger(LoadKeyValueTask.class)
             .error("Failed to load key-value storage '{}'", getId(), e);

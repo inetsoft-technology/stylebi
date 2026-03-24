@@ -45,6 +45,13 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
          // wait for the initial load to avoid race conditions
          cluster.submit(id, load).get(3L, TimeUnit.MINUTES);
       }
+      catch(ExecutionException e) {
+         if(e.getCause() instanceof RuntimeException rte) {
+            throw rte;
+         }
+
+         LoggerFactory.getLogger(getClass()).warn("Failed to load key-value storage {}", id, e);
+      }
       catch(Exception e) {
          LoggerFactory.getLogger(getClass()).warn("Failed to load key-value storage {}", id, e);
       }
