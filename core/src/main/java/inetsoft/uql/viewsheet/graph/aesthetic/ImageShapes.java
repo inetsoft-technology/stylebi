@@ -61,9 +61,13 @@ public class ImageShapes {
    }
 
    public static void clearShapes() {
-      if(singleton.cache.get(getKey()) != null) {
-         singleton.cache.remove(getKey());
+      String key = getKey();
+
+      if(singleton.cache.get(key) != null) {
+         singleton.cache.remove(key);
       }
+
+      singleton.lastByOrg.remove(key);
    }
 
    /**
@@ -145,10 +149,10 @@ public class ImageShapes {
 
          // here use != instead of use >
          // @see FileSystemDataSpace.getLastModified for folder temp
-         if(init || last0 != last) {
+         if(init || last0 != lastByOrg.getOrDefault(orgID, 0L)) {
             shapes = new LinkedHashMap<>();
             loadBuiltins(shapes);
-            last = last0;
+            lastByOrg.put(orgID, last0);
             //load the shapes of the global
             boolean loaded = loadShapeFromFolder(getGlobalShapesDirectory(), shapes);
 
@@ -234,6 +238,6 @@ public class ImageShapes {
       "115ArrowLowerRight.svg");
    private static ImageShapes singleton = new ImageShapes();
    private Map<String, Map<String, GShape>> cache = new HashMap<>();
-   private long last = 0;
+   private Map<String, Long> lastByOrg = new HashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(ImageShapes.class);
 }
