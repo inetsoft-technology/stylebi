@@ -206,25 +206,25 @@ public class TabPropertyDialogController {
       tabAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       tabAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
 
+      // must precede repositionForBottomTabs: isBottomTabs() uses the dvalue fallback
       tabAssemblyInfo.setBottomTabsValue(tabGeneralPaneModel.getBottomTabs());
 
-      // Apply the mode flip before setContainerPosition for two reasons:
-      //
-      // 1. setContainerPosition computes its translation delta as (userTargetY - currentTabY).
-      //    Running the mode flip first makes currentTabY the post-flip position, so the delta
-      //    moves the tab bar to exactly the Y the user entered even when both changes are
-      //    submitted together.
-      //
-      // 2. setContainerPosition calls tabAssemblyInfo.isBottomTabs() to decide whether to add
-      //    a height-change correction to the Y delta.  isBottomTabs() reads
-      //    DynamicValue.getRValue(), which falls back to dvalue when rvalue is null.
-      //    setBottomTabsValue() calls DynamicValue.setDValue(), which clears rvalue whenever
-      //    the value changes.  Therefore, after setBottomTabsValue(newMode), calling
-      //    isBottomTabs() returns newMode via that fallback — even though only dvalue was set,
-      //    not rvalue — so the height correction is applied in the right direction.
       if(oldBottomTabs != tabGeneralPaneModel.getBottomTabs()) {
+         int originalTop = tabAssemblyInfo.getPixelOffset() != null
+            ? tabAssemblyInfo.getPixelOffset().y : -1;
+
          TabVSAssemblyInfo.repositionForBottomTabs(tabAssemblyInfo, vs,
                                                    tabGeneralPaneModel.getBottomTabs());
+
+         // sync position model only when the user didn't explicitly change the position;
+         // if they did, let setContainerPosition translate the whole group to the new Y
+         if(sizePositionPaneModel.getTop() == originalTop) {
+            Point newTabPos = tabAssemblyInfo.getPixelOffset();
+
+            if(newTabPos != null) {
+               sizePositionPaneModel.setTop(newTabPos.y);
+            }
+         }
       }
 
       // @by changhongyang 2017-10-10, move tab children in addition to tab
