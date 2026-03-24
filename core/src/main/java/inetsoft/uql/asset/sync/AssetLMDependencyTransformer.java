@@ -664,14 +664,14 @@ public class AssetLMDependencyTransformer extends AssetDependencyTransformer {
          else if("entry.paths".equals(key)) {
             entryPathPropNode = valueElem;
          }
-         else if("folder".equals(key) && value != null) {
-            replaceCDATANode(valueElem, value.replace(oname, nname));
+         else if("folder".equals(key) && value != null && oname != null) {
+            replaceCDATANode(valueElem, value.replace(oname, nname != null ? nname : ""));
          }
-         else if("folder_description".equals(key) && value != null) {
-            replaceCDATANode(valueElem, value.replace(oname, nname));
+         else if("folder_description".equals(key) && value != null && oname != null) {
+            replaceCDATANode(valueElem, value.replace(oname, nname != null ? nname : ""));
          }
-         else if("__query_folder__".equals(key) && value != null) {
-            replaceCDATANode(valueElem, value.replace(oname, nname));
+         else if("__query_folder__".equals(key) && value != null && oname != null) {
+            replaceCDATANode(valueElem, value.replace(oname, nname != null ? nname : ""));
          }
       }
 
@@ -688,7 +688,7 @@ public class AssetLMDependencyTransformer extends AssetDependencyTransformer {
          String oldPath = null;
          String newPath = null;
 
-         if(prefix != null && suffix != null) {
+         if(prefix != null && suffix != null && oname != null && nname != null) {
             oldPath = prefix + separator + oname + separator + suffix;
             newPath = prefix + separator + nname + separator + suffix;
          }
