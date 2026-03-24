@@ -33,6 +33,13 @@ import { VSSelection } from "./vs-selection.component";
 import { ComposerContextProviderFactory, ContextProvider } from "../../context-provider.service";
 
 describe("Selection List Cell Test", () => {
+   beforeAll(() => {
+      jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+         font: "",
+         measureText: (_text: string) => ({ width: 0 })
+      } as any);
+   });
+
    const createModel: () => SelectionValueModel = () => {
       return {
          formatIndex: 0,
@@ -125,7 +132,7 @@ describe("Selection List Cell Test", () => {
    let cell: any;
    let fixture: ComponentFixture<SelectionListCell>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       vsSelectionComponent = {
          getMarginSize: jest.fn(),
          setQuickSwitchHover: jest.fn(),

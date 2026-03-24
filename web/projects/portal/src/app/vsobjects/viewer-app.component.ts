@@ -4277,14 +4277,14 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             const offset = this.mobileDevice
                ? ViewConstants.TOOLBAR_HEIGHT_MOBILE_PX
                : ViewConstants.TOOLBAR_HEIGHT_PX;
-            this.topPx = this.tabsHeight + offset + 'px';
+            this.topPx = this.tabsHeight + offset + "px";
          } else {
-            this.topPx = this.tabsHeight + 'px';
+            this.topPx = this.tabsHeight + "px";
          }
-         this.bottomPx = '0px';
+         this.bottomPx = "0px";
       } else {
          this.topPx = null;
-         this.bottomPx = this.tabsHeight + 'px';
+         this.bottomPx = this.tabsHeight + "px";
       }
    }
 }

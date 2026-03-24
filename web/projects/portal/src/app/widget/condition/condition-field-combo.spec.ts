@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
-import { Component, NO_ERRORS_SCHEMA } from "@angular/core";
+import { ApplicationRef, Component, NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
@@ -55,6 +55,7 @@ describe ("condition field combo tree test", () => {
    let fixture: ComponentFixture<ConditionFieldComboComponent>;
    let conCombo: ConditionFieldComboComponent;
    let wizard: any;
+   let appRef: ApplicationRef;
 
    beforeEach(waitForAsync(() => {
       wizard = {};
@@ -87,6 +88,7 @@ describe ("condition field combo tree test", () => {
       fixture = TestBed.createComponent(ConditionFieldComboComponent);
       conCombo = <ConditionFieldComboComponent>fixture.componentInstance;
       conCombo.displayList = true;
+      appRef = TestBed.inject(ApplicationRef);
    }));
 
    it("after click the class of dropdownDiv will add 'show'", () => {
@@ -118,6 +120,7 @@ describe ("condition field combo tree test", () => {
 
       const toggleDiv = fixture.debugElement.query(By.css("div.condition-field-combo-toggle")).nativeElement;
       toggleDiv.click();
+      appRef.tick();
       fixture.detectChanges();
 
       const listDiv = document.querySelector(
@@ -127,6 +130,7 @@ describe ("condition field combo tree test", () => {
       const switchBtn = fixture.debugElement.query(By.css("button.field-list-icon")).nativeElement;
       switchBtn.click();
 
+      appRef.tick();
       fixture.detectChanges();
       const tree = document.querySelector(
          "fixed-dropdown div.condition-field-combo-dropdown tree");
@@ -202,6 +206,7 @@ describe ("condition field combo tree test", () => {
 
       const toggleDiv = fixture.debugElement.query(By.css("div.condition-field-combo-toggle")).nativeElement;
       toggleDiv.click();
+      appRef.tick();
       fixture.detectChanges();
       let items = document.querySelectorAll(
          "div.condition-field-combo-list-item");

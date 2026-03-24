@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,15 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Injectable } from "@angular/core";
 
-/**
- * Thin wrapper around {@code setTimeout} that can be replaced in tests with a
- * synchronous implementation, allowing tests to avoid fake timers.
- */
-@Injectable({ providedIn: "root" })
-export class TimerService {
-   defer(fn: () => void, ms = 0): void {
-      setTimeout(fn, ms);
-   }
-}
+// Extend test matching to include shared library specs alongside portal specs.
+// The @angular-builders/jest builder merges this with its default config.
+module.exports = {
+   testMatch: [
+      "<rootDir>/projects/portal/**/*(*.)@(spec|test).[tj]s?(x)",
+      "<rootDir>/projects/shared/**/*(*.)@(spec|test).[tj]s?(x)",
+   ],
+};

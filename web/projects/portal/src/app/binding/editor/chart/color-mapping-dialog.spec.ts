@@ -32,15 +32,18 @@ describe("Color Mapping Dialog Unit Test", () => {
       return {
          colorMaps: [{
             color: "#ffff00",
-            option: "1997"
+            option: "1997",
+            manualInput: false
          },
          {
             color: "#ff0000",
-            option: "1997"
+            option: "1997",
+            manualInput: false
          },
          {
             color: "#0000ff",
-            option: "1997"
+            option: "1997",
+            manualInput: false
          }],
          globalModel: null,
          useGlobal: false,
@@ -57,7 +60,8 @@ describe("Color Mapping Dialog Unit Test", () => {
          clazz: "inetsoft.web.binding.model.graph.aesthetic.CategoricalColorModel",
          colorMaps: [{
             color: "#ffff00",
-            option: "1997"
+            option: "1997",
+            manualInput: false
          }],
          globalColorMaps: [],
          useGlobal: false,

@@ -141,6 +141,13 @@ let createTreeModel: () => VSSelectionTreeModel = () => {
 };
 
 describe("VSSelection Test", () => {
+   beforeAll(() => {
+      jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+         font: "",
+         measureText: (_text: string) => ({ width: 0 })
+      } as any);
+   });
+
    let vsSelection: VSSelection;
    let fixture: ComponentFixture<VSSelection>;
    let viewsheetClientService: any = { sendEvent: jest.fn() };
