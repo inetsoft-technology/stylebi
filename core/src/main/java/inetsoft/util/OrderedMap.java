@@ -544,6 +544,11 @@ public class OrderedMap<K, V> implements Map<K, V>, Cloneable, Serializable {
          Tool.equals(values, ((OrderedMap) o).values);
    }
 
+   @Override
+   public synchronized int hashCode() {
+      return Objects.hash(keys, values);
+   }
+
    private static final String NULL = new String("NULL");
    private ObjectArrayList<K> keys = new ObjectArrayList<>();
    private ObjectArrayList<V> values = new ObjectArrayList<>();
