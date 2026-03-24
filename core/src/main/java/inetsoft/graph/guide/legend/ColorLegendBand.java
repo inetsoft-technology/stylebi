@@ -137,6 +137,6 @@ public class ColorLegendBand extends BoundedVisualizable {
    private static final double BAND_MIN_WIDTH = 50;
    private static final double BAND_PREF_WIDTH = 80;
    private static final double BAND_MAX_WIDTH = 200;
-   private LinearColorFrame colorFrame;
+   private final LinearColorFrame colorFrame;
    private double alpha = 1;
 }
