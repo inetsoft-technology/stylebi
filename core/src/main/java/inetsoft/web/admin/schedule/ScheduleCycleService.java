@@ -88,9 +88,9 @@ public class ScheduleCycleService {
       String label = index != -1 ? cycleName.substring(index + 1) : cycleName;
       String zoneName = Calendar.getInstance().getTimeZone().getDisplayName();
 
-      List<String> conditions = dataCycleManager.getConditions(cycleName, orgId).stream()
-         .map(ScheduleCondition::toString)
-         .collect(Collectors.toList());
+      Vector<ScheduleCondition> rawConditions = dataCycleManager.getConditions(cycleName, orgId);
+      List<String> conditions = rawConditions == null ? Collections.emptyList() :
+         rawConditions.stream().map(ScheduleCondition::toString).collect(Collectors.toList());
 
       boolean noDefaultTime = "false".equals(SreeEnv.getProperty("schedule.condition.taskDefaultTime"));
       final ResourcePermissionModel tableModel = permissionService.getTableModel(
