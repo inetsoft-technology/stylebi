@@ -19,11 +19,11 @@ package inetsoft.graph.guide.legend;
 
 import inetsoft.graph.BoundedVisualizable;
 import inetsoft.graph.aesthetic.LinearColorFrame;
-import inetsoft.graph.internal.DimensionD;
 import inetsoft.graph.internal.GTool;
 
 import java.awt.*;
-import java.awt.geom.*;
+import java.awt.geom.Point2D;
+import java.awt.geom.Rectangle2D;
 
 /**
  * Color Legend band.
@@ -72,7 +72,7 @@ public class ColorLegendBand extends BoundedVisualizable {
     */
    @Override
    protected double getPreferredWidth0() {
-      return BAND_PREF_SIZE.getWidth();
+      return BAND_PREF_WIDTH;
    }
 
    /**
@@ -81,7 +81,7 @@ public class ColorLegendBand extends BoundedVisualizable {
     */
    @Override
    protected double getPreferredHeight0() {
-      return BAND_PREF_SIZE.getHeight();
+      return getBandHeight();
    }
 
    /**
@@ -90,7 +90,7 @@ public class ColorLegendBand extends BoundedVisualizable {
     */
    @Override
    protected double getMinWidth0() {
-      return BAND_MIN_SIZE.getWidth();
+      return BAND_MIN_WIDTH;
    }
 
    /**
@@ -99,7 +99,7 @@ public class ColorLegendBand extends BoundedVisualizable {
     */
    @Override
    protected double getMinHeight0() {
-      return BAND_MIN_SIZE.getHeight();
+      return getBandHeight();
    }
 
    /**
@@ -107,7 +107,7 @@ public class ColorLegendBand extends BoundedVisualizable {
     * @return max width.
     */
    public double getMaxWidth() {
-      return BAND_MAX_SIZE.getWidth();
+      return BAND_MAX_WIDTH;
    }
 
    /**
@@ -115,7 +115,7 @@ public class ColorLegendBand extends BoundedVisualizable {
     * @return max height.
     */
    public double getMaxHeight() {
-      return BAND_MAX_SIZE.getHeight();
+      return getBandHeight();
    }
 
    /**
@@ -126,10 +126,15 @@ public class ColorLegendBand extends BoundedVisualizable {
       this.alpha = alpha;
    }
 
+   private double getBandHeight() {
+      return colorFrame.getLegendSpec().getSymbolSize() + SYMBOL_SIZE_HEIGHT_OFFSET;
+   }
+
    private static final int TOP_PADDING = 5;
-   private static final Dimension2D BAND_MIN_SIZE = new DimensionD(50, 18);
-   private static final Dimension2D BAND_PREF_SIZE = new DimensionD(80, 18);
-   private static final Dimension2D BAND_MAX_SIZE = new DimensionD(200, 18);
+   private static final int SYMBOL_SIZE_HEIGHT_OFFSET = 6;
+   private static final double BAND_MIN_WIDTH = 50;
+   private static final double BAND_PREF_WIDTH = 80;
+   private static final double BAND_MAX_WIDTH = 200;
    private LinearColorFrame colorFrame;
    private double alpha = 1;
 }
