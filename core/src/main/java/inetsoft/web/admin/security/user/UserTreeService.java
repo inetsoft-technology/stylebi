@@ -787,6 +787,12 @@ public class UserTreeService {
       }
 
       User user = currentProvider.getUser(userName);
+
+      if(user == null) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.security.userNotFound", userName.getName()));
+      }
+
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
 
       if(SUtil.isMultiTenant()) {
