@@ -210,6 +210,7 @@ public abstract class AbstractDataSet implements DataSet {
 
       // add column, so calc row will be full columns
       this.calcvals = calcvals;
+      cachedColCount = -1;
       idxmap = null;
    }
 
