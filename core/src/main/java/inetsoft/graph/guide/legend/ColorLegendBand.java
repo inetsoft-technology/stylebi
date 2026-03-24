@@ -131,6 +131,8 @@ public class ColorLegendBand extends BoundedVisualizable {
    }
 
    private static final int TOP_PADDING = 5;
+   // Derived from original fixed height (18) minus default symbol size (12), so the
+   // default appearance is preserved when symbol size has not been customized.
    private static final int SYMBOL_SIZE_HEIGHT_OFFSET = 6;
    private static final double BAND_MIN_WIDTH = 50;
    private static final double BAND_PREF_WIDTH = 80;
