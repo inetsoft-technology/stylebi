@@ -317,7 +317,7 @@ public class DashboardRegistry implements SessionListener {
     * @param name      the dashboard name.
     * @param dashboard the dashboard to add.
     */
-   public void addDashboard(String name, Dashboard dashboard) {
+   public synchronized void addDashboard(String name, Dashboard dashboard) {
       dashboardsMap.put(name, dashboard);
       fireChangeEvent(this, DashboardChangeEvent.Type.CREATED, null, name);
    }
@@ -450,7 +450,7 @@ public class DashboardRegistry implements SessionListener {
       writer.println("<Version>" + FileVersions.DASHBOARD_REGISTRY
                         + "</Version>");
 
-      for(Map.Entry<String, Dashboard> entry : dashboardsMap.entrySet()) {
+      for(Map.Entry<String, Dashboard> entry : new ArrayList<>(dashboardsMap.entrySet())) {
          String name = entry.getKey();
          writer.println("<node>");
          writer.println("<name><![CDATA[" + name + "]]></name>");
@@ -515,7 +515,7 @@ public class DashboardRegistry implements SessionListener {
    /**
     * Save dashboards to a .xml file.
     */
-   public void save() throws Exception {
+   public synchronized void save() throws Exception {
       DataSpace space = DataSpace.getDataSpace();
 
       try(DataSpace.Transaction tx = space.beginTransaction();
@@ -660,7 +660,7 @@ public class DashboardRegistry implements SessionListener {
    /**
     * Reset variables before reload.
     */
-   private void reset() {
+   private synchronized void reset() {
       dashboardsMap.clear();
    }
 
