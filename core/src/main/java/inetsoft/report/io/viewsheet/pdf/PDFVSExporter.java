@@ -263,7 +263,7 @@ public class PDFVSExporter extends AbstractVSExporter {
     */
    @Override
    protected void writeCheckBox(CheckBoxVSAssembly assembly) {
-      writePicture(assembly);
+      writeInputWithLabel(assembly);
    }
 
    /**
@@ -272,7 +272,7 @@ public class PDFVSExporter extends AbstractVSExporter {
     */
    @Override
    protected void writeComboBox(ComboBoxVSAssembly assembly) {
-      writePicture(assembly);
+      writeInputWithLabel(assembly);
    }
 
    /**
@@ -417,7 +417,7 @@ public class PDFVSExporter extends AbstractVSExporter {
     */
    @Override
    protected void writeRadioButton(RadioButtonVSAssembly assembly) {
-      writePicture(assembly);
+      writeInputWithLabel(assembly);
    }
 
    /**
@@ -446,7 +446,7 @@ public class PDFVSExporter extends AbstractVSExporter {
     */
    @Override
    protected void writeSlider(SliderVSAssembly assembly) {
-      writePicture(assembly);
+      writeInputWithLabel(assembly);
    }
 
    /**
@@ -464,7 +464,7 @@ public class PDFVSExporter extends AbstractVSExporter {
     */
    @Override
    protected void writeSpinner(SpinnerVSAssembly assembly) {
-      writePicture(assembly);
+      writeInputWithLabel(assembly);
    }
 
    /**
@@ -511,8 +511,25 @@ public class PDFVSExporter extends AbstractVSExporter {
     */
    @Override
    protected void writeTextInput(TextInputVSAssembly assembly) {
-      Object value = ((TextInputVSAssemblyInfo) assembly.getVSAssemblyInfo()).getText();
-      writeText(assembly, value == null ? "" : Tool.getDataString(value, assembly.getDataType()));
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+      Object value = ((TextInputVSAssemblyInfo) info).getText();
+      String txt = value == null ? "" : Tool.getDataString(value, assembly.getDataType());
+
+      if(hasVisibleLabel(info)) {
+         InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
+         LabelInfo labelInfo = inputInfo.getLabelInfo();
+         Rectangle2D fullBounds = helper.getBounds(info);
+         Rectangle2D labelBounds = getInputLabelBounds(fullBounds, labelInfo);
+         Rectangle2D widgetBounds = getInputWidgetBounds(fullBounds, labelInfo);
+
+         helper.drawTextBox(labelBounds, getLabelFormat(labelInfo),
+            labelInfo.getLabelText());
+         helper.drawTextBox(widgetBounds, widgetBounds, getTextFormat(info),
+            txt, null, info.getPadding(), false);
+         return;
+      }
+
+      writeText(assembly, txt);
    }
 
    /**
@@ -803,6 +820,39 @@ public class PDFVSExporter extends AbstractVSExporter {
          catch(Exception ex) {
             LOG.error("Failed to prepare assembly: " + assembly.getAbsoluteName(), ex);
          }
+      }
+   }
+
+   /**
+    * Write an input assembly, rendering the label if visible.
+    */
+   private void writeInputWithLabel(VSAssembly assembly) {
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+
+      if(info == null) {
+         return;
+      }
+
+      if(!hasVisibleLabel(info)) {
+         writePicture(assembly);
+         return;
+      }
+
+      InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
+      LabelInfo labelInfo = inputInfo.getLabelInfo();
+      Rectangle2D fullBounds = helper.getBounds(info);
+      Rectangle2D labelBounds = getInputLabelBounds(fullBounds, labelInfo);
+      Rectangle2D widgetBounds = getInputWidgetBounds(fullBounds, labelInfo);
+
+      helper.drawTextBox(labelBounds, getLabelFormat(labelInfo),
+         labelInfo.getLabelText());
+
+      Dimension widgetSize = new Dimension(
+         (int) widgetBounds.getWidth(), (int) widgetBounds.getHeight());
+      BufferedImage img = getInputImage(assembly, widgetSize);
+
+      if(img != null) {
+         helper.drawImage(img, widgetBounds);
       }
    }
 

@@ -163,12 +163,12 @@ public class SVGVSExporter extends AbstractVSExporter {
 
    @Override
    protected void writeCheckBox(CheckBoxVSAssembly assembly) {
-      writePicture(assembly);
+      writeInputWithLabel(assembly);
    }
 
    @Override
    protected void writeComboBox(ComboBoxVSAssembly assembly) {
-      writePicture(assembly);
+      writeInputWithLabel(assembly);
    }
 
    @Override
@@ -220,7 +220,7 @@ public class SVGVSExporter extends AbstractVSExporter {
 
    @Override
    protected void writeRadioButton(RadioButtonVSAssembly assembly) {
-      writePicture(assembly);
+      writeInputWithLabel(assembly);
    }
 
    @Override
@@ -237,7 +237,7 @@ public class SVGVSExporter extends AbstractVSExporter {
 
    @Override
    protected void writeSlider(SliderVSAssembly assembly) {
-      writePicture(assembly);
+      writeInputWithLabel(assembly);
    }
 
    @Override
@@ -247,7 +247,7 @@ public class SVGVSExporter extends AbstractVSExporter {
 
    @Override
    protected void writeSpinner(SpinnerVSAssembly assembly) {
-      writePicture(assembly);
+      writeInputWithLabel(assembly);
    }
 
    @Override
@@ -278,9 +278,26 @@ public class SVGVSExporter extends AbstractVSExporter {
 
    @Override
    protected void writeTextInput(TextInputVSAssembly assembly) {
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
       Object value = assembly.getSelectedObject() != null ?
-         ((TextInputVSAssemblyInfo) assembly.getVSAssemblyInfo()).getText() : null;
-      writeText(assembly, value == null ? "" : Tool.getDataString(value, assembly.getDataType()));
+         ((TextInputVSAssemblyInfo) info).getText() : null;
+      String txt = value == null ? "" : Tool.getDataString(value, assembly.getDataType());
+
+      if(hasVisibleLabel(info)) {
+         InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
+         LabelInfo labelInfo = inputInfo.getLabelInfo();
+         Rectangle2D fullBounds = helper.getBounds(info);
+         Rectangle2D labelBounds = getInputLabelBounds(fullBounds, labelInfo);
+         Rectangle2D widgetBounds = getInputWidgetBounds(fullBounds, labelInfo);
+
+         helper.drawTextBox(labelBounds, getLabelFormat(labelInfo),
+            labelInfo.getLabelText());
+         helper.drawTextBox(widgetBounds, widgetBounds, getTextFormat(info),
+            txt, null, info.getPadding(), false);
+         return;
+      }
+
+      writeText(assembly, txt);
    }
 
    @Override
@@ -491,6 +508,39 @@ public class SVGVSExporter extends AbstractVSExporter {
       }
 
       return rows;
+   }
+
+   /**
+    * Write an input assembly, rendering the label if visible.
+    */
+   private void writeInputWithLabel(VSAssembly assembly) {
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+
+      if(info == null) {
+         return;
+      }
+
+      if(!hasVisibleLabel(info)) {
+         writePicture(assembly);
+         return;
+      }
+
+      InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
+      LabelInfo labelInfo = inputInfo.getLabelInfo();
+      Rectangle2D fullBounds = helper.getBounds(info);
+      Rectangle2D labelBounds = getInputLabelBounds(fullBounds, labelInfo);
+      Rectangle2D widgetBounds = getInputWidgetBounds(fullBounds, labelInfo);
+
+      helper.drawTextBox(labelBounds, getLabelFormat(labelInfo),
+         labelInfo.getLabelText());
+
+      Dimension widgetSize = new Dimension(
+         (int) widgetBounds.getWidth(), (int) widgetBounds.getHeight());
+      BufferedImage img = getInputImage(assembly, widgetSize);
+
+      if(img != null) {
+         helper.drawImage(img, widgetBounds);
+      }
    }
 
    /**

@@ -39,6 +39,7 @@ import inetsoft.report.gui.viewsheet.cylinder.VSCylinder;
 import inetsoft.report.gui.viewsheet.gauge.VSGauge;
 import inetsoft.report.gui.viewsheet.slidingscale.VSSlidingScale;
 import inetsoft.report.gui.viewsheet.thermometer.VSThermometer;
+import inetsoft.report.internal.Common;
 import inetsoft.report.internal.ParameterTool;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.TableHighlightAttr.HighlightTableLens;
@@ -3587,6 +3588,151 @@ public abstract class AbstractVSExporter implements VSExporter {
       }
 
       return ftype;
+   }
+
+   /**
+    * Check if an assembly has a visible, non-empty input label.
+    */
+   protected static boolean hasVisibleLabel(VSAssemblyInfo info) {
+      if(!(info instanceof InputVSAssemblyInfo)) {
+         return false;
+      }
+
+      LabelInfo labelInfo = ((InputVSAssemblyInfo) info).getLabelInfo();
+      return labelInfo != null && labelInfo.isLabelVisible() &&
+         labelInfo.getLabelText() != null && !labelInfo.getLabelText().isEmpty();
+   }
+
+   /**
+    * Get the font to use for rendering an input label.
+    */
+   protected static Font getLabelFont(LabelInfo labelInfo) {
+      VSCompositeFormat fmt = labelInfo.getLabelFormat();
+
+      if(fmt != null && fmt.getFont() != null) {
+         return fmt.getFont();
+      }
+
+      return GDefaults.DEFAULT_TEXT_FONT;
+   }
+
+   /**
+    * Get the label format, returning a default if null.
+    */
+   protected static VSCompositeFormat getLabelFormat(LabelInfo labelInfo) {
+      VSCompositeFormat fmt = labelInfo.getLabelFormat();
+      return fmt != null ? fmt : new VSCompositeFormat();
+   }
+
+   /**
+    * Calculate the label text bounds within the full assembly bounds.
+    */
+   protected static Rectangle2D getInputLabelBounds(Rectangle2D fullBounds,
+      LabelInfo labelInfo)
+   {
+      double x = fullBounds.getX();
+      double y = fullBounds.getY();
+      double fullW = fullBounds.getWidth();
+      double fullH = fullBounds.getHeight();
+
+      Font font = getLabelFont(labelInfo);
+      String labelText = labelInfo.getLabelText();
+      int labelW = (int) Common.stringWidth(labelText, font) + 6;
+      int labelH = Common.getFontMetrics(font).getHeight();
+
+      switch(labelInfo.getLabelPosition()) {
+      case LabelInfo.TOP:
+         return new Rectangle2D.Double(x, y, fullW, labelH);
+      case LabelInfo.BOTTOM:
+         return new Rectangle2D.Double(x, y + fullH - labelH, fullW, labelH);
+      case LabelInfo.RIGHT:
+         return new Rectangle2D.Double(x + fullW - labelW, y, labelW, fullH);
+      case LabelInfo.LEFT:
+      default:
+         return new Rectangle2D.Double(x, y, labelW, fullH);
+      }
+   }
+
+   /**
+    * Calculate the widget-only bounds within the full assembly bounds,
+    * after subtracting label and gap.
+    */
+   protected static Rectangle2D getInputWidgetBounds(Rectangle2D fullBounds,
+      LabelInfo labelInfo)
+   {
+      double x = fullBounds.getX();
+      double y = fullBounds.getY();
+      double fullW = fullBounds.getWidth();
+      double fullH = fullBounds.getHeight();
+
+      Font font = getLabelFont(labelInfo);
+      String labelText = labelInfo.getLabelText();
+      int labelW = (int) Common.stringWidth(labelText, font) + 6;
+      int labelH = Common.getFontMetrics(font).getHeight();
+      int gap = labelInfo.getLabelGap();
+
+      switch(labelInfo.getLabelPosition()) {
+      case LabelInfo.TOP:
+         return new Rectangle2D.Double(x, y + labelH + gap, fullW,
+            Math.max(0, fullH - labelH - gap));
+      case LabelInfo.BOTTOM:
+         return new Rectangle2D.Double(x, y, fullW,
+            Math.max(0, fullH - labelH - gap));
+      case LabelInfo.RIGHT:
+         return new Rectangle2D.Double(x, y,
+            Math.max(0, fullW - labelW - gap), fullH);
+      case LabelInfo.LEFT:
+      default:
+         return new Rectangle2D.Double(x + labelW + gap, y,
+            Math.max(0, fullW - labelW - gap), fullH);
+      }
+   }
+
+   /**
+    * Get image of an input assembly at a specific widget size,
+    * excluding the label area.
+    */
+   protected BufferedImage getInputImage(VSAssembly assembly,
+      Dimension widgetSize)
+   {
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+      Viewsheet vs = info.getViewsheet();
+      int type = assembly.getAssemblyType();
+      VSObject obj = null;
+
+      switch(type) {
+      case AbstractSheet.RADIOBUTTON_ASSET:
+         obj = new VSRadioButton(vs);
+         break;
+      case AbstractSheet.CHECKBOX_ASSET:
+         obj = new VSCheckBox(vs);
+         break;
+      case AbstractSheet.COMBOBOX_ASSET:
+         obj = new VSComboBox(vs);
+         break;
+      case AbstractSheet.SLIDER_ASSET:
+         obj = new VSSlider(vs);
+         break;
+      case AbstractSheet.SPINNER_ASSET:
+         obj = new VSSpinner(vs);
+         break;
+      default:
+         return getImage(assembly);
+      }
+
+      obj.setViewsheet(vs);
+      obj.setTheme(theme);
+      obj.setAssemblyInfo(info);
+      obj.setPixelSize(widgetSize);
+
+      if(obj instanceof VSFloatable) {
+         return (BufferedImage) ((VSFloatable) obj).getImage(true);
+      }
+      else if(obj instanceof VSCompound) {
+         return (BufferedImage) ((VSCompound) obj).getImage();
+      }
+
+      return null;
    }
 
    // viewsheet name --> map, map: insert row/column place --> insert number

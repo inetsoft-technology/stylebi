@@ -486,8 +486,13 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
    }
 
    public void writeComboBox(Writer writer, ComboBoxVSAssemblyInfo info) {
+      writeComboBox(writer, info, getBounds(info));
+   }
+
+   public void writeComboBox(Writer writer, ComboBoxVSAssemblyInfo info,
+      Rectangle2D bounds)
+   {
       VSCompositeFormat fmt = info.getFormat();
-      Rectangle2D bounds = getBounds(info);
       Object[] values = info.getValues();
       Object[] labels = info.getLabels();
       Object value = info.getSelectedObject();
@@ -550,8 +555,13 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
    }
 
    public void writeList(Writer writer, ListInputVSAssemblyInfo info, boolean isRadio) {
+      writeList(writer, info, isRadio, getBounds(info));
+   }
+
+   public void writeList(Writer writer, ListInputVSAssemblyInfo info,
+      boolean isRadio, Rectangle2D bounds)
+   {
       VSCompositeFormat fmt = info.getFormat();
-      Rectangle2D bounds = getBounds(info);
       boolean isNullBorder = isNullBorder(info);
       int titleH = getTitleH(info);
       StringBuffer buf = new StringBuffer("");
