@@ -30,6 +30,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.WizUtil;
 import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.util.*;
 import inetsoft.web.ServiceProxyContext;
@@ -451,20 +452,49 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
          lifecycleMessageService.viewsheetClosed(id);
       }
 
-      if(sheet instanceof Viewsheet viewsheet &&
-         viewsheet.getWizInfo() != null && viewsheet.getWizInfo().isWizSheet())
-      {
-         Viewsheet.WizInfo wizInfo = viewsheet.getWizInfo();
+      if(sheet instanceof Viewsheet viewsheet) {
+         deleteWizTempResources(viewsheet, user);
+      }
+   }
 
-         if(wizInfo.getVisualizations() != null) {
-            for(String visualization : wizInfo.getVisualizations()) {
-               try {
-                  VSUtil.deleteWizCopyViewsheet(AssetEntry.createAssetEntry(visualization), user);
-               }
-               catch(Exception ex) {
-                  LOG.warn("Failed to delete wiz temp visualization: " + visualization, ex);
-               }
-            }
+   @Override
+   protected void onSheetExpired(String id, RuntimeSheet rs) {
+      if(rs instanceof RuntimeViewsheet rvs) {
+         deleteWizTempResources(rvs.getViewsheet(), rvs.getUser());
+      }
+   }
+
+   /**
+    * Deletes temporary wiz resources (copy viewsheets and dashboard worksheet) that
+    * were created for the given wiz dashboard viewsheet session and were never saved.
+    */
+   private void deleteWizTempResources(Viewsheet viewsheet, Principal user) {
+      if(viewsheet == null || viewsheet.getWizInfo() == null ||
+         !viewsheet.getWizInfo().isWizSheet())
+      {
+         return;
+      }
+
+      Viewsheet.WizInfo wizInfo = viewsheet.getWizInfo();
+
+      for(String visualization : wizInfo.getVisualizations()) {
+         try {
+            WizUtil.deleteWizCopyViewsheet(AssetEntry.createAssetEntry(visualization), user);
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to delete wiz temp visualization: " + visualization, ex);
+         }
+      }
+
+      // Delete the temporary dashboard worksheet if it was never saved.
+      AssetEntry dashWsEntry = viewsheet.getBaseEntry();
+
+      if(dashWsEntry != null && dashWsEntry.getName().startsWith(WizUtil.WIZ_DASH_WS_PREFIX)) {
+         try {
+            WizUtil.deleteWizDashWorksheet(dashWsEntry, user);
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to delete wiz temp dashboard worksheet: " + dashWsEntry, ex);
          }
       }
    }
