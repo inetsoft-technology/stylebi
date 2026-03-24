@@ -47,15 +47,10 @@ import java.util.List;
 public class AddVisualizationService {
 
    /**
-    * Prefix for wiz-managed mirror table assemblies in the dashboard worksheet.
+    * Property key set on every MirrorTableAssembly that was created by the wiz merge process.
+    * Used to identify wiz-managed mirrors without relying on name prefixes.
     */
-   static final String WIZ_MIRROR_PREFIX = "__wiz_mirror__";
-
-   /**
-    * Suffix used when creating the "original" mirror for a previously-added visualization
-    * the first time its base table is expanded by a new merge.
-    */
-   private static final String ORIG_SUFFIX = "orig";
+   static final String PROP_WIZ_MERGED = "wiz.merged";
 
    public AddVisualizationService(ViewsheetService viewsheetService,
                                   AssetRepository assetRepository)
@@ -208,7 +203,7 @@ public class AddVisualizationService {
                // Expand the base with any new columns from srcBound
                mergeColumns(existingTable, srcBound);
                // Create a new mirror for this visualization's column/condition view
-               String curMirrorName = createVizMirror(dashWS, existingTable, srcBound, vizSuffix);
+               String curMirrorName = createVizMirror(dashWS, existingTable, srcBound);
                wsRenameMap.put(srcBound.getName(), curMirrorName);
                continue;
             }
@@ -292,7 +287,7 @@ public class AddVisualizationService {
       // Check if any wiz mirror already targets this base
       boolean hasMirror = Arrays.stream(dashWS.getAssemblies())
          .anyMatch(a -> a instanceof MirrorTableAssembly m &&
-            m.getName().startsWith(WIZ_MIRROR_PREFIX) &&
+            "true".equals(m.getProperty(PROP_WIZ_MERGED)) &&
             Objects.equals(m.getAssemblyName(), baseName));
 
       if(hasMirror) {
@@ -311,12 +306,13 @@ public class AddVisualizationService {
       existingTable.setAggregateInfo(new AggregateInfo());
 
       // Create a mirror that restores the original viz's view
-      String prevMirrorName = ensureUniqueName(WIZ_MIRROR_PREFIX + ORIG_SUFFIX + "_" + baseName, dashWS);
+      String prevMirrorName = ensureUniqueName(baseName, dashWS);
       MirrorTableAssembly prevMirror = new MirrorTableAssembly(dashWS, prevMirrorName, existingTable);
       prevMirror.setColumnSelection(origCols, true);
       prevMirror.setPreConditionList(preconds);
       prevMirror.setPostConditionList(postconds);
       prevMirror.setAggregateInfo(aggr);
+      prevMirror.setProperty(PROP_WIZ_MERGED, "true");
       dashWS.addAssembly(prevMirror);
 
       // Collect the redirect (existingTable → prevMirror) so the caller can apply it to dashVS
@@ -350,10 +346,9 @@ public class AddVisualizationService {
     * @return the name of the created mirror assembly.
     */
    private String createVizMirror(Worksheet dashWS, BoundTableAssembly base,
-                                  BoundTableAssembly srcTable, String vizSuffix)
+                                  BoundTableAssembly srcTable)
    {
-      String mirrorName = ensureUniqueName(
-         WIZ_MIRROR_PREFIX + vizSuffix + "_" + base.getName(), dashWS);
+      String mirrorName = ensureUniqueName(base.getName(), dashWS);
 
       ColumnSelection vizCols = srcTable.getColumnSelection(true).clone();
 
@@ -362,6 +357,7 @@ public class AddVisualizationService {
       mirror.setPreConditionList((ConditionListWrapper) srcTable.getPreConditionList().clone());
       mirror.setPostConditionList((ConditionListWrapper) srcTable.getPostConditionList().clone());
       mirror.setAggregateInfo((AggregateInfo) srcTable.getAggregateInfo().clone());
+      mirror.setProperty(PROP_WIZ_MERGED, "true");
       dashWS.addAssembly(mirror);
 
       return mirrorName;
@@ -593,7 +589,7 @@ public class AddVisualizationService {
          return name;
       }
 
-      int counter = 2;
+      int counter = 1;
       String candidate = name + "_" + counter;
 
       while(ws.getAssembly(candidate) != null) {

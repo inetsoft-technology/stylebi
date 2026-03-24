@@ -62,6 +62,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static inetsoft.util.Tool.byteDecode;
 import static inetsoft.util.Tool.byteEncode;
 
 /**
