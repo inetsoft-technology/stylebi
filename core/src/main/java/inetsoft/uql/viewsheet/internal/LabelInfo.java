@@ -206,7 +206,7 @@ public class LabelInfo implements AssetObject {
          return labelGap.getIntValue(false, getLabelGapValue());
       }
       catch(NumberFormatException e) {
-         LOG.warn("Invalid label gap value, defaulting to design-time value");
+         LOG.warn("Invalid label gap value '{}', defaulting to design-time value", labelGap.getRValue());
          return getLabelGapValue();
       }
    }

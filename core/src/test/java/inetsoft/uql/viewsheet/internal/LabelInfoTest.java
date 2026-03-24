@@ -24,7 +24,9 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
 import javax.xml.parsers.DocumentBuilderFactory;
+import inetsoft.uql.viewsheet.DynamicValue;
 import java.io.*;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -144,6 +146,13 @@ class LabelInfoTest {
       cloned.setLabelPosition(LabelInfo.RIGHT);
       assertEquals(LabelInfo.TOP, labelInfo.getLabelPosition(),
          "modifying clone should not affect original");
+   }
+
+   @Test
+   void viewDynamicValuesIncludesAllFields() {
+      List<DynamicValue> values = labelInfo.getViewDynamicValues();
+      assertEquals(4, values.size(),
+         "should include labelText, labelVisible, labelPosition, labelGap");
    }
 
    private static Element parseXmlString(String xml) throws Exception {
