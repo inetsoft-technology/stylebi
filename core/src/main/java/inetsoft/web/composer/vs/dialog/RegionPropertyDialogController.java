@@ -41,6 +41,8 @@ import inetsoft.web.graph.handler.ChartRegionHandler;
 import inetsoft.web.graph.model.dialog.*;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
+import inetsoft.web.viewsheet.controller.chart.VSChartAreasController;
+import inetsoft.web.viewsheet.event.chart.VSChartEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.LinkUri;
@@ -182,6 +184,25 @@ public class RegionPropertyDialogController {
       // Axis checkbox disabled when the measure editor is re-opened. (Bug #74140)
       BindingModel bindingModel = vsBindingService.createModel(chartAssembly);
       commandDispatcher.sendCommand(new SetVSBindingModelCommand(bindingModel));
+
+      // Proactively compute and send updated chart areas from the server so that
+      // SetVSObjectCommand and SetChartAreasCommand are delivered to the client
+      // atomically, eliminating the misalignment window that otherwise persists
+      // until the client's follow-up CHART_AREAS_URI round-trip completes. (Bug #74260)
+      try {
+         VSChartEvent chartAreasEvent = new VSChartEvent();
+         chartAreasEvent.setChartName(chartAssembly.getAbsoluteName());
+         chartAreasEvent.setMaxSize(vs.isMaxMode() ? chartAssemblyInfo.getMaxSize() : null);
+         VSChartAreasController.refreshChartAreasModel(
+            chartAreasEvent, viewsheetService, runtimeViewsheetRef, commandDispatcher, principal);
+      }
+      catch(Exception e) {
+         // Chart area refresh is best-effort; the property save already succeeded and
+         // SetVSObjectCommand was dispatched. The client will fall back to its own
+         // CHART_AREAS_URI round-trip, so swallow here to avoid masking the successful save.
+         LOG.warn("Failed to proactively refresh chart areas for {}",
+            chartAssembly.getAbsoluteName(), e);
+      }
    }
 
    /**
