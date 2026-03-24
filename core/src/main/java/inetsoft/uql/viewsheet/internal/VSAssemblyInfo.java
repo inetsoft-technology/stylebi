@@ -951,9 +951,13 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
          writer.println("</enabled>");
       }
 
-      writer.print("<absoluteName>");
-      writer.print("<![CDATA[" + getAbsoluteName() + "]]>");
-      writer.println("</absoluteName>");
+      String absoluteName = getAbsoluteName();
+
+      if(absoluteName != null) {
+         writer.print("<absoluteName>");
+         writer.print("<![CDATA[" + absoluteName + "]]>");
+         writer.println("</absoluteName>");
+      }
       writer.print("<embedded embedded=\"" + isEmbedded() + "\" />");
 
       if(linkValue != null && getHyperlinkValue() != null) {
@@ -1032,6 +1036,12 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
 
       Element anode = Tool.getChildNodeByTagName(elem, "absoluteName");
       aname = Tool.getValue(anode);
+
+      // Legacy exports written before bug #74209 serialized a null absoluteName as the
+      // string "null". Sanitize it here so old ZIPs import correctly.
+      if("null".equals(aname)) {
+         aname = null;
+      }
 
       Element lnode = Tool.getChildNodeByTagName(elem, "hyperLink");
 
