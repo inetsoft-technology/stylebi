@@ -69,7 +69,7 @@
                 </mat-error>
               </mat-form-field>
             </div>
-            <em-email-picker *ngIf="user" formControlName="email" class="flex" [editable]="model.editable" [autocompleteEmails]="false"></em-email-picker>
+            <em-email-picker *ngIf="user" formControlName="email" class="flex" [editable]="model.editable" [autocompleteEmails]="false" browserAutocomplete="off"></em-email-picker>
             <mat-form-field *ngIf="role" appearance="outline" color="accent">
               <mat-label>_#(Description)</mat-label>
               <textarea matInput placeholder="_#(Description)" formControlName="description" [readonly]="readonly"></textarea>
