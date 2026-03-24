@@ -70,6 +70,7 @@ export class EmailPickerComponent implements ControlValueAccessor, Validator, On
    @Input() placeholder = "_#(js:Email Addresses)";
    @Input() editable = true;
    @Input() autocompleteEmails = true;
+   @Input() browserAutocomplete: string = "on";
    @Input() isEmailBrowserEnabled = true;
    @Input() users: IdentityId[] = [];
    @Input() groups: IdentityId[] = [];

@@ -69,7 +69,7 @@
                 </mat-error>
               </mat-form-field>
             </div>
-            <em-email-picker *ngIf="user" formControlName="email" class="flex" [editable]="model.editable" [autocompleteEmails]="false"></em-email-picker>
+            <em-email-picker *ngIf="user" formControlName="email" class="flex" [editable]="model.editable" [autocompleteEmails]="false" browserAutocomplete="off"></em-email-picker>
             <mat-form-field *ngIf="role" appearance="outline" color="accent">
               <mat-label>_#(Description)</mat-label>
               <textarea matInput placeholder="_#(Description)" formControlName="description" [readonly]="readonly"></textarea>
@@ -114,13 +114,13 @@
             <div [formGroup]="pwForm" *ngIf="isNewUser || !userModel.hasPassword || form.controls.changePasswordEnabled?.value" class="flex-col" [class.change-password-box]="!isNewUser && userModel.hasPassword">
               <mat-form-field appearance="outline" color="accent" class="password-field">
                 <mat-label>_#(Password)</mat-label>
-                <input matInput placeholder="_#(Password)" type="password" formControlName="password">
+                <input matInput placeholder="_#(Password)" type="password" formControlName="password" autocomplete="new-password">
                 <mat-error *ngIf="pwForm.controls.password?.errors?.required">_#(Password is required)</mat-error>
                 <mat-error *ngIf="pwForm.controls.password?.errors?.passwordComplexity">_#(viewer.password.pwdRule)</mat-error>
               </mat-form-field>
               <mat-form-field appearance="outline" color="accent" class="password-field">
                 <mat-label>_#(Confirm Password)</mat-label>
-                <input matInput placeholder="_#(Confirm Password)" type="password" formControlName="confirmPassword" [errorStateMatcher]="passwordErrorMatcher">
+                <input matInput placeholder="_#(Confirm Password)" type="password" formControlName="confirmPassword" autocomplete="new-password" [errorStateMatcher]="passwordErrorMatcher">
                 <mat-error *ngIf="pwForm.errors?.passwordsMatch">_#(viewer.password.confirmPwd)</mat-error>
               </mat-form-field>
             </div>
