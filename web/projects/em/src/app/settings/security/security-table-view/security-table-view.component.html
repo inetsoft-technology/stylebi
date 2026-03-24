@@ -64,13 +64,13 @@
     <button mat-stroked-button
             *ngIf="showCopyPaste && copyPasteContext"
             [disabled]="!dataSource?.length"
-            (click)="copyIdentities()">_#(js:Copy)
+            (click)="copyIdentities()">_#(js:em.security.copyIdentities)
     </button>
     <button mat-stroked-button
             *ngIf="showCopyPaste && (copyPasteContext || pasteContexts)"
             [disabled]="pasteCount === 0 || !editable"
             [matTooltip]="pasteTooltip"
-            (click)="pasteIdentities()">_#(js:Paste){{pasteBadgeLabel}}
+            (click)="pasteIdentities()">_#(js:em.security.pasteIdentities){{pasteBadgeLabel}}
     </button>
   </mat-card-actions>
 </mat-card>
