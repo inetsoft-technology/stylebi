@@ -33,6 +33,7 @@ import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
+import inetsoft.uql.viewsheet.internal.WizUtil;
 import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
@@ -637,10 +638,10 @@ public class AssetTreeService {
             String scope = e.getProperty("visualizationScope");
 
             if(publish) {
-               return scope == null || "public".equals(scope);
+               return scope == null || WizUtil.VisualizationScope.PUBLIC.getValue().equals(scope);
             }
             else if(shared) {
-               return "shared".equals(scope);
+               return WizUtil.VisualizationScope.SHARED.getValue().equals(scope);
             }
 
             return true;

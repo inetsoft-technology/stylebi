@@ -73,7 +73,7 @@ public class VisualizationService {
                continue;
             }
 
-            if(!Tool.equals(vEntry.getProperty("visualizationScope"), "private")) {
+            if(!Tool.equals(vEntry.getProperty("visualizationScope"), WizUtil.VisualizationScope.PRIVATE.getValue())) {
                continue;
             }
 
@@ -125,7 +125,7 @@ public class VisualizationService {
                   .leaf(false)
                   .build());
             }
-            else if("shared".equals(entry.getProperty("visualizationScope"))) {
+            else if(WizUtil.VisualizationScope.SHARED.getValue().equals(entry.getProperty("visualizationScope"))) {
                TreeNodeModel.Builder builder = TreeNodeModel.builder()
                   .icon("new-viewsheet-icon")
                   .dragName("dragVisualization")

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { Component, Input, OnDestroy } from "@angular/core";
+import { Component, Input } from "@angular/core";
 import { ToolbarAction } from "../../../../widget/toolbar/toolbar-action";
 import { ToolbarActionGroup } from "../../../../widget/toolbar/toolbar-action-group";
 import { WizDashboard } from "../../../data/vs/wizDashboard";
@@ -31,17 +31,14 @@ import { WizService } from "../services/wiz.service";
       "../../toolbar/composer-toolbar.component.scss"
    ]
 })
-export class WizEditorPane implements OnDestroy {
+export class WizEditorPane {
    @Input() currentVisualization: WizDashboard;
 
    constructor(private wizService: WizService) {
    }
 
-   ngOnDestroy(): void {
-      this.closeVisualizationOnServer(this.currentVisualization);
-   }
-
    exit(): void {
+      this.closeVisualizationOnServer(this.currentVisualization);
       this.wizService.onExitVisualization();
    }
 

@@ -1631,16 +1631,16 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
             label: "_#(js:Start Chat)",
             iconClass: "new-viewsheet-icon",
             buttonClass: "new-viewsheet-button",
-            tooltip: () => "<b>_#(js:New Visualization)</b>",
+            tooltip: () => "<b>_#(js:Create Visualization By Chat)</b>",
             enabled: () => true,
             visible: () => !this.deployed,
             action: () => this.createNewVisualization()
          },
          {
-            label: "_#(js:Wiz Composer)",
+            label: "_#(js:WIZ Composer)",
             iconClass: "new-viewsheet-icon",
             buttonClass: "new-viewsheet-button",
-            tooltip: () => "<b>_#(js:New Wiz)</b>",
+            tooltip: () => "<b>_#(js:Use visualizations to design a dashboard)</b>",
             enabled: () => true,
             visible: () => !this.deployed,
             action: () => this.createNewWiz()

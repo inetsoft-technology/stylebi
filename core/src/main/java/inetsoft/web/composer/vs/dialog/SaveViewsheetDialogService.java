@@ -240,7 +240,7 @@ public class SaveViewsheetDialogService {
 
       String name = model.getName();
 
-      if(Tool.isEmptyString(name) && Tool.equals(model.getVisualizationScope(), "private")) {
+      if(Tool.isEmptyString(name) && Tool.equals(model.getVisualizationScope(), WizUtil.VisualizationScope.PRIVATE.getValue())) {
          name = UUID.randomUUID().toString();
       }
       else if(!Tool.isEmptyString(name)) {
@@ -273,7 +273,7 @@ public class SaveViewsheetDialogService {
             LOG.warn("Wiz sheet runtime id is missing for wiz visualization; skipping wiz copy entry creation.");
          }
          else if(oentry.getScope() == AssetRepository.TEMPORARY_SCOPE &&
-            Tool.equals(model.getVisualizationScope(), "private"))
+            Tool.equals(model.getVisualizationScope(), WizUtil.VisualizationScope.PRIVATE.getValue()))
          {
             entry = WizUtil.createCopyEntryForWiz(entry, true);
          }
@@ -386,8 +386,8 @@ public class SaveViewsheetDialogService {
          return;
       }
 
-      if(entry.isRoot() && (Tool.equals(model.getVisualizationScope(), "shared") ||
-         Tool.equals(model.getVisualizationScope(), "private")))
+      if(entry.isRoot() && (Tool.equals(model.getVisualizationScope(), WizUtil.VisualizationScope.SHARED.getValue()) ||
+         Tool.equals(model.getVisualizationScope(), WizUtil.VisualizationScope.PRIVATE.getValue())))
       {
          entry.setPath(VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH);
       }
