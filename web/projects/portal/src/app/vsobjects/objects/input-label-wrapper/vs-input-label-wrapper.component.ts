@@ -78,7 +78,7 @@ export class VSInputLabelWrapper {
    }
 
    get contentStyle(): { [key: string]: string } {
-      if(this.isVerticalLabel && this.objectHeight != null) {
+      if(this.isVerticalLabel && this.objectHeight !== undefined) {
          return { "height": `${this.objectHeight}px` };
       }
 

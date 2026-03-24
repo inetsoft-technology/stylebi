@@ -171,13 +171,16 @@ describe("VSInputLabelWrapper", () => {
 
    it("should return empty contentStyle for left/right labels", () => {
       component.objectHeight = 30;
-      component.labelModel = {
-         showLabel: true,
-         labelText: "Test",
-         labelPosition: "left"
-      };
 
-      expect(component.contentStyle).toEqual({});
+      for(const position of ["left", "right"] as const) {
+         component.labelModel = {
+            showLabel: true,
+            labelText: "Test",
+            labelPosition: position
+         };
+
+         expect(component.contentStyle).toEqual({});
+      }
    });
 
    it("should return objectHeight as hostHeight when label is hidden", () => {
