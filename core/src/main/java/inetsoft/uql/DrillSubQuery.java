@@ -108,10 +108,13 @@ public class DrillSubQuery implements XMLSerializable, Serializable, Cloneable {
       return Objects.hash(query, wsEntry, params);
    }
 
-   public boolean equals(DrillSubQuery subquery) {
-      if(subquery == null) {
+   @Override
+   public boolean equals(Object obj) {
+      if(!(obj instanceof DrillSubQuery)) {
          return false;
       }
+
+      DrillSubQuery subquery = (DrillSubQuery) obj;
 
       if(subquery.getQuery() == null || subquery.getQuery().length() == 0) {
          return false;
