@@ -157,7 +157,7 @@ public class SliderPropertyDialogController {
       inputLabelPaneModel.setLabelText(labelInfo.getLabelTextValue());
       inputLabelPaneModel.setLabelGap(labelInfo.getLabelGapValue());
       inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPositionValue());
-      inputLabelPaneModel.setShowLabel(labelInfo.isLabelVisible());
+      inputLabelPaneModel.setShowLabel(labelInfo.getLabelVisibleValue());
 
       vsAssemblyScriptPaneModel.scriptEnabled(sliderAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(sliderAssemblyInfo.getScript() == null ?

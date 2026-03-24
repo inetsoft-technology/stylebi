@@ -195,7 +195,7 @@ public class TextInputPropertyDialogController {
       inputLabelPaneModel.setLabelText(labelInfo.getLabelTextValue());
       inputLabelPaneModel.setLabelGap(labelInfo.getLabelGapValue());
       inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPositionValue());
-      inputLabelPaneModel.setShowLabel(labelInfo.isLabelVisible());
+      inputLabelPaneModel.setShowLabel(labelInfo.getLabelVisibleValue());
 
       clickableScriptPaneModel.scriptEnabled(textInputAssemblyInfo.isScriptEnabled());
       String script = textInputAssemblyInfo.getScript() == null ? "" : textInputAssemblyInfo.getScript();

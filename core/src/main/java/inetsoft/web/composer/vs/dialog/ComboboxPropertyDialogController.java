@@ -236,7 +236,7 @@ public class ComboboxPropertyDialogController {
       inputLabelPaneModel.setLabelText(labelInfo.getLabelTextValue());
       inputLabelPaneModel.setLabelGap(labelInfo.getLabelGapValue());
       inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPositionValue());
-      inputLabelPaneModel.setShowLabel(labelInfo.isLabelVisible());
+      inputLabelPaneModel.setShowLabel(labelInfo.getLabelVisibleValue());
 
       return result;
    }

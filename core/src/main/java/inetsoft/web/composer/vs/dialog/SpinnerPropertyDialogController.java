@@ -146,7 +146,7 @@ public class SpinnerPropertyDialogController {
       inputLabelPaneModel.setLabelText(labelInfo.getLabelTextValue());
       inputLabelPaneModel.setLabelGap(labelInfo.getLabelGapValue());
       inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPositionValue());
-      inputLabelPaneModel.setShowLabel(labelInfo.isLabelVisible());
+      inputLabelPaneModel.setShowLabel(labelInfo.getLabelVisibleValue());
 
       vsAssemblyScriptPaneModel.scriptEnabled(spinnerAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(spinnerAssemblyInfo.getScript() == null ?

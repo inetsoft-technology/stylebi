@@ -167,7 +167,12 @@ public class LabelInfo implements AssetObject {
     * @param position the label position (top, bottom, left, right).
     */
    public void setLabelPosition(String position) {
-      labelPosition.setRValue(isValidPosition(position) ? position : LEFT);
+      if(!isValidPosition(position)) {
+         LOG.warn("Invalid label position '{}', defaulting to '{}'", position, LEFT);
+         position = LEFT;
+      }
+
+      labelPosition.setRValue(position);
    }
 
    /**
