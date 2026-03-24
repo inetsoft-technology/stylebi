@@ -744,7 +744,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
          if(!isLastColumn) {
             this._positionOverlayNonLastColumn(btn, listEl, listRect, cellRect, btnWidth, colIndex, scale);
          } else {
-            this._positionOverlayLastColumn(btn, listEl, listRect, cellRect, cellElement, btnWidth, scale);
+            this._positionOverlayLastColumn(btn, listRect, cellRect, scale);
          }
 
          this.renderer.setStyle(btn, "top", (cellRect.top - listRect.top) / scale + "px");
@@ -845,15 +845,13 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       };
    }
 
-   // Last (or only) column: anchor to the right edge with optional list expansion
-   // so the button doesn't overlap the rendered text.
+   // Last (or only) column: anchor to the right edge of the cell.
+   // The button floats over the cell text rather than expanding the list width, which would
+   // overflow .vs-object and overlap adjacent selection lists (Bug #74107).
    private _positionOverlayLastColumn(
       btn: HTMLElement,
-      listEl: Element,
       listRect: DOMRect,
       cellRect: DOMRect,
-      cellElement: Element,
-      btnWidth: number,
       scale: number
    ): void {
       this.renderer.removeStyle(btn, "left");
@@ -879,23 +877,6 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       }
 
       this.renderer.setStyle(btn, "right", dynamicRight + "px");
-
-      // Use .selection-value (the text wrapper, flex: 0 1 auto), not .selection-list-cell-label
-      // (a fixed-width container whose right edge always fills the cell regardless of text length).
-      const valueEl = cellElement.querySelector(".selection-value") as HTMLElement | null;
-
-      if(valueEl) {
-         // textRight is viewport px; convert btnWidth to viewport px for the comparison,
-         // then convert the result to CSS px when setting the inline style.
-         const textRight = valueEl.getBoundingClientRect().right - listRect.left;
-         const neededViewportWidth = textRight + btnWidth * scale;
-
-         if(neededViewportWidth > listRect.width) {
-            this.renderer.setStyle(listEl, "width", neededViewportWidth / scale + "px");
-         }
-      } else {
-         this.renderer.setStyle(listEl, "width", (listRect.width / scale + btnWidth) + "px");
-      }
    }
 
    public clearQuickSwitchHoverIfOwner(cellElement: Element | null): void {
