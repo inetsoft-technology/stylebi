@@ -97,7 +97,10 @@ public class UserTreeService {
       //filter multi-tenant users to this organization only
       if(isMultiTenant) {
          userChildren = userChildren.stream()
-            .filter(node -> provider.getUser(node.identityID()).getOrganizationID().equals(curOrgID))
+            .filter(node -> {
+               User u = provider.getUser(node.identityID());
+               return u != null && u.getOrganizationID().equals(curOrgID);
+            })
             .collect(Collectors.toList());
       }
 
@@ -787,6 +790,12 @@ public class UserTreeService {
       }
 
       User user = currentProvider.getUser(userName);
+
+      if(user == null) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.security.userNotFound", userName.getName()));
+      }
+
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
 
       if(SUtil.isMultiTenant()) {
@@ -1355,6 +1364,10 @@ public class UserTreeService {
 
       for(int i=0; i < users.length; i++) {
          User user = provider.getUser(users[i]);
+
+         if(user == null) {
+            continue;
+         }
 
          if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
             IdentityID userID = user.getIdentityID();
