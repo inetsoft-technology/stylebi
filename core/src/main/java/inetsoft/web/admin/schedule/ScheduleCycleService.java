@@ -38,7 +38,6 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 public class ScheduleCycleService {
@@ -88,10 +87,6 @@ public class ScheduleCycleService {
       String label = index != -1 ? cycleName.substring(index + 1) : cycleName;
       String zoneName = Calendar.getInstance().getTimeZone().getDisplayName();
 
-      Vector<ScheduleCondition> rawConditions = dataCycleManager.getConditions(cycleName, orgId);
-      List<String> conditions = rawConditions == null ? Collections.emptyList() :
-         rawConditions.stream().map(ScheduleCondition::toString).collect(Collectors.toList());
-
       boolean noDefaultTime = "false".equals(SreeEnv.getProperty("schedule.condition.taskDefaultTime"));
       final ResourcePermissionModel tableModel = permissionService.getTableModel(
          getCyclePermissionID(cycleName, orgId), ResourceType.SCHEDULE_CYCLE, EnumSet.of(ResourceAction.ACCESS), principal);
@@ -131,9 +126,13 @@ public class ScheduleCycleService {
       }
 
       TaskConditionPaneModel.Builder builder = TaskConditionPaneModel.builder();
-      dataCycleManager.getConditions(cycleName, orgId).stream()
-         .map(condition -> scheduleConditionService.getConditionModel(condition, principal))
-         .forEach(builder::addConditions);
+      Vector<ScheduleCondition> conds = dataCycleManager.getConditions(cycleName, orgId);
+
+      if(conds != null) {
+         conds.stream()
+            .map(condition -> scheduleConditionService.getConditionModel(condition, principal))
+            .forEach(builder::addConditions);
+      }
 
       String timeProp = SreeEnv.getProperty("format.time");
 
