@@ -238,7 +238,7 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
       this.dialog.open(MessageDialog, {
          width: "350px",
          data: {
-            title: "_#(js:Paste)",
+            title: "_#(js:em.security.pasteIdentities)",
             content: "_#(js:em.security.pasteIdentities.confirm)",
             type: MessageDialogType.CONFIRMATION
          }
