@@ -67,6 +67,13 @@ class LabelInfoTest {
    }
 
    @Test
+   void invalidDesignTimePositionDefaultsToLeft() {
+      labelInfo.setLabelPositionValue("center");
+      assertEquals(LabelInfo.LEFT, labelInfo.getLabelPositionValue(),
+         "invalid design-time position should default to LEFT");
+   }
+
+   @Test
    void backwardCompatibleXmlParsing() throws Exception {
       // simulate old XML that only has labelPosition, not labelPositionValue
       String xml = "<root><labelInfo class=\"inetsoft.uql.viewsheet.internal.LabelInfo\" " +

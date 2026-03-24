@@ -157,8 +157,7 @@ public class LabelInfo implements AssetObject {
     * @return the label position (top, bottom, left, right).
     */
    public String getLabelPosition() {
-      Object rval = labelPosition.getRValue();
-      String pos = rval != null ? rval.toString() : getLabelPositionValue();
+      String pos = labelPosition.getStringValue(false, getLabelPositionValue());
       return isValidPosition(pos) ? pos : LEFT;
    }
 
@@ -189,6 +188,7 @@ public class LabelInfo implements AssetObject {
     * @param position the label position (top, bottom, left, right).
     */
    public void setLabelPositionValue(String position) {
+      // null or invalid coerces to LEFT
       labelPosition.setDValue(isValidPosition(position) ? position : LEFT);
    }
 
@@ -256,6 +256,7 @@ public class LabelInfo implements AssetObject {
     * @param vs the viewsheet.
     */
    public void renameDepended(String oname, String nname, Viewsheet vs) {
+      // only labelText supports expression references; position/gap use constant values
       VSUtil.renameDynamicValueDepended(oname, nname, labelText, vs);
    }
 
@@ -320,6 +321,7 @@ public class LabelInfo implements AssetObject {
          }
       }
 
+      // labelGap was already a DynamicValue2 before this change, so labelGapValue always exists
       String gapStr = Tool.getAttribute(elem, "labelGapValue");
 
       if(gapStr != null) {
