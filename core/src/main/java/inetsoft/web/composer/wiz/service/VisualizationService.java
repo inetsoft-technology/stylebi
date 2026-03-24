@@ -132,8 +132,8 @@ public class VisualizationService {
                   .data(entry)
                   .leaf(true);
 
-               if(VSUtil.isWizCopyEntry(entry, true)) {
-                  AssetEntry wizOriginalVisualization = VSUtil.createWizOriginalVisualization(entry);
+               if(WizUtil.isWizCopyEntry(entry, true)) {
+                  AssetEntry wizOriginalVisualization = WizUtil.createWizOriginalVisualization(entry);
                   builder.label(wizOriginalVisualization.getName());
                }
                else {
