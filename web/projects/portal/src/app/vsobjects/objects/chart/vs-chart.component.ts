@@ -1118,6 +1118,13 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       this.modelTS = (new Date()).getTime();
       this.detectChanges();
 
+      // When the server confirms chart areas are fully computed, explicitly clear the
+      // loading state to prevent it from getting stuck when chart-area's onLoad doesn't
+      // fire reliably during rapid max-mode transitions (e.g. enlarge → actual size). (Bug #74278)
+      if(command.completed) {
+         this.clearChartLoading();
+      }
+
       if(this.mobileDevice) {
          this.showHints = true;
          setTimeout(() => this.showHints = false, 1000);
