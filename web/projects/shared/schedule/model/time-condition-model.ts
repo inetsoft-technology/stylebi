@@ -48,6 +48,7 @@ export interface TimeConditionModel extends ScheduleConditionModel {
    date?: number;
    dateEnd?: number;
    timeZone?: string; // selected time zone
+   timeZoneLabel?: string; // label of the selected TimeZoneModel option (disambiguation when IDs collide)
    timeZoneOffset?: number; // server time zone offset
    timeRange?: TimeRange;
    changed?: boolean;
