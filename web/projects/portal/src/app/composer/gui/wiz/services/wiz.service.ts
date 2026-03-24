@@ -7,19 +7,28 @@ import { WizDashboard } from "../../../data/vs/wizDashboard";
 })
 export class WizService {
    showingWiz: boolean = false;
-   private _openVisualization = new Subject<string>();
+   private _openVisualization = new Subject<{value?: string, standaloneVisualization?: boolean}>();
+   private _showVisualization = new Subject<WizDashboard>();
    private _saveVisualization = new Subject<WizDashboard>();
    private _exitVisualization = new Subject<void>();
 
    constructor() {
    }
 
-   get openVisualization(): Observable<string>  {
+   get openVisualization(): Observable<{value?: string, standaloneVisualization?: boolean}> {
       return this._openVisualization.asObservable();
    }
 
-   onOpenVisualization(value?: string) {
-      return this._openVisualization.next(value);
+   onOpenVisualization(value?: string, standaloneVisualization?: boolean) {
+      return this._openVisualization.next({value, standaloneVisualization});
+   }
+
+   get showVisualization(): Observable<WizDashboard> {
+      return this._showVisualization.asObservable();
+   }
+
+   onShowVisualization(vs: WizDashboard): void {
+      this._showVisualization.next(vs);
    }
 
    get saveVisualization(): Observable<WizDashboard> {

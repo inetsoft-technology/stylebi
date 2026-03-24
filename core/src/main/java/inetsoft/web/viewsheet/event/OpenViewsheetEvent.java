@@ -480,6 +480,14 @@ public class OpenViewsheetEvent implements Serializable {
       this.wizSheetRuntimeId = wizSheetRuntimeId;
    }
 
+   public boolean isStandaloneVisualization() {
+      return standaloneVisualization;
+   }
+
+   public void setStandaloneVisualization(boolean standaloneVisualization) {
+      this.standaloneVisualization = standaloneVisualization;
+   }
+
    @Override
    public String toString() {
       return "OpenViewsheetEvent{" +
@@ -539,4 +547,5 @@ public class OpenViewsheetEvent implements Serializable {
    private boolean wizVisualization;
    private String visualizationSheet;
    private String wizSheetRuntimeId;
+   private boolean standaloneVisualization;
 }

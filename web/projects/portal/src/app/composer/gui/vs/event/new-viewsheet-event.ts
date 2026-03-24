@@ -43,10 +43,10 @@ export class NewViewsheetEvent extends OpenViewsheetEvent {
     */
    constructor(entryId: string, width: number, height: number, mobile: boolean,
                userAgent: string, dataSource: AssetEntry, wizSheet?: boolean, wizVisualization?: boolean,
-               visualizationSheet?: string, wizSheetRuntimeId?: string)
+               standaloneVisualization?: boolean, visualizationSheet?: string, wizSheetRuntimeId?: string)
    {
       super(entryId, width, height, mobile, userAgent, false, false, wizSheet,
-         wizVisualization, visualizationSheet, wizSheetRuntimeId);
+         wizVisualization, standaloneVisualization, visualizationSheet, wizSheetRuntimeId);
 
       this.dataSources = !!dataSource ? [dataSource] : [];
    }

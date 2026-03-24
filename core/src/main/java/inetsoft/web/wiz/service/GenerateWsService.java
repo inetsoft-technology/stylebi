@@ -100,7 +100,7 @@ public class GenerateWsService {
       AbstractTableAssembly table = null;
       List<WorksheetConstructionModel.QueryField> fields = new ArrayList<>(model.getFields());
 
-      if(model.getJoinPaths() == null) {
+      if(model.getJoinPaths() == null || model.getJoinPaths().isEmpty()) {
          if(originWs != null) {
             WSAssembly baseTable = (WSAssembly) originWs.getAssembly(fields.getFirst().getTable().getName());
             table = new MirrorTableAssembly(originWs, model.getName(), baseTable);
@@ -551,7 +551,7 @@ public class GenerateWsService {
 
       WorksheetConstructionModel.SourceInfo source = selectTable.getSource();
       JDBCDataSource jdbcDatasource = metadataApiService.getJDBCDatasource(source.getName());
-      XNode tableMetaData = metadataApiService.getTableMetaData(jdbcDatasource, source.getCatalog(), source.getSchema(), table.getName());
+      XNode tableMetaData = metadataApiService.getTableMetaData(jdbcDatasource, source.getCatalog(), source.getSchema(), selectTable.getName());
 
       if(tableMetaData == null) {
          throw new RuntimeException("Table:" + table.getName() + " does not exist!");

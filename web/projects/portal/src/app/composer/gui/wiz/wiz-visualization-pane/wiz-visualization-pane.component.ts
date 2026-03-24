@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -116,7 +116,9 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
    }
 
    ngOnInit(): void {
-      if(!this.currentVisualization.wizSheetRuntimeId) {
+      if(!this.currentVisualization.wizSheetRuntimeId &&
+         !this.currentVisualization.standaloneVisualization)
+      {
          this.initError = "_#(js:wiz.visualization.missing.runtime.id)";
          return;
       }
@@ -135,6 +137,7 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
          const event = new NewViewsheetEvent(
             this.currentVisualization.id, size[0], size[1], mobile,
             window.navigator.userAgent, null, false, true,
+            this.currentVisualization.standaloneVisualization,
             this.currentVisualization?.visualizationSheet, this.currentVisualization.wizSheetRuntimeId);
          event.dataSources = this.currentVisualization.baseEntries;
          event.viewer = false;
@@ -144,19 +147,11 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
          const event = new OpenViewsheetEvent(
             this.currentVisualization.id, size[0], size[1], mobile,
             window.navigator.userAgent, this.currentVisualization.meta,
-            false, false, true, null, this.currentVisualization.wizSheetRuntimeId);
+            false, false, true, false, null, this.currentVisualization.wizSheetRuntimeId);
          event.viewer = false;
 
          this.viewsheetClient.sendEvent("/events/open", event);
       }
-   }
-
-   exit(): void {
-      this.wizService.onExitVisualization();
-   }
-
-   accept(): void {
-      this.wizService.onSaveVisualization(this.currentVisualization);
    }
 
    ngOnDestroy(): void {
