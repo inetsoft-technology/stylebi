@@ -33,6 +33,7 @@ export class ChangePasswordDialog implements OnInit {
    formGroup: UntypedFormGroup;
    model: ChangePasswordDialogModel;
    confirmNewPassword: string;
+   showPwd: boolean[] = [false, false, false];
 
    constructor(private modelService: ModelService) {
    }
@@ -81,5 +82,9 @@ export class ChangePasswordDialog implements OnInit {
    isValid(): boolean {
       return !!this.model && this.formGroup.valid &&
          this.model.newPassword === this.confirmNewPassword;
+   }
+
+   togglePwd(index: number): void {
+      this.showPwd[index] = !this.showPwd[index];
    }
 }

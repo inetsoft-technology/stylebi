@@ -114,13 +114,21 @@
             <div [formGroup]="pwForm" *ngIf="isNewUser || !userModel.hasPassword || form.controls.changePasswordEnabled?.value" class="flex-col" [class.change-password-box]="!isNewUser && userModel.hasPassword">
               <mat-form-field appearance="outline" color="accent" class="password-field">
                 <mat-label>_#(Password)</mat-label>
-                <input matInput placeholder="_#(Password)" type="password" formControlName="password" autocomplete="new-password">
+                <input matInput placeholder="_#(Password)" [type]="showPwd[0] ? 'text' : 'password'" formControlName="password" autocomplete="new-password">
+                <button matSuffix mat-icon-button (click)="togglePwd(0)" type="button" aria-label="_#(Show/Hide)">
+                  <mat-icon fontSet="ineticons" class="icon-size-small"
+                            [fontIcon]="showPwd[0] ? 'eye-off-icon' : 'eye-icon'"></mat-icon>
+                </button>
                 <mat-error *ngIf="pwForm.controls.password?.errors?.required">_#(Password is required)</mat-error>
                 <mat-error *ngIf="pwForm.controls.password?.errors?.passwordComplexity">_#(viewer.password.pwdRule)</mat-error>
               </mat-form-field>
               <mat-form-field appearance="outline" color="accent" class="password-field">
                 <mat-label>_#(Confirm Password)</mat-label>
-                <input matInput placeholder="_#(Confirm Password)" type="password" formControlName="confirmPassword" autocomplete="new-password" [errorStateMatcher]="passwordErrorMatcher">
+                <input matInput placeholder="_#(Confirm Password)" [type]="showPwd[1] ? 'text' : 'password'" formControlName="confirmPassword" autocomplete="new-password" [errorStateMatcher]="passwordErrorMatcher">
+                <button matSuffix mat-icon-button (click)="togglePwd(1)" type="button" aria-label="_#(Show/Hide)">
+                  <mat-icon fontSet="ineticons" class="icon-size-small"
+                            [fontIcon]="showPwd[1] ? 'eye-off-icon' : 'eye-icon'"></mat-icon>
+                </button>
                 <mat-error *ngIf="pwForm.errors?.passwordsMatch">_#(viewer.password.confirmPwd)</mat-error>
               </mat-form-field>
             </div>
