@@ -470,6 +470,36 @@ public final class WizUtil {
    // Constants
    // ---------------------------------------------------------------------------
 
+   public enum VisualizationScope {
+      PUBLIC("public"),
+      SHARED("shared"),
+      PRIVATE("private");
+
+      VisualizationScope(String value) {
+         this.value = value;
+      }
+
+      public String getValue() {
+         return value;
+      }
+
+      /**
+       * Returns the scope whose {@link #getValue()} equals {@code value},
+       * or {@code null} if no match is found.
+       */
+      public static VisualizationScope fromValue(String value) {
+         for(VisualizationScope scope : values()) {
+            if(scope.value.equals(value)) {
+               return scope;
+            }
+         }
+
+         return null;
+      }
+
+      private final String value;
+   }
+
    /**
     * Prefix used for wiz-copy viewsheet names.
     */

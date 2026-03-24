@@ -38,6 +38,7 @@ import inetsoft.util.audit.Audit;
 import inetsoft.util.log.LogLevel;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.composer.model.vs.*;
+import inetsoft.web.composer.wiz.service.VisualizationService;
 import inetsoft.web.viewsheet.command.SaveSheetCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
@@ -47,6 +48,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.UUID;
 import java.util.Vector;
 
 @Service
@@ -153,6 +155,8 @@ public class SaveViewsheetDialogService {
          parent = AssetEntry.createGlobalRoot();
       }
 
+      fixParentPath(parent, model);
+
       String permissionDenied = "";
 
       try {
@@ -232,8 +236,18 @@ public class SaveViewsheetDialogService {
          parent = AssetEntry.createGlobalRoot();
       }
 
-      model.setName(model.getName() == null ?
-                       model.getName() : SUtil.removeControlChars(model.getName()));
+      fixParentPath(parent, model);
+
+      String name = model.getName();
+
+      if(Tool.isEmptyString(name) && Tool.equals(model.getVisualizationScope(), WizUtil.VisualizationScope.PRIVATE.getValue())) {
+         name = UUID.randomUUID().toString();
+      }
+      else if(!Tool.isEmptyString(name)) {
+         name = SUtil.removeControlChars(name);
+      }
+
+      model.setName(name);
       String nname = parent.isRoot() ? model.getName() : parent.getPath() +
          "/" + model.getName();
       entry = new AssetEntry(parent.getScope(), AssetEntry.Type.VIEWSHEET,
@@ -258,9 +272,16 @@ public class SaveViewsheetDialogService {
          if(wizSheetRuntimeId == null) {
             LOG.warn("Wiz sheet runtime id is missing for wiz visualization; skipping wiz copy entry creation.");
          }
-         else if(oentry.getScope() == AssetRepository.TEMPORARY_SCOPE) {
+         else if(oentry.getScope() == AssetRepository.TEMPORARY_SCOPE &&
+            Tool.equals(model.getVisualizationScope(), WizUtil.VisualizationScope.PRIVATE.getValue()))
+         {
             entry = WizUtil.createCopyEntryForWiz(entry, true);
          }
+      }
+
+      if(model.getVisualizationScope() != null) {
+         entry.setProperty("visualizationScope", model.getVisualizationScope());
+         ensureParentFolderExists(entry.getParent(), principal);
       }
 
       String objectName = parent.getDescription() + "/" + model.getName();
@@ -343,6 +364,33 @@ public class SaveViewsheetDialogService {
       }
 
       return null;
+   }
+
+   private void ensureParentFolderExists(AssetEntry folder, Principal principal) {
+      if(folder == null || folder.isRoot()) {
+         return;
+      }
+
+      try {
+         if(!assetRepository.containsEntry(folder)) {
+            assetRepository.addFolder(folder, principal);
+         }
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to ensure visualization folder exists: {}", folder, ex);
+      }
+   }
+
+   private void fixParentPath(AssetEntry entry, SaveViewsheetDialogModel model) {
+      if(entry == null || model == null) {
+         return;
+      }
+
+      if(entry.isRoot() && (Tool.equals(model.getVisualizationScope(), WizUtil.VisualizationScope.SHARED.getValue()) ||
+         Tool.equals(model.getVisualizationScope(), WizUtil.VisualizationScope.PRIVATE.getValue())))
+      {
+         entry.setPath(VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH);
+      }
    }
 
    private static final class IsDuplicateTask implements ViewsheetService.Task<Boolean> {

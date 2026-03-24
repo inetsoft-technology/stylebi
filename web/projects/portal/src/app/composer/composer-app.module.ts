@@ -282,8 +282,10 @@ import { LayoutObject } from "./gui/vs/layouts/layout-object.component";
 import { LayoutPane } from "./gui/vs/layouts/layout-pane.component";
 import { ComposerSelectionContainerChildren } from "./gui/vs/objects/selection/composer-selection-container-children.component";
 import { NewVisualizationDialog } from "./gui/wiz/new-visualization-dialog/new-visualization-dialog.component";
+import { SaveWizVisualizationDialog } from "./gui/wiz/save-wiz-visualization-dialog/save-wiz-visualization-dialog.component";
 import { WizComponentsPane } from "./gui/wiz/wiz-components-pane/wiz-components-pane.component";
 import { WizPane } from "./gui/wiz/wiz-main/wiz-pane.component";
+import { WizEditorPane } from "./gui/wiz/wiz-editor-pane/wiz-editor-pane.component";
 import { WizObject } from "./gui/wiz/wiz-object/wiz-object.component";
 import { WizVisualizationPane } from "./gui/wiz/wiz-visualization-pane/wiz-visualization-pane.component";
 import { WizVsPreview } from "./gui/wiz/wiz-vs-preview/wiz-vs-preview.component";
@@ -584,8 +586,10 @@ import { LineAnchorService } from "./services/line-anchor.service";
       ScriptEditPaneComponent,
       SaveScriptDialog,
       NewVisualizationDialog,
+      SaveWizVisualizationDialog,
       WizComponentsPane,
       WizPane,
+      WizEditorPane,
       WizObject,
       WizVisualizationPane,
       WizVsPreview

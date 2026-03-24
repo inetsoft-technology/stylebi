@@ -89,7 +89,7 @@ public class ComposerViewsheetController {
          wizInfo = new Viewsheet.WizInfo(true);
       }
       else if(event.isWizVisualization()) {
-         if(Tool.isEmptyString(event.getWizSheetRuntimeId())) {
+         if(!event.isStandaloneVisualization() && Tool.isEmptyString(event.getWizSheetRuntimeId())) {
             throw new IllegalArgumentException("Wiz Sheet RuntimeId is required for wizVisualization");
          }
 
