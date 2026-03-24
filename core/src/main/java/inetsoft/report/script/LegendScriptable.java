@@ -83,5 +83,5 @@ public class LegendScriptable extends PropertyScriptable {
    private LegendDescriptor legend;
 
    private static final Logger LOG =
-      LoggerFactory.getLogger(AxisScriptable.class);
+      LoggerFactory.getLogger(LegendScriptable.class);
 }
