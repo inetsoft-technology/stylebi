@@ -61,13 +61,11 @@ public class ImageShapes {
    }
 
    public static void clearShapes() {
-      String key = getKey();
-
-      if(singleton.cache.get(key) != null) {
+      synchronized(ImageShapes.class) {
+         String key = getKey();
          singleton.cache.remove(key);
+         singleton.lastByOrg.remove(key);
       }
-
-      singleton.lastByOrg.remove(key);
    }
 
    /**
@@ -128,11 +126,11 @@ public class ImageShapes {
    /**
     * Load shapes from portal/shapes.
     */
-   private synchronized void loadShapes() {
+   private void loadShapes() {
       loadShapes(getKey());
    }
 
-   private synchronized void loadShapes(String orgID) {
+   private void loadShapes(String orgID) {
       try {
          Map<String, GShape> shapes = cache.get(orgID);
          boolean init = shapes == null;
