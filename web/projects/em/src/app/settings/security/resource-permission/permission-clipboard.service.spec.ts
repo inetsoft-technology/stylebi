@@ -28,6 +28,7 @@ import {
 describe("PermissionClipboardService", () => {
    let service: PermissionClipboardService;
    let refreshSubject: Subject<any>;
+   let orgChangeSubject: Subject<void>;
 
    function createPermission(name: string, actions: ResourceAction[], type = IdentityType.USER): ResourcePermissionTableModel {
       return {
@@ -39,8 +40,16 @@ describe("PermissionClipboardService", () => {
 
    beforeEach(() => {
       refreshSubject = new Subject<any>();
-      const mockOrgDropdownService = { onRefresh: refreshSubject } as any;
+      orgChangeSubject = new Subject<void>();
+      const mockOrgDropdownService = {
+         onRefresh: refreshSubject,
+         onOrgChange: orgChangeSubject.asObservable()
+      } as any;
       service = new PermissionClipboardService(mockOrgDropdownService);
+   });
+
+   afterEach(() => {
+      service.ngOnDestroy();
    });
 
    describe("canPaste", () => {
@@ -348,10 +357,38 @@ describe("PermissionClipboardService", () => {
          expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(true);
       });
 
-      it("should not clear clipboard when nothing has been copied yet", () => {
+      it("should not error when provider changes and nothing has been copied", () => {
          refreshSubject.next({ provider: "provider-b", providerChanged: true });
 
          expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(false);
+      });
+
+      it("should not error when org changes and nothing has been copied", () => {
+         orgChangeSubject.next();
+         expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(false);
+      });
+
+      it("should clear clipboard when the organization changes within the same provider", () => {
+         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider-a", COPY_PASTE_CONTEXT_REPOSITORY);
+         expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(true);
+
+         orgChangeSubject.next();
+
+         expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(false);
+      });
+
+      it("should allow copying again after org change clears clipboard", () => {
+         service.copy([createPermission("admin", [ResourceAction.READ])], false, "provider-a", COPY_PASTE_CONTEXT_REPOSITORY);
+         orgChangeSubject.next();
+         expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(false);
+
+         service.copy([createPermission("editors", [ResourceAction.WRITE])], true, "provider-a", COPY_PASTE_CONTEXT_REPOSITORY);
+         expect(service.canPaste(COPY_PASTE_CONTEXT_REPOSITORY)).toBe(true);
+
+         const result = service.paste(COPY_PASTE_CONTEXT_REPOSITORY, [ResourceAction.WRITE]);
+         expect(result.permissions.length).toBe(1);
+         expect(result.permissions[0].identityID.name).toBe("editors");
+         expect(result.requiresBoth).toBe(true);
       });
    });
 });
