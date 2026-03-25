@@ -74,6 +74,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    @Input() set model(m: EditIdentityPaneModel) {
       this._model = m;
       this.identityEditable = true;
+      this.showPwd = [false, false];
    }
    get model() {
       return this._model;
@@ -106,6 +107,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    themes: IdentityTheme[] = [];
    isMultiTenant: boolean = false;
    identityEditable: boolean = true;
+   showPwd: boolean[] = [false, false];
 
    private originalModel: EditIdentityPaneModel;
    private originalRoles: IdentityModel[];
@@ -166,6 +168,10 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
       return !this.isMultiTenant || !((<EditRolePaneModel>this.model).organization == null);
    }
 
+   togglePwd(index: number): void {
+      this.showPwd[index] = !this.showPwd[index];
+   }
+
    setIsEnterprise() {
       let orgRoot = this.treeData.filter(node =>
          node.type == IdentityType.ORGANIZATION);
@@ -205,6 +211,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    }
 
    init(): void {
+      this.showPwd = [false, false];
       this.setIsEnterprise();
 
       const nameValidator = this.type == IdentityType.USER ? FormValidators.validUserName :
@@ -450,6 +457,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
          this.cancel.emit();
       }
 
+      this.showPwd = [false, false];
       this.restoreState();
       this.setOriginalState();
 
