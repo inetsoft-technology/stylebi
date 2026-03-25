@@ -164,9 +164,9 @@ public class SliderPropertyDialogController {
       LabelInfo labelInfo = sliderAssemblyInfo.getLabelInfo();
 
       inputLabelPaneModel.setLabelText(labelInfo.getLabelTextValue());
-      inputLabelPaneModel.setLabelGap(labelInfo.getLabelGap());
-      inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPosition());
-      inputLabelPaneModel.setShowLabel(labelInfo.isLabelVisible());
+      inputLabelPaneModel.setLabelGap(labelInfo.getLabelGapValue());
+      inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPositionValue());
+      inputLabelPaneModel.setShowLabel(labelInfo.getLabelVisibleValue());
 
       vsAssemblyScriptPaneModel.scriptEnabled(sliderAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(sliderAssemblyInfo.getScript() == null ?
@@ -268,7 +268,7 @@ public class SliderPropertyDialogController {
       LabelInfo labelInfo = sliderAssemblyInfo.getLabelInfo();
       labelInfo.setLabelTextValue(inputLabelPaneModel.getLabelText());
       labelInfo.setLabelGapValue(inputLabelPaneModel.getLabelGap());
-      labelInfo.setLabelPosition(inputLabelPaneModel.getLabelPosition());
+      labelInfo.setLabelPositionValue(inputLabelPaneModel.getLabelPosition());
       labelInfo.setLabelVisibleValue(inputLabelPaneModel.isShowLabel() + "");
 
       sliderAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());

@@ -234,9 +234,9 @@ public class ComboboxPropertyDialogController {
       LabelInfo labelInfo = comboBoxAssemblyInfo.getLabelInfo();
 
       inputLabelPaneModel.setLabelText(labelInfo.getLabelTextValue());
-      inputLabelPaneModel.setLabelGap(labelInfo.getLabelGap());
-      inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPosition());
-      inputLabelPaneModel.setShowLabel(labelInfo.isLabelVisible());
+      inputLabelPaneModel.setLabelGap(labelInfo.getLabelGapValue());
+      inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPositionValue());
+      inputLabelPaneModel.setShowLabel(labelInfo.getLabelVisibleValue());
 
       return result;
    }
@@ -313,7 +313,7 @@ public class ComboboxPropertyDialogController {
       LabelInfo labelInfo = comboBoxAssemblyInfo.getLabelInfo();
       labelInfo.setLabelTextValue(inputLabelPaneModel.getLabelText());
       labelInfo.setLabelGapValue(inputLabelPaneModel.getLabelGap());
-      labelInfo.setLabelPosition(inputLabelPaneModel.getLabelPosition());
+      labelInfo.setLabelPositionValue(inputLabelPaneModel.getLabelPosition());
       labelInfo.setLabelVisibleValue(inputLabelPaneModel.isShowLabel() + "");
       comboBoxAssemblyInfo.setQueryDateFormat(dataInputPaneModel.isQueryDateFormat());
 
