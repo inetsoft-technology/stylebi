@@ -591,9 +591,8 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
       const tipIndex = tipInfo ? tipInfo.tipIndex : -1;
       let tooltipString = Tool.unescapeHTML(this.model.stringDictionary[tipIndex]);
 
-      if(!this.mobileDevice && tooltipString && tipInfo.region.hyperlinks &&
-         tipInfo.region.hyperlinks.length == 1)
-      {
+      if(!this.mobileDevice && tooltipString && tipInfo?.region?.hyperlinks &&
+         tipInfo.region.hyperlinks.length == 1) {
          tooltipString += "_#(js:composer.graph.ctrlSelect)";
       }
 
