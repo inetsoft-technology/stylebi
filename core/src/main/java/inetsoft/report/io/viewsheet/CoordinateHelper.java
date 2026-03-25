@@ -602,21 +602,27 @@ public class CoordinateHelper {
       return new Dimension(width, height);
    }
 
+   // no-op: PDF/SVG override; HTML renders labels via Writer directly
    public void drawTextBox(Rectangle2D bounds, VSCompositeFormat format,
       String dispText)
    {
-      // no-op, overridden in subclasses
    }
 
+   public void drawTextBox(Rectangle2D bounds, VSCompositeFormat format,
+      String dispText, boolean paintBackground)
+   {
+      drawTextBox(bounds, format, dispText);
+   }
+
+   // no-op: PDF/SVG override; HTML renders text via Writer directly
    public void drawTextBox(Rectangle2D bounds, Rectangle2D textBounds,
       VSCompositeFormat format, String dispText, Insets shapeBorders,
       Insets padding, boolean shadow)
    {
-      // no-op, overridden in subclasses
    }
 
+   // no-op: PDF/SVG override; HTML renders images via Writer directly
    public void drawImage(Image image, Rectangle2D bounds) {
-      // no-op, overridden in subclasses
    }
 
    protected Viewsheet vs;

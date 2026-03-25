@@ -3618,12 +3618,19 @@ public abstract class AbstractVSExporter implements VSExporter {
          return;
       }
 
+      if(widgetBounds.getWidth() <= 0 || widgetBounds.getHeight() <= 0) {
+         return;
+      }
+
       Dimension widgetSize = new Dimension(
          (int) widgetBounds.getWidth(), (int) widgetBounds.getHeight());
       BufferedImage img = getInputImage(assembly, widgetSize);
 
       if(img != null) {
          getHelper().drawImage(img, widgetBounds);
+      }
+      else {
+         LOG.warn("No image for input assembly: {}", assembly.getAbsoluteName());
       }
    }
 
@@ -3653,6 +3660,7 @@ public abstract class AbstractVSExporter implements VSExporter {
    /**
     * Draw the input label via the coordinate helper if visible.
     * @return the widget-only bounds if a label was drawn, null otherwise.
+    * @see HTMLVSExporter#writeInputLabel — HTML variant using Writer
     */
    protected Rectangle2D writeInputLabelText(VSAssemblyInfo info) {
       if(!hasVisibleLabel(info)) {

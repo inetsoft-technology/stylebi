@@ -130,6 +130,7 @@ public class HTMLVSExporter extends AbstractVSExporter {
    /**
     * Write the label for an input assembly if visible.
     * @return the widget-only bounds if a label was written, null otherwise.
+    * @see AbstractVSExporter#writeInputLabelText — PDF/SVG variant using CoordinateHelper
     */
    private Rectangle2D writeInputLabel(VSAssemblyInfo info) {
       if(!hasVisibleLabel(info)) {
@@ -165,6 +166,10 @@ public class HTMLVSExporter extends AbstractVSExporter {
          return;
       }
 
+      if(widgetBounds.getWidth() <= 0 || widgetBounds.getHeight() <= 0) {
+         return;
+      }
+
       Dimension widgetSize = new Dimension(
          (int) widgetBounds.getWidth(), (int) widgetBounds.getHeight());
       BufferedImage img = getInputImage(assembly, widgetSize);
@@ -178,6 +183,9 @@ public class HTMLVSExporter extends AbstractVSExporter {
          catch(Exception ex) {
             LOG.error("Failed to write input image: {}", assembly.getAbsoluteName(), ex);
          }
+      }
+      else {
+         LOG.warn("No image for input assembly: {}", assembly.getAbsoluteName());
       }
    }
 
