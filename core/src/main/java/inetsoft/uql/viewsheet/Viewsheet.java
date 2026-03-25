@@ -5507,6 +5507,10 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       return wizInfo;
    }
 
+   public void setWizInfo(WizInfo wizInfo) {
+      this.wizInfo = wizInfo;
+   }
+
    public String getChatSessionId() {
       return chatSessionId;
    }
