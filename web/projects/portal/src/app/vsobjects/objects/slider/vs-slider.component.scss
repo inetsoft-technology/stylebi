@@ -100,10 +100,11 @@
   display: block;
   position: absolute;
   transform: translateX(-50%);
-  // Clamp so the label never rises above the component's top edge (y=0). (74309, 74313)
+  // Clamp so the label never rises above the component's top edge. (74309, 74313, 74315)
   // Without this clamp, the M3 default of ≈−40px can push the label above the
-  // component boundary; if the component sits at or near the top of the canvas
-  // the overflow is clipped and the label becomes invisible.
+  // component boundary, causing it to overflow into adjacent components above
+  // (e.g. a tab header or calendar), or to be clipped invisible when the slider
+  // is at or near the top of the canvas.
   // --slider-wrapper-top is the wrapper's top offset (= verticalCenter, set in TS).
   // max() picks the less-negative value: when the label would overflow the top
   // boundary it is pinned to 4px inside; otherwise the M3 position is used.
