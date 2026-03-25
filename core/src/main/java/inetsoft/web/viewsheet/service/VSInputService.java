@@ -727,9 +727,9 @@ public class VSInputService {
       LabelInfo labelInfo = textInputAssemblyInfo.getLabelInfo();
 
       inputLabelPaneModel.setLabelText(labelInfo.getLabelTextValue());
-      inputLabelPaneModel.setLabelGap(labelInfo.getLabelGap());
-      inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPosition());
-      inputLabelPaneModel.setShowLabel(labelInfo.isLabelVisible());
+      inputLabelPaneModel.setLabelGap(labelInfo.getLabelGapValue());
+      inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPositionValue());
+      inputLabelPaneModel.setShowLabel(labelInfo.getLabelVisibleValue());
 
       clickableScriptPaneModel.scriptEnabled(textInputAssemblyInfo.isScriptEnabled());
       String script = textInputAssemblyInfo.getScript() == null ? "" : textInputAssemblyInfo.getScript();
@@ -844,7 +844,7 @@ public class VSInputService {
       LabelInfo labelInfo = textInputAssemblyInfo.getLabelInfo();
       labelInfo.setLabelTextValue(inputLabelPaneModel.getLabelText());
       labelInfo.setLabelGapValue(inputLabelPaneModel.getLabelGap());
-      labelInfo.setLabelPosition(inputLabelPaneModel.getLabelPosition());
+      labelInfo.setLabelPositionValue(inputLabelPaneModel.getLabelPosition());
       labelInfo.setLabelVisibleValue(inputLabelPaneModel.isShowLabel() + "");
 
       textInputAssemblyInfo.setScriptEnabled(clickableScriptPaneModel.scriptEnabled());
@@ -936,9 +936,9 @@ public class VSInputService {
       LabelInfo labelInfo = sliderAssemblyInfo.getLabelInfo();
 
       inputLabelPaneModel.setLabelText(labelInfo.getLabelTextValue());
-      inputLabelPaneModel.setLabelGap(labelInfo.getLabelGap());
-      inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPosition());
-      inputLabelPaneModel.setShowLabel(labelInfo.isLabelVisible());
+      inputLabelPaneModel.setLabelGap(labelInfo.getLabelGapValue());
+      inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPositionValue());
+      inputLabelPaneModel.setShowLabel(labelInfo.getLabelVisibleValue());
 
       vsAssemblyScriptPaneModel.scriptEnabled(sliderAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(sliderAssemblyInfo.getScript() == null ?
@@ -1026,7 +1026,7 @@ public class VSInputService {
       LabelInfo labelInfo = sliderAssemblyInfo.getLabelInfo();
       labelInfo.setLabelTextValue(inputLabelPaneModel.getLabelText());
       labelInfo.setLabelGapValue(inputLabelPaneModel.getLabelGap());
-      labelInfo.setLabelPosition(inputLabelPaneModel.getLabelPosition());
+      labelInfo.setLabelPositionValue(inputLabelPaneModel.getLabelPosition());
       labelInfo.setLabelVisibleValue(inputLabelPaneModel.isShowLabel() + "");
 
       sliderAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
@@ -1801,9 +1801,9 @@ public class VSInputService {
       LabelInfo labelInfo = comboBoxAssemblyInfo.getLabelInfo();
 
       inputLabelPaneModel.setLabelText(labelInfo.getLabelTextValue());
-      inputLabelPaneModel.setLabelGap(labelInfo.getLabelGap());
-      inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPosition());
-      inputLabelPaneModel.setShowLabel(labelInfo.isLabelVisible());
+      inputLabelPaneModel.setLabelGap(labelInfo.getLabelGapValue());
+      inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPositionValue());
+      inputLabelPaneModel.setShowLabel(labelInfo.getLabelVisibleValue());
 
       return result;
    }
@@ -1920,7 +1920,7 @@ public class VSInputService {
       LabelInfo labelInfo = comboBoxAssemblyInfo.getLabelInfo();
       labelInfo.setLabelTextValue(inputLabelPaneModel.getLabelText());
       labelInfo.setLabelGapValue(inputLabelPaneModel.getLabelGap());
-      labelInfo.setLabelPosition(inputLabelPaneModel.getLabelPosition());
+      labelInfo.setLabelPositionValue(inputLabelPaneModel.getLabelPosition());
       labelInfo.setLabelVisibleValue(inputLabelPaneModel.isShowLabel() + "");
       comboBoxAssemblyInfo.setQueryDateFormat(dataInputPaneModel.isQueryDateFormat());
 
@@ -2134,9 +2134,9 @@ public class VSInputService {
       LabelInfo labelInfo = spinnerAssemblyInfo.getLabelInfo();
 
       inputLabelPaneModel.setLabelText(labelInfo.getLabelTextValue());
-      inputLabelPaneModel.setLabelGap(labelInfo.getLabelGap());
-      inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPosition());
-      inputLabelPaneModel.setShowLabel(labelInfo.isLabelVisible());
+      inputLabelPaneModel.setLabelGap(labelInfo.getLabelGapValue());
+      inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPositionValue());
+      inputLabelPaneModel.setShowLabel(labelInfo.getLabelVisibleValue());
 
       vsAssemblyScriptPaneModel.scriptEnabled(spinnerAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(spinnerAssemblyInfo.getScript() == null ?
@@ -2221,7 +2221,7 @@ public class VSInputService {
       LabelInfo labelInfo = spinnerAssemblyInfo.getLabelInfo();
       labelInfo.setLabelTextValue(inputLabelPaneModel.getLabelText());
       labelInfo.setLabelGapValue(inputLabelPaneModel.getLabelGap());
-      labelInfo.setLabelPosition(inputLabelPaneModel.getLabelPosition());
+      labelInfo.setLabelPositionValue(inputLabelPaneModel.getLabelPosition());
       labelInfo.setLabelVisibleValue(inputLabelPaneModel.isShowLabel() + "");
 
       spinnerAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());

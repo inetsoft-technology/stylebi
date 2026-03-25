@@ -109,6 +109,17 @@ public class DynamicValue2 extends DynamicValue {
    }
 
    /**
+    * Get string value.
+    * @param design <tt>true</tt> if get design time value, <tt>false</tt>
+    * if get run time value.
+    * @param def the default value should be returned.
+    * @return the string value.
+    */
+   public String getStringValue(boolean design, String def) {
+      return getStringRepresentation(design, def);
+   }
+
+   /**
     * Get color value.
     * @param design <tt>true</tt> if get design time value, <tt>false</tt>
     * if get run time value.

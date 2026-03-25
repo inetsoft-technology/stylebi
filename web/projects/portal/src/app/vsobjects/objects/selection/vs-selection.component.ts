@@ -859,6 +859,25 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       this.renderer.removeStyle(btn, "left");
       // listRect/cellRect are viewport px; divide by scale to get CSS px for right offset.
       const dynamicRight = Math.max(0, Math.round((listRect.right - cellRect.right) / scale));
+
+      // When the cell has measure content (bar/text), the measure area occupies the right side
+      // of the cell. Position the button to the right of the entire cell to avoid overlap.
+      const measureContentEl = cellElement.querySelector(".selection-list-cell-content") as HTMLElement | null;
+
+      if(measureContentEl) {
+         const cellRightCss = (cellRect.right - listRect.left) / scale;
+         const rightVal = dynamicRight - btnWidth;
+
+         if(rightVal >= 0) {
+            this.renderer.setStyle(btn, "right", rightVal + "px");
+         } else {
+            this.renderer.setStyle(btn, "right", "0");
+            this.renderer.setStyle(listEl, "width", (cellRightCss + btnWidth) + "px");
+         }
+
+         return;
+      }
+
       this.renderer.setStyle(btn, "right", dynamicRight + "px");
 
       // Use .selection-value (the text wrapper, flex: 0 1 auto), not .selection-list-cell-label

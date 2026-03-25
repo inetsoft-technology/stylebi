@@ -278,6 +278,9 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
             return true;
          }
       });
+      // Save the previous message attributes so we can restore them
+      MessageAttributes previousAttributes = MessageContextHolder.getMessageAttributes();
+      MessageContextHolder.setMessageAttributes(messageAttributes);
       CommandDispatcherService service = new CommandDispatcherService(messagingTemplate) {
          @Override
          public void convertAndSendToUser(String user, String destination, Object payload,
@@ -298,9 +301,6 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
             // NO-OP
          }
       };
-      // Save the previous message attributes so we can restore them
-      MessageAttributes previousAttributes = MessageContextHolder.getMessageAttributes();
-      MessageContextHolder.setMessageAttributes(messageAttributes);
 
       try {
          return fn.apply(dispatcher);

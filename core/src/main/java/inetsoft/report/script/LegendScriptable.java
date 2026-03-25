@@ -64,6 +64,8 @@ public class LegendScriptable extends PropertyScriptable {
                      LegendDescriptor.class);
          addProperty("noNull", "isNotShowNull", "setNotShowNull", boolean.class,
                      LegendDescriptor.class);
+         addProperty("symbolSize", "getSymbolSize", "setSymbolSize", int.class,
+                     LegendDescriptor.class);
       }
       catch(Exception ex) {
          LOG.error("Failed to register legend properties", ex);
@@ -81,5 +83,5 @@ public class LegendScriptable extends PropertyScriptable {
    private LegendDescriptor legend;
 
    private static final Logger LOG =
-      LoggerFactory.getLogger(AxisScriptable.class);
+      LoggerFactory.getLogger(LegendScriptable.class);
 }
