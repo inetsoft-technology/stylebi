@@ -225,6 +225,13 @@ public class HTMLVSExporter extends AbstractVSExporter {
          Object value = assembly.getSelectedObject() != null ?
             assembly.getSelectedObject() : null;
          Rectangle2D widgetBounds = writeInputLabel(info);
+
+         if(widgetBounds != null &&
+            (widgetBounds.getWidth() <= 0 || widgetBounds.getHeight() <= 0))
+         {
+            return;
+         }
+
          Rectangle2D bounds = widgetBounds != null ? widgetBounds : helper.getBounds(info);
          helper.writeTextInput(writer, bounds, assembly, getTextFormat(info), value, info.getZIndex());
       }
@@ -361,6 +368,12 @@ public class HTMLVSExporter extends AbstractVSExporter {
          RadioButtonVSAssemblyInfo cinfo = (RadioButtonVSAssemblyInfo) info;
          Rectangle2D widgetBounds = writeInputLabel(info);
 
+         if(widgetBounds != null &&
+            (widgetBounds.getWidth() <= 0 || widgetBounds.getHeight() <= 0))
+         {
+            return;
+         }
+
          if(widgetBounds != null) {
             helper.writeList(writer, cinfo, true, widgetBounds);
          }
@@ -380,6 +393,12 @@ public class HTMLVSExporter extends AbstractVSExporter {
       if(info != null) {
          CheckBoxVSAssemblyInfo cinfo = (CheckBoxVSAssemblyInfo) info;
          Rectangle2D widgetBounds = writeInputLabel(info);
+
+         if(widgetBounds != null &&
+            (widgetBounds.getWidth() <= 0 || widgetBounds.getHeight() <= 0))
+         {
+            return;
+         }
 
          if(widgetBounds != null) {
             helper.writeList(writer, cinfo, false, widgetBounds);
@@ -409,6 +428,13 @@ public class HTMLVSExporter extends AbstractVSExporter {
          VSCompositeFormat fmt = info.getFormat().clone();
          Object txt = ((SpinnerVSAssemblyInfo) info).getSelectedObject();
          Rectangle2D widgetBounds = writeInputLabel(info);
+
+         if(widgetBounds != null &&
+            (widgetBounds.getWidth() <= 0 || widgetBounds.getHeight() <= 0))
+         {
+            return;
+         }
+
          Rectangle2D bounds = widgetBounds != null ? widgetBounds : helper.getBounds(info);
 
          fmt.getDefaultFormat().setBorders(new Insets(1, 1, 1, 1));
@@ -432,6 +458,12 @@ public class HTMLVSExporter extends AbstractVSExporter {
       if(info != null) {
          ComboBoxVSAssemblyInfo cinfo = (ComboBoxVSAssemblyInfo) info;
          Rectangle2D widgetBounds = writeInputLabel(info);
+
+         if(widgetBounds != null &&
+            (widgetBounds.getWidth() <= 0 || widgetBounds.getHeight() <= 0))
+         {
+            return;
+         }
 
          if(widgetBounds != null) {
             helper.writeComboBox(writer, cinfo, widgetBounds);

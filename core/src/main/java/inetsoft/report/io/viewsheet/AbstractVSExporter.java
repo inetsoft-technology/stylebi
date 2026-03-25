@@ -3808,8 +3808,7 @@ public abstract class AbstractVSExporter implements VSExporter {
          obj = new VSSpinner(vs);
          break;
       default:
-         // falls back to full-size image including label area
-         return getImage(assembly);
+         return null;
       }
 
       obj.setViewsheet(vs);
