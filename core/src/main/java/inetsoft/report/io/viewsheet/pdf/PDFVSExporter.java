@@ -515,15 +515,9 @@ public class PDFVSExporter extends AbstractVSExporter {
       Object value = ((TextInputVSAssemblyInfo) info).getText();
       String txt = value == null ? "" : Tool.getDataString(value, assembly.getDataType());
 
-      if(hasVisibleLabel(info)) {
-         InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
-         LabelInfo labelInfo = inputInfo.getLabelInfo();
-         Rectangle2D fullBounds = helper.getBounds(info);
-         Rectangle2D labelBounds = getInputLabelBounds(fullBounds, labelInfo);
-         Rectangle2D widgetBounds = getInputWidgetBounds(fullBounds, labelInfo);
+      Rectangle2D widgetBounds = writeInputLabelText(info);
 
-         helper.drawTextBox(labelBounds, getLabelFormat(labelInfo),
-            labelInfo.getLabelText());
+      if(widgetBounds != null) {
          helper.drawTextBox(widgetBounds, widgetBounds, getTextFormat(info),
             txt, null, info.getPadding(), false);
          return;

@@ -3611,33 +3611,19 @@ public abstract class AbstractVSExporter implements VSExporter {
          return;
       }
 
-      if(!hasVisibleLabel(info)) {
+      Rectangle2D widgetBounds = writeInputLabelText(info);
+
+      if(widgetBounds == null) {
          writePicture(assembly);
          return;
       }
-
-      CoordinateHelper helper = getHelper();
-
-      if(helper == null) {
-         writePicture(assembly);
-         return;
-      }
-
-      InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
-      LabelInfo labelInfo = inputInfo.getLabelInfo();
-      Rectangle2D fullBounds = helper.getBounds(info);
-      Rectangle2D labelBounds = getInputLabelBounds(fullBounds, labelInfo);
-      Rectangle2D widgetBounds = getInputWidgetBounds(fullBounds, labelInfo);
-
-      helper.drawTextBox(labelBounds, getLabelFormat(labelInfo),
-         labelInfo.getLabelText());
 
       Dimension widgetSize = new Dimension(
          (int) widgetBounds.getWidth(), (int) widgetBounds.getHeight());
       BufferedImage img = getInputImage(assembly, widgetSize);
 
       if(img != null) {
-         helper.drawImage(img, widgetBounds);
+         getHelper().drawImage(img, widgetBounds);
       }
    }
 
@@ -3646,6 +3632,31 @@ public abstract class AbstractVSExporter implements VSExporter {
     */
    protected void writePicture(VSAssembly assembly) {
       // no-op, overridden in subclasses
+   }
+
+   /**
+    * Draw the input label via the coordinate helper if visible.
+    * @return the widget-only bounds if a label was drawn, null otherwise.
+    */
+   protected Rectangle2D writeInputLabelText(VSAssemblyInfo info) {
+      if(!hasVisibleLabel(info)) {
+         return null;
+      }
+
+      CoordinateHelper helper = getHelper();
+
+      if(helper == null) {
+         return null;
+      }
+
+      InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
+      LabelInfo labelInfo = inputInfo.getLabelInfo();
+      Rectangle2D fullBounds = helper.getBounds(info);
+
+      helper.drawTextBox(getInputLabelBounds(fullBounds, labelInfo),
+         getLabelFormat(labelInfo), labelInfo.getLabelText());
+
+      return getInputWidgetBounds(fullBounds, labelInfo);
    }
 
    /**
@@ -3791,6 +3802,7 @@ public abstract class AbstractVSExporter implements VSExporter {
       obj.setTheme(theme);
       obj.setAssemblyInfo(info);
       obj.setPixelSize(widgetSize);
+      // resetTimeSliderSize not needed: none of the above types are time sliders
 
       if(obj instanceof VSFloatable) {
          return (BufferedImage) ((VSFloatable) obj).getImage(true);
