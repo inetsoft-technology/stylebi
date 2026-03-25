@@ -596,9 +596,8 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
          tooltipString += "_#(js:composer.graph.ctrlSelect)";
       }
 
-      if (!this.mobileDevice && this.emptyPlotLinkTooltip && !tipInfo
-         && fromPlot && (this.viewerMode || this.previewMode))
-      {
+      if(!this.mobileDevice && this.emptyPlotLinkTooltip && !tipInfo
+         && fromPlot && (this.viewerMode || this.previewMode)) {
          tooltipString += this.emptyPlotLinkTooltip;
       }
 
