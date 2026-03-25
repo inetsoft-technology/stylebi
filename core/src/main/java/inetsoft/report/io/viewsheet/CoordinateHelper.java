@@ -608,12 +608,6 @@ public class CoordinateHelper {
    {
    }
 
-   public void drawTextBox(Rectangle2D bounds, VSCompositeFormat format,
-      String dispText, boolean paintBackground)
-   {
-      drawTextBox(bounds, format, dispText);
-   }
-
    // no-op: PDF/SVG override; HTML renders text via Writer directly
    public void drawTextBox(Rectangle2D bounds, Rectangle2D textBounds,
       VSCompositeFormat format, String dispText, Insets shapeBorders,

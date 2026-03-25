@@ -3618,7 +3618,7 @@ public abstract class AbstractVSExporter implements VSExporter {
          return;
       }
 
-      if(widgetBounds.getWidth() <= 0 || widgetBounds.getHeight() <= 0) {
+      if(isZeroSize(widgetBounds)) {
          return;
       }
 
@@ -3653,7 +3653,8 @@ public abstract class AbstractVSExporter implements VSExporter {
          return false;
       }
 
-      if(widgetBounds.getWidth() <= 0 || widgetBounds.getHeight() <= 0) {
+      if(isZeroSize(widgetBounds)) {
+         LOG.warn("Widget bounds too small for text input: {}", info.getAbsoluteName());
          return true;
       }
 
@@ -3700,6 +3701,13 @@ public abstract class AbstractVSExporter implements VSExporter {
       LabelInfo labelInfo = ((InputVSAssemblyInfo) info).getLabelInfo();
       return labelInfo != null && labelInfo.isLabelVisible() &&
          labelInfo.getLabelText() != null && !labelInfo.getLabelText().isEmpty();
+   }
+
+   /**
+    * Check if bounds have zero or negative width/height.
+    */
+   protected static boolean isZeroSize(Rectangle2D bounds) {
+      return bounds.getWidth() <= 0 || bounds.getHeight() <= 0;
    }
 
    /**

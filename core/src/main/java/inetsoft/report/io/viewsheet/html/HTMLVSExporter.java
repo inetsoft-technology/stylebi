@@ -166,7 +166,7 @@ public class HTMLVSExporter extends AbstractVSExporter {
          return;
       }
 
-      if(widgetBounds.getWidth() <= 0 || widgetBounds.getHeight() <= 0) {
+      if(isZeroSize(widgetBounds)) {
          return;
       }
 
@@ -227,8 +227,7 @@ public class HTMLVSExporter extends AbstractVSExporter {
             assembly.getSelectedObject() : null;
          Rectangle2D widgetBounds = writeInputLabel(info);
 
-         if(widgetBounds != null &&
-            (widgetBounds.getWidth() <= 0 || widgetBounds.getHeight() <= 0))
+         if(widgetBounds != null && isZeroSize(widgetBounds))
          {
             return;
          }
@@ -369,8 +368,7 @@ public class HTMLVSExporter extends AbstractVSExporter {
          RadioButtonVSAssemblyInfo cinfo = (RadioButtonVSAssemblyInfo) info;
          Rectangle2D widgetBounds = writeInputLabel(info);
 
-         if(widgetBounds != null &&
-            (widgetBounds.getWidth() <= 0 || widgetBounds.getHeight() <= 0))
+         if(widgetBounds != null && isZeroSize(widgetBounds))
          {
             return;
          }
@@ -395,8 +393,7 @@ public class HTMLVSExporter extends AbstractVSExporter {
          CheckBoxVSAssemblyInfo cinfo = (CheckBoxVSAssemblyInfo) info;
          Rectangle2D widgetBounds = writeInputLabel(info);
 
-         if(widgetBounds != null &&
-            (widgetBounds.getWidth() <= 0 || widgetBounds.getHeight() <= 0))
+         if(widgetBounds != null && isZeroSize(widgetBounds))
          {
             return;
          }
@@ -430,8 +427,7 @@ public class HTMLVSExporter extends AbstractVSExporter {
          Object txt = ((SpinnerVSAssemblyInfo) info).getSelectedObject();
          Rectangle2D widgetBounds = writeInputLabel(info);
 
-         if(widgetBounds != null &&
-            (widgetBounds.getWidth() <= 0 || widgetBounds.getHeight() <= 0))
+         if(widgetBounds != null && isZeroSize(widgetBounds))
          {
             return;
          }
@@ -460,8 +456,7 @@ public class HTMLVSExporter extends AbstractVSExporter {
          ComboBoxVSAssemblyInfo cinfo = (ComboBoxVSAssemblyInfo) info;
          Rectangle2D widgetBounds = writeInputLabel(info);
 
-         if(widgetBounds != null &&
-            (widgetBounds.getWidth() <= 0 || widgetBounds.getHeight() <= 0))
+         if(widgetBounds != null && isZeroSize(widgetBounds))
          {
             return;
          }
