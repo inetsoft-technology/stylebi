@@ -66,6 +66,7 @@ export class AiAssistantService {
    aiAssistantVisible: boolean = false;
    userId: string = "";
    email: string = "";
+   private webComponentScriptLoaded = false;
    calcTableCellBindings: { [key: string]: CellBindingInfo } = {};
    calcTableAggregates: string[] = [];
    private contextMap: Record<string, string> = {};
@@ -81,6 +82,37 @@ export class AiAssistantService {
          this.styleBIUrl = url || "";
       });
 
+   }
+
+   /**
+    * Dynamically load the AI assistant web component script.
+    * Returns a promise that resolves when the script loads or rejects on error.
+    * Returns immediately if already loaded or no URL is configured.
+    */
+   loadWebComponentScript(): Promise<void> {
+      if(this.webComponentScriptLoaded) {
+         return Promise.resolve();
+      }
+
+      const base = this.chatAppServerUrl ? this.chatAppServerUrl.replace(/\/$/, "") : "";
+
+      if(!base) {
+         return Promise.reject(new Error("AI assistant URL not configured"));
+      }
+
+      this.webComponentScriptLoaded = true;
+      const src = base + "/web-component/ai-assistant.umd.js";
+
+      return new Promise<void>((resolve, reject) => {
+         const script = document.createElement("script");
+         script.src = src;
+         script.onload = () => resolve();
+         script.onerror = () => {
+            this.webComponentScriptLoaded = false;
+            reject(new Error("Failed to load AI assistant web component"));
+         };
+         document.head.appendChild(script);
+      });
    }
 
    checkHealth(): Observable<boolean> {

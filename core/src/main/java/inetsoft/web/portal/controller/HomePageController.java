@@ -19,7 +19,6 @@ package inetsoft.web.portal.controller;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.portal.CustomThemesManager;
-import inetsoft.web.assistant.AIAssistantController;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -104,7 +103,6 @@ public class HomePageController {
 
       addAdditionalStyles(model, linkUri);
       addAdditionalScripts(model, linkUri);
-      addChatAppScript(model, linkUri);
       addDataSpaceTags(model, linkUri);
       addOpenGraphTags(model, linkUri, request.getRequestURI(), request.getHeader("User-Agent"));
 
@@ -226,43 +224,6 @@ public class HomePageController {
    private void addAdditionalScripts(ModelAndView model, String linkUri) {
       addAdditionalTags(
          model, "additionalScripts", SreeEnv.getProperty("portal.additional.scripts"), linkUri);
-   }
-
-   /**
-    * Injects the AI assistant web component script into the portal page.
-    *
-    * <ul>
-    *   <li><b>Proxy mode</b> ({@code chat.app.internal.url} is set): the script is loaded via
-    *       StyleBI's reverse proxy at
-    *       {@code {linkUri}/api/assistant/proxy/web-component/ai-assistant.umd.js}.</li>
-    *   <li><b>Direct mode</b> (only {@code chat.app.server.url} is set): the script is loaded
-    *       directly from the assistant server at
-    *       {@code {chat.app.server.url}/web-component/ai-assistant.umd.js}.</li>
-    * </ul>
-    */
-   private void addChatAppScript(ModelAndView model, String linkUri) {
-      String internalUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_INTERNAL_URL);
-      String chatAppUrl;
-
-      if(internalUrl != null && !internalUrl.trim().isEmpty()) {
-         // Proxy mode: serve web component through StyleBI's proxy.
-         String base = linkUri.endsWith("/") ? linkUri.substring(0, linkUri.length() - 1) : linkUri;
-         chatAppUrl = base + AIAssistantController.PROXY_PATH_PREFIX;
-      }
-      else {
-         // Direct mode: serve web component directly from the assistant server.
-         String serverUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_SERVER_URL);
-
-         if(serverUrl == null || serverUrl.trim().isEmpty()) {
-            return;
-         }
-
-         chatAppUrl = serverUrl.trim().endsWith("/")
-            ? serverUrl.trim().substring(0, serverUrl.trim().length() - 1)
-            : serverUrl.trim();
-      }
-
-      model.addObject("chatAppScript", chatAppUrl + "/web-component/ai-assistant.umd.js");
    }
 
    private void addDataSpaceTags(ModelAndView model, String linkUrl) {
