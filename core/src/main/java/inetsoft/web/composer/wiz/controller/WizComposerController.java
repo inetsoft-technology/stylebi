@@ -21,6 +21,7 @@ import inetsoft.web.composer.wiz.event.AddFilterEvent;
 import inetsoft.web.composer.wiz.event.AddVisualizationEvent;
 import inetsoft.web.composer.wiz.service.AddFilterServiceProxy;
 import inetsoft.web.composer.wiz.service.AddVisualizationServiceProxy;
+import inetsoft.web.viewsheet.command.RefreshWizFiltersCommand;
 import inetsoft.web.viewsheet.controller.VSRefreshServiceProxy;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
@@ -67,6 +68,7 @@ public class WizComposerController {
       addVisualizationServiceProxy.addVisualization(
          runtimeId, event.getEntry(), event.getxOffset(), event.getyOffset(),
          event.getScale(), principal);
+      dispatcher.sendCommand(new RefreshWizFiltersCommand());
       vsRefreshServiceProxy.refreshViewsheetAsync(this.runtimeViewsheetRef.getRuntimeId(),
          VSRefreshEvent.builder().confirmed(false).build(), principal, dispatcher, linkUri);
    }

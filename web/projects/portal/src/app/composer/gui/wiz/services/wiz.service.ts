@@ -11,6 +11,7 @@ export class WizService {
    private _showVisualization = new Subject<WizDashboard>();
    private _saveVisualization = new Subject<WizDashboard>();
    private _exitVisualization = new Subject<void>();
+   private _refreshFilters = new Subject<void>();
 
    constructor() {
    }
@@ -45,5 +46,13 @@ export class WizService {
 
    onExitVisualization(): void {
       this._exitVisualization.next();
+   }
+
+   get refreshFilters(): Observable<void> {
+      return this._refreshFilters.asObservable();
+   }
+
+   onRefreshFilters(): void {
+      this._refreshFilters.next();
    }
 }

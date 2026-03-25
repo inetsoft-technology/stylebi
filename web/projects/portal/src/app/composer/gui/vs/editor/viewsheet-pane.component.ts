@@ -150,6 +150,8 @@ import { ComposerVsSearchService } from "../composer-vs-search.service";
 import { VSSelectionContainerModel } from "../../../../vsobjects/model/vs-selection-container-model";
 import { PrintLayoutSection } from "../../../../vsobjects/model/layout/print-layout-section";
 import { VSDependencyChangedCommand } from "../../../../vsobjects/command/vs-dependency-changed-command";
+import { RefreshWizFiltersCommand } from "../../../../vsobjects/command/refresh-wiz-filters-command";
+import { WizService } from "../../wiz/services/wiz.service";
 import { LayoutUtil } from "../../../../vsobjects/util/layout-util";
 
 const COLLECT_PARAMS_URI = "/events/vs/collectParameters";
@@ -466,7 +468,8 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
                private resizeHandlerService: ResizeHandlerService,
                private composerVsSearchService: ComposerVsSearchService,
                private appInfoService: AppInfoService,
-               private fontService: FontService)
+               private fontService: FontService,
+               private wizService: WizService)
    {
       super(viewsheetClient, zone, true);
       actionFactory.stateProvider = {
@@ -814,6 +817,11 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
 
    private processVSDependencyChangedCommand(command: VSDependencyChangedCommand) {
       this.onDependencyChanged.emit([this.vs, command.wizard]);
+   }
+
+   private processRefreshWizFiltersCommand(_command: RefreshWizFiltersCommand): void {
+      console.log("============processRefreshWizFiltersCommand===============");
+      this.wizService.onRefreshFilters();
    }
 
    // After rename dependency, should reload the viewsheet so it can get latest data.
