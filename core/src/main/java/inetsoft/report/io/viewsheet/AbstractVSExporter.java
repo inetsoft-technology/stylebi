@@ -3652,6 +3652,10 @@ public abstract class AbstractVSExporter implements VSExporter {
          return false;
       }
 
+      if(widgetBounds.getWidth() <= 0 || widgetBounds.getHeight() <= 0) {
+         return true;
+      }
+
       getHelper().drawTextBox(widgetBounds, widgetBounds, getTextFormat(info),
          txt, null, info.getPadding(), false);
       return true;
@@ -3677,10 +3681,11 @@ public abstract class AbstractVSExporter implements VSExporter {
       LabelInfo labelInfo = inputInfo.getLabelInfo();
       Rectangle2D fullBounds = helper.getBounds(info);
 
-      helper.drawTextBox(getInputLabelBounds(fullBounds, labelInfo),
-         getLabelFormat(labelInfo), labelInfo.getLabelText());
+      Rectangle2D[] bounds = splitInputBounds(fullBounds, labelInfo);
+      helper.drawTextBox(bounds[0], getLabelFormat(labelInfo),
+         labelInfo.getLabelText());
 
-      return getInputWidgetBounds(fullBounds, labelInfo);
+      return bounds[1];
    }
 
    /**
@@ -3718,38 +3723,10 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
-    * Calculate the label text bounds within the full assembly bounds.
+    * Split the full assembly bounds into label and widget regions.
+    * @return [labelBounds, widgetBounds]
     */
-   protected static Rectangle2D getInputLabelBounds(Rectangle2D fullBounds,
-      LabelInfo labelInfo)
-   {
-      double x = fullBounds.getX();
-      double y = fullBounds.getY();
-      double fullW = fullBounds.getWidth();
-      double fullH = fullBounds.getHeight();
-
-      int[] dims = getLabelDimensions(labelInfo);
-      int labelW = dims[0];
-      int labelH = dims[1];
-
-      switch(labelInfo.getLabelPosition()) {
-      case LabelInfo.TOP:
-         return new Rectangle2D.Double(x, y, fullW, labelH);
-      case LabelInfo.BOTTOM:
-         return new Rectangle2D.Double(x, y + fullH - labelH, fullW, labelH);
-      case LabelInfo.RIGHT:
-         return new Rectangle2D.Double(x + fullW - labelW, y, labelW, fullH);
-      case LabelInfo.LEFT:
-      default:
-         return new Rectangle2D.Double(x, y, labelW, fullH);
-      }
-   }
-
-   /**
-    * Calculate the widget-only bounds within the full assembly bounds,
-    * after subtracting label and gap.
-    */
-   protected static Rectangle2D getInputWidgetBounds(Rectangle2D fullBounds,
+   protected static Rectangle2D[] splitInputBounds(Rectangle2D fullBounds,
       LabelInfo labelInfo)
    {
       double x = fullBounds.getX();
@@ -3762,21 +3739,34 @@ public abstract class AbstractVSExporter implements VSExporter {
       int labelH = dims[1];
       int gap = labelInfo.getLabelGap();
 
+      Rectangle2D labelBounds;
+      Rectangle2D widgetBounds;
+
       switch(labelInfo.getLabelPosition()) {
       case LabelInfo.TOP:
-         return new Rectangle2D.Double(x, y + labelH + gap, fullW,
+         labelBounds = new Rectangle2D.Double(x, y, fullW, labelH);
+         widgetBounds = new Rectangle2D.Double(x, y + labelH + gap, fullW,
             Math.max(0, fullH - labelH - gap));
+         break;
       case LabelInfo.BOTTOM:
-         return new Rectangle2D.Double(x, y, fullW,
+         labelBounds = new Rectangle2D.Double(x, y + fullH - labelH, fullW, labelH);
+         widgetBounds = new Rectangle2D.Double(x, y, fullW,
             Math.max(0, fullH - labelH - gap));
+         break;
       case LabelInfo.RIGHT:
-         return new Rectangle2D.Double(x, y,
+         labelBounds = new Rectangle2D.Double(x + fullW - labelW, y, labelW, fullH);
+         widgetBounds = new Rectangle2D.Double(x, y,
             Math.max(0, fullW - labelW - gap), fullH);
+         break;
       case LabelInfo.LEFT:
       default:
-         return new Rectangle2D.Double(x + labelW + gap, y,
+         labelBounds = new Rectangle2D.Double(x, y, labelW, fullH);
+         widgetBounds = new Rectangle2D.Double(x + labelW + gap, y,
             Math.max(0, fullW - labelW - gap), fullH);
+         break;
       }
+
+      return new Rectangle2D[] { labelBounds, widgetBounds };
    }
 
    /**
