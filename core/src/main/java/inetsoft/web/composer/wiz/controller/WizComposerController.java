@@ -92,6 +92,10 @@ public class WizComposerController {
       addFilterServiceProxy.addFilter(
          runtimeId, event.getEntry(), event.getxOffset(), event.getyOffset(),
          event.getScale(), principal);
+      // RefreshWizFiltersCommand is intentionally NOT dispatched here.
+      // Adding a filter creates a VS assembly but does not alter the base worksheet, so the
+      // set of filterable columns (shown in the filter tree) is unchanged. Dispatching the
+      // command would only trigger a redundant HTTP round-trip on the client side.
       vsRefreshServiceProxy.refreshViewsheetAsync(runtimeId,
          VSRefreshEvent.builder().confirmed(false).build(), principal, dispatcher, linkUri);
    }

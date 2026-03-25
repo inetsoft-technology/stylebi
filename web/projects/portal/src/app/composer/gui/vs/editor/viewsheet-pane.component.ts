@@ -820,7 +820,6 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
    }
 
    private processRefreshWizFiltersCommand(_command: RefreshWizFiltersCommand): void {
-      console.log("============processRefreshWizFiltersCommand===============");
       this.wizService.onRefreshFilters();
    }
 
