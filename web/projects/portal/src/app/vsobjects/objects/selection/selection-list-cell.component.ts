@@ -167,7 +167,8 @@ export class SelectionListCell implements OnInit, OnChanges, OnDestroy {
       this.measureTextHAlign = GuiTool.getFlexHAlign(this.measureTextFormat.hAlign);
       this.measureTextVAlign = GuiTool.getFlexVAlign(this.measureTextFormat.vAlign);
       this.isParentIDTree = model.objectType === "VSSelectionTree" && (<VSSelectionTreeModel> model).mode == MODE.ID;
-      this.quickSwitchAllowed = model.quickSwitchAllowed && model.objectType === "VSSelectionList"
+      this.quickSwitchAllowed = model.quickSwitchAllowed &&
+         (model.objectType === "VSSelectionList" || model.objectType === "VSSelectionTree")
          && (this.contextProvider.viewer || this.contextProvider.preview) && !this.mobile;
 
       switch(this.measureTextFormat.vAlign) {
