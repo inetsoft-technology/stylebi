@@ -66,7 +66,7 @@ export class AiAssistantService {
    aiAssistantVisible: boolean = false;
    userId: string = "";
    email: string = "";
-   private webComponentScriptLoaded = false;
+   private webComponentScriptPromise: Promise<void> | null = null;
    calcTableCellBindings: { [key: string]: CellBindingInfo } = {};
    calcTableAggregates: string[] = [];
    private contextMap: Record<string, string> = {};
@@ -85,13 +85,14 @@ export class AiAssistantService {
    }
 
    /**
-    * Dynamically load the AI assistant web component script.
-    * Returns a promise that resolves when the script loads or rejects on error.
-    * Returns immediately if already loaded or no URL is configured.
+    * Dynamically loads the AI assistant web component script. Safe to call multiple times —
+    * concurrent calls share the same in-flight promise. Returns a promise that resolves when
+    * the script loads or rejects on error. The cached promise is cleared on error to allow
+    * a retry on the next panel open.
     */
    loadWebComponentScript(): Promise<void> {
-      if(this.webComponentScriptLoaded) {
-         return Promise.resolve();
+      if(this.webComponentScriptPromise) {
+         return this.webComponentScriptPromise;
       }
 
       const base = this.chatAppServerUrl ? this.chatAppServerUrl.replace(/\/$/, "") : "";
@@ -100,19 +101,19 @@ export class AiAssistantService {
          return Promise.reject(new Error("AI assistant URL not configured"));
       }
 
-      this.webComponentScriptLoaded = true;
-      const src = base + "/web-component/ai-assistant.umd.js";
-
-      return new Promise<void>((resolve, reject) => {
+      this.webComponentScriptPromise = new Promise<void>((resolve, reject) => {
          const script = document.createElement("script");
-         script.src = src;
+         script.src = base + "/web-component/ai-assistant.umd.js";
          script.onload = () => resolve();
          script.onerror = () => {
-            this.webComponentScriptLoaded = false;
+            document.head.removeChild(script); // remove so a retry appends a fresh element
+            this.webComponentScriptPromise = null; // allow retry next time
             reject(new Error("Failed to load AI assistant web component"));
          };
          document.head.appendChild(script);
       });
+
+      return this.webComponentScriptPromise;
    }
 
    checkHealth(): Observable<boolean> {
