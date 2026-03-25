@@ -169,15 +169,19 @@ class StandardPeriodsTest {
       periods.setDateLevel(DateRangeRef.WEEK_INTERVAL);
       periods.setPreCount(1);
 
-      // Compute expected: snap endDay to first-day-of-week, then go back 1 week
+      // Compute expected: snap endDay to first-day-of-week, then go back 1 week.
+      // Use setTime() so all date fields are computed (not user-stamped), then use
+      // arithmetic to snap to the week start. Calling set(DAY_OF_WEEK, ...) after
+      // set(year, month, day) causes a field-stamp conflict that moves to the *next*
+      // occurrence of that day rather than staying in the current week.
       Calendar cal = Calendar.getInstance();
-      cal.set(2024, Calendar.JUNE, 15, 0, 0, 0);
-      cal.set(Calendar.MILLISECOND, 0);
-      cal.set(Calendar.DAY_OF_WEEK, cal.getFirstDayOfWeek());
+      cal.setTime(new java.text.SimpleDateFormat(DATE_FORMAT).parse(END_DAY_STR));
       cal.set(Calendar.HOUR_OF_DAY, 0);
       cal.set(Calendar.MINUTE, 0);
       cal.set(Calendar.SECOND, 0);
       cal.set(Calendar.MILLISECOND, 0);
+      int daysToWeekStart = (cal.get(Calendar.DAY_OF_WEEK) - cal.getFirstDayOfWeek() + 7) % 7;
+      cal.add(Calendar.DAY_OF_MONTH, -daysToWeekStart);
       cal.add(Calendar.WEEK_OF_YEAR, -1);
       Date expected = cal.getTime();
 
