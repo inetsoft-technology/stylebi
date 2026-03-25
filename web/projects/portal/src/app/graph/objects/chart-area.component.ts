@@ -587,7 +587,7 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
       });
    }
 
-   showTooltip(tipInfo: TooltipInfo): void {
+   showTooltip(tipInfo: TooltipInfo, fromPlot: boolean = false): void {
       const tipIndex = tipInfo ? tipInfo.tipIndex : -1;
       let tooltipString = Tool.unescapeHTML(this.model.stringDictionary[tipIndex]);
 
@@ -598,7 +598,7 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
       }
 
       if (!this.mobileDevice && this.emptyPlotLinkTooltip && !tipInfo
-         && (this.viewerMode || this.previewMode))
+         && fromPlot && (this.viewerMode || this.previewMode))
       {
          tooltipString += this.emptyPlotLinkTooltip;
       }
