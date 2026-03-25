@@ -54,6 +54,13 @@ public class FilterService {
       AssetEntry baseEntry = vs.getBaseEntry();
       Worksheet ws = null;
 
+      // For a wiz dashboard, baseEntry points to a temporary wiz worksheet that has been
+      // enriched with MirrorTableAssembly instances (one per visualization) on top of the
+      // original BoundTableAssembly source tables. We load this merged worksheet from the
+      // repository (not vs.getBaseWorksheet(), which may be stale) and then filter it to
+      // root tables only — those whose getDependeds set is empty. Root tables are always
+      // BoundTableAssembly (the original source tables); the wiz mirrors are derived and
+      // are excluded. This gives the correct set of filterable columns.
       if(baseEntry != null && baseEntry.isWorksheet()) {
          ws = (Worksheet) assetRepository.getSheet(baseEntry, principal, false, AssetContent.ALL);
       }
@@ -63,6 +70,8 @@ public class FilterService {
       }
 
       List<TreeNodeModel> tableNodes = new ArrayList<>();
+      IdentityID pId = principal == null ? null
+         : IdentityID.getIdentityIDFromKey(principal.getName());
 
       for(Assembly assembly : ws.getAssemblies()) {
          if(!(assembly instanceof TableAssembly table) || !table.isVisible()) {
@@ -74,6 +83,8 @@ public class FilterService {
          }
 
          // Only include root tables: tables that do not depend on any other assembly.
+         // In the wiz merged worksheet, BoundTableAssembly (source tables) have an empty
+         // dependeds set; MirrorTableAssembly (wiz-internal derived views) do not.
          Set<AssemblyRef> dependeds = new HashSet<>();
          assembly.getDependeds(dependeds);
 
@@ -81,8 +92,6 @@ public class FilterService {
             continue;
          }
 
-         IdentityID pId = principal == null ? null
-            : IdentityID.getIdentityIDFromKey(principal.getName());
          String tableName = assembly.getName();
          ColumnSelection columns = table.getColumnSelection(true);
          List<TreeNodeModel> columnNodes = new ArrayList<>();

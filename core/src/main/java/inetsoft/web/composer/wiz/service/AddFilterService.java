@@ -26,6 +26,8 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
@@ -36,8 +38,11 @@ import java.util.List;
 @Service
 @ClusterProxy
 public class AddFilterService {
-   public AddFilterService(ViewsheetService viewsheetService) {
+   public AddFilterService(ViewsheetService viewsheetService,
+                           AssetRepository assetRepository)
+   {
       this.viewsheetService = viewsheetService;
+      this.assetRepository = assetRepository;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -58,6 +63,10 @@ public class AddFilterService {
       String attribute = entry.getProperty("attribute");
       String dtype = entry.getProperty("dtype");
 
+      if(dtype == null) {
+         dtype = "";
+      }
+
       if(tableName == null || attribute == null) {
          throw new IllegalArgumentException("Filter entry is missing required properties (assembly, attribute)");
       }
@@ -68,8 +77,20 @@ public class AddFilterService {
       ColumnRef colRef = new ColumnRef(attrRef);
       colRef.setDataType(dtype);
 
-      // Find all root tables in the worksheet that expose this column (shared filter)
-      List<String> matchingTables = findTablesWithColumn(vs, attribute);
+      // Find all root tables in the worksheet that expose this column (shared filter).
+      // Load from assetRepository so we see the latest saved state of the wiz temp
+      // worksheet — vs.getBaseWorksheet() is stale after AddVisualizationService merges
+      // tables into the worksheet and saves but does not reload the runtime object.
+      List<String> matchingTables = findTablesWithColumn(vs, attribute, principal);
+
+      if(!matchingTables.contains(tableName)) {
+         // tableName was not among the root tables found for this column. This can happen
+         // if the filter tree was built before the latest merge was saved, or if a non-root
+         // table column was somehow included. Log a warning; the filter will still be created
+         // with tableName as its primary binding, but shared-filter resolution may be incomplete.
+         LOG.warn("Dropped table '{}' was not found among root tables for column '{}'; " +
+                  "filter binding may be incorrect.", tableName, attribute);
+      }
 
       // Ensure the dropped table is first; include any others for shared filtering
       List<String> tableNames = new ArrayList<>();
@@ -97,11 +118,30 @@ public class AddFilterService {
    }
 
    /**
-    * Returns the names of all visible root tables in the base worksheet that
-    * contain a column matching the given {@code attribute} name (alias-first lookup).
+    * Returns the names of all visible root tables in the base worksheet that contain a column
+    * matching the given {@code attribute} name (alias-first lookup).
+    *
+    * <p>The worksheet is loaded fresh from {@code assetRepository} rather than from
+    * {@code vs.getBaseWorksheet()}, because {@link inetsoft.web.composer.wiz.service.AddVisualizationService}
+    * saves the merged wiz temp worksheet to the repository without reloading the runtime
+    * viewsheet object. Using the runtime object would return stale data that does not yet
+    * include tables merged by subsequent visualization additions.</p>
+    *
+    * <p>The wiz temp worksheet contains both the original source
+    * {@link BoundTableAssembly} instances and wiz-internal {@link MirrorTableAssembly}
+    * instances. Only root tables (those whose {@code getDependeds} set is empty) are
+    * considered, which correctly selects only the source tables.</p>
     */
-   private List<String> findTablesWithColumn(Viewsheet vs, String attribute) {
-      Worksheet ws = vs.getBaseWorksheet();
+   private List<String> findTablesWithColumn(Viewsheet vs, String attribute,
+                                             Principal principal)
+      throws Exception
+   {
+      AssetEntry baseEntry = vs.getBaseEntry();
+      Worksheet ws = null;
+
+      if(baseEntry != null && baseEntry.isWorksheet()) {
+         ws = (Worksheet) assetRepository.getSheet(baseEntry, principal, false, AssetContent.ALL);
+      }
 
       if(ws == null) {
          return Collections.emptyList();
@@ -114,8 +154,16 @@ public class AddFilterService {
             continue;
          }
 
-         // Only root tables (no other assembly depends on them)
-         if(ws.getDependings(a.getAssemblyEntry()).length > 0) {
+         // Only root tables: skip tables that depend on another assembly (e.g. mirror/join tables).
+         // Uses getDependeds() — the set of assemblies this table itself depends on — which is
+         // non-empty for derived tables and empty for source/root tables.
+         // Note: getDependings() returns the reverse (who depends on this table) and must NOT
+         // be used here because it is non-empty for root tables, which is the opposite of what
+         // we want.
+         Set<AssemblyRef> dependeds = new HashSet<>();
+         a.getDependeds(dependeds);
+
+         if(!dependeds.isEmpty()) {
             continue;
          }
 
@@ -193,4 +241,6 @@ public class AddFilterService {
    }
 
    private final ViewsheetService viewsheetService;
+   private final AssetRepository assetRepository;
+   private static final Logger LOG = LoggerFactory.getLogger(AddFilterService.class);
 }
