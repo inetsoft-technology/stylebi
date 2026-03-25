@@ -402,7 +402,7 @@ public class GenerateWsService {
          table = new PhysicalBoundTableAssembly(worksheet, tableInfo.getName());
          applySourceInfo(table, tableInfo);
          WorksheetConstructionModel.QueryField queryField = new WorksheetConstructionModel.QueryField();
-         queryField.setName(joinKey);
+         queryField.setFieldName(joinKey);
          queryField.setTable(tableInfo);
          Set<WorksheetConstructionModel.QueryField> tableFields = getTableFields(allFields, tableInfo);
          tableFields.add(queryField);
@@ -520,7 +520,7 @@ public class GenerateWsService {
 
             if(metaData != null) {
                Optional<inetsoft.web.wiz.model.DatabaseTableMeta.ColumnMeta> metaCol = metaData.getColumns().stream()
-                  .filter(c -> Tool.equals(c.getName(), field.getName()))
+                  .filter(c -> Tool.equals(c.getName(), field.getFieldName()))
                   .findFirst();
 
                if(metaCol.isPresent()) {
@@ -529,19 +529,25 @@ public class GenerateWsService {
             }
          }
 
-         String attr = field.getName();
+         String attr = field.getFieldName();
          attr = AssetUtil.trimEntity(attr, null);
          AttributeRef ref = new AttributeRef(null, attr);
          ref.setDataType(colType);
          dataRef = ref;
       }
       else {
-         ExpressionRef expressionRef = new ExpressionRef(null, field.getName());
+         ExpressionRef expressionRef = new ExpressionRef(null, field.getFieldName());
          expressionRef.setExpression(field.getExpression());
          dataRef = expressionRef;
       }
 
-      return new ColumnRef(dataRef);
+      ColumnRef columnRef = new ColumnRef(dataRef);
+
+      if(!Tool.isEmptyString(field.getAlias())) {
+         columnRef.setAlias(field.getAlias());
+      }
+
+      return columnRef;
    }
 
    private void applySourceInfo(AbstractTableAssembly table,
