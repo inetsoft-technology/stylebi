@@ -26,10 +26,12 @@
 
   &.label-top {
     flex-direction: column;
+    height: auto;
   }
 
   &.label-bottom {
     flex-direction: column-reverse;
+    height: auto;
   }
 
   &.label-left {
@@ -59,4 +61,8 @@
   min-height: 0;
   position: relative;
   align-self: stretch;
+
+  .label-top &, .label-bottom & {
+    flex: none;
+  }
 }

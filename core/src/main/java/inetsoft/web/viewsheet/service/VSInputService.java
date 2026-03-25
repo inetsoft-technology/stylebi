@@ -55,7 +55,9 @@ import inetsoft.web.vswizard.model.VSWizardConstants;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.awt.*;
 import java.security.Principal;
@@ -875,6 +877,12 @@ public class VSInputService {
          throw e;
       }
 
+      if(sliderAssembly == null) {
+         throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Slider not found: " + objectId);
+      }
+
+      sliderAssemblyInfo = (SliderVSAssemblyInfo) sliderAssembly.getVSAssemblyInfo();
+
       SliderPropertyDialogModel result = new SliderPropertyDialogModel();
       SliderGeneralPaneModel sliderGeneralPaneModel = result.getSliderGeneralPaneModel();
       NumericRangePaneModel numericRangePaneModel = sliderGeneralPaneModel.getNumericRangePaneModel();
@@ -947,15 +955,21 @@ public class VSInputService {
    {
       RuntimeViewsheet viewsheet;
       SliderVSAssemblyInfo sliderAssemblyInfo;
+      SliderVSAssembly sliderAssembly;
 
       try {
          viewsheet = viewsheetService.getViewsheet(vsId, principal);
-         SliderVSAssembly sliderAssembly = (SliderVSAssembly) viewsheet.getViewsheet().getAssembly(objectId);
-         sliderAssemblyInfo = (SliderVSAssemblyInfo) Tool.clone(sliderAssembly.getVSAssemblyInfo());
+         sliderAssembly = (SliderVSAssembly) viewsheet.getViewsheet().getAssembly(objectId);
       }
       catch(Exception e) {
          throw e;
       }
+
+      if(sliderAssembly == null) {
+         throw new MessageException("Slider not found: " + objectId);
+      }
+
+      sliderAssemblyInfo = (SliderVSAssemblyInfo) Tool.clone(sliderAssembly.getVSAssemblyInfo());
 
       SliderGeneralPaneModel sliderGeneralPaneModel = value.getSliderGeneralPaneModel();
       NumericRangePaneModel numericRangePaneModel = sliderGeneralPaneModel.getNumericRangePaneModel();

@@ -18,6 +18,7 @@
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
+import { MatSnackBarModule } from "@angular/material/snack-bar";
 import { StagedFileChooserComponent } from "./staged-file-chooser.component";
 
 describe("StagedFileChooserComponent", () => {
@@ -27,7 +28,8 @@ describe("StagedFileChooserComponent", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            HttpClientTestingModule
+            HttpClientTestingModule,
+            MatSnackBarModule
          ],
          declarations: [
             StagedFileChooserComponent

@@ -87,8 +87,8 @@ public abstract class MockMessageExtension implements BeforeEachCallback, AfterE
             // NO-OP
          }
       };
-      commandDispatcher = new CommandDispatcher(headerAccessor, dispatcherService, null);
       MessageContextHolder.setMessageAttributes(messageAttributes);
+      commandDispatcher = new CommandDispatcher(headerAccessor, dispatcherService, null);
 
       try {
          return action.apply(t);

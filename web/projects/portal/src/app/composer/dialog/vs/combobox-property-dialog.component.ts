@@ -63,6 +63,24 @@ export class ComboBoxPropertyDialog extends PropertyDialog implements OnInit {
       this.timeInstantCombo = XSchema.TIME_INSTANT == combo.dataType && combo.calendar;
    }
 
+   get effectiveDataType(): string {
+      const combo = this.model?.comboboxGeneralPaneModel?.listValuesPaneModel?.comboBoxEditorModel;
+
+      if(!combo) {
+         return "";
+      }
+
+      if(combo.query) {
+         const queryType = combo.selectionListDialogModel?.selectionListEditorModel?.dataType;
+
+         if(queryType) {
+            return queryType;
+         }
+      }
+
+      return combo.dataType;
+   }
+
    get defaultTab(): string {
       return this.openToScript ? this.scriptTab
          : this.uiContextService.getDefaultTab("combobox-property-dialog", this.generalTab);

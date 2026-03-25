@@ -25,7 +25,7 @@
                         [style.left.px]="viewer || embeddedVS ? model.objectFormat.left : null"
                         [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
                         [style.width.px]="model.objectFormat.width"
-                        [style.height.px]="model.objectFormat.height"
+                        [objectHeight]="model.objectFormat.height"
                         [style.z-index]="viewer ? model.objectFormat.zIndex : null"
                         (selectLabel)="selectLabel($event)">
   <div [style.border-bottom]="model.objectFormat.border.bottom"

@@ -210,7 +210,9 @@ public abstract class AbstractDataSet implements DataSet {
 
       // add column, so calc row will be full columns
       this.calcvals = calcvals;
+      cachedColCount = -1;
       idxmap = null;
+      cachedColCount = -1;
    }
 
    /**
@@ -230,6 +232,7 @@ public abstract class AbstractDataSet implements DataSet {
       }
 
       this.rcalcvals = rcalcvals;
+      cachedColCount = -1;
    }
 
    @Override
@@ -416,7 +419,11 @@ public abstract class AbstractDataSet implements DataSet {
 
          // optimization, if no calc col/row, just get from base
          // calling getColCount0/getRowCount0 could be expensive
-         useBase = rcalcvals == null && calcvals == null || col < colCount0 && row < rowCount0;
+         // col must be a base column (< colCount0) to use getData0 directly; calc column indices
+         // (col >= colCount0) must go through the calc-value path even when calcvals is null,
+         // otherwise a stale calc-column header entry causes getBaseCol() to return -1 which
+         // propagates as an invalid column index into the underlying table. (74271)
+         useBase = col < colCount0 && (rcalcvals == null && calcvals == null || row < rowCount0);
       }
 
       if(useBase) {

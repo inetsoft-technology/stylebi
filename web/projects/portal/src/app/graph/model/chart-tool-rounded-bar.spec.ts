@@ -194,8 +194,8 @@ describe("ChartTool.drawRoundedBar", () => {
             }
             const fn = originCall.split("(")[0];
             expect(offsetCall.startsWith(fn)).toBe(true);
-            const originNums = originCall.match(/-?\d+(\.\d+)?/g)!.map(Number);
-            const offsetNums = offsetCall.match(/-?\d+(\.\d+)?/g)!.map(Number);
+            const originNums = originCall.match(/-?\d+(\.\d+)?/g).map(Number);
+            const offsetNums = offsetCall.match(/-?\d+(\.\d+)?/g).map(Number);
             // arcTo has 5 args: x1,y1,x2,y2,r — x/y positions alternate by pair
             if(fn === "arcTo") {
                expect(offsetNums[0]).toBeCloseTo(originNums[0] + dx);

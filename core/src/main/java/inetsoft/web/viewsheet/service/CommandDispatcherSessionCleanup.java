@@ -15,34 +15,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+package inetsoft.web.viewsheet.service;
 
-/* ============================================================
-   signup.html — page-specific styles only.
-   All shared layout, form, button, spinner, and animation
-   styles are provided by login.css, loaded before this file.
-   ============================================================ */
+import org.springframework.context.event.EventListener;
+import org.springframework.stereotype.Component;
+import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
-/* Start-view content */
-.start-text {
-  font-size: 0.95rem;
-  color: var(--ln-text-soft);
-  text-align: center;
-  margin-bottom: 24px;
+/**
+ * Removes the shared {@link CommandDispatcher.SessionDispatchState} for a WebSocket session
+ * when the session disconnects, preventing a memory leak in the SESSION_STATES map.
+ */
+@Component
+public class CommandDispatcherSessionCleanup {
+   @EventListener
+   public void onSessionDisconnect(SessionDisconnectEvent event) {
+      CommandDispatcher.removeSessionState(event.getSessionId());
+   }
 }
-
-.layout-item {
-  margin-bottom: 1rem;
-}
-
-.btn-center-container {
-  align-content: center;
-  flex-direction: column;
-}
-
-.login-left .layout-item a {
-  font-size: 0.85rem;
-  text-decoration: none;
-  transition: opacity 0.15s;
-}
-
-.login-left .layout-item a:hover { opacity: 0.75; }

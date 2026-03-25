@@ -1922,8 +1922,11 @@ public class VsToReportConverter {
          }
       }
 
-      int align = !isTitle && info instanceof SelectionBaseVSAssemblyInfo ? objfmt.getAlignment() :
-         detailfmt != null ? detailfmt.getAlignment() : objfmt.getAlignment();
+      int defaultAlign = StyleConstants.H_LEFT | StyleConstants.V_TOP;
+      int align = !isTitle && info instanceof SelectionBaseVSAssemblyInfo && objfmt != null
+         ? objfmt.getAlignment()
+         : detailfmt != null ? detailfmt.getAlignment()
+         : objfmt != null ? objfmt.getAlignment() : defaultAlign;
       elem.setTextAlignment(align);
       elem.setBorders(borders);
       elem.setBorderColor(bcolor);

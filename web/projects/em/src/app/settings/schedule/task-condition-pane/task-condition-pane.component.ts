@@ -126,6 +126,7 @@ export class TaskConditionPaneComponent implements OnChanges {
       if(this.selectedConditionType.type === "TimeCondition") {
          this.condition = this.getDefaultTimeConditionModel(this.selectedConditionType.subtype);
          (<TimeConditionModel>this.condition).timeZone = this.timeZoneOptions[0].timeZoneId;
+         (<TimeConditionModel>this.condition).timeZoneLabel = this.timeZoneOptions[0].label;
       }
       else {
          this.condition = {

@@ -263,7 +263,7 @@ describe("IdentityClipboardService", () => {
          expect(service.canPaste(COPY_PASTE_CONTEXT_IDENTITY_MEMBERS)).toBe(true);
          const result = service.paste(COPY_PASTE_CONTEXT_IDENTITY_MEMBERS);
          expect(result).not.toBeNull();
-         expect(result![0].identityID.name).toBe("alice");
+         expect(result[0]?.identityID?.name).toBe("alice");
       });
 
       it("should not allow pasting members context into roles context", () => {

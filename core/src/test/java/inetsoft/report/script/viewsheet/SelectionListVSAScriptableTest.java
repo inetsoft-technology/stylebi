@@ -72,7 +72,8 @@ public class SelectionListVSAScriptableTest {
    void testAddProperties() {
       selectionListVSAScriptable.addProperties();
       String[] keys = {"dropdown", "singleSelection", "selectFirstItemOnLoad",
-                       "submitOnChange", "wrapping", "suppressBlank"};
+                       "submitOnChange", "wrapping", "suppressBlank",
+                       "quickSwitchAllowed"};
 
       for (String key : keys) {
          assert selectionListVSAScriptable.get(key, selectionListVSAScriptable) instanceof Boolean;
