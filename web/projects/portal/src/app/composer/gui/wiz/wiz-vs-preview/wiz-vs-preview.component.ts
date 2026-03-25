@@ -31,6 +31,10 @@ export class WizVsPreview {
       return this.viewsheet?.vsObjects ?? [];
    }
 
+   get description(): string {
+      return this.vsObjects[0]?.description ?? "";
+   }
+
    trackByFn(index: number, obj: VSObjectModel): string {
       return obj.absoluteName;
    }
