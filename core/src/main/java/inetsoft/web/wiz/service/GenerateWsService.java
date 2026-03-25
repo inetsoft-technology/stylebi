@@ -109,6 +109,8 @@ public class GenerateWsService {
             table = new PhysicalBoundTableAssembly(worksheet, model.getName());
             applyColumnSelection(table, fields);
          }
+
+         worksheet.addAssembly(table);
       }
       else {
          boolean containsMergeJoin = false; // Todo To be implemented later
