@@ -17,6 +17,8 @@
  */
 package inetsoft.web.composer.wiz.event;
 
+import inetsoft.uql.asset.AssetEntry;
+
 import java.io.Serializable;
 
 /**
@@ -24,13 +26,13 @@ import java.io.Serializable;
  */
 public class AddFilterEvent implements Serializable {
    /**
-    * The data of the dragged filter node (e.g. field/column identifier).
+    * The AssetEntry data of the dragged filter node (column from the filter tree).
     */
-   public Object getEntry() {
+   public AssetEntry getEntry() {
       return entry;
    }
 
-   public void setEntry(Object entry) {
+   public void setEntry(AssetEntry entry) {
       this.entry = entry;
    }
 
@@ -58,7 +60,7 @@ public class AddFilterEvent implements Serializable {
       this.scale = scale;
    }
 
-   private Object entry;
+   private AssetEntry entry;
    private int xOffset;
    private int yOffset;
    private float scale;

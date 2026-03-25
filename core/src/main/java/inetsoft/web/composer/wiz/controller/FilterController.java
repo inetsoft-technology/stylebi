@@ -19,15 +19,19 @@
 package inetsoft.web.composer.wiz.controller;
 
 import inetsoft.web.composer.model.TreeNodeModel;
+import inetsoft.web.composer.wiz.service.FilterServiceProxy;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
-import java.util.List;
 
 @RestController
 public class FilterController {
+   public FilterController(FilterServiceProxy filterServiceProxy) {
+      this.filterServiceProxy = filterServiceProxy;
+   }
+
    @GetMapping(value = "/api/composer/wiz/filters")
    public TreeNodeModel getFilters(
       @RequestParam("runtimeId")
@@ -38,18 +42,10 @@ public class FilterController {
          required = true
       )
       String runtimeId,
-      Principal principal)
+      Principal principal) throws Exception
    {
-      // TODO: replace with real filter data based on runtimeId/viewsheet
-      List<TreeNodeModel> children = List.of(
-         TreeNodeModel.builder().label("Order Name").leaf(true).dragName("dragFilter").data("Order Name").build(),
-         TreeNodeModel.builder().label("Order Number").leaf(true).dragName("dragFilter").data("Order Number").build(),
-         TreeNodeModel.builder().label("ProductName").leaf(true).dragName("dragFilter").data("ProductName").build(),
-         TreeNodeModel.builder().label("Product Id").leaf(true).dragName("dragFilter").data("Product Id").build()
-      );
-
-      return TreeNodeModel.builder()
-         .children(children)
-         .build();
+      return filterServiceProxy.getFilters(runtimeId, principal);
    }
+
+   private final FilterServiceProxy filterServiceProxy;
 }

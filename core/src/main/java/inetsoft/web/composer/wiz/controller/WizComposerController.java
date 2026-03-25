@@ -19,6 +19,7 @@ package inetsoft.web.composer.wiz.controller;
 
 import inetsoft.web.composer.wiz.event.AddFilterEvent;
 import inetsoft.web.composer.wiz.event.AddVisualizationEvent;
+import inetsoft.web.composer.wiz.service.AddFilterServiceProxy;
 import inetsoft.web.composer.wiz.service.AddVisualizationServiceProxy;
 import inetsoft.web.viewsheet.controller.VSRefreshServiceProxy;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
@@ -38,10 +39,12 @@ import java.security.Principal;
 public class WizComposerController {
    public WizComposerController(RuntimeViewsheetRef runtimeViewsheetRef,
                                 AddVisualizationServiceProxy addVisualizationServiceProxy,
+                                AddFilterServiceProxy addFilterServiceProxy,
                                 VSRefreshServiceProxy vsRefreshServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.addVisualizationServiceProxy = addVisualizationServiceProxy;
+      this.addFilterServiceProxy = addFilterServiceProxy;
       this.vsRefreshServiceProxy = vsRefreshServiceProxy;
    }
 
@@ -83,10 +86,16 @@ public class WizComposerController {
                          @LinkUri String linkUri)
       throws Exception
    {
-      throw new UnsupportedOperationException("addFilter is not yet implemented");
+      String runtimeId = runtimeViewsheetRef.getRuntimeId();
+      addFilterServiceProxy.addFilter(
+         runtimeId, event.getEntry(), event.getxOffset(), event.getyOffset(),
+         event.getScale(), principal);
+      vsRefreshServiceProxy.refreshViewsheetAsync(runtimeId,
+         VSRefreshEvent.builder().confirmed(false).build(), principal, dispatcher, linkUri);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final AddVisualizationServiceProxy addVisualizationServiceProxy;
+   private final AddFilterServiceProxy addFilterServiceProxy;
    private final VSRefreshServiceProxy vsRefreshServiceProxy;
 }
