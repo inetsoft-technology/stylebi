@@ -161,6 +161,8 @@ public class WebSocketConfig<S extends Session> extends
    public ThreadPoolTaskExecutor eventTaskExecutor() {
       ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
       executor.setCorePoolSize(getEventThreadPoolSize());
+      executor.setKeepAliveSeconds(60);
+      executor.setAllowCoreThreadTimeOut(true);
       executor.setThreadFactory(eventThreadFactory());
       return executor;
    }
