@@ -171,7 +171,8 @@ public class HTMLVSExporter extends AbstractVSExporter {
       }
 
       Dimension widgetSize = new Dimension(
-         (int) widgetBounds.getWidth(), (int) widgetBounds.getHeight());
+         (int) Math.round(widgetBounds.getWidth()),
+         (int) Math.round(widgetBounds.getHeight()));
       BufferedImage img = getInputImage(assembly, widgetSize);
 
       if(img != null) {

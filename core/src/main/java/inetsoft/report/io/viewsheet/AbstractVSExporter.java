@@ -3623,7 +3623,8 @@ public abstract class AbstractVSExporter implements VSExporter {
       }
 
       Dimension widgetSize = new Dimension(
-         (int) widgetBounds.getWidth(), (int) widgetBounds.getHeight());
+         (int) Math.round(widgetBounds.getWidth()),
+         (int) Math.round(widgetBounds.getHeight()));
       BufferedImage img = getInputImage(assembly, widgetSize);
 
       if(img != null) {
@@ -3737,7 +3738,7 @@ public abstract class AbstractVSExporter implements VSExporter {
       int[] dims = getLabelDimensions(labelInfo);
       int labelW = dims[0];
       int labelH = dims[1];
-      int gap = labelInfo.getLabelGap();
+      int gap = Math.max(0, labelInfo.getLabelGap());
 
       Rectangle2D labelBounds;
       Rectangle2D widgetBounds;
