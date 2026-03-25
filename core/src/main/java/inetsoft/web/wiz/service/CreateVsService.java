@@ -47,9 +47,9 @@ public class CreateVsService {
          throw new IllegalArgumentException("Runtime Viewsheet is empty");
       }
 
-      RuntimeViewsheet viewsheet = viewsheetService.getViewsheet(model.getRuntimeId(), user);
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(model.getRuntimeId(), user);
 
-      if(viewsheet == null) {
+      if(rvs == null) {
          throw new Exception("Runtime Viewsheet not found");
       }
 
@@ -97,16 +97,17 @@ public class CreateVsService {
          throw new Exception("Worksheet has no primary assembly");
       }
 
-      Viewsheet vs = new Viewsheet(sourceWs);
-      VSAssembly assembly = createAssembly(vs, model.getVisualizationType(), title, config, primaryAssembly.getName());
+      Viewsheet newVs = new Viewsheet(sourceWs);
+      newVs.setWizInfo(vs.getWizInfo());
+      VSAssembly assembly = createAssembly(newVs, model.getVisualizationType(), title, config, primaryAssembly.getName());
 
       if(assembly == null) {
          throw new RuntimeException("Unsupported visualization type: " + model.getVisualizationType());
       }
 
-      vs.addAssembly(assembly);
+      newVs.addAssembly(assembly);
       assembly.setPrimary(true);
-      viewsheet.setViewsheet(vs);
+      rvs.setViewsheet(newVs);
    }
 
    private VSAssembly createAssembly(Viewsheet vs, String type, String name,
