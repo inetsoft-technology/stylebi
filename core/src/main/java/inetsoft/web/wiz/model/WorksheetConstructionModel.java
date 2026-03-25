@@ -81,24 +81,33 @@ public class WorksheetConstructionModel {
    }
 
    public static class QueryField {
-      private String name;
+      private String fieldName;
+      private String alias;
       private TableInfo table;
       private String expression;
 
       public QueryField() {
       }
 
-      public QueryField(TableInfo table, String name) {
+      public QueryField(TableInfo table, String fieldName) {
          this.table = table;
-         this.name = name;
+         this.fieldName = fieldName;
       }
 
-      public String getName() {
-         return name;
+      public String getFieldName() {
+         return fieldName;
       }
 
-      public void setName(String name) {
-         this.name = name;
+      public void setFieldName(String fieldName) {
+         this.fieldName = fieldName;
+      }
+
+      public String getAlias() {
+         return alias;
+      }
+
+      public void setAlias(String alias) {
+         this.alias = alias;
       }
 
       public TableInfo getTable() {
@@ -129,13 +138,13 @@ public class WorksheetConstructionModel {
 
          QueryField that = (QueryField) o;
 
-         return Objects.equals(name, that.name) && Objects.equals(table, that.table) &&
-            Objects.equals(expression, that.expression);
+         return Objects.equals(fieldName, that.fieldName) && Objects.equals(alias, that.alias) &&
+            Objects.equals(table, that.table) && Objects.equals(expression, that.expression);
       }
 
       @Override
       public int hashCode() {
-         return Objects.hash(name, table, expression);
+         return Objects.hash(fieldName, alias, table, expression);
       }
    }
 
