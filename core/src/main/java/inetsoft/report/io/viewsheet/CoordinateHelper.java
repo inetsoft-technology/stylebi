@@ -602,5 +602,15 @@ public class CoordinateHelper {
       return new Dimension(width, height);
    }
 
+   public void drawTextBox(Rectangle2D bounds, VSCompositeFormat format,
+      String dispText)
+   {
+      // no-op, overridden in subclasses
+   }
+
+   public void drawImage(Image image, Rectangle2D bounds) {
+      // no-op, overridden in subclasses
+   }
+
    protected Viewsheet vs;
 }

@@ -3591,6 +3591,64 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
+    * Get the coordinate helper for this exporter. Returns null by default;
+    * subclasses with a coordinate helper should override.
+    */
+   protected CoordinateHelper getHelper() {
+      return null;
+   }
+
+   /**
+    * Write an input assembly, rendering the label text and widget image
+    * at split bounds. Falls back to writePicture() when no label is visible.
+    * Subclasses must override writePicture() and may override this method
+    * for format-specific rendering (e.g. HTML).
+    */
+   protected void writeInputWithLabel(VSAssembly assembly) {
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+
+      if(info == null) {
+         return;
+      }
+
+      if(!hasVisibleLabel(info)) {
+         writePicture(assembly);
+         return;
+      }
+
+      CoordinateHelper helper = getHelper();
+
+      if(helper == null) {
+         writePicture(assembly);
+         return;
+      }
+
+      InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
+      LabelInfo labelInfo = inputInfo.getLabelInfo();
+      Rectangle2D fullBounds = helper.getBounds(info);
+      Rectangle2D labelBounds = getInputLabelBounds(fullBounds, labelInfo);
+      Rectangle2D widgetBounds = getInputWidgetBounds(fullBounds, labelInfo);
+
+      helper.drawTextBox(labelBounds, getLabelFormat(labelInfo),
+         labelInfo.getLabelText());
+
+      Dimension widgetSize = new Dimension(
+         (int) widgetBounds.getWidth(), (int) widgetBounds.getHeight());
+      BufferedImage img = getInputImage(assembly, widgetSize);
+
+      if(img != null) {
+         helper.drawImage(img, widgetBounds);
+      }
+   }
+
+   /**
+    * Write an assembly as a picture. Subclasses should override.
+    */
+   protected void writePicture(VSAssembly assembly) {
+      // no-op, overridden in subclasses
+   }
+
+   /**
     * Check if an assembly has a visible, non-empty input label.
     */
    protected static boolean hasVisibleLabel(VSAssemblyInfo info) {
@@ -3635,10 +3693,9 @@ public abstract class AbstractVSExporter implements VSExporter {
       double fullW = fullBounds.getWidth();
       double fullH = fullBounds.getHeight();
 
-      Font font = getLabelFont(labelInfo);
-      String labelText = labelInfo.getLabelText();
-      int labelW = (int) Common.stringWidth(labelText, font) + 6;
-      int labelH = Common.getFontMetrics(font).getHeight();
+      int[] dims = getLabelDimensions(labelInfo);
+      int labelW = dims[0];
+      int labelH = dims[1];
 
       switch(labelInfo.getLabelPosition()) {
       case LabelInfo.TOP:
@@ -3665,10 +3722,9 @@ public abstract class AbstractVSExporter implements VSExporter {
       double fullW = fullBounds.getWidth();
       double fullH = fullBounds.getHeight();
 
-      Font font = getLabelFont(labelInfo);
-      String labelText = labelInfo.getLabelText();
-      int labelW = (int) Common.stringWidth(labelText, font) + 6;
-      int labelH = Common.getFontMetrics(font).getHeight();
+      int[] dims = getLabelDimensions(labelInfo);
+      int labelW = dims[0];
+      int labelH = dims[1];
       int gap = labelInfo.getLabelGap();
 
       switch(labelInfo.getLabelPosition()) {
@@ -3686,6 +3742,16 @@ public abstract class AbstractVSExporter implements VSExporter {
          return new Rectangle2D.Double(x + labelW + gap, y,
             Math.max(0, fullW - labelW - gap), fullH);
       }
+   }
+
+   /**
+    * Get [width, height] for the label, matching VsToReportConverter.addInputLabel().
+    */
+   private static int[] getLabelDimensions(LabelInfo labelInfo) {
+      Font font = getLabelFont(labelInfo);
+      int labelW = (int) Common.stringWidth(labelInfo.getLabelText(), font) + 6;
+      int labelH = AssetUtil.defh;
+      return new int[] { labelW, labelH };
    }
 
    /**
@@ -3717,6 +3783,7 @@ public abstract class AbstractVSExporter implements VSExporter {
          obj = new VSSpinner(vs);
          break;
       default:
+         // falls back to full-size image including label area
          return getImage(assembly);
       }
 

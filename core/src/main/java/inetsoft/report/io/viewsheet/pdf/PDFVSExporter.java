@@ -823,44 +823,13 @@ public class PDFVSExporter extends AbstractVSExporter {
       }
    }
 
-   /**
-    * Write an input assembly, rendering the label if visible.
-    */
-   private void writeInputWithLabel(VSAssembly assembly) {
-      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
-
-      if(info == null) {
-         return;
-      }
-
-      if(!hasVisibleLabel(info)) {
-         writePicture(assembly);
-         return;
-      }
-
-      InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
-      LabelInfo labelInfo = inputInfo.getLabelInfo();
-      Rectangle2D fullBounds = helper.getBounds(info);
-      Rectangle2D labelBounds = getInputLabelBounds(fullBounds, labelInfo);
-      Rectangle2D widgetBounds = getInputWidgetBounds(fullBounds, labelInfo);
-
-      helper.drawTextBox(labelBounds, getLabelFormat(labelInfo),
-         labelInfo.getLabelText());
-
-      Dimension widgetSize = new Dimension(
-         (int) widgetBounds.getWidth(), (int) widgetBounds.getHeight());
-      BufferedImage img = getInputImage(assembly, widgetSize);
-
-      if(img != null) {
-         helper.drawImage(img, widgetBounds);
-      }
+   @Override
+   protected CoordinateHelper getHelper() {
+      return helper;
    }
 
-   /**
-    * Write picture.
-    * @param assembly the specified VSAssembly.
-    */
-   private void writePicture(VSAssembly assembly) {
+   @Override
+   protected void writePicture(VSAssembly assembly) {
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();
 
       if(info != null) {

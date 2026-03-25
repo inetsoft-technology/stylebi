@@ -150,7 +150,8 @@ public class HTMLVSExporter extends AbstractVSExporter {
    /**
     * Write an input assembly, rendering the label if visible.
     */
-   private void writeInputWithLabel(VSAssembly assembly) {
+   @Override
+   protected void writeInputWithLabel(VSAssembly assembly) {
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();
 
       if(info == null) {
@@ -175,13 +176,15 @@ public class HTMLVSExporter extends AbstractVSExporter {
          (int) widgetBounds.getWidth(), (int) widgetBounds.getHeight());
       BufferedImage img = getInputImage(assembly, widgetSize);
 
-      try {
-         helper.drawImage(img, widgetBounds);
-         helper.writeImage(img, writer, info.getAbsoluteName(), widgetBounds,
-            info.getHyperlinkRef(), info.getFormat(), true, null, info.getZIndex());
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to write input image: " + assembly.getAbsoluteName(), ex);
+      if(img != null) {
+         try {
+            helper.drawImage(img, widgetBounds);
+            helper.writeImage(img, writer, info.getAbsoluteName(), widgetBounds,
+               info.getHyperlinkRef(), info.getFormat(), true, null, info.getZIndex());
+         }
+         catch(Exception ex) {
+            LOG.error("Failed to write input image: {}", assembly.getAbsoluteName(), ex);
+         }
       }
    }
 
@@ -189,7 +192,8 @@ public class HTMLVSExporter extends AbstractVSExporter {
     * Write picture.
     * @param assembly the specified VSAssembly.
     */
-   private void writePicture(VSAssembly assembly) {
+   @Override
+   protected void writePicture(VSAssembly assembly) {
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();
 
       if(info != null) {
@@ -204,7 +208,7 @@ public class HTMLVSExporter extends AbstractVSExporter {
                               info.getFormat(), !ignoreBackground, null, info.getZIndex());
          }
          catch(Exception ex) {
-            LOG.error("Failed to write image: " + assembly.getAbsoluteName(), ex);
+            LOG.error("Failed to write image: {}", assembly.getAbsoluteName(), ex);
          }
       }
    }
