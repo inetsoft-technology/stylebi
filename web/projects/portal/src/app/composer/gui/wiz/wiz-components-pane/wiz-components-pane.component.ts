@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
-import { Component, HostBinding, Input, OnChanges, OnInit, SimpleChanges } from "@angular/core";
+import { Component, HostBinding, Input, OnChanges, OnDestroy, OnInit, SimpleChanges } from "@angular/core";
+import { Subscription } from "rxjs";
 import { AssetType } from "../../../../../../../shared/data/asset-type";
 import { AssemblyActionGroup } from "../../../../common/action/assembly-action-group";
 import { ActionsContextmenuComponent } from "../../../../widget/fixed-dropdown/actions-contextmenu.component";
@@ -30,7 +31,7 @@ import { WizService } from "../services/wiz.service";
    templateUrl: "./wiz-components-pane.component.html",
    styleUrls: ["./wiz-components-pane.component.scss"]
 })
-export class WizComponentsPane implements OnInit, OnChanges {
+export class WizComponentsPane implements OnInit, OnChanges, OnDestroy {
    @HostBinding("hidden")
    @Input() inactive: boolean;
    @Input() runtimeId: string;
@@ -57,6 +58,7 @@ export class WizComponentsPane implements OnInit, OnChanges {
    };
    private output: TreeNodeModel;
    private shape: TreeNodeModel;
+   private subscriptions = new Subscription();
 
    constructor(private http: HttpClient, private wizService: WizService,
                private dropdownService: FixedDropdownService)
@@ -69,6 +71,11 @@ export class WizComponentsPane implements OnInit, OnChanges {
       this.loadComponents();
       this.loadFilters();
       this.buildRoot();
+      this.subscriptions.add(this.wizService.refreshFilters.subscribe(() => this.loadFilters()));
+   }
+
+   ngOnDestroy(): void {
+      this.subscriptions.unsubscribe();
    }
 
    ngOnChanges(changes: SimpleChanges): void {
