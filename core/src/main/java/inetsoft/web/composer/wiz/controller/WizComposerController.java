@@ -19,7 +19,9 @@ package inetsoft.web.composer.wiz.controller;
 
 import inetsoft.web.composer.wiz.event.AddFilterEvent;
 import inetsoft.web.composer.wiz.event.AddVisualizationEvent;
+import inetsoft.web.composer.wiz.service.AddFilterServiceProxy;
 import inetsoft.web.composer.wiz.service.AddVisualizationServiceProxy;
+import inetsoft.web.viewsheet.command.RefreshWizFiltersCommand;
 import inetsoft.web.viewsheet.controller.VSRefreshServiceProxy;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
@@ -38,10 +40,12 @@ import java.security.Principal;
 public class WizComposerController {
    public WizComposerController(RuntimeViewsheetRef runtimeViewsheetRef,
                                 AddVisualizationServiceProxy addVisualizationServiceProxy,
+                                AddFilterServiceProxy addFilterServiceProxy,
                                 VSRefreshServiceProxy vsRefreshServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.addVisualizationServiceProxy = addVisualizationServiceProxy;
+      this.addFilterServiceProxy = addFilterServiceProxy;
       this.vsRefreshServiceProxy = vsRefreshServiceProxy;
    }
 
@@ -64,6 +68,7 @@ public class WizComposerController {
       addVisualizationServiceProxy.addVisualization(
          runtimeId, event.getEntry(), event.getxOffset(), event.getyOffset(),
          event.getScale(), principal);
+      dispatcher.sendCommand(new RefreshWizFiltersCommand());
       vsRefreshServiceProxy.refreshViewsheetAsync(this.runtimeViewsheetRef.getRuntimeId(),
          VSRefreshEvent.builder().confirmed(false).build(), principal, dispatcher, linkUri);
    }
@@ -83,10 +88,20 @@ public class WizComposerController {
                          @LinkUri String linkUri)
       throws Exception
    {
-      throw new UnsupportedOperationException("addFilter is not yet implemented");
+      String runtimeId = runtimeViewsheetRef.getRuntimeId();
+      addFilterServiceProxy.addFilter(
+         runtimeId, event.getEntry(), event.getxOffset(), event.getyOffset(),
+         event.getScale(), principal);
+      // RefreshWizFiltersCommand is intentionally NOT dispatched here.
+      // Adding a filter creates a VS assembly but does not alter the base worksheet, so the
+      // set of filterable columns (shown in the filter tree) is unchanged. Dispatching the
+      // command would only trigger a redundant HTTP round-trip on the client side.
+      vsRefreshServiceProxy.refreshViewsheetAsync(runtimeId,
+         VSRefreshEvent.builder().confirmed(false).build(), principal, dispatcher, linkUri);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final AddVisualizationServiceProxy addVisualizationServiceProxy;
+   private final AddFilterServiceProxy addFilterServiceProxy;
    private final VSRefreshServiceProxy vsRefreshServiceProxy;
 }
