@@ -53,10 +53,18 @@ public class CreateVsService {
          throw new Exception("Runtime Viewsheet not found");
       }
 
-      if(viewsheet.getViewsheet() == null || viewsheet.getViewsheet().getWizInfo() == null ||
-         !viewsheet.getViewsheet().getWizInfo().isWizVisualization())
-      {
-         throw new IllegalArgumentException("Runtime Viewsheet is Invalid");
+      Viewsheet vs = rvs.getViewsheet();
+
+      if(vs == null) {
+         throw new IllegalArgumentException("Runtime Viewsheet does not contain a Viewsheet object");
+      }
+
+      if(vs.getWizInfo() == null) {
+         throw new IllegalArgumentException("Runtime Viewsheet does not have WizInfo configured");
+      }
+
+      if(!vs.getWizInfo().isWizVisualization()) {
+         throw new IllegalArgumentException("Runtime Viewsheet is not configured as a Wiz visualization");
       }
 
       VisualizationConfig config = model.getConfig();
