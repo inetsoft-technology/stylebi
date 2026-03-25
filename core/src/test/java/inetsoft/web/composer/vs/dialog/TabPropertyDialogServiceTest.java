@@ -252,7 +252,7 @@ class TabPropertyDialogServiceTest {
       // User moves the tab to Y=500 and switches to top-tabs.
       TabPropertyDialogModel model = buildModel("Tab1", false, 10, 500, 200, 30);
 
-      controller.setTabPropertyDialogModel("Tab1", model, "", null, commandDispatcher);
+      service.setTabPropertyDialogModel("vs1", "Tab1", model, "", null, commandDispatcher);
 
       ArgumentCaptor<TabVSAssemblyInfo> captor = ArgumentCaptor.forClass(TabVSAssemblyInfo.class);
       verify(vsObjectPropertyService).editObjectProperty(
