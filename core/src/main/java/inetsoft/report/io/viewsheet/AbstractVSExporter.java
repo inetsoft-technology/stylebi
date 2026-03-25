@@ -3635,6 +3635,22 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
+    * Draw the input label and render the widget text at the split bounds.
+    * @return true if the label was drawn and widget text rendered, false otherwise.
+    */
+   protected boolean writeTextInputWithLabel(VSAssemblyInfo info, String txt) {
+      Rectangle2D widgetBounds = writeInputLabelText(info);
+
+      if(widgetBounds == null) {
+         return false;
+      }
+
+      getHelper().drawTextBox(widgetBounds, widgetBounds, getTextFormat(info),
+         txt, null, info.getPadding(), false);
+      return true;
+   }
+
+   /**
     * Draw the input label via the coordinate helper if visible.
     * @return the widget-only bounds if a label was drawn, null otherwise.
     */

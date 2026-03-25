@@ -283,15 +283,9 @@ public class SVGVSExporter extends AbstractVSExporter {
          ((TextInputVSAssemblyInfo) info).getText() : null;
       String txt = value == null ? "" : Tool.getDataString(value, assembly.getDataType());
 
-      Rectangle2D widgetBounds = writeInputLabelText(info);
-
-      if(widgetBounds != null) {
-         helper.drawTextBox(widgetBounds, widgetBounds, getTextFormat(info),
-            txt, null, info.getPadding(), false);
-         return;
+      if(!writeTextInputWithLabel(info, txt)) {
+         writeText(assembly, txt);
       }
-
-      writeText(assembly, txt);
    }
 
    @Override

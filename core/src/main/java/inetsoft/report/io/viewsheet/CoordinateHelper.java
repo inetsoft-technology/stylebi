@@ -608,6 +608,13 @@ public class CoordinateHelper {
       // no-op, overridden in subclasses
    }
 
+   public void drawTextBox(Rectangle2D bounds, Rectangle2D textBounds,
+      VSCompositeFormat format, String dispText, Insets shapeBorders,
+      Insets padding, boolean shadow)
+   {
+      // no-op, overridden in subclasses
+   }
+
    public void drawImage(Image image, Rectangle2D bounds) {
       // no-op, overridden in subclasses
    }
