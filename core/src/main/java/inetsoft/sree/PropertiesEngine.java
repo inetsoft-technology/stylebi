@@ -522,7 +522,8 @@ public class PropertiesEngine {
                String key = e.getKey().toLowerCase();
 
                if(key.toLowerCase().startsWith("inetsoft_") &&
-                  !key.equals("inetsoft_master_password") && !key.equals("inetsoft_master_salt")) {
+                  !key.equals("inetsoft_master_password") && !key.equals("inetsoft_master_salt") &&
+                  !key.equals("inetsoft_admin_password")) {
                   String name = key.toLowerCase().substring(9).replace('_', '.');
                   name = defaults.getOrDefault(name, name);
                   base.setProperty(name, e.getValue());
