@@ -282,6 +282,7 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
             return true;
          }
       });
+      MessageContextHolder.setMessageAttributes(messageAttributes);
       CommandDispatcher dispatcher = new CommandDispatcher(headerAccessor, messagingTemplate, null)
       {
          @Override
@@ -294,7 +295,6 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
             // NO-OP
          }
       };
-      MessageContextHolder.setMessageAttributes(messageAttributes);
 
       try {
          return fn.apply(dispatcher);
