@@ -66,7 +66,8 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
                if(online) {
                   const timeout = new Promise<never>((_, reject) =>
                      setTimeout(() => reject(new Error("timeout")), 10000));
-                  Promise.race([customElements.whenDefined("ai-assistant"), timeout])
+                  this.aiAssistantService.loadWebComponentScript()
+                     .then(() => Promise.race([customElements.whenDefined("ai-assistant"), timeout]))
                      .then(() => this.zone.run(() => this.serverState = "online"))
                      .catch(() => this.zone.run(() => this.serverState = "offline"));
                }
