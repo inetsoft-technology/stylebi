@@ -587,17 +587,17 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
       });
    }
 
-   showTooltip(tipInfo: TooltipInfo): void {
+   showTooltip(tipInfo: TooltipInfo, fromPlot: boolean = false): void {
       const tipIndex = tipInfo ? tipInfo.tipIndex : -1;
       let tooltipString = Tool.unescapeHTML(this.model.stringDictionary[tipIndex]);
 
-      if(!this.mobileDevice && tooltipString && tipInfo.region.hyperlinks &&
-         tipInfo.region.hyperlinks.length == 1)
-      {
+      if(!this.mobileDevice && tooltipString && tipInfo?.region?.hyperlinks &&
+         tipInfo.region.hyperlinks.length == 1) {
          tooltipString += "_#(js:composer.graph.ctrlSelect)";
       }
 
-      if (!this.mobileDevice && this.emptyPlotLinkTooltip && !tipInfo) {
+      if(!this.mobileDevice && this.emptyPlotLinkTooltip && !tipInfo
+         && fromPlot && (this.viewerMode || this.previewMode)) {
          tooltipString += this.emptyPlotLinkTooltip;
       }
 

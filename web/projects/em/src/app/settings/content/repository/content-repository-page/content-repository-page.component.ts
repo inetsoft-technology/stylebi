@@ -389,7 +389,7 @@ export class ContentRepositoryPageComponent implements OnInit, OnDestroy {
          node.data.type != RepositoryEntryType.QUERY &&
          !((node.data.type & RepositoryEntryType.FOLDER) === RepositoryEntryType.FOLDER && node.data.owner != null) ||
          this.isSameDirectory(node.data, target.data) ||
-         target.data.path.startsWith(node.data.path) ||
+         target.data.path.startsWith(node.data.path + "/") ||
          node.data.type == RepositoryEntryType.SCHEDULE_TASK_FOLDER)) {
          return;
       }

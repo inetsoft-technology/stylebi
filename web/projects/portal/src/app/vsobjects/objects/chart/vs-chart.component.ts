@@ -169,6 +169,9 @@ export class VSChart extends AbstractVSObject<VSChartModel>
    showHints: boolean = false;
    private resizeSubscription: Subscription;
    private lastClick: {clientX: number, clientY: number} = null;
+   private chartAreasRetryTimer: any = null;
+   private chartAreasRetryCount: number = 0;
+   private readonly MAX_CHART_AREAS_RETRIES = 5;
    private subscriptions = Subscription.EMPTY;
    private isIE: boolean = GuiTool.isIE();
    private isIFrame: boolean = GuiTool.isIFrame();
@@ -943,6 +946,11 @@ export class VSChart extends AbstractVSObject<VSChartModel>
    ngOnDestroy(): void {
       super.ngOnDestroy();
 
+      if(this.chartAreasRetryTimer) {
+         clearTimeout(this.chartAreasRetryTimer);
+         this.chartAreasRetryTimer = null;
+      }
+
       this.subscriptions.unsubscribe();
 
       if(this.actionSubscription) {
@@ -1058,6 +1066,13 @@ export class VSChart extends AbstractVSObject<VSChartModel>
    }
 
    clearChartLoading(): void {
+      if(this.chartAreasRetryTimer) {
+         clearTimeout(this.chartAreasRetryTimer);
+         this.chartAreasRetryTimer = null;
+      }
+
+      this.chartAreasRetryCount = 0;
+
       if(this.chartLoading) {
          this.noChartData = this.emptyChart || this.model.noData;
          this.chartLoading = false;
@@ -1120,6 +1135,30 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       // fire reliably during rapid max-mode transitions (e.g. enlarge → actual size). (Bug #74278)
       if(command.completed) {
          this.clearChartLoading();
+      }
+      else if(this.chartLoading) {
+         // Server graph computation was not yet complete (e.g. cancelled by concurrent VS
+         // operations during rapid enlarge → actual size transition). Schedule a retry so
+         // the loading state is not permanently stuck if no further model update arrives.
+         if(this.chartAreasRetryCount >= this.MAX_CHART_AREAS_RETRIES) {
+            this.clearChartLoading();
+         }
+         else {
+            this.chartAreasRetryCount++;
+
+            if(this.chartAreasRetryTimer) {
+               clearTimeout(this.chartAreasRetryTimer);
+            }
+
+            this.chartAreasRetryTimer = setTimeout(() => {
+               this.chartAreasRetryTimer = null;
+
+               if(this.chartLoading) {
+                  const event = new VSChartEvent(this.model, this.model.maxMode, this.container);
+                  this.viewsheetClient.sendEvent(CHART_AREAS_URI, event);
+               }
+            }, 1000);
+         }
       }
 
       if(this.mobileDevice) {

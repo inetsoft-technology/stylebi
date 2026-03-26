@@ -27,13 +27,13 @@
                         [style.width.px]="model.objectFormat.width"
                         [objectHeight]="model.objectFormat.height"
                         [style.z-index]="viewer ? model.objectFormat.zIndex : null"
+                        [style.border-bottom]="model.objectFormat.border.bottom"
+                        [style.border-top]="model.objectFormat.border.top"
+                        [style.border-left]="model.objectFormat.border.left"
+                        [style.border-right]="model.objectFormat.border.right"
+                        [style.border-radius.px]="model.objectFormat.roundCorner"
                         (selectLabel)="selectLabel($event)">
-  <div [style.border-bottom]="model.objectFormat.border.bottom"
-       [style.border-top]="model.objectFormat.border.top"
-       [style.border-left]="model.objectFormat.border.left"
-       [style.border-right]="model.objectFormat.border.right"
-       [style.border-radius.px]="model.objectFormat.roundCorner"
-       [style.color]="model.objectFormat.foreground"
+  <div [style.color]="model.objectFormat.foreground"
        [style.background-color]="model.objectFormat.background"
        [safeFont]="model.objectFormat.font"
        class="slider unselectable-canvas"
@@ -49,7 +49,7 @@
        [popZIndex]="model.objectFormat.zIndex"
        outOfZone (onMousemove)="mouseMove($event)" #sliderContainer
        (click)="clearLabelSelection()">
-   <div class="wrapper" [style.top.px]="verticalCenter">
+   <div class="wrapper" [style.top.px]="verticalCenter" [style.--slider-wrapper-top.px]="verticalCenter">
      <div class="slider-value" [style.left.px]="getLabelLeft()"
           [style.text-decoration]="model.objectFormat.decoration"
           *ngIf="model.currentVisible || isMouseDown">{{getLabel()}}</div>

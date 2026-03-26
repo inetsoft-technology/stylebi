@@ -831,7 +831,8 @@ public class VSExportService {
 
          // Clear input assembly variables from the sandbox variable table before reset.
          // During reset, applyParameterToInput() reads from this table and would otherwise
-         // overwrite bookmark-restored assembly selections
+         // overwrite bookmark-restored assembly selections (checkbox, radio button, etc.).
+         // Also clear the bare variable-name key used by $(varname)-bound assemblies. (74212)
          VariableTable sandboxVars = sandbox.getVariableTable();
 
          if(sandboxVars != null) {

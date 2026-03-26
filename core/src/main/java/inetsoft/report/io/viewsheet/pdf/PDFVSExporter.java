@@ -263,7 +263,7 @@ public class PDFVSExporter extends AbstractVSExporter {
     */
    @Override
    protected void writeCheckBox(CheckBoxVSAssembly assembly) {
-      writePicture(assembly);
+      writeInputWithLabel(assembly);
    }
 
    /**
@@ -272,7 +272,7 @@ public class PDFVSExporter extends AbstractVSExporter {
     */
    @Override
    protected void writeComboBox(ComboBoxVSAssembly assembly) {
-      writePicture(assembly);
+      writeInputWithLabel(assembly);
    }
 
    /**
@@ -417,7 +417,7 @@ public class PDFVSExporter extends AbstractVSExporter {
     */
    @Override
    protected void writeRadioButton(RadioButtonVSAssembly assembly) {
-      writePicture(assembly);
+      writeInputWithLabel(assembly);
    }
 
    /**
@@ -446,7 +446,7 @@ public class PDFVSExporter extends AbstractVSExporter {
     */
    @Override
    protected void writeSlider(SliderVSAssembly assembly) {
-      writePicture(assembly);
+      writeInputWithLabel(assembly);
    }
 
    /**
@@ -464,7 +464,7 @@ public class PDFVSExporter extends AbstractVSExporter {
     */
    @Override
    protected void writeSpinner(SpinnerVSAssembly assembly) {
-      writePicture(assembly);
+      writeInputWithLabel(assembly);
    }
 
    /**
@@ -511,8 +511,13 @@ public class PDFVSExporter extends AbstractVSExporter {
     */
    @Override
    protected void writeTextInput(TextInputVSAssembly assembly) {
-      Object value = ((TextInputVSAssemblyInfo) assembly.getVSAssemblyInfo()).getText();
-      writeText(assembly, value == null ? "" : Tool.getDataString(value, assembly.getDataType()));
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+      Object value = ((TextInputVSAssemblyInfo) info).getText();
+      String txt = value == null ? "" : Tool.getDataString(value, assembly.getDataType());
+
+      if(!writeTextInputWithLabel(info, txt)) {
+         writeText(assembly, txt);
+      }
    }
 
    /**
@@ -806,11 +811,13 @@ public class PDFVSExporter extends AbstractVSExporter {
       }
    }
 
-   /**
-    * Write picture.
-    * @param assembly the specified VSAssembly.
-    */
-   private void writePicture(VSAssembly assembly) {
+   @Override
+   protected CoordinateHelper getHelper() {
+      return helper;
+   }
+
+   @Override
+   protected void writePicture(VSAssembly assembly) {
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();
 
       if(info != null) {

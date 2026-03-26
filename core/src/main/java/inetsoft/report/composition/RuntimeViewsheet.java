@@ -1946,6 +1946,16 @@ public class RuntimeViewsheet extends RuntimeSheet {
       if(requiresReset || reloadWS) {
          resetRuntime();
       }
+
+      // After restoring from checkpoint, mark parameters as already applied so that
+      // applyParameterToInput() in the subsequent reset(initing=true) does not overwrite
+      // the restored input-assembly values with stale entries in the VariableTable.
+      // Must be called after resetRuntime() since that resets the flag. Checkpoint
+      // viewsheets always have ws=null (clone0(true) clears it), so reloadWS is always
+      // true and resetRuntime() always runs on every undo/redo. (Bug #74220)
+      if(box != null) {
+         box.markParametersApplied();
+      }
    }
 
    /**

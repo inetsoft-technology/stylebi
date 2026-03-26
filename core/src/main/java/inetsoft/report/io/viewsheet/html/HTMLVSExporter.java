@@ -128,10 +128,74 @@ public class HTMLVSExporter extends AbstractVSExporter {
    }
 
    /**
+    * Write the label for an input assembly if visible.
+    * @return the widget-only bounds if a label was written, null otherwise.
+    * @see AbstractVSExporter#writeInputLabelText — PDF/SVG variant using CoordinateHelper
+    */
+   private Rectangle2D writeInputLabel(VSAssemblyInfo info) {
+      if(!hasVisibleLabel(info)) {
+         return null;
+      }
+
+      InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
+      LabelInfo labelInfo = inputInfo.getLabelInfo();
+      Rectangle2D fullBounds = helper.getBounds(info);
+      Rectangle2D[] bounds = splitInputBounds(fullBounds, labelInfo);
+
+      helper.writeText(writer, bounds[0], getLabelFormat(labelInfo),
+         labelInfo.getLabelText(), null, false, null, false, info.getZIndex());
+
+      return bounds[1];
+   }
+
+   /**
+    * Write an input assembly, rendering the label if visible.
+    */
+   @Override
+   protected void writeInputWithLabel(VSAssembly assembly) {
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+
+      if(info == null) {
+         return;
+      }
+
+      Rectangle2D widgetBounds = writeInputLabel(info);
+
+      if(widgetBounds == null) {
+         writePicture(assembly);
+         return;
+      }
+
+      if(isZeroSize(widgetBounds)) {
+         return;
+      }
+
+      Dimension widgetSize = new Dimension(
+         (int) Math.round(widgetBounds.getWidth()),
+         (int) Math.round(widgetBounds.getHeight()));
+      BufferedImage img = getInputImage(assembly, widgetSize);
+
+      if(img != null) {
+         try {
+            helper.drawImage(img, widgetBounds);
+            helper.writeImage(img, writer, info.getAbsoluteName(), widgetBounds,
+               info.getHyperlinkRef(), info.getFormat(), true, null, info.getZIndex());
+         }
+         catch(Exception ex) {
+            LOG.error("Failed to write input image: {}", assembly.getAbsoluteName(), ex);
+         }
+      }
+      else {
+         LOG.warn("No image for input assembly: {}", assembly.getAbsoluteName());
+      }
+   }
+
+   /**
     * Write picture.
     * @param assembly the specified VSAssembly.
     */
-   private void writePicture(VSAssembly assembly) {
+   @Override
+   protected void writePicture(VSAssembly assembly) {
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();
 
       if(info != null) {
@@ -146,7 +210,7 @@ public class HTMLVSExporter extends AbstractVSExporter {
                               info.getFormat(), !ignoreBackground, null, info.getZIndex());
          }
          catch(Exception ex) {
-            LOG.error("Failed to write image: " + assembly.getAbsoluteName(), ex);
+            LOG.error("Failed to write image: {}", assembly.getAbsoluteName(), ex);
          }
       }
    }
@@ -159,10 +223,16 @@ public class HTMLVSExporter extends AbstractVSExporter {
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();
 
       if(info != null) {
-         VSCompositeFormat fmt = info.getFormat();
          Object value = assembly.getSelectedObject() != null ?
             assembly.getSelectedObject() : null;
-         Rectangle2D bounds = helper.getBounds(info);
+         Rectangle2D widgetBounds = writeInputLabel(info);
+
+         if(widgetBounds != null && isZeroSize(widgetBounds))
+         {
+            return;
+         }
+
+         Rectangle2D bounds = widgetBounds != null ? widgetBounds : helper.getBounds(info);
          helper.writeTextInput(writer, bounds, assembly, getTextFormat(info), value, info.getZIndex());
       }
    }
@@ -295,8 +365,20 @@ public class HTMLVSExporter extends AbstractVSExporter {
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();
 
       if(info != null) {
-         RadioButtonVSAssemblyInfo cinfo = (RadioButtonVSAssemblyInfo)info;
-         helper.writeList(writer, cinfo, true);
+         RadioButtonVSAssemblyInfo cinfo = (RadioButtonVSAssemblyInfo) info;
+         Rectangle2D widgetBounds = writeInputLabel(info);
+
+         if(widgetBounds != null && isZeroSize(widgetBounds))
+         {
+            return;
+         }
+
+         if(widgetBounds != null) {
+            helper.writeList(writer, cinfo, true, widgetBounds);
+         }
+         else {
+            helper.writeList(writer, cinfo, true);
+         }
       }
    }
 
@@ -309,7 +391,19 @@ public class HTMLVSExporter extends AbstractVSExporter {
 
       if(info != null) {
          CheckBoxVSAssemblyInfo cinfo = (CheckBoxVSAssemblyInfo) info;
-         helper.writeList(writer, cinfo, false);
+         Rectangle2D widgetBounds = writeInputLabel(info);
+
+         if(widgetBounds != null && isZeroSize(widgetBounds))
+         {
+            return;
+         }
+
+         if(widgetBounds != null) {
+            helper.writeList(writer, cinfo, false, widgetBounds);
+         }
+         else {
+            helper.writeList(writer, cinfo, false);
+         }
       }
    }
 
@@ -318,7 +412,7 @@ public class HTMLVSExporter extends AbstractVSExporter {
     * @param assembly the SliderVSAssembly.
     */
    protected void writeSlider(SliderVSAssembly assembly) {
-      writePicture(assembly);
+      writeInputWithLabel(assembly);
    }
 
    /**
@@ -331,11 +425,14 @@ public class HTMLVSExporter extends AbstractVSExporter {
       if(info != null) {
          VSCompositeFormat fmt = info.getFormat().clone();
          Object txt = ((SpinnerVSAssemblyInfo) info).getSelectedObject();
-         Rectangle2D bounds = helper.getBounds(info);
-         /*
-         helper.writeSpinner(writer, bounds, getTextFormat(info), txt,
-            info.getZIndex(), info.getPixelSize());
-          */
+         Rectangle2D widgetBounds = writeInputLabel(info);
+
+         if(widgetBounds != null && isZeroSize(widgetBounds))
+         {
+            return;
+         }
+
+         Rectangle2D bounds = widgetBounds != null ? widgetBounds : helper.getBounds(info);
 
          fmt.getDefaultFormat().setBorders(new Insets(1, 1, 1, 1));
          fmt.getDefaultFormat().setBorderColors(
@@ -356,8 +453,20 @@ public class HTMLVSExporter extends AbstractVSExporter {
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();
 
       if(info != null) {
-         ComboBoxVSAssemblyInfo cinfo = (ComboBoxVSAssemblyInfo)info;
-         helper.writeComboBox(writer, cinfo);
+         ComboBoxVSAssemblyInfo cinfo = (ComboBoxVSAssemblyInfo) info;
+         Rectangle2D widgetBounds = writeInputLabel(info);
+
+         if(widgetBounds != null && isZeroSize(widgetBounds))
+         {
+            return;
+         }
+
+         if(widgetBounds != null) {
+            helper.writeComboBox(writer, cinfo, widgetBounds);
+         }
+         else {
+            helper.writeComboBox(writer, cinfo);
+         }
       }
    }
 

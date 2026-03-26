@@ -239,7 +239,7 @@ public abstract class InputVSAssembly extends AbstractVSAssembly implements Bind
          return null;
       }
 
-      if(tname.startsWith("$(") && tname.endsWith(")")) {
+      if(tname.startsWith("$(")) {
          return tname.substring(2, tname.length() - 1);
       }
 
