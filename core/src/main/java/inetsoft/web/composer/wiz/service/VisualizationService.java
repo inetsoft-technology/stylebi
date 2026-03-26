@@ -252,8 +252,12 @@ public class VisualizationService {
    }
 
    private List<VisualizationDetailModel> buildChartDetails(ChartVSAssembly chart) {
-      VSChartInfo chartInfo = chart.getChartInfo().getVSChartInfo();
+      VSChartInfo chartInfo = chart.getVSChartInfo();
       List<VisualizationDetailModel> details = new ArrayList<>();
+
+      if(chartInfo == null) {
+         return details;
+      }
 
       addRefsDetail(details, "X Axis", chartInfo.getXFields());
       addRefsDetail(details, "Y Axis", chartInfo.getYFields());
@@ -284,8 +288,12 @@ public class VisualizationService {
    }
 
    private List<VisualizationDetailModel> buildCrosstabDetails(CrosstabVSAssembly ctab) {
-      VSCrosstabInfo crosstabInfo = ctab.getCrosstabInfo().getVSCrosstabInfo();
+      VSCrosstabInfo crosstabInfo = ctab.getVSCrosstabInfo();
       List<VisualizationDetailModel> details = new ArrayList<>();
+
+      if(crosstabInfo == null) {
+         return details;
+      }
 
       addRefsDetail(details, "Row Headers", (VSDataRef[]) crosstabInfo.getDesignRowHeaders());
       addRefsDetail(details, "Col Headers", (VSDataRef[]) crosstabInfo.getDesignColHeaders());
