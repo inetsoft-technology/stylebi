@@ -21,6 +21,7 @@ import inetsoft.report.internal.paging.PageGroup;
 import inetsoft.uql.table.XTableColumn;
 import inetsoft.uql.table.XTableFragment;
 import inetsoft.util.swap.*;
+import inetsoft.web.admin.monitoring.MonitorLevelService;
 import io.micrometer.core.instrument.*;
 import io.micrometer.core.instrument.binder.BaseUnits;
 import io.micrometer.core.instrument.binder.MeterBinder;
@@ -32,7 +33,11 @@ import org.springframework.stereotype.Component;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
-public class CacheMeterService implements XSwappableMonitor, MeterBinder {
+public class CacheMeterService extends MonitorLevelService implements XSwappableMonitor, MeterBinder {
+   public CacheMeterService() {
+      super(LOW_ATTRS, MED_ATTRS, HIGH_ATTRS);
+   }
+
    private Counter reportHits;
    private Counter reportMisses;
    private Counter reportRead;
@@ -231,8 +236,7 @@ public class CacheMeterService implements XSwappableMonitor, MeterBinder {
       }
    }
 
-   @Override
-   public boolean isLevelQualified(String attr) {
-      return true;
-   }
+   private static final String[] HIGH_ATTRS = { HITS, MISSES };
+   private static final String[] MED_ATTRS = { READ, WRITTEN };
+   private static final String[] LOW_ATTRS = { TYPE, LOCATION, COUNT };
 }
