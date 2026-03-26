@@ -573,7 +573,7 @@ public class PhysicalModelManagerService {
       }
 
       repository.updateDataModel(dataModel);
-      String path = dataSource + "/" + name;
+      String path = isExtended ? dataSource + "/" + parent + "/" + name : dataSource + "/" + name;
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
                                         AssetEntry.Type.PARTITION, path, null);
       DependencyHandler.getInstance().deleteDependencies(entry);
