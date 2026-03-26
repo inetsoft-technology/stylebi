@@ -855,7 +855,8 @@ public class UserTreeService {
     * Create a new user
     */
    public EditOrganizationPaneModel createOrganization(String copyFromOrgID, String providerName,
-                                                       String orgName, String orgID, Principal principal)
+                                                       String orgName, String orgID, Principal principal,
+                                                       String defaultPassword)
    {
       ActionRecord actionRecord = SUtil.getActionRecord(
          principal, ActionRecord.ACTION_NAME_CREATE, null,
@@ -905,6 +906,18 @@ public class UserTreeService {
          fireCreateOrganizationEvent(EditOrganizationEvent.STARTED, copyFromOrgID, newOrgId, principal);
 
          if(copyFromOrgID != null && !Tool.isEmptyString(copyFromOrgID)) {
+            if(Tool.isEmptyString(defaultPassword)) {
+               throw new MessageException(Catalog.getCatalog().getString("em.cloneOrg.passwordRequired"));
+            }
+
+            try {
+               IdentityService.validatePasswordStrength(defaultPassword);
+            }
+            catch(MessageException e) {
+               throw new MessageException(
+                  Catalog.getCatalog().getString("em.cloneOrg.passwordInvalid"));
+            }
+
             Organization fromOrg = provider.getOrganization(copyFromOrgID);
             List<IdentityID> userList = Arrays.stream(provider.getUsers()).filter(user ->
                user.getOrgID().equals(copyFromOrgID)).collect(Collectors.toList());
@@ -917,7 +930,7 @@ public class UserTreeService {
                   catalog.getString("em.namedUsers.exceeded", userCount, namedUserCount));
             }
 
-            editProvider.copyOrganization(fromOrg, newOrgKey.orgID, identityService, themeService, principal, false);
+            editProvider.copyOrganization(fromOrg, newOrgKey.orgID, identityService, themeService, principal, false, defaultPassword);
             identity = (FSOrganization) editProvider.getOrganization(newOrgKey.orgID);
          }
          else {

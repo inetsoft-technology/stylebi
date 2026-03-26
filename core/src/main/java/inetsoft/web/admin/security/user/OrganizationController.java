@@ -53,12 +53,13 @@ public class OrganizationController {
                                        @RequestBody CreateEntityRequest createRequest)
    {
       String copyFromOrgID = createRequest.parentGroup();
+      String defaultPassword = createRequest.defaultPassword();
 
       if(copyFromOrgID != null && !Tool.isEmptyString(copyFromOrgID)) {
-         return userTreeService.createOrganization(copyFromOrgID, provider, null, null, principal);
+         return userTreeService.createOrganization(copyFromOrgID, provider, null, null, principal, defaultPassword);
       }
       else {
-         return userTreeService.createOrganization(null, provider, null, null, principal);
+         return userTreeService.createOrganization(null, provider, null, null, principal, null);
       }
    }
 
