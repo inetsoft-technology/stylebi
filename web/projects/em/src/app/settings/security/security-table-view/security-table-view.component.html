@@ -63,7 +63,7 @@
     </button>
     <button mat-stroked-button
             *ngIf="showCopyPaste && copyPasteContext"
-            [disabled]="!dataSource?.length"
+            [disabled]="!dataSource?.length || !editable"
             (click)="copyIdentities()">_#(js:em.security.copyIdentities)
     </button>
     <button mat-stroked-button
