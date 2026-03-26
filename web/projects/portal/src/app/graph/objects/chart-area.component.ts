@@ -1401,6 +1401,13 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
    }
 
    axisLoading(areaName: string): void {
+      if(this._axisLoaded) {
+         // Starting a new load cycle — stale entries from the previous cycle (e.g. from an
+         // axis that was removed by Angular's *ngFor diffing without firing axisLoaded) are
+         // no longer valid. Clear them so the new cycle has a clean baseline. (Bug #74260)
+         this._loadingAxesSet.clear();
+      }
+
       this._loadingAxesSet.add(areaName);
       this._axisLoaded = false;
       this.fireLoading();
@@ -1408,10 +1415,21 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
 
    public axisLoaded(success: boolean, areaName: string) {
       this.imageError = !success;
-      this._loadingAxesSet.delete(areaName);
-      if(this._loadingAxesSet.size === 0) {
+
+      if(areaName === "") {
+         // Sentinel call from vs-chart when there are no axis tiles to load. Forcibly
+         // reset the set so stale entries from a previous cycle don't block fireLoaded.
+         this._loadingAxesSet.clear();
          this._axisLoaded = true;
       }
+      else {
+         this._loadingAxesSet.delete(areaName);
+
+         if(this._loadingAxesSet.size === 0) {
+            this._axisLoaded = true;
+         }
+      }
+
       this.fireLoaded();
    }
 
