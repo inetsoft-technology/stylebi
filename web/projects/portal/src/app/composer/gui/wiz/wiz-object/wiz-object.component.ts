@@ -27,4 +27,5 @@ import { VSObjectModel } from "../../../../vsobjects/model/vs-object-model";
 export class WizObject {
    @Input() vsObject: VSObjectModel;
    @Input() viewsheet: Viewsheet;
+   @Input() container: Element;
 }

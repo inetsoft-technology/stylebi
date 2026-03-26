@@ -18,6 +18,11 @@
 
 package inetsoft.web.wiz;
 
+import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.*;
+
+import java.awt.*;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
@@ -38,6 +43,63 @@ public class WizUtil {
       }
 
       return decodedId;
+   }
+
+   /**
+    * Applies max mode state to the primary assembly of a viewsheet without refreshing.
+    * The caller is responsible for triggering a viewsheet refresh afterward.
+    *
+    * @param vs      the viewsheet.
+    * @param maxSize the max mode dimensions.
+    */
+   public static void prepareMaxMode(Viewsheet vs, Dimension maxSize) {
+      if(vs == null || vs.getWizInfo() == null || !vs.getWizInfo().isWizVisualization() ||
+         maxSize == null)
+      {
+         return;
+      }
+
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(!(assembly instanceof VSAssembly vsAssembly)) {
+            return;
+         }
+
+         VSAssemblyInfo info = vsAssembly.getVSAssemblyInfo();
+
+         if(info instanceof ChartVSAssemblyInfo chartInfo) {
+            chartInfo.setMaxSize(maxSize);
+            return;
+         }
+         else if(info instanceof TableDataVSAssemblyInfo tableInfo) {
+            tableInfo.setMaxSize(maxSize);
+            return;
+         }
+
+         vs.setMaxMode(true);
+         setMaxModeZIndex(vs, info, maxSize);
+      }
+   }
+
+   private static void setMaxModeZIndex(Viewsheet vs, VSAssemblyInfo info, Dimension maxSize) {
+      if(maxSize == null) {
+         return;
+      }
+
+      Assembly[] assemblies = vs.getAssemblies(true, true);
+
+      if(assemblies == null || assemblies.length == 0) {
+         return;
+      }
+
+      VSAssembly top = (VSAssembly) assemblies[assemblies.length - 1];
+      int zIndex = top.getVSAssemblyInfo().getZIndex() + 1;
+
+      if(info instanceof ChartVSAssemblyInfo chartInfo) {
+         chartInfo.setMaxModeZIndex(zIndex);
+      }
+      else if(info instanceof TableDataVSAssemblyInfo tableInfo) {
+         tableInfo.setMaxModeZIndex(zIndex);
+      }
    }
 
    public static final String ANNOTATION_RAW_DATA_MAX_ROW = "annotation.rawdata.maxrow";

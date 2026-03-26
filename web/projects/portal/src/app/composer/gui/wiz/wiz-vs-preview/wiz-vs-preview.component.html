@@ -19,7 +19,7 @@
   <div class="wiz-vs-preview-container split bb-gray">
     <div class="wiz-vs-canvas" wInteractContainer #wizCanvas>
       <ng-container *ngFor="let object of vsObjects; trackBy: trackByFn">
-        <wiz-object [vsObject]="object" [viewsheet]="viewsheet"></wiz-object>
+        <wiz-object [vsObject]="object" [viewsheet]="viewsheet" [container]="wizCanvas"></wiz-object>
       </ng-container>
     </div>
   </div>

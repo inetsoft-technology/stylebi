@@ -185,6 +185,11 @@ export class OpenViewsheetEvent implements ViewsheetEvent {
    public wizSheetRuntimeId: string;
 
    /**
+    * The max mode size for the primary assembly in wiz visualization.
+    */
+   public maxModeSize: Dimension = null;
+
+   /**
     * Creates a new instance of <tt>OpenViewsheetEvent</tt>.
     *
     * @param entryId   the asset entry identifier of the viewsheet.

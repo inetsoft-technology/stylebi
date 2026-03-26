@@ -31,6 +31,7 @@ export class VSRefreshEvent {
    private name?: string = "";
    private confirmed: boolean = false;
    private embedAssemblySize: Dimension = null;
+   private maxModeSize: Dimension = null;
 
    public setTableMetaData(value: boolean) {
       this.tableMetaData = value;
@@ -82,5 +83,9 @@ export class VSRefreshEvent {
 
    public setEmbedAssemblySize(value: Dimension) {
       this.embedAssemblySize = value;
+   }
+
+   public setMaxModeSize(value: Dimension) {
+      this.maxModeSize = value;
    }
 }

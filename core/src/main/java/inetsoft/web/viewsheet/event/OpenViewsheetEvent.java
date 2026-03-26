@@ -548,4 +548,13 @@ public class OpenViewsheetEvent implements Serializable {
    private String visualizationSheet;
    private String wizSheetRuntimeId;
    private boolean standaloneVisualization;
+   private Dimension maxModeSize;
+
+   public Dimension getMaxModeSize() {
+      return maxModeSize;
+   }
+
+   public void setMaxModeSize(Dimension maxModeSize) {
+      this.maxModeSize = maxModeSize;
+   }
 }

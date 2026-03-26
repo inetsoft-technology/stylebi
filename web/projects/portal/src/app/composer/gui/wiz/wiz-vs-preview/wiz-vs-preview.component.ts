@@ -44,14 +44,23 @@ export class WizVsPreview implements AfterViewInit, OnChanges, OnDestroy {
    private destroy$ = new Subject<void>();
    private resizeObserver: ResizeObserver;
    private resizeTimer: any;
+   private initialized = false;
 
    constructor(private http: HttpClient) {
    }
 
    ngAfterViewInit(): void {
       this.resizeObserver = new ResizeObserver(() => {
+         if(!this.initialized) {
+            this.initialized = true;
+            return;
+         }
+
          clearTimeout(this.resizeTimer);
-         this.resizeTimer = setTimeout(() => this.canvasResize.emit(), 200);
+
+         this.resizeTimer = setTimeout(() => {
+            this.canvasResize.emit();
+         }, 200);
       });
       this.resizeObserver.observe(this.canvasEl.nativeElement);
    }

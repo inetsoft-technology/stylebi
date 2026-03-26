@@ -17,9 +17,6 @@
  */
 package inetsoft.web.viewsheet.controller;
 
-import inetsoft.report.composition.ExpiredSheetException;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.uql.viewsheet.*;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.event.RefreshVSAssemblyEvent;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
@@ -55,9 +52,9 @@ public class VSRefreshController {
                                 CommandDispatcher commandDispatcher,
                                 @LinkUri String linkUri) throws Exception
    {
-      vsRefreshServiceProxy.refreshViewsheetAsync(this.runtimeViewsheetRef.getRuntimeId(),
-                                                  event, principal, commandDispatcher, linkUri);
-
+      String runtimeId = this.runtimeViewsheetRef.getRuntimeId();
+      vsRefreshServiceProxy.refreshViewsheetAsync(runtimeId, event, principal,
+                                                  commandDispatcher, linkUri);
    }
 
    @MessageMapping("/vs/refresh/assembly")
@@ -81,5 +78,5 @@ public class VSRefreshController {
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private VSRefreshServiceProxy vsRefreshServiceProxy;
+   private final VSRefreshServiceProxy vsRefreshServiceProxy;
 }

@@ -25,7 +25,7 @@
     <vs-calendar *ngIf="vsObject.objectType == 'VSCalendar'"
                  [vsInfo]="viewsheet" [model]="vsObject"></vs-calendar>
     <vs-chart *ngIf="vsObject.objectType == 'VSChart'"
-              [vsInfo]="viewsheet" [model]="vsObject"></vs-chart>
+              [vsInfo]="viewsheet" [model]="vsObject" [container]="container"></vs-chart>
     <vs-crosstab *ngIf="vsObject.objectType == 'VSCrosstab'"
                  [vsInfo]="viewsheet" [model]="vsObject"></vs-crosstab>
     <vs-gauge *ngIf="vsObject.objectType == 'VSGauge'"
