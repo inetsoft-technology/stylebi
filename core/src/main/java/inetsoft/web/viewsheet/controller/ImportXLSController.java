@@ -86,8 +86,9 @@ public class ImportXLSController {
       FileSystemService fileSystemService = FileSystemService.getInstance();
       File temp = fileSystemService.getCacheFile(runtimeId + "_" + type);
       fileSystemService.remove(temp, 120000);
-      FileOutputStream fileOutput = new FileOutputStream(temp);
-      fileOutput.write(file.getBytes());
+      try(FileOutputStream fileOutput = new FileOutputStream(temp)) {
+         fileOutput.write(file.getBytes());
+      }
    }
 
    /**
