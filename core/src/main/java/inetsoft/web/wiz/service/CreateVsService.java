@@ -135,6 +135,12 @@ public class CreateVsService {
          };
       }
 
+      if(vsAssembly != null && config != null && config.getDescription() != null &&
+         !config.getDescription().isEmpty())
+      {
+         vsAssembly.getVSAssemblyInfo().setDescription(config.getDescription());
+      }
+
       if(vsAssembly instanceof DataVSAssembly dataVSAssembly) {
          dataVSAssembly.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, tname));
       }

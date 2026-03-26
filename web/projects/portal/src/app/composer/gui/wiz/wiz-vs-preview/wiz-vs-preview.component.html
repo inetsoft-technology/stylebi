@@ -15,10 +15,15 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="wiz-vs-preview-container">
-  <div class="wiz-vs-canvas" wInteractContainer>
-    <ng-container *ngFor="let object of vsObjects; trackBy: trackByFn">
-      <wiz-object [vsObject]="object" [viewsheet]="viewsheet"></wiz-object>
-    </ng-container>
+<split-pane direction="vertical" [sizes]="[70, 30]" [minSize]="50" [snapOffset]="0" [gutterSize]="4">
+  <div class="wiz-vs-preview-container split bb-gray">
+    <div class="wiz-vs-canvas" wInteractContainer>
+      <ng-container *ngFor="let object of vsObjects; trackBy: trackByFn">
+        <wiz-object [vsObject]="object" [viewsheet]="viewsheet"></wiz-object>
+      </ng-container>
+    </div>
   </div>
-</div>
+  <div class="wiz-vs-description split">
+    <span>{{ description }}</span>
+  </div>
+</split-pane>
