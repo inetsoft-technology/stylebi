@@ -810,7 +810,9 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       const cellRight = (cellRect.right - listRect.left) / scale;
       this.renderer.setStyle(btn, "left", cellRight + "px");
       this.renderer.setStyle(btn, "right", "auto");
-      this.renderer.setStyle(listEl, "width", (listRect.width / scale + btnWidth) + "px");
+      const hostRect = (this.elementRef.nativeElement as Element).getBoundingClientRect();
+      const maxListWidthCss = hostRect.width / scale;
+      this.renderer.setStyle(listEl, "width", Math.min(listRect.width / scale + btnWidth, maxListWidthCss) + "px");
 
       if(bodyEl) {
          this.renderer.setStyle(bodyEl, "width", expandedBodyWidthCss + "px");
@@ -859,6 +861,13 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       this.renderer.removeStyle(btn, "left");
       // listRect/cellRect are viewport px; divide by scale to get CSS px for right offset.
       const dynamicRight = Math.max(0, Math.round((listRect.right - cellRect.right) / scale));
+      // In a VSSelectionContainer the scrollbar is anchored at right:0 (same as the button).
+      // Offset the button left by the scrollbar width so it doesn't cover the scrollbar.
+      const scrollbarAdjust = (this.showScroll && this.inContainer) ? this.scrollbarWidth : 0;
+      // Clamp list expansion to the host component width to prevent the button from bleeding
+      // into adjacent components.
+      const hostRect = (this.elementRef.nativeElement as Element).getBoundingClientRect();
+      const maxListWidthCss = hostRect.width / scale;
 
       // When the cell has measure content (bar/text), the measure area occupies the right side
       // of the cell. Position the button to the right of the entire cell to avoid overlap.
@@ -866,19 +875,19 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
 
       if(measureContentEl) {
          const cellRightCss = (cellRect.right - listRect.left) / scale;
-         const rightVal = dynamicRight - btnWidth;
+         const rightVal = dynamicRight + scrollbarAdjust - btnWidth;
 
          if(rightVal >= 0) {
             this.renderer.setStyle(btn, "right", rightVal + "px");
          } else {
-            this.renderer.setStyle(btn, "right", "0");
-            this.renderer.setStyle(listEl, "width", (cellRightCss + btnWidth) + "px");
+            this.renderer.setStyle(btn, "right", scrollbarAdjust + "px");
+            this.renderer.setStyle(listEl, "width", Math.min(cellRightCss + btnWidth, maxListWidthCss) + "px");
          }
 
          return;
       }
 
-      this.renderer.setStyle(btn, "right", dynamicRight + "px");
+      this.renderer.setStyle(btn, "right", (dynamicRight + scrollbarAdjust) + "px");
 
       // Use .selection-value (the text wrapper, flex: 0 1 auto), not .selection-list-cell-label
       // (a fixed-width container whose right edge always fills the cell regardless of text length).
@@ -891,10 +900,10 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
          const neededViewportWidth = textRight + btnWidth * scale;
 
          if(neededViewportWidth > listRect.width) {
-            this.renderer.setStyle(listEl, "width", neededViewportWidth / scale + "px");
+            this.renderer.setStyle(listEl, "width", Math.min(neededViewportWidth / scale, maxListWidthCss) + "px");
          }
       } else {
-         this.renderer.setStyle(listEl, "width", (listRect.width / scale + btnWidth) + "px");
+         this.renderer.setStyle(listEl, "width", Math.min(listRect.width / scale + btnWidth, maxListWidthCss) + "px");
       }
    }
 
