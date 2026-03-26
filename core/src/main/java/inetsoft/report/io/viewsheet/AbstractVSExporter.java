@@ -39,6 +39,7 @@ import inetsoft.report.gui.viewsheet.cylinder.VSCylinder;
 import inetsoft.report.gui.viewsheet.gauge.VSGauge;
 import inetsoft.report.gui.viewsheet.slidingscale.VSSlidingScale;
 import inetsoft.report.gui.viewsheet.thermometer.VSThermometer;
+import inetsoft.report.internal.Common;
 import inetsoft.report.internal.ParameterTool;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.TableHighlightAttr.HighlightTableLens;
@@ -3587,6 +3588,252 @@ public abstract class AbstractVSExporter implements VSExporter {
       }
 
       return ftype;
+   }
+
+   /**
+    * Get the coordinate helper for this exporter. Returns null by default;
+    * subclasses with a coordinate helper should override.
+    */
+   protected CoordinateHelper getHelper() {
+      return null;
+   }
+
+   /**
+    * Write an input assembly, rendering the label text and widget image
+    * at split bounds. Falls back to writePicture() when no label is visible.
+    * Subclasses must override writePicture() and may override this method
+    * for format-specific rendering (e.g. HTML).
+    */
+   protected void writeInputWithLabel(VSAssembly assembly) {
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+
+      if(info == null) {
+         return;
+      }
+
+      Rectangle2D widgetBounds = writeInputLabelText(info);
+
+      if(widgetBounds == null) {
+         writePicture(assembly);
+         return;
+      }
+
+      if(isZeroSize(widgetBounds)) {
+         return;
+      }
+
+      Dimension widgetSize = new Dimension(
+         (int) Math.round(widgetBounds.getWidth()),
+         (int) Math.round(widgetBounds.getHeight()));
+      BufferedImage img = getInputImage(assembly, widgetSize);
+
+      if(img != null) {
+         getHelper().drawImage(img, widgetBounds);
+      }
+      else {
+         LOG.warn("No image for input assembly: {}", assembly.getAbsoluteName());
+      }
+   }
+
+   /**
+    * Write an assembly as a picture. Subclasses should override.
+    */
+   protected void writePicture(VSAssembly assembly) {
+      // no-op, overridden in subclasses
+   }
+
+   /**
+    * Draw the input label and render the widget text at the split bounds.
+    * @return true if the label was drawn and widget text rendered, false otherwise.
+    */
+   protected boolean writeTextInputWithLabel(VSAssemblyInfo info, String txt) {
+      Rectangle2D widgetBounds = writeInputLabelText(info);
+
+      if(widgetBounds == null) {
+         return false;
+      }
+
+      if(isZeroSize(widgetBounds)) {
+         LOG.warn("Widget bounds too small for text input: {}", info.getAbsoluteName());
+         return true;
+      }
+
+      getHelper().drawTextBox(widgetBounds, widgetBounds, getTextFormat(info),
+         txt, null, info.getPadding(), false);
+      return true;
+   }
+
+   /**
+    * Draw the input label via the coordinate helper if visible.
+    * @return the widget-only bounds if a label was drawn, null otherwise.
+    * @see HTMLVSExporter#writeInputLabel — HTML variant using Writer
+    */
+   protected Rectangle2D writeInputLabelText(VSAssemblyInfo info) {
+      if(!hasVisibleLabel(info)) {
+         return null;
+      }
+
+      CoordinateHelper helper = getHelper();
+
+      if(helper == null) {
+         return null;
+      }
+
+      InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
+      LabelInfo labelInfo = inputInfo.getLabelInfo();
+      Rectangle2D fullBounds = helper.getBounds(info);
+
+      Rectangle2D[] bounds = splitInputBounds(fullBounds, labelInfo);
+      helper.drawTextBox(bounds[0], getLabelFormat(labelInfo),
+         labelInfo.getLabelText());
+
+      return bounds[1];
+   }
+
+   /**
+    * Check if an assembly has a visible, non-empty input label.
+    */
+   protected static boolean hasVisibleLabel(VSAssemblyInfo info) {
+      if(!(info instanceof InputVSAssemblyInfo)) {
+         return false;
+      }
+
+      LabelInfo labelInfo = ((InputVSAssemblyInfo) info).getLabelInfo();
+      return labelInfo != null && labelInfo.isLabelVisible() &&
+         labelInfo.getLabelText() != null && !labelInfo.getLabelText().isEmpty();
+   }
+
+   /**
+    * Check if bounds have zero or negative width/height.
+    */
+   protected static boolean isZeroSize(Rectangle2D bounds) {
+      return bounds.getWidth() <= 0 || bounds.getHeight() <= 0;
+   }
+
+   /**
+    * Get the font to use for rendering an input label.
+    */
+   protected static Font getLabelFont(LabelInfo labelInfo) {
+      VSCompositeFormat fmt = labelInfo.getLabelFormat();
+
+      if(fmt != null && fmt.getFont() != null) {
+         return fmt.getFont();
+      }
+
+      return GDefaults.DEFAULT_TEXT_FONT;
+   }
+
+   /**
+    * Get the label format, returning a default if null.
+    */
+   protected static VSCompositeFormat getLabelFormat(LabelInfo labelInfo) {
+      VSCompositeFormat fmt = labelInfo.getLabelFormat();
+      return fmt != null ? fmt : new VSCompositeFormat();
+   }
+
+   /**
+    * Split the full assembly bounds into label and widget regions.
+    * @return [labelBounds, widgetBounds]
+    */
+   protected static Rectangle2D[] splitInputBounds(Rectangle2D fullBounds,
+      LabelInfo labelInfo)
+   {
+      double x = fullBounds.getX();
+      double y = fullBounds.getY();
+      double fullW = fullBounds.getWidth();
+      double fullH = fullBounds.getHeight();
+
+      int[] dims = getLabelDimensions(labelInfo);
+      int labelW = dims[0];
+      int labelH = dims[1];
+      int gap = Math.max(0, labelInfo.getLabelGap());
+
+      Rectangle2D labelBounds;
+      Rectangle2D widgetBounds;
+
+      switch(labelInfo.getLabelPosition()) {
+      case LabelInfo.TOP:
+         labelBounds = new Rectangle2D.Double(x, y, fullW, labelH);
+         widgetBounds = new Rectangle2D.Double(x, y + labelH + gap, fullW,
+            Math.max(0, fullH - labelH - gap));
+         break;
+      case LabelInfo.BOTTOM:
+         labelBounds = new Rectangle2D.Double(x, y + fullH - labelH, fullW, labelH);
+         widgetBounds = new Rectangle2D.Double(x, y, fullW,
+            Math.max(0, fullH - labelH - gap));
+         break;
+      case LabelInfo.RIGHT:
+         labelBounds = new Rectangle2D.Double(x + fullW - labelW, y, labelW, fullH);
+         widgetBounds = new Rectangle2D.Double(x, y,
+            Math.max(0, fullW - labelW - gap), fullH);
+         break;
+      case LabelInfo.LEFT:
+      default:
+         labelBounds = new Rectangle2D.Double(x, y, labelW, fullH);
+         widgetBounds = new Rectangle2D.Double(x + labelW + gap, y,
+            Math.max(0, fullW - labelW - gap), fullH);
+         break;
+      }
+
+      return new Rectangle2D[] { labelBounds, widgetBounds };
+   }
+
+   /**
+    * Get [width, height] for the label, matching VsToReportConverter.addInputLabel().
+    */
+   private static int[] getLabelDimensions(LabelInfo labelInfo) {
+      Font font = getLabelFont(labelInfo);
+      int labelW = (int) Common.stringWidth(labelInfo.getLabelText(), font) + 6;
+      int labelH = AssetUtil.defh;
+      return new int[] { labelW, labelH };
+   }
+
+   /**
+    * Get image of an input assembly at a specific widget size,
+    * excluding the label area.
+    */
+   protected BufferedImage getInputImage(VSAssembly assembly,
+      Dimension widgetSize)
+   {
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+      Viewsheet vs = info.getViewsheet();
+      int type = assembly.getAssemblyType();
+      VSObject obj = null;
+
+      switch(type) {
+      case AbstractSheet.RADIOBUTTON_ASSET:
+         obj = new VSRadioButton(vs);
+         break;
+      case AbstractSheet.CHECKBOX_ASSET:
+         obj = new VSCheckBox(vs);
+         break;
+      case AbstractSheet.COMBOBOX_ASSET:
+         obj = new VSComboBox(vs);
+         break;
+      case AbstractSheet.SLIDER_ASSET:
+         obj = new VSSlider(vs);
+         break;
+      case AbstractSheet.SPINNER_ASSET:
+         obj = new VSSpinner(vs);
+         break;
+      default:
+         return null;
+      }
+
+      obj.setViewsheet(vs);
+      obj.setTheme(theme);
+      obj.setAssemblyInfo(info);
+      obj.setPixelSize(widgetSize);
+      // resetTimeSliderSize not needed: none of the above types are time sliders
+
+      if(obj instanceof VSFloatable) {
+         return (BufferedImage) ((VSFloatable) obj).getImage(true);
+      }
+      else if(obj instanceof VSCompound) {
+         return (BufferedImage) ((VSCompound) obj).getImage();
+      }
+
+      return null;
    }
 
    // viewsheet name --> map, map: insert row/column place --> insert number
