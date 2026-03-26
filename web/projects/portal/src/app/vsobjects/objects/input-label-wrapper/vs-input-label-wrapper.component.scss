@@ -17,6 +17,8 @@
  */
 :host {
   display: inline-block;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .vs-input-label-wrapper {
