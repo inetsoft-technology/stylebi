@@ -1447,7 +1447,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
 
       this.controller.selectionStateUpdated(value, state, toggle, toggleAll);
 
-      if(!this.model.submitOnChange && curr_singleSelection) {
+      if(!this.model.submitOnChange && (curr_singleSelection || toggle || toggleAll)) {
          this.updateSelectionValues();
       }
 
