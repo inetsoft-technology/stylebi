@@ -253,7 +253,9 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, Af
    }
 
    private getCanvasSize(): Dimension | null {
-      return GuiTool.getChartMaxModeSize(this.wizVsPreview?.canvasEl?.nativeElement);
+      const size = GuiTool.getChartMaxModeSize(this.wizVsPreview?.canvasEl?.nativeElement);
+
+      return (size && size.width > 0 && size.height > 0) ? size : null;
    }
 
    private processUpdateUndoStateCommand(command: UpdateUndoStateCommand): void {

@@ -54,29 +54,30 @@ public class WizUtil {
     */
    public static void prepareMaxMode(Viewsheet vs, Dimension maxSize) {
       if(vs == null || vs.getWizInfo() == null || !vs.getWizInfo().isWizVisualization() ||
-         maxSize == null)
+         maxSize == null || maxSize.width <= 0 || maxSize.height <= 0)
       {
          return;
       }
 
       for(Assembly assembly : vs.getAssemblies()) {
          if(!(assembly instanceof VSAssembly vsAssembly)) {
-            return;
+            continue;
          }
 
          VSAssemblyInfo info = vsAssembly.getVSAssemblyInfo();
 
          if(info instanceof ChartVSAssemblyInfo chartInfo) {
             chartInfo.setMaxSize(maxSize);
+            vs.setMaxMode(true);
+            setMaxModeZIndex(vs, info, maxSize);
             return;
          }
          else if(info instanceof TableDataVSAssemblyInfo tableInfo) {
             tableInfo.setMaxSize(maxSize);
+            vs.setMaxMode(true);
+            setMaxModeZIndex(vs, info, maxSize);
             return;
          }
-
-         vs.setMaxMode(true);
-         setMaxModeZIndex(vs, info, maxSize);
       }
    }
 

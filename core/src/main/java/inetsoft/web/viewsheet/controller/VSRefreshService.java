@@ -37,7 +37,6 @@ import inetsoft.util.audit.Audit;
 import inetsoft.util.audit.ExecutionRecord;
 import inetsoft.util.log.LogUtil;
 import inetsoft.web.binding.handler.VSChartDataHandler;
-import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.composer.vs.VSObjectTreeNode;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
@@ -47,6 +46,7 @@ import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.event.RefreshVSAssemblyEvent;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.wiz.WizUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -332,6 +332,7 @@ public class VSRefreshService {
 
    /**
     * Check if need refresh.
+    *
     * @return <tt>true</tt> if Refresh/unRefresh.
     */
    private boolean isShareFilterNeedRefresh(RuntimeViewsheet rvs) {
@@ -374,7 +375,9 @@ public class VSRefreshService {
 
    /**
     * Check if Embedded VS need refresh.
+    *
     * @param rvs runtime viewsheet
+    *
     * @return <tt>true</tt> if Refresh/unRefresh.
     */
    private boolean isEmbeddedVSNeedRefresh(RuntimeViewsheet rvs) throws Exception {
@@ -402,10 +405,12 @@ public class VSRefreshService {
 
    /**
     * Refresh the assembly and reset dependencies.
-    * @param rvs runtime viewsheet.
-    * @param assembly vs assembly.
+    *
+    * @param rvs        runtime viewsheet.
+    * @param assembly   vs assembly.
     * @param linkUri
     * @param dispatcher
+    *
     * @throws Exception
     */
    private void refreshAssemblyAndDependencies(RuntimeViewsheet rvs, VSAssembly assembly,
@@ -479,6 +484,7 @@ public class VSRefreshService {
 
    /**
     * Update the undo state.
+    *
     * @param rvs
     * @param dispatcher
     */
