@@ -68,18 +68,25 @@ public interface EditableAuthenticationProvider extends AuthenticationProvider {
                          IdentityThemeService themeService, Principal principal, boolean replace);
 
    /**
-    * copy one organization's details and save new Organization.
-    *
+    * copy one organization's details and save new Organization, using the given default password for cloned users.
     *
     * @param fromOrganization the organization to copy from.
     * @param newOrgName       the organization name of the newly created org
     * @param defaultPassword  the default password to assign to cloned users
+    *
+    * @implNote This default implementation throws {@link UnsupportedOperationException}.
+    *           Providers that extend {@link AbstractEditableAuthenticationProvider} inherit a correct
+    *           implementation automatically. Custom providers that implement this interface directly
+    *           <strong>must</strong> override this method; failing to do so will cause org-clone
+    *           requests to fail fast rather than silently assign incorrect passwords to cloned users.
     */
    default void copyOrganization(Organization fromOrganization, String newOrgName, IdentityService identityService,
                                   IdentityThemeService themeService, Principal principal, boolean replace,
                                   String defaultPassword)
    {
-      copyOrganization(fromOrganization, newOrgName, identityService, themeService, principal, replace);
+      throw new UnsupportedOperationException(
+         getClass().getName() + " does not implement copyOrganization with defaultPassword. " +
+         "Override this method or extend AbstractEditableAuthenticationProvider.");
    }
 
    /**
