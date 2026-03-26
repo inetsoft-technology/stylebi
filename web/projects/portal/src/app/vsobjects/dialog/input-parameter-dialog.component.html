@@ -55,7 +55,8 @@
           <div class="form-check">
             <input type="radio" name="source" class="form-check-input field_id" id="field"
                  (click)="changeValueSource('field')"
-                 [checked]="model.valueSource === 'field'">
+                 [checked]="model.valueSource === 'field'"
+                 [disabled]="!fields || fields.length === 0">
             <label class="form-check-label" for="field">
               _#(Field)
             </label>

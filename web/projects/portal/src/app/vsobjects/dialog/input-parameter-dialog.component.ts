@@ -95,13 +95,18 @@ export class InputParameterDialog implements OnInit {
    }
 
    ngOnInit() {
+      const hasFields = !!this.fields && this.fields.length > 0;
+
       if(!this.selectEdit) {
          this.model = {
             name: "",
             value: "",
-            valueSource: "field",
+            valueSource: hasFields ? "field" : "constant",
             type: XSchema.STRING
          };
+      }
+      else if(!hasFields && this.model.valueSource === "field") {
+         this.model.valueSource = "constant";
       }
 
       this.initForm();
