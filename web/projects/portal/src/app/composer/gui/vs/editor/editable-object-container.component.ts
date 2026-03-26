@@ -167,6 +167,7 @@ export class EditableObjectContainer extends AbstractActionComponent
    private shadowObj: any;
    private assemblySelectedTimer: any;
    private olineInfo: {startTop: number, startLeft: number, endTop: number, endLeft: number};
+   private containerBottomTabs = false;
 
    variableValuesFunction: (objName: string) => string[] =
       (objName: string) =>  this.getVariableValues(objName);
@@ -208,22 +209,22 @@ export class EditableObjectContainer extends AbstractActionComponent
 
       if(_vsObject) {
          let isInTab = false;
-         let containerBottomTabs = false;
+         this.containerBottomTabs = false;
 
          if(_vsObject.container) {
             const container = this.viewsheet.getAssembly(_vsObject.container);
             isInTab = container && container.objectType === "VSTab";
 
             if(container && container.objectType === "VSTab") {
-               containerBottomTabs = (container as VSTabModel).bottomTabs;
+               this.containerBottomTabs = (container as VSTabModel).bottomTabs;
             }
          }
 
          // Lock the edge that faces the tab bar: top edge in top-tabs mode, bottom edge in
          // bottom-tabs mode. Dropdowns also disable the bottom edge (title bar is the handle).
          const dropdown = (<any> _vsObject).dropdownCalendar || (<any> _vsObject).dropdown;
-         this.resizeTopEdge = (!isInTab || containerBottomTabs) && !dropdown;
-         this.resizeBottomEdge = !dropdown && !containerBottomTabs;
+         this.resizeTopEdge = (!isInTab || this.containerBottomTabs) && !dropdown;
+         this.resizeBottomEdge = !dropdown && !this.containerBottomTabs;
       }
 
       // if group removed (ungroup), children shouldn't be forced to interactable
@@ -294,6 +295,43 @@ export class EditableObjectContainer extends AbstractActionComponent
 
    get lineModel(): VSLineModel {
       return this.vsObject as VSLineModel;
+   }
+
+   getTopPosition(): number {
+      if(this.selectionChildModel) {
+         return 0;
+      }
+
+      const top = this.vsObject.objectFormat.top - this.selectionBorderOffset;
+
+      if(this.containerBottomTabs && this.vsObject.objectType === "VSCalendar") {
+         const obj = this.vsObject as any;
+
+         if(obj.dropdownCalendar) {
+            const titleExcess = obj.titleFormat.height - this.vsObject.objectFormat.height
+               + this.selectionBorderOffset;
+
+            if(obj.calendarsShown) {
+               return top - VSUtil.CALENDAR_BODY_HEIGHT - titleExcess;
+            }
+
+            return top - titleExcess;
+         }
+      }
+
+      return top;
+   }
+
+   getMinHeight(): number {
+      if(this.containerBottomTabs && this.vsObject.objectType === "VSCalendar") {
+         const obj = this.vsObject as any;
+
+         if(obj.dropdownCalendar && obj.calendarsShown) {
+            return this.vsObject.objectFormat.height + VSUtil.CALENDAR_BODY_HEIGHT;
+         }
+      }
+
+      return this.vsObject.objectFormat.height;
    }
 
    get searchDisplayed(): boolean {
