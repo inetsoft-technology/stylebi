@@ -170,6 +170,8 @@ export class VSChart extends AbstractVSObject<VSChartModel>
    private resizeSubscription: Subscription;
    private lastClick: {clientX: number, clientY: number} = null;
    private chartAreasRetryTimer: any = null;
+   private chartAreasRetryCount: number = 0;
+   private readonly MAX_CHART_AREAS_RETRIES = 5;
    private subscriptions = Subscription.EMPTY;
    private isIE: boolean = GuiTool.isIE();
    private isIFrame: boolean = GuiTool.isIFrame();
@@ -1072,6 +1074,8 @@ export class VSChart extends AbstractVSObject<VSChartModel>
          this.chartAreasRetryTimer = null;
       }
 
+      this.chartAreasRetryCount = 0;
+
       if(this.chartLoading) {
          this.noChartData = this.emptyChart || this.model.noData;
          this.chartLoading = false;
@@ -1139,18 +1143,25 @@ export class VSChart extends AbstractVSObject<VSChartModel>
          // Server graph computation was not yet complete (e.g. cancelled by concurrent VS
          // operations during rapid enlarge → actual size transition). Schedule a retry so
          // the loading state is not permanently stuck if no further model update arrives.
-         if(this.chartAreasRetryTimer) {
-            clearTimeout(this.chartAreasRetryTimer);
+         if(this.chartAreasRetryCount >= this.MAX_CHART_AREAS_RETRIES) {
+            this.clearChartLoading();
          }
+         else {
+            this.chartAreasRetryCount++;
 
-         this.chartAreasRetryTimer = setTimeout(() => {
-            this.chartAreasRetryTimer = null;
-
-            if(this.chartLoading) {
-               const event = new VSChartEvent(this.model, this.model.maxMode, this.container);
-               this.viewsheetClient.sendEvent(CHART_AREAS_URI, event);
+            if(this.chartAreasRetryTimer) {
+               clearTimeout(this.chartAreasRetryTimer);
             }
-         }, 1000);
+
+            this.chartAreasRetryTimer = setTimeout(() => {
+               this.chartAreasRetryTimer = null;
+
+               if(this.chartLoading) {
+                  const event = new VSChartEvent(this.model, this.model.maxMode, this.container);
+                  this.viewsheetClient.sendEvent(CHART_AREAS_URI, event);
+               }
+            }, 1000);
+         }
       }
 
       if(this.mobileDevice) {
