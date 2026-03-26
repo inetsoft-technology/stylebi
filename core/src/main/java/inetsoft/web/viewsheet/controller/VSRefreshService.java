@@ -37,6 +37,7 @@ import inetsoft.util.audit.Audit;
 import inetsoft.util.audit.ExecutionRecord;
 import inetsoft.util.log.LogUtil;
 import inetsoft.web.binding.handler.VSChartDataHandler;
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.composer.vs.VSObjectTreeNode;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
@@ -174,7 +175,7 @@ public class VSRefreshService {
       try {
          refreshViewsheet(rvs, bookmarkName, bookmarkUser, initing, checkShareFilter,
                           tableMetaData, confirmed, userRefresh, resizing, width, height,
-                          variables, principal, commandDispatcher, linkUri);
+                          variables, principal, commandDispatcher, linkUri, event.maxModeSize());
          execTimestamp = new Date(System.currentTimeMillis());
          executionRecord.setExecTimestamp(execTimestamp);
          executionRecord.setExecStatus(ExecutionRecord.EXEC_STATUS_SUCCESS);
@@ -212,7 +213,7 @@ public class VSRefreshService {
                                  boolean confirmed, boolean userRefresh, boolean resizing,
                                  int width, int height, VariableTable variables,
                                  Principal principal, CommandDispatcher commandDispatcher,
-                                 String linkUri)
+                                 String linkUri, Dimension wizMaxModeSize)
       throws Exception
    {
       vsBookmarkService.processBookmark(rvs.getID(), rvs, linkUri, principal, bookmarkName,
@@ -265,6 +266,10 @@ public class VSRefreshService {
          // being refreshed so we can prevent these errors from being
          // propogated to the end users.
          box.get().setRefreshing(true);
+
+         if(wizMaxModeSize != null) {
+            WizUtil.prepareMaxMode(box.get().getViewsheet(), wizMaxModeSize);
+         }
 
          String maxModeChart = null;
          Dimension maxModeSize = null;

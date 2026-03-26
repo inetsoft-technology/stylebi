@@ -80,6 +80,8 @@ public abstract class VSRefreshEvent implements ViewsheetEvent {
 
    public abstract @Nullable Dimension embedAssemblySize();
 
+   public abstract @Nullable Dimension maxModeSize();
+
    public static Builder builder() {
       return new Builder();
    }
