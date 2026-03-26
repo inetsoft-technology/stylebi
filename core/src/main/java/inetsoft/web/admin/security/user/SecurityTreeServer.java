@@ -62,9 +62,13 @@ public class SecurityTreeServer {
    {
       boolean isMultiTenant = SUtil.isMultiTenant();
       securityProvider = securityEngine.getSecurityProvider();
-      final AuthenticationProvider provider = providerName == null ?
+      AuthenticationProvider provider = providerName == null ?
          securityProvider.getAuthenticationProvider() :
          authenticationProviderService.getProviderByName(providerName);
+
+      if(provider == null) {
+         provider = securityProvider.getAuthenticationProvider();
+      }
       boolean editable = providerName == null || provider instanceof EditableAuthenticationProvider;
 
       try {
