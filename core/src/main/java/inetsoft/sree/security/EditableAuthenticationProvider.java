@@ -68,6 +68,21 @@ public interface EditableAuthenticationProvider extends AuthenticationProvider {
                          IdentityThemeService themeService, Principal principal, boolean replace);
 
    /**
+    * copy one organization's details and save new Organization.
+    *
+    *
+    * @param fromOrganization the organization to copy from.
+    * @param newOrgName       the organization name of the newly created org
+    * @param defaultPassword  the default password to assign to cloned users
+    */
+   default void copyOrganization(Organization fromOrganization, String newOrgName, IdentityService identityService,
+                                  IdentityThemeService themeService, Principal principal, boolean replace,
+                                  String defaultPassword)
+   {
+      copyOrganization(fromOrganization, newOrgName, identityService, themeService, principal, replace);
+   }
+
+   /**
     * copy one organization's details and save new Organization
     *
     * @param fromOrganization the organization to copy from.
