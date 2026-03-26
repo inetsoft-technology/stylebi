@@ -135,7 +135,9 @@ public class CreateVsService {
          };
       }
 
-      if(config != null && config.getDescription() != null && !config.getDescription().isEmpty()) {
+      if(vsAssembly != null && config != null && config.getDescription() != null &&
+         !config.getDescription().isEmpty())
+      {
          vsAssembly.getVSAssemblyInfo().setDescription(config.getDescription());
       }
 
