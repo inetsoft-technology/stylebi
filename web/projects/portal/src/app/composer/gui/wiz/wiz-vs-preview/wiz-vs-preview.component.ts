@@ -18,7 +18,8 @@
 
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, Input, OnChanges, OnDestroy, SimpleChanges } from "@angular/core";
-import { Subject, takeUntil } from "rxjs";
+import { Subject } from "rxjs";
+import { takeUntil } from "rxjs/operators";
 import { VSObjectModel } from "../../../../vsobjects/model/vs-object-model";
 import { Viewsheet } from "../../../data/vs/viewsheet";
 
