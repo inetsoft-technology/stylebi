@@ -24,6 +24,49 @@
     </div>
   </div>
   <div class="wiz-vs-description split">
-    <span>{{ description }}</span>
+    <ul class="nav nav-tabs wiz-vs-description-tabs">
+      <li class="nav-item">
+        <a class="nav-link" [class.active]="selectedTab === 0"
+           title="Visualization Binding Details"
+           (click)="selectedTab = 0">
+          <i class="chart-bar-icon icon-size-small"></i>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" [class.active]="selectedTab === 1"
+           title="Worksheet Details"
+           (click)="selectedTab = 1">
+          <i class="database-icon icon-size-small"></i>
+        </a>
+      </li>
+    </ul>
+    <div class="wiz-vs-description-content">
+      <ng-container *ngIf="selectedTab === 0">
+        <ng-container *ngIf="bindingDetails.length > 0; else rawDescription">
+          <div class="wiz-detail-grid">
+            <div *ngFor="let item of bindingDetails" class="wiz-detail-item">
+              <span *ngIf="item.label" class="wiz-detail-label">{{ item.label }}:</span>
+              <span class="wiz-detail-value">{{ item.value }}</span>
+            </div>
+          </div>
+        </ng-container>
+        <ng-template #rawDescription>
+          <span class="wiz-detail-empty">_#(No binding details available)</span>
+        </ng-template>
+      </ng-container>
+      <ng-container *ngIf="selectedTab === 1">
+        <ng-container *ngIf="worksheetDetails.length > 0; else noWorksheetDetails">
+          <div class="wiz-detail-grid">
+            <div *ngFor="let item of worksheetDetails" class="wiz-detail-item">
+              <span class="wiz-detail-label">{{ item.label }}:</span>
+              <span class="wiz-detail-value">{{ item.value }}</span>
+            </div>
+          </div>
+        </ng-container>
+        <ng-template #noWorksheetDetails>
+          <span class="wiz-detail-empty">_#(No worksheet details available)</span>
+        </ng-template>
+      </ng-container>
+    </div>
   </div>
 </split-pane>
