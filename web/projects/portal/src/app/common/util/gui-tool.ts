@@ -333,7 +333,7 @@ export class GuiTool {
       return result;
    }
 
-   private static getElementClientRect(element: any): {top: number, left: number, bottom: number, right: number, width: number, height: number} {
+   public static getElementClientRect(element: any): {top: number, left: number, bottom: number, right: number, width: number, height: number} {
       let clientRect;
 
       if(element instanceof window.SVGElement) {

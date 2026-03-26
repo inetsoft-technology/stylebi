@@ -19,7 +19,7 @@
            [snapOffset]="0" [gutterSize]="4">
   <!-- Left: Viewsheet object preview -->
   <div class="wiz-preview-panel split bordered-box">
-    <wiz-vs-preview [viewsheet]="currentVisualization"></wiz-vs-preview>
+    <wiz-vs-preview [viewsheet]="currentVisualization" (canvasResize)="onCanvasResize()"></wiz-vs-preview>
   </div>
 
   <!-- Right: AI dialog placeholder (web component will be embedded here) -->

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Input } from "@angular/core";
+import { AfterViewInit, Component, ElementRef, EventEmitter, Input, OnDestroy, Output, ViewChild } from "@angular/core";
 import { Viewsheet } from "../../../data/vs/viewsheet";
 import { VSObjectModel } from "../../../../vsobjects/model/vs-object-model";
 
@@ -24,8 +24,26 @@ import { VSObjectModel } from "../../../../vsobjects/model/vs-object-model";
    templateUrl: "./wiz-vs-preview.component.html",
    styleUrls: ["./wiz-vs-preview.component.scss"]
 })
-export class WizVsPreview {
+export class WizVsPreview implements AfterViewInit, OnDestroy {
    @Input() viewsheet: Viewsheet;
+   @ViewChild("wizCanvas") canvasEl: ElementRef;
+   @Output() canvasResize = new EventEmitter<void>();
+
+   private resizeObserver: ResizeObserver;
+   private resizeTimer: any;
+
+   ngAfterViewInit(): void {
+      this.resizeObserver = new ResizeObserver(() => {
+         clearTimeout(this.resizeTimer);
+         this.resizeTimer = setTimeout(() => this.canvasResize.emit(), 200);
+      });
+      this.resizeObserver.observe(this.canvasEl.nativeElement);
+   }
+
+   ngOnDestroy(): void {
+      this.resizeObserver?.disconnect();
+      clearTimeout(this.resizeTimer);
+   }
 
    get vsObjects(): VSObjectModel[] {
       return this.viewsheet?.vsObjects ?? [];
