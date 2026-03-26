@@ -15,11 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Injector, Input, NgZone, OnDestroy, OnInit } from "@angular/core";
+import { Component, Injector, Input, NgZone, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
 import { WizPortalService } from "../../../../../../../shared/wiz-portal/wiz-portal.service";
 import { BindingTreeService } from "../../../../binding/widget/binding-tree/binding-tree.service";
+import { Dimension } from "../../../../common/data/dimension";
 import { DndService } from "../../../../common/dnd/dnd.service";
 import { VSDndService } from "../../../../common/dnd/vs-dnd.service";
 import { UIContextService } from "../../../../common/services/ui-context.service";
@@ -59,6 +60,11 @@ import { TouchAssetEvent } from "../../ws/socket/touch-asset-event";
 import { GuiTool } from "../../../../common/util/gui-tool";
 import { SetViewsheetInfoCommand } from "../../../../vsobjects/command/set-viewsheet-info-command";
 import { WizService } from "../services/wiz.service";
+import { WizVsPreview } from "../wiz-vs-preview/wiz-vs-preview.component";
+import { VSChartModel } from "../../../../vsobjects/model/vs-chart-model";
+import { VSChartEvent } from "../../../../vsobjects/event/vs-chart-event";
+import { BaseTableModel } from "../../../../vsobjects/model/base-table-model";
+import { MaxTableEvent } from "../../../../vsobjects/event/table/max-table-event";
 
 @Component({
    selector: "wiz-visualization-pane",
@@ -101,12 +107,13 @@ import { WizService } from "../services/wiz.service";
 })
 export class WizVisualizationPane extends CommandProcessor implements OnInit, OnDestroy {
    @Input() currentVisualization: WizDashboard;
+   @ViewChild(WizVsPreview) private wizVsPreview: WizVsPreview;
    initError: string = null;
    private connected: boolean = false;
    private heartbeatSubscription: Subscription = Subscription.EMPTY;
 
    constructor(private viewsheetClient: ViewsheetClientService, zone: NgZone,
-               private wizService: WizService, public wizPortalService: WizPortalService)
+               public wizPortalService: WizPortalService)
    {
       super(viewsheetClient, zone, true);
    }
@@ -201,6 +208,7 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
       for(let i = 0; i < this.currentVisualization.vsObjects.length; i++) {
          if(this.currentVisualization.vsObjects[i].absoluteName === command.name) {
             this.replaceObject(command.model, i);
+            this.toggleAssemblyMaxMode(command.model);
             return;
          }
       }
@@ -218,6 +226,8 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
             this.currentVisualization.selectAssembly(vsObject);
          }
       });
+
+      this.toggleAssemblyMaxMode(command.model);
    }
 
    private processRemoveVSObjectCommand(command: RemoveVSObjectCommand): void {
@@ -230,6 +240,35 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
 
    private processRefreshVSObjectCommand(command: RefreshVSObjectCommand): void {
       this.refreshVSObject(command.info);
+      this.toggleAssemblyMaxMode(command.info);
+   }
+
+   onCanvasResize(): void {
+      for(const obj of this.currentVisualization?.vsObjects ?? []) {
+         if((obj as any).maxMode) {
+            this.sendMaxModeEvent(obj);
+         }
+      }
+   }
+
+   private toggleAssemblyMaxMode(model: VSObjectModel): void {
+      if(!(model as any).maxMode) {
+         setTimeout(() => this.sendMaxModeEvent(model), 100);
+      }
+   }
+
+   private sendMaxModeEvent(model: VSObjectModel): void {
+      const canvasEl = this.wizVsPreview?.canvasEl?.nativeElement;
+      const { height, width} = GuiTool.getElementClientRect(canvasEl);
+
+      if(model.objectType === "VSChart") {
+         this.viewsheetClient.sendEvent("/events/vschart/toggle-max-mode",
+            new VSChartEvent(model as VSChartModel, true, null, new Dimension(width, height)));
+      }
+      else if(model.objectType === "VSTable" || model.objectType === "VSCrosstab") {
+         this.viewsheetClient.sendEvent("/events/vstable/toggle-max-mode",
+            new MaxTableEvent(model as any as BaseTableModel, true, null, width, height));
+      }
    }
 
    private processUpdateUndoStateCommand(command: UpdateUndoStateCommand): void {

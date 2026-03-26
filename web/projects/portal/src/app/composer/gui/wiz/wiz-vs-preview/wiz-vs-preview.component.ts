@@ -17,7 +17,7 @@
  */
 
 import { HttpClient, HttpParams } from "@angular/common/http";
-import { Component, Input, OnChanges, OnDestroy, SimpleChanges } from "@angular/core";
+import { AfterViewInit, Component, ElementRef, EventEmitter, Input, OnChanges, OnDestroy, Output, SimpleChanges, ViewChild } from "@angular/core";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { VSObjectModel } from "../../../../vsobjects/model/vs-object-model";
@@ -33,15 +33,27 @@ export interface DetailItem {
    templateUrl: "./wiz-vs-preview.component.html",
    styleUrls: ["./wiz-vs-preview.component.scss"]
 })
-export class WizVsPreview implements OnChanges, OnDestroy {
+export class WizVsPreview implements AfterViewInit, OnChanges, OnDestroy {
    @Input() viewsheet: Viewsheet;
+   @ViewChild("wizCanvas") canvasEl: ElementRef;
+   @Output() canvasResize = new EventEmitter<void>();
    selectedTab = 0;
    bindingDetails: DetailItem[] = [];
    worksheetDetails: DetailItem[] = [];
 
    private destroy$ = new Subject<void>();
+   private resizeObserver: ResizeObserver;
+   private resizeTimer: any;
 
    constructor(private http: HttpClient) {
+   }
+
+   ngAfterViewInit(): void {
+      this.resizeObserver = new ResizeObserver(() => {
+         clearTimeout(this.resizeTimer);
+         this.resizeTimer = setTimeout(() => this.canvasResize.emit(), 200);
+      });
+      this.resizeObserver.observe(this.canvasEl.nativeElement);
    }
 
    ngOnChanges(changes: SimpleChanges): void {
@@ -53,6 +65,8 @@ export class WizVsPreview implements OnChanges, OnDestroy {
    ngOnDestroy(): void {
       this.destroy$.next();
       this.destroy$.complete();
+      this.resizeObserver?.disconnect();
+      clearTimeout(this.resizeTimer);
    }
 
    get vsObjects(): VSObjectModel[] {
