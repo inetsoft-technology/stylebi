@@ -132,11 +132,20 @@ public class ScheduleTaskChangeController {
    }
 
    private boolean shouldHandleReceivedMessage(String taskID) {
+      return shouldHandleReceivedMessage(taskID, null);
+   }
+
+   private boolean shouldHandleReceivedMessage(String taskID, ScheduleTask task) {
       if(taskID == null) {
          return false;
       }
 
       IdentityID owner = SUtil.getTaskOwner(taskID);
+
+      if(owner == null && task != null) {
+         owner = task.getOwner();
+      }
+
       String taskOrgID = owner == null ?
          OrganizationManager.getInstance().getCurrentOrgID() : owner.getOrgID();
 
@@ -151,7 +160,7 @@ public class ScheduleTaskChangeController {
       ScheduleTask task = message.getTask();
       String taskId = task == null ? null : task.getTaskId();
 
-      if(!shouldHandleReceivedMessage(taskId)) {
+      if(!shouldHandleReceivedMessage(taskId, task)) {
          return;
       }
 
@@ -231,7 +240,7 @@ public class ScheduleTaskChangeController {
          taskID = message.getTaskName();
       }
 
-      if(!shouldHandleReceivedMessage(taskID)) {
+      if(!shouldHandleReceivedMessage(taskID, task)) {
          return;
       }
 
