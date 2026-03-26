@@ -565,8 +565,13 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
 
                if(alertSandboxVars != null && alertBookmarkVs != null) {
                   for(Assembly assembly : alertBookmarkVs.getAssemblies()) {
-                     if(assembly instanceof InputVSAssembly) {
+                     if(assembly instanceof InputVSAssembly inputAssembly) {
                         alertSandboxVars.remove(assembly.getName());
+                        String varKey = inputAssembly.getVariableTableKey();
+
+                        if(varKey != null) {
+                           alertSandboxVars.remove(varKey);
+                        }
                      }
                   }
                }
@@ -1362,8 +1367,13 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
 
          if(sandboxVars != null && bookmarkVs != null) {
             for(Assembly assembly : bookmarkVs.getAssemblies()) {
-               if(assembly instanceof InputVSAssembly) {
+               if(assembly instanceof InputVSAssembly inputAssembly) {
                   sandboxVars.remove(assembly.getName());
+                  String varKey = inputAssembly.getVariableTableKey();
+
+                  if(varKey != null) {
+                     sandboxVars.remove(varKey);
+                  }
                }
             }
          }
