@@ -113,13 +113,13 @@ public class ScheduleTaskChangeController {
 
    private void dispatchPortalTaskActivity(TaskActivityMessage message) {
       String name = message.getTaskName();
+      ScheduleTask task = scheduleManager.getScheduleTask(name, getSubscriberOrgID());
 
-      if(!shouldHandleReceivedMessage(name)) {
+      if(!shouldHandleReceivedMessage(name, task)) {
          return;
       }
 
       if(portalSubscribed && !ScheduleManager.isInternalTask(name) && checkPortalPermission(name)) {
-         ScheduleTask task = scheduleManager.getScheduleTask(name, getSubscriberOrgID());
          ScheduleTaskModel taskModel = createModel(task, message);
          ScheduleTaskChange model = ScheduleTaskChange.builder()
             .name(taskModel == null ? message.getTaskName() : taskModel.name())
@@ -129,10 +129,6 @@ public class ScheduleTaskChangeController {
          messagingTemplate.convertAndSendToUser(
             SUtil.getUserDestination(subscriber), PORTAL_TOPIC, model);
       }
-   }
-
-   private boolean shouldHandleReceivedMessage(String taskID) {
-      return shouldHandleReceivedMessage(taskID, null);
    }
 
    private boolean shouldHandleReceivedMessage(String taskID, ScheduleTask task) {
@@ -202,12 +198,11 @@ public class ScheduleTaskChangeController {
 
    private void dispatchAdminTaskActivity(TaskActivityMessage message) {
       String name = message.getTaskName();
+      ScheduleTask task = scheduleManager.getScheduleTask(name, getSubscriberOrgID());
 
-      if(!shouldHandleReceivedMessage(name)) {
+      if(!shouldHandleReceivedMessage(name, task)) {
          return;
       }
-
-      ScheduleTask task = scheduleManager.getScheduleTask(name, getSubscriberOrgID());
 
       // not current org task, ignore it.
       if(task == null) {
