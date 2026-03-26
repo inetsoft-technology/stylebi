@@ -256,6 +256,7 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
    private dropType: number = -1;
    private _plotLoaded = true;
    private _axisLoaded = true;
+   private _loadingAxesSet = new Set<string>();
    private devicePixelRatioMedia: MediaQueryList;
 
    // Mouse position
@@ -1399,14 +1400,18 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
       this.mouseoverLegendRegion = legendRegion;
    }
 
-   axisLoading(): void {
+   axisLoading(areaName: string): void {
+      this._loadingAxesSet.add(areaName);
       this._axisLoaded = false;
       this.fireLoading();
    }
 
-   public axisLoaded(success: boolean) {
+   public axisLoaded(success: boolean, areaName: string) {
       this.imageError = !success;
-      this._axisLoaded = true;
+      this._loadingAxesSet.delete(areaName);
+      if(this._loadingAxesSet.size === 0) {
+         this._axisLoaded = true;
+      }
       this.fireLoaded();
    }
 
