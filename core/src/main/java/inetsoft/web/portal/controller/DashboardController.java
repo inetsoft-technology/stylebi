@@ -103,7 +103,16 @@ public class DashboardController {
    private List<DashboardModel> getDashboards(Principal principal) {
       DashboardManager manager = DashboardManager.getManager();
       Identity identity = getIdentity((XPrincipal) principal);
-      return Arrays.stream(manager.getDashboards(identity))
+      String[] dashboardNames = manager.getDashboards(identity);
+
+      // When security is disabled and anonymous user has no dashboards, fall back to admin's dashboards
+      if(dashboardNames.length == 0 && !SecurityEngine.getSecurity().isSecurityEnabled()) {
+         Identity adminIdentity = new DefaultIdentity(
+            new IdentityID("admin", Organization.getDefaultOrganizationID()), Identity.USER);
+         dashboardNames = manager.getDashboards(adminIdentity);
+      }
+
+      return Arrays.stream(dashboardNames)
          .map(d -> {
             try {
                return getDashboardModel(d, principal);
