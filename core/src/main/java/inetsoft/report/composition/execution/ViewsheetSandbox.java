@@ -398,6 +398,19 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
+    * Marks hyperlink parameters as already applied to input assemblies, preventing
+    * applyParameterToInput() from overwriting restored assembly values during the
+    * reset(initing=true) call that follows an undo/redo checkpoint restore.
+    * Must be called after resetRuntime() since that method clears the flag.
+    * (Bug #74220 — Feature #72693 introduced applyParameterToInput which is
+    *  re-triggered on every reset(initing=true), including after undo/redo.)
+    */
+   public void markParametersApplied() {
+      parametersApplied = true;
+      parametersAppliedAssemblies.clear();
+   }
+
+   /**
     * Get the viewsheet in this sandbox.
     * @return the viewsheet contained in this sandbox.
     */
