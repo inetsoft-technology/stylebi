@@ -17,7 +17,18 @@
  */
 
 import { HttpClient, HttpParams } from "@angular/common/http";
-import { AfterViewInit, Component, ElementRef, EventEmitter, Input, OnChanges, OnDestroy, Output, SimpleChanges, ViewChild } from "@angular/core";
+import {
+   AfterViewInit,
+   Component,
+   ElementRef,
+   EventEmitter,
+   Input,
+   OnChanges,
+   OnDestroy,
+   Output,
+   SimpleChanges,
+   ViewChild
+} from "@angular/core";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { VSObjectModel } from "../../../../vsobjects/model/vs-object-model";
