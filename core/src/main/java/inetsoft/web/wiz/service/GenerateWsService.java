@@ -76,7 +76,11 @@ public class GenerateWsService {
                                                                            AssetContent.ALL);
 
       if(sheet == null) {
-         throw new RuntimeException("Worksheet not found: " + queryField.getTable().getSource().getPath());
+         throw new IllegalArgumentException("Worksheet not found: " + queryField.getTable().getSource().getPath());
+      }
+
+      if(!(sheet instanceof Worksheet)) {
+         throw new IllegalStateException("Asset is not a worksheet: " + queryField.getTable().getSource().getPath());
       }
 
       return (Worksheet) sheet;
