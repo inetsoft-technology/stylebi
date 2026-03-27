@@ -43,7 +43,7 @@ import java.util.concurrent.*;
 /**
  * WebSocket proxy handler that bridges browser WebSocket connections to the AI assistant server.
  * Handles connections at {@code /api/assistant/proxy} and {@code /api/assistant/proxy/**},
- * forwarding them to the upstream assistant service via WebSocket.
+ * forwarding them to the upstream assistant's {@code /ws} endpoint.
  *
  * <p>Active only in proxy mode ({@code chat.app.internal.url} is configured).
  * {@code chat.app.internal.url} is the server-to-server base URL used to reach the assistant;
@@ -52,9 +52,10 @@ import java.util.concurrent.*;
  * in direct mode the browser connects to the assistant WebSocket endpoint directly and this
  * handler is never involved.</p>
  *
- * <p>The assistant client establishes a WebSocket for real-time status events (e.g. tool-use
- * steps shown as "thinking" bubbles). Without this handler those connections would fail,
- * leaving the UI with no intermediate progress updates.</p>
+ * <p>The assistant client establishes a WebSocket for real-time streaming updates (e.g.
+ * intermediate thinking steps). Without this handler those connections would fail,
+ * leaving the UI with no intermediate progress updates and responses appearing only after
+ * the full answer is ready.</p>
  */
 @Component
 public class AssistantWebSocketProxyHandler extends AbstractWebSocketHandler {
