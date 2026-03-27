@@ -309,7 +309,8 @@ export class EditableObjectContainer extends AbstractActionComponent
 
          if(obj.dropdownCalendar) {
             const titleExcess = obj.titleFormat.height - this.vsObject.objectFormat.height
-               + this.selectionBorderOffset;
+               + Tool.getMarginSize(this.vsObject.objectFormat.border.bottom)
+               + Tool.getMarginSize(this.vsObject.objectFormat.border.top);
 
             if(obj.calendarsShown) {
                return top - VSUtil.CALENDAR_BODY_HEIGHT - titleExcess;
@@ -317,6 +318,10 @@ export class EditableObjectContainer extends AbstractActionComponent
 
             return top - titleExcess;
          }
+
+         const borderExcess = Tool.getMarginSize(this.vsObject.objectFormat.border.bottom)
+            + Tool.getMarginSize(this.vsObject.objectFormat.border.top);
+         return top - borderExcess;
       }
 
       return top;
@@ -327,7 +332,7 @@ export class EditableObjectContainer extends AbstractActionComponent
          const obj = this.vsObject as any;
 
          if(obj.dropdownCalendar && obj.calendarsShown) {
-            return this.vsObject.objectFormat.height + VSUtil.CALENDAR_BODY_HEIGHT;
+            return obj.titleFormat.height + VSUtil.CALENDAR_BODY_HEIGHT;
          }
       }
 

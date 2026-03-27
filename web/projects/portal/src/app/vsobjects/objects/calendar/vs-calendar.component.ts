@@ -128,16 +128,17 @@ export class VSCalendar extends NavigationComponent<VSCalendarModel>
 
    get topPosition(): number {
       if(this.viewer || this.embeddedVS) {
+         const inBottomTab = VSUtil.isInBottomTabContainer(this.model, this.vsInfo?.vsObjects);
+
          if(this.model.dropdownCalendar) {
-            if(this.atBottom && this.model.calendarsShown &&
-               !VSUtil.isInBottomTabContainer(this.model, this.vsInfo?.vsObjects)) {
+            if(this.atBottom && this.model.calendarsShown && !inBottomTab) {
                const height = VSUtil.CALENDAR_BODY_HEIGHT;
                let popDown = this.objectContainerHeight - this.model.objectFormat.top -
                   this.model.titleFormat.height - height > 0;
 
                return popDown ? this.model.objectFormat.top : this.model.objectFormat.top - height;
             }
-            else if(VSUtil.isInBottomTabContainer(this.model, this.vsInfo?.vsObjects)) {
+            else if(inBottomTab) {
                const titleExcess = this.model.titleFormat.height - this.model.objectFormat.height
                   + Tool.getMarginSize(this.model.objectFormat.border.bottom)
                   + Tool.getMarginSize(this.model.objectFormat.border.top);
@@ -149,6 +150,11 @@ export class VSCalendar extends NavigationComponent<VSCalendarModel>
                return this.model.objectFormat.top - titleExcess;
             }
          }
+         else if(inBottomTab) {
+            const borderExcess = Tool.getMarginSize(this.model.objectFormat.border.bottom)
+               + Tool.getMarginSize(this.model.objectFormat.border.top);
+            return this.model.objectFormat.top - borderExcess;
+         }
 
          return this.model.objectFormat.top;
       }
@@ -158,11 +164,13 @@ export class VSCalendar extends NavigationComponent<VSCalendarModel>
 
    get height(): number {
       if(this.model.dropdownCalendar) {
-         if(this.atBottom && this.model.calendarsShown &&
-            !VSUtil.isInBottomTabContainer(this.model, this.vsInfo?.vsObjects)) {
+         const inBottomTab = VSUtil.isInBottomTabContainer(this.model, this.vsInfo?.vsObjects);
+
+         if(this.atBottom && this.model.calendarsShown && !inBottomTab) {
             return this.model.objectFormat.height + VSUtil.CALENDAR_BODY_HEIGHT;
          }
-         else if((this.viewer || this.embeddedVS) && VSUtil.isInBottomTabContainer(this.model, this.vsInfo?.vsObjects) && this.model.calendarsShown) {
+         else if((this.viewer || this.embeddedVS) && inBottomTab &&
+            this.model.calendarsShown) {
             return this.model.titleFormat.height + VSUtil.CALENDAR_BODY_HEIGHT;
          }
          else {

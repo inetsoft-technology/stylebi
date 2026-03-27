@@ -208,10 +208,11 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    private _columnShiftCleanup: (() => void) | null = null;
 
    get topPosition(): number {
+      const inBottomTab = VSUtil.isInBottomTabContainer(this.model, this.vsInfo?.vsObjects);
+
       if((this.viewer || this.embeddedVS) && !this.model.maxMode && !this.inContainer) {
          if(this.atBottom && this.model.dropdown &&
-            !SelectionBaseController.isHidden(this.model) &&
-            !VSUtil.isInBottomTabContainer(this.model, this.vsInfo?.vsObjects))
+            !SelectionBaseController.isHidden(this.model) && !inBottomTab)
          {
             let bodyHeight = this.getBodyHeight();
             let popDown = this.objectContainerHeight - this.model.objectFormat.top -
@@ -220,7 +221,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
             return popDown ? this.model.objectFormat.top : this.model.objectFormat.top - bodyHeight;
          }
          else if(this.model.dropdown && !SelectionBaseController.isHidden(this.model)
-            && VSUtil.isInBottomTabContainer(this.model, this.vsInfo?.vsObjects))
+            && inBottomTab)
          {
             let searchBarHeight = this.model.searchDisplayed ? this.model.titleFormat.height : 0;
             return this.model.objectFormat.top - this.getBodyHeight() - searchBarHeight;
@@ -233,7 +234,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       // composer mode: shift up relative to wrapper
       if(!(this.viewer || this.embeddedVS)
          && this.model.dropdown && !SelectionBaseController.isHidden(this.model)
-         && VSUtil.isInBottomTabContainer(this.model, this.vsInfo?.vsObjects))
+         && inBottomTab)
       {
          let searchBarHeight = this.model.searchDisplayed ? this.model.titleFormat.height : 0;
          return -this.getBodyHeight() - searchBarHeight;
