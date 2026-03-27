@@ -223,7 +223,11 @@ public class GroupingService {
                Dimension updatedSize = new Dimension(width, size.height);
 
                info.setPixelSize(updatedSize);
-               Point objectPos = new Point(pos.x, pos.y + size.height);
+               boolean bottomTabs = ((TabVSAssemblyInfo) info).isBottomTabs();
+               int y = bottomTabs
+                  ? pos.y - objectSize.height
+                  : pos.y + size.height;
+               Point objectPos = new Point(pos.x, y);
                object.setPixelOffset(objectPos);
                objectInfo.setZIndex(container.getZIndex());
 
@@ -257,7 +261,11 @@ public class GroupingService {
             Dimension updatedSize = new Dimension(width, size.height);
 
             info.setPixelSize(updatedSize);
-            Point targetPos = new Point(pos.x, pos.y + size.height);
+            boolean bottomTabs = ((TabVSAssemblyInfo) info).isBottomTabs();
+            int targetY = bottomTabs
+               ? pos.y - targetSize.height
+               : pos.y + size.height;
+            Point targetPos = new Point(pos.x, targetY);
             target.setPixelOffset(targetPos);
             targetInfo.setZIndex(container.getZIndex());
 
