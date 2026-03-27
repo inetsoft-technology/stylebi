@@ -80,11 +80,13 @@ public class WorksheetConstructionModel {
       this.orderBy = orderBy;
    }
 
+   @JsonIgnoreProperties(ignoreUnknown = true)
    public static class QueryField {
       private String fieldName;
       private String alias;
       private TableInfo table;
       private String expression;
+      private String description;
 
       public QueryField() {
       }
@@ -124,6 +126,14 @@ public class WorksheetConstructionModel {
 
       public void setExpression(String expression) {
          this.expression = expression;
+      }
+
+      public String getDescription() {
+         return description;
+      }
+
+      public void setDescription(String description) {
+         this.description = description;
       }
 
       @Override
@@ -388,7 +398,7 @@ public class WorksheetConstructionModel {
 
    public static class SourceInfo {
       private String type;   // ws or db
-      private String name;   // db path or ws table
+      private String path;   // db path or ws table
       private String catalog;
       private String schema;
 
@@ -403,13 +413,13 @@ public class WorksheetConstructionModel {
          }
 
          SourceInfo that = (SourceInfo) o;
-         return Objects.equals(type, that.type) && Objects.equals(name, that.name) &&
+         return Objects.equals(type, that.type) && Objects.equals(path, that.path) &&
             Objects.equals(catalog, that.catalog) && Objects.equals(schema, that.schema);
       }
 
       @Override
       public int hashCode() {
-         return Objects.hash(type, name, catalog, schema);
+         return Objects.hash(type, path, catalog, schema);
       }
 
       public String getType() {
@@ -420,12 +430,12 @@ public class WorksheetConstructionModel {
          this.type = type;
       }
 
-      public String getName() {
-         return name;
+      public String getPath() {
+         return path;
       }
 
-      public void setName(String name) {
-         this.name = name;
+      public void setPath(String path) {
+         this.path = path;
       }
 
       public String getCatalog() {

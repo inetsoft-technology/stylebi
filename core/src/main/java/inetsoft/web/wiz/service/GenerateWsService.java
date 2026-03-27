@@ -70,10 +70,16 @@ public class GenerateWsService {
          return null;
       }
 
-      AssetEntry assetEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, queryField.getTable().getSource().getName(), null);
+      AssetEntry assetEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, queryField.getTable().getSource().getPath(), null);
 
-      return (Worksheet) viewsheetService.getAssetRepository().getSheet(assetEntry, user, true,
-                                                                        AssetContent.ALL);
+      AbstractSheet sheet = viewsheetService.getAssetRepository().getSheet(assetEntry, user, true,
+                                                                           AssetContent.ALL);
+
+      if(sheet == null) {
+         throw new RuntimeException("Worksheet not found: " + queryField.getTable().getSource().getPath());
+      }
+
+      return (Worksheet) sheet;
 
    }
 
@@ -345,7 +351,7 @@ public class GenerateWsService {
    private String getTableInfoKey(WorksheetConstructionModel.TableInfo tableInfo) {
       WorksheetConstructionModel.SourceInfo source = tableInfo.getSource();
 
-      return Tool.buildString(source.getType(), source.getName(), source.getSchema(), source.getCatalog(), tableInfo.getName());
+      return Tool.buildString(source.getType(), source.getPath(), source.getSchema(), source.getCatalog(), tableInfo.getName());
    }
 
    private int getJoinOperation(String joinType, String joinOp) {
@@ -393,7 +399,7 @@ public class GenerateWsService {
             return (AbstractTableAssembly) worksheet.getAssembly(tableInfo.getName());
          }
          GetDatabaseTableMetaRequest request = new GetDatabaseTableMetaRequest();
-         request.setDsName(tableInfo.getSource().getName());
+         request.setDsName(tableInfo.getSource().getPath());
          request.setCatalog(tableInfo.getSource().getCatalog());
          request.setSchema(tableInfo.getSource().getSchema());
          request.setTableName(tableInfo.getName());
@@ -547,6 +553,10 @@ public class GenerateWsService {
          columnRef.setAlias(field.getAlias());
       }
 
+      if(!Tool.isEmptyString(field.getDescription())) {
+         columnRef.setDescription(field.getDescription());
+      }
+
       return columnRef;
    }
 
@@ -558,7 +568,7 @@ public class GenerateWsService {
       }
 
       WorksheetConstructionModel.SourceInfo source = selectTable.getSource();
-      JDBCDataSource jdbcDatasource = metadataApiService.getJDBCDatasource(source.getName());
+      JDBCDataSource jdbcDatasource = metadataApiService.getJDBCDatasource(source.getPath());
       XNode tableMetaData = metadataApiService.getTableMetaData(jdbcDatasource, source.getCatalog(), source.getSchema(), selectTable.getName());
 
       if(tableMetaData == null) {
@@ -568,7 +578,7 @@ public class GenerateWsService {
       String qname = SQLTypes.getSQLTypes(jdbcDatasource).
          getQualifiedName(tableMetaData, jdbcDatasource);
       SourceInfo sinfo = new SourceInfo(
-         SourceInfo.PHYSICAL_TABLE, source.getName(), qname);
+         SourceInfo.PHYSICAL_TABLE, source.getPath(), qname);
 
       sinfo.setProperty(SourceInfo.SCHEMA, source.getSchema());
       sinfo.setProperty(SourceInfo.CATALOG, source.getCatalog());
