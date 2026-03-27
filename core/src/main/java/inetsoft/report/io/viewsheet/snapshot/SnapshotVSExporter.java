@@ -250,12 +250,15 @@ public class SnapshotVSExporter {
             // Load the full standalone viewsheet from the repository instead.
             if(vs == null || vs.isEmbedded()) {
                AssetRepository engine = rvs.getAssetRepository();
-               vs = (Viewsheet)
+               Viewsheet loaded = (Viewsheet)
                   engine.getSheet(entry, null, false, AssetContent.ALL);
-               vs = (Viewsheet) vs.clone();
-               vs.setEntry(fixEntry(vs.getEntry(), false));
-               vs.setBaseEntry(fixEntry(vs.getBaseEntry(), false));
-               nasset.setSheet(vs);
+
+               if(loaded != null) {
+                  vs = (Viewsheet) loaded.clone();
+                  vs.setEntry(fixEntry(vs.getEntry(), false));
+                  vs.setBaseEntry(fixEntry(vs.getBaseEntry(), false));
+                  nasset.setSheet(vs);
+               }
             }
             else {
                vs.setEntry(fixEntry(vs.getEntry(), false));
