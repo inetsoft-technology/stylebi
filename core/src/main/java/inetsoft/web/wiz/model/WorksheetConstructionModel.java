@@ -148,6 +148,9 @@ public class WorksheetConstructionModel {
 
          QueryField that = (QueryField) o;
 
+         // description is intentionally excluded: field identity is based on name/alias/table/expression,
+         // not its human-readable description. Two fields with the same identity but different descriptions
+         // are treated as duplicates and only the first is kept.
          return Objects.equals(fieldName, that.fieldName) && Objects.equals(alias, that.alias) &&
             Objects.equals(table, that.table) && Objects.equals(expression, that.expression);
       }
@@ -396,6 +399,7 @@ public class WorksheetConstructionModel {
       }
    }
 
+   @JsonIgnoreProperties(ignoreUnknown = true)
    public static class SourceInfo {
       private String type;   // ws or db
       private String path;   // db path or ws table
