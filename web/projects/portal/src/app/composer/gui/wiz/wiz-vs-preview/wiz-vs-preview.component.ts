@@ -16,9 +16,21 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { AfterViewInit, Component, ElementRef, EventEmitter, Input, OnDestroy, Output, ViewChild } from "@angular/core";
 import { HttpClient, HttpParams } from "@angular/common/http";
-import { Subject, takeUntil } from "rxjs";
+import {
+   AfterViewInit,
+   Component,
+   ElementRef,
+   EventEmitter,
+   Input,
+   OnChanges,
+   OnDestroy,
+   Output,
+   SimpleChanges,
+   ViewChild
+} from "@angular/core";
+import { Subject } from "rxjs";
+import { takeUntil } from "rxjs/operators";
 import { VSObjectModel } from "../../../../vsobjects/model/vs-object-model";
 import { Viewsheet } from "../../../data/vs/viewsheet";
 
@@ -40,7 +52,7 @@ export class WizVsPreview implements AfterViewInit, OnChanges, OnDestroy {
    private resizeObserver: ResizeObserver;
    private resizeTimer: any;
    private initialized = false;
-  
+
    selectedTab = 0;
    bindingDetails: DetailItem[] = [];
    worksheetDetails: DetailItem[] = [];
@@ -65,7 +77,7 @@ export class WizVsPreview implements AfterViewInit, OnChanges, OnDestroy {
       });
       this.resizeObserver.observe(this.canvasEl.nativeElement);
    }
-  
+
    ngOnChanges(changes: SimpleChanges): void {
       if(changes["viewsheet"]) {
          this.loadDetails();
