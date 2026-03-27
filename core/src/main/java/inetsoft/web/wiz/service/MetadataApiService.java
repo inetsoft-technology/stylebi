@@ -58,7 +58,7 @@ public class MetadataApiService {
       return assetTreeService.getNodes(true, false, true,
                                        false, false, false,
                                        false, false,
-                                       true, true, false, event, principal);
+                                       true, true, event, principal);
    }
 
    public DatabaseTableMeta getMetaData(GetDatabaseTableMetaRequest data) throws Exception {
