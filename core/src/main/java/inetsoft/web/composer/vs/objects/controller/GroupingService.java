@@ -372,11 +372,19 @@ public class GroupingService {
       Dimension updatedSize = new Dimension(width, defh);
       target.setPixelSize(updatedSize);
 
+      boolean bottomTabs = targetInfo instanceof TabVSAssemblyInfo &&
+         ((TabVSAssemblyInfo) targetInfo).isBottomTabs();
+
       for(String name: objectAssemblies) {
          VSAssembly assembly = (VSAssembly) viewsheet.getAssembly(name);
 
          VSAssemblyInfo info = (VSAssemblyInfo) assembly.getInfo();
-         Point objectPos = new Point(pos.x, pos.y + size.height);
+         Dimension childSize = info.getLayoutSize() != null ?
+            info.getLayoutSize() : viewsheet.getPixelSize(info);
+         int y = bottomTabs
+            ? pos.y - childSize.height
+            : pos.y + size.height;
+         Point objectPos = new Point(pos.x, y);
          info.setPixelOffset(objectPos);
          info.setZIndex(target.getZIndex());
 
