@@ -81,6 +81,18 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
       // clear the ThreadContext thread local variables
       ThreadContext.setPrincipal(null);
       ThreadContext.setLocale(null);
+
+      // Run any destruction callbacks deferred by SafeSimpSessionScope (beans created after
+      // WebSocket session completion). Running them here ensures @PreDestroy is called even when
+      // registerDestructionCallback threw because the session was already completed.
+      for(Runnable callback : SafeSimpSessionScope.getAndClearDeferredCallbacks()) {
+         try {
+            callback.run();
+         }
+         catch(Exception ex) {
+            LOG.warn("Error running deferred WebSocket scope destruction callback", ex);
+         }
+      }
    }
 
    private void addViewsheetRecord(GroupedThread thread) {
