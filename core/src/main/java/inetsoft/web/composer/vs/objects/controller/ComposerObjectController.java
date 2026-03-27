@@ -712,7 +712,10 @@ public class ComposerObjectController {
             continue;
          }
 
-         Point childPos = child.getVSAssemblyInfo().getPixelOffset();
+         VSAssemblyInfo childInfo = child.getVSAssemblyInfo();
+         Point childPos = childInfo.getLayoutPosition() != null
+            ? childInfo.getLayoutPosition()
+            : childInfo.getPixelOffset();
 
          if(childPos != null) {
             minChildY = Math.min(minChildY, childPos.y);
