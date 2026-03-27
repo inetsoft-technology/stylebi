@@ -158,16 +158,24 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
       if(!updated) {
          if(command.model.objectType === "VSGroupContainer") {
             this.vsObjects.unshift(command.model);
+            this.vsObjectActions.unshift(this.actionFactory.createActions(command.model));
          }
          else {
             this.vsObjects.push(command.model);
+            this.vsObjectActions.push(this.actionFactory.createActions(command.model));
          }
       }
 
       // see viewer-app
       this.vsObjects.forEach(obj => obj.sheetMaxMode = command.model.sheetMaxMode);
+
+      // Build a map of existing actions before sorting to preserve action instances.
+      // Recreating all actions would break subscriptions held by components (e.g. vs-chart)
+      // that subscribed to onAssemblyActionEvent on the old instance.
+      const actionMap = new Map<string, any>();
+      this.vsObjects.forEach((obj, i) => actionMap.set(obj.absoluteName, this.vsObjectActions[i]));
       this.vsObjects.sort((a, b) => a.objectFormat.zIndex - b.objectFormat.zIndex);
-      this.vsObjectActions = this.vsObjects.map(model => this.actionFactory.createActions(model));
+      this.vsObjectActions = this.vsObjects.map(model => actionMap.get(model.absoluteName));
 
       this.dataTipService.clearDataTips(command.name);
       this.dataTipService.registerDataTip(command.model.dataTip, command.name);
