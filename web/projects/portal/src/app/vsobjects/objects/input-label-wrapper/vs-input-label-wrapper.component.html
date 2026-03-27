@@ -24,11 +24,6 @@
          [safeFont]="labelFormat?.font"
          [style.text-align]="labelFormat?.hAlign"
          [style.text-decoration]="labelFormat?.decoration"
-         [style.border-bottom]="labelFormat?.border?.bottom"
-         [style.border-top]="labelFormat?.border?.top"
-         [style.border-left]="labelFormat?.border?.left"
-         [style.border-right]="labelFormat?.border?.right"
-         [style.border-radius.px]="labelFormat?.roundCorner"
          (click)="onLabelClick($event)">
     {{ labelText }}
   </label>
