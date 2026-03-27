@@ -17,21 +17,26 @@
  */
 
 import { HttpClient, HttpParams } from "@angular/common/http";
-import { Component, HostListener, Inject, Input, OnDestroy, OnInit } from "@angular/core";
+import { Component, HostListener, Inject, OnDestroy, OnInit } from "@angular/core";
+import { UntypedFormControl, Validators } from "@angular/forms";
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from "@angular/material/dialog";
 import { BehaviorSubject, Subscription } from "rxjs";
 import { debounceTime, distinctUntilChanged } from "rxjs/operators";
+import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { MessageDialog, MessageDialogType } from "../../../../common/util/message-dialog";
 import { convertToKey, IdentityId } from "../identity-id";
 
 @Component({
    selector: "em-create-organization-dialog",
-   templateUrl: "./create-organization-dialog.component.html"
+   templateUrl: "./create-organization-dialog.component.html",
+   styleUrls: ["./create-organization-dialog.component.scss"]
 })
 export class CreateOrganizationDialogComponent implements OnInit, OnDestroy {
    existingOrganizations: string[] = [];
    existingOrganizationNames: string[] = [];
    copyFromOrgID: string = "";
+   passwordControl = new UntypedFormControl("", [Validators.required, FormValidators.passwordComplexity]);
+   showPassword = false;
    searchOpen = false;
    private subscriptions = new Subscription();
    searchResults: { id: string, name: string }[] = [];
@@ -89,6 +94,12 @@ export class CreateOrganizationDialogComponent implements OnInit, OnDestroy {
 
    submit() {
       if(!!this.copyFromOrgID && this.copyFromOrgID != "") {
+         this.passwordControl.markAsTouched();
+
+         if(this.passwordControl.invalid) {
+            return;
+         }
+
          let orgName = this.existingOrganizationNames[this.existingOrganizations.indexOf(this.copyFromOrgID)];
          let orgKey = encodeURIComponent(convertToKey({name: orgName, orgID: this.copyFromOrgID }))
 
@@ -104,7 +115,7 @@ export class CreateOrganizationDialogComponent implements OnInit, OnDestroy {
 
                confirm.afterClosed().subscribe(value => {
                   if(value) {
-                     this.dialogRef.close({newOrgString: this.copyFromOrgID, proceed: true});
+                     this.dialogRef.close({newOrgString: this.copyFromOrgID, proceed: true, defaultPassword: this.passwordControl.value});
                   }
                })
             });
@@ -112,6 +123,10 @@ export class CreateOrganizationDialogComponent implements OnInit, OnDestroy {
       else {
          this.dialogRef.close({newOrgString: this.copyFromOrgID, proceed: true});
       }
+   }
+
+   toggleShowPassword(): void {
+      this.showPassword = !this.showPassword;
    }
 
    getOrgIdsAndNames(): {id: string, name: string}[] {

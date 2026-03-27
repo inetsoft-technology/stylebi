@@ -100,6 +100,14 @@ public abstract class AbstractEditableAuthenticationProvider
       copyOrganization(fromOrganization, null, newOrgID, null, identityService, themeService, principal, replace);
    }
 
+   @Override
+   public void copyOrganization(Organization fromOrganization, String newOrgID, IdentityService identityService,
+                                IdentityThemeService themeService, Principal principal, boolean replace,
+                                String defaultPassword)
+   {
+      copyOrganizationInternal(fromOrganization, null, newOrgID, null, identityService, themeService, principal, replace, defaultPassword);
+   }
+
    /**
     * copy one organization's details and save new Organization
     *
@@ -111,6 +119,15 @@ public abstract class AbstractEditableAuthenticationProvider
                                 String newOrgID, String newOrgName,
                                 IdentityService identityService, IdentityThemeService themeService,
                                 Principal principal, boolean replace)
+   {
+      copyOrganizationInternal(fromOrganization, editedNewOrganization, newOrgID, newOrgName,
+                               identityService, themeService, principal, replace, null);
+   }
+
+   private void copyOrganizationInternal(Organization fromOrganization, Organization editedNewOrganization,
+                                         String newOrgID, String newOrgName,
+                                         IdentityService identityService, IdentityThemeService themeService,
+                                         Principal principal, boolean replace, String defaultPassword)
    {
       FSOrganization newOrg = new FSOrganization(newOrgID);
       newOrg.setName(newOrgName == null ? newOrgID : newOrgName);
@@ -169,7 +186,7 @@ public abstract class AbstractEditableAuthenticationProvider
 
       for(IdentityID userID : getUsers()) {
          if(getUser(userID).getOrganizationID().equals(fromOrgId)) {
-            IdentityID newID = copyUserToOrganization(userID, newOrgID, fromOrgId, identityService, principal);
+            IdentityID newID = copyUserToOrganization(userID, newOrgID, fromOrgId, identityService, principal, defaultPassword);
 
             if(newID != null && !newID.name.isEmpty()) {
                addedMembers.add(newID);
@@ -576,7 +593,7 @@ public abstract class AbstractEditableAuthenticationProvider
       }
    }
 
-   private IdentityID copyUserToOrganization(IdentityID memberID, String orgID, String fromOrgID, IdentityService identityService, Principal principal) {
+   private IdentityID copyUserToOrganization(IdentityID memberID, String orgID, String fromOrgID, IdentityService identityService, Principal principal, String defaultPassword) {
       User fromUser = getUser(memberID);
 
       if(fromUser != null) {
@@ -589,9 +606,17 @@ public abstract class AbstractEditableAuthenticationProvider
          newUser.setActive(fromUser.isActive());
          newUser.setRoles(copyIdentityRoles(fromUser, orgID));
          newUser.setOrganization(orgID);
-         HashedPassword hash = Tool.hash("success123", "bcrypt");
-         newUser.setPassword(hash.getHash());
-         newUser.setPasswordAlgorithm(hash.getAlgorithm());
+
+         if(defaultPassword != null) {
+            HashedPassword hash = Tool.hash(defaultPassword, "bcrypt");
+            newUser.setPassword(hash.getHash());
+            newUser.setPasswordAlgorithm(hash.getAlgorithm());
+         }
+         else {
+            // Rename path: preserve the existing user's password hash rather than resetting it
+            newUser.setPassword(fromUser.getPassword());
+            newUser.setPasswordAlgorithm(fromUser.getPasswordAlgorithm());
+         }
 
          updatePermittedIdentities(Identity.USER, identityService, principal, memberID, newID, orgID, fromOrgID);
          addUser(newUser);

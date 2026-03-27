@@ -144,6 +144,12 @@ public class LineElement extends StackableElement {
     */
    @Override
    public void createGeometry(DataSet data, GGraph graph) {
+      // Pre-populate calc rows (e.g. TimeSeriesRow null-fills) before sortData() so that
+      // initMapping() includes those rows in the SortedDataSet mapping. (#74355)
+      if(isStackGroup() && getDimCount() > 0 && data instanceof AbstractDataSet) {
+         ((AbstractDataSet) data).prepareCalc(getDim(getDimCount() - 1), null, false);
+      }
+
       SortedDataSet sdata = sortData(data, graph, getVarCount() > 0 && isStackGroup());
 
       if(sdata != null) {

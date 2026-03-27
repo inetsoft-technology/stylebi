@@ -66,6 +66,7 @@ export class AiAssistantService {
    aiAssistantVisible: boolean = false;
    userId: string = "";
    email: string = "";
+   private webComponentScriptPromise: Promise<void> | null = null;
    calcTableCellBindings: { [key: string]: CellBindingInfo } = {};
    calcTableAggregates: string[] = [];
    private contextMap: Record<string, string> = {};
@@ -80,6 +81,38 @@ export class AiAssistantService {
       this.http.get("../api/assistant/get-stylebi-url").subscribe((url: string) => {
          this.styleBIUrl = url || "";
       });
+   }
+
+   /**
+    * Dynamically loads the AI assistant web component script. Safe to call multiple times —
+    * concurrent calls share the same in-flight promise. Returns a promise that resolves when
+    * the script loads or rejects on error. The cached promise is cleared on error to allow
+    * a retry on the next panel open.
+    */
+   loadWebComponentScript(): Promise<void> {
+      if(this.webComponentScriptPromise) {
+         return this.webComponentScriptPromise;
+      }
+
+      const base = this.chatAppServerUrl ? this.chatAppServerUrl.replace(/\/$/, "") : "";
+
+      if(!base) {
+         return Promise.reject(new Error("AI assistant URL not configured"));
+      }
+
+      this.webComponentScriptPromise = new Promise<void>((resolve, reject) => {
+         const script = document.createElement("script");
+         script.src = base + "/web-component/ai-assistant.umd.js";
+         script.onload = () => resolve();
+         script.onerror = () => {
+            document.head.removeChild(script); // remove so a retry appends a fresh element
+            this.webComponentScriptPromise = null; // allow retry next time
+            reject(new Error("Failed to load AI assistant web component"));
+         };
+         document.head.appendChild(script);
+      });
+
+      return this.webComponentScriptPromise;
    }
 
    checkHealth(): Observable<boolean> {
