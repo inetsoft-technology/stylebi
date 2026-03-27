@@ -82,10 +82,13 @@ public class AssistantWebSocketProxyHandler extends AbstractWebSocketHandler {
       }
 
       URI browserUri = browserSession.getUri();
-      String proxiedPath = sanitizeProxiedPath(extractProxiedPath(browserUri));
       String query = browserUri != null ? browserUri.getQuery() : null;
       String wsBase = toWsUrl(internalBase.trim());
-      String upstreamUrl = wsBase + proxiedPath + (query != null ? "?" + query : "");
+      // browserSession.getUri().getPath() reflects the Spring handler-mapping prefix
+      // (/api/assistant/proxy) rather than the full request path (/api/assistant/proxy/ws),
+      // so dynamic path extraction yields "/" instead of "/ws". Since /ws is the only
+      // WebSocket endpoint the assistant server exposes, connect directly to it.
+      String upstreamUrl = wsBase + "/ws" + (query != null ? "?" + query : "");
 
       // Forward the same set of headers as the HTTP proxy.
       WebSocketHttpHeaders headers = new WebSocketHttpHeaders();
@@ -193,50 +196,6 @@ public class AssistantWebSocketProxyHandler extends AbstractWebSocketHandler {
       if(upstream != null && upstream.isOpen()) {
          closeQuietly(upstream, CloseStatus.SERVER_ERROR);
       }
-   }
-
-   /**
-    * Normalizes the proxied path to remove {@code ..} traversal segments, rejecting any path
-    * that still contains {@code ..} after normalization. Returns {@code "/"} for invalid input.
-    */
-   private String sanitizeProxiedPath(String path) {
-      try {
-         String normalized = new URI(path).normalize().getPath();
-
-         if(normalized == null || !normalized.startsWith("/") || normalized.contains("..")) {
-            LOG.warn("Rejected WebSocket proxied path with traversal segments: {}", path);
-            return "/";
-         }
-
-         return normalized;
-      }
-      catch(java.net.URISyntaxException e) {
-         LOG.warn("Rejected malformed WebSocket proxied path: {}", path);
-         return "/";
-      }
-   }
-
-   private String extractProxiedPath(URI uri) {
-      if(uri == null) {
-         return "/";
-      }
-
-      String path = uri.getPath();
-      String prefix = AIAssistantController.PROXY_PATH_PREFIX;
-      int idx = path.indexOf(prefix);
-
-      // Verify the match starts on a path-segment boundary (the char before the prefix is '/'
-      // or the prefix is at position 0) and is followed by '/' or end-of-string.
-      // This prevents a spurious match if the prefix string appears inside a path segment.
-      if(idx >= 0 && (idx == 0 || path.charAt(idx - 1) == '/')) {
-         String rest = path.substring(idx + prefix.length());
-
-         if(rest.isEmpty() || rest.startsWith("/")) {
-            return rest.isEmpty() ? "/" : rest;
-         }
-      }
-
-      return "/";
    }
 
    private String toWsUrl(String httpUrl) {
