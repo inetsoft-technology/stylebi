@@ -40,6 +40,15 @@ public class LineLegendItem extends LegendItem {
    }
 
    /**
+    * Bug #74361: line symbol size has no meaningful visual effect (line width is fixed),
+    * so always return DEFAULT_SYMBOL_SIZE to avoid misleading spacing changes.
+    */
+   @Override
+   protected int getSymbolSize() {
+      return DEFAULT_SYMBOL_SIZE;
+   }
+
+   /**
     * Paint the symbol at the specified location.
     * @param x is the symbol position x.
     * @param y is the symbol position y.

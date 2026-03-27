@@ -160,13 +160,16 @@ public abstract class LegendItem extends BoundedContainer {
       }
 
       minW = symbolW + GAP + vlabel.getWidth(MIN_CHAR_COUNT) + LEFT_PADDING + RIGHT_PADDING;
-      minH = topPadding + bottomPadding + Math.max(labelMinH, symbolSize + 2);
+      // Bug #74361: use getSymbolSize() so subclasses can ignore symbolSize when it has
+      // no meaningful visual effect (e.g. LineLegendItem whose line width is fixed).
+      int sz = getSymbolSize();
+      minH = topPadding + bottomPadding + Math.max(labelMinH, sz + 2);
 
       preferW = symbolW + GAP + vlabel.getPreferredWidth() + LEFT_PADDING + RIGHT_PADDING;
-      preferH = topPadding + bottomPadding + Math.max(labelMinH, symbolSize + 2);
+      preferH = topPadding + bottomPadding + Math.max(labelMinH, sz + 2);
 
       maxW = symbolW + GAP + vlabel.getPreferredWidth() + LEFT_PADDING + RIGHT_PADDING;
-      maxH = topPadding + bottomPadding + Math.max(labelPrefH, symbolSize + 2);
+      maxH = topPadding + bottomPadding + Math.max(labelPrefH, sz + 2);
    }
 
    /**
@@ -194,7 +197,7 @@ public abstract class LegendItem extends BoundedContainer {
 
       // the padding left logic has moved to VLegend
       paintSymbol(g, getPosition().getX(),
-                  getPosition().getY() + (height - symbolSize) / 2);
+                  getPosition().getY() + (height - getSymbolSize()) / 2);
       vlabel.paint(g);
    }
 
