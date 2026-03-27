@@ -115,7 +115,7 @@
   line-height: 1.4;
   white-space: nowrap;
   pointer-events: none;
-  z-index: 2;
+  z-index: 4;   // Bug #74364: must be above .slider-handle (z-index: 3); pointer-events: none prevents click interference
 }
 
 // ─── Inactive track ───────────────────────────────────────────────────────────
