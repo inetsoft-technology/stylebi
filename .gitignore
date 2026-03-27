@@ -218,7 +218,9 @@ override.tf.json
 # example: *tfplan*
 *.tfplan
 
-
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc
+
+# Ignore local Claude Code settings
+.claude/settings.local.json
