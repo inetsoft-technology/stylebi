@@ -1654,6 +1654,10 @@ public abstract class GraphGenerator {
 
                gspec.setTextSpec(legend.getTextSpec());
                GraphUtil.setLegendSpec(gspec, legends);
+               // Bug #74360: propagate symbolSize to the guide frame so that
+               // "Symbol Size" set on a DC chart legend (CompositeVisualFrame)
+               // is actually applied to the rendered legend.
+               gspec.setSymbolSize(legend.getSymbolSize());
             }
          }
 
