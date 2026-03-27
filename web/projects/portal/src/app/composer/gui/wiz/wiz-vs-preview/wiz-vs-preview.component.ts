@@ -16,9 +16,19 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { AfterViewInit, Component, ElementRef, EventEmitter, Input, OnDestroy, Output, ViewChild } from "@angular/core";
 import { HttpClient, HttpParams } from "@angular/common/http";
-import { Component, Input, OnChanges, OnDestroy, SimpleChanges } from "@angular/core";
+import {
+   AfterViewInit,
+   Component,
+   ElementRef,
+   EventEmitter,
+   Input,
+   OnChanges,
+   OnDestroy,
+   Output,
+   SimpleChanges,
+   ViewChild
+} from "@angular/core";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { VSObjectModel } from "../../../../vsobjects/model/vs-object-model";
