@@ -46,6 +46,7 @@ import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.event.RefreshVSAssemblyEvent;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.wiz.WizUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -174,7 +175,7 @@ public class VSRefreshService {
       try {
          refreshViewsheet(rvs, bookmarkName, bookmarkUser, initing, checkShareFilter,
                           tableMetaData, confirmed, userRefresh, resizing, width, height,
-                          variables, principal, commandDispatcher, linkUri);
+                          variables, principal, commandDispatcher, linkUri, event.maxModeSize());
          execTimestamp = new Date(System.currentTimeMillis());
          executionRecord.setExecTimestamp(execTimestamp);
          executionRecord.setExecStatus(ExecutionRecord.EXEC_STATUS_SUCCESS);
@@ -212,7 +213,7 @@ public class VSRefreshService {
                                  boolean confirmed, boolean userRefresh, boolean resizing,
                                  int width, int height, VariableTable variables,
                                  Principal principal, CommandDispatcher commandDispatcher,
-                                 String linkUri)
+                                 String linkUri, Dimension wizMaxModeSize)
       throws Exception
    {
       vsBookmarkService.processBookmark(rvs.getID(), rvs, linkUri, principal, bookmarkName,
@@ -265,6 +266,10 @@ public class VSRefreshService {
          // being refreshed so we can prevent these errors from being
          // propogated to the end users.
          box.get().setRefreshing(true);
+
+         if(wizMaxModeSize != null) {
+            WizUtil.prepareMaxMode(box.get().getViewsheet(), wizMaxModeSize);
+         }
 
          String maxModeChart = null;
          Dimension maxModeSize = null;
@@ -327,6 +332,7 @@ public class VSRefreshService {
 
    /**
     * Check if need refresh.
+    *
     * @return <tt>true</tt> if Refresh/unRefresh.
     */
    private boolean isShareFilterNeedRefresh(RuntimeViewsheet rvs) {
@@ -369,7 +375,9 @@ public class VSRefreshService {
 
    /**
     * Check if Embedded VS need refresh.
+    *
     * @param rvs runtime viewsheet
+    *
     * @return <tt>true</tt> if Refresh/unRefresh.
     */
    private boolean isEmbeddedVSNeedRefresh(RuntimeViewsheet rvs) throws Exception {
@@ -397,10 +405,12 @@ public class VSRefreshService {
 
    /**
     * Refresh the assembly and reset dependencies.
-    * @param rvs runtime viewsheet.
-    * @param assembly vs assembly.
+    *
+    * @param rvs        runtime viewsheet.
+    * @param assembly   vs assembly.
     * @param linkUri
     * @param dispatcher
+    *
     * @throws Exception
     */
    private void refreshAssemblyAndDependencies(RuntimeViewsheet rvs, VSAssembly assembly,
@@ -474,6 +484,7 @@ public class VSRefreshService {
 
    /**
     * Update the undo state.
+    *
     * @param rvs
     * @param dispatcher
     */

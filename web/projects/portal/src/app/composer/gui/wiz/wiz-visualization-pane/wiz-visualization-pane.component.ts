@@ -15,11 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Injector, Input, NgZone, OnDestroy, OnInit } from "@angular/core";
+import { AfterViewInit, Component, Injector, Input, NgZone, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
 import { WizPortalService } from "../../../../../../../shared/wiz-portal/wiz-portal.service";
 import { BindingTreeService } from "../../../../binding/widget/binding-tree/binding-tree.service";
+import { Dimension } from "../../../../common/data/dimension";
 import { DndService } from "../../../../common/dnd/dnd.service";
 import { VSDndService } from "../../../../common/dnd/vs-dnd.service";
 import { UIContextService } from "../../../../common/services/ui-context.service";
@@ -58,7 +59,7 @@ import { CloseSheetCommand } from "../../ws/socket/close-sheet-command";
 import { TouchAssetEvent } from "../../ws/socket/touch-asset-event";
 import { GuiTool } from "../../../../common/util/gui-tool";
 import { SetViewsheetInfoCommand } from "../../../../vsobjects/command/set-viewsheet-info-command";
-import { WizService } from "../services/wiz.service";
+import { WizVsPreview } from "../wiz-vs-preview/wiz-vs-preview.component";
 
 @Component({
    selector: "wiz-visualization-pane",
@@ -99,14 +100,15 @@ import { WizService } from "../services/wiz.service";
       }
    ]
 })
-export class WizVisualizationPane extends CommandProcessor implements OnInit, OnDestroy {
+export class WizVisualizationPane extends CommandProcessor implements OnInit, AfterViewInit, OnDestroy {
    @Input() currentVisualization: WizDashboard;
+   @ViewChild(WizVsPreview) private wizVsPreview: WizVsPreview;
    initError: string = null;
    private connected: boolean = false;
    private heartbeatSubscription: Subscription = Subscription.EMPTY;
 
    constructor(private viewsheetClient: ViewsheetClientService, zone: NgZone,
-               private wizService: WizService, public wizPortalService: WizPortalService)
+               public wizPortalService: WizPortalService)
    {
       super(viewsheetClient, zone, true);
    }
@@ -129,6 +131,12 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
          this.touchAsset();
       });
       this.currentVisualization.socketConnection = this.viewsheetClient;
+   }
+
+   ngAfterViewInit(): void {
+      if(this.initError) {
+         return;
+      }
 
       const size: [number, number] = GuiTool.getViewportSize();
       const mobile: boolean = GuiTool.isMobileDevice();
@@ -141,6 +149,7 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
             this.currentVisualization?.visualizationSheet, this.currentVisualization.wizSheetRuntimeId);
          event.dataSources = this.currentVisualization.baseEntries;
          event.viewer = false;
+         event.maxModeSize = this.getCanvasSize();
          this.viewsheetClient.sendEvent("/events/composer/viewsheet/new", event);
       }
       else {
@@ -149,7 +158,7 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
             window.navigator.userAgent, this.currentVisualization.meta,
             false, false, true, false, null, this.currentVisualization.wizSheetRuntimeId);
          event.viewer = false;
-
+         event.maxModeSize = this.getCanvasSize();
          this.viewsheetClient.sendEvent("/events/open", event);
       }
    }
@@ -232,6 +241,23 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
       this.refreshVSObject(command.info);
    }
 
+   onCanvasResize(): void {
+      if(!this.currentVisualization?.runtimeId) {
+         return;
+      }
+
+      const event = new VSRefreshEvent();
+      event.setUserRefresh(false);
+      event.setMaxModeSize(this.getCanvasSize());
+      this.viewsheetClient.sendEvent("/events/vs/refresh", event);
+   }
+
+   private getCanvasSize(): Dimension | null {
+      const size = GuiTool.getChartMaxModeSize(this.wizVsPreview?.canvasEl?.nativeElement);
+
+      return (size && size.width > 0 && size.height > 0) ? size : null;
+   }
+
    private processUpdateUndoStateCommand(command: UpdateUndoStateCommand): void {
       this.currentVisualization.points = command.points;
       this.currentVisualization.current = command.current;
@@ -274,6 +300,7 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, On
    refreshVisualization(): void {
       const event = new VSRefreshEvent();
       event.setUserRefresh(true);
+      event.setMaxModeSize(this.getCanvasSize());
       this.viewsheetClient.sendEvent("/events/vs/refresh", event);
    }
 }

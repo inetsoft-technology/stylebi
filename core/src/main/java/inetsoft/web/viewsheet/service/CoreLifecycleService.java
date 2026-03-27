@@ -52,6 +52,7 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.BrowseDataController;
 import inetsoft.web.composer.model.BrowseDataModel;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.embed.EmbedAssemblyInfo;
 import inetsoft.web.messaging.MessageAttributes;
 import inetsoft.web.messaging.MessageContextHolder;
@@ -2949,6 +2950,10 @@ public class CoreLifecycleService {
          rvs.getViewsheet().getWizInfo().isWizVisualization())
       {
          rvs.setWizSheetRuntimeId(event.getWizSheetRuntimeId());
+      }
+
+      if(event.getMaxModeSize() != null) {
+         WizUtil.prepareMaxMode(rvs.getViewsheet(), event.getMaxModeSize());
       }
 
       try {
