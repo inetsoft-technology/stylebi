@@ -80,11 +80,13 @@ public class WorksheetConstructionModel {
       this.orderBy = orderBy;
    }
 
+   @JsonIgnoreProperties(ignoreUnknown = true)
    public static class QueryField {
       private String fieldName;
       private String alias;
       private TableInfo table;
       private String expression;
+      private String description;
 
       public QueryField() {
       }
@@ -126,6 +128,14 @@ public class WorksheetConstructionModel {
          this.expression = expression;
       }
 
+      public String getDescription() {
+         return description;
+      }
+
+      public void setDescription(String description) {
+         this.description = description;
+      }
+
       @Override
       public boolean equals(Object o) {
          if(this == o) {
@@ -138,6 +148,9 @@ public class WorksheetConstructionModel {
 
          QueryField that = (QueryField) o;
 
+         // description is intentionally excluded: field identity is based on name/alias/table/expression,
+         // not its human-readable description. Two fields with the same identity but different descriptions
+         // are treated as duplicates and only the first is kept.
          return Objects.equals(fieldName, that.fieldName) && Objects.equals(alias, that.alias) &&
             Objects.equals(table, that.table) && Objects.equals(expression, that.expression);
       }
@@ -386,9 +399,10 @@ public class WorksheetConstructionModel {
       }
    }
 
+   @JsonIgnoreProperties(ignoreUnknown = true)
    public static class SourceInfo {
       private String type;   // ws or db
-      private String name;   // db path or ws table
+      private String path;   // db path or ws table
       private String catalog;
       private String schema;
 
@@ -403,13 +417,13 @@ public class WorksheetConstructionModel {
          }
 
          SourceInfo that = (SourceInfo) o;
-         return Objects.equals(type, that.type) && Objects.equals(name, that.name) &&
+         return Objects.equals(type, that.type) && Objects.equals(path, that.path) &&
             Objects.equals(catalog, that.catalog) && Objects.equals(schema, that.schema);
       }
 
       @Override
       public int hashCode() {
-         return Objects.hash(type, name, catalog, schema);
+         return Objects.hash(type, path, catalog, schema);
       }
 
       public String getType() {
@@ -420,12 +434,12 @@ public class WorksheetConstructionModel {
          this.type = type;
       }
 
-      public String getName() {
-         return name;
+      public String getPath() {
+         return path;
       }
 
-      public void setName(String name) {
-         this.name = name;
+      public void setPath(String path) {
+         this.path = path;
       }
 
       public String getCatalog() {
