@@ -785,6 +785,11 @@ public class ScheduleManager {
          ScheduleClient.getScheduleClient().taskRemoved(taskName);
          ScheduleTaskMessage message = new ScheduleTaskMessage();
          message.setTaskName(taskName);
+         // Bug #74338: include the task in the REMOVED message so that
+         // shouldHandleReceivedMessage() can fall back to task.getOwner() when
+         // getTaskOwner(taskId) returns null (e.g. for MV tasks whose IDs lack the
+         // owner key prefix), allowing the message to reach the correct org's subscribers.
+         message.setTask(task);
          message.setAction(ScheduleTaskMessage.Action.REMOVED);
          Cluster.getInstance().sendMessage(message);
       }

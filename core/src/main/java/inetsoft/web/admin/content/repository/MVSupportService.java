@@ -459,8 +459,14 @@ public class MVSupportService {
       IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
       IdentityID owner = SUtil.getOwnerForNewTask(user);
       task.setOwner(SUtil.getOwnerForNewTask(user));
+      // Bug #74338: set path to "/" so the task is treated as a root-level task in
+      // getScheduleTasks(); without it path is null which produces "null/<taskId>" and
+      // the task is treated as residing in a non-existent folder, failing the permission
+      // check and causing the task to be excluded from the Schedule->Tasks list.
+      task.setPath("/");
       ScheduleTask task2 = new ScheduleTask(MV_TASK_STAGE_PREFIX + UUID.randomUUID(), ScheduleTask.Type.MV_TASK);
       task2.setOwner(owner);
+      task2.setPath("/");
       task.setDeleteIfNoMoreRun(true);
       task.setEditable(false);
       task.setDurable(true);
