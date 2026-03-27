@@ -175,7 +175,7 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
       const actionMap = new Map<string,AbstractVSActions<any>>();
       this.vsObjects.forEach((obj, i) => actionMap.set(obj.absoluteName, this.vsObjectActions[i]));
       this.vsObjects.sort((a, b) => a.objectFormat.zIndex - b.objectFormat.zIndex);
-      this.vsObjectActions = this.vsObjects.map(model => actionMap.get(model.absoluteName));
+      this.vsObjectActions = this.vsObjects.map(model => actionMap.get(model.absoluteName) ?? this.actionFactory.createActions(model));
 
       this.dataTipService.clearDataTips(command.name);
       this.dataTipService.registerDataTip(command.model.dataTip, command.name);
@@ -237,7 +237,7 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
          if(this.vsObjects[i].absoluteName === name) {
             updated = true;
             this.vsObjects[i] = VSUtil.replaceObject(Tool.clone(this.vsObjects[i]), vsObject);
-            this.vsObjectActions[i] = this.actionFactory.createActions(this.vsObjects[i]);
+            this.vsObjectActions[i].updateModel(this.vsObjects[i]);
 
             if(!!this.mySelectedAssemblies && this.mySelectedAssemblies.indexOf(this.vsObjects[i].absoluteName) >= 0) {
                const myIndex = this.vsInfo.vsObjects.indexOf(this.model);
