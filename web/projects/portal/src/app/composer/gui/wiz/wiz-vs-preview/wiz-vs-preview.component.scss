@@ -30,6 +30,7 @@ split-pane {
   overflow: auto;
   background-color: var(--inet-canvas-bg);
   box-sizing: border-box;
+  padding: 16px;
 }
 
 .wiz-vs-canvas {
@@ -38,6 +39,7 @@ split-pane {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
   border-radius: 2px;
   min-height: 100%;
+  overflow: hidden;
 }
 
 .wiz-vs-description {

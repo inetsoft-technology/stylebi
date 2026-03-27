@@ -16,8 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import { AfterViewInit, Component, ElementRef, EventEmitter, Input, OnDestroy, Output, ViewChild } from "@angular/core";
 import { HttpClient, HttpParams } from "@angular/common/http";
-import { Component, Input, OnChanges, OnDestroy, SimpleChanges } from "@angular/core";
 import { Subject, takeUntil } from "rxjs";
 import { VSObjectModel } from "../../../../vsobjects/model/vs-object-model";
 import { Viewsheet } from "../../../data/vs/viewsheet";
@@ -32,8 +32,15 @@ export interface DetailItem {
    templateUrl: "./wiz-vs-preview.component.html",
    styleUrls: ["./wiz-vs-preview.component.scss"]
 })
-export class WizVsPreview implements OnChanges, OnDestroy {
+export class WizVsPreview implements AfterViewInit, OnChanges, OnDestroy {
    @Input() viewsheet: Viewsheet;
+   @ViewChild("wizCanvas") canvasEl: ElementRef;
+   @Output() canvasResize = new EventEmitter<void>();
+
+   private resizeObserver: ResizeObserver;
+   private resizeTimer: any;
+   private initialized = false;
+  
    selectedTab = 0;
    bindingDetails: DetailItem[] = [];
    worksheetDetails: DetailItem[] = [];
@@ -43,6 +50,22 @@ export class WizVsPreview implements OnChanges, OnDestroy {
    constructor(private http: HttpClient) {
    }
 
+   ngAfterViewInit(): void {
+      this.resizeObserver = new ResizeObserver(() => {
+         if(!this.initialized) {
+            this.initialized = true;
+            return;
+         }
+
+         clearTimeout(this.resizeTimer);
+
+         this.resizeTimer = setTimeout(() => {
+            this.canvasResize.emit();
+         }, 200);
+      });
+      this.resizeObserver.observe(this.canvasEl.nativeElement);
+   }
+  
    ngOnChanges(changes: SimpleChanges): void {
       if(changes["viewsheet"]) {
          this.loadDetails();
@@ -50,6 +73,8 @@ export class WizVsPreview implements OnChanges, OnDestroy {
    }
 
    ngOnDestroy(): void {
+      this.resizeObserver?.disconnect();
+      clearTimeout(this.resizeTimer);
       this.destroy$.next();
       this.destroy$.complete();
    }
