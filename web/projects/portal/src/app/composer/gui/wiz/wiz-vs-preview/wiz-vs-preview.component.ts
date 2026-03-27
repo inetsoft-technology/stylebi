@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,16 +15,24 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { AfterViewInit, Component, ElementRef, EventEmitter, Input, OnDestroy, Output, ViewChild } from "@angular/core";
-import { Viewsheet } from "../../../data/vs/viewsheet";
+import { HttpClient, HttpParams } from "@angular/common/http";
+import { Subject, takeUntil } from "rxjs";
 import { VSObjectModel } from "../../../../vsobjects/model/vs-object-model";
+import { Viewsheet } from "../../../data/vs/viewsheet";
+
+export interface DetailItem {
+   label: string;
+   value: string;
+}
 
 @Component({
    selector: "wiz-vs-preview",
    templateUrl: "./wiz-vs-preview.component.html",
    styleUrls: ["./wiz-vs-preview.component.scss"]
 })
-export class WizVsPreview implements AfterViewInit, OnDestroy {
+export class WizVsPreview implements AfterViewInit, OnChanges, OnDestroy {
    @Input() viewsheet: Viewsheet;
    @ViewChild("wizCanvas") canvasEl: ElementRef;
    @Output() canvasResize = new EventEmitter<void>();
@@ -32,6 +40,15 @@ export class WizVsPreview implements AfterViewInit, OnDestroy {
    private resizeObserver: ResizeObserver;
    private resizeTimer: any;
    private initialized = false;
+  
+   selectedTab = 0;
+   bindingDetails: DetailItem[] = [];
+   worksheetDetails: DetailItem[] = [];
+
+   private destroy$ = new Subject<void>();
+
+   constructor(private http: HttpClient) {
+   }
 
    ngAfterViewInit(): void {
       this.resizeObserver = new ResizeObserver(() => {
@@ -48,18 +65,42 @@ export class WizVsPreview implements AfterViewInit, OnDestroy {
       });
       this.resizeObserver.observe(this.canvasEl.nativeElement);
    }
+  
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes["viewsheet"]) {
+         this.loadDetails();
+      }
+   }
 
    ngOnDestroy(): void {
       this.resizeObserver?.disconnect();
       clearTimeout(this.resizeTimer);
+      this.destroy$.next();
+      this.destroy$.complete();
    }
 
    get vsObjects(): VSObjectModel[] {
       return this.viewsheet?.vsObjects ?? [];
    }
 
-   get description(): string {
-      return this.vsObjects[0]?.description ?? "";
+   private loadDetails(): void {
+      const runtimeId = this.viewsheet?.runtimeId;
+
+      if(!runtimeId) {
+         return;
+      }
+
+      const params = new HttpParams().set("runtimeId", runtimeId);
+
+      this.http.get<{ bindingDetails: DetailItem[]; worksheetDetails: DetailItem[] }>(
+         "../api/composer/wiz/details",
+         {params}
+      )
+         .pipe(takeUntil(this.destroy$))
+         .subscribe(response => {
+            this.bindingDetails = response?.bindingDetails ?? [];
+            this.worksheetDetails = response?.worksheetDetails ?? [];
+         });
    }
 
    trackByFn(index: number, obj: VSObjectModel): string {
