@@ -837,6 +837,24 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
+    * Apply table.output.maxcol limit to a VSTableLens before wrapping in RegionTableLens.
+    * Must be called before getRegionTableLens(), which captures column count at construction time.
+    */
+   private void applyMaxColsLimit(VSTableLens lens, String assemblyName) {
+      if(lens == null) {
+         return;
+      }
+
+      int maxCols = VSTableLens.getConfiguredMaxCols();
+
+      if(lens.getColCount() > maxCols) {
+         LOG.warn("Table '{}' column count {} exceeds table.output.maxcol limit {}, truncating export.",
+            assemblyName, lens.getColCount(), maxCols);
+         lens.setMaxCols(maxCols);
+      }
+   }
+
+   /**
     * Get the region table lens.
     * @param data the specified table lens.
     * @param table the specified table data assembly.
@@ -1298,16 +1316,22 @@ public abstract class AbstractVSExporter implements VSExporter {
                case AbstractSheet.TABLE_VIEW_ASSET:
                case AbstractSheet.EMBEDDEDTABLE_VIEW_ASSET:
                   lens = box.getVSTableLens(name, false, 1);
+                  // Bug #74374, apply table.output.maxcol limit before getRegionTableLens(),
+                  // which captures column count at construction time in its own ccount field,
+                  // bypassing VSTableLens.maxCols. Same fix pattern as VsToReportConverter (Bug #74000).
+                  applyMaxColsLimit(lens, assembly.getName());
                   lens = getRegionTableLens(lens, (TableVSAssembly) assembly, box);
                   writeTable((TableVSAssembly) assembly, lens);
                   break;
                case AbstractSheet.CROSSTAB_ASSET:
                   lens = box.getVSTableLens(name, false, 1);
+                  applyMaxColsLimit(lens, assembly.getName());
                   lens = getRegionTableLens(lens, (CrosstabVSAssembly) assembly, box);
                   writeCrosstab((CrosstabVSAssembly) assembly, lens);
                   break;
                case AbstractSheet.FORMULA_TABLE_ASSET:
                   lens = box.getVSTableLens(name, false, 1);
+                  applyMaxColsLimit(lens, assembly.getName());
                   lens = getRegionTableLens(lens, (CalcTableVSAssembly) assembly, box);
                   writeCalcTable((CalcTableVSAssembly) assembly, lens);
                   break;
