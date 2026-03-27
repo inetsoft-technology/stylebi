@@ -172,7 +172,7 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
       // Build a map of existing actions before sorting to preserve action instances.
       // Recreating all actions would break subscriptions held by components (e.g. vs-chart)
       // that subscribed to onAssemblyActionEvent on the old instance.
-      const actionMap = new Map<string, any>();
+      const actionMap = new Map<string,AbstractVSActions<any>>();
       this.vsObjects.forEach((obj, i) => actionMap.set(obj.absoluteName, this.vsObjectActions[i]));
       this.vsObjects.sort((a, b) => a.objectFormat.zIndex - b.objectFormat.zIndex);
       this.vsObjectActions = this.vsObjects.map(model => actionMap.get(model.absoluteName));
