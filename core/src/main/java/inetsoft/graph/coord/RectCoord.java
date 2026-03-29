@@ -298,7 +298,19 @@ public class RectCoord extends Coordinate {
          yaxis2.setTickDown(false);
          yaxis2.setLabelVisible(isAxisLabelVisible(getAxisPosition(1000,500)) &&
                                 yaxis2.isLabelVisible() &&
-                                ((style & 0x10) != 0 || yscale2 != null));
+                                ((style & 0x10) != 0 || yscale2 != null) &&
+                                // Bug #74356: when primary labels are moved to the opposite side
+                                // and yscale2 is a separate DC scale, also apply the primary axis
+                                // label visibility so "Hide Axis" works correctly.
+                                ((style & 0x10) == 0 || yscale2 == null || spec.isLabelVisible()));
+
+         // Bug #74356: when primary labels are on the opposite side and a separate secondary
+         // scale exists (DC), yaxis2 acts as the display axis for the relocated primary labels;
+         // hide its axis line when the primary axis line is hidden.
+         if((style & 0x10) != 0 && yscale2 != null && !spec.isLineVisible()) {
+            yaxis2.setLineVisible(false);
+         }
+
          yaxis2.getScreenTransform().translate(GWIDTH, 0);
          yaxis2.getScreenTransform().rotate(Math.PI / 2);
          yaxis2.getScreenTransform().preConcatenate(getCoordTransform());
