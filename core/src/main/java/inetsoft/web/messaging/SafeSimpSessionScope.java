@@ -52,7 +52,7 @@ public class SafeSimpSessionScope extends SimpSessionScope {
     * Called by {@link MessageScopeInterceptor} at the end of message processing.
     */
    static List<Runnable> getAndClearDeferredCallbacks() {
-      List<Runnable> callbacks = new ArrayList<>(DEFERRED_CALLBACKS.get());
+      List<Runnable> callbacks = DEFERRED_CALLBACKS.get();
       DEFERRED_CALLBACKS.remove();
       return callbacks;
    }

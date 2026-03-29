@@ -41,6 +41,9 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
    public Message<?> beforeHandle(Message<?> message, MessageChannel messageChannel,
                                   MessageHandler messageHandler)
    {
+      // Defensively discard any stale deferred callbacks left by a previous message
+      // on this pooled thread (in case afterMessageHandled was never invoked for it).
+      SafeSimpSessionScope.getAndClearDeferredCallbacks();
       MessageAttributes attributes = new MessageAttributes(message);
       MessageContextHolder.setMessageAttributes(attributes);
       Principal principal = attributes.getHeaderAccessor().getUser();
