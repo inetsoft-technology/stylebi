@@ -1316,7 +1316,7 @@ public abstract class AbstractVSExporter implements VSExporter {
                case AbstractSheet.TABLE_VIEW_ASSET:
                case AbstractSheet.EMBEDDEDTABLE_VIEW_ASSET:
                   lens = box.getVSTableLens(name, false, 1);
-                  // Bug #74374, apply table.output.maxcol limit before getRegionTableLens(),
+                  // Bug #74375, apply table.output.maxcol limit before getRegionTableLens(),
                   // which captures column count at construction time in its own ccount field,
                   // bypassing VSTableLens.maxCols. Same fix pattern as VsToReportConverter (Bug #74000).
                   applyMaxColsLimit(lens, assembly.getName());
