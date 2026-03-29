@@ -83,6 +83,7 @@ public class ImportXLSController {
       }
 
       runtimeId = Tool.byteDecode(runtimeId).replace('/', '_');
+      type = type.replaceAll("[^\\w]", "");
       FileSystemService fileSystemService = FileSystemService.getInstance();
       File temp = fileSystemService.getCacheFile(runtimeId + "_" + type);
       fileSystemService.remove(temp, 120000);
