@@ -808,7 +808,6 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       this.renderer.removeStyle(btn, "height");
       this.renderer.removeStyle(btn, "left");
       this.renderer.removeStyle(btn, "right");
-      this.renderer.removeStyle(btn, "max-width");
       const listEl = (this.elementRef.nativeElement as Element).querySelector(".selection-list");
 
       if(listEl) {
@@ -895,8 +894,6 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       scale: number
    ): void {
       this.renderer.removeStyle(btn, "left");
-      // listRect/cellRect are viewport px; divide by scale to get CSS px for right offset.
-      const dynamicRight = Math.max(0, Math.round((listRect.right - cellRect.right) / scale));
       // In a VSSelectionContainer the scrollbar is at right:0 inside the list, so offset the
       // button left so it doesn't cover the scrollbar.  In a standalone list the scrollbar sits
       // outside the list at left:100%, so the same offset creates visual separation between the
@@ -934,20 +931,14 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
             : listWidthCss - scrollbarAdjust - btnWidth;
          this.renderer.setStyle(btn, "left", Math.max(0, anchorCss) + "px");
          this.renderer.setStyle(btn, "right", "auto");
-         this.renderer.removeStyle(btn, "max-width");
          this.renderer.setStyle(listEl, "width", listWidthCss + "px");
          return;
       }
 
       // Always anchor the button to the list's right edge (+ scrollbar gap).
-      // Using dynamicRight here would push the button left of the list boundary for indented
-      // tree cells where cellRect.right << listRect.right, causing overflow and making the
-      // button unreachable by mouse.
+      // Anchoring to the cell's right edge would push the button left of the list boundary for
+      // indented tree cells, causing overflow and making the button unreachable by mouse.
       this.renderer.setStyle(btn, "right", scrollbarAdjust + "px");
-
-      // Use .selection-value (the text wrapper, flex: 0 1 auto), not .selection-list-cell-label
-      // (a fixed-width container whose right edge always fills the cell regardless of text length).
-      const valueEl = cellElement.querySelector(".selection-value") as HTMLElement | null;
 
       // Don't expand the list — the button floats over the right side of the text using
       // its semi-transparent background and z-index.  Expanding per-row causes the list
