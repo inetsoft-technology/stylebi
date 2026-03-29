@@ -744,7 +744,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
          if(!isLastColumn) {
             this._positionOverlayNonLastColumn(btn, listEl, listRect, cellRect, btnWidth, colIndex, scale);
          } else {
-            this._positionOverlayLastColumn(btn, listRect, cellRect, scale);
+            this._positionOverlayLastColumn(btn, listEl, listRect, cellRect, btnWidth, cellElement, scale);
          }
 
          this.renderer.setStyle(btn, "top", (cellRect.top - listRect.top) / scale + "px");
@@ -850,8 +850,11 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    // overflow .vs-object and overlap adjacent selection lists (Bug #74107).
    private _positionOverlayLastColumn(
       btn: HTMLElement,
+      listEl: Element,
       listRect: DOMRect,
       cellRect: DOMRect,
+      btnWidth: number,
+      cellElement: Element,
       scale: number
    ): void {
       this.renderer.removeStyle(btn, "left");
