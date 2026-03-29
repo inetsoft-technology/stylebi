@@ -82,10 +82,15 @@ public class ImportXLSController {
          return;
       }
 
-      runtimeId = Tool.byteDecode(runtimeId).replaceAll("[^\\w-]", "_");
-      type = type.replaceAll("[^\\w]", "");
+      // Use the server-side ID (not the raw user-provided runtimeId) so the filename
+      // is derived from a trusted source, preventing path-traversal via the request parameter.
+      String safeId = rvs.getID().replace('/', '_');
+      // Whitelist type to the only two valid values; reject anything else.
+      if(!"xls".equals(type) && !"xlsx".equals(type)) {
+         return;
+      }
       FileSystemService fileSystemService = FileSystemService.getInstance();
-      File temp = fileSystemService.getCacheFile(runtimeId + "_" + type);
+      File temp = fileSystemService.getCacheFile(safeId + "_" + type);
       fileSystemService.remove(temp, 120000);
       try(FileOutputStream fileOutput = new FileOutputStream(temp)) {
          fileOutput.write(file.getBytes());
