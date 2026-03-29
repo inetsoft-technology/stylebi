@@ -31,10 +31,69 @@
 
 .ws-details-pane-container {
   height: 22%;
+  display: flex;
+  flex-direction: column;
+}
+
+.ws-bottom-tab-bar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: stretch;
+  height: 30px;
+  background: var(--inet-bg-white1, #f8f8f8);
+}
+
+.ws-bottom-tab {
+  padding: 0 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: inherit;
+  border-right: 1px solid rgba(0, 0, 0, 0.1);
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.06);
+  }
+
+  &--active {
+    border-bottom: 2px solid currentColor;
+    font-weight: 500;
+  }
+}
+
+.ws-bottom-tab-close {
+  font-size: 0.7rem;
+  line-height: 1;
+  opacity: 0.6;
+  padding: 2px 3px;
+  border-radius: 3px;
+
+  &:hover {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.1);
+  }
+}
+
+.ws-bottom-tab-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 ws-details-pane {
   height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+ai-assistant-panel {
+  flex: 1;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }

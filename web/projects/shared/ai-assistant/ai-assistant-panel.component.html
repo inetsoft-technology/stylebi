@@ -19,7 +19,9 @@
      AiAssistantDialogComponent always re-reads the current context, user email, and
      createNewChat flag from AiAssistantService. This ensures the AI assistant receives
      up-to-date binding/script context from whatever viewsheet or worksheet is active. -->
-<div *ngIf="panelOpen$ | async"
+
+<!-- Floating panel: shown in non-worksheet contexts. Suppressed when worksheet embedded mode is active. -->
+<div *ngIf="!embedded && (panelOpen$ | async) && !(worksheetEmbedded$ | async)"
      class="ai-assistant-panel"
      [class.side-mode]="mode === 'side'"
      [class.bottom-mode]="mode === 'bottom'"
@@ -45,14 +47,23 @@
     </div>
   </div>
   <div class="panel-body">
-    <ng-container [ngSwitch]="serverState">
-      <div *ngSwitchCase="'checking'" class="assistant-server-status">
-        <span>_#(Connecting to AI assistant...)</span>
-      </div>
-      <div *ngSwitchCase="'offline'" class="assistant-server-status assistant-server-offline">
-        <span>_#(The AI assistant server is currently unavailable. Please contact your administrator.)</span>
-      </div>
-      <ai-assistant-dialog *ngSwitchCase="'online'"></ai-assistant-dialog>
-    </ng-container>
+    <ng-container *ngTemplateOutlet="bodyContent"></ng-container>
   </div>
 </div>
+
+<!-- Embedded mode: renders body content inline (no fixed wrapper, no header). Used in worksheet tab. -->
+<ng-container *ngIf="embedded">
+  <ng-container *ngTemplateOutlet="bodyContent"></ng-container>
+</ng-container>
+
+<ng-template #bodyContent>
+  <ng-container [ngSwitch]="serverState">
+    <div *ngSwitchCase="'checking'" class="assistant-server-status">
+      <span>_#(Connecting to AI assistant...)</span>
+    </div>
+    <div *ngSwitchCase="'offline'" class="assistant-server-status assistant-server-offline">
+      <span>_#(The AI assistant server is currently unavailable. Please contact your administrator.)</span>
+    </div>
+    <ai-assistant-dialog *ngSwitchCase="'online'"></ai-assistant-dialog>
+  </ng-container>
+</ng-template>

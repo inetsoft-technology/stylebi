@@ -63,6 +63,25 @@ export class AiAssistantService {
    readonly panelOpen$ = this._panelOpen$.asObservable();
    get panelOpen(): boolean { return this._panelOpen$.value; }
    set panelOpen(v: boolean) { this._panelOpen$.next(v); }
+   private _activeWorksheetPanes = new Set<symbol>();
+   private _worksheetEmbedded$ = new BehaviorSubject<boolean>(false);
+   readonly worksheetEmbedded$ = this._worksheetEmbedded$.asObservable();
+   get worksheetEmbedded(): boolean { return this._worksheetEmbedded$.value; }
+
+   registerWorksheetPane(id: symbol, active: boolean): void {
+      if(active) {
+         this._activeWorksheetPanes.add(id);
+      }
+      else {
+         this._activeWorksheetPanes.delete(id);
+      }
+      this._worksheetEmbedded$.next(this._activeWorksheetPanes.size > 0);
+   }
+
+   unregisterWorksheetPane(id: symbol): void {
+      this._activeWorksheetPanes.delete(id);
+      this._worksheetEmbedded$.next(this._activeWorksheetPanes.size > 0);
+   }
    aiAssistantVisible: boolean = false;
    userId: string = "";
    email: string = "";

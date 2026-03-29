@@ -177,6 +177,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
 
    @Input() pasteEnabled: boolean;
    @Input() set active(active: boolean) {
+      this.aiAssistantService.registerWorksheetPane(this.paneId, active);
       if(active) {
          this.changeDetector.reattach();
          this.initKeyListeners();
@@ -218,6 +219,10 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
    /** Information to send to certain dialogs. */
    dialogData: any;
 
+   activeTab: "data" | "ai" = "data";
+   readonly panelOpen$ = this.aiAssistantService.panelOpen$;
+   private readonly paneId = Symbol();
+
    private focusSubscription: Subscription;
    private keyEventsSubscription: Subscription | null;
    private confirmExpiredDisplayed: boolean = false;
@@ -226,6 +231,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
    private transformSubscription: Subscription;
    private dragColumnsSubscription: Subscription;
    private connectionErrorSubscription: Subscription = Subscription.EMPTY;
+   private aiPanelSubscription: Subscription = Subscription.EMPTY;
    private loadingEventCount: number = 0;
    preparingData: boolean = false;
    private firstTime: boolean = true;
@@ -281,6 +287,9 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       this.worksheet.socketConnection = this.worksheetClient;
       this.setup();
       this.openWorksheet();
+      this.aiPanelSubscription = this.aiAssistantService.panelOpen$.subscribe(open => {
+         this.activeTab = open ? "ai" : "data";
+      });
       this.worksheet.clearFocusedAssemblies();
       this.subscribeToFocus();
       this.initDragAssetColumnsListener();
@@ -309,11 +318,17 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       this.dragColumnsSubscription.unsubscribe();
       this.renameTransformSubscription.unsubscribe();
       this.transformSubscription.unsubscribe();
+      this.aiPanelSubscription.unsubscribe();
+      this.aiAssistantService.unregisterWorksheetPane(this.paneId);
       this.destroyKeyListeners();
    }
 
    public onSplitDrag(): void {
       this.resizeHandlerService.onHorizontalDrag();
+   }
+
+   public closeAiPanel(): void {
+      this.aiAssistantService.panelOpen = false;
    }
 
    public concatenateTables(...tables: AbstractTableAssembly[]): void {

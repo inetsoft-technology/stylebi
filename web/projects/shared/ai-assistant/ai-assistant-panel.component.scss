@@ -22,6 +22,9 @@
   // Override --ai-panel-top-offset in an app's global stylesheet if that ever changes.
   --ai-panel-top-offset: 52px;
   --ai-panel-background: white;
+  // Used in embedded (worksheet tab) mode so children can fill available height.
+  display: flex;
+  flex-direction: column;
 }
 
 .ai-assistant-panel {

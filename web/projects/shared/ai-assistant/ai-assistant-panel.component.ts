@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { Component, HostListener, NgZone, OnDestroy, OnInit, Renderer2 } from "@angular/core";
+import { Component, HostListener, Input, NgZone, OnDestroy, OnInit, Renderer2 } from "@angular/core";
 import { Subscription } from "rxjs";
 import { AiAssistantService } from "./ai-assistant.service";
 
@@ -37,12 +37,14 @@ const TOP_OFFSET = 52;
    styleUrls: ["./ai-assistant-panel.component.scss"]
 })
 export class AiAssistantPanelComponent implements OnInit, OnDestroy {
+   @Input() embedded: boolean = false;
    mode: PanelMode = "side";
    sideWidth: number = DEFAULT_SIDE_WIDTH;
    bottomHeight: number = DEFAULT_BOTTOM_HEIGHT;
    serverState: "checking" | "online" | "offline" = "checking";
 
    readonly panelOpen$ = this.aiAssistantService.panelOpen$;
+   readonly worksheetEmbedded$ = this.aiAssistantService.worksheetEmbedded$;
 
    private dragging = false;
    private dragStartPos = 0;

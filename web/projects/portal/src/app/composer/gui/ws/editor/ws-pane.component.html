@@ -51,22 +51,40 @@
       </div>
     </div>
     <div class="ws-details-pane-container bg-white1">
-      <ws-details-pane *ngIf="worksheet.runtimeId"
-                       [worksheet]="worksheet" [table]="worksheet.focusedTable"
-                       [selectingColumnSource]="selectingColumnSource"
-                       [freeFormSqlEnabled]="freeFormSqlEnabled"
-                       [expressionColumnEnabled]="expressionColumnEnabled"
-                       [(consoleMessages)]="consoleMessageMap[worksheet.focusedTable?.name]"
-                       (onInsertColumns)="insertColumns($event)"
-                       (onReplaceColumns)="replaceColumns($event)"
-                       (onOpenAssemblyConditionDialog)="openAssemblyConditionDialog($event)"
-                       (onOpenAggregateDialog)="openAggregateDialog($event)"
-                       (onOpenSortColumnDialog)="openSortColumnDialog($event)"
-                       (onEditQuery)="editQuery($event)"
-                       (onToggleAutoUpdate)="toggleAutoUpdate($event)"
-                       (onToggleShowColumnName)="toggleShowColumnName($event)"
-                       (onSelectColumnSource)="selectColumnSource($event)"
-                       (onOozColumnMouseEvent)="oozColumnMouseEvent($event)"></ws-details-pane>
+      <div class="ws-bottom-tab-bar bb-gray">
+        <button class="ws-bottom-tab" [class.ws-bottom-tab--active]="activeTab === 'data'"
+                (click)="activeTab = 'data'">_#(Data)</button>
+        <button *ngIf="panelOpen$ | async"
+                class="ws-bottom-tab" [class.ws-bottom-tab--active]="activeTab === 'ai'"
+                (click)="activeTab = 'ai'">
+          _#(AI Assistant)
+          <span class="ws-bottom-tab-close" (click)="$event.stopPropagation(); closeAiPanel()"
+                title="_#(Close)" aria-label="_#(Close)">&#x2715;</span>
+        </button>
+      </div>
+      <div class="ws-bottom-tab-content">
+        <ng-container *ngIf="activeTab === 'data'">
+          <ws-details-pane *ngIf="worksheet.runtimeId"
+                           [worksheet]="worksheet" [table]="worksheet.focusedTable"
+                           [selectingColumnSource]="selectingColumnSource"
+                           [freeFormSqlEnabled]="freeFormSqlEnabled"
+                           [expressionColumnEnabled]="expressionColumnEnabled"
+                           [(consoleMessages)]="consoleMessageMap[worksheet.focusedTable?.name]"
+                           (onInsertColumns)="insertColumns($event)"
+                           (onReplaceColumns)="replaceColumns($event)"
+                           (onOpenAssemblyConditionDialog)="openAssemblyConditionDialog($event)"
+                           (onOpenAggregateDialog)="openAggregateDialog($event)"
+                           (onOpenSortColumnDialog)="openSortColumnDialog($event)"
+                           (onEditQuery)="editQuery($event)"
+                           (onToggleAutoUpdate)="toggleAutoUpdate($event)"
+                           (onToggleShowColumnName)="toggleShowColumnName($event)"
+                           (onSelectColumnSource)="selectColumnSource($event)"
+                           (onOozColumnMouseEvent)="oozColumnMouseEvent($event)"></ws-details-pane>
+        </ng-container>
+        <ng-container *ngIf="activeTab === 'ai' && (panelOpen$ | async)">
+          <ai-assistant-panel [embedded]="true"></ai-assistant-panel>
+        </ng-container>
+      </div>
     </div>
   </split-pane>
   <vs-loading-display *ngIf="worksheet.loading"
