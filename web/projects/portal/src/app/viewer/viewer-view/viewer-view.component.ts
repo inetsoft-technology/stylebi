@@ -121,6 +121,9 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
             };
             this.pageTabService.addTab(tab);
          }
+         else {
+            this.pageTabService.tabs[0].runtimeId = data.viewData.runtimeId;
+         }
 
          this.queryParameters = this.updateQueryParams(data.viewData.queryParameters);
          // getQueryParameters in resolver gets the previous url information
