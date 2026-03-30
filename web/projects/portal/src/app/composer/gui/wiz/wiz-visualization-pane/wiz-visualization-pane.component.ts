@@ -348,17 +348,27 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, Af
    }
 
    openWs() {
-      let reqParas: HttpParams = new HttpParams().set("runtimeId", Tool.byteEncode(this.currentVisualization?.runtimeId));
+      if(!this.currentVisualization?.runtimeId) {
+         return;
+      }
 
-      this.http.get("../api/composer/wiz/visualization/base-worksheet-id", {params: reqParas}).subscribe((wsId: string) => {
-         if(!!!wsId) {
-            let msg: string = "_#(js:Worksheet do not exist)";
-            ComponentTool.showConfirmDialog(this.modalService, "_#(js:Error)", msg)
-            return;
+      let reqParams: HttpParams = new HttpParams().set("runtimeId", Tool.byteEncode(this.currentVisualization.runtimeId));
+
+      this.http.get("../api/composer/wiz/visualization/base-worksheet-id", {params: reqParams}).subscribe({
+         next: (wsId: string) => {
+            if(!wsId) {
+               let msg: string = "_#(js:Worksheet does not exist)";
+               ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", msg);
+               return;
+            }
+
+            let params: HttpParams = new HttpParams().set("wsId", wsId);
+            GuiTool.openBrowserTab("composer", params);
+         },
+         error: () => {
+            let msg: string = "_#(js:Can not get Worksheet)";
+            ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", msg);
          }
-
-         let params: HttpParams = new HttpParams().set("wsId", decodeURIComponent(wsId));
-         GuiTool.openBrowserTab("composer", params);
       });
    }
 }
