@@ -423,6 +423,12 @@ public class RepletEngine extends AbstractAssetEngine
       List<String> vec = new ArrayList<>();
 
       try {
+         // Bug #74338 trace
+         System.err.println("[74338] RepletEngine.getScheduleTasks allTasks=" +
+            allTasks.stream().map(t -> t.getTaskId() + "(owner=" +
+               (t.getOwner() == null ? "null" : t.getOwner().convertToKey()) + ")")
+               .collect(java.util.stream.Collectors.joining(", ", "[", "]")) +
+            " principal=" + (principal == null ? "null" : principal.getName()));
          Map<IdentityID, Boolean> adminUsers = new HashMap<>();
          SecurityProvider provider = getSecurity().getSecurityProvider();
 

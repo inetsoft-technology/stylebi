@@ -387,7 +387,11 @@ public class ScheduleManager {
     * Get schedule tasks.
     */
    public Vector<ScheduleTask> getScheduleTasks(String orgID) {
-      Vector<ScheduleTask> list = new Vector<>(getOrgTaskMap(orgID).values());
+      ScheduleTaskMap orgTaskMap = getOrgTaskMap(orgID);
+      // Bug #74338 trace
+      System.err.println("[74338] getScheduleTasks(orgID=" + orgID + ") raw keys=" +
+         orgTaskMap.keySet().stream().collect(java.util.stream.Collectors.joining(", ", "[", "]")));
+      Vector<ScheduleTask> list = new Vector<>(orgTaskMap.values());
       extensionLock.lock();
 
       try {
