@@ -17,7 +17,6 @@
  */
 package inetsoft.util;
 
-import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,59 +40,17 @@ import java.util.Map;
  */
 public class Collator_CN extends Collator {
    /**
-    * Initialize this collator.
-    */
-   private static void init() {
-      if(!inited) {
-         synchronized(Collator_CN.class) {
-            if(!inited) {
-               init0();
-            }
-         }
-      }
-   }
-
-   /**
-    * Initialize this collator internally.
-    */
-   private static void init0() {
-      InputStream input =
-         Collator_CN.class.getResourceAsStream("/inetsoft/util/collator_map.properties");
-
-      if(input != null) {
-         try {
-            BufferedReader reader =
-               new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8));
-            map = new HashMap<>();
-            String line;
-
-            while((line = reader.readLine()) != null) {
-               line = line.trim();
-               int index = line.indexOf('=');
-
-               if(index >= 0) {
-                  map.put(line.substring(0, index), line.substring(index + 1));
-               }
-            }
-         }
-         catch(Exception ex) {
-            LOG.error("Failed to read collator map file", ex);
-         }
-         finally {
-            inited = true;
-            IOUtils.closeQuietly(input);
-         }
-      }
-   }
-
-   /**
     * Get the collator.
     */
    public static Collator getCollator() {
-      init();
+      return map == null ? Collator.getInstance() : new Collator_CN();
+   }
 
-      return map == null ? Collator.getInstance() :
-         new Collator_CN();
+   /**
+    * Returns true if the polyphone map has been loaded from disk.
+    */
+   public static boolean isMapLoaded() {
+      return map != null;
    }
 
    /**
@@ -116,9 +73,10 @@ public class Collator_CN extends Collator {
     */
    @Override
    public int compare(String source, String target) {
-      String val = map == null ? null : map.get(source);
+      Map<String, String> m = map; // single volatile read
+      String val = m == null ? null : m.get(source);
       source = val == null ? source : val;
-      val = map == null ? null : map.get(target);
+      val = m == null ? null : m.get(target);
       target = val == null ? target : val;
       return base.compare(source, target);
    }
@@ -131,7 +89,44 @@ public class Collator_CN extends Collator {
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(Collator_CN.class);
-   private static Map<String, String> map;
-   private static volatile boolean inited;
+   private static volatile Map<String, String> map;
+
+   static {
+      Thread loader = new Thread(() -> {
+         try(InputStream input =
+               Collator_CN.class.getResourceAsStream("/inetsoft/util/collator_map.properties"))
+         {
+            if(input != null) {
+               try(BufferedReader reader =
+                     new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8)))
+               {
+                  Map<String, String> m = new HashMap<>();
+                  String line;
+
+                  while((line = reader.readLine()) != null) {
+                     line = line.trim();
+                     int index = line.indexOf('=');
+
+                     if(index >= 0) {
+                        m.put(line.substring(0, index), line.substring(index + 1));
+                     }
+                  }
+
+                  map = m;
+               }
+            }
+            else {
+               LOG.warn("collator_map.properties not found on classpath; " +
+                  "Chinese polyphone sorting will be unavailable");
+            }
+         }
+         catch(Exception ex) {
+            LOG.error("Failed to read collator map file", ex);
+         }
+      }, "Collator_CN-loader");
+      loader.setDaemon(true);
+      loader.start();
+   }
+
    private final Collator base;
 }
