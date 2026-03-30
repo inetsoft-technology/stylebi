@@ -25,7 +25,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.WizUtil;
+import inetsoft.uql.viewsheet.internal.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -393,6 +393,15 @@ public class AddVisualizationService {
          }
 
          VSAssembly cloned = (VSAssembly) srcAssembly.clone();
+         VSAssemblyInfo info = cloned.getVSAssemblyInfo();
+
+         if(info instanceof ChartVSAssemblyInfo chartInfo) {
+            chartInfo.setMaxSize(null);
+         }
+         else if(info instanceof TableDataVSAssemblyInfo tableInfo) {
+            tableInfo.setMaxSize(null);
+         }
+
          String originalName = srcAssembly.getName();
          String targetName = originalName;
 
