@@ -3705,7 +3705,7 @@ public abstract class AbstractVSExporter implements VSExporter {
 
       InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
       LabelInfo labelInfo = inputInfo.getLabelInfo();
-      Rectangle2D fullBounds = helper.getBounds(info);
+      Rectangle2D fullBounds = expandBoundsForLabel(helper.getBounds(info), labelInfo);
 
       Rectangle2D[] bounds = splitInputBounds(fullBounds, labelInfo);
       helper.drawTextBox(bounds[0], getLabelFormat(labelInfo),
@@ -3800,6 +3800,83 @@ public abstract class AbstractVSExporter implements VSExporter {
       }
 
       return new Rectangle2D[] { labelBounds, widgetBounds };
+   }
+
+   /**
+    * Expand assembly bounds to include label + gap space for top/bottom labels.
+    * Left/right labels squeeze within the existing pixelSize on the frontend
+    * (via flex-shrink), so no expansion is needed for those positions.
+    */
+   protected static Rectangle2D expandBoundsForLabel(Rectangle2D bounds,
+      LabelInfo labelInfo)
+   {
+      String pos = labelInfo.getLabelPosition();
+
+      if(!LabelInfo.TOP.equals(pos) && !LabelInfo.BOTTOM.equals(pos)) {
+         return bounds;
+      }
+
+      int[] dims = getLabelDimensions(labelInfo);
+      int gap = Math.max(0, labelInfo.getLabelGap());
+
+      return new Rectangle2D.Double(
+         bounds.getX(), bounds.getY(),
+         bounds.getWidth(), bounds.getHeight() + dims[1] + gap);
+   }
+
+   /**
+    * Adjust the export page size to account for input labels that extend
+    * beyond the stored pixelSize. Mirrors the filtering logic in
+    * Viewsheet.getPreferredBounds() to skip invisible/container assemblies.
+    */
+   public static Dimension adjustSizeForInputLabels(Viewsheet vs,
+      Dimension size)
+   {
+      int maxW = size.width;
+      int maxH = size.height;
+
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(!(assembly instanceof VSAssembly vsAssembly)) {
+            continue;
+         }
+
+         if(!vsAssembly.isVisible()) {
+            continue;
+         }
+
+         if(vsAssembly.getContainer() instanceof CurrentSelectionVSAssembly) {
+            continue;
+         }
+
+         VSAssemblyInfo info = vsAssembly.getVSAssemblyInfo();
+
+         if(!hasVisibleLabel(info)) {
+            continue;
+         }
+
+         InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
+         LabelInfo labelInfo = inputInfo.getLabelInfo();
+
+         Dimension asmSize = info.getLayoutSize();
+         Point pos = info.getLayoutPosition();
+
+         if(asmSize == null) {
+            asmSize = vs.getPixelSize(info);
+         }
+
+         if(pos == null) {
+            pos = vs.getPixelPosition(info);
+         }
+
+         Rectangle2D expanded = expandBoundsForLabel(
+            new Rectangle2D.Double(pos.x, pos.y, asmSize.width, asmSize.height),
+            labelInfo);
+
+         maxW = Math.max(maxW, (int) Math.ceil(expanded.getMaxX()));
+         maxH = Math.max(maxH, (int) Math.ceil(expanded.getMaxY()));
+      }
+
+      return new Dimension(maxW, maxH);
    }
 
    /**

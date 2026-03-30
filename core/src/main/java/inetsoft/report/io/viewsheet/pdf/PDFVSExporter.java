@@ -993,7 +993,8 @@ public class PDFVSExporter extends AbstractVSExporter {
                             ViewsheetSandbox box) throws Exception
    {
       super.prepareSheet(vsheet, sheet, box);
-      Dimension size = viewsheet.getPreferredSize(false, true);
+      Dimension size = adjustSizeForInputLabels(
+         viewsheet, viewsheet.getPreferredSize(false, true));
 
       if(isAllHidden(viewsheet, box)) {
          helper.getPrinter().
