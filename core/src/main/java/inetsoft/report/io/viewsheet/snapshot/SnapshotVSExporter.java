@@ -245,14 +245,20 @@ public class SnapshotVSExporter {
          if(nasset instanceof ViewsheetAsset) {
             Viewsheet vs = (Viewsheet) nasset.getSheet(false);
 
-            if(vs == null) {
+            // If vs is null or is an embedded instance, the assemblies section is skipped
+            // in Viewsheet.writeXML, producing an empty viewsheet on import.
+            // Load the full standalone viewsheet from the repository instead.
+            if(vs == null || vs.isEmbedded()) {
                AssetRepository engine = rvs.getAssetRepository();
-               vs = (Viewsheet)
+               Viewsheet loaded = (Viewsheet)
                   engine.getSheet(entry, null, false, AssetContent.ALL);
-               vs = (Viewsheet) vs.clone();
-               vs.setEntry(fixEntry(vs.getEntry(), false));
-               vs.setBaseEntry(fixEntry(vs.getBaseEntry(), false));
-               nasset.setSheet(vs);
+
+               if(loaded != null) {
+                  vs = (Viewsheet) loaded.clone();
+                  vs.setEntry(fixEntry(vs.getEntry(), false));
+                  vs.setBaseEntry(fixEntry(vs.getBaseEntry(), false));
+                  nasset.setSheet(vs);
+               }
             }
             else {
                vs.setEntry(fixEntry(vs.getEntry(), false));
