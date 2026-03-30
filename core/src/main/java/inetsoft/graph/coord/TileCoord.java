@@ -588,8 +588,12 @@ public abstract class TileCoord extends AbstractCoord {
          }
 
          if(axis == LEFT_AXIS || axis == RIGHT_AXIS) {
-            for(Coordinate coord : coords) {
-               if(coord.isAxisLabelVisible(axis)) {
+            // Only check coords[i>=1] (secondary measure coords). coords[0] has
+            // axisVis=0xFFFFFF by default, which would cause all tiles to appear
+            // visible and receive setAxisSize() calls, compressing the plot height
+            // in transposed (e.g. boxplot) charts. (Bug #74377)
+            for(int i = 1; i < coords.length; i++) {
+               if(coords[i].isAxisLabelVisible(axis)) {
                   return true;
                }
             }
@@ -1018,8 +1022,11 @@ public abstract class TileCoord extends AbstractCoord {
          }
 
          if(axis == BOTTOM_AXIS || axis == TOP_AXIS) {
-            for(Coordinate coord : coords) {
-               if(coord.isAxisLabelVisible(axis)) {
+            // Only check coords[i>=1] (secondary measure coords). coords[0] has
+            // axisVis=0xFFFFFF by default, which would cause all tiles to appear
+            // visible and receive setAxisSize() calls. (Bug #74377)
+            for(int i = 1; i < coords.length; i++) {
+               if(coords[i].isAxisLabelVisible(axis)) {
                   return true;
                }
             }
