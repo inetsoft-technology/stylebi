@@ -61,6 +61,8 @@ import { GuiTool } from "../../../../common/util/gui-tool";
 import { SetViewsheetInfoCommand } from "../../../../vsobjects/command/set-viewsheet-info-command";
 import { SetWizDetailsCommand, WizDetailItem } from "../../../../vsobjects/command/set-wiz-details-command";
 import { WizVsPreview } from "../wiz-vs-preview/wiz-vs-preview.component";
+import { ShowLoadingMaskCommand } from "../../../../vsobjects/command/show-loading-mask-command";
+import { ClearLoadingCommand } from "../../../../vsobjects/command/clear-loading-command";
 
 @Component({
    selector: "wiz-visualization-pane",
@@ -107,6 +109,8 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, Af
    initError: string = null;
    wizBindingDetails: WizDetailItem[] = [];
    wizWorksheetDetails: WizDetailItem[] = [];
+   viewsheetLoading: boolean = false;
+   private loadingEventCount: number = 0;
    private connected: boolean = false;
    private heartbeatSubscription: Subscription = Subscription.EMPTY;
 
@@ -271,6 +275,22 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, Af
       this.currentVisualization.current = command.current;
       this.currentVisualization.currentTS = (new Date()).getTime();
       this.currentVisualization.savePoint = command.savePoint;
+   }
+
+   private processShowLoadingMaskCommand(command: ShowLoadingMaskCommand): void {
+      if(!command.preparingData) {
+         this.loadingEventCount++;
+      }
+
+      this.viewsheetLoading = true;
+   }
+
+   private processClearLoadingCommand(command: ClearLoadingCommand): void {
+      this.loadingEventCount = Math.max(0, this.loadingEventCount - command.count);
+
+      if(this.loadingEventCount === 0) {
+         this.viewsheetLoading = false;
+      }
    }
 
    refreshVSObject(obj: VSObjectModel): void {
