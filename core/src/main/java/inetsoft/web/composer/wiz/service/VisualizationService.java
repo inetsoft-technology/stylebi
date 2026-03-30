@@ -33,8 +33,8 @@ import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.WizUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.TreeNodeModel;
+import inetsoft.web.composer.wiz.command.SetWizDetailsCommand;
 import inetsoft.web.composer.wiz.model.VisualizationDetailModel;
-import inetsoft.web.composer.wiz.model.VisualizationDetailsResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -159,18 +159,11 @@ public class VisualizationService {
          .build();
    }
 
-   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public VisualizationDetailsResponse getDetails(@ClusterProxyKey String runtimeId,
-                                                  Principal principal)
-      throws Exception
-   {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-
-      if(rvs == null || rvs.getViewsheet() == null) {
-         return new VisualizationDetailsResponse(Collections.emptyList(), Collections.emptyList());
+   public SetWizDetailsCommand buildDetailsCommand(Viewsheet vs) {
+      if(vs == null) {
+         return new SetWizDetailsCommand(Collections.emptyList(), Collections.emptyList());
       }
 
-      Viewsheet vs = rvs.getViewsheet();
       List<VisualizationDetailModel> bindingDetails = Collections.emptyList();
 
       for(Assembly assembly : vs.getAssemblies()) {
@@ -193,7 +186,7 @@ public class VisualizationService {
       }
 
       List<VisualizationDetailModel> worksheetDetails = buildWorksheetDetails(vs.getBaseWorksheet());
-      return new VisualizationDetailsResponse(bindingDetails, worksheetDetails);
+      return new SetWizDetailsCommand(bindingDetails, worksheetDetails);
    }
 
    private List<VisualizationDetailModel> buildWorksheetDetails(Worksheet ws) {

@@ -59,6 +59,7 @@ import { CloseSheetCommand } from "../../ws/socket/close-sheet-command";
 import { TouchAssetEvent } from "../../ws/socket/touch-asset-event";
 import { GuiTool } from "../../../../common/util/gui-tool";
 import { SetViewsheetInfoCommand } from "../../../../vsobjects/command/set-viewsheet-info-command";
+import { SetWizDetailsCommand, WizDetailItem } from "../../../../vsobjects/command/set-wiz-details-command";
 import { WizVsPreview } from "../wiz-vs-preview/wiz-vs-preview.component";
 
 @Component({
@@ -104,6 +105,8 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, Af
    @Input() currentVisualization: WizDashboard;
    @ViewChild(WizVsPreview) private wizVsPreview: WizVsPreview;
    initError: string = null;
+   wizBindingDetails: WizDetailItem[] = [];
+   wizWorksheetDetails: WizDetailItem[] = [];
    private connected: boolean = false;
    private heartbeatSubscription: Subscription = Subscription.EMPTY;
 
@@ -193,6 +196,12 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, Af
    private processSetRuntimeIdCommand(command: SetRuntimeIdCommand): void {
       this.currentVisualization.runtimeId = command.runtimeId;
       this.viewsheetClient.runtimeId = command.runtimeId;
+   }
+
+   private processSetWizDetailsCommand(command: SetWizDetailsCommand): void {
+      console.log("SetWizDetailsCommand", command);
+      this.wizBindingDetails = command.bindingDetails ?? [];
+      this.wizWorksheetDetails = command.worksheetDetails ?? [];
    }
 
    private processInitGridCommand(command: InitGridCommand): void {

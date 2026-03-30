@@ -40,6 +40,7 @@ import inetsoft.web.binding.handler.VSChartDataHandler;
 import inetsoft.web.composer.vs.VSObjectTreeNode;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
+import inetsoft.web.composer.wiz.service.VisualizationService;
 import inetsoft.web.embed.EmbedAssemblyInfo;
 import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
@@ -68,7 +69,8 @@ public class VSRefreshService {
                            VSObjectTreeService vsObjectTreeService,
                            VSBookmarkService vsBookmarkService,
                            VSChartDataHandler chartDataHandler,
-                           ParameterService parameterService)
+                           ParameterService parameterService,
+                           VisualizationService visualizationService)
    {
       this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
@@ -76,6 +78,7 @@ public class VSRefreshService {
       this.vsBookmarkService = vsBookmarkService;
       this.chartDataHandler = chartDataHandler;
       this.parameterService = parameterService;
+      this.visualizationService = visualizationService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -323,6 +326,10 @@ public class VSRefreshService {
             PopulateVSObjectTreeCommand treeCommand = new PopulateVSObjectTreeCommand(tree);
             commandDispatcher.sendCommand(treeCommand);
          }
+
+         if(vs != null && vs.getWizInfo() != null && vs.getWizInfo().isWizVisualization()) {
+            commandDispatcher.sendCommand(visualizationService.buildDetailsCommand(vs));
+         }
       }
       finally {
          box.get().setRefreshing(false);
@@ -534,6 +541,7 @@ public class VSRefreshService {
    private final VSBookmarkService vsBookmarkService;
    private final VSChartDataHandler chartDataHandler;
    private final ParameterService parameterService;
+   private final VisualizationService visualizationService;
    private final ConcurrentMap<String, Boolean> pending = new ConcurrentHashMap<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(VSRefreshService.class);

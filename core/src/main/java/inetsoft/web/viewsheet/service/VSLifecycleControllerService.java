@@ -24,8 +24,10 @@ import inetsoft.report.Hyperlink;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
+import inetsoft.web.composer.wiz.service.VisualizationService;
 import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.springframework.stereotype.Service;
@@ -39,11 +41,12 @@ public class VSLifecycleControllerService {
 
    public VSLifecycleControllerService(ViewsheetService viewsheetService,
                                        CoreLifecycleService coreLifecycleService,
-                                       VSBookmarkService vsBookmarkService) {
+                                       VSBookmarkService vsBookmarkService,
+                                       VisualizationService visualizationService) {
       this.viewsheetService = viewsheetService;
       this.coreLifecycleService = coreLifecycleService;
       this.vsBookmarkService = vsBookmarkService;
-
+      this.visualizationService = visualizationService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -143,9 +146,16 @@ public class VSLifecycleControllerService {
          dispatcher.sendCommand(command);
       }
 
+      Viewsheet vs = rvs.getViewsheet();
+
+      if(vs != null && vs.getWizInfo() != null && vs.getWizInfo().isWizVisualization()) {
+         dispatcher.sendCommand(visualizationService.buildDetailsCommand(vs));
+      }
+
       return null;
    }
 
+   private final VisualizationService visualizationService;
    private final ViewsheetService viewsheetService;
    private final CoreLifecycleService coreLifecycleService;
    private final VSBookmarkService vsBookmarkService;
