@@ -341,6 +341,16 @@ export class SelectionListCell implements OnInit, OnChanges, OnDestroy {
       }
 
       this.selectionStateChanged.emit({ toggle, toggleAll });
+
+      // optimistically flip the overlay icon after alt+click, matching onQuickSwitchClick
+      if(this.quickSwitchAllowed && (toggle || toggleAll)) {
+         this.vsSelectionComponent.setQuickSwitchHover(
+            this.cell?.nativeElement ?? null,
+            !this.singleSelection,
+            () => this.click(new MouseEvent("click"), true)
+         );
+      }
+
       this.selectRegion(event, CellRegion.LABEL);
    }
 
