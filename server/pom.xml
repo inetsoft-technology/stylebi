@@ -392,6 +392,9 @@
             <argument>--server.servlet.context-path=/sree</argument>
             <argument>--spring.resources.chain.strategy.content.enabled=false</argument>
           </arguments>
+          <environmentVariables>
+            <INETSOFT_ADMIN_PASSWORD>Admin1234!</INETSOFT_ADMIN_PASSWORD>
+          </environmentVariables>
           <systemPropertyVariables>
             <java.awt.headless>true</java.awt.headless>
             <java.io.tmpdir>${project.build.directory}/server/temp</java.io.tmpdir>
