@@ -146,8 +146,8 @@
                        (scrollAxis)="onScrollAxis($event, axis)"
                        (sendFlyover)="sendFlyover($event)"
                        (showDataTip)="showDataTip($event)"
-                       (onLoad)="axisLoaded($event)"
-                       (onLoading)="axisLoading()"
+                       (onLoad)="axisLoaded($event, axis.areaName)"
+                       (onLoading)="axisLoading(axis.areaName)"
                        [supportHyperlink]="supportHyperlink"
                        [container]="container"
                        [resizeEnable]="!isResizeVisible || isResizeVisible('AxisResize')">
