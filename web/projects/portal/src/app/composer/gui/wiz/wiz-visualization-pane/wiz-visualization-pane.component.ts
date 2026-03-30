@@ -199,7 +199,6 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, Af
    }
 
    private processSetWizDetailsCommand(command: SetWizDetailsCommand): void {
-      console.log("SetWizDetailsCommand", command);
       this.wizBindingDetails = command.bindingDetails ?? [];
       this.wizWorksheetDetails = command.worksheetDetails ?? [];
    }
