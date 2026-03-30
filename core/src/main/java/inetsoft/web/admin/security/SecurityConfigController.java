@@ -57,6 +57,15 @@ public class SecurityConfigController {
       throws Exception
    {
       if(event.enable()) {
+         String adminPassword = System.getenv("INETSOFT_ADMIN_PASSWORD");
+
+         if(adminPassword == null || adminPassword.isBlank()) {
+            return SecurityEnabledEvent.builder()
+               .enable(false)
+               .warning(Catalog.getCatalog().getString("em.security.adminPasswordRequired"))
+               .build();
+         }
+
          securityEngine.enableSecurity();
       }
       else {

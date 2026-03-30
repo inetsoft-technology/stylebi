@@ -124,8 +124,22 @@ export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
       this.httpClient.post("../api/em/security/set-enable-security", request)
          .pipe(finalize(() => this.securityToggleDisabled = false))
          .subscribe((event: SecurityEnabledEvent) => {
-            this.securityEnabled = event.enable;
-            this.userService.loadScheduleUsers();
+            if(event.warning) {
+               this.dialog.open(MessageDialog, {
+                  width: "350px",
+                  data: {
+                     title: "_#(js:Error)",
+                     content: event.warning,
+                     type: MessageDialogType.ERROR
+                  }
+               });
+               this.securityEnabled = event.enable;
+               this.refreshContent();
+            }
+            else {
+               this.securityEnabled = event.enable;
+               this.userService.loadScheduleUsers();
+            }
          });
    }
 

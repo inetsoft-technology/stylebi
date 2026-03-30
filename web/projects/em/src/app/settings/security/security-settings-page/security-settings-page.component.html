@@ -19,7 +19,7 @@
   <div class="security-nav mat-elevation-z2">
     <div class="button-row" *ngIf="!isOrgAdminOnly">
       <div class="button-row">
-        <mat-slide-toggle
+        <mat-slide-toggle *ngIf="isRefreshed"
           [checked]="securityEnabled"
           [disabled]="securityToggleDisabled"
           (change)="toggleSecurityEnabled($event)"
