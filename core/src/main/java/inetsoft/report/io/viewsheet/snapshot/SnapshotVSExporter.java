@@ -539,6 +539,44 @@ public class SnapshotVSExporter {
       // reset column selection to make sure default column selection in sync
       // fix bug1305007731617
       box.resetDefaultColumnSelection();
+
+      // For snapshot creation, configure the box's worksheet assembly to return raw
+      // (unaggregated) data. When the table has aggregate info, RUNTIME_MODE collapses
+      // rows and loses non-grouped columns (e.g., State) that chart bindings may need.
+      // The copyInfo() call below handles aggregate mergeability using the original 'tab'.
+      // Also make all columns visible so none are excluded from the query result.
+      // (Bug #74328)
+      if(!(tab instanceof AbstractTableAssembly) || !((AbstractTableAssembly) tab).isCrosstab()) {
+         Worksheet boxWs = box.getWorksheet();
+
+         if(boxWs != null) {
+            Assembly boxAssembly = boxWs.getAssembly(tab.getName());
+
+            if(boxAssembly instanceof TableAssembly) {
+               TableAssembly boxTab = (TableAssembly) boxAssembly;
+               // Clear aggregate so RUNTIME_MODE returns raw data; copyInfo() will
+               // handle aggregate mergeability using the original 'tab' settings.
+               boxTab.setAggregateInfo(new AggregateInfo());
+               // Make all private columns visible and un-hidden.
+               ColumnSelection cols = boxTab.getColumnSelection(false);
+
+               for(int i = 0; i < cols.getAttributeCount(); i++) {
+                  DataRef col = cols.getAttribute(i);
+
+                  if(col instanceof ColumnRef) {
+                     ((ColumnRef) col).setVisible(true);
+                     ((ColumnRef) col).setHiddenParameter(false);
+                  }
+               }
+
+               // Regenerate the public column selection from the updated private
+               // columns + empty aggregate, so all columns are included in the
+               // RUNTIME_MODE query (public selection is what getTableLens uses).
+               boxTab.setColumnSelection(cols, false);
+            }
+         }
+      }
+
       EmbeddedTableAssembly assembly =
          AssetEventUtil.convertEmbeddedTable(box, tab, true, true, direct);
 
