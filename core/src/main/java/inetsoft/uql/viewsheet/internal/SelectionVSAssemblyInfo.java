@@ -415,6 +415,13 @@ public abstract class SelectionVSAssemblyInfo extends VSAssemblyInfo {
          result = true;
       }
 
+      if(!Tool.equals(quickSwitchAllowed, cinfo.quickSwitchAllowed) ||
+         !Tool.equals(isQuickSwitchAllowed(), cinfo.isQuickSwitchAllowed()))
+      {
+         quickSwitchAllowed = cinfo.quickSwitchAllowed;
+         result = true;
+      }
+
       return result;
    }
 
@@ -448,6 +455,10 @@ public abstract class SelectionVSAssemblyInfo extends VSAssemblyInfo {
 
          if(selectFirstItem != null) {
             sinfo.selectFirstItem = (DynamicValue) selectFirstItem.clone();
+         }
+
+         if(quickSwitchAllowed != null) {
+            sinfo.quickSwitchAllowed = (DynamicValue) quickSwitchAllowed.clone();
          }
       }
 
@@ -740,6 +751,7 @@ public abstract class SelectionVSAssemblyInfo extends VSAssemblyInfo {
       super.resetRuntimeValues();
       submitValue.setRValue(null);
       singleValue.setRValue(null);
+      quickSwitchAllowed.setRValue(null);
    }
 
    /**
