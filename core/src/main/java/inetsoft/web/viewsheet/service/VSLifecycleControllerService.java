@@ -146,17 +146,13 @@ public class VSLifecycleControllerService {
          dispatcher.sendCommand(command);
       }
 
-      Viewsheet vs = rvs.getViewsheet();
-
-      if(vs != null && vs.getWizInfo() != null && vs.getWizInfo().isWizVisualization()) {
-         dispatcher.sendCommand(visualizationService.buildDetailsCommand(vs));
-      }
+      visualizationService.sendDetailsCommandIfWiz(rvs.getViewsheet(), dispatcher);
 
       return null;
    }
 
-   private final VisualizationService visualizationService;
    private final ViewsheetService viewsheetService;
    private final CoreLifecycleService coreLifecycleService;
    private final VSBookmarkService vsBookmarkService;
+   private final VisualizationService visualizationService;
 }
