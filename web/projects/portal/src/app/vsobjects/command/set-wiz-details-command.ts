@@ -15,26 +15,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.composer.wiz.model;
+import { ViewsheetCommand } from "../../common/viewsheet-client/viewsheet-command";
 
-import java.util.List;
+export interface WizDetailItem {
+   label: string;
+   value: string;
+}
 
-public class VisualizationDetailsResponse {
-   public VisualizationDetailsResponse(List<VisualizationDetailModel> bindingDetails,
-                                       List<VisualizationDetailModel> worksheetDetails)
-   {
-      this.bindingDetails = bindingDetails;
-      this.worksheetDetails = worksheetDetails;
-   }
-
-   public List<VisualizationDetailModel> getBindingDetails() {
-      return bindingDetails;
-   }
-
-   public List<VisualizationDetailModel> getWorksheetDetails() {
-      return worksheetDetails;
-   }
-
-   private final List<VisualizationDetailModel> bindingDetails;
-   private final List<VisualizationDetailModel> worksheetDetails;
+export interface SetWizDetailsCommand extends ViewsheetCommand {
+   bindingDetails: WizDetailItem[];
+   worksheetDetails: WizDetailItem[];
 }
