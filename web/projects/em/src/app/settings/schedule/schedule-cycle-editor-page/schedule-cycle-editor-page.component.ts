@@ -36,6 +36,7 @@ import { MessageDialog, MessageDialogType } from "../../../common/util/message-d
 import { HttpErrorResponse } from "@angular/common/http";
 import { Tool } from "../../../../../../shared/util/tool";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
+import { COPY_PASTE_CONTEXT_SCHEDULE } from "../../security/resource-permission/copy-paste-context";
 import { Subscription } from "rxjs";
 
 const GET_DATA_CYCLE_DIALOG_MODEL_URI = "../api/em/schedule/cycle-dialog-model/";
@@ -65,6 +66,7 @@ export class ScheduleCycleEditorPageComponent implements OnInit, OnDestroy {
    taskChanged: boolean = false;
    valueChangesSubscription = Subscription.EMPTY;
 
+   protected readonly copyPasteContext = COPY_PASTE_CONTEXT_SCHEDULE;
    private nextConditionId: number = 0;
    private readonly COPY_OF_PREFIX = "_#(js:Copy of) ";
 
