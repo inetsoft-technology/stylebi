@@ -43,7 +43,7 @@ import java.util.concurrent.*;
 /**
  * WebSocket proxy handler that bridges browser WebSocket connections to the AI assistant server.
  * Handles connections at {@code /api/assistant/proxy} and {@code /api/assistant/proxy/**},
- * forwarding them to the upstream assistant service via WebSocket.
+ * forwarding them to the upstream assistant's {@code /ws} endpoint.
  *
  * <p>Active only in proxy mode ({@code chat.app.internal.url} is configured).
  * {@code chat.app.internal.url} is the server-to-server base URL used to reach the assistant;
@@ -52,9 +52,10 @@ import java.util.concurrent.*;
  * in direct mode the browser connects to the assistant WebSocket endpoint directly and this
  * handler is never involved.</p>
  *
- * <p>The assistant client establishes a WebSocket for real-time status events (e.g. tool-use
- * steps shown as "thinking" bubbles). Without this handler those connections would fail,
- * leaving the UI with no intermediate progress updates.</p>
+ * <p>The assistant client establishes a WebSocket for real-time streaming updates (e.g.
+ * intermediate thinking steps). Without this handler those connections would fail,
+ * leaving the UI with no intermediate progress updates and responses appearing only after
+ * the full answer is ready.</p>
  */
 @Component
 public class AssistantWebSocketProxyHandler extends AbstractWebSocketHandler {
@@ -82,10 +83,13 @@ public class AssistantWebSocketProxyHandler extends AbstractWebSocketHandler {
       }
 
       URI browserUri = browserSession.getUri();
-      String proxiedPath = sanitizeProxiedPath(extractProxiedPath(browserUri));
       String query = browserUri != null ? browserUri.getQuery() : null;
       String wsBase = toWsUrl(internalBase.trim());
-      String upstreamUrl = wsBase + proxiedPath + (query != null ? "?" + query : "");
+      // browserSession.getUri().getPath() reflects the Spring handler-mapping prefix
+      // (/api/assistant/proxy) rather than the full request path (/api/assistant/proxy/ws),
+      // so dynamic path extraction yields "/" instead of "/ws". Since /ws is the only
+      // WebSocket endpoint the assistant server exposes, connect directly to it.
+      String upstreamUrl = wsBase + "/ws" + (query != null ? "?" + query : "");
 
       // Forward the same set of headers as the HTTP proxy.
       WebSocketHttpHeaders headers = new WebSocketHttpHeaders();
@@ -193,50 +197,6 @@ public class AssistantWebSocketProxyHandler extends AbstractWebSocketHandler {
       if(upstream != null && upstream.isOpen()) {
          closeQuietly(upstream, CloseStatus.SERVER_ERROR);
       }
-   }
-
-   /**
-    * Normalizes the proxied path to remove {@code ..} traversal segments, rejecting any path
-    * that still contains {@code ..} after normalization. Returns {@code "/"} for invalid input.
-    */
-   private String sanitizeProxiedPath(String path) {
-      try {
-         String normalized = new URI(path).normalize().getPath();
-
-         if(normalized == null || !normalized.startsWith("/") || normalized.contains("..")) {
-            LOG.warn("Rejected WebSocket proxied path with traversal segments: {}", path);
-            return "/";
-         }
-
-         return normalized;
-      }
-      catch(java.net.URISyntaxException e) {
-         LOG.warn("Rejected malformed WebSocket proxied path: {}", path);
-         return "/";
-      }
-   }
-
-   private String extractProxiedPath(URI uri) {
-      if(uri == null) {
-         return "/";
-      }
-
-      String path = uri.getPath();
-      String prefix = AIAssistantController.PROXY_PATH_PREFIX;
-      int idx = path.indexOf(prefix);
-
-      // Verify the match starts on a path-segment boundary (the char before the prefix is '/'
-      // or the prefix is at position 0) and is followed by '/' or end-of-string.
-      // This prevents a spurious match if the prefix string appears inside a path segment.
-      if(idx >= 0 && (idx == 0 || path.charAt(idx - 1) == '/')) {
-         String rest = path.substring(idx + prefix.length());
-
-         if(rest.isEmpty() || rest.startsWith("/")) {
-            return rest.isEmpty() ? "/" : rest;
-         }
-      }
-
-      return "/";
    }
 
    private String toWsUrl(String httpUrl) {
