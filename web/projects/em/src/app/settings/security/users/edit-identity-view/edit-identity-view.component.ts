@@ -74,7 +74,6 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    @Input() set model(m: EditIdentityPaneModel) {
       this._model = m;
       this.identityEditable = true;
-      this.showPwd = [false, false];
    }
    get model() {
       return this._model;
