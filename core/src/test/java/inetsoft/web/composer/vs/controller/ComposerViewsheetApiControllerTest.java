@@ -32,6 +32,7 @@ import inetsoft.util.ConfigurationContext;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.vs.event.NewViewsheetEvent;
+import inetsoft.web.composer.wiz.service.VisualizationService;
 import inetsoft.web.viewsheet.controller.VSRefreshController;
 import inetsoft.web.viewsheet.event.OpenPreviewViewsheetEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
@@ -64,7 +65,8 @@ class ComposerViewsheetApiControllerTest {
                                       refreshController,
                                       vsLayoutService,
                                       objectModelService,
-                                      vsCompositionService);
+                                      vsCompositionService,
+                                      visualizationService);
       ComposerViewsheetServiceProxy composerViewsheetServiceProxy = new ComposerViewsheetServiceProxy();
       Mockito.doReturn(composerViewsheetService).when(configurationContext)
          .getSpringBean(inetsoft.web.composer.vs.controller.ComposerViewsheetService.class);
@@ -142,6 +144,7 @@ class ComposerViewsheetApiControllerTest {
    @Mock VSLayoutService vsLayoutService;
    @Mock VSObjectModelFactoryService objectModelService;
    @Mock VSCompositionService vsCompositionService;
+   @Mock VisualizationService visualizationService;
    @Mock ApplicationContext applicationContext;
    @Spy ConfigurationContext configurationContext;
    MockedStatic<ConfigurationContext> staticConfigurationContext;

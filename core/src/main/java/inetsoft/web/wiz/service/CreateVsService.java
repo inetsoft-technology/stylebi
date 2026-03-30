@@ -710,7 +710,44 @@ public class CreateVsService {
          return XConstants.NONE_DATE_GROUP;
       }
 
-      return DateRangeRef.getDateRangeOption(level);
+      // Map dateLevels.ts 'name' values to DateRangeRef expected format
+      String mappedLevel = switch(level.toLowerCase()) {
+         // Interval levels
+         case "year" -> "Year";
+         case "quarter" -> "Quarter";
+         case "month" -> "Month";
+         case "week" -> "Week";
+         case "day" -> "Day";
+         case "hour" -> "Hour";
+         case "minute" -> "Minute";
+         case "second" -> "Second";
+         // Part levels
+         case "quarter of year" -> "QuarterOfYear";
+         case "month of year" -> "MonthOfYear";
+         case "week of year" -> "WeekOfYear";
+         case "week of month" -> "WeekOfMonth";
+         case "day of year" -> "DayOfYear";
+         case "day of month" -> "DayOfMonth";
+         case "day of week" -> "DayOfWeek";
+         case "hour of day" -> "HourOfDay";
+         case "minute of hour" -> "MinuteOfHour";
+         case "second of minute" -> "SecondOfMinute";
+         // Full week levels
+         case "year of week" -> "YearOfWeek";
+         case "quarter of week" -> "QuarterOfWeek";
+         case "month of week" -> "MonthOfWeek";
+         case "quarter of week part" -> "QuarterOfWeekN";
+         case "month of week part" -> "MonthOfWeekN";
+         // None
+         case "none" -> null;
+         default -> throw new IllegalArgumentException("Unsupported date level: " + level);
+      };
+
+      if(mappedLevel == null) {
+         return XConstants.NONE_DATE_GROUP;
+      }
+
+      return DateRangeRef.getDateRangeOption(mappedLevel);
    }
 
    private final ViewsheetService viewsheetService;
