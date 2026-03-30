@@ -561,11 +561,9 @@ public class ScheduleManager {
       RepletRepository engine = SUtil.getRepletRepository();
       String[] taskNames = engine.getScheduleTasks(principal, allTasks);
 
-      // Bug #74338 trace: log which tasks passed hasTaskPermission
-      if(LOG.isTraceEnabled()) {
-         LOG.trace("[74338] getScheduleTasks(principal) passed permission filter: {}",
-            Arrays.toString(taskNames));
-      }
+      // Bug #74338 trace
+      System.err.println("[74338] getScheduleTasks(principal) passed permission filter: " +
+         Arrays.toString(taskNames));
 
       Vector<ScheduleTask> vec = new Vector<>();
 
@@ -575,10 +573,10 @@ public class ScheduleManager {
          if(task != null) {
             vec.addElement(task);
          }
-         else if(LOG.isTraceEnabled()) {
-            // Bug #74338 trace: task passed permission check but getScheduleTask returned null
-            LOG.trace("[74338] getScheduleTask returned null for taskName={} orgID={} engine={}",
-               taskName, orgID, engine.getClass().getName());
+         else {
+            // Bug #74338 trace
+            System.err.println("[74338] getScheduleTask returned null for taskName=" + taskName +
+               " orgID=" + orgID + " engine=" + engine.getClass().getName());
          }
       }
 

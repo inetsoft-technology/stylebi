@@ -490,13 +490,14 @@ public class RepletEngine extends AbstractAssetEngine
       boolean isShareRole = ScheduleManager.getScheduleManager()
          .hasShareGroupPermission(task, principal);
 
-      // Bug #74338 trace: log why the task failed all permission checks
-      if(!isShareRole && LOG.isTraceEnabled()) {
-         LOG.trace("[74338] hasTaskPermission DENIED task={} principal={} owner={} " +
-               "isOwner={} principalHasPermission={} isOwnerAdmin={} isShareRole={}",
-            task.getTaskId(), principal.getName(),
-            task.getOwner() == null ? "null" : task.getOwner().convertToKey(),
-            isOwner, principalHasPermission, isOwnerAdmin, false);
+      // Bug #74338 trace
+      if(!isShareRole) {
+         System.err.println("[74338] hasTaskPermission DENIED task=" + task.getTaskId() +
+            " principal=" + principal.getName() +
+            " owner=" + (task.getOwner() == null ? "null" : task.getOwner().convertToKey()) +
+            " isOwner=" + isOwner +
+            " principalHasPermission=" + principalHasPermission +
+            " isOwnerAdmin=" + isOwnerAdmin);
       }
 
       return isShareRole;

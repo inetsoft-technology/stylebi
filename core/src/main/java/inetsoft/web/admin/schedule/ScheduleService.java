@@ -531,15 +531,14 @@ public class ScheduleService {
          scheduleManager.getScheduleTasks(taskEntries, loadExtension, loadInternal, curOrgID);
       List<ScheduleTask> matchTasks0 = new ArrayList<>();
 
-      // Bug #74338 trace: log what the org task map returned so we know if MV tasks are stored
-      if(LOG.isTraceEnabled()) {
-         LOG.trace("[74338] getScheduleTasks orgID={} principal={} taskEntries={} matchTasks={}",
-            curOrgID, principal == null ? null : principal.getName(),
-            taskEntries == null ? "null" : taskEntries.length,
-            matchTasks.stream().map(t -> t.getTaskId() + "(path=" + t.getPath() + ",owner=" +
+      // Bug #74338 trace
+      System.err.println("[74338] getScheduleTasks orgID=" + curOrgID +
+         " principal=" + (principal == null ? null : principal.getName()) +
+         " taskEntries=" + (taskEntries == null ? "null" : taskEntries.length) +
+         " matchTasks=" + matchTasks.stream()
+            .map(t -> t.getTaskId() + "(path=" + t.getPath() + ",owner=" +
                (t.getOwner() == null ? "null" : t.getOwner().convertToKey()) + ")")
-               .collect(Collectors.joining(", ", "[", "]")));
-      }
+            .collect(Collectors.joining(", ", "[", "]")));
 
       if(parent == null) {
          if(!taskFolderService.checkFolderPermission("/", principal, ResourceAction.READ)) {
@@ -560,25 +559,20 @@ public class ScheduleService {
             return showTaskList.indexOf(taskPath) != -1;
          }).collect(Collectors.toList());
 
-         // Bug #74338 trace: log what survived the path/folder-permission filter
-         if(LOG.isTraceEnabled()) {
-            LOG.trace("[74338] after applyPermissionForTask showTaskList={} matchTasks0={}",
-               showTaskList,
-               matchTasks0.stream().map(ScheduleTask::getTaskId)
-                  .collect(Collectors.joining(", ", "[", "]")));
-         }
+         // Bug #74338 trace
+         System.err.println("[74338] after applyPermissionForTask showTaskList=" + showTaskList +
+            " matchTasks0=" + matchTasks0.stream().map(ScheduleTask::getTaskId)
+               .collect(Collectors.joining(", ", "[", "]")));
       }
 
       Vector<ScheduleTask> tasks = selectString == null || selectString.isEmpty() ?
          scheduleManager.getScheduleTasks(principal, parent != null ? matchTasks : matchTasks0, curOrgID) :
          getSelectScheduleTasks(parent, selectString, filter, principal);
 
-      // Bug #74338 trace: log what survived the permission filter (hasTaskPermission)
-      if(LOG.isTraceEnabled()) {
-         LOG.trace("[74338] after hasTaskPermission filter tasks={}",
-            tasks.stream().map(ScheduleTask::getTaskId)
-               .collect(Collectors.joining(", ", "[", "]")));
-      }
+      // Bug #74338 trace
+      System.err.println("[74338] after hasTaskPermission filter tasks=" +
+         tasks.stream().map(ScheduleTask::getTaskId)
+            .collect(Collectors.joining(", ", "[", "]")));
 
       for(int i = 0; i < tasks.size(); i++) {
          tasks.set(i, handleInternalTaskConfiguration(tasks.get(i), principal));
