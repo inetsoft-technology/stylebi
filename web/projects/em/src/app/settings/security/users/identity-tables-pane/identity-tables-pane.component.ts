@@ -435,7 +435,7 @@ export class IdentityTablesPaneComponent {
       }
       else {
          emitChanged(result); // filtering count already shown via paste button badge ("N of M")
-         this.snackBar.open("_#(js:em.security.identitiesPasted)", null, { duration: Tool.SNACKBAR_DURATION });
+         this.snackBar.open("_#(js:em.security.identitiesPasted)", null, { duration: Tool.SNACKBAR_DURATION_SHORT });
       }
    }
 
