@@ -105,16 +105,25 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
          viewData: ViewData
          principalCommand: SetPrincipalCommand
       }) => {
-         this.pageTabService.clearTabs();
-         const tab: TabInfoModel = {
-            id: data.viewData.assetId,
-            label: this.pageTabService.getVSTabLabel(data.viewData.assetId),
-            tooltip: this.pageTabService.getVSTabLabel(data.viewData.assetId),
-            isFocused: true,
-            runtimeId: data.viewData.runtimeId
-         };
+         // If the base tab for this asset already exists (e.g. returning from binding editor),
+         // preserve the existing drill tabs instead of clearing them.
+         const baseTabExists = this.pageTabService.tabs.length > 0 &&
+            this.pageTabService.tabs[0].id === data.viewData.assetId;
 
-         this.pageTabService.addTab(tab);
+         if(!baseTabExists) {
+            this.pageTabService.clearTabs();
+            const tab: TabInfoModel = {
+               id: data.viewData.assetId,
+               label: this.pageTabService.getVSTabLabel(data.viewData.assetId),
+               tooltip: this.pageTabService.getVSTabLabel(data.viewData.assetId),
+               isFocused: true,
+               runtimeId: data.viewData.runtimeId
+            };
+            this.pageTabService.addTab(tab);
+         }
+         else {
+            this.pageTabService.tabs[0].runtimeId = data.viewData.runtimeId;
+         }
 
          this.queryParameters = this.updateQueryParams(data.viewData.queryParameters);
          // getQueryParameters in resolver gets the previous url information
