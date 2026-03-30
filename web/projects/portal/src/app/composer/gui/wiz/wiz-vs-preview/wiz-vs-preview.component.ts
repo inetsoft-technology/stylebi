@@ -16,36 +16,29 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { HttpClient, HttpParams } from "@angular/common/http";
 import {
    AfterViewInit,
    Component,
    ElementRef,
    EventEmitter,
    Input,
-   OnChanges,
    OnDestroy,
    Output,
-   SimpleChanges,
    ViewChild
 } from "@angular/core";
-import { Subject } from "rxjs";
-import { takeUntil } from "rxjs/operators";
+import { WizDetailItem } from "../../../../vsobjects/command/set-wiz-details-command";
 import { VSObjectModel } from "../../../../vsobjects/model/vs-object-model";
 import { Viewsheet } from "../../../data/vs/viewsheet";
-
-export interface DetailItem {
-   label: string;
-   value: string;
-}
 
 @Component({
    selector: "wiz-vs-preview",
    templateUrl: "./wiz-vs-preview.component.html",
    styleUrls: ["./wiz-vs-preview.component.scss"]
 })
-export class WizVsPreview implements AfterViewInit, OnChanges, OnDestroy {
+export class WizVsPreview implements AfterViewInit, OnDestroy {
    @Input() viewsheet: Viewsheet;
+   @Input() bindingDetails: WizDetailItem[] = [];
+   @Input() worksheetDetails: WizDetailItem[] = [];
    @ViewChild("wizCanvas") canvasEl: ElementRef;
    @Output() canvasResize = new EventEmitter<void>();
 
@@ -54,13 +47,6 @@ export class WizVsPreview implements AfterViewInit, OnChanges, OnDestroy {
    private initialized = false;
 
    selectedTab = 0;
-   bindingDetails: DetailItem[] = [];
-   worksheetDetails: DetailItem[] = [];
-
-   private destroy$ = new Subject<void>();
-
-   constructor(private http: HttpClient) {
-   }
 
    ngAfterViewInit(): void {
       this.resizeObserver = new ResizeObserver(() => {
@@ -78,41 +64,13 @@ export class WizVsPreview implements AfterViewInit, OnChanges, OnDestroy {
       this.resizeObserver.observe(this.canvasEl.nativeElement);
    }
 
-   ngOnChanges(changes: SimpleChanges): void {
-      if(changes["viewsheet"]) {
-         this.loadDetails();
-      }
-   }
-
    ngOnDestroy(): void {
       this.resizeObserver?.disconnect();
       clearTimeout(this.resizeTimer);
-      this.destroy$.next();
-      this.destroy$.complete();
    }
 
    get vsObjects(): VSObjectModel[] {
       return this.viewsheet?.vsObjects ?? [];
-   }
-
-   private loadDetails(): void {
-      const runtimeId = this.viewsheet?.runtimeId;
-
-      if(!runtimeId) {
-         return;
-      }
-
-      const params = new HttpParams().set("runtimeId", runtimeId);
-
-      this.http.get<{ bindingDetails: DetailItem[]; worksheetDetails: DetailItem[] }>(
-         "../api/composer/wiz/details",
-         {params}
-      )
-         .pipe(takeUntil(this.destroy$))
-         .subscribe(response => {
-            this.bindingDetails = response?.bindingDetails ?? [];
-            this.worksheetDetails = response?.worksheetDetails ?? [];
-         });
    }
 
    trackByFn(index: number, obj: VSObjectModel): string {
