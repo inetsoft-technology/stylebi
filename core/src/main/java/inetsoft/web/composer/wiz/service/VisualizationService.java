@@ -371,6 +371,23 @@ public class VisualizationService {
          .collect(Collectors.joining(", "));
    }
 
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public String getBaseWorksheetId(@ClusterProxyKey String runtimeId, Principal principal) throws Exception {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+
+      if(rvs == null) {
+         return null;
+      }
+
+      AssetEntry baseEntry = rvs.getViewsheet().getBaseEntry();
+
+      if(baseEntry == null || !baseEntry.isWorksheet()) {
+         return null;
+      }
+
+      return baseEntry.toIdentifier();
+   }
+
    public static final String VISUALIZATION_ROOT_FOLDER_PATH = "visualizations-593bb4a4-fd6d-4178-b3f0-c89dad407f02";
    private final ViewsheetService viewsheetService;
    private final AssetRepository assetRepository;

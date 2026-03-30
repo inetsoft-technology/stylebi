@@ -16,14 +16,17 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { AfterViewInit, ChangeDetectorRef, Component, Injector, Input, NgZone, OnDestroy, OnInit, ViewChild } from "@angular/core";
+import { HttpClient, HttpParams } from "@angular/common/http";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
+import { Tool } from "../../../../../../../shared/util/tool";
 import { WizPortalService } from "../../../../../../../shared/wiz-portal/wiz-portal.service";
 import { BindingTreeService } from "../../../../binding/widget/binding-tree/binding-tree.service";
 import { Dimension } from "../../../../common/data/dimension";
 import { DndService } from "../../../../common/dnd/dnd.service";
 import { VSDndService } from "../../../../common/dnd/vs-dnd.service";
 import { UIContextService } from "../../../../common/services/ui-context.service";
+import { ComponentTool } from "../../../../common/util/component-tool";
 import { ChartService } from "../../../../graph/services/chart.service";
 import { VSWizardBindingTreeService } from "../../../../vs-wizard/services/vs-wizard-binding-tree.service";
 import {
@@ -117,7 +120,8 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, Af
 
    constructor(private viewsheetClient: ViewsheetClientService, zone: NgZone,
                public wizPortalService: WizPortalService,
-               private changeDetectorRef: ChangeDetectorRef)
+               private changeDetectorRef: ChangeDetectorRef,
+               private http: HttpClient, private modalService: NgbModal)
    {
       super(viewsheetClient, zone, true);
    }
@@ -341,5 +345,20 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, Af
       event.setUserRefresh(true);
       event.setMaxModeSize(this.getCanvasSize());
       this.viewsheetClient.sendEvent("/events/vs/refresh", event);
+   }
+
+   openWs() {
+      let reqParas: HttpParams = new HttpParams().set("runtimeId", Tool.byteEncode(this.currentVisualization?.runtimeId));
+
+      this.http.get("../api/composer/wiz/visualization/base-worksheet-id", {params: reqParas}).subscribe((wsId: string) => {
+         if(!!!wsId) {
+            let msg: string = "_#(js:Worksheet do not exist)";
+            ComponentTool.showConfirmDialog(this.modalService, "_#(js:Error)", msg)
+            return;
+         }
+
+         let params: HttpParams = new HttpParams().set("wsId", decodeURIComponent(wsId));
+         GuiTool.openBrowserTab("composer", params);
+      });
    }
 }

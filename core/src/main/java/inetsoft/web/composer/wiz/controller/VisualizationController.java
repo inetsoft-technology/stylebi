@@ -18,6 +18,7 @@
 
 package inetsoft.web.composer.wiz.controller;
 
+import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.wiz.service.VisualizationServiceProxy;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -45,6 +46,21 @@ public class VisualizationController {
       Principal principal) throws Exception
    {
       return visualizationServiceProxy.getVisualizations(runtimeId, principal);
+   }
+
+   @GetMapping(value = "/api/composer/wiz/visualization/base-worksheet-id")
+   public String getBaseWorksheetId(
+      @DecodeParam("runtimeId")
+      @Parameter(
+         name = "runtimeId",
+         description = "The runtime ID of the visualization viewsheet.",
+         in = ParameterIn.QUERY,
+         required = true
+      )
+      String runtimeId,
+      Principal principal) throws Exception
+   {
+      return visualizationServiceProxy.getBaseWorksheetId(runtimeId, principal);
    }
 
    @GetMapping(value = "/api/composer/wiz/components")

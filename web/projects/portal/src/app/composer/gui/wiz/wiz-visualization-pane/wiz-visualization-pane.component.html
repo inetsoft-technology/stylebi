@@ -40,7 +40,7 @@
               [attr.wiz-service-url]="wizPortalService.wizServiceUrl"
               [attr.expected-user-id]="wizPortalService.userId || null"
               [attr.domain]="wizPortalService.domain || null"
-              (refreshViewsheet)="refreshVisualization()">
+              (refreshViewsheet)="refreshVisualization()" (openWorksheet)="openWs()">
     </wiz-chat>
   </div>
 </split-pane>
