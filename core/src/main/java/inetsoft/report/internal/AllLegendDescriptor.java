@@ -210,6 +210,16 @@ public class AllLegendDescriptor extends LegendDescriptor {
       return (TextFrame) applyGet("getTextFrame");
    }
 
+   @Override
+   public int getSymbolSize() {
+      return (Integer) applyGet("getSymbolSize");
+   }
+
+   @Override
+   public void setSymbolSize(int symbolSize) {
+      applySet("setSymbolSize", new Object[] {symbolSize}, new Class[] {int.class});
+   }
+
    /**
     * Retrieve property from multiple objects.
     */

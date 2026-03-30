@@ -507,6 +507,46 @@ describe("Selection List Cell Test", () => {
          expect((selectionListCell as any).touchTimeout).toBeNull();
       });
 
+      // alt+click → overlay update (Bug #74380)
+      it("should call setQuickSwitchHover with negated singleSelection on alt+click when quickSwitchAllowed", () => {
+         vsSelectionComponent.model.quickSwitchAllowed = true;
+         selectionListCell.contextProvider = viewerContext();
+         selectionListCell.ngOnInit();
+         (vsSelectionComponent.setQuickSwitchHover as jest.Mock).mockClear();
+
+         const altClick = new MouseEvent("click", { altKey: true });
+         selectionListCell.click(altClick);
+
+         expect(vsSelectionComponent.setQuickSwitchHover).toHaveBeenCalledWith(
+            selectionListCell.cell?.nativeElement ?? null,
+            !selectionListCell.singleSelection,
+            expect.any(Function)
+         );
+      });
+
+      it("should not call setQuickSwitchHover on alt+click when quickSwitchAllowed is false", () => {
+         vsSelectionComponent.model.quickSwitchAllowed = false;
+         selectionListCell.contextProvider = viewerContext();
+         selectionListCell.ngOnInit();
+         (vsSelectionComponent.setQuickSwitchHover as jest.Mock).mockClear();
+
+         const altClick = new MouseEvent("click", { altKey: true });
+         selectionListCell.click(altClick);
+
+         expect(vsSelectionComponent.setQuickSwitchHover).not.toHaveBeenCalled();
+      });
+
+      it("should not call setQuickSwitchHover on a normal click without alt key", () => {
+         vsSelectionComponent.model.quickSwitchAllowed = true;
+         selectionListCell.contextProvider = viewerContext();
+         selectionListCell.ngOnInit();
+         (vsSelectionComponent.setQuickSwitchHover as jest.Mock).mockClear();
+
+         selectionListCell.click(new MouseEvent("click"));
+
+         expect(vsSelectionComponent.setQuickSwitchHover).not.toHaveBeenCalled();
+      });
+
       describe("hover delegation (onMouseEnter / onMouseLeave)", () => {
          beforeEach(() => {
             selectionListCell.contextProvider = viewerContext();

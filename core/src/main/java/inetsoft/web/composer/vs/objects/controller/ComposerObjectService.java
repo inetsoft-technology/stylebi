@@ -1107,6 +1107,20 @@ public class ComposerObjectService {
          int ychange = position.y - originalPosition.y;
          boolean moveParent= container != null && !(container instanceof GroupContainerVSAssembly);
 
+
+         TabVSAssembly bottomTab = null;
+
+         if(container instanceof TabVSAssembly) {
+            bottomTab = (TabVSAssembly) container;
+         }
+         else if(assembly instanceof TabVSAssembly) {
+            bottomTab = (TabVSAssembly) assembly;
+         }
+
+         if(bottomTab != null) {
+            ychange = clampYChangeForBottomTabs(viewsheet, bottomTab, ychange);
+         }
+
          if(container instanceof TabVSAssembly) {
             ContainerVSAssemblyInfo containerInfo =
                (ContainerVSAssemblyInfo) container.getVSAssemblyInfo();
@@ -1122,11 +1136,14 @@ public class ComposerObjectService {
             }
          }
          else if(!moveParent) {
+            Point clampedPos = new Point(
+               originalPosition.x + xchange, originalPosition.y + ychange);
+
             if(info.getLayoutPosition() != null) {
-               info.setLayoutPosition(position);
+               info.setLayoutPosition(clampedPos);
             }
 
-            info.setPixelOffset(position);
+            info.setPixelOffset(clampedPos);
          }
 
          moveContainer(viewsheet, moveParent ? container : (ContainerVSAssembly) assembly,
@@ -1139,6 +1156,52 @@ public class ComposerObjectService {
 
          info.setPixelOffset(position);
       }
+   }
+
+   private int clampYChangeForBottomTabs(Viewsheet viewsheet, TabVSAssembly tab,
+                                         int ychange)
+   {
+      if(ychange >= 0) {
+         return ychange;
+      }
+
+      TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getVSAssemblyInfo();
+
+      if(!tabInfo.isBottomTabs()) {
+         return ychange;
+      }
+
+      String[] children = tab.getAssemblies();
+
+      if(children == null || children.length == 0) {
+         return ychange;
+      }
+
+      int minChildY = Integer.MAX_VALUE;
+
+      for(String childName : children) {
+         VSAssembly child = viewsheet.getAssembly(childName);
+
+         if(child == null) {
+            continue;
+         }
+
+         VSAssemblyInfo childInfo = child.getVSAssemblyInfo();
+         Point childPos = childInfo.getLayoutPosition() != null
+            ? childInfo.getLayoutPosition()
+            : childInfo.getPixelOffset();
+
+         if(childPos != null) {
+            minChildY = Math.min(minChildY, childPos.y);
+         }
+      }
+
+      if(minChildY == Integer.MAX_VALUE) {
+         return ychange;
+      }
+
+      // minChildY + ychange >= 0  →  ychange >= -minChildY
+      return Math.max(ychange, -minChildY);
    }
 
    private void moveContainer(Viewsheet viewsheet, ContainerVSAssembly container,

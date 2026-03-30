@@ -54,7 +54,7 @@
 
 .resize-handle {
   position: absolute;
-  z-index: 1;
+  z-index: 1300; // must be above MUI Drawer's default z-index of 1200
   background: transparent;
 
   // Visible highlight strip rendered via ::after so the hit area can be wider
@@ -144,6 +144,14 @@
 
 .panel-close-btn {
   margin-left: 2px;
+
+  mat-icon {
+    font-size: 20px !important;
+    width: 20px !important;
+    height: 20px !important;
+    line-height: 20px !important;
+    color: currentColor;
+  }
 }
 
 .panel-body {

@@ -74,7 +74,6 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    @Input() set model(m: EditIdentityPaneModel) {
       this._model = m;
       this.identityEditable = true;
-      this.showPwd = [false, false];
    }
    get model() {
       return this._model;
@@ -335,7 +334,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
          this.pwForm.controls.password.setValue("", {emitEvent: false});
          this.pwForm.controls.confirmPassword.setValue("", {emitEvent: false});
       }
-      else if(!model.hasPassword) {
+      else if(!model.hasPassword && model.supportChangePassword) {
          this.form.get("changePasswordEnabled").setValue(true, {emitEvent: false});
          this.updatePassword(true);
          this.pwForm.controls.password.markAsTouched();
@@ -474,7 +473,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
             this.updatePassword(true);
             this.pwForm.controls.password.markAsTouched();
          }
-         else if(!this.userModel.hasPassword) {
+         else if(!this.userModel.hasPassword && this.userModel.supportChangePassword) {
             this.form.get("changePasswordEnabled").setValue(true, {emitEvent: false});
             this.updatePassword(true);
             this.pwForm.controls.password.markAsTouched();

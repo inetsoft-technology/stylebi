@@ -53,6 +53,7 @@ export namespace Tool {
    export const USERS_REPORTS = "Users' Reports";
    export const MY_DASHBOARDS = "My Dashboards";
    export const SNACKBAR_DURATION = 5000;
+   export const SNACKBAR_DURATION_SHORT = 2000;
    export const USER_SUFFIX = "(User)";
    export const GROUP_SUFFIX = "(Group)";
 
