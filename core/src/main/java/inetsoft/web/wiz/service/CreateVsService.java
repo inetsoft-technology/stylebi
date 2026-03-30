@@ -725,6 +725,8 @@ public class CreateVsService {
          case "quarter of year" -> "QuarterOfYear";
          case "month of year" -> "MonthOfYear";
          case "week of year" -> "WeekOfYear";
+         case "week of month" -> "WeekOfMonth";
+         case "day of year" -> "DayOfYear";
          case "day of month" -> "DayOfMonth";
          case "day of week" -> "DayOfWeek";
          case "hour of day" -> "HourOfDay";
