@@ -414,17 +414,31 @@ public class PoiImportXLSService implements ImportXLSService {
          Name stateName = PoiExcelVSUtil.getCellName(stateCell, sheet);
 
          if(stateName != null) {
-            String[] tokens = stateName.getNameName().split("_");
+            String sname = stateName.getNameName();
+            String tPrefix = tName + "_";
 
-            if(tokens.length == 4) {
-               state = Integer.parseInt(tokens[2]);
+            // Bug #74352: strip the table name prefix (which may contain underscores for
+            // embedded assemblies) before parsing the row state.
+            if(sname.startsWith(tPrefix) && sname.endsWith("_TR")) {
+               String middle = sname.substring(tPrefix.length(), sname.length() - 3);
+               int lastUnderscore = middle.lastIndexOf('_');
+
+               if(lastUnderscore >= 0) {
+                  try {
+                     state = Integer.parseInt(middle.substring(lastUnderscore + 1));
+                  }
+                  catch(NumberFormatException e) {
+                     // ignore
+                  }
+               }
             }
          }
 
          FormTableRow ftr;
          Name bName = null;
 
-         if(name != null) {
+         // Bug #74352: bSheetNames is null when the imported Excel has no backup sheet.
+         if(name != null && bSheetNames != null) {
             // import same sheet shouldn't add new cell.(This "_1" is for _backup sheet)
             String nname = name.getNameName() + "_1";
             bName = bSheetNames.get(nname);
@@ -486,6 +500,12 @@ public class PoiImportXLSService implements ImportXLSService {
       String name = getValidCellName(assembly);
       int colCount = tableLens.getColCount();
       List<FormTableRow> delRows = new ArrayList<>();
+
+      // Bug #74352: no backup sheet means no deleted rows to recover.
+      if(bSheetNames == null) {
+         return delRows;
+      }
+
       Set<String> keySet = bSheetNames.keySet();
 
       for(String str : keySet) {

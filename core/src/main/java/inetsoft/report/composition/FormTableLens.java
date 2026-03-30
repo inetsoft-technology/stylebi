@@ -118,7 +118,7 @@ public class FormTableLens implements TableLens, TableFilter {
     * Init table.
     */
    public void init(List<FormTableRow> data) {
-      if(base == null) {
+      if(base == null || data == null) {
          return;
       }
 
