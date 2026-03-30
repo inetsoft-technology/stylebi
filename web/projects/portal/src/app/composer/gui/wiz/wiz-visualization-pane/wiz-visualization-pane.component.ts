@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { AfterViewInit, Component, Injector, Input, NgZone, OnDestroy, OnInit, ViewChild } from "@angular/core";
+import { AfterViewInit, ChangeDetectorRef, Component, Injector, Input, NgZone, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
 import { WizPortalService } from "../../../../../../../shared/wiz-portal/wiz-portal.service";
@@ -110,18 +110,24 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, Af
    wizBindingDetails: WizDetailItem[] = [];
    wizWorksheetDetails: WizDetailItem[] = [];
    viewsheetLoading: boolean = false;
+   preparingData: boolean = false;
    private loadingEventCount: number = 0;
    private connected: boolean = false;
    private heartbeatSubscription: Subscription = Subscription.EMPTY;
 
    constructor(private viewsheetClient: ViewsheetClientService, zone: NgZone,
-               public wizPortalService: WizPortalService)
+               public wizPortalService: WizPortalService,
+               private changeDetectorRef: ChangeDetectorRef)
    {
       super(viewsheetClient, zone, true);
    }
 
    getAssemblyName(): string {
       return null;
+   }
+
+   protected isInZone(messageType: string): boolean {
+      return messageType != "ClearLoadingCommand" && messageType != "ShowLoadingMaskCommand";
    }
 
    ngOnInit(): void {
@@ -282,7 +288,9 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, Af
          this.loadingEventCount++;
       }
 
+      this.preparingData = command.preparingData;
       this.viewsheetLoading = true;
+      this.changeDetectorRef.detectChanges();
    }
 
    private processClearLoadingCommand(command: ClearLoadingCommand): void {
@@ -290,7 +298,10 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, Af
 
       if(this.loadingEventCount === 0) {
          this.viewsheetLoading = false;
+         this.preparingData = false;
       }
+
+      this.changeDetectorRef.detectChanges();
    }
 
    refreshVSObject(obj: VSObjectModel): void {
