@@ -447,7 +447,7 @@ public class SUtil {
          "vs.bookmark.button"
       };
       static final String[] VSTOOLBAR_ELEMENT_ID = {
-         "Previous", "Next", "Edit", "Refresh", "Email", "Social Sharing", "Schedule",
+         "Undo", "Redo", "Edit", "Refresh", "Email", "Social Sharing", "Schedule",
          "Export", "Import", "Print", "Zoom", "Full Screen", "Close", "Bookmark"};
    }
 

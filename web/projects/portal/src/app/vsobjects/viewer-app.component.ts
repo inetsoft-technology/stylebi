@@ -1039,14 +1039,14 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       if(event.ctrlKey || event.metaKey) {
          // ctrl-z
          if(event.keyCode == 90 &&
-            !this.isPermissionForbidden("PageNavigation", "Previous") &&
+            !this.isPermissionForbidden("PageNavigation", "Undo") &&
             this.undoEnabled)
          {
             this.previousPage();
          }
          // ctrl-y
          else if(event.keyCode == 89 &&
-            !this.isPermissionForbidden("PageNavigation", "Next") &&
+            !this.isPermissionForbidden("PageNavigation", "Redo") &&
             this.redoEnabled)
          {
             this.nextPage();
@@ -3633,7 +3633,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    isPreviousPageVisible(): boolean {
-      return !this.isPermissionForbidden("PageNavigation", "Previous");
+      return !this.isPermissionForbidden("PageNavigation", "Undo");
    }
 
    isPreviousPageDisabled(): boolean {
@@ -3641,7 +3641,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    isNextPageVisible(): boolean {
-      return !this.isPermissionForbidden("PageNavigation", "Next");
+      return !this.isPermissionForbidden("PageNavigation", "Redo");
    }
 
    isNextPageDisabled(): boolean {
