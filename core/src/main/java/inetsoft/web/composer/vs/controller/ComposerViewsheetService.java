@@ -115,12 +115,7 @@ public class ComposerViewsheetService {
       VSObjectTreeNode tree = vsObjectTreeService.getObjectTree(rvs);
       PopulateVSObjectTreeCommand treeCommand = new PopulateVSObjectTreeCommand(tree);
       commandDispatcher.sendCommand(treeCommand);
-
-      Viewsheet vs = rvs.getViewsheet();
-
-      if(vs != null && vs.getWizInfo() != null && vs.getWizInfo().isWizVisualization()) {
-         commandDispatcher.sendCommand(visualizationService.buildDetailsCommand(vs));
-      }
+      visualizationService.sendDetailsCommandIfWiz(rvs.getViewsheet(), commandDispatcher);
 
       return null;
    }

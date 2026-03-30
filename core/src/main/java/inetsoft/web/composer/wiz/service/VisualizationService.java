@@ -35,6 +35,7 @@ import inetsoft.util.Tool;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.wiz.command.SetWizDetailsCommand;
 import inetsoft.web.composer.wiz.model.VisualizationDetailModel;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -157,6 +158,12 @@ public class VisualizationService {
       return TreeNodeModel.builder()
          .children(children)
          .build();
+   }
+
+   public void sendDetailsCommandIfWiz(Viewsheet vs, CommandDispatcher dispatcher) {
+      if(vs != null && vs.getWizInfo() != null && vs.getWizInfo().isWizVisualization()) {
+         dispatcher.sendCommand(buildDetailsCommand(vs));
+      }
    }
 
    public SetWizDetailsCommand buildDetailsCommand(Viewsheet vs) {

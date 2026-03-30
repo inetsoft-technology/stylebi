@@ -327,9 +327,7 @@ public class VSRefreshService {
             commandDispatcher.sendCommand(treeCommand);
          }
 
-         if(vs != null && vs.getWizInfo() != null && vs.getWizInfo().isWizVisualization()) {
-            commandDispatcher.sendCommand(visualizationService.buildDetailsCommand(vs));
-         }
+         visualizationService.sendDetailsCommandIfWiz(vs, commandDispatcher);
       }
       finally {
          box.get().setRefreshing(false);
