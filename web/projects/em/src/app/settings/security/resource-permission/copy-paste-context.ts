@@ -33,8 +33,10 @@
  */
 export const COPY_PASTE_CONTEXT_REPOSITORY = "repository";
 export const COPY_PASTE_CONTEXT_SECURITY_ACTIONS = "security-actions";
+export const COPY_PASTE_CONTEXT_SCHEDULE = "schedule";
 
 /** Union of all valid copy-paste context keys. */
 export type CopyPasteContext =
    typeof COPY_PASTE_CONTEXT_REPOSITORY |
-   typeof COPY_PASTE_CONTEXT_SECURITY_ACTIONS;
+   typeof COPY_PASTE_CONTEXT_SECURITY_ACTIONS |
+   typeof COPY_PASTE_CONTEXT_SCHEDULE;
