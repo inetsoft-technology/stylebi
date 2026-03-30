@@ -24,6 +24,11 @@
                     [worksheetDetails]="wizWorksheetDetails"
                     (canvasResize)="onCanvasResize()">
     </wiz-vs-preview>
+    <vs-loading-display *ngIf="viewsheetLoading"
+                        [autoShowCancel]="false"
+                        [preparingData]="preparingData"
+                        [runtimeId]="currentVisualization?.runtimeId">
+    </vs-loading-display>
   </div>
 
   <!-- Right: AI dialog placeholder (web component will be embedded here) -->
