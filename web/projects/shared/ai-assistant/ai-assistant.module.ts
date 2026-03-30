@@ -18,11 +18,12 @@
 
 import { CommonModule } from "@angular/common";
 import { CUSTOM_ELEMENTS_SCHEMA, NgModule } from "@angular/core";
+import { MatIconModule } from "@angular/material/icon";
 import { AiAssistantDialogComponent } from "./ai-assistant-dialog.component";
 import { AiAssistantPanelComponent } from "./ai-assistant-panel.component";
 
 @NgModule({
-   imports: [ CommonModule ],
+   imports: [ CommonModule, MatIconModule ],
    exports: [ AiAssistantDialogComponent, AiAssistantPanelComponent ],
    declarations: [ AiAssistantDialogComponent, AiAssistantPanelComponent ],
    schemas: [CUSTOM_ELEMENTS_SCHEMA]
