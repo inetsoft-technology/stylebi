@@ -12,6 +12,7 @@ export class WizService {
    private _saveVisualization = new Subject<WizDashboard>();
    private _exitVisualization = new Subject<void>();
    private _refreshFilters = new Subject<void>();
+   private _refreshTree = new Subject<void>();
 
    constructor() {
    }
@@ -54,5 +55,13 @@ export class WizService {
 
    onRefreshFilters(): void {
       this._refreshFilters.next();
+   }
+
+   get refreshTree(): Observable<void> {
+      return this._refreshTree.asObservable();
+   }
+
+   onRefreshTree(): void {
+      this._refreshTree.next();
    }
 }
