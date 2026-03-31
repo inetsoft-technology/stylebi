@@ -139,7 +139,7 @@ public class HTMLVSExporter extends AbstractVSExporter {
 
       InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
       LabelInfo labelInfo = inputInfo.getLabelInfo();
-      Rectangle2D fullBounds = helper.getBounds(info);
+      Rectangle2D fullBounds = expandBoundsForLabel(helper.getBounds(info), labelInfo);
       Rectangle2D[] bounds = splitInputBounds(fullBounds, labelInfo);
 
       helper.writeText(writer, bounds[0], getLabelFormat(labelInfo),
