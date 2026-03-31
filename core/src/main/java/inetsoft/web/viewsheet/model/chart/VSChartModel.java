@@ -25,12 +25,12 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.report.composition.graph.GraphUtil;
-import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.report.internal.Util;
 import inetsoft.util.MessageException;
 import inetsoft.web.adhoc.model.FormatInfoModel;
 import inetsoft.web.composer.model.vs.HyperlinkModel;
@@ -579,39 +579,13 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
       }
 
       if(ref.isSendReportParameters()) {
-         VariableTable vtable = box.getAllVariables();
-
-         if(vtable != null) {
-            Enumeration<?> existing = ref.getParameterNames();
-            Set<String> exists = new HashSet<>();
-
-            while(existing.hasMoreElements()) {
-               exists.add((String) existing.nextElement());
-            }
-
-            Enumeration<?> vnames = vtable.keys();
-
-            while(vnames.hasMoreElements()) {
-               String name = (String) vnames.nextElement();
-
-               if(exists.contains(name) || VariableTable.isContextVariable(name)) {
-                  continue;
-               }
-
-               try {
-                  ref.setParameter(name, vtable.get(name));
-               }
-               catch(Exception ignored) {
-               }
-            }
-         }
+         Util.addLinkParameter(ref, box.getAllVariables());
       }
 
       if(ref.isSendSelectionParameters()) {
          VSUtil.addSelectionParameter(ref, box.getSelections());
       }
    }
-
 
    private int chartType = GraphTypes.CHART_AUTO;
    private List<Axis> axes = new ArrayList<>();
