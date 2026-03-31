@@ -484,6 +484,10 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
          }
       }
 
+      if(path == null) {
+         return;
+      }
+
       String assetExpression = getAssetExpression(path, type, user, info);
 
       NodeList dependings = getChildNodes(doc, assetExpression);
