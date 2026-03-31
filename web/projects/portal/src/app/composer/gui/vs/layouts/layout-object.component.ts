@@ -34,6 +34,7 @@ import { AssemblyActionGroup } from "../../../../common/action/assembly-action-g
 import { Tool } from "../../../../../../../shared/util/tool";
 import { ViewsheetClientService } from "../../../../common/viewsheet-client";
 import { ViewsheetInfo } from "../../../../vsobjects/data/viewsheet-info";
+import { VSInputModel } from "../../../../vsobjects/model/vs-input-model";
 import { VSLineModel } from "../../../../vsobjects/model/vs-line-model";
 import { VSObjectModel } from "../../../../vsobjects/model/vs-object-model";
 import { VSSelectionContainerModel } from "../../../../vsobjects/model/vs-selection-container-model";
@@ -437,5 +438,11 @@ export class LayoutObject implements OnInit, OnDestroy {
    isTabLineOrCalendar(): boolean {
       return this.model?.objectModel?.objectType == "VSTab" || this.model?.objectModel?.objectType == "VSCalendar" ||
          this.model?.objectModel.objectType == "VSLine";
+   }
+
+   hasVerticalLabel(): boolean {
+      const labelModel = (this.model?.objectModel as VSInputModel)?.labelModel;
+      return labelModel?.showLabel &&
+         (labelModel.labelPosition === "top" || labelModel.labelPosition === "bottom");
    }
 }
