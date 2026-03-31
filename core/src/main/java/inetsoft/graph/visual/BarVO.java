@@ -1322,21 +1322,11 @@ public class BarVO extends ElementVO {
       Rectangle2D segBounds = path0.getBounds2D();
       double segDim = stdOrientation ? segBounds.getHeight() : segBounds.getWidth();
       double barWidth = stdOrientation ? segBounds.getWidth() : segBounds.getHeight();
-      double scale = segDim / Math.abs(geom.getInterval());
-      double stackDim = totalStackInterval * scale;
-      double cumulative = geom.getCumulativeStackInterval();
 
-      double arc = Math.min(r * barWidth, barWidth / 2);
+      ArcZoneInfo zones = computeArcZones(
+         geom, r, barWidth, segDim, ielem.isRoundAllCorners());
 
-      // distance from this segment's outer edge to the bar's outer end
-      double distFromOuter = (totalStackInterval - cumulative) * scale;
-      // distance from this segment's inner edge to the bar's inner end
-      double distFromInner = (cumulative - Math.abs(geom.getInterval())) * scale;
-
-      boolean inOuterArcZone = distFromOuter < arc;
-      boolean inInnerArcZone = ielem.isRoundAllCorners() && distFromInner < arc;
-
-      if(!inOuterArcZone && !inInnerArcZone) {
+      if(!zones.inOuterArcZone() && !zones.inInnerArcZone()) {
          return path0;
       }
 
@@ -1348,16 +1338,17 @@ public class BarVO extends ElementVO {
 
       Rectangle2D fullBounds = computeFullBarBounds(
          segBounds, stdOrientation, openDir,
-         geom.getInterval(), cumulative, totalStackInterval);
+         geom.getInterval(), geom.getCumulativeStackInterval(),
+         totalStackInterval);
 
       Area result = new Area(segBounds);
 
-      if(inOuterArcZone) {
+      if(zones.inOuterArcZone()) {
          Shape outerShape = buildRoundedBarShape(fullBounds, r, openDir, false);
          result.intersect(new Area(outerShape));
       }
 
-      if(inInnerArcZone) {
+      if(zones.inInnerArcZone()) {
          int baseDir = openDir ^ 1;
          Shape innerShape = buildRoundedBarShape(fullBounds, r, baseDir, false);
          result.intersect(new Area(innerShape));
@@ -1487,6 +1478,36 @@ public class BarVO extends ElementVO {
    }
 
    private static final int BAR_MIN_WIDTH = 10;
+   /**
+    * Result of arc zone detection for a stacked bar segment.
+    */
+   public record ArcZoneInfo(double stackDim, double arc,
+                      double distFromOuter, double distFromInner,
+                      boolean inOuterArcZone, boolean inInnerArcZone) {}
+
+   /**
+    * Compute arc zone information for a stacked bar segment.
+    */
+   public static ArcZoneInfo computeArcZones(IntervalGeometry geom, double r,
+                                      double barWidth, double segDim,
+                                      boolean roundAllCorners)
+   {
+      double totalStackInterval = geom.getTotalStackInterval();
+      double scale = segDim / Math.abs(geom.getInterval());
+      double stackDim = totalStackInterval * scale;
+      double cumulative = geom.getCumulativeStackInterval();
+
+      double arc = Math.min(r * barWidth, Math.min(barWidth / 2, stackDim));
+      double distFromOuter = (totalStackInterval - cumulative) * scale;
+      double distFromInner = (cumulative - Math.abs(geom.getInterval())) * scale;
+
+      boolean inOuterArcZone = distFromOuter < arc;
+      boolean inInnerArcZone = roundAllCorners && distFromInner < arc;
+
+      return new ArcZoneInfo(stackDim, arc, distFromOuter, distFromInner,
+                             inOuterArcZone, inInnerArcZone);
+   }
+
    private static final int BAR_PREFERRED_WIDTH = 16;
 
    protected Shape shape; // the shape to draw for this vo

@@ -110,7 +110,7 @@ class BarVORoundedShapeTest {
    void direction1_baseCornerIsSharp() {
       Rectangle2D bounds = new Rectangle2D.Double(0, 0, 100, 50);
       Shape shape = BarVO.buildRoundedBarShape(bounds, 0.3, 1, false);
-      // Bottom-left corner (0) must be inside the shape
+      // Bottom-left corner (0, 0) must be inside the shape
       assertTrue(shape.contains(0.5, 0.5),
                  "Base (bottom) corner region must be sharp");
    }

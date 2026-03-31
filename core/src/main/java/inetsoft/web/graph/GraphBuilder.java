@@ -1369,22 +1369,13 @@ public class GraphBuilder {
                         ? barBounds.getHeight() : barBounds.getWidth();
                      double barWidth = stdOrientation
                         ? barBounds.getWidth() : barBounds.getHeight();
-                     double scale = segDim / Math.abs(geom.getInterval());
-                     double stackDim = totalStackInterval * scale;
-                     double cumulative = geom.getCumulativeStackInterval();
 
-                     double arc = Math.min(r * barWidth, barWidth / 2);
-                     double distFromOuter = (totalStackInterval - cumulative) * scale;
-                     double distFromInner =
-                        (cumulative - Math.abs(geom.getInterval())) * scale;
+                     BarVO.ArcZoneInfo zones = BarVO.computeArcZones(
+                        geom, r, barWidth, segDim, elem.isRoundAllCorners());
 
-                     boolean inOuterArcZone = distFromOuter < arc;
-                     boolean inInnerArcZone =
-                        elem.isRoundAllCorners() && distFromInner < arc;
-
-                     if(inOuterArcZone || inInnerArcZone) {
+                     if(zones.inOuterArcZone() || zones.inInnerArcZone()) {
                         cornerRadius = r;
-                        stackDimension = stackDim;
+                        stackDimension = zones.stackDim();
                         barDirection = outerDir;
 
                         if(geom.isStackOutermost() && geom.isStackInnermost()
@@ -1393,12 +1384,12 @@ public class GraphBuilder {
                            barDirection = null; // single segment, all corners
                         }
                         else {
-                           if(inOuterArcZone) {
-                              outerEdgeOffset = distFromOuter;
+                           if(zones.inOuterArcZone()) {
+                              outerEdgeOffset = zones.distFromOuter();
                            }
 
-                           if(inInnerArcZone) {
-                              innerEdgeOffset = distFromInner;
+                           if(zones.inInnerArcZone()) {
+                              innerEdgeOffset = zones.distFromInner();
                            }
                         }
                      }
