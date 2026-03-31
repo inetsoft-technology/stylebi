@@ -70,14 +70,17 @@ export class HyperlinkViewModel {
       if(hyperlink.linkType == LinkType.WEB_LINK) {
          url = hyperlink.link;
 
-         if(url.startsWith("./") || url.startsWith("../")) {
+         if(!url) {
+            // no link defined, nothing to navigate to
+         }
+         else if(url.startsWith("./") || url.startsWith("../")) {
             // relative url, as is
          }
          else if(!/^(((https?:)?\/\/)|(mailto:)|(\/[^/])).+$/.test(url)) {
             url = "//" + url;
          }
 
-         if(hyperlink.parameterValues.length > 0 && url.indexOf("?") < 0) {
+         if(url && hyperlink.parameterValues.length > 0 && url.indexOf("?") < 0) {
             url += "?";
          }
       }
