@@ -170,6 +170,10 @@ public class ComposerObjectController {
       assembly.setEntry(entry);
       assembly.initDefaultFormat();
       viewsheet.addAssembly(assembly);
+      // compute the embedded viewsheet's pixel size from its child assemblies.
+      // addAssembly sets the parent (isEmbedded=true) but doesn't trigger layout,
+      // so info.getPixelSize() stays null and the model falls back to (100, 20).
+      assembly.layout();
 
       rvs.initViewsheet(assembly, false);
 
