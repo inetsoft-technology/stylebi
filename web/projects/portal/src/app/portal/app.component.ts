@@ -380,6 +380,18 @@ export class PortalAppComponent implements OnInit, OnDestroy {
       });
    }
 
+   launchComposer(): void {
+      this.openComposerService.composerOpen.subscribe(open => {
+         if(!open) {
+            window.open("composer", "_blank");
+         }
+         else {
+            ComponentTool.showMessageDialog(this.modalService, "_#(js:Confirm)",
+               "_#(js:composer.tabAlreadyOpened)");
+         }
+      });
+   }
+
    showListings(): void {
       let queryParams = {
          path: "/",
