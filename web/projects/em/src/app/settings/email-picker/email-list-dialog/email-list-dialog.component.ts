@@ -391,5 +391,6 @@ export class EmailListDialogComponent implements OnInit, OnDestroy {
       }
 
       this.sortIdentities();
+      this.form.get("email").setValue(null);
    }
 }
