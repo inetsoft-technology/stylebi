@@ -106,7 +106,16 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
    @Input()
    set model(model: VSSliderModel) {
       this._model = model;
-      this.verticalCenter = Math.ceil(this.model.objectFormat.height / 2);
+      // Center the track vertically, but shift it upward on short components so
+      // tick labels (which start 22px below center and are ~14px tall) fit within
+      // the component height. The handle requires at least 17px above center.
+      const LABEL_BOTTOM_OFFSET = 36;
+      // Derived from: --slider-handle-height (33px) / 2
+      const HANDLE_CLEARANCE = 17;
+      this.verticalCenter = Math.max(HANDLE_CLEARANCE, Math.min(
+         Math.ceil(this.model.objectFormat.height / 2),
+         this.model.objectFormat.height - LABEL_BOTTOM_OFFSET
+      ));
 
       // calculate the tick size
       this.tickSize = GuiTool.measureText("|", this.getFont());

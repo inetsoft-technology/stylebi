@@ -100,22 +100,15 @@
   display: block;
   position: absolute;
   transform: translateX(-50%);
-  // Clamp so the label never rises above the component's top edge. (74309, 74313, 74315)
-  // Without this clamp, the M3 default of ≈−40px can push the label above the
-  // component boundary, causing it to overflow into adjacent components above
-  // (e.g. a tab header or calendar), or to be clipped invisible when the slider
-  // is at or near the top of the canvas.
-  // --slider-wrapper-top is the wrapper's top offset (= verticalCenter, set in TS).
-  // max() picks the less-negative value: when the label would overflow the top
-  // boundary it is pinned to 4px inside; otherwise the M3 position is used.
-  top: max(calc(-1 * var(--slider-handle-height) / 2 - 24px),
-           calc(-1 * var(--slider-wrapper-top, 999px) + 4px));
+  // Position above the handle per M3 spec. Safe to render above the component
+  // boundary because the host wrapper uses overflow: visible for sliders.
+  top: calc(-1 * var(--slider-handle-height) / 2 - 24px);
   padding: 2px 10px;
   border-radius: var(--slider-label-border-radius);
   line-height: 1.4;
   white-space: nowrap;
   pointer-events: none;
-  z-index: 2;
+  z-index: 4;  // above handle (z-index: 3) so it is never obscured by the handle pill
 }
 
 // ─── Inactive track ───────────────────────────────────────────────────────────
