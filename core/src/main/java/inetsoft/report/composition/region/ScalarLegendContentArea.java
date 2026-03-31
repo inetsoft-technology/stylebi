@@ -52,12 +52,7 @@ public class ScalarLegendContentArea extends LegendContentArea implements RollOv
     */
    @Override
    public Region getRegion() {
-      Rectangle2D bounds = ((Legend) vobj).getContentBounds();
-      Rectangle2D.Double rect2d = (Rectangle2D.Double) GTool.transform(bounds, trans);
-      Point2D p = getRelPos();
-      rect2d.x -= p.getX();
-      rect2d.y -= p.getY();
-      return new RectangleRegion(rect2d);
+      return new RectangleRegion(getTransformedContentBounds(0));
    }
 
    /**
@@ -67,15 +62,18 @@ public class ScalarLegendContentArea extends LegendContentArea implements RollOv
     */
    @Override
    public Region[] getRegions() {
+      return new Region[] {new RectangleRegion(getTransformedContentBounds(SELECTION_INSET))};
+   }
+
+   private Rectangle2D.Double getTransformedContentBounds(int inset) {
       Rectangle2D bounds = ((Legend) vobj).getContentBounds();
       Rectangle2D.Double rect2d = (Rectangle2D.Double) GTool.transform(bounds, trans);
       Point2D p = getRelPos();
-      rect2d.x = rect2d.x - p.getX() + SELECTION_INSET;
-      rect2d.y = rect2d.y - p.getY() + SELECTION_INSET;
-      rect2d.width -= SELECTION_INSET * 2;
-      rect2d.height -= SELECTION_INSET * 2;
-
-      return new Region[] {new RectangleRegion(rect2d)};
+      rect2d.x = rect2d.x - p.getX() + inset;
+      rect2d.y = rect2d.y - p.getY() + inset;
+      rect2d.width -= inset * 2;
+      rect2d.height -= inset * 2;
+      return rect2d;
    }
 
    /**
@@ -91,7 +89,8 @@ public class ScalarLegendContentArea extends LegendContentArea implements RollOv
       }
    }
 
-   // Half the canvas lineWidth: the 2px stroke is centered on the path, so it extends
-   // 1px outside on each side. We need 2px inset so the stroke fits within the canvas div.
+   // Inset equals the full canvas lineWidth (2px). A centered 2px stroke extends 1px
+   // outside the path, so a 1px inset puts the stroke edge exactly at the div boundary.
+   // Using the full lineWidth adds one pixel of margin against sub-pixel rendering.
    private static final int SELECTION_INSET = 2;
 }
