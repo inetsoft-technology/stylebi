@@ -289,7 +289,7 @@ public class UserSignupService {
          "Here''s your Inetsoft StyleBI verification code, {0} \n {1}");
       message = MessageFormat.format(message, to, code);
 
-      mailer.send(to, from, subject, message, null);
+      //mailer.send(to, from, subject, message, null);
    }
 
    public Optional<User> getUserByGoogleSSOId(String googleUserId) {
@@ -334,7 +334,7 @@ public class UserSignupService {
    private final static Pattern USER_NAME_PATTERN =
       Pattern.compile("[^~`!#%^*=\\[\\]\\\\;,/{}|\":<>?()]+");
    private final static Pattern PASSWORD_PATTERN =
-      Pattern.compile("^(?![0-9]+$)(?![a-zA-Z]+$).+$");
+      Pattern.compile("^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).+$");
    private static final String CHARACTERS =
       "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 }
