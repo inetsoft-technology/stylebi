@@ -38,6 +38,11 @@ import static org.mockito.Mockito.*;
 @SreeHome()
 @ExtendWith(MockitoExtension.class)
 class GroupingServiceTest {
+   @Mock RuntimeViewsheet rvs;
+   @Mock CommandDispatcher dispatcher;
+   @Mock CoreLifecycleService coreLifecycleService;
+   @Mock VSLayoutService vsLayoutService;
+
    private Viewsheet parentVS;
    private GroupingService service;
 
@@ -185,8 +190,4 @@ class GroupingServiceTest {
       assertEquals(250, after.height, "height must match child extent after layout");
    }
 
-   @Mock RuntimeViewsheet rvs;
-   @Mock CommandDispatcher dispatcher;
-   @Mock CoreLifecycleService coreLifecycleService;
-   @Mock VSLayoutService vsLayoutService;
 }

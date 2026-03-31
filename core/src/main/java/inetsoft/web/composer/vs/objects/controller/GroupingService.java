@@ -296,10 +296,10 @@ public class GroupingService {
             VSAssemblyInfo targetInfo = (VSAssemblyInfo) target.getInfo();
 
             Dimension objectSize = objectInfo.getLayoutSize() != null ?
-               objectInfo.getLayoutSize() : viewsheet.getPixelSize(objectInfo);
+               objectInfo.getLayoutSize() : object.getPixelSize();
 
             Dimension targetSize = targetInfo.getLayoutSize() != null ?
-               targetInfo.getLayoutSize() : viewsheet.getPixelSize(targetInfo);
+               targetInfo.getLayoutSize() : target.getPixelSize();
 
             int width = objectSize.width > targetSize.width ?
                objectSize.width: targetSize.width;
