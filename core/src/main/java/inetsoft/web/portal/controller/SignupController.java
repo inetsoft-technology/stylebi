@@ -223,8 +223,7 @@ public class SignupController {
 
       if(!userSignupService.validPassword(password)) {
          result.setSuccess(false);
-         result.setErrorMessage(catalog.getString("signup.password.invalid") + " " +
-            catalog.getString("or") + catalog.getString("signup.password.tooLong"));
+         result.setErrorMessage(catalog.getString("viewer.password.pwdRule"));
 
          return result;
       }
