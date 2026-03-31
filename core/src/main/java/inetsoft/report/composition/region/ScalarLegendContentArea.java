@@ -18,10 +18,14 @@
 package inetsoft.report.composition.region;
 
 import inetsoft.graph.guide.legend.Legend;
+import inetsoft.graph.internal.GTool;
 import inetsoft.report.internal.RectangleRegion;
+import inetsoft.report.internal.Region;
 
 import java.awt.*;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Point2D;
+import java.awt.geom.Rectangle2D;
 import java.util.List;
 
 /**
@@ -43,6 +47,38 @@ public class ScalarLegendContentArea extends LegendContentArea implements RollOv
    }
 
    /**
+    * Get the first region, used for sizing the canvas div.
+    * Returns the full content bounds so the div has room for the selection stroke.
+    */
+   @Override
+   public Region getRegion() {
+      Rectangle2D bounds = ((Legend) vobj).getContentBounds();
+      Rectangle2D.Double rect2d = (Rectangle2D.Double) GTool.transform(bounds, trans);
+      Point2D p = getRelPos();
+      rect2d.x -= p.getX();
+      rect2d.y -= p.getY();
+      return new RectangleRegion(rect2d);
+   }
+
+   /**
+    * Get regions for selection highlighting.
+    * Insets the content bounds by the canvas lineWidth (2px) on each side so the
+    * centered 2px stroke does not overflow the canvas div boundary.
+    */
+   @Override
+   public Region[] getRegions() {
+      Rectangle2D bounds = ((Legend) vobj).getContentBounds();
+      Rectangle2D.Double rect2d = (Rectangle2D.Double) GTool.transform(bounds, trans);
+      Point2D p = getRelPos();
+      rect2d.x = rect2d.x - p.getX() + SELECTION_INSET;
+      rect2d.y = rect2d.y - p.getY() + SELECTION_INSET;
+      rect2d.width -= SELECTION_INSET * 2;
+      rect2d.height -= SELECTION_INSET * 2;
+
+      return new Region[] {new RectangleRegion(rect2d)};
+   }
+
+   /**
     * Paint area.
     * @param g the graphic of the area.
     */
@@ -54,4 +90,8 @@ public class ScalarLegendContentArea extends LegendContentArea implements RollOv
          region.fill(g, color);
       }
    }
+
+   // Half the canvas lineWidth: the 2px stroke is centered on the path, so it extends
+   // 1px outside on each side. We need 2px inset so the stroke fits within the canvas div.
+   private static final int SELECTION_INSET = 2;
 }
