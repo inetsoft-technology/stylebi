@@ -3819,6 +3819,7 @@ public abstract class AbstractVSExporter implements VSExporter {
       int[] dims = getLabelDimensions(labelInfo);
       int gap = Math.max(0, labelInfo.getLabelGap());
 
+      // both TOP and BOTTOM add height: the label sits outside the widget area
       return new Rectangle2D.Double(
          bounds.getX(), bounds.getY(),
          bounds.getWidth(), bounds.getHeight() + dims[1] + gap);
@@ -3841,6 +3842,18 @@ public abstract class AbstractVSExporter implements VSExporter {
          }
 
          if(!vsAssembly.isVisible()) {
+            continue;
+         }
+
+         String name = vsAssembly.getAbsoluteName();
+
+         // skip float/popup/tip-view, embedded non-primary, and selection
+         // container children to match Viewsheet.getPreferredBounds()
+         if(VSUtil.isPopComponent(name, vs) || VSUtil.isTipView(name, vs)) {
+            continue;
+         }
+
+         if(vs.isEmbedded() && !isAssemblyPrimary(vsAssembly)) {
             continue;
          }
 
@@ -3868,6 +3881,13 @@ public abstract class AbstractVSExporter implements VSExporter {
             pos = vs.getPixelPosition(info);
          }
 
+         // skip off-screen assemblies (hidden data tips)
+         if(pos.y < 0 && -pos.y > asmSize.height ||
+            pos.x < 0 && -pos.x > asmSize.width)
+         {
+            continue;
+         }
+
          Rectangle2D expanded = expandBoundsForLabel(
             new Rectangle2D.Double(pos.x, pos.y, asmSize.width, asmSize.height),
             labelInfo);
@@ -3877,6 +3897,15 @@ public abstract class AbstractVSExporter implements VSExporter {
       }
 
       return new Dimension(maxW, maxH);
+   }
+
+   private static boolean isAssemblyPrimary(VSAssembly assembly) {
+      if(!assembly.isPrimary()) {
+         return false;
+      }
+
+      VSAssembly container = assembly.getContainer();
+      return container == null || isAssemblyPrimary(container);
    }
 
    /**
