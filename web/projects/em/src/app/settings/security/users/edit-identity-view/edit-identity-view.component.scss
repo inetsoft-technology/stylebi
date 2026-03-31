@@ -73,4 +73,8 @@
       border-radius: 6px;
     }
   }
+
+  input.identity-password::-ms-reveal {
+    display: none;
+  }
 }
