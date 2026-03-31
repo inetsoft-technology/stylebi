@@ -98,7 +98,7 @@ public class CreateVsService {
       }
 
       Viewsheet newVs = new Viewsheet(sourceWs);
-      newVs.setWizInfo(vs.getWizInfo());
+      newVs.syncWizData(vs);
       VSAssembly assembly = createAssembly(newVs, model.getVisualizationType(), title, config, primaryAssembly.getName());
 
       if(assembly == null) {
