@@ -783,11 +783,11 @@ public class VGraphPair {
       if(evgraphNeeded) {
          createEVGraph(egraph2, ewidth, eheight);
 
-         if(evgraph.getCoordinate().requiresReplot()) {
+         if(evgraph != null && evgraph.getCoordinate().requiresReplot()) {
             createEVGraph(egraph2, ewidth, eheight);
          }
 
-         if(box.getMode() == Viewsheet.SHEET_RUNTIME_MODE) {
+         if(evgraph != null && box.getMode() == Viewsheet.SHEET_RUNTIME_MODE) {
             GraphUtil.processHyperlink(chart.getVSChartInfo(), getExpandedVGraph(), data);
          }
       }
@@ -857,6 +857,10 @@ public class VGraphPair {
       plotter2 = Plotter.getPlotter(egraph2);
       evgraph = plotter2.plot(this.data);
       plotter2 = null;
+
+      if(evgraph == null) {
+         return;
+      }
 
       LegendGroup vlegends = vgraph.getLegendGroup();
       LegendGroup evlegends = evgraph.getLegendGroup();
