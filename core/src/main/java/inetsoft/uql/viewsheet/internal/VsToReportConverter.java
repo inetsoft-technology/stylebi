@@ -662,33 +662,31 @@ public class VsToReportConverter {
             break;
          case AbstractSheet.SLIDER_ASSET:
          case AbstractSheet.SPINNER_ASSET:
-            addInputLabel(assembly, sectionName);
             text = ((NumericRangeVSAssemblyInfo) info).getValueLabel() + "";
-            addTextBoxElement(assembly, text, sectionName);
+            addTextBoxElement0(info, null, text, addInputLabel(assembly, sectionName), sectionName);
             break;
          case AbstractSheet.COMBOBOX_ASSET:
-            addInputLabel(assembly, sectionName);
             ComboBoxVSAssemblyInfo cinfo = (ComboBoxVSAssemblyInfo) info;
             String label = cinfo.getSelectedLabel();
             // for editable combobox, if the input value isn't in the dropdown
             // list, then need use getSelectedObject to get the selected value.
             label = label == null ? cinfo.getSelectedObject() + "" : label;
-            addTextBoxElement(assembly, label, sectionName);
+            addTextBoxElement0(info, null, label, addInputLabel(assembly, sectionName), sectionName);
             break;
          case AbstractSheet.RADIOBUTTON_ASSET:
-            addInputLabel(assembly, sectionName);
-            addRadioButton((RadioButtonVSAssembly) assembly, sectionName);
+            addRadioButton((RadioButtonVSAssembly) assembly, sectionName,
+                           addInputLabel(assembly, sectionName));
             break;
          case AbstractSheet.CHECKBOX_ASSET:
-            addInputLabel(assembly, sectionName);
-            addCheckBox((CheckBoxVSAssembly) assembly, sectionName);
+            addCheckBox((CheckBoxVSAssembly) assembly, sectionName,
+                        addInputLabel(assembly, sectionName));
             break;
          case AbstractSheet.TEXTINPUT_ASSET:
-            addInputLabel(assembly, sectionName);
             Object value = ((TextInputVSAssemblyInfo) info).getValue();
 
             if(value != null) {
-               addTextBoxElement(assembly, value + "", sectionName);
+               addTextBoxElement0(info, null, value + "", addInputLabel(assembly, sectionName),
+                                  sectionName);
             }
 
             break;
@@ -1719,27 +1717,28 @@ public class VsToReportConverter {
     * Add a label text box for input assemblies that have a visible LabelInfo.
     * The label is placed at the appropriate edge of the assembly bounds based
     * on the label position (left, right, top, bottom).
+    * @return the content bounds — the assembly bounds minus the space occupied by the label.
     */
-   private void addInputLabel(VSAssembly assembly, String sectionName) {
+   private Rectangle addInputLabel(VSAssembly assembly, String sectionName) {
       VSAssemblyInfo info = (VSAssemblyInfo) assembly.getInfo();
+      Rectangle bounds = getPixelBounds(assembly);
 
       if(!(info instanceof InputVSAssemblyInfo)) {
-         return;
+         return bounds;
       }
 
       LabelInfo labelInfo = ((InputVSAssemblyInfo) info).getLabelInfo();
 
       if(labelInfo == null || !labelInfo.isLabelVisible()) {
-         return;
+         return bounds;
       }
 
       String labelText = labelInfo.getLabelText();
 
       if(labelText == null || labelText.isEmpty()) {
-         return;
+         return bounds;
       }
 
-      Rectangle bounds = getPixelBounds(assembly);
       String position = labelInfo.getLabelPosition();
       int labelH = Math.round(AssetUtil.defh * scalefont);
 
@@ -1761,26 +1760,32 @@ public class VsToReportConverter {
       int labelW = (int) Common.stringWidth(labelText, fn) + 6;
 
       Rectangle labelBounds;
+      Rectangle contentBounds;
 
       switch(position) {
          case LabelInfo.TOP:
             labelBounds = new Rectangle(bounds.x, bounds.y, bounds.width, labelH);
+            contentBounds = new Rectangle(bounds.x, bounds.y + labelH, bounds.width, bounds.height - labelH);
             break;
          case LabelInfo.BOTTOM:
             labelBounds = new Rectangle(bounds.x, bounds.y + bounds.height - labelH,
                                         bounds.width, labelH);
+            contentBounds = new Rectangle(bounds.x, bounds.y, bounds.width, bounds.height - labelH);
             break;
          case LabelInfo.RIGHT:
             labelBounds = new Rectangle(bounds.x + bounds.width - labelW,
                                         bounds.y, labelW, bounds.height);
+            contentBounds = new Rectangle(bounds.x, bounds.y, bounds.width - labelW, bounds.height);
             break;
          case LabelInfo.LEFT:
          default:
             labelBounds = new Rectangle(bounds.x, bounds.y, labelW, bounds.height);
+            contentBounds = new Rectangle(bounds.x + labelW, bounds.y, bounds.width - labelW, bounds.height);
             break;
       }
 
       addElement0(labelBounds, textbox, sectionName);
+      return contentBounds;
    }
 
    /**
@@ -2005,10 +2010,10 @@ public class VsToReportConverter {
     * the report section.
     */
    private void addRadioButton(RadioButtonVSAssembly assembly,
-                               String sectionName)
+                               String sectionName, Rectangle contentBounds)
    {
       RadioButtonVSAssemblyInfo info = (RadioButtonVSAssemblyInfo) assembly.getInfo();
-      Rectangle bounds = getPixelBounds(assembly);
+      Rectangle bounds = new Rectangle(contentBounds);
       String text = info.getSelectedLabel();
       text = text == null ? "" : text.trim();
       int titleH = 0;
@@ -2040,9 +2045,11 @@ public class VsToReportConverter {
     * Convert vs checkbox to report textbox and add to fixed position in
     * the report section.
     */
-   private void addCheckBox(CheckBoxVSAssembly assembly, String sectionName) {
+   private void addCheckBox(CheckBoxVSAssembly assembly, String sectionName,
+                            Rectangle contentBounds)
+   {
       CheckBoxVSAssemblyInfo cinfo = (CheckBoxVSAssemblyInfo) assembly.getInfo();
-      Rectangle bounds = getPixelBounds(assembly);
+      Rectangle bounds = new Rectangle(contentBounds);
       String[] selectedLabels = cinfo.getSelectedLabels();
       boolean noselected = selectedLabels == null || selectedLabels.length == 0;
       int titleH = 0;
