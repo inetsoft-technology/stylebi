@@ -175,6 +175,16 @@ export class VSChart extends AbstractVSObject<VSChartModel>
    private subscriptions = Subscription.EMPTY;
    private isIE: boolean = GuiTool.isIE();
    private isIFrame: boolean = GuiTool.isIFrame();
+   // Stashed by processSetChartAreasCommand so that the model setter can apply fresh
+   // chart areas immediately when Angular's CD re-binds the model, instead of issuing
+   // a redundant CHART_AREAS_URI round-trip that would briefly show stale axis positions.
+   // Cleared by a setTimeout(0) after the microtask (Angular CD) runs. (Bug #74260)
+   private freshChartAreas: SetChartAreasCommand = null;
+   // Fallback timeout handle: clears loading state if chart-area's onLoad never fires
+   // (e.g. during rapid max-mode transitions). (Bug #74278)
+   private chartLoadingTimeout: ReturnType<typeof setTimeout> | null = null;
+   // DOM clone of chart-area shown while tiles reload, so the old chart stays visible. (Bug #74260)
+   private chartSnapshot: HTMLElement | null = null;
 
    @Input()
    set model(m: VSChartModel) {
@@ -186,7 +196,21 @@ export class VSChart extends AbstractVSObject<VSChartModel>
 
       if(!m.sheetMaxMode || m.maxMode || this.isDataTip()) {
          const event = new VSChartEvent(this._model, this._model.maxMode, this.container);
-         this.showChartLoading(true, 2);
+
+         // If a SetChartAreasCommand already arrived in this same event-loop tick
+         // (i.e. from the server's proactive refresh paired with RefreshVSObjectCommand),
+         // apply it directly to avoid a redundant CHART_AREAS_URI round-trip that would
+         // briefly re-show stale axis positions on Pareto charts. (Bug #74260)
+         if(this.freshChartAreas?.completed) {
+            Object.assign(this._model, this.freshChartAreas);
+            this.freshChartAreas = null;
+            // Keep chart hidden until tiles finish loading (onLoad fires). (Bug #74260)
+            this.chartLoading = true;
+            this.chartLoadingIcon = true;
+            return;
+         }
+
+         this.showChartLoading(true);
          this.viewsheetClient.sendEvent(CHART_AREAS_URI, event);
       }
    }
@@ -420,7 +444,7 @@ export class VSChart extends AbstractVSObject<VSChartModel>
 
    refreshChart(): void {
       // show chart loading with icon
-      this.showChartLoading(true, 3);
+      this.showChartLoading(true);
       let chartEvent = new VSChartRefreshEvent(this.model);
       this.viewsheetClient.sendEvent(CHART_REFRESH_URL, chartEvent);
    }
@@ -431,7 +455,7 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       if(selectedString && (!this.popupShowing || this.mobileDevice)) {
          if(this.model.enabled) {
             // fade and disable actions immediately while chart is loading
-            this.showChartLoading(false, 4);
+            this.showChartLoading(false);
          }
 
          const rangeSelection = this.model.chartSelection.rangeSelection;
@@ -687,7 +711,7 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       if(!!selectedString) {
          if(this.model.enabled) {
             // fade and disable actions immediately while chart is loading
-            this.showChartLoading(false, 5);
+            this.showChartLoading(false);
          }
 
          const rangeSelection = this.model.chartSelection.rangeSelection;
@@ -1055,10 +1079,13 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       this.onLoadFormatModel.emit(this.model);
    }
 
-   showChartLoading(iconVisible: boolean = false, f: any): void {
+   showChartLoading(iconVisible: boolean = false): void {
       this.chartLoadingIcon = iconVisible;
 
       if(!this.chartLoading) {
+         // Capture snapshot of current chart BEFORE detectChanges applies visibility:hidden,
+         // so the old chart stays visible to the user while new tiles load. (Bug #74260)
+         this.captureChartSnapshot();
          this.chartLoading = true;
          this.loadingStateChanged(this.chartLoading);
          this.detectChanges();
@@ -1073,11 +1100,52 @@ export class VSChart extends AbstractVSObject<VSChartModel>
 
       this.chartAreasRetryCount = 0;
 
+      if(this.chartLoadingTimeout) {
+         clearTimeout(this.chartLoadingTimeout);
+         this.chartLoadingTimeout = null;
+      }
+
       if(this.chartLoading) {
          this.noChartData = this.emptyChart || this.model.noData;
          this.chartLoading = false;
+         this.chartLoadingIcon = false;
          this.loadingStateChanged(this.chartLoading);
+         this.clearChartSnapshot();
          this.detectChanges();
+      }
+   }
+
+   private captureChartSnapshot(): void {
+      const container: HTMLElement = this.chartContainer?.nativeElement;
+      if(!container) return;
+
+      const chartAreaEl: HTMLElement = container.querySelector("chart-area");
+      if(!chartAreaEl) return;
+
+      this.clearChartSnapshot();
+
+      const clone = chartAreaEl.cloneNode(true) as HTMLElement;
+      const containerRect = container.getBoundingClientRect();
+      const chartAreaRect = chartAreaEl.getBoundingClientRect();
+      clone.style.position = "absolute";
+      clone.style.top = (chartAreaRect.top - containerRect.top) + "px";
+      clone.style.left = (chartAreaRect.left - containerRect.left) + "px";
+      clone.style.width = chartAreaEl.offsetWidth + "px";
+      clone.style.height = chartAreaEl.offsetHeight + "px";
+      clone.style.pointerEvents = "none";
+      clone.style.zIndex = "1";
+      clone.style.visibility = "visible";
+      // Canvases are blank after cloneNode; remove them (they're only selection overlays)
+      Array.from(clone.querySelectorAll("canvas")).forEach((c: Element) => c.remove());
+
+      container.appendChild(clone);
+      this.chartSnapshot = clone;
+   }
+
+   private clearChartSnapshot(): void {
+      if(this.chartSnapshot) {
+         this.chartSnapshot.remove();
+         this.chartSnapshot = null;
       }
    }
 
@@ -1090,6 +1158,11 @@ export class VSChart extends AbstractVSObject<VSChartModel>
    }
 
    processSetChartAreasCommand(command: SetChartAreasCommand): void {
+      // Stash so the model setter (triggered by Angular CD re-binding @Input model)
+      // can apply these areas immediately without a CHART_AREAS_URI round-trip. (Bug #74260)
+      this.freshChartAreas = command;
+      setTimeout(() => this.freshChartAreas = null, 0);
+
       let oldModel = Tool.clone(this.model);
 
       if(this.chartArea != null && (!this.dataTipService.isDataTip(this.model.absoluteName) ||
@@ -1122,11 +1195,30 @@ export class VSChart extends AbstractVSObject<VSChartModel>
 
       // Check if chart has no axes
       if(command.axes.every(axis => axis.tiles.length == 0)) {
-         this.chartArea.axisLoaded(true);
+         this.chartArea.axisLoaded(true, "");
       }
 
       this.checkNoData();
       this.resetShowEmptyAreaStatus();
+
+      // Hide chart BEFORE detectChanges so the axis-position update applied above via
+      // Object.assign is never rendered while tile images are still reloading. (Bug #74260)
+      // Install a fallback timeout so loading never gets stuck when onLoad doesn't fire
+      // reliably (e.g. rapid max-mode transitions). (Bug #74278)
+      if(command.completed) {
+         this.chartLoading = true;
+         this.chartLoadingIcon = true;
+
+         if(this.chartLoadingTimeout) {
+            clearTimeout(this.chartLoadingTimeout);
+         }
+
+         this.chartLoadingTimeout = setTimeout(() => {
+            this.chartLoadingTimeout = null;
+            this.clearChartLoading();
+         }, 3000);
+      }
+
       this.modelTS = (new Date()).getTime();
       this.detectChanges();
 

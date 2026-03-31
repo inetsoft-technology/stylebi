@@ -57,6 +57,16 @@ public class SecurityConfigController {
       throws Exception
    {
       if(event.enable()) {
+         try {
+            AdminCredentialUtil.getRequiredAdminPassword();
+         }
+         catch(IllegalStateException e) {
+            return SecurityEnabledEvent.builder()
+               .enable(false)
+               .warning(Catalog.getCatalog().getString("em.security.adminPasswordRequired"))
+               .build();
+         }
+
          securityEngine.enableSecurity();
       }
       else {

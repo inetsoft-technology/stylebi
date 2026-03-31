@@ -256,7 +256,13 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
    }
 
    private refreshLegends(): void {
-      this.http.get<ServerSummaryModel>("../em/monitoring/server/summary")
+      let url = "../em/monitoring/server/summary";
+
+      if(this.clusterEnabled && this.selectedClusterNode) {
+         url += "?clusterNode=" + encodeURIComponent(this.selectedClusterNode);
+      }
+
+      this.http.get<ServerSummaryModel>(url)
          .subscribe((model) => {
             this.versionNumber = model.versionNumber;
             this.buildNumber = model.buildNumber;
@@ -276,6 +282,7 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
    }
 
    selectedNodeChange() {
+      this.refreshLegends();
       this.http.get<SecurityEnabledEvent>("../api/em/security/get-enable-security")
           .subscribe(event => {
              this.securitySettingsEnabled = event.enable;

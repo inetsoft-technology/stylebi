@@ -78,6 +78,11 @@ public class ImportXLSController {
          return;
       }
 
+      // Whitelist type to the only two valid values; reject anything else.
+      if(!"xls".equals(type) && !"xlsx".equals(type)) {
+         return;
+      }
+
       id = id.replace('/', '_');
       FileSystemService fileSystemService = FileSystemService.getInstance();
 

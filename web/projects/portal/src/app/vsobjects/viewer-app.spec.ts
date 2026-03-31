@@ -459,7 +459,7 @@ describe("ViewerApp Unit Tests", () => {
    it("should hide toolbar actions when permissions are set", () => {
       const fixture = TestBed.createComponent(ViewerAppComponent);
       const permissions = [
-         "Previous"
+         "Undo"
       ];
 
       fixture.componentInstance.toolbarPermissions = permissions;

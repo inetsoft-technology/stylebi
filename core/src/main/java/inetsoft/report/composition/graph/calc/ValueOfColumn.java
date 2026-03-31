@@ -409,7 +409,7 @@ public class ValueOfColumn extends AbstractColumn {
             return INVALID;
          }
 
-         Map<String, Object> cond = createCond(data, ndim, row, dcTempGroups);
+         Map<String, Object> cond = createCond(data, ndim, row, dcTempGroups, tval);
          cond.put(ndim, tval);
 
          if(!ndim.equals(innerDim)) {
