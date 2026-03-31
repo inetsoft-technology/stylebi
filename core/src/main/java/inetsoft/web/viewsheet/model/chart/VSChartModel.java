@@ -25,6 +25,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.report.composition.graph.GraphUtil;
+import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
@@ -81,13 +82,17 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
       this.titleLinkValue = info.getTitleLinkValue();
       this.emptyPlotLinkValue = info.getEmptyPlotLinkValue();
 
+      ViewsheetSandbox box = rvs != null ? rvs.getViewsheetSandbox() : null;
+
       if(titleLinkValue != null) {
          Hyperlink.Ref ref = new Hyperlink.Ref(this.titleLinkValue);
+         applyLinkParameters(ref, box);
          this.titleLinkModel = HyperlinkModel.createHyperlinkModel(ref);
       }
 
       if(emptyPlotLinkValue != null) {
          Hyperlink.Ref ref = new Hyperlink.Ref(this.emptyPlotLinkValue);
+         applyLinkParameters(ref, box);
          this.emptyPlotLinkModel = HyperlinkModel.createHyperlinkModel(ref);
       }
    }
@@ -567,6 +572,46 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
    public void setEmptyPlotLinkModel(HyperlinkModel emptyPlotLinkModel) {
       this.emptyPlotLinkModel = emptyPlotLinkModel;
    }
+
+   private void applyLinkParameters(Hyperlink.Ref ref, ViewsheetSandbox box) {
+      if(box == null) {
+         return;
+      }
+
+      if(ref.isSendReportParameters()) {
+         VariableTable vtable = box.getAllVariables();
+
+         if(vtable != null) {
+            Enumeration<?> existing = ref.getParameterNames();
+            Set<String> exists = new HashSet<>();
+
+            while(existing.hasMoreElements()) {
+               exists.add((String) existing.nextElement());
+            }
+
+            Enumeration<?> vnames = vtable.keys();
+
+            while(vnames.hasMoreElements()) {
+               String name = (String) vnames.nextElement();
+
+               if(exists.contains(name) || VariableTable.isContextVariable(name)) {
+                  continue;
+               }
+
+               try {
+                  ref.setParameter(name, vtable.get(name));
+               }
+               catch(Exception ignored) {
+               }
+            }
+         }
+      }
+
+      if(ref.isSendSelectionParameters()) {
+         VSUtil.addSelectionParameter(ref, box.getSelections());
+      }
+   }
+
 
    private int chartType = GraphTypes.CHART_AUTO;
    private List<Axis> axes = new ArrayList<>();
