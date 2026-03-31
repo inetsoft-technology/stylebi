@@ -682,11 +682,11 @@ public class VsToReportConverter {
                         addInputLabel(assembly, sectionName));
             break;
          case AbstractSheet.TEXTINPUT_ASSET:
+            Rectangle textInputBounds = addInputLabel(assembly, sectionName);
             Object value = ((TextInputVSAssemblyInfo) info).getValue();
 
             if(value != null) {
-               addTextBoxElement0(info, null, value + "", addInputLabel(assembly, sectionName),
-                                  sectionName);
+               addTextBoxElement0(info, null, value + "", textInputBounds, sectionName);
             }
 
             break;
@@ -2019,8 +2019,8 @@ public class VsToReportConverter {
       int titleH = 0;
 
       if(info.isTitleVisible()) {
-         Rectangle content = createTitle(assembly, sectionName, text.length() == 0);
-         titleH = bounds.height - content.height;
+         createTitle(assembly, sectionName, text.length() == 0);
+         titleH = getTitleHeight(assembly, text.length() == 0);
          bounds.y += titleH / 3;
          bounds.height -= titleH / 3;
       }
@@ -2055,8 +2055,8 @@ public class VsToReportConverter {
       int titleH = 0;
 
       if(cinfo.isTitleVisible()) {
-         Rectangle content = createTitle(assembly, sectionName, noselected);
-         titleH = bounds.height - content.height;
+         createTitle(assembly, sectionName, noselected);
+         titleH = getTitleHeight(assembly, noselected);
          bounds.y += titleH / 3;
          bounds.height -= titleH / 3;
       }

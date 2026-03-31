@@ -442,7 +442,11 @@ export class LayoutObject implements OnInit, OnDestroy {
 
    hasVerticalLabel(): boolean {
       const labelModel = (this.model?.objectModel as VSInputModel)?.labelModel;
-      return labelModel?.showLabel &&
-         (labelModel.labelPosition === "top" || labelModel.labelPosition === "bottom");
+
+      if(!labelModel?.showLabel) {
+         return false;
+      }
+
+      return labelModel.labelPosition === "top" || labelModel.labelPosition === "bottom";
    }
 }
