@@ -1326,6 +1326,9 @@ public class GraphBuilder {
       int[] selectRows = null;
       Double cornerRadius = null;
       Integer barDirection = null;
+      Double stackDimension = null;
+      Double outerEdgeOffset = null;
+      Double innerEdgeOffset = null;
 
       if(childArea instanceof VisualObjectArea) {
          Visualizable vobj = childArea.getVisualizable();
@@ -1345,31 +1348,61 @@ public class GraphBuilder {
             double r = elem.getCornerRadius();
 
             if(r > 0 && !(barVO instanceof Bar3DVO)) {
-               // GTool.isHorizontal() returns true for standard (vertical bar) orientation,
-               // false for the rotated coordinate system used by horizontal bar charts.
                boolean stdOrientation = GTool.isHorizontal(barVO.getScreenTransform());
                boolean neg = barVO.isNegative();
-               // Note: direction values are the inverse of BarVO's assignments because
-               // BarVO operates in Y-up screen space (after transformShape) while the
-               // frontend canvas uses standard Y-down coordinates.
+               // Y-down direction (frontend canvas coords, inverted from BarVO Y-up)
                int outerDir = stdOrientation ? (neg ? 1 : 0) : (neg ? 3 : 2);
 
-               if(!elem.isStack() || geom.isStackOutermost()) {
+               if(!elem.isStack()) {
                   cornerRadius = r;
 
-                  if(!elem.isRoundAllCorners() || (elem.isStack() && !geom.isStackInnermost())) {
-                     // Round only the open (value) end: either roundAllCorners is off, or this
-                     // outermost segment has inner neighbours (is not also the innermost).
+                  if(!elem.isRoundAllCorners()) {
                      barDirection = outerDir;
                   }
-                  // else: barDirection=null → all 4 corners (non-stacked + roundAllCorners,
-                  // or single-segment stack where outermost == innermost)
                }
-               else if(elem.isRoundAllCorners() && geom.isStackInnermost()) {
-                  // Innermost segment of a multi-segment stack with roundAllCorners: round the
-                  // base (closed) end using the opposite direction to the outermost segment.
-                  cornerRadius = r;
-                  barDirection = outerDir ^ 1; // 0↔1, 2↔3: flip to base end
+               else {
+                  double totalStackInterval = geom.getTotalStackInterval();
+
+                  if(totalStackInterval > 0 && geom.getInterval() != 0) {
+                     Rectangle2D barBounds = barVO.getBounds();
+                     double segDim = stdOrientation
+                        ? barBounds.getHeight() : barBounds.getWidth();
+                     double barWidth = stdOrientation
+                        ? barBounds.getWidth() : barBounds.getHeight();
+                     double scale = segDim / Math.abs(geom.getInterval());
+                     double stackDim = totalStackInterval * scale;
+                     double cumulative = geom.getCumulativeStackInterval();
+
+                     double arc = Math.min(r * barWidth, barWidth / 2);
+                     double distFromOuter = (totalStackInterval - cumulative) * scale;
+                     double distFromInner =
+                        (cumulative - Math.abs(geom.getInterval())) * scale;
+
+                     boolean inOuterArcZone = distFromOuter < arc;
+                     boolean inInnerArcZone =
+                        elem.isRoundAllCorners() && distFromInner < arc;
+
+                     if(inOuterArcZone || inInnerArcZone) {
+                        cornerRadius = r;
+                        stackDimension = stackDim;
+                        barDirection = outerDir;
+
+                        if(geom.isStackOutermost() && geom.isStackInnermost()
+                           && elem.isRoundAllCorners())
+                        {
+                           barDirection = null; // single segment, all corners
+                        }
+                        else {
+                           if(inOuterArcZone) {
+                              outerEdgeOffset = distFromOuter;
+                           }
+
+                           if(inInnerArcZone) {
+                              innerEdgeOffset = distFromInner;
+                           }
+                        }
+                     }
+                  }
                }
             }
          }
@@ -1405,6 +1438,9 @@ public class GraphBuilder {
          .selectRows(selectRows)
          .cornerRadius(cornerRadius)
          .barDirection(barDirection)
+         .stackDimension(stackDimension)
+         .outerEdgeOffset(outerEdgeOffset)
+         .innerEdgeOffset(innerEdgeOffset)
          .build();
    }
 
