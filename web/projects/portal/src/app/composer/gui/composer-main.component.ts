@@ -2063,8 +2063,6 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
 
    saveWizVisualization(vs: WizDashboard): void {
       if(!vs.newSheet) {
-         this.wizVisualizationMode = false;
-         this.currentWizVisualization = null;
          vs.saving = true;
          this.saveViewsheet0(vs, false, false);
          return;
@@ -2089,8 +2087,6 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                   this.designSaved = true;
                   result.updateDepend = false;
                   vs.socketConnection.sendEvent(SAVE_VIEWSHEET_DIALOG_SOCKET_URI, result);
-                  this.wizVisualizationMode = false;
-                  this.currentWizVisualization = null;
                });
             dialog.model = model;
             dialog.defaultFolder = this.defaultFolder;

@@ -72,6 +72,11 @@ export class WizComponentsPane implements OnInit, OnChanges, OnDestroy {
       this.loadFilters();
       this.buildRoot();
       this.subscriptions.add(this.wizService.refreshFilters.subscribe(() => this.loadFilters()));
+      this.subscriptions.add(this.wizService.refreshTree.subscribe(() => {
+         this.loadVisualizations();
+         this.loadComponents();
+         this.loadFilters();
+      }));
    }
 
    ngOnDestroy(): void {
@@ -215,6 +220,28 @@ export class WizComponentsPane implements OnInit, OnChanges, OnDestroy {
       this.wizService.onOpenVisualization(node.data.identifier, standaloneVisualization);
    }
 
+   removeVisualization(node: TreeNodeModel) {
+      if(!node?.data || node.data.type !== AssetType.VIEWSHEET) {
+         return;
+      }
+
+      const event = {
+         entry: node.data,
+         confirmed: true
+      };
+
+      this.http.post("../api/composer/asset-tree/remove-asset", event)
+         .subscribe({
+            next: () => {
+               this.loadVisualizations();
+               this.loadComponents();
+            },
+            error: (err) => {
+               console.error("Failed to remove visualization", err);
+            }
+         });
+   }
+
    hasMenuFunction(): any {
       return (node) => this.hasMenu(node);
    }
@@ -259,6 +286,14 @@ export class WizComponentsPane implements OnInit, OnChanges, OnDestroy {
             enabled: () => true,
             visible: () => true,
             action: () => this.openVisualization(node)
+         });
+         group.actions.push({
+            id: () => "remove-wiz-visualization",
+            label: () => "_#(js:Remove)",
+            icon: () => "",
+            enabled: () => true,
+            visible: () => true,
+            action: () => this.removeVisualization(node)
          });
       }
 

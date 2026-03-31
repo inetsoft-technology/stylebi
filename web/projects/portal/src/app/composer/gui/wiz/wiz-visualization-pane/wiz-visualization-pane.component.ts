@@ -56,7 +56,9 @@ import { OpenViewsheetEvent } from "../../../../vsobjects/event/open-viewsheet-e
 import { VSRefreshEvent } from "../../../../vsobjects/event/vs-refresh-event";
 import { NewViewsheetEvent } from "../../vs/event/new-viewsheet-event";
 import { CloseSheetCommand } from "../../ws/socket/close-sheet-command";
+import { SaveSheetCommand } from "../../ws/socket/save-sheet-command";
 import { TouchAssetEvent } from "../../ws/socket/touch-asset-event";
+import { WizService } from "../services/wiz.service";
 import { GuiTool } from "../../../../common/util/gui-tool";
 import { SetViewsheetInfoCommand } from "../../../../vsobjects/command/set-viewsheet-info-command";
 import { SetWizDetailsCommand, WizDetailItem } from "../../../../vsobjects/command/set-wiz-details-command";
@@ -117,7 +119,8 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, Af
 
    constructor(private viewsheetClient: ViewsheetClientService, zone: NgZone,
                public wizPortalService: WizPortalService,
-               private changeDetectorRef: ChangeDetectorRef)
+               private changeDetectorRef: ChangeDetectorRef,
+               private wizService: WizService)
    {
       super(viewsheetClient, zone, true);
    }
@@ -222,6 +225,18 @@ export class WizVisualizationPane extends CommandProcessor implements OnInit, Af
 
    private processCloseSheetCommand(_command: CloseSheetCommand): void {
       this.currentVisualization.runtimeId = null;
+   }
+
+   private processSaveSheetCommand(command: SaveSheetCommand): void {
+      this.currentVisualization.savePoint = command.savePoint;
+      this.currentVisualization.id = command.id;
+      this.currentVisualization.newSheet = false;
+
+      // Close the visualization pane
+      this.wizService.onExitVisualization();
+
+      // Refresh the tree in wiz-components-pane
+      this.wizService.onRefreshTree();
    }
 
    private processAddVSObjectCommand(command: AddVSObjectCommand): void {
