@@ -1366,6 +1366,12 @@ public abstract class AbstractVSExporter implements VSExporter {
                      titleInfo.setFormatInfo(info.getFormatInfo());
                      titleInfo.setPadding(info.getTitlePadding());
                      titleInfo.setZIndex(info.getZIndex());
+
+                     Hyperlink titleLink = info.getTitleLinkValue();
+
+                     if(titleLink != null) {
+                        titleInfo.setHyperlink(titleLink);
+                     }
                   }
 
                   VGraphPair pair = box.getVGraphPair(name, true, null, true, 1);
@@ -1393,6 +1399,8 @@ public abstract class AbstractVSExporter implements VSExporter {
                   }
 
                   if(titleObj != null) {
+                     titleObj.setViewsheet(viewsheet);
+                     prepareAssembly(titleObj);
                      writeText(titleObj);
                   }
 
