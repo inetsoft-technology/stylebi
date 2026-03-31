@@ -289,7 +289,7 @@ public class UserSignupService {
          "Here''s your Inetsoft StyleBI verification code, {0} \n {1}");
       message = MessageFormat.format(message, to, code);
 
-      //mailer.send(to, from, subject, message, null);
+      mailer.send(to, from, subject, message, null);
    }
 
    public Optional<User> getUserByGoogleSSOId(String googleUserId) {
