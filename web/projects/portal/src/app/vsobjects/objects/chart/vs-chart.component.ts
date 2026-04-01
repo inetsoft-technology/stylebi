@@ -1210,7 +1210,16 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       // The 3-second fallback timeout prevents loading from getting stuck when onLoad
       // doesn't fire reliably (e.g. rapid max-mode transitions). (Bug #74278)
       if(command.completed) {
-         this.captureChartSnapshot();
+         // Only capture snapshot when entering a fresh loading cycle. If loading was
+         // already started by showChartLoading() (e.g. the model-setter path where
+         // RefreshVSObjectCommand arrived first), it already snapshotted the old chart
+         // before detectChanges() ran. Re-snapshotting here would clone the DOM after
+         // detectChanges() applied new axis positions, baking in the misalignment we
+         // are trying to hide. (Bug #74260)
+         if(!this.chartLoading) {
+            this.captureChartSnapshot();
+         }
+
          this.chartLoading = true;
          this.chartLoadingIcon = true;
 
