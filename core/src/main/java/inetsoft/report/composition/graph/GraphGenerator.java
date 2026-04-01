@@ -2802,17 +2802,6 @@ public abstract class GraphGenerator {
     * @return true if ref should be treated as a dimension
     */
    protected boolean isDimensionRef(ChartRef ref) {
-      // A discrete ChartAggregateRef has isMeasure() returning false (because
-      // isDiscrete() is true), which would normally classify it as a dimension.
-      // However, discrete measures carry real numeric values that must be plotted
-      // as measures (y-axis with a linear scale) so bar heights reflect the actual
-      // data. Without this check they fall into ydims, ymeasures stays empty, and
-      // a fake constant measure (value=1) is injected — making all bars identical.
-      // (Bug #74371)
-      if(ref instanceof VSChartAggregateRef && ((VSChartAggregateRef) ref).isDiscrete()) {
-         return false;
-      }
-
       return GraphUtil.isDimension(ref);
    }
 
