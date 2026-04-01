@@ -73,6 +73,7 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
    principal: string;
    securityEnabled: boolean;
    toolbarPermissions: string[];
+   aiAssistantPermission: boolean = false;
    visible = true;
    fullScreen = false;
    dashboardName: string = null;
@@ -132,7 +133,8 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
          this.principal = data.principalCommand.principal;
          this.securityEnabled = data.principalCommand.securityEnabled;
          this.toolbarPermissions = data.viewData.toolbarPermissions;
-         this.viewDataService.data.aiAssistantPermission = data.principalCommand.aiAssistantPermission;
+         this.aiAssistantPermission = data.principalCommand.aiAssistantPermission;
+         this.viewDataService.data.aiAssistantPermission = this.aiAssistantPermission;
          this.inPortal = data.viewData.portal;
          this.inDashboard = data.viewData.dashboard;
          this.fullScreen = data.viewData.fullScreen;
@@ -231,6 +233,7 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
       this.viewDataService.data.linkUri = viewerApp.vsInfo.linkUri;
       this.viewDataService.data.runtimeId = viewerApp.runtimeId;
       this.viewDataService.data.toolbarPermissions = viewerApp.toolbarPermissions;
+      this.viewDataService.data.aiAssistantPermission = this.aiAssistantPermission;
 
       this.openEditor("Failed to navigate to table editor: ", evt.isMetadata);
    }
@@ -251,6 +254,7 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
       this.viewDataService.data.linkUri = viewerApp.vsInfo.linkUri;
       this.viewDataService.data.runtimeId = viewerApp.runtimeId;
       this.viewDataService.data.toolbarPermissions = viewerApp.toolbarPermissions;
+      this.viewDataService.data.aiAssistantPermission = this.aiAssistantPermission;
 
       this.openEditor("Failed to navigate to chart editor: ", evt.isMetadata);
    }

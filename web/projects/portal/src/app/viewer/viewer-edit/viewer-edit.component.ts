@@ -112,7 +112,7 @@ export class ViewerEditComponent implements OnInit, OnDestroy {
    }
 
    get aiAssistantPermission(): boolean {
-      return this.viewData?.aiAssistantPermission === true;
+      return !!this.viewData?.aiAssistantPermission;
    }
 
    get assemblyName(): string {
