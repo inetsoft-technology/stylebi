@@ -180,6 +180,8 @@ public abstract class AbstractDataSet implements DataSet {
 
       // so the post calcs can iterator it
       this.calcvals = calcvals;
+      // reset so getColCount() includes calc columns for post-calc data access (74371)
+      cachedColCount = -1;
 
       if(hasPostCalc) {
          for(int k = 0; k < cnt && !isDisposed(); k++) {
