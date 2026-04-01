@@ -74,7 +74,7 @@
                      autocomplete="new-password" name="signupPassword"/>
               <div id="passwordError" class="invalid-feedback" style="display: none;" aria-live="assertive" aria-atomic="true">
                 <span id="passwordRequiredError" data-th-text="#{signup.password.required}">Password is required.</span>
-                <span id="passwordFormatError" data-th-text="#{signup.password.invalid}">The password must be at least 8 characters long and contain both letters and numbers.</span>
+                <span id="passwordFormatError" data-th-text="#{viewer.password.pwdRule}">8-72 characters, with uppercase, lowercase, a digit, and a special character</span>
                 <span id="passwordTooLongError" data-th-text="#{signup.password.tooLong}">Password is too long (maximum is 72 characters).</span>
               </div>
             </div>
