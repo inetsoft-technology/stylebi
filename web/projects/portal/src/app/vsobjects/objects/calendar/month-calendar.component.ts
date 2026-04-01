@@ -36,6 +36,7 @@ import { SelectionRegions, VSCalendar } from "./vs-calendar.component";
 import { FirstDayOfWeekService } from "../../../common/services/first-day-of-week.service";
 import { ContextProvider } from "../../context-provider.service";
 import { GuiTool } from "../../../common/util/gui-tool";
+import { VSUtil } from "../../util/vs-util";
 
 interface DayInfo {
    year: number;
@@ -260,7 +261,7 @@ export class MonthCalendar implements OnChanges, AfterViewInit {
    //gets calendar height, which needs to be adjusted in dropdown mode
    getCalendarHeight(): number {
       if(this.model.dropdownCalendar){
-         return 18 * 8; //the constant 18 is defh from AssetUtil.java
+         return VSUtil.CALENDAR_BODY_HEIGHT;
       }
       else {
          return this.model.objectFormat.height - this.model.titleFormat.height;

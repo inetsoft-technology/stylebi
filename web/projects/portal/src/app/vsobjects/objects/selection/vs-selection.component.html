@@ -81,6 +81,7 @@
                                 [attr.aria-expanded]="!model.hidden"
                                 [actionNames]="model.actionNames"
                                 [collapsed]="model.hidden"
+                                [flipped]="bottomTabFlipped"
                                 (hideClicked)="onHide()"
                                 (showClicked)="onShow()"
                                 [class.bd-selected-cell]="lastCellSelectedIndex == FocusRegions.DROPDOWN">

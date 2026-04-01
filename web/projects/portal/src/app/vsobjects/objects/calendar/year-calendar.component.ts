@@ -27,6 +27,7 @@ import { Tool } from "../../../../../../shared/util/tool";
 import { TableDataPath } from "../../../common/data/table-data-path";
 import { DataPathConstants } from "../../../common/util/data-path-constants";
 import { ContextProvider } from "../../context-provider.service";
+import { VSUtil } from "../../util/vs-util";
 
 @Component({
    selector: "year-calendar",
@@ -198,7 +199,7 @@ export class YearCalendar implements OnChanges, AfterViewInit {
    //gets calendar height, which needs to be adjusted in dropdown mode
    getCalendarHeight(): number {
       if(this.model.dropdownCalendar){
-         return 18 * 8; //the constant 18 is defh from AssetUtil.java
+         return VSUtil.CALENDAR_BODY_HEIGHT;
       }
       else {
          return this.model.objectFormat.height - this.model.titleFormat.height;

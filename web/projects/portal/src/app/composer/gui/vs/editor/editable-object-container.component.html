@@ -30,7 +30,7 @@
      [class.popped]="popupShowing"
      [class.prevent-drag]="isPreventDrag() && isPreventResize()"
      [style.left.px]="selectionChildModel ? 0 : vsObject.objectFormat.left - selectionBorderOffset"
-     [style.top.px]="selectionChildModel ? 0 : vsObject.objectFormat.top - selectionBorderOffset"
+     [style.top.px]="getTopPosition()"
      [style.z-index]="zIndex"
      [style.display]="visible ? null : 'none'"
      [class.fade-assembly]="isFadeAssembly()"
@@ -199,7 +199,7 @@
        [style.border-bottom]="!vsObject.dropZone && selectionChildModel && !selected ? 0 : ''"
        [style.opacity]="selected && vsObject.covered ? 0.5 : 1"
        [style.min-width.px]="vsObject.objectType === 'VSViewsheet' ? viewsheetModel.bounds.width : (selectionChildModel ? null : vsObject.objectFormat.width)"
-       [style.min-height.px]="vsObject.objectType === 'VSViewsheet' ? viewsheetModel.bounds.height : vsObject.objectFormat.height">
+       [style.min-height.px]="vsObject.objectType === 'VSViewsheet' ? viewsheetModel.bounds.height : getMinHeight()">
     <vs-calendar *ngSwitchCase="'VSCalendar'" #objectComponent
                  cCalendarActionHandler [vsInfo]="viewsheet" [actions]="actions"
                  [model]="vsObject" [selected]="selected"
