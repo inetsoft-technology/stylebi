@@ -1205,9 +1205,12 @@ export class VSChart extends AbstractVSObject<VSChartModel>
 
       // Hide chart BEFORE detectChanges so the axis-position update applied above via
       // Object.assign is never rendered while tile images are still reloading. (Bug #74260)
-      // Install a fallback timeout so loading never gets stuck when onLoad doesn't fire
-      // reliably (e.g. rapid max-mode transitions). (Bug #74278)
+      // Capture a snapshot of the old chart first so it remains visible to the user
+      // (no blank flash) while new tiles load in the background.
+      // The 3-second fallback timeout prevents loading from getting stuck when onLoad
+      // doesn't fire reliably (e.g. rapid max-mode transitions). (Bug #74278)
       if(command.completed) {
+         this.captureChartSnapshot();
          this.chartLoading = true;
          this.chartLoadingIcon = true;
 
@@ -1224,13 +1227,7 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       this.modelTS = (new Date()).getTime();
       this.detectChanges();
 
-      // When the server confirms chart areas are fully computed, explicitly clear the
-      // loading state to prevent it from getting stuck when chart-area's onLoad doesn't
-      // fire reliably during rapid max-mode transitions (e.g. enlarge → actual size). (Bug #74278)
-      if(command.completed) {
-         this.clearChartLoading();
-      }
-      else if(this.chartLoading) {
+      if(!command.completed && this.chartLoading) {
          // Server graph computation was not yet complete (e.g. cancelled by concurrent VS
          // operations during rapid enlarge → actual size transition). Schedule a retry so
          // the loading state is not permanently stuck if no further model update arrives.
