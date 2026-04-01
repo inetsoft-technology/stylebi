@@ -216,7 +216,7 @@ public class GroupingService {
                VSAssemblyInfo objectInfo = (VSAssemblyInfo) object.getInfo();
 
                Dimension objectSize = objectInfo.getLayoutSize() != null ?
-                  objectInfo.getLayoutSize() : viewsheet.getPixelSize(objectInfo);
+                  objectInfo.getLayoutSize() : object.getPixelSize();
 
                int width = size.width > objectSize.width ? size.width: objectSize.width;
 
@@ -254,7 +254,7 @@ public class GroupingService {
             VSAssemblyInfo targetInfo = (VSAssemblyInfo) target.getInfo();
 
             Dimension targetSize = targetInfo.getLayoutSize() != null ?
-               targetInfo.getLayoutSize() : viewsheet.getPixelSize(targetInfo);
+               targetInfo.getLayoutSize() : target.getPixelSize();
 
             int width = size.width > targetSize.width ? size.width: targetSize.width;
 
@@ -296,10 +296,10 @@ public class GroupingService {
             VSAssemblyInfo targetInfo = (VSAssemblyInfo) target.getInfo();
 
             Dimension objectSize = objectInfo.getLayoutSize() != null ?
-               objectInfo.getLayoutSize() : viewsheet.getPixelSize(objectInfo);
+               objectInfo.getLayoutSize() : object.getPixelSize();
 
             Dimension targetSize = targetInfo.getLayoutSize() != null ?
-               targetInfo.getLayoutSize() : viewsheet.getPixelSize(targetInfo);
+               targetInfo.getLayoutSize() : target.getPixelSize();
 
             int width = objectSize.width > targetSize.width ?
                objectSize.width: targetSize.width;
@@ -362,10 +362,10 @@ public class GroupingService {
 
 
       Dimension objectSize = objectInfo.getLayoutSize() != null ?
-         objectInfo.getLayoutSize() : viewsheet.getPixelSize(objectInfo);
+         objectInfo.getLayoutSize() : object.getPixelSize();
 
       Dimension targetSize = targetInfo.getLayoutSize() != null ?
-         targetInfo.getLayoutSize() : viewsheet.getPixelSize(targetInfo);
+         targetInfo.getLayoutSize() : target.getPixelSize();
 
       int width = objectSize.width > targetSize.width ? objectSize.width: targetSize.width;
 
@@ -380,7 +380,7 @@ public class GroupingService {
 
          VSAssemblyInfo info = (VSAssemblyInfo) assembly.getInfo();
          Dimension childSize = info.getLayoutSize() != null ?
-            info.getLayoutSize() : viewsheet.getPixelSize(info);
+            info.getLayoutSize() : assembly.getPixelSize();
          int y = bottomTabs
             ? pos.y - childSize.height
             : pos.y + size.height;
