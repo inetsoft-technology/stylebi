@@ -1022,6 +1022,7 @@ public class FormatPainterController {
       VSFormat userFormat = format.getUserDefinedFormat();
       userFormat.setBorderDefined(false);
       userFormat.setBordersValue(null, false);
+      userFormat.setBorderColors(null, false);
       userFormat.setRoundCornerValue(0, false);
 
       VSCSSFormat cssFormat = format.getCSSFormat();
