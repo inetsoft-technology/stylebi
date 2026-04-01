@@ -92,6 +92,7 @@ public class VSTab extends VSFloatable {
          }
 
          if(format.getBorders() != null && (((TabVSAssemblyInfo) info).isRoundTopCornersOnly() ||
+            ((TabVSAssemblyInfo) info).isRoundBottomCornersOnly() ||
             (format.getRoundCorner() == 0 && activeFormat.getRoundCorner() == 0)))
          {
             // draw the bottom border here since we know where the tabs end
@@ -174,7 +175,7 @@ public class VSTab extends VSFloatable {
    }
 
    private void drawTabShape(Graphics2D g, Point pos, Dimension size, VSCompositeFormat format,
-                             boolean swapTopBottom)
+                             boolean isSelectedBottomTab)
    {
       Insets borders = format.getBorders();
       float leftBorderWidth = 0;
@@ -187,8 +188,8 @@ public class VSTab extends VSFloatable {
          leftBorderWidth = Common.getLineWidth(borders.left);
          rightBorderWidth = Common.getLineWidth(borders.right);
          // For bottom tabs, indicator border is stored as bottom in the format but rendered on top
-         topBorderWidth = Common.getLineWidth(swapTopBottom ? borders.bottom : borders.top);
-         bottomBorderWidth = Common.getLineWidth(swapTopBottom ? borders.top : borders.bottom);
+         topBorderWidth = Common.getLineWidth(isSelectedBottomTab ? borders.bottom : borders.top);
+         bottomBorderWidth = Common.getLineWidth(isSelectedBottomTab ? borders.top : borders.bottom);
       }
 
       TabVSAssemblyInfo info = (TabVSAssemblyInfo) getAssemblyInfo();
@@ -222,10 +223,10 @@ public class VSTab extends VSFloatable {
       int borderRadiusWidth = (int) Math.ceil(borderRadius / 2d);
 
       if(borders != null) {
-         int topBorderStyle = swapTopBottom ? borders.bottom : borders.top;
-         int bottomBorderStyle = swapTopBottom ? borders.top : borders.bottom;
-         Color topBorderColor = swapTopBottom ? borderColors.bottomColor : borderColors.topColor;
-         Color bottomBorderColor = swapTopBottom ? borderColors.topColor : borderColors.bottomColor;
+         int topBorderStyle = isSelectedBottomTab ? borders.bottom : borders.top;
+         int bottomBorderStyle = isSelectedBottomTab ? borders.top : borders.bottom;
+         Color topBorderColor = isSelectedBottomTab ? borderColors.bottomColor : borderColors.topColor;
+         Color bottomBorderColor = isSelectedBottomTab ? borderColors.topColor : borderColors.bottomColor;
 
          // left
          g.setClip(clipBounds.x, clipBounds.y, (int) (leftBorderWidth + borderRadiusWidth),
@@ -244,9 +245,9 @@ public class VSTab extends VSFloatable {
          drawTabBorder(g, shape, topBorderStyle, topBorderColor);
 
          // bottom - for roundTopCornersOnly, bottom corners are square so no radius expansion needed
-         borderRadiusWidth = info.isRoundTopCornersOnly() ? 0 : borderRadiusWidth;
-         g.setClip(clipBounds.x, (int) (clipBounds.getMaxY() - (bottomBorderWidth + borderRadiusWidth)),
-                   clipBounds.width, (int) (bottomBorderWidth + borderRadiusWidth));
+         int bottomRadiusWidth = info.isRoundTopCornersOnly() ? 0 : borderRadiusWidth;
+         g.setClip(clipBounds.x, (int) (clipBounds.getMaxY() - (bottomBorderWidth + bottomRadiusWidth)),
+                   clipBounds.width, (int) (bottomBorderWidth + bottomRadiusWidth));
          drawTabBorder(g, shape, bottomBorderStyle, bottomBorderColor);
       }
 

@@ -486,6 +486,10 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
 
    public void setRoundTopCornersOnly(boolean roundTopCornersOnly) {
       this.roundTopCornersOnly = roundTopCornersOnly;
+
+      if(roundTopCornersOnly) {
+         this.roundBottomCornersOnly = false;
+      }
    }
 
    /**
@@ -507,6 +511,10 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
 
    public void setRoundBottomCornersOnly(boolean roundBottomCornersOnly) {
       this.roundBottomCornersOnly = roundBottomCornersOnly;
+
+      if(roundBottomCornersOnly) {
+         this.roundTopCornersOnly = false;
+      }
    }
 
    private ClazzHolder<String[]> labelsValue = new ClazzHolder<>();
