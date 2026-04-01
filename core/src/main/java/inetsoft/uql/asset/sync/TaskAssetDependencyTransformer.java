@@ -452,6 +452,8 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
          newPath = getPartitionPath(info.getNewName(), info.getModelFolder());
       }
       else if(info.isPartition() && info.isFolder()) {
+         // Partition folder rename paths are already in ID format (set directly by
+         // DatabaseModelBrowserService), so no conversion is needed here.
          path = info.getOldPath();
          newPath = info.getNewPath();
       }
@@ -602,25 +604,25 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
     * "database^__^folder^name" used in backup action XML.
     * Paths already in ID format (containing "^") are returned unchanged.
     */
-   private String toModelAssetPath(String rawPath, String folder) {
+   String toModelAssetPath(String rawPath, String modelFolder) {
       if(rawPath == null || rawPath.contains(XUtil.DATAMODEL_PATH_SPLITER)) {
          return rawPath;
       }
 
-      String modelName = rawPath.substring(rawPath.lastIndexOf('/') + 1);
-      int dbEnd = rawPath.length() - modelName.length() - 1;
+      String[] parts = rawPath.split("/");
 
-      if(!Tool.isEmptyString(folder)) {
-         dbEnd -= folder.length() + 1;
+      if(parts.length < 2) {
+         return rawPath;
       }
 
-      String database = rawPath.substring(0, dbEnd);
+      String database = parts[0];
+      String modelName = parts[parts.length - 1];
 
-      if(Tool.isEmptyString(folder)) {
+      if(Tool.isEmptyString(modelFolder)) {
          return database + XUtil.DATAMODEL_PATH_SPLITER + modelName;
       }
 
-      return database + XUtil.DATAMODEL_FOLDER_SPLITER + folder +
+      return database + XUtil.DATAMODEL_FOLDER_SPLITER + modelFolder +
          XUtil.DATAMODEL_PATH_SPLITER + modelName;
    }
 
