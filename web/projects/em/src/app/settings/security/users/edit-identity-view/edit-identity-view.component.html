@@ -114,7 +114,7 @@
             <div [formGroup]="pwForm" *ngIf="isNewUser || !userModel.hasPassword || form.controls.changePasswordEnabled?.value" class="flex-col" [class.change-password-box]="!isNewUser && userModel.hasPassword">
               <mat-form-field appearance="outline" color="accent">
                 <mat-label>_#(Password)</mat-label>
-                <input matInput placeholder="_#(Password)" [type]="showPwd[0] ? 'text' : 'password'" formControlName="password" autocomplete="new-password">
+                <input matInput placeholder="_#(Password)" [type]="showPwd[0] ? 'text' : 'password'" [class.identity-password]="!showPwd[0]" formControlName="password" autocomplete="new-password">
                 <button matSuffix mat-icon-button (click)="togglePwd(0)" type="button" aria-label="_#(Show/Hide)">
                   <mat-icon fontSet="ineticons" class="icon-size-small"
                             [fontIcon]="showPwd[0] ? 'eye-off-icon' : 'eye-icon'"></mat-icon>
@@ -124,7 +124,7 @@
               </mat-form-field>
               <mat-form-field appearance="outline" color="accent">
                 <mat-label>_#(Confirm Password)</mat-label>
-                <input matInput placeholder="_#(Confirm Password)" [type]="showPwd[1] ? 'text' : 'password'" formControlName="confirmPassword" autocomplete="new-password" [errorStateMatcher]="passwordErrorMatcher">
+                <input matInput placeholder="_#(Confirm Password)" [type]="showPwd[1] ? 'text' : 'password'" [class.identity-password]="!showPwd[1]" formControlName="confirmPassword" autocomplete="new-password" [errorStateMatcher]="passwordErrorMatcher">
                 <button matSuffix mat-icon-button (click)="togglePwd(1)" type="button" aria-label="_#(Show/Hide)">
                   <mat-icon fontSet="ineticons" class="icon-size-small"
                             [fontIcon]="showPwd[1] ? 'eye-off-icon' : 'eye-icon'"></mat-icon>
