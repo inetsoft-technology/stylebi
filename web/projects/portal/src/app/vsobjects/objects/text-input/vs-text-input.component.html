@@ -26,12 +26,13 @@
      [style.width.px]="model.objectFormat.width"
      [objectHeight]="model.objectFormat.height"
      [style.z-index]="viewer ? model.objectFormat.zIndex : null"
+     [style.background-color]="model.objectFormat.background"
+     VSDataTip [dataTipName]="getAssemblyName()"
+     VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
+     [popZIndex]="model.objectFormat.zIndex"
      (selectLabel)="selectLabel($event)">
   <div [title]="viewer && model.text ? model.text : ''"
        class="TextInput"
-       VSDataTip [dataTipName]="getAssemblyName()"
-       VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
-       [popZIndex]="model.objectFormat.zIndex"
        [class.disable-actions-fade]="!model.enabled"
        (dblclick)="enableEditing()"
        (click)="clearLabelSelection()">
