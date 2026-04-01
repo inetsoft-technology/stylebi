@@ -30,6 +30,7 @@ import { GuiTool } from "../common/util/gui-tool";
 import { PageTabService, TabInfoModel } from "../viewer/services/page-tab.service";
 import { ViewDataService } from "../viewer/services/view-data.service";
 import { PreviousSnapshot, PreviousSnapshotType } from "../widget/hyperlink/previous-snapshot";
+import { ComponentTool } from "../common/util/component-tool";
 import { HyperlinkService } from "../widget/services/hyperlink.service";
 import { ModelService } from "../widget/services/model.service";
 import { ViewConstants } from "../viewer/view-constants";
@@ -176,7 +177,13 @@ export class ShowHyperlinkService extends HyperlinkService implements OnDestroy 
             (!this.inPortal || this.portalRepositoryPermission))
          {
             if(link.linkType === LinkType.WEB_LINK) {
-               window.open(str, "_self");
+               try {
+                  window.open(str, "_self");
+               }
+               catch(e) {
+                  ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
+                     "_#(js:viewer.viewsheet.hyperlinkOpenFailed) " + str);
+               }
             }
             else {
                if(!!runtimeId) {
@@ -210,7 +217,13 @@ export class ShowHyperlinkService extends HyperlinkService implements OnDestroy 
             }
 
             if(link.linkType === LinkType.WEB_LINK) {
-               window.open(str, target);
+               try {
+                  window.open(str, target);
+               }
+               catch(e) {
+                  ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
+                     "_#(js:viewer.viewsheet.hyperlinkOpenFailed) " + str);
+               }
             }
             else {
                this.openWindow(str, target, _model.parameters);
