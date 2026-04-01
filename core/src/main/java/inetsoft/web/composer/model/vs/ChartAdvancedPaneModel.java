@@ -18,6 +18,7 @@
 package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.viewsheet.VSDataRef;
@@ -59,6 +60,16 @@ public class ChartAdvancedPaneModel {
       }
 
       chartPlotOptionsPaneModel = new ChartPlotOptionsPaneModel(info, plotDesc);
+
+      // DC converts the chart to bars at runtime regardless of design-time chart type.
+      // Show bar rounding controls when DC is defined and they aren't already visible.
+      if(!chartPlotOptionsPaneModel.isBarCornerRadiusVisible() &&
+         chartAssemblyInfo.isDateComparisonEnabled() &&
+         DateComparisonUtil.isDateComparisonDefined(chartAssemblyInfo))
+      {
+         chartPlotOptionsPaneModel.setBarCornerRadiusVisible(true);
+         chartPlotOptionsPaneModel.setBarRoundAllCornersVisible(true);
+      }
    }
 
    public static boolean isRankingSupported(ChartInfo info) {
@@ -140,6 +151,17 @@ public class ChartAdvancedPaneModel {
       }
 
       chartPlotOptionsPaneModel.updateChartPlotOptionsPaneModel(info, plotDesc);
+
+      // updateChartPlotOptionsPaneModel uses design-time checkType which doesn't see DC's
+      // runtime bar conversion, so it incorrectly resets barRoundAllCorners=false.
+      // Re-apply the user's value when DC is defined and chart type isn't natively bar/interval.
+      if(chartAssemblyInfo.isDateComparisonEnabled() &&
+         DateComparisonUtil.isDateComparisonDefined(chartAssemblyInfo) &&
+         !GraphTypeUtil.checkType(info, ctype ->
+            GraphTypes.isBar(ctype) || GraphTypes.isInterval(ctype)))
+      {
+         plotDesc.setBarRoundAllCorners(chartPlotOptionsPaneModel.isBarRoundAllCorners());
+      }
    }
 
    public boolean isAdhocVisible() {

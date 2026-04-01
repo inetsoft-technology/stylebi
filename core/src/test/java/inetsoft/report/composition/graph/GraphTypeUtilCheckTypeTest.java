@@ -153,6 +153,39 @@ class GraphTypeUtilCheckTypeTest {
       assertFalse(GraphTypeUtil.checkType(info, GraphTypes::isBar));
    }
 
+   @Test
+   void dcApplied_lineChart_rtChangedToBar_returnsTrue() {
+      // Non-value+ DC on a LINE chart: DC sets getRTChartType() to BAR.
+      // Bar rounding UI should be visible.
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_LINE);
+      info.setRTChartType(GraphTypes.CHART_BAR);
+      info.setRuntimeDateComparisonRefs(new ChartRef[]{ new VSChartDimensionRef() });
+      info.setRuntimeMulti(false);
+
+      assertTrue(GraphTypeUtil.checkType(info, GraphTypes::isBar),
+         "DC-created bars on a LINE chart should pass isBar check");
+      assertTrue(GraphTypeUtil.checkType(info, ctype ->
+               (GraphTypes.isBar(ctype) || GraphTypes.isInterval(ctype)) &&
+               !GraphTypes.is3DBar(ctype) && !GraphTypes.isPareto(ctype) &&
+               !GraphTypes.isWaterfall(ctype) && !GraphTypes.isFunnel(ctype)),
+         "barCornerRadiusVisible predicate should be true for DC bar on LINE chart");
+   }
+
+   @Test
+   void dcApplied_lineChart_rtStillLine_returnsFalse() {
+      // DC applied but RT type not changed to BAR (e.g., value+ with LINE output).
+      // Bar rounding UI should remain hidden.
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_LINE);
+      info.setRTChartType(GraphTypes.CHART_LINE);
+      info.setRuntimeDateComparisonRefs(new ChartRef[]{ new VSChartDimensionRef() });
+      info.setRuntimeMulti(true);
+
+      assertFalse(GraphTypeUtil.checkType(info, GraphTypes::isBar),
+         "DC on LINE chart where RT stays LINE should not pass isBar");
+   }
+
    // -----------------------------------------------------------------------
    // Edge cases
    // -----------------------------------------------------------------------
