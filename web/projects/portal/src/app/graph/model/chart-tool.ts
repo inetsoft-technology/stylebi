@@ -835,7 +835,81 @@ export namespace ChartTool {
                      const r = region.cornerRadius;
 
                      if(r > 0) {
-                        drawRoundedBar(context, x, y, w, h, r, region.barDirection);
+                        const dir = region.barDirection;
+                        const stackDim = region.stackDimension;
+                        const outerOffset = region.outerEdgeOffset;
+                        const innerOffset = region.innerEdgeOffset;
+                        const needsClip = dir != null && stackDim > 0
+                           && (outerOffset != null || innerOffset != null);
+
+                        if(needsClip) {
+                           context.fill();
+                           context.stroke();
+
+                           // compute full-bar bounds from whichever offset is available
+                           let ex = x, ey = y, ew = w, eh = h;
+
+                           if(outerOffset != null) {
+                              switch(dir) {
+                                 case 0: ey = y - outerOffset; eh = stackDim; break;
+                                 case 1: ey = y + h + outerOffset - stackDim; eh = stackDim; break;
+                                 case 2: ex = x + w + outerOffset - stackDim; ew = stackDim; break;
+                                 case 3: ex = x - outerOffset; ew = stackDim; break;
+                              }
+                           }
+                           else {
+                              switch(dir ^ 1) {
+                                 case 0: ey = y - innerOffset; eh = stackDim; break;
+                                 case 1: ey = y + h + innerOffset - stackDim; eh = stackDim; break;
+                                 case 2: ex = x + w + innerOffset - stackDim; ew = stackDim; break;
+                                 case 3: ex = x - innerOffset; ew = stackDim; break;
+                              }
+                           }
+
+                           if(outerOffset != null && innerOffset != null) {
+                              // both ends rounded: use nested clips to intersect
+                              // the two rounded shapes (matches Java Area intersection)
+                              context.save();
+                              context.beginPath();
+                              context.rect(x, y, w, h);
+                              context.clip();
+                              context.beginPath();
+                              drawRoundedBar(context, ex, ey, ew, eh, r, dir);
+                              context.clip();
+                              context.beginPath();
+                              drawRoundedBar(context, ex, ey, ew, eh, r, dir ^ 1);
+                              context.fill();
+                              context.stroke();
+                              context.restore();
+                           }
+                           else if(outerOffset != null) {
+                              context.save();
+                              context.beginPath();
+                              context.rect(x, y, w, h);
+                              context.clip();
+                              context.beginPath();
+                              drawRoundedBar(context, ex, ey, ew, eh, r, dir);
+                              context.fill();
+                              context.stroke();
+                              context.restore();
+                           }
+                           else if(innerOffset != null) {
+                              context.save();
+                              context.beginPath();
+                              context.rect(x, y, w, h);
+                              context.clip();
+                              context.beginPath();
+                              drawRoundedBar(context, ex, ey, ew, eh, r, dir ^ 1);
+                              context.fill();
+                              context.stroke();
+                              context.restore();
+                           }
+
+                           context.beginPath();
+                        }
+                        else {
+                           drawRoundedBar(context, x, y, w, h, r, region.barDirection);
+                        }
                      }
                      else {
                         context.moveTo(x, y);
@@ -1424,12 +1498,10 @@ export namespace ChartTool {
          return;
       }
 
-      // round only the open (value) end; base corners are sharp.
-      // Cap at w/2 (vertical) or h/2 (horizontal) so the two corner arcs don't overlap.
-      // Also clamp to segment height/width so thin stacked segments don't overflow their bounds.
+      // round only the open (value) end; base corners are sharp
       const arc = direction < 2
-         ? Math.min(radiusFraction * w, w / 2, h)   // vertical: fraction of bar width, clamped to segment height
-         : Math.min(radiusFraction * h, h / 2, w);  // horizontal: fraction of bar height, clamped to segment width
+         ? Math.min(radiusFraction * w, w / 2, h)
+         : Math.min(radiusFraction * h, h / 2, w);
 
       switch(direction) {
          case 0: // up — round top-left, top-right

@@ -218,21 +218,15 @@ public class BarVO extends ElementVO {
          if(r > 0 && !(this instanceof Bar3DVO) && getOuterArc(path0) == null) {
             IntervalGeometry geom = (IntervalGeometry) getGeometry();
             boolean stdOrientation = GTool.isHorizontal(getScreenTransform());
-            // Direction of the open (value) end in Y-up screen space.
             int openDir = stdOrientation ? (negative ? 0 : 1) : (negative ? 3 : 2);
 
-            if(!ielem.isStack() || geom.isStackOutermost()) {
-               // Round all 4 corners only when there is no adjacent segment on the base side
-               // (non-stacked, or single-segment stack where outermost == innermost).
-               boolean roundAll = ielem.isRoundAllCorners() &&
-                  (!ielem.isStack() || geom.isStackInnermost());
-               path0 = buildRoundedBarShape(path0.getBounds2D(), r, openDir, roundAll);
+            if(!ielem.isStack()) {
+               boolean roundAll = ielem.isRoundAllCorners();
+               path0 = buildRoundedBarShape(
+                  path0.getBounds2D(), r, openDir, roundAll);
             }
-            else if(ielem.isRoundAllCorners() && geom.isStackInnermost()) {
-               // Innermost (non-outermost) stacked segment with roundAllCorners: round the
-               // base end so the full stack appears rounded on both ends.
-               int baseDir = openDir ^ 1; // flip 0↔1 or 2↔3 to reach the base end
-               path0 = buildRoundedBarShape(path0.getBounds2D(), r, baseDir, false);
+            else {
+               path0 = applyStackRounding(path0, geom, ielem, r, openDir, stdOrientation);
             }
          }
 
@@ -1311,6 +1305,103 @@ public class BarVO extends ElementVO {
    }
 
    /**
+    * Apply rounding to a stacked bar segment. Any segment whose bounds fall within the
+    * arc zone of the outer (or inner, if roundAllCorners) end is clipped against the
+    * full-bar rounded shape so the arc continues visually across segment boundaries.
+    */
+   private static Shape applyStackRounding(Shape path0, IntervalGeometry geom,
+                                           IntervalElement ielem, double r,
+                                           int openDir, boolean stdOrientation)
+   {
+      double totalStackInterval = geom.getTotalStackInterval();
+
+      if(totalStackInterval <= 0 || geom.getInterval() == 0) {
+         return path0;
+      }
+
+      Rectangle2D segBounds = path0.getBounds2D();
+      double segDim = stdOrientation ? segBounds.getHeight() : segBounds.getWidth();
+      double barWidth = stdOrientation ? segBounds.getWidth() : segBounds.getHeight();
+
+      ArcZoneInfo zones = computeArcZones(
+         geom, r, barWidth, segDim, ielem.isRoundAllCorners());
+
+      if(!zones.inOuterArcZone() && !zones.inInnerArcZone()) {
+         return path0;
+      }
+
+      // single-segment stack: round all if roundAllCorners, else just outer end
+      if(geom.isStackOutermost() && geom.isStackInnermost()) {
+         boolean roundAll = ielem.isRoundAllCorners();
+         return buildRoundedBarShape(segBounds, r, openDir, roundAll);
+      }
+
+      Rectangle2D fullBounds = computeFullBarBounds(
+         segBounds, stdOrientation, openDir,
+         geom.getInterval(), geom.getCumulativeStackInterval(),
+         totalStackInterval);
+
+      Area result = new Area(segBounds);
+
+      if(zones.inOuterArcZone()) {
+         Shape outerShape = buildRoundedBarShape(fullBounds, r, openDir, false);
+         result.intersect(new Area(outerShape));
+      }
+
+      if(zones.inInnerArcZone()) {
+         int baseDir = openDir ^ 1;
+         Shape innerShape = buildRoundedBarShape(fullBounds, r, baseDir, false);
+         result.intersect(new Area(innerShape));
+      }
+
+      return result;
+   }
+
+   /**
+    * Compute the full-bar screen bounds from a single segment's position within the stack.
+    */
+   static Rectangle2D computeFullBarBounds(
+      Rectangle2D segBounds, boolean vertical, int openDir,
+      double interval, double cumulative, double totalStackInterval)
+   {
+      double segDim = vertical ? segBounds.getHeight() : segBounds.getWidth();
+      double scale = segDim / Math.abs(interval);
+      double stackDim = totalStackInterval * scale;
+      double innerOffset = (cumulative - Math.abs(interval)) * scale;
+
+      if(vertical) {
+         double fullBarY;
+
+         if(openDir == 1) {
+            // open at top (y+h): inner end at bottom
+            fullBarY = segBounds.getY() - innerOffset;
+         }
+         else {
+            // open at bottom (y): inner end at top
+            fullBarY = segBounds.getY() + segBounds.getHeight() + innerOffset - stackDim;
+         }
+
+         return new Rectangle2D.Double(
+            segBounds.getX(), fullBarY, segBounds.getWidth(), stackDim);
+      }
+      else {
+         double fullBarX;
+
+         if(openDir == 2) {
+            // open at right (x+w): inner end at left
+            fullBarX = segBounds.getX() - innerOffset;
+         }
+         else {
+            // open at left (x): inner end at right
+            fullBarX = segBounds.getX() + segBounds.getWidth() + innerOffset - stackDim;
+         }
+
+         return new Rectangle2D.Double(
+            fullBarX, segBounds.getY(), stackDim, segBounds.getHeight());
+      }
+   }
+
+   /**
     * Build a rounded-corner bar shape.
     *
     * @param bounds          screen-space bounding rectangle of the bar
@@ -1326,21 +1417,21 @@ public class BarVO extends ElementVO {
       double y = bounds.getY();
       double w = bounds.getWidth();
       double h = bounds.getHeight();
-      // For roundAllCorners, use the shorter dimension so the radius scales consistently.
-      // For directional rounding, arc is overridden per case to match the frontend formula.
       double shortDim = Math.min(w, h);
       double arc = Math.min(radiusFraction * shortDim, shortDim / 2);
 
       if(roundAllCorners) {
-         // RoundRectangle2D takes arc width/height as diameters
          return new RoundRectangle2D.Double(x, y, w, h, arc * 2, arc * 2);
       }
+
+      arc = direction < 2
+         ? Math.min(radiusFraction * w, Math.min(w / 2, h))
+         : Math.min(radiusFraction * h, Math.min(h / 2, w));
 
       GeneralPath path = new GeneralPath();
 
       switch(direction) {
-         case 0: // open end at bottom (y); round bottom-left, bottom-right (Y-up coords: y=visual bottom)
-            arc = Math.min(radiusFraction * w, Math.min(w / 2, h));
+         case 0: // open end at bottom (y); round bottom-left, bottom-right
             path.moveTo(x + arc, y);
             path.lineTo(x + w - arc, y);
             path.quadTo(x + w, y, x + w, y + arc);   // bottom-right
@@ -1350,8 +1441,7 @@ public class BarVO extends ElementVO {
             path.quadTo(x, y, x + arc, y);            // bottom-left
             break;
 
-         case 1: // open end at top (y+h); round top-left, top-right (Y-up coords: y+h=visual top)
-            arc = Math.min(radiusFraction * w, Math.min(w / 2, h));
+         case 1: // open end at top (y+h); round top-left, top-right
             path.moveTo(x, y);
             path.lineTo(x + w, y);
             path.lineTo(x + w, y + h - arc);
@@ -1361,7 +1451,6 @@ public class BarVO extends ElementVO {
             break;
 
          case 2: // right — open end at right; round top-right, bottom-right
-            arc = Math.min(radiusFraction * h, Math.min(h / 2, w));
             path.moveTo(x, y);
             path.lineTo(x + w - arc, y);
             path.quadTo(x + w, y, x + w, y + arc);          // top-right
@@ -1371,7 +1460,6 @@ public class BarVO extends ElementVO {
             break;
 
          case 3: // left — open end at left; round top-left, bottom-left
-            arc = Math.min(radiusFraction * h, Math.min(h / 2, w));
             path.moveTo(x + arc, y);
             path.lineTo(x + w, y);
             path.lineTo(x + w, y + h);
@@ -1390,6 +1478,36 @@ public class BarVO extends ElementVO {
    }
 
    private static final int BAR_MIN_WIDTH = 10;
+   /**
+    * Result of arc zone detection for a stacked bar segment.
+    */
+   public record ArcZoneInfo(double stackDim, double arc,
+                      double distFromOuter, double distFromInner,
+                      boolean inOuterArcZone, boolean inInnerArcZone) {}
+
+   /**
+    * Compute arc zone information for a stacked bar segment.
+    */
+   public static ArcZoneInfo computeArcZones(IntervalGeometry geom, double r,
+                                      double barWidth, double segDim,
+                                      boolean roundAllCorners)
+   {
+      double totalStackInterval = geom.getTotalStackInterval();
+      double scale = segDim / Math.abs(geom.getInterval());
+      double stackDim = totalStackInterval * scale;
+      double cumulative = geom.getCumulativeStackInterval();
+
+      double arc = Math.min(r * barWidth, Math.min(barWidth / 2, stackDim));
+      double distFromOuter = (totalStackInterval - cumulative) * scale;
+      double distFromInner = (cumulative - Math.abs(geom.getInterval())) * scale;
+
+      boolean inOuterArcZone = distFromOuter < arc;
+      boolean inInnerArcZone = roundAllCorners && distFromInner < arc;
+
+      return new ArcZoneInfo(stackDim, arc, distFromOuter, distFromInner,
+                             inOuterArcZone, inInnerArcZone);
+   }
+
    private static final int BAR_PREFERRED_WIDTH = 16;
 
    protected Shape shape; // the shape to draw for this vo

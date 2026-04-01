@@ -111,6 +111,15 @@ public interface ChartRegion {
    @Nullable
    Integer barDirection();
 
+   @Nullable
+   Double stackDimension();
+
+   @Nullable
+   Double outerEdgeOffset();
+
+   @Nullable
+   Double innerEdgeOffset();
+
    static Builder builder() {
       return new Builder();
    }
