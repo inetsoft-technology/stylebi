@@ -27,7 +27,13 @@ export class VSInputLabelWrapper {
    @Input() labelModel: VSInputLabelModel;
    @Input() labelSelected: boolean = false;
    @Input() objectHeight: number | undefined;
+   @Input() contentOverflow: string = "hidden";
    @Output() selectLabel = new EventEmitter<MouseEvent>();
+
+   @HostBinding("style.overflow")
+   get hostOverflow(): string {
+      return this.contentOverflow;
+   }
 
    @HostBinding("style.height.px")
    get hostHeight(): number | null {
