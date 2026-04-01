@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;
 
 import java.rmi.RemoteException;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -615,13 +616,14 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
          return rawPath;
       }
 
-      String database = parts[0];
       String modelName = parts[parts.length - 1];
 
       if(Tool.isEmptyString(modelFolder)) {
+         String database = String.join("/", Arrays.copyOf(parts, parts.length - 1));
          return database + XUtil.DATAMODEL_PATH_SPLITER + modelName;
       }
 
+      String database = String.join("/", Arrays.copyOf(parts, parts.length - 2));
       return database + XUtil.DATAMODEL_FOLDER_SPLITER + modelFolder +
          XUtil.DATAMODEL_PATH_SPLITER + modelName;
    }
