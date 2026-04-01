@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;
 
 import java.rmi.RemoteException;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -444,14 +445,16 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
          newPath = getModelPath0(info, false);
       }
       else if(info.isLogicalModel() && info.isFolder()) {
-         path = info.getOldPath();
-         newPath = info.getNewPath();
+         path = toModelAssetPath(info.getOldPath(), info.getOldName());
+         newPath = toModelAssetPath(info.getNewPath(), info.getNewName());
       }
       else if(info.isPartition() && info.isSource()) {
          path = getPartitionPath(info.getOldName(), info.getModelFolder());
          newPath = getPartitionPath(info.getNewName(), info.getModelFolder());
       }
       else if(info.isPartition() && info.isFolder()) {
+         // Partition folder rename paths are already in ID format (set directly by
+         // DatabaseModelBrowserService), so no conversion is needed here.
          path = info.getOldPath();
          newPath = info.getNewPath();
       }
@@ -594,6 +597,35 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
       synchronized(storage) {
          storage.putDocument(identifier, doc, ScheduleTask.class.getName(), task.getOrgID());
       }
+   }
+
+   /**
+    * Converts a logical model path from "database/folder/name" format
+    * (as produced by RepositoryObjectService) to the XAsset ID format
+    * "database^__^folder^name" used in backup action XML.
+    * Paths already in ID format (containing "^") are returned unchanged.
+    */
+   String toModelAssetPath(String rawPath, String modelFolder) {
+      if(rawPath == null || rawPath.contains(XUtil.DATAMODEL_PATH_SPLITER)) {
+         return rawPath;
+      }
+
+      String[] parts = rawPath.split("/");
+
+      if(parts.length < 2) {
+         return rawPath;
+      }
+
+      String modelName = parts[parts.length - 1];
+
+      if(Tool.isEmptyString(modelFolder)) {
+         String database = String.join("/", Arrays.copyOf(parts, parts.length - 1));
+         return database + XUtil.DATAMODEL_PATH_SPLITER + modelName;
+      }
+
+      String database = String.join("/", Arrays.copyOf(parts, parts.length - 2));
+      return database + XUtil.DATAMODEL_FOLDER_SPLITER + modelFolder +
+         XUtil.DATAMODEL_PATH_SPLITER + modelName;
    }
 
    private String getModelPath(RenameInfo info, boolean old) {
