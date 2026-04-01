@@ -111,6 +111,10 @@ export class ViewerEditComponent implements OnInit, OnDestroy {
       }
    }
 
+   get aiAssistantPermission(): boolean {
+      return this.viewData?.aiAssistantPermission === true;
+   }
+
    get assemblyName(): string {
       return this.viewData.tableModel ?
          this.viewData.tableModel.absoluteName : this.viewData.chartModel.absoluteName;
