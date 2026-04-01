@@ -139,7 +139,7 @@ public class VSTab extends VSFloatable {
       Point tabPos = new Point(x, tabY);
       Dimension tabSize = new Dimension(tabW, tabH);
 
-      drawTabShape(g, tabPos, tabSize, format);
+      drawTabShape(g, tabPos, tabSize, format, selected && info.isBottomTabs());
 
       // draw the text
       int align = format.getAlignment();
@@ -153,10 +153,14 @@ public class VSTab extends VSFloatable {
       float maxBottomBorderWidth = 0;
 
       if(borders1 != null && borders2 != null) {
+         // For bottom tabs, the active indicator is stored as the bottom border in the format
+         // data but is rendered on top, so swap which side we read for the max calculation.
+         int activeTopStyle = info.isBottomTabs() ? borders2.bottom : borders2.top;
+         int activeBottomStyle = info.isBottomTabs() ? borders2.top : borders2.bottom;
          maxTopBorderWidth = Math.max(Common.getLineWidth(borders1.top),
-                                      Common.getLineWidth(borders2.top));
+                                      Common.getLineWidth(activeTopStyle));
          maxBottomBorderWidth = Math.max(Common.getLineWidth(borders1.bottom),
-                                         Common.getLineWidth(borders2.bottom));
+                                         Common.getLineWidth(activeBottomStyle));
       }
 
       Bounds bounds = Common.alignCell(
@@ -169,7 +173,9 @@ public class VSTab extends VSFloatable {
       return tabW;
    }
 
-   private void drawTabShape(Graphics2D g, Point pos, Dimension size, VSCompositeFormat format) {
+   private void drawTabShape(Graphics2D g, Point pos, Dimension size, VSCompositeFormat format,
+                             boolean swapTopBottom)
+   {
       Insets borders = format.getBorders();
       float leftBorderWidth = 0;
       float rightBorderWidth = 0;
@@ -180,8 +186,9 @@ public class VSTab extends VSFloatable {
       if(borders != null) {
          leftBorderWidth = Common.getLineWidth(borders.left);
          rightBorderWidth = Common.getLineWidth(borders.right);
-         topBorderWidth = Common.getLineWidth(borders.top);
-         bottomBorderWidth = Common.getLineWidth(borders.bottom);
+         // For bottom tabs, indicator border is stored as bottom in the format but rendered on top
+         topBorderWidth = Common.getLineWidth(swapTopBottom ? borders.bottom : borders.top);
+         bottomBorderWidth = Common.getLineWidth(swapTopBottom ? borders.top : borders.bottom);
       }
 
       TabVSAssemblyInfo info = (TabVSAssemblyInfo) getAssemblyInfo();
@@ -215,6 +222,11 @@ public class VSTab extends VSFloatable {
       int borderRadiusWidth = (int) Math.ceil(borderRadius / 2d);
 
       if(borders != null) {
+         int topBorderStyle = swapTopBottom ? borders.bottom : borders.top;
+         int bottomBorderStyle = swapTopBottom ? borders.top : borders.bottom;
+         Color topBorderColor = swapTopBottom ? borderColors.bottomColor : borderColors.topColor;
+         Color bottomBorderColor = swapTopBottom ? borderColors.topColor : borderColors.bottomColor;
+
          // left
          g.setClip(clipBounds.x, clipBounds.y, (int) (leftBorderWidth + borderRadiusWidth),
                    clipBounds.height);
@@ -225,16 +237,17 @@ public class VSTab extends VSFloatable {
                    clipBounds.y, (int) (rightBorderWidth + borderRadiusWidth), clipBounds.height);
          drawTabBorder(g, shape, borders.right, borderColors.rightColor);
 
-         // top
+         // top - for roundBottomCornersOnly, top corners are square so no radius expansion needed
+         int topRadiusWidth = info.isRoundBottomCornersOnly() ? 0 : borderRadiusWidth;
          g.setClip(clipBounds.x, clipBounds.y, clipBounds.width,
-                   (int) (topBorderWidth + borderRadiusWidth));
-         drawTabBorder(g, shape, borders.top, borderColors.topColor);
+                   (int) (topBorderWidth + topRadiusWidth));
+         drawTabBorder(g, shape, topBorderStyle, topBorderColor);
 
-         // bottom
+         // bottom - for roundTopCornersOnly, bottom corners are square so no radius expansion needed
          borderRadiusWidth = info.isRoundTopCornersOnly() ? 0 : borderRadiusWidth;
          g.setClip(clipBounds.x, (int) (clipBounds.getMaxY() - (bottomBorderWidth + borderRadiusWidth)),
                    clipBounds.width, (int) (bottomBorderWidth + borderRadiusWidth));
-         drawTabBorder(g, shape, borders.bottom, borderColors.bottomColor);
+         drawTabBorder(g, shape, bottomBorderStyle, bottomBorderColor);
       }
 
       g.dispose();
@@ -271,10 +284,21 @@ public class VSTab extends VSFloatable {
          path.moveTo(x + radius, y); // Top-left corner
          path.lineTo(x + width - radius, y); // Top-right corner
          path.quadTo(x + width, y, x + width, y + radius); // Top-right curve
-         path.lineTo(x + width, y + height); // Bottom-right corner
-         path.lineTo(x, y + height); // Bottom-left corner
-         path.lineTo(x, y + radius); // Top-left corner
+         path.lineTo(x + width, y + height); // Bottom-right corner (square)
+         path.lineTo(x, y + height); // Bottom-left corner (square)
+         path.lineTo(x, y + radius); // Left side
          path.quadTo(x, y, x + radius, y); // Top-left curve
+         path.closePath();
+         return path;
+      }
+      else if(info.isRoundBottomCornersOnly()) {
+         Path2D path = new Path2D.Float();
+         path.moveTo(x, y); // Top-left corner (square)
+         path.lineTo(x + width, y); // Top-right corner (square)
+         path.lineTo(x + width, y + height - radius); // Right side
+         path.quadTo(x + width, y + height, x + width - radius, y + height); // Bottom-right curve
+         path.lineTo(x + radius, y + height); // Bottom edge
+         path.quadTo(x, y + height, x, y + height - radius); // Bottom-left curve
          path.closePath();
          return path;
       }
