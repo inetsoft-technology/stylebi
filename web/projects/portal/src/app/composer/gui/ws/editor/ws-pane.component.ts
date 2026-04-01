@@ -954,6 +954,12 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       if((index = this.worksheet.tables.findIndex((el) => el.name === oldName)) !== -1) {
          assemblies = this.worksheet.tables;
          assembly = TableAssemblyFactory.getTable(<WSTableAssembly> assembly);
+         const oldTable = this.worksheet.tables[index] as WSTableAssembly;
+
+         if((assembly as WSTableAssembly).duration === 0 && oldTable?.duration > 0) {
+            (assembly as WSTableAssembly).duration = oldTable.duration;
+         }
+
          this.fetchTableDataCount(assembly as WSTableAssembly);
          const table = <WSTableAssembly> assembly;
 
@@ -1179,7 +1185,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       const table = tables[index];
 
       if(table) {
-         table.duration = command.duration;
+         table.duration += command.duration;
          table.rowsCompleted = command.completed;
          table.totalRows = command.count;
          table.exceededMaximum = command.exceededMsg;
