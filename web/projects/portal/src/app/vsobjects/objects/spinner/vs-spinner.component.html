@@ -26,6 +26,10 @@
                         [style.width.px]="model.objectFormat.width"
                         [objectHeight]="model.objectFormat.height"
                         [style.z-index]="viewer ? model.objectFormat.zIndex : null"
+                        [style.background-color]="model.objectFormat.background"
+                        VSDataTip [dataTipName]="getAssemblyName()"
+                        VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
+                        [popZIndex]="model.objectFormat.zIndex"
                         (selectLabel)="selectLabel($event)">
   <div class="vs-spinner" (click)="clearLabelSelection()">
     <input *ngIf="!showLabel && model"
@@ -35,9 +39,6 @@
            type="number"
            [step]="model.increment"
            [(ngModel)]="model.value"
-           VSDataTip [dataTipName]="getAssemblyName()"
-           VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
-           [popZIndex]="model.objectFormat.zIndex"
            [class.disable-actions-fade]="!model.enabled"
            [class.move-handle]="(selected || inSelectedGroupContainer) && !viewer"
            [style.text-align]="model.objectFormat.hAlign"
@@ -57,9 +58,6 @@
            (mouseleave)="showLabel = true"
            (mousedown)="$event.stopPropagation()">
     <div *ngIf="showLabel && model" class="text-label"
-         VSDataTip [dataTipName]="getAssemblyName()"
-         VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
-         [popZIndex]="model.objectFormat.zIndex"
          [style.background-color]="model.objectFormat.background"
          [style.justify-content]="model.objectFormat.justifyContent"
          [style.align-items]="model.objectFormat.alignItems"
