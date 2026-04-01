@@ -43,7 +43,6 @@ import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.nio.charset.StandardCharsets;
-import java.rmi.RemoteException;
 import java.security.Principal;
 import java.sql.Time;
 import java.text.SimpleDateFormat;
@@ -131,6 +130,17 @@ public class ServerMonitoringController {
                Instant.ofEpochMilli(timestamp).atOffset(OffsetDateTime.now().getOffset()).toInstant());
             serverDateTimeMap.put("local", format.format(date));
             schedulerUpTimeMap.put("local", formatAge(schedulerMonitoringService.getUpTime()));
+         }
+
+         for(String scheduleServer : getScheduleServers()) {
+            if(ScheduleClient.getScheduleClient().isReady(scheduleServer)) {
+               Date startDate = ScheduleClient.getScheduleStartDate(scheduleServer);
+
+               if(startDate != null) {
+                  schedulerUpTimeMap.put(scheduleServer,
+                     formatAge(timestamp - startDate.getTime()));
+               }
+            }
          }
 
          return ServerModel.builder()
@@ -687,12 +697,7 @@ public class ServerMonitoringController {
                   h -> new Object[]{ new Time(h.timestamp()), h.usedMemory() });
                data = MonitorUtil.mergeGridData(data, grid);
 
-               try {
-                  max = Math.max(max, schedulerMonitoringService.getMaxHeapSize(scheduleServer));
-               }
-               catch(RemoteException e) {
-                  LOG.warn("Failed to get max heap size: " + e, e);
-               }
+               max = Math.max(max, schedulerMonitoringService.getMaxHeapSize(scheduleServer));
             }
          }
 
@@ -1048,17 +1053,16 @@ public class ServerMonitoringController {
    }
 
    private String[] getScheduleServers() {
-      String[] scheduleServers = null;
+      String[] allScheduleServers = ScheduleClient.getScheduleClient().getScheduleServers();
 
-      if(!scheduleCluster) {
-         scheduleServers = ScheduleClient.getScheduleClient().getScheduleServers();
+      if(scheduleCluster) {
+         Set<String> serverNodes = getServerClusterNodes();
+         return Arrays.stream(allScheduleServers)
+            .filter(s -> !serverNodes.contains(s))
+            .toArray(String[]::new);
       }
 
-      if(scheduleServers == null) {
-         scheduleServers = new String[0];
-      }
-
-      return scheduleServers;
+      return allScheduleServers;
    }
 
    private final ServerService serverService;
