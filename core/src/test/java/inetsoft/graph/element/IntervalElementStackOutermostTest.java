@@ -388,6 +388,154 @@ class IntervalElementStackOutermostTest {
       }
    }
 
+   // -----------------------------------------------------------------------
+   // totalStackInterval and cumulativeStackInterval
+   // -----------------------------------------------------------------------
+
+   /**
+    * All segments in the same stack must share the same totalStackInterval.
+    */
+   @ParameterizedTest
+   @ValueSource(booleans = {false, true})
+   void totalStackInterval_sameForAllSegmentsInStack(boolean stackGroup) {
+      DefaultDataSet data = new DefaultDataSet(new Object[][]{
+         { "Cat", "m1",  "m2",  "m3"  },
+         { "A",   10.0,  20.0,  30.0  },
+         { "B",    5.0,  15.0,  25.0  },
+      });
+
+      GGraph ggraph = buildStackedGraph(data, stackGroup, "m1", "m2", "m3");
+
+      assertEquals(6, ggraph.getGeometryCount());
+
+      for(int rowIdx = 0; rowIdx <= 1; rowIdx++) {
+         final int r = rowIdx;
+         List<IntervalGeometry> rowGeoms = collectGeoms(ggraph).stream()
+            .filter(g -> g.getRowIndex() == r)
+            .collect(Collectors.toList());
+
+         double total = rowGeoms.get(0).getTotalStackInterval();
+         assertTrue(total > 0, "totalStackInterval must be positive for row " + rowIdx);
+
+         for(IntervalGeometry g : rowGeoms) {
+            assertEquals(total, g.getTotalStackInterval(), 1e-9,
+                         "All segments in row " + rowIdx + " must share the same totalStackInterval");
+         }
+      }
+   }
+
+   /**
+    * cumulativeStackInterval must increase strictly across segments in stacking order.
+    */
+   @Test
+   void cumulativeStackInterval_increasesMonotonically() {
+      DefaultDataSet data = new DefaultDataSet(new Object[][]{
+         { "Cat", "m1",  "m2",  "m3"  },
+         { "A",   10.0,  20.0,  30.0  },
+      });
+
+      GGraph ggraph = buildStackedGraph(data, true, "m1", "m2", "m3");
+
+      List<IntervalGeometry> geoms = collectGeoms(ggraph).stream()
+         .sorted((a, b) -> Integer.compare(a.getColIndex(), b.getColIndex()))
+         .collect(Collectors.toList());
+
+      assertEquals(3, geoms.size());
+
+      for(int i = 1; i < geoms.size(); i++) {
+         assertTrue(geoms.get(i).getCumulativeStackInterval() >
+                    geoms.get(i - 1).getCumulativeStackInterval(),
+                    "cumulativeStackInterval must be strictly increasing at index " + i);
+      }
+   }
+
+   /**
+    * The outermost segment's cumulativeStackInterval must equal its totalStackInterval.
+    */
+   @Test
+   void lastSegment_cumulativeEqualsTotal() {
+      DefaultDataSet data = new DefaultDataSet(new Object[][]{
+         { "Cat", "m1",  "m2"  },
+         { "A",   10.0,  20.0  },
+      });
+
+      GGraph ggraph = buildStackedGraph(data, true, "m1", "m2");
+
+      IntervalGeometry outermost = collectGeoms(ggraph).stream()
+         .filter(IntervalGeometry::isStackOutermost)
+         .findFirst().orElseThrow();
+
+      assertEquals(outermost.getTotalStackInterval(),
+                   outermost.getCumulativeStackInterval(), 1e-9,
+                   "Outermost segment's cumulative must equal total");
+   }
+
+   /**
+    * Negative-value stacks must have positive totalStackInterval (uses Math.abs).
+    */
+   @Test
+   void negativeValues_totalStackIntervalIsPositive() {
+      DefaultDataSet data = new DefaultDataSet(new Object[][]{
+         { "Cat", "m1",    "m2"    },
+         { "A",   -10.0,  -20.0   },
+      });
+
+      GGraph ggraph = buildStackedGraph(data, true, "m1", "m2");
+
+      for(IntervalGeometry g : collectGeoms(ggraph)) {
+         assertTrue(g.getTotalStackInterval() > 0,
+                    "totalStackInterval must be positive even for negative values");
+         assertTrue(g.getCumulativeStackInterval() > 0,
+                    "cumulativeStackInterval must be positive even for negative values");
+      }
+   }
+
+   // -----------------------------------------------------------------------
+   // Helper methods
+   // -----------------------------------------------------------------------
+
+   private GGraph buildStackedGraph(DefaultDataSet data, boolean stackGroup,
+                                    String... measures)
+   {
+      CategoricalScale xScale = new CategoricalScale("Cat");
+      xScale.init(data);
+
+      LinearScale yScale = new LinearScale(measures);
+      yScale.init(data);
+
+      IntervalElement element = new IntervalElement();
+      element.addDim("Cat");
+
+      for(String m : measures) {
+         element.addVar(m);
+      }
+
+      element.setCollisionModifier(GraphElement.MOVE_STACK);
+      element.setStackGroup(stackGroup);
+
+      EGraph egraph = new EGraph();
+      egraph.addElement(element);
+
+      RectCoord coord = new RectCoord(xScale, yScale);
+      egraph.setCoordinate(coord);
+
+      return egraph.createGGraph(coord, data);
+   }
+
+   private List<IntervalGeometry> collectGeoms(GGraph ggraph) {
+      List<IntervalGeometry> geoms = new ArrayList<>();
+
+      for(int i = 0; i < ggraph.getGeometryCount(); i++) {
+         geoms.add((IntervalGeometry) ggraph.getGeometry(i));
+      }
+
+      return geoms;
+   }
+
+   // -----------------------------------------------------------------------
+   // Outermost/Innermost flag tests (original)
+   // -----------------------------------------------------------------------
+
    /**
     * Non-stacked bars must not have any segment marked as outermost, since the
     * concept is only meaningful when segments are visually stacked.

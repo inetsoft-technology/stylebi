@@ -70,6 +70,7 @@
        [class.txt-primary]="isTabLineOrCalendar() && isSearchFocus"
        [class.search-result]="isTabLineOrCalendar() && isSearchFocus"
        [class.object]="isTabLineOrCalendar()"
+       [class.vertical-label]="hasVerticalLabel()"
        [style.width.px]="model.objectModel.objectType == 'VSPageBreak' ? guideSize.width : model.width + 4"
        [style.height.px]="model.height + 4"
        [style.pointer-events]="model.editable ? 'auto': 'none'">

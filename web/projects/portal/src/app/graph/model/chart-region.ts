@@ -38,4 +38,7 @@ export interface ChartRegion {
    selectRows?: number[];
    cornerRadius?: number;
    barDirection?: number; // 0=up, 1=down, 2=right, 3=left
+   stackDimension?: number;
+   outerEdgeOffset?: number;
+   innerEdgeOffset?: number;
 }

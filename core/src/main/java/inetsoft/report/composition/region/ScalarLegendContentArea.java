@@ -18,10 +18,14 @@
 package inetsoft.report.composition.region;
 
 import inetsoft.graph.guide.legend.Legend;
+import inetsoft.graph.internal.GTool;
 import inetsoft.report.internal.RectangleRegion;
+import inetsoft.report.internal.Region;
 
 import java.awt.*;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Point2D;
+import java.awt.geom.Rectangle2D;
 import java.util.List;
 
 /**
@@ -43,6 +47,36 @@ public class ScalarLegendContentArea extends LegendContentArea implements RollOv
    }
 
    /**
+    * Get the first region, used for sizing the canvas div.
+    * Returns the full content bounds so the div has room for the selection stroke.
+    */
+   @Override
+   public Region getRegion() {
+      return new RectangleRegion(getTransformedContentBounds(0));
+   }
+
+   /**
+    * Get regions for selection highlighting.
+    * Insets the content bounds by the canvas lineWidth (2px) on each side so the
+    * centered 2px stroke does not overflow the canvas div boundary.
+    */
+   @Override
+   public Region[] getRegions() {
+      return new Region[] {new RectangleRegion(getTransformedContentBounds(SELECTION_INSET))};
+   }
+
+   private Rectangle2D.Double getTransformedContentBounds(int inset) {
+      Rectangle2D bounds = ((Legend) vobj).getContentBounds();
+      Rectangle2D.Double rect2d = (Rectangle2D.Double) GTool.transform(bounds, trans);
+      Point2D p = getRelPos();
+      rect2d.x = rect2d.x - p.getX() + inset;
+      rect2d.y = rect2d.y - p.getY() + inset;
+      rect2d.width -= inset * 2;
+      rect2d.height -= inset * 2;
+      return rect2d;
+   }
+
+   /**
     * Paint area.
     * @param g the graphic of the area.
     */
@@ -54,4 +88,9 @@ public class ScalarLegendContentArea extends LegendContentArea implements RollOv
          region.fill(g, color);
       }
    }
+
+   // Inset equals the full canvas lineWidth (2px). A centered 2px stroke extends 1px
+   // outside the path, so a 1px inset puts the stroke edge exactly at the div boundary.
+   // Using the full lineWidth adds one pixel of margin against sub-pixel rendering.
+   private static final int SELECTION_INSET = 2;
 }

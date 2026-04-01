@@ -30,6 +30,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.report.internal.Util;
 import inetsoft.util.MessageException;
 import inetsoft.web.adhoc.model.FormatInfoModel;
 import inetsoft.web.composer.model.vs.HyperlinkModel;
@@ -81,13 +82,17 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
       this.titleLinkValue = info.getTitleLinkValue();
       this.emptyPlotLinkValue = info.getEmptyPlotLinkValue();
 
+      ViewsheetSandbox box = rvs != null ? rvs.getViewsheetSandbox() : null;
+
       if(titleLinkValue != null) {
          Hyperlink.Ref ref = new Hyperlink.Ref(this.titleLinkValue);
+         applyLinkParameters(ref, box);
          this.titleLinkModel = HyperlinkModel.createHyperlinkModel(ref);
       }
 
       if(emptyPlotLinkValue != null) {
          Hyperlink.Ref ref = new Hyperlink.Ref(this.emptyPlotLinkValue);
+         applyLinkParameters(ref, box);
          this.emptyPlotLinkModel = HyperlinkModel.createHyperlinkModel(ref);
       }
    }
@@ -566,6 +571,20 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
 
    public void setEmptyPlotLinkModel(HyperlinkModel emptyPlotLinkModel) {
       this.emptyPlotLinkModel = emptyPlotLinkModel;
+   }
+
+   private void applyLinkParameters(Hyperlink.Ref ref, ViewsheetSandbox box) {
+      if(box == null) {
+         return;
+      }
+
+      if(ref.isSendReportParameters()) {
+         Util.addLinkParameter(ref, box.getAllVariables());
+      }
+
+      if(ref.isSendSelectionParameters()) {
+         VSUtil.addSelectionParameter(ref, box.getSelections());
+      }
    }
 
    private int chartType = GraphTypes.CHART_AUTO;
