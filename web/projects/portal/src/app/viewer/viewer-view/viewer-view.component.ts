@@ -132,6 +132,7 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
          this.principal = data.principalCommand.principal;
          this.securityEnabled = data.principalCommand.securityEnabled;
          this.toolbarPermissions = data.viewData.toolbarPermissions;
+         this.viewDataService.data.aiAssistantPermission = data.principalCommand.aiAssistantPermission;
          this.inPortal = data.viewData.portal;
          this.inDashboard = data.viewData.dashboard;
          this.fullScreen = data.viewData.fullScreen;
