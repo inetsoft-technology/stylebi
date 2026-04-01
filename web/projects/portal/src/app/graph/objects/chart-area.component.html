@@ -71,7 +71,8 @@
      (leftMouseDown)="onDown($event)"
      outOfZone
      (onMousemove)="onMove($event)" (onDragover)="dragOver($event)"
-     (dragleave)="dragLeave($event)" (drop)="onDrop($event)">
+     (dragleave)="dragLeave($event)" (drop)="onDrop($event)"
+     (contextmenu)="clearSelectionOnBackground($event)">
   <div class="chart-area__background" [style.background]="backgroundColor"
        [style.border-radius.px]="vsChartModel.objectFormat.roundCorner">
     <div class="chart-border">
