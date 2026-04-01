@@ -25,7 +25,8 @@ const CHANGE_PASSWORD_DIALOG_MODEL_URI: string = "../api/portal/change-password-
 
 @Component({
    selector: "change-password-dialog",
-   templateUrl: "change-password-dialog.component.html"
+   templateUrl: "change-password-dialog.component.html",
+   styleUrls: ["change-password-dialog.component.scss"]
 })
 export class ChangePasswordDialog implements OnInit {
    @Output() onCommit: EventEmitter<string> = new EventEmitter<string>();
