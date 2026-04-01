@@ -381,6 +381,10 @@ export class PortalAppComponent implements OnInit, OnDestroy {
    }
 
    launchComposer(): void {
+      if(!this.openComposerEnabled) {
+         return;
+      }
+
       this.openComposerService.composerOpen.subscribe(open => {
          if(!open) {
             window.open("composer", "_blank");
