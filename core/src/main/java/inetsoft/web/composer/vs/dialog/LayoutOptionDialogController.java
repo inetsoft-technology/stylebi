@@ -114,6 +114,7 @@ public class LayoutOptionDialogController {
             assembly = assembly.createVSAssembly(name);
             assembly.setEntry(model.getVsEntry());
             viewsheet.addAssembly(assembly);
+            assembly.layout();
             rvs.initViewsheet(assembly, false);
 
             object = assembly;
