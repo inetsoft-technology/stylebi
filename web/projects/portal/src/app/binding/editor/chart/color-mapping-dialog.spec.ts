@@ -87,6 +87,82 @@ describe("Color Mapping Dialog Unit Test", () => {
       }).compileComponents();
    }));
 
+   let createDateLevelModel: () => ColorMappingDialogModel = () => {
+      return {
+         colorMaps: [{
+            color: "#ff0000",
+            option: "1970-01-01 16:00:00"
+         }],
+         globalModel: null,
+         useGlobal: false,
+         shareColors: false,
+         dimensionData: [
+            {label: "12", value: "1970-01-01 12:00:00"},
+            {label: "16", value: "1970-01-01 16:00:00"},
+            {label: "20", value: "1970-01-01 20:00:00"}
+         ]
+      };
+   };
+
+   describe("manual input toggle for date-level dimension (value !== label)", () => {
+      beforeEach(async(() => {
+         fixture = TestBed.createComponent(ColorMappingDialog);
+         colorMappingDialog = <ColorMappingDialog>fixture.componentInstance;
+         colorMappingDialog.model = createDateLevelModel();
+         colorMappingDialog.field = TestUtils.createMockAestheticInfo("orderdate");
+         colorMappingDialog.field.dataInfo = Object.assign(
+            TestUtils.createMockChartDimensionRef("orderdate"),
+            {dateLevel: 8} // HOUR_DATE_GROUP
+         );
+         colorMappingDialog.field.frame = mockColorFrame("orderdate");
+         fixture.detectChanges();
+      }));
+
+      it("should convert raw value to label when switching to manual input", () => {
+         const colorMap = colorMappingDialog.currentColorMaps[0];
+         expect(colorMap.option).toBe("1970-01-01 16:00:00");
+         expect(colorMap.manualInput).toBeFalsy();
+
+         colorMappingDialog.onManualInputToggle(colorMap, true);
+
+         expect(colorMap.manualInput).toBe(true);
+         expect(colorMap.option).toBe("16");
+      });
+
+      it("should restore raw value when switching back from manual input", () => {
+         const colorMap = colorMappingDialog.currentColorMaps[0];
+
+         colorMappingDialog.onManualInputToggle(colorMap, true);
+         expect(colorMap.option).toBe("16");
+
+         colorMappingDialog.onManualInputToggle(colorMap, false);
+
+         expect(colorMap.manualInput).toBe(false);
+         expect(colorMap.option).toBe("1970-01-01 16:00:00");
+      });
+
+      it("should not alter option when value equals label (non-date field)", () => {
+         const colorMap = colorMappingDialog.currentColorMaps[0];
+         // simulate a non-date field where value and label are the same
+         colorMappingDialog.dimensionData = [
+            {label: "1970-01-01 16:00:00", value: "1970-01-01 16:00:00"}
+         ];
+
+         colorMappingDialog.onManualInputToggle(colorMap, true);
+
+         expect(colorMap.option).toBe("1970-01-01 16:00:00");
+      });
+
+      it("should not convert option if already in manual input state", () => {
+         const colorMap = colorMappingDialog.currentColorMaps[0];
+         colorMap.manualInput = true;
+
+         colorMappingDialog.onManualInputToggle(colorMap, true);
+
+         expect(colorMap.option).toBe("1970-01-01 16:00:00");
+      });
+   });
+
    //Bug #21331
    it("should not commit duplicate option in color mapping dialog", (done) => {
       fixture = TestBed.createComponent(ColorMappingDialog);
