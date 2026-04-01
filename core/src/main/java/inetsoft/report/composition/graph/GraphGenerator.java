@@ -923,12 +923,19 @@ public abstract class GraphGenerator {
          TitleSpec ySpec = getTitleSpec(ytitle, "y");
          TitleSpec y2Spec = getTitleSpec(y2title, "y2");
 
+         // Mirror the Pareto guard in setupAxisSpec: for Pareto charts, labelOnSecondaryAxis
+         // is suppressed on measure (linear) axes so the percentage scale stays on the right.
+         // Don't move the title for those fields either, or the title would be on the right
+         // while the labels are still on the left.
+         boolean isPareto = GraphTypes.isPareto(info.getChartType());
          boolean yOnSecondary = Arrays.stream(info.getRTYFields())
             .anyMatch(f -> f.getAxisDescriptor() != null &&
-               f.getAxisDescriptor().isLabelOnSecondaryAxis());
+               f.getAxisDescriptor().isLabelOnSecondaryAxis() &&
+               !(isPareto && f instanceof ChartAggregateRef));
          boolean xOnSecondary = Arrays.stream(info.getRTXFields())
             .anyMatch(f -> f.getAxisDescriptor() != null &&
-               f.getAxisDescriptor().isLabelOnSecondaryAxis());
+               f.getAxisDescriptor().isLabelOnSecondaryAxis() &&
+               !(isPareto && f instanceof ChartAggregateRef));
 
          graph.setXTitleSpec(xOnSecondary ? x2Spec : xSpec);
          graph.setX2TitleSpec(xOnSecondary ? xSpec : x2Spec);
