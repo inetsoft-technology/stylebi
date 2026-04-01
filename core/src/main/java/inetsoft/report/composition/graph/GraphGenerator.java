@@ -914,10 +914,26 @@ public abstract class GraphGenerator {
          TitleDescriptor x2title = titlesDesc.getX2TitleDescriptor();
          TitleDescriptor y2title = titlesDesc.getY2TitleDescriptor();
 
-         graph.setXTitleSpec(getTitleSpec(xtitle, "x"));
-         graph.setX2TitleSpec(getTitleSpec(x2title, "x2"));
-         graph.setYTitleSpec(getTitleSpec(ytitle, "y"));
-         graph.setY2TitleSpec(getTitleSpec(y2title, "y2"));
+         // Build each title spec with its correct type (determines auto-generated label text),
+         // then swap placement when axis labels are on the opposite side.
+         // A Y field with labelOnSecondaryAxis=true puts labels on the right (Y2 position),
+         // so the Y title should also appear on the right. Similarly for X → X2 (top).
+         TitleSpec xSpec = getTitleSpec(xtitle, "x");
+         TitleSpec x2Spec = getTitleSpec(x2title, "x2");
+         TitleSpec ySpec = getTitleSpec(ytitle, "y");
+         TitleSpec y2Spec = getTitleSpec(y2title, "y2");
+
+         boolean yOnSecondary = Arrays.stream(info.getRTYFields())
+            .anyMatch(f -> f.getAxisDescriptor() != null &&
+               f.getAxisDescriptor().isLabelOnSecondaryAxis());
+         boolean xOnSecondary = Arrays.stream(info.getRTXFields())
+            .anyMatch(f -> f.getAxisDescriptor() != null &&
+               f.getAxisDescriptor().isLabelOnSecondaryAxis());
+
+         graph.setXTitleSpec(xOnSecondary ? x2Spec : xSpec);
+         graph.setX2TitleSpec(xOnSecondary ? xSpec : x2Spec);
+         graph.setYTitleSpec(yOnSecondary ? y2Spec : ySpec);
+         graph.setY2TitleSpec(yOnSecondary ? ySpec : y2Spec);
       }
 
       // setup visual frames, need to do before element options since GraphDefault.isInPlot
