@@ -72,21 +72,6 @@ describe("Color Mapping Dialog Unit Test", () => {
       };
    };
 
-   let fixture: ComponentFixture<ColorMappingDialog>;
-   let colorMappingDialog: ColorMappingDialog;
-
-   beforeEach(async(() => {
-      TestBed.configureTestingModule({
-         imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
-         ],
-         declarations: [
-            ColorMappingDialog, ColorEditor, ColorPicker
-         ],
-         schemas: [NO_ERRORS_SCHEMA]
-      }).compileComponents();
-   }));
-
    let createDateLevelModel: () => ColorMappingDialogModel = () => {
       return {
          colorMaps: [{
@@ -103,6 +88,21 @@ describe("Color Mapping Dialog Unit Test", () => {
          ]
       };
    };
+
+   let fixture: ComponentFixture<ColorMappingDialog>;
+   let colorMappingDialog: ColorMappingDialog;
+
+   beforeEach(async(() => {
+      TestBed.configureTestingModule({
+         imports: [
+            FormsModule, ReactiveFormsModule, NgbModule
+         ],
+         declarations: [
+            ColorMappingDialog, ColorEditor, ColorPicker
+         ],
+         schemas: [NO_ERRORS_SCHEMA]
+      }).compileComponents();
+   }));
 
    describe("manual input toggle for date-level dimension (value !== label)", () => {
       beforeEach(async(() => {
