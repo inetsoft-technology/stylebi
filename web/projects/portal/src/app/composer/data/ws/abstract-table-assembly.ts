@@ -78,7 +78,7 @@ export abstract class AbstractTableAssembly implements WSTableAssembly {
       this.primary = table.primary;
       this.classType = table.classType as "TableAssembly";
 
-      this.duration = table.duration;
+      this.duration = table.duration ?? 0;
       this.totalRows = table.totalRows;
       this.rowsCompleted = table.rowsCompleted;
       this.columnTypeEnabled = table.columnTypeEnabled;
