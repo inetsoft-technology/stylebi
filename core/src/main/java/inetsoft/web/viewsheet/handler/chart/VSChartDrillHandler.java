@@ -450,6 +450,22 @@ public class VSChartDrillHandler extends BaseDrillHandler<ChartVSAssembly, Chart
       // If the next level ref cannot be found, use derived ref.
       if(nref == null) {
          nref = freshRef;
+
+         // Propagate the parent's current labelOnSecondaryAxis ("Labels on Opposite Side")
+         // to the cached child ref. The ChartTree caches child refs that were created by
+         // cloning the parent via VSUtil.getNextLevelRef() at tree-build time. If the user
+         // later changes the axis property dialog, only the parent's AxisDescriptor is
+         // updated — the cached child still has the stale value. Propagating here ensures
+         // the drilled dimension respects the current dialog setting without requiring a
+         // save+reload to rebuild the tree.
+         if(ref instanceof VSChartDimensionRef && nref instanceof VSChartDimensionRef) {
+            AxisDescriptor parentDesc = ref.getAxisDescriptor();
+            AxisDescriptor childDesc = ((VSChartDimensionRef) nref).getAxisDescriptor();
+
+            if(parentDesc != null && childDesc != null) {
+               childDesc.setLabelOnSecondaryAxis(parentDesc.isLabelOnSecondaryAxis());
+            }
+         }
       }
 
       nref = (VSDimensionRef) nref.clone();
