@@ -26,6 +26,7 @@
       [assetId]="viewData.assetId"
       [linkUri]="viewData.linkUri"
       [viewer]="true" [isCube]="isCube || !viewData?.hasBaseEntry"
+      [aiAssistantPermission]="aiAssistantPermission"
       (onCloseBindingPane)="closeEditor()"
       (onOpenWizardPane)="openWizardPane($event)">
    </vs-binding-pane>

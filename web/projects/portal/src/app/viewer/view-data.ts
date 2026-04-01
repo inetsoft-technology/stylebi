@@ -38,4 +38,5 @@ export interface ViewData {
    scaleToScreen?: boolean;
    fitToWidth?: boolean;
    hasBaseEntry?: boolean;
+   aiAssistantPermission?: boolean;
 }
