@@ -144,6 +144,10 @@ public class RunningTotalColumn extends AbstractColumn {
 
       Object val = data.getData(field, row);
 
+      if(val == null) {
+         return null;
+      }
+
       if(formula == null) {
          return val;
       }
