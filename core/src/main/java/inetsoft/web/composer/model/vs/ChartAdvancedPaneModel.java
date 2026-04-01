@@ -61,11 +61,15 @@ public class ChartAdvancedPaneModel {
 
       chartPlotOptionsPaneModel = new ChartPlotOptionsPaneModel(info, plotDesc);
 
-      // DC converts the chart to bars at runtime regardless of design-time chart type.
-      // Show bar rounding controls when DC is defined and they aren't already visible.
+      // design-time info has no DC runtime state, so barCornerRadiusVisible is false
+      // for non-bar charts even when DC will convert them to bars at runtime.
+      // Exclude value-only DC since it doesn't add comparison bars.
+      DateComparisonInfo dcInfo = chartAssemblyInfo.getDateComparisonInfo();
+
       if(!chartPlotOptionsPaneModel.isBarCornerRadiusVisible() &&
          chartAssemblyInfo.isDateComparisonEnabled() &&
-         DateComparisonUtil.isDateComparisonDefined(chartAssemblyInfo))
+         DateComparisonUtil.isDateComparisonDefined(chartAssemblyInfo) &&
+         dcInfo != null && !dcInfo.isValueOnly())
       {
          chartPlotOptionsPaneModel.setBarCornerRadiusVisible(true);
          chartPlotOptionsPaneModel.setBarRoundAllCornersVisible(true);
