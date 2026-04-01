@@ -82,17 +82,18 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
       this.titleLinkValue = info.getTitleLinkValue();
       this.emptyPlotLinkValue = info.getEmptyPlotLinkValue();
 
-      ViewsheetSandbox box = rvs != null ? rvs.getViewsheetSandbox() : null;
+      Optional<ViewsheetSandbox> box = Optional.ofNullable(rvs)
+         .flatMap(RuntimeViewsheet::getViewsheetSandbox);
 
       if(titleLinkValue != null) {
          Hyperlink.Ref ref = new Hyperlink.Ref(this.titleLinkValue);
-         applyLinkParameters(ref, box);
+         box.ifPresent(b -> applyLinkParameters(ref, b));
          this.titleLinkModel = HyperlinkModel.createHyperlinkModel(ref);
       }
 
       if(emptyPlotLinkValue != null) {
          Hyperlink.Ref ref = new Hyperlink.Ref(this.emptyPlotLinkValue);
-         applyLinkParameters(ref, box);
+         box.ifPresent(b -> applyLinkParameters(ref, b));
          this.emptyPlotLinkModel = HyperlinkModel.createHyperlinkModel(ref);
       }
    }
