@@ -36,6 +36,7 @@ import { VSCrosstabModel } from "../model/vs-crosstab-model";
 import { VSObjectModel } from "../model/vs-object-model";
 import { VSSelectionBaseModel } from "../model/vs-selection-base-model";
 import { VSSelectionContainerModel } from "../model/vs-selection-container-model";
+import { VSTabModel } from "../model/vs-tab-model";
 import { VSTableModel } from "../model/vs-table-model";
 import { DropdownOptions } from "../../widget/fixed-dropdown/dropdown-options";
 import { ActionsContextmenuComponent } from "../../widget/fixed-dropdown/actions-contextmenu.component";
@@ -579,5 +580,19 @@ export namespace VSUtil {
       }
 
       contextmenu.actions = actions;
+   }
+
+   // calendar row height (px) × body rows, matching CalendarVSAssemblyInfo.java
+   export const CALENDAR_ROW_HEIGHT = 18;
+   export const CALENDAR_BODY_ROWS = 8;
+   export const CALENDAR_BODY_HEIGHT = CALENDAR_ROW_HEIGHT * CALENDAR_BODY_ROWS;
+
+   export function isInBottomTabContainer(obj: VSObjectModel, vsObjects: VSObjectModel[]): boolean {
+      if(obj.containerType !== "VSTab" || !obj.container) {
+         return false;
+      }
+
+      const parentTab = vsObjects?.find(o => o.absoluteName === obj.container);
+      return !!parentTab && (parentTab as VSTabModel).bottomTabs === true;
    }
 }
