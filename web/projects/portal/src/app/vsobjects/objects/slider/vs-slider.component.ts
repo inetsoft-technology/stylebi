@@ -107,6 +107,8 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
    set model(model: VSSliderModel) {
       this._model = model;
       // Center the track vertically, but shift it upward on short components so tick labels fit within the component height.
+      // Known limitation: for height < HANDLE_CLEARANCE + LABEL_BOTTOM_OFFSET (53px),
+      // tick labels overflow below the component boundary in viewer mode (overflow: visible).
 
       // distance from track center to bottom of tick label text.
       const LABEL_BOTTOM_OFFSET = 36; // note. coupled to CSS tokens

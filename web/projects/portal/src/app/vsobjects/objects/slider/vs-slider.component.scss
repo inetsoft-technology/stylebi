@@ -112,7 +112,7 @@
   line-height: 1.4;
   white-space: nowrap;
   pointer-events: none;
-  z-index: 4;  // above handle (z-index: 3) so it is never obscured by the handle pill
+  z-index: 4;  // prevents the handle pill from painting over the value label when they share the same horizontal band
 }
 
 // ─── Inactive track ───────────────────────────────────────────────────────────
@@ -302,6 +302,15 @@ $handle-container-pressed: calc(var(--slider-handle-pressed-width)         + 2 *
 // ─── Tick labels ─────────────────────────────────────────────────────────────
 // z-index: 2 keeps labels above tick dots (z-index: 1) but below the handle
 // (z-index: 3) per M3 spec.
+//
+// Minimum component height: tick labels are (--slider-track-height/2 + --slider-gap)
+// = 22px below the wrapper, and are ~14px tall, so the label bottom sits 36px below
+// the wrapper. With the handle requiring 17px above the wrapper (HANDLE_CLEARANCE),
+// the minimum height that keeps labels within the component boundary is 17 + 36 = 53px.
+// The default slider height of 60px satisfies this. Components resized below 53px will
+// have tick labels overflow below the boundary in viewer mode (overflow: visible).
+// No CSS-side clamping is applied here because the component height is not available
+// as a CSS custom property; this is documented as a known limitation.
 
 .slider-label {
   position: absolute;
