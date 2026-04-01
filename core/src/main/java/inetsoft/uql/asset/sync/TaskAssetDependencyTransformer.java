@@ -444,8 +444,8 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
          newPath = getModelPath0(info, false);
       }
       else if(info.isLogicalModel() && info.isFolder()) {
-         path = info.getOldPath();
-         newPath = info.getNewPath();
+         path = toModelAssetPath(info.getOldPath(), info.getOldName());
+         newPath = toModelAssetPath(info.getNewPath(), info.getNewName());
       }
       else if(info.isPartition() && info.isSource()) {
          path = getPartitionPath(info.getOldName(), info.getModelFolder());
@@ -594,6 +594,34 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
       synchronized(storage) {
          storage.putDocument(identifier, doc, ScheduleTask.class.getName(), task.getOrgID());
       }
+   }
+
+   /**
+    * Converts a logical model path from "database/folder/name" format
+    * (as produced by RepositoryObjectService) to the XAsset ID format
+    * "database^__^folder^name" used in backup action XML.
+    * Paths already in ID format (containing "^") are returned unchanged.
+    */
+   private String toModelAssetPath(String rawPath, String folder) {
+      if(rawPath == null || rawPath.contains(XUtil.DATAMODEL_PATH_SPLITER)) {
+         return rawPath;
+      }
+
+      String modelName = rawPath.substring(rawPath.lastIndexOf('/') + 1);
+      int dbEnd = rawPath.length() - modelName.length() - 1;
+
+      if(!Tool.isEmptyString(folder)) {
+         dbEnd -= folder.length() + 1;
+      }
+
+      String database = rawPath.substring(0, dbEnd);
+
+      if(Tool.isEmptyString(folder)) {
+         return database + XUtil.DATAMODEL_PATH_SPLITER + modelName;
+      }
+
+      return database + XUtil.DATAMODEL_FOLDER_SPLITER + folder +
+         XUtil.DATAMODEL_PATH_SPLITER + modelName;
    }
 
    private String getModelPath(RenameInfo info, boolean old) {
