@@ -16,6 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <vs-input-label-wrapper *ngIf="model"
+                        [contentOverflow]="viewer || embeddedVS ? 'visible' : 'hidden'"
                         [labelModel]="model.labelModel"
                         [labelSelected]="model.labelSelected"
                         [style.display]="getVisible() ? null : 'none'"
