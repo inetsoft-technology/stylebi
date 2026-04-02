@@ -664,16 +664,10 @@ public class VsToReportConverter {
             addImageElement(assembly, sectionName);
             break;
          case AbstractSheet.SPINNER_ASSET:
-            text = ((NumericRangeVSAssemblyInfo) info).getValueLabel() + "";
-            addTextBoxElement0(info, null, text, addInputLabel(assembly, sectionName), sectionName);
+            addImageElement(assembly, sectionName);
             break;
          case AbstractSheet.COMBOBOX_ASSET:
-            ComboBoxVSAssemblyInfo cinfo = (ComboBoxVSAssemblyInfo) info;
-            String label = cinfo.getSelectedLabel();
-            // for editable combobox, if the input value isn't in the dropdown
-            // list, then need use getSelectedObject to get the selected value.
-            label = label == null ? cinfo.getSelectedObject() + "" : label;
-            addTextBoxElement0(info, null, label, addInputLabel(assembly, sectionName), sectionName);
+            addImageElement(assembly, sectionName);
             break;
          case AbstractSheet.RADIOBUTTON_ASSET:
             addRadioButton((RadioButtonVSAssembly) assembly, sectionName,
@@ -2301,6 +2295,12 @@ public class VsToReportConverter {
          switch(type) {
          case AbstractSheet.SLIDER_ASSET:
             obj = new VSSlider(vs);
+            break;
+         case AbstractSheet.SPINNER_ASSET:
+            obj = new VSSpinner(vs);
+            break;
+         case AbstractSheet.COMBOBOX_ASSET:
+            obj = new VSComboBox(vs);
             break;
          case AbstractSheet.GAUGE_ASSET:
             obj = VSGauge.getGauge(((GaugeVSAssemblyInfo) info).getFace());
