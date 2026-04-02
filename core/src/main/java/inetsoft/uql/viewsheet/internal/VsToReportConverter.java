@@ -661,6 +661,8 @@ public class VsToReportConverter {
                sectionName);
             break;
          case AbstractSheet.SLIDER_ASSET:
+            addImageElement(assembly, sectionName);
+            break;
          case AbstractSheet.SPINNER_ASSET:
             text = ((NumericRangeVSAssemblyInfo) info).getValueLabel() + "";
             addTextBoxElement0(info, null, text, addInputLabel(assembly, sectionName), sectionName);
@@ -2297,6 +2299,9 @@ public class VsToReportConverter {
          VSObject obj = null;
 
          switch(type) {
+         case AbstractSheet.SLIDER_ASSET:
+            obj = new VSSlider(vs);
+            break;
          case AbstractSheet.GAUGE_ASSET:
             obj = VSGauge.getGauge(((GaugeVSAssemblyInfo) info).getFace());
             break;
