@@ -109,7 +109,7 @@ describe("Color Mapping Dialog Unit Test", () => {
    }));
 
    describe("manual input toggle for date-level dimension (value !== label)", () => {
-      beforeEach(async(() => {
+      beforeEach(waitForAsync(() => {
          fixture = TestBed.createComponent(ColorMappingDialog);
          colorMappingDialog = <ColorMappingDialog>fixture.componentInstance;
          colorMappingDialog.model = createDateLevelModel();
