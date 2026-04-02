@@ -34,4 +34,11 @@ public interface DatabaseAuthenticationCacheService extends Service {
    public void connect();
 
    public void disconnect();
+
+   /**
+    * Destroys the service and all associated distributed data structures.
+    * This should only be called when the provider is being permanently removed,
+    * not during normal operations like reordering providers.
+    */
+   public void destroyService();
 }

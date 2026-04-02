@@ -187,6 +187,8 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
                if(Objects.equals(name, newProvider.getProviderName())) {
                   refreshCache = true;
                }
+               // Note: If provider was renamed, the old service will be cleaned up by lazy cleanup
+               // after no clients have connected for the grace period.
 
                provider.tearDown();
                break;
@@ -263,6 +265,8 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
             .orElseThrow(() -> new MessageException(
                Catalog.getCatalog(principal).getString("em.security.noSystemAdminProvider")));
 
+         // Note: If this is a database provider, its service will be cleaned up by lazy cleanup
+         // after no clients have connected for the grace period.
          removedProvider.tearDown();
          chain.setProviders(providerList);
       }
