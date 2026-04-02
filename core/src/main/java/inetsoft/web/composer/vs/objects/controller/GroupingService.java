@@ -223,7 +223,7 @@ public class GroupingService {
                Dimension updatedSize = new Dimension(width, size.height);
 
                info.setPixelSize(updatedSize);
-               boolean bottomTabs = ((TabVSAssemblyInfo) info).isBottomTabs();
+               boolean bottomTabs = ((TabVSAssemblyInfo) info).getBottomTabsValue();
                int y = bottomTabs
                   ? pos.y - objectSize.height
                   : pos.y + size.height;
@@ -261,7 +261,7 @@ public class GroupingService {
             Dimension updatedSize = new Dimension(width, size.height);
 
             info.setPixelSize(updatedSize);
-            boolean bottomTabs = ((TabVSAssemblyInfo) info).isBottomTabs();
+            boolean bottomTabs = ((TabVSAssemblyInfo) info).getBottomTabsValue();
             int targetY = bottomTabs
                ? pos.y - targetSize.height
                : pos.y + size.height;
@@ -373,7 +373,7 @@ public class GroupingService {
       target.setPixelSize(updatedSize);
 
       boolean bottomTabs = targetInfo instanceof TabVSAssemblyInfo &&
-         ((TabVSAssemblyInfo) targetInfo).isBottomTabs();
+         ((TabVSAssemblyInfo) targetInfo).getBottomTabsValue();
 
       for(String name: objectAssemblies) {
          VSAssembly assembly = (VSAssembly) viewsheet.getAssembly(name);
