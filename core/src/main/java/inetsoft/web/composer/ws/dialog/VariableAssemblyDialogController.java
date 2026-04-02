@@ -237,7 +237,11 @@ public class VariableAssemblyDialogController extends WorksheetController {
 
          // If the variable name changed, rename the assembly so all dependent assemblies are updated
          if(!Tool.equals(model.getOldName(), model.getNewName())) {
-            ws.renameAssembly(model.getOldName(), model.getNewName(), true);
+            boolean renamed = ws.renameAssembly(model.getOldName(), model.getNewName(), true);
+
+            if(!renamed) {
+               throw new RuntimeException("Unable to rename assembly " + model.getOldName() + " to " + model.getNewName());
+            }
          }
 
          assembly.setVariable(convertModelToAssetVariable(model, ws));
