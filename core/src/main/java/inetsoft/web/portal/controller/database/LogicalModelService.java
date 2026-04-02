@@ -28,6 +28,7 @@ import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.Catalog;
+import inetsoft.util.ExtendedDecimalFormat;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.security.auth.MissingResourceException;
@@ -653,6 +654,8 @@ public class LogicalModelService {
             if(xFormatInfo != null) {
                attribute.setFormat(DatabaseModelUtil.createXFormatInfoModel(xFormatInfo));
             }
+
+            attribute.getFormat().setDecimalFmts(ExtendedDecimalFormat.getSuffix().toArray(new String[0]));
 
             if(xDrillInfo != null) {
                attribute.setDrillInfo(
