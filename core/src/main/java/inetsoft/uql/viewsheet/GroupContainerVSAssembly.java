@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet;
 
+import inetsoft.report.internal.Common;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.internal.*;
@@ -179,6 +180,27 @@ public class GroupContainerVSAssembly extends AbstractContainerVSAssembly {
                Point pos = vs.getPixelPositionInViewsheet(info);
                Dimension size = vs.getPixelSize(info);
 
+               // Extend bounds to include the label for vertical label positions (top/bottom).
+               // For these positions, the label renders outside the declared pixel size.
+               if(info instanceof InputVSAssemblyInfo) {
+                  LabelInfo labelInfo = ((InputVSAssemblyInfo) info).getLabelInfo();
+
+                  if(labelInfo != null && labelInfo.isLabelVisible()) {
+                     String position = labelInfo.getLabelPosition();
+                     int adjustment = getLabelHeight(labelInfo) + labelInfo.getLabelGap();
+
+                     if(LabelInfo.BOTTOM.equals(position)) {
+                        // Label renders below the content; push the bottom boundary down.
+                        size = new Dimension(size.width, size.height + adjustment);
+                     }
+                     else if(LabelInfo.TOP.equals(position)) {
+                        // Label renders above the content; move the top boundary up.
+                        pos = new Point(pos.x, pos.y - adjustment);
+                        size = new Dimension(size.width, size.height + adjustment);
+                     }
+                  }
+               }
+
                if(upperLeft == null) {
                   upperLeft = pos;
                   bottomRight = new Point(pos.x + size.width, pos.y + size.height);
@@ -199,5 +221,24 @@ public class GroupContainerVSAssembly extends AbstractContainerVSAssembly {
       }
 
       return new Point[] {upperLeft, bottomRight};
+   }
+
+   /**
+    * Estimate the rendered pixel height of a label, using the label's font if available,
+    * falling back to the default viewsheet font.
+    */
+   private static int getLabelHeight(LabelInfo labelInfo) {
+      VSCompositeFormat format = labelInfo.getLabelFormat();
+      Font font = null;
+
+      if(format != null) {
+         font = format.getFont();
+      }
+
+      if(font == null) {
+         font = VSAssemblyInfo.getDefaultFont(Font.PLAIN, 11);
+      }
+
+      return (int) Math.ceil(Common.getHeight(font));
    }
 }
