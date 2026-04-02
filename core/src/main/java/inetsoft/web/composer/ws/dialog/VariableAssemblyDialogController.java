@@ -25,6 +25,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.*;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.condition.ExpressionValueModel;
 import inetsoft.web.composer.model.vs.VariableListDialogModel;
@@ -240,7 +241,7 @@ public class VariableAssemblyDialogController extends WorksheetController {
             boolean renamed = ws.renameAssembly(model.getOldName(), model.getNewName(), true);
 
             if(!renamed) {
-               throw new RuntimeException("Unable to rename assembly " + model.getOldName() + " to " + model.getNewName());
+               throw new MessageException("Unable to rename assembly " + model.getOldName() + " to " + model.getNewName());
             }
          }
 
