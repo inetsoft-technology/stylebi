@@ -71,9 +71,14 @@ public class DashboardController {
    }
 
    @GetMapping(value = "/api/portal/dashboard-tab-model")
-   @Secured({
-      @RequiredPermission(resourceType = ResourceType.DASHBOARD, resource = "*")
-   })
+   @Secured(
+      operator = "OR",
+      value = {
+         @RequiredPermission(resourceType = ResourceType.DASHBOARD, resource = "*"),
+         @RequiredPermission(resourceType = ResourceType.WORKSHEET, resource = "*", actions = ResourceAction.ACCESS),
+         @RequiredPermission(resourceType = ResourceType.VIEWSHEET, resource = "*", actions = ResourceAction.ACCESS)
+      }
+   )
    public DashboardTabModel getDashboardTabModel(Principal principal) throws Exception {
       boolean editable = analyticRepository.checkPermission(
          principal, ResourceType.DASHBOARD, "*", ResourceAction.WRITE);
