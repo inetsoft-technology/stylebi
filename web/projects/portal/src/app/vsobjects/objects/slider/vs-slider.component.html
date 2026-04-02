@@ -39,6 +39,7 @@
                         (selectLabel)="selectLabel($event)">
   <div [style.color]="model.objectFormat.foreground"
        [style.background-color]="model.objectFormat.background"
+       [style.border-radius.px]="model.objectFormat.roundCorner"
        [safeFont]="model.objectFormat.font"
        class="slider unselectable-canvas"
        role="slider" tabindex="-1"
