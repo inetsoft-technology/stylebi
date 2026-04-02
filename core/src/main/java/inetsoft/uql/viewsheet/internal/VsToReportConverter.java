@@ -661,13 +661,13 @@ public class VsToReportConverter {
                sectionName);
             break;
          case AbstractSheet.SLIDER_ASSET:
-            addImageElement(assembly, sectionName);
+            addImageElement(assembly, sectionName, addInputLabel(assembly, sectionName));
             break;
          case AbstractSheet.SPINNER_ASSET:
-            addImageElement(assembly, sectionName);
+            addImageElement(assembly, sectionName, addInputLabel(assembly, sectionName));
             break;
          case AbstractSheet.COMBOBOX_ASSET:
-            addImageElement(assembly, sectionName);
+            addImageElement(assembly, sectionName, addInputLabel(assembly, sectionName));
             break;
          case AbstractSheet.RADIOBUTTON_ASSET:
             addRadioButton((RadioButtonVSAssembly) assembly, sectionName,
@@ -2286,6 +2286,18 @@ public class VsToReportConverter {
     * fixed position in the report section.
     */
    private void addImageElement(VSAssembly assembly, String sectionName) {
+      addImageElement(assembly, sectionName, getPixelBounds(assembly));
+   }
+
+   /**
+    * Convert vs imageable assembly to report painter element and add to
+    * fixed position in the report section, rendering the image within
+    * contentBounds (which may be smaller than the full assembly bounds when
+    * an input label occupies part of the space).
+    */
+   private void addImageElement(VSAssembly assembly, String sectionName,
+                                Rectangle contentBounds)
+   {
       try {
          VSAssemblyInfo info = assembly.getVSAssemblyInfo();
          Viewsheet vs = info.getViewsheet();
@@ -2335,18 +2347,16 @@ public class VsToReportConverter {
             obj.setAssemblyInfo(info);
 
             if(obj instanceof VSFloatable) {
-               Rectangle bounds = getPixelBounds(assembly);
-
                if(obj instanceof VSGauge) {
                   ((VSGauge) obj).setDrawbg(false);
                }
 
-               Dimension size = new Dimension(bounds.width, bounds.height);
+               Dimension size = new Dimension(contentBounds.width, contentBounds.height);
                obj.setPixelSize(size);
                img = (BufferedImage) ((VSFloatable) obj).getImage(false);
             }
 
-            addPainterElement(img, assembly, sectionName);
+            addPainterElement(img, assembly, sectionName, contentBounds);
          }
       }
       catch(Exception ex) {
@@ -2542,6 +2552,16 @@ public class VsToReportConverter {
       PainterElementDef painterElem = new PainterElementDef(report, painter);
       processHyperlink(assembly, painterElem);
       addElement(assembly, painterElem, sectionname);
+   }
+
+   private void addPainterElement(BufferedImage image, VSAssembly assembly,
+                                  String sectionname, Rectangle contentBounds)
+   {
+      ImagePainter painter = new ImagePainter(image);
+      PainterElementDef painterElem = new PainterElementDef(report, painter);
+      processHyperlink(assembly, painterElem);
+      painterElem.setZIndex(assembly.getZIndex());
+      addElement0(contentBounds, painterElem, sectionname);
    }
 
    /**
