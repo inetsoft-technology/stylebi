@@ -877,6 +877,23 @@ public class LocalDependencyHandler implements DependencyHandler {
             updateEmbedWSSourceDependency(dep.toIdentifier(), entry, add, cache);
          }
 
+         // Check formula columns for script dependencies in all table assembly types.
+         if(assembly instanceof AbstractTableAssembly tableAssembly) {
+            ColumnSelection columns = tableAssembly.getColumnSelection(false);
+
+            for(int i = 0; i < columns.getAttributeCount(); i++) {
+               DataRef ref = columns.getAttribute(i);
+
+               if(ref instanceof ColumnRef colRef && !colRef.isSQL()) {
+                  DataRef innerRef = colRef.getDataRef();
+
+                  if(innerRef instanceof ExpressionRef exprRef) {
+                     updateScriptDependencies(exprRef.getScriptExpression(), entry, add, cache);
+                  }
+               }
+            }
+         }
+
          SourceInfo source;
          ColumnSelection columnSelection;
 
@@ -922,19 +939,6 @@ public class LocalDependencyHandler implements DependencyHandler {
 
          if(assembly instanceof SQLBoundTableAssembly) {
             updateDrillDependenciesForWorksheet(((SQLBoundTableAssembly) assembly), entry, add);
-         }
-
-         // Check formula columns for script dependencies.
-         for(int i = 0; i < columnSelection.getAttributeCount(); i++) {
-            DataRef ref = columnSelection.getAttribute(i);
-
-            if(ref instanceof ColumnRef colRef && !colRef.isSQL()) {
-               DataRef innerRef = colRef.getDataRef();
-
-               if(innerRef instanceof ExpressionRef exprRef) {
-                  updateScriptDependencies(exprRef.getScriptExpression(), entry, add, cache);
-               }
-            }
          }
       }
    }
