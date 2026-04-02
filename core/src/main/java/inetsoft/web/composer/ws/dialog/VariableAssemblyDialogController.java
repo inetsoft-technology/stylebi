@@ -234,6 +234,12 @@ public class VariableAssemblyDialogController extends WorksheetController {
       }
       else {
          AssetVariable ovar = assembly.getVariable();
+
+         // If the variable name changed, rename the assembly so all dependent assemblies are updated
+         if(!Tool.equals(model.getOldName(), model.getNewName())) {
+            ws.renameAssembly(model.getOldName(), model.getNewName(), true);
+         }
+
          assembly.setVariable(convertModelToAssetVariable(model, ws));
 
          // clear out remembered variable value in case default value changed
