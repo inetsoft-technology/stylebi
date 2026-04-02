@@ -611,6 +611,13 @@ public class ChartElementDef extends PainterElementDef
       }
    }
 
+   /**
+    * Set element-level hyperlink without propagating to chart data refs.
+    */
+   public void setPlotAreaHyperlink(Hyperlink link) {
+      super.setHyperlink(link);
+   }
+
    public void setChartStyle(int value) {
       if(!getChartInfo().isMultiStyles()) {
          if(getChartStyle() != value) {

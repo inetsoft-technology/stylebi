@@ -64,6 +64,12 @@ public class ChartPainterPaintable extends LinkedShapePainterPaintable {
     */
    @Override
    protected void processHyperlink() {
+      Hyperlink elementLink = ((PainterElement) elem).getHyperlink();
+
+      if(elementLink != null) {
+         setHyperlink(new Hyperlink.Ref(elementLink));
+      }
+
       ChartPainter cpainter = (ChartPainter) painter;
       DataSet chartData = cpainter.getChartDataSet();
 

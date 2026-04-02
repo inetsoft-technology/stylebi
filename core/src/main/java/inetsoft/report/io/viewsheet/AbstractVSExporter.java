@@ -1374,6 +1374,20 @@ public abstract class AbstractVSExporter implements VSExporter {
                      }
                   }
 
+                  Hyperlink emptyPlotLink = info.getEmptyPlotLinkValue();
+
+                  if(emptyPlotLink != null) {
+                     int titleHeight = info.isTitleVisible() ? info.getTitleHeight() : 0;
+                     Insets padding = info.getPadding();
+                     Insets2D border = getBorderOffset(info.getFormat());
+                     Rectangle2D plotBounds = new Rectangle2D.Double(
+                        pos.x + padding.left + border.left,
+                        pos.y + padding.top + border.top + titleHeight,
+                        size.width - padding.left - padding.right - border.left - border.right,
+                        size.height - padding.top - padding.bottom - border.top - border.bottom - titleHeight);
+                     writeEmptyPlotHyperlink(new Hyperlink.Ref(emptyPlotLink), plotBounds);
+                  }
+
                   VGraphPair pair = box.getVGraphPair(name, true, null, true, 1);
                   DataSet data = (DataSet) box.getData(name);
                   boolean imgOnly = exportChartAsImage(chart);
@@ -3428,6 +3442,10 @@ public abstract class AbstractVSExporter implements VSExporter {
       if(hyperlink == null || hyperlink.getLinkType() != Hyperlink.WEB_LINK) {
          return;
       }
+   }
+
+   protected void writeEmptyPlotHyperlink(Hyperlink.Ref ref, Rectangle2D bounds) {
+      // subclasses override to emit the link
    }
 
    /**
