@@ -106,12 +106,11 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
          viewData: ViewData
          principalCommand: SetPrincipalCommand
       }) => {
-         // If the base tab for this asset already exists (e.g. returning from binding editor),
-         // preserve the existing drill tabs instead of clearing them.
-         const baseTabExists = this.pageTabService.tabs.length > 0 &&
-            this.pageTabService.tabs[0].id === data.viewData.assetId;
+         // If a tab for this asset already exists (e.g. returning from binding editor for a
+         // linked/drilled VS), preserve the existing tabs instead of clearing them.
+         const existingTab = this.pageTabService.tabs.find(tab => tab.id === data.viewData.assetId);
 
-         if(!baseTabExists) {
+         if(!existingTab) {
             this.pageTabService.clearTabs();
             const tab: TabInfoModel = {
                id: data.viewData.assetId,
@@ -123,7 +122,9 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
             this.pageTabService.addTab(tab);
          }
          else {
-            this.pageTabService.tabs[0].runtimeId = data.viewData.runtimeId;
+            // Returning from binding editor — existingTab may be the root or a linked/drilled VS
+            // tab. Either way, preserve sibling tabs and just update this tab's runtimeId.
+            existingTab.runtimeId = data.viewData.runtimeId;
          }
 
          this.queryParameters = this.updateQueryParams(data.viewData.queryParameters);
@@ -235,6 +236,10 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
       this.viewDataService.data.toolbarPermissions = viewerApp.toolbarPermissions;
       this.viewDataService.data.aiAssistantPermission = this.aiAssistantPermission;
 
+      // Prevent all viewer-apps from closing their server-side sessions on destroy,
+      // not just the active one — otherwise sibling tabs' sessions get explicitly
+      // closed and are expired when returning from the binding editor.
+      this.viewerApps.forEach(app => app.gotoBindingPane = true);
       this.openEditor("Failed to navigate to table editor: ", evt.isMetadata);
    }
 
@@ -256,6 +261,10 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
       this.viewDataService.data.toolbarPermissions = viewerApp.toolbarPermissions;
       this.viewDataService.data.aiAssistantPermission = this.aiAssistantPermission;
 
+      // Prevent all viewer-apps from closing their server-side sessions on destroy,
+      // not just the active one — otherwise sibling tabs' sessions get explicitly
+      // closed and are expired when returning from the binding editor.
+      this.viewerApps.forEach(app => app.gotoBindingPane = true);
       this.openEditor("Failed to navigate to chart editor: ", evt.isMetadata);
    }
 
