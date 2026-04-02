@@ -104,15 +104,21 @@ public class VSWizardFormatController {
 
             fmt.setFormatExtentValue(formatSpec);
             fmt.setFormatValue(modelFormat);
+            Viewsheet vs = rvs.getViewsheet();
+            VSAssembly tempAssembly = WizardRecommenderUtil.getTempAssembly(vs);
             VSFormat donutChartCalcFmt = tinfo.getUserFormat("Total@" + event.getField());
+
+            if(donutChartCalcFmt == null && tempAssembly instanceof ChartVSAssembly chartAssembly &&
+               chartAssembly.getVSChartInfo().isDonut())
+            {
+               tinfo.setFormat("Total@" + event.getField(), donutChartCalcFmt = new VSFormat());
+            }
 
             if(donutChartCalcFmt != null) {
                donutChartCalcFmt.setFormatExtentValue(formatSpec);
                donutChartCalcFmt.setFormatValue(modelFormat);
             }
 
-            Viewsheet vs = rvs.getViewsheet();
-            VSAssembly tempAssembly = WizardRecommenderUtil.getTempAssembly(vs);
             bindingHandler.updatePrimaryAssembly(rvs, linkUri, tempAssembly, false, false, dispatcher);
          }
       }
