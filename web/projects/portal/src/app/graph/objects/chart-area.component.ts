@@ -432,6 +432,13 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
       }
    }
 
+   // clear selection when right-clicking on chart background (not on a sub-component)
+   clearSelectionOnBackground(event: MouseEvent): void {
+      if(!(event.target as HTMLElement).closest(".chart-object-area")) {
+         this.clearSelection();
+      }
+   }
+
    drill(payload: ChartDrillInfo): void {
       this.onDrill.emit(payload);
    }

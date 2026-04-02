@@ -1126,14 +1126,21 @@ export class VSChart extends AbstractVSObject<VSChartModel>
 
       const clone = chartAreaEl.cloneNode(true) as HTMLElement;
       const containerRect = container.getBoundingClientRect();
-      const chartAreaRect = chartAreaEl.getBoundingClientRect();
       clone.style.position = "absolute";
-      clone.style.top = (chartAreaRect.top - containerRect.top) + "px";
-      clone.style.left = (chartAreaRect.left - containerRect.left) + "px";
-      clone.style.width = chartAreaEl.offsetWidth + "px";
-      clone.style.height = chartAreaEl.offsetHeight + "px";
+      // Position the clone at (0, 0) within the vs-chart container rather than at
+      // chart-area's flow position. chart-area is position:static, so its absolutely
+      // positioned children (e.g. .chart-container) are placed relative to the outer
+      // vs-chart container. After cloneNode, setting position:absolute on the clone
+      // makes it a containing block, so those children would be offset relative to
+      // the clone — causing a double-offset equal to titleFormat.height when a title
+      // is visible. Starting the clone at origin preserves the children's positions.
+      clone.style.top = "0";
+      clone.style.left = "0";
+      clone.style.width = containerRect.width + "px";
+      clone.style.height = containerRect.height + "px";
       clone.style.pointerEvents = "none";
-      clone.style.zIndex = "1";
+      // Sit above the border-div, which has z-index = model.objectFormat.zIndex in viewer mode.
+      clone.style.zIndex = String((this.model?.objectFormat?.zIndex ?? 0) + 1);
       clone.style.visibility = "visible";
       // Canvases are blank after cloneNode; remove them (they're only selection overlays)
       Array.from(clone.querySelectorAll("canvas")).forEach((c: Element) => c.remove());

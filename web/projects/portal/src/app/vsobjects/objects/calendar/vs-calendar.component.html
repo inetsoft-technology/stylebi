@@ -63,6 +63,7 @@
                             [attr.aria-expanded]="!!model.calendarsShown"
                             [actionNames]="model.actionNames"
                             [collapsed]="!model.calendarsShown"
+                            [flipped]="bottomTabFlipped"
                             (hideClicked)="onHide()"
                             (showClicked)="onShow()"
                             [class.bd-selected-cell]="selectedCellRow == SelectionRegions.DROPDOWN">

@@ -77,6 +77,13 @@ public abstract class AbstractDataSet implements DataSet {
          prepareCalcCol(data, rows, calcMeasures);
       }
 
+      // After prepareCalcCol updates this.calcvals, the temporary filter dataset's cachedColCount
+      // may be stale (cached when calcvals was still null, so missing calc columns).
+      // Reset it so prepareCalcRow gets the correct column count (e.g. for TimeSeriesRow.createRow).
+      if(data != this && data instanceof AbstractDataSet) {
+         ((AbstractDataSet) data).cachedColCount = -1;
+      }
+
       if(processRows) {
          processed = true;
          prepareCalcRow(data, false);

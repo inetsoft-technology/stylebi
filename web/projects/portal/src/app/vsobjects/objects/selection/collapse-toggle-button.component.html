@@ -16,14 +16,18 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <i *ngIf="!collapsed && hideButtonVisible; else showButton" title="_#(Hide)"
-   class="collapse-toggle-button upward-icon"
+   class="collapse-toggle-button"
+   [class.upward-icon]="!flipped"
+   [class.downward-icon]="flipped"
    [class.icon-size-large]="!mobileDevice"
    [class.mobile-icon-size-large]="mobileDevice"
    (click)="clickHide($event)">
 </i>
 <ng-template #showButton>
   <i *ngIf="collapsed && showButtonVisible" title="_#(Show)"
-     class="collapse-toggle-button downward-icon"
+     class="collapse-toggle-button"
+     [class.downward-icon]="!flipped"
+     [class.upward-icon]="flipped"
      [class.icon-size-large]="!mobileDevice"
      [class.mobile-icon-size-large]="mobileDevice"
      (click)="clickShow($event)">

@@ -137,6 +137,27 @@ export class ColorMappingDialog implements OnInit {
       this.updateDimensionLabels();
    }
 
+   onManualInputToggle(colorMap: ColorMap, checked: boolean): void {
+      if(checked && !colorMap.manualInput) {
+         const found = this.dimensionData.find(d => d.value === colorMap.option);
+
+         if(found && found.label !== found.value) {
+            colorMap.option = found.label;
+         }
+      }
+      else if(!checked && colorMap.manualInput) {
+         // reverse-map the label back to its raw value; only expected to match when the
+         // option was set programmatically by the toggle-on branch above
+         const found = this.dimensionData.find(d => d.label === colorMap.option);
+
+         if(found) {
+            colorMap.option = found.value;
+         }
+      }
+
+      colorMap.manualInput = checked;
+   }
+
    isValid(): boolean {
       return this.model.colorMaps.some(f => !f.option);
    }

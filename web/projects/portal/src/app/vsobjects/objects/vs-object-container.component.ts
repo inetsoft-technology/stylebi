@@ -554,14 +554,25 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
             if((this.viewer || this.embeddedVS) && !(<VSSelectionBaseModel> obj).maxMode
                && obj.containerType !== "VSSelectionContainer")
             {
+               const inBottomTab = VSUtil.isInBottomTabContainer(obj, this.vsInfo?.vsObjects);
+
                if(this.isAtBottom(i, true) && (<VSSelectionBaseModel> obj).dropdown &&
-                  !SelectionBaseController.isHidden(<VSSelectionBaseModel> obj))
+                  !SelectionBaseController.isHidden(<VSSelectionBaseModel> obj) &&
+                  !inBottomTab)
                {
                   let bodyHeight = this.getSelectionBodyHeight(<VSSelectionBaseModel> obj);
                   let popDown = this.containerBounds?.height - obj?.objectFormat?.top -
                      (<VSSelectionBaseModel> obj)?.titleFormat?.height - bodyHeight > 0;
 
                   return popDown ? obj?.objectFormat?.top : obj?.objectFormat?.top - bodyHeight;
+               }
+               else if((<VSSelectionBaseModel> obj).dropdown &&
+                  !SelectionBaseController.isHidden(<VSSelectionBaseModel> obj) &&
+                  inBottomTab)
+               {
+                  let bodyHeight = this.getSelectionBodyHeight(<VSSelectionBaseModel> obj);
+                  let searchBarHeight = (<VSSelectionBaseModel> obj).searchDisplayed ? (<VSSelectionBaseModel> obj).titleFormat.height : 0;
+                  return obj?.objectFormat?.top - bodyHeight - searchBarHeight;
                }
                else {
                   return obj?.objectFormat?.top;
@@ -583,6 +594,27 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
             else {
                return null;
             }
+         }
+      }
+      else if(obj.objectType === "VSCalendar") {
+         if(top && (this.viewer || this.embeddedVS)
+            && VSUtil.isInBottomTabContainer(obj, this.vsInfo?.vsObjects))
+         {
+            if((<any> obj).dropdownCalendar) {
+               const titleExcess = (<any> obj).titleFormat?.height - obj?.objectFormat?.height
+                  + Tool.getMarginSize(obj?.objectFormat?.border?.bottom)
+                  + Tool.getMarginSize(obj?.objectFormat?.border?.top);
+
+               if((<any> obj).calendarsShown) {
+                  return obj?.objectFormat?.top - VSUtil.CALENDAR_BODY_HEIGHT - titleExcess;
+               }
+
+               return obj?.objectFormat?.top - titleExcess;
+            }
+
+            const borderExcess = Tool.getMarginSize(obj?.objectFormat?.border?.bottom)
+               + Tool.getMarginSize(obj?.objectFormat?.border?.top);
+            return obj?.objectFormat?.top - borderExcess;
          }
       }
 

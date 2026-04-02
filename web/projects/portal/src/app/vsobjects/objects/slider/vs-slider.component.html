@@ -16,6 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <vs-input-label-wrapper *ngIf="model"
+                        [contentOverflow]="viewer || embeddedVS ? 'visible' : 'hidden'"
                         [labelModel]="model.labelModel"
                         [labelSelected]="model.labelSelected"
                         [disabled]="!model.enabled"
@@ -32,6 +33,10 @@
                         [style.border-left]="model.objectFormat.border.left"
                         [style.border-right]="model.objectFormat.border.right"
                         [style.border-radius.px]="model.objectFormat.roundCorner"
+                        [style.background-color]="model.objectFormat.background"
+                        VSDataTip [dataTipName]="getAssemblyName()"
+                        VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
+                        [popZIndex]="model.objectFormat.zIndex"
                         (selectLabel)="selectLabel($event)">
   <div [style.color]="model.objectFormat.foreground"
        [style.background-color]="model.objectFormat.background"
@@ -44,9 +49,6 @@
        [attr.aria-valuenow]="getLabel()"
        [class.disable-actions-fade]="!model.enabled"
        [class.move-handle]="(selected || inSelectedGroupContainer) && !viewer"
-       VSDataTip [dataTipName]="getAssemblyName()"
-       VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
-       [popZIndex]="model.objectFormat.zIndex"
        outOfZone (onMousemove)="mouseMove($event)" #sliderContainer
        (click)="clearLabelSelection()">
    <div class="wrapper" [style.top.px]="verticalCenter" [style.--slider-wrapper-top.px]="verticalCenter">

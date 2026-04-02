@@ -114,6 +114,12 @@
               <i class="viewsheet-icon icon-size-medium" aria-hidden="true"></i>
               <a class="p-2">_#(Dashboard)</a>
             </li>
+            <li class="dropdown-item bt-gray"
+                [class.disabled]="!openComposerEnabled"
+                (click)="launchComposer()">
+              <i class="composer-icon icon-size-medium" aria-hidden="true"></i>
+              <a class="p-2">_#(Launch Composer)</a>
+            </li>
           </ul>
         </ng-template>
       </li>

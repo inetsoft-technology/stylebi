@@ -234,7 +234,8 @@ public class PDFVSExporter extends AbstractVSExporter {
          Rectangle2D bounds2 = new Rectangle2D.Double(
             bounds.getX() + padding.left + border.left,
             bounds.getY() + padding.top + border.top + theight,
-            bounds.getWidth(), bounds.getHeight());
+            bounds.getWidth() - padding.left - padding.right - border.left - border.right,
+            bounds.getHeight() - padding.top - padding.bottom - border.top - border.bottom - theight);
          processHyperlink(vgraph, data, info, bounds2);
       }
    }
@@ -255,6 +256,13 @@ public class PDFVSExporter extends AbstractVSExporter {
          GTool.getFlipYTransform(vgraph), bounds.getX(),
          bounds.getY(), pH);
       helper.setLinks(area, hyperlink);
+   }
+
+   @Override
+   protected void writeEmptyPlotHyperlink(Hyperlink.Ref ref, Rectangle2D bounds) {
+      if(genLink && ref != null && ref.getLinkType() == Hyperlink.WEB_LINK) {
+         helper.setLinks(bounds, ref);
+      }
    }
 
    /**

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { AfterViewInit, ElementRef, Input, OnDestroy, ViewChild, Directive } from "@angular/core";
+import { AfterViewInit, ElementRef, HostBinding, Input, OnDestroy, ViewChild, Directive } from "@angular/core";
 import { SafeStyle } from "@angular/platform-browser";
 import { fromEvent, Subscription } from "rxjs";
 import { GuiTool } from "../../common/util/gui-tool";
@@ -39,6 +39,7 @@ import { ChartModel } from "../model/chart-model";
 export abstract class ChartObjectAreaBase<T extends ChartObject>
    implements AfterViewInit, OnDestroy
 {
+   @HostBinding("class.chart-object-area") readonly isChartObjectArea = true;
    @Input() chartSelection: ChartSelection;
    @Input() maxMode: boolean;
    @Input() genTime: number;

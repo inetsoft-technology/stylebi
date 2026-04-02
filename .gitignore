@@ -188,6 +188,7 @@ buildNumber.properties
 web/*-lint-results.xml
 !/web/projects/portal/src/app/widget/target/
 !/docker/community/src/main/docker/files/bin/
+/web/temp/
 
 ### Terraform ####
 # Local .terraform directories

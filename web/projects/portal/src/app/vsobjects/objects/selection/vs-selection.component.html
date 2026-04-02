@@ -81,6 +81,7 @@
                                 [attr.aria-expanded]="!model.hidden"
                                 [actionNames]="model.actionNames"
                                 [collapsed]="model.hidden"
+                                [flipped]="bottomTabFlipped"
                                 (hideClicked)="onHide()"
                                 (showClicked)="onShow()"
                                 [class.bd-selected-cell]="lastCellSelectedIndex == FocusRegions.DROPDOWN">
@@ -265,6 +266,7 @@
             type="button"
             class="quick-switch-overlay-btn"
             (click)="onQuickSwitchClick($event)">
+      <i #quickSwitchOverlayIcon class="icon-size1" aria-hidden="true"></i>
     </button>
   </div>
 
