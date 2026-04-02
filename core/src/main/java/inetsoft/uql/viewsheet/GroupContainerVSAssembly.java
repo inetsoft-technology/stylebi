@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet;
 
+import inetsoft.report.internal.Common;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.internal.*;
@@ -179,6 +180,22 @@ public class GroupContainerVSAssembly extends AbstractContainerVSAssembly {
                Point pos = vs.getPixelPositionInViewsheet(info);
                Dimension size = vs.getPixelSize(info);
 
+               // Extend bounds to include the label for vertical label positions (top/bottom).
+               // For these positions, the label renders outside the declared pixel size.
+               if(info instanceof InputVSAssemblyInfo) {
+                  LabelInfo labelInfo = ((InputVSAssemblyInfo) info).getLabelInfo();
+
+                  if(labelInfo != null && labelInfo.isLabelVisible()) {
+                     String position = labelInfo.getLabelPosition();
+
+                     if(LabelInfo.TOP.equals(position) || LabelInfo.BOTTOM.equals(position)) {
+                        int labelHeight = getLabelHeight(labelInfo);
+                        int gap = labelInfo.getLabelGap();
+                        size = new Dimension(size.width, size.height + labelHeight + gap);
+                     }
+                  }
+               }
+
                if(upperLeft == null) {
                   upperLeft = pos;
                   bottomRight = new Point(pos.x + size.width, pos.y + size.height);
@@ -199,5 +216,23 @@ public class GroupContainerVSAssembly extends AbstractContainerVSAssembly {
       }
 
       return new Point[] {upperLeft, bottomRight};
+   }
+
+   /**
+    * Estimate the rendered pixel height of a label, using the label's font if available,
+    * falling back to the default cell height.
+    */
+   private static int getLabelHeight(LabelInfo labelInfo) {
+      VSCompositeFormat format = labelInfo.getLabelFormat();
+
+      if(format != null) {
+         Font font = format.getFont();
+
+         if(font != null) {
+            return (int) Math.ceil(Common.getHeight(font));
+         }
+      }
+
+      return AssetUtil.defh;
    }
 }
