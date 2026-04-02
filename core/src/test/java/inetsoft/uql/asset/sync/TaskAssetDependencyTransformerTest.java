@@ -66,4 +66,21 @@ class TaskAssetDependencyTransformerTest {
       assertEquals("MyDB^MyModel",
          transformer.toModelAssetPath("MyDB/MyModel", ""));
    }
+
+   // Portal-format paths: DatabaseModelBrowserService always prepends DATAMODEL_FOLDER_SPLITER
+   // even for root-level models, producing "database^__^name" instead of "database^name".
+
+   @Test
+   void toModelAssetPath_portalRootPath_normalizedToCorrectFormat() {
+      // "database^__^name" (portal root-model path) → "database^name"
+      assertEquals("Examples/Orders^Order Model",
+         transformer.toModelAssetPath("Examples/Orders^__^Order Model", null));
+   }
+
+   @Test
+   void toModelAssetPath_portalFolderPath_returnedUnchanged() {
+      // "database^__^folder^name" is already correct — must not be modified
+      String idPath = "Examples/Orders^__^F1^Order Model";
+      assertEquals(idPath, transformer.toModelAssetPath(idPath, "F1"));
+   }
 }
