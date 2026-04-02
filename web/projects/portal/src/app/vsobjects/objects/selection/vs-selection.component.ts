@@ -735,12 +735,13 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
          const icon = this.quickSwitchOverlayIcon?.nativeElement;
 
          if(icon) {
-            this.renderer.setAttribute(icon, "class",
-               singleSelection ? "select-multi-icon icon-size1" : "select-single-icon icon-size1");
+            this.renderer.removeClass(icon, singleSelection ? "select-single-icon" : "select-multi-icon");
+            this.renderer.addClass(icon, singleSelection ? "select-multi-icon" : "select-single-icon");
          }
 
-         this.renderer.setAttribute(btn, "title",
-            singleSelection ? "_#(js:multi.switchTip)" : "_#(js:single.switchTip)");
+         const switchTip = singleSelection ? "_#(js:multi.switchTip)" : "_#(js:single.switchTip)";
+         this.renderer.setAttribute(btn, "title", switchTip);
+         this.renderer.setAttribute(btn, "aria-label", switchTip);
 
          // Render button at natural width so offsetWidth can be measured.
          this.renderer.setStyle(btn, "display", "flex");
@@ -943,7 +944,8 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       // Don't expand the list — the button floats over the right side of the text using
       // its semi-transparent background and z-index.  Expanding per-row causes the list
       // width to shift as the user moves between items with different text lengths.
-      this.renderer.setStyle(listEl, "width", listWidthCss + "px");
+      // For container lists, clamp to the vs-object width so the list doesn't reflow the parent.
+      this.renderer.setStyle(listEl, "width", Math.min(listWidthCss, maxListWidthCss) + "px");
    }
 
    public clearQuickSwitchHoverIfOwner(cellElement: Element | null): void {
