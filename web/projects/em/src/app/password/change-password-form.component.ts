@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {
-   Component, EventEmitter, Input, OnDestroy, OnInit, Output, Renderer2
+   Component, EventEmitter, Input, OnDestroy, OnInit, Output
 } from "@angular/core";
 import {
    UntypedFormBuilder, UntypedFormControl,
@@ -46,11 +46,9 @@ export class ChangePasswordFormComponent implements OnInit, OnDestroy {
    changePasswordForm: UntypedFormGroup;
    errorStateMatcher: ErrorStateMatcher;
    showPwd: boolean[] = [];
-   mouseupListener: () => void;
 
    constructor(formBuilder: UntypedFormBuilder,
-               defaultErrorMatcher: ErrorStateMatcher,
-               private renderer: Renderer2)
+               defaultErrorMatcher: ErrorStateMatcher)
    {
       this.changePasswordForm = formBuilder.group(
          {
@@ -70,10 +68,6 @@ export class ChangePasswordFormComponent implements OnInit, OnDestroy {
 
       };
 
-      this.mouseupListener = this.renderer.listen("document", "mouseup",
-         (evt: MouseEvent) => {
-            this.showPwd.fill(false);
-         });
    }
 
    ngOnInit() {
@@ -88,17 +82,11 @@ export class ChangePasswordFormComponent implements OnInit, OnDestroy {
       }
    }
 
-   triggerPassword(event: MouseEvent, index: number, show: boolean = true): void {
-      event.preventDefault();
-      event.stopPropagation();
-      this.showPwd[index] = show;
+   triggerPassword(index: number): void {
+      this.showPwd[index] = !this.showPwd[index];
    }
 
    ngOnDestroy(): void {
-      if(this.mouseupListener) {
-         this.mouseupListener();
-         this.mouseupListener = null;
-      }
    }
 
    get formDisabled(): boolean {
