@@ -153,6 +153,54 @@ class GraphTypeUtilCheckTypeTest {
       assertFalse(GraphTypeUtil.checkType(info, GraphTypes::isBar));
    }
 
+   @Test
+   void dcApplied_autoChart_rtChangedToBar_returnsTrue() {
+      // AUTO design type: getRTChartType() is used directly for the type test, so the DC
+      // fallback branch (appliedDc && designType != AUTO) is not needed and does not fire.
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_AUTO);
+      info.setRTChartType(GraphTypes.CHART_BAR);
+      info.setRuntimeDateComparisonRefs(new ChartRef[]{ new VSChartDimensionRef() });
+      info.setRuntimeMulti(false);
+
+      assertTrue(GraphTypeUtil.checkType(info, GraphTypes::isBar),
+         "AUTO chart with DC and RT=BAR should pass isBar via the AUTO path");
+   }
+
+   @Test
+   void dcApplied_lineChart_rtChangedToBar_returnsTrue() {
+      // Non-value+ DC on a LINE chart: DC sets getRTChartType() to BAR.
+      // Bar rounding UI should be visible.
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_LINE);
+      info.setRTChartType(GraphTypes.CHART_BAR);
+      info.setRuntimeDateComparisonRefs(new ChartRef[]{ new VSChartDimensionRef() });
+      info.setRuntimeMulti(false);
+
+      assertTrue(GraphTypeUtil.checkType(info, GraphTypes::isBar),
+         "DC-created bars on a LINE chart should pass isBar check");
+      assertTrue(GraphTypeUtil.checkType(info, ctype ->
+               (GraphTypes.isBar(ctype) || GraphTypes.isInterval(ctype)) &&
+               !GraphTypes.is3DBar(ctype) && !GraphTypes.isPareto(ctype) &&
+               !GraphTypes.isWaterfall(ctype) && !GraphTypes.isFunnel(ctype)),
+         "barCornerRadiusVisible predicate should be true for DC bar on LINE chart");
+   }
+
+   @Test
+   void dcApplied_lineChart_rtStillLine_returnsFalse() {
+      // Value+ DC (CHANGE_VALUE/PERCENT_VALUE) leaves the overall getRTChartType() as LINE
+      // because only per-aggregate types are updated, not the chart-level rtype.
+      // checkType uses the !multi path (isMultiStyles(ignoreDc=true) returns the design-time
+      // value which is false), so the DC fallback tests getRTChartType() == LINE → false.
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_LINE);
+      info.setRTChartType(GraphTypes.CHART_LINE);
+      info.setRuntimeDateComparisonRefs(new ChartRef[]{ new VSChartDimensionRef() });
+
+      assertFalse(GraphTypeUtil.checkType(info, GraphTypes::isBar),
+         "DC on LINE chart where RT stays LINE should not pass isBar");
+   }
+
    // -----------------------------------------------------------------------
    // Edge cases
    // -----------------------------------------------------------------------

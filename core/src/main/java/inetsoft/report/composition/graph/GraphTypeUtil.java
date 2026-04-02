@@ -472,8 +472,21 @@ public class GraphTypeUtil {
          : cinfo.isMultiStyles();
 
       if(!multi) {
-         return func.test((cinfo.getChartType() == GraphTypes.CHART_AUTO) ?
-                          cinfo.getRTChartType() : cinfo.getChartType());
+         int designType = cinfo.getChartType();
+         int testType = (designType == GraphTypes.CHART_AUTO) ? cinfo.getRTChartType() : designType;
+
+         if(func.test(testType)) {
+            return true;
+         }
+
+         // DC can change the runtime chart type independently of the design type
+         // (e.g., a LINE chart where DC creates bars has getRTChartType() == BAR).
+         // If design type wasn't AUTO (RT already tested above), also check RT here.
+         if(appliedDc && designType != GraphTypes.CHART_AUTO) {
+            return func.test(cinfo.getRTChartType());
+         }
+
+         return false;
       }
       else {
          ChartRef[] fields = rt ? cinfo.getRTXFields() : cinfo.getXFields();

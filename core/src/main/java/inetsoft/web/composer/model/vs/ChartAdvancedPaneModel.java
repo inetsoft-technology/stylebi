@@ -18,12 +18,14 @@
 package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.util.Catalog;
 import inetsoft.web.graph.model.dialog.ChartPlotOptionsPaneModel;
@@ -59,6 +61,20 @@ public class ChartAdvancedPaneModel {
       }
 
       chartPlotOptionsPaneModel = new ChartPlotOptionsPaneModel(info, plotDesc);
+
+      // design-time info has no DC runtime state, so barCornerRadiusVisible is false
+      // for non-bar charts even when DC will convert them to bars at runtime.
+      // Exclude value-only DC since it doesn't add comparison bars.
+      DateComparisonInfo dcInfo = chartAssemblyInfo.getDateComparisonInfo();
+
+      if(!chartPlotOptionsPaneModel.isBarCornerRadiusVisible() &&
+         chartAssemblyInfo.isDateComparisonEnabled() &&
+         DateComparisonUtil.isDateComparisonDefined(chartAssemblyInfo) &&
+         dcInfo != null && !dcInfo.isValueOnly())
+      {
+         chartPlotOptionsPaneModel.setBarCornerRadiusVisible(true);
+         chartPlotOptionsPaneModel.setBarRoundAllCornersVisible(true);
+      }
    }
 
    public static boolean isRankingSupported(ChartInfo info) {
@@ -140,6 +156,17 @@ public class ChartAdvancedPaneModel {
       }
 
       chartPlotOptionsPaneModel.updateChartPlotOptionsPaneModel(info, plotDesc);
+
+      // updateChartPlotOptionsPaneModel uses design-time checkType which doesn't see DC's
+      // runtime bar conversion, so it incorrectly resets barRoundAllCorners=false.
+      // Re-apply the user's value when DC is defined and chart type isn't natively bar/interval.
+      if(chartAssemblyInfo.isDateComparisonEnabled() &&
+         DateComparisonUtil.isDateComparisonDefined(chartAssemblyInfo) &&
+         !GraphTypeUtil.checkType(info, ctype ->
+            GraphTypes.isBar(ctype) || GraphTypes.isInterval(ctype)))
+      {
+         plotDesc.setBarRoundAllCorners(chartPlotOptionsPaneModel.isBarRoundAllCorners());
+      }
    }
 
    public boolean isAdhocVisible() {
