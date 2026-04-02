@@ -263,17 +263,21 @@
 
 .quick-switch-overlay-btn {
   position: absolute;
-  right: 0;
   display: none;
   align-items: center;
+  justify-content: center;
   z-index: 200;
-  background: none;
-  border: none;
-  padding: 0 4px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 3px;
+  padding: 0 3px;
   cursor: pointer;
-  font: inherit;
-  font-weight: bold;
   color: inherit;
-  white-space: nowrap;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
   pointer-events: auto;
+
+  i {
+    flex: none;
+  }
 }

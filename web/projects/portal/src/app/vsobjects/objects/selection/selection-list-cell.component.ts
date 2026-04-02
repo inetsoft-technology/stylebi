@@ -421,7 +421,9 @@ export class SelectionListCell implements OnInit, OnChanges, OnDestroy {
    }
 
    onMouseLeave(event: MouseEvent): void {
-      if(this.vsSelectionComponent.isQuickSwitchRetainTarget(event.relatedTarget as Node | null)) {
+      const retain = this.vsSelectionComponent.isQuickSwitchRetainTarget(event.relatedTarget as Node | null);
+
+      if(retain) {
          return;
       }
 
