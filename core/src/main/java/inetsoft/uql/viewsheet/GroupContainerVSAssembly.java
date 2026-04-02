@@ -187,11 +187,16 @@ public class GroupContainerVSAssembly extends AbstractContainerVSAssembly {
 
                   if(labelInfo != null && labelInfo.isLabelVisible()) {
                      String position = labelInfo.getLabelPosition();
+                     int adjustment = getLabelHeight(labelInfo) + labelInfo.getLabelGap();
 
-                     if(LabelInfo.TOP.equals(position) || LabelInfo.BOTTOM.equals(position)) {
-                        int labelHeight = getLabelHeight(labelInfo);
-                        int gap = labelInfo.getLabelGap();
-                        size = new Dimension(size.width, size.height + labelHeight + gap);
+                     if(LabelInfo.BOTTOM.equals(position)) {
+                        // Label renders below the content; push the bottom boundary down.
+                        size = new Dimension(size.width, size.height + adjustment);
+                     }
+                     else if(LabelInfo.TOP.equals(position)) {
+                        // Label renders above the content; move the top boundary up.
+                        pos = new Point(pos.x, pos.y - adjustment);
+                        size = new Dimension(size.width, size.height + adjustment);
                      }
                   }
                }
@@ -220,19 +225,20 @@ public class GroupContainerVSAssembly extends AbstractContainerVSAssembly {
 
    /**
     * Estimate the rendered pixel height of a label, using the label's font if available,
-    * falling back to the default cell height.
+    * falling back to the default viewsheet font.
     */
    private static int getLabelHeight(LabelInfo labelInfo) {
       VSCompositeFormat format = labelInfo.getLabelFormat();
+      Font font = null;
 
       if(format != null) {
-         Font font = format.getFont();
-
-         if(font != null) {
-            return (int) Math.ceil(Common.getHeight(font));
-         }
+         font = format.getFont();
       }
 
-      return AssetUtil.defh;
+      if(font == null) {
+         font = VSAssemblyInfo.getDefaultFont(Font.PLAIN, 11);
+      }
+
+      return (int) Math.ceil(Common.getHeight(font));
    }
 }
