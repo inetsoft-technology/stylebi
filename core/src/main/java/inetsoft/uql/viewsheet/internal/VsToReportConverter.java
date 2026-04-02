@@ -1407,6 +1407,12 @@ public class VsToReportConverter {
             def.setBorders(tborders);
          }
 
+         Hyperlink titleLink = cinfo.getTitleLinkValue();
+
+         if(titleLink != null) {
+            def.setHyperlink(titleLink);
+         }
+
          cinfo.setLayoutPosition(new Point(cbounds.x, cbounds.y + theight));
          cinfo.setLayoutSize(new Dimension(cbounds.width, cbounds.height - theight));
          cbounds = getPixelBounds(assembly);
@@ -1443,6 +1449,12 @@ public class VsToReportConverter {
       if(data instanceof VSDataSet) {
          TableLens table = ((VSDataSet) data).getTable();
          chartelem.setData(table);
+      }
+
+      Hyperlink emptyPlotLink = cinfo.getEmptyPlotLinkValue();
+
+      if(emptyPlotLink != null) {
+         chartelem.setPlotAreaHyperlink(emptyPlotLink);
       }
    }
 
