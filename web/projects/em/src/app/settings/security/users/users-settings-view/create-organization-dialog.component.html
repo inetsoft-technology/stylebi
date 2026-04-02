@@ -48,7 +48,7 @@
     </mat-form-field>
     <mat-form-field class="em-org-dropdown" *ngIf="!searchOpen && copyFromOrgID">
       <mat-label>_#(js:Default Password for Cloned Users)</mat-label>
-      <input matInput [type]="showPassword ? 'text' : 'password'" [formControl]="passwordControl" autocomplete="new-password"/>
+      <input matInput [type]="showPassword ? 'text' : 'password'" [class.identity-password]="!showPassword" [formControl]="passwordControl" autocomplete="new-password"/>
       <button matSuffix mat-icon-button (click)="toggleShowPassword()" type="button" aria-label="_#(js:Show/Hide)">
         <mat-icon fontSet="ineticons" class="icon-size-small"
                   [fontIcon]="showPassword ? 'eye-off-icon' : 'eye-icon'"></mat-icon>
