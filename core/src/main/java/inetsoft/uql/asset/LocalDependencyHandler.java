@@ -923,6 +923,19 @@ public class LocalDependencyHandler implements DependencyHandler {
          if(assembly instanceof SQLBoundTableAssembly) {
             updateDrillDependenciesForWorksheet(((SQLBoundTableAssembly) assembly), entry, add);
          }
+
+         // Check formula columns for script dependencies.
+         for(int i = 0; i < columnSelection.getAttributeCount(); i++) {
+            DataRef ref = columnSelection.getAttribute(i);
+
+            if(ref instanceof ColumnRef colRef && !colRef.isSQL()) {
+               DataRef innerRef = colRef.getDataRef();
+
+               if(innerRef instanceof ExpressionRef exprRef) {
+                  updateScriptDependencies(exprRef.getScriptExpression(), entry, add, cache);
+               }
+            }
+         }
       }
    }
 
