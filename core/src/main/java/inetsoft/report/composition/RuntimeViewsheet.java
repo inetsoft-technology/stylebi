@@ -851,6 +851,37 @@ public class RuntimeViewsheet extends RuntimeSheet {
             if(displayWidthStr != null) {
                LayoutInfo layoutInfo = vs.getLayoutInfo();
                layoutToApply = layoutInfo.matchLayout(Integer.parseInt(displayWidthStr), true);
+
+               if(layoutToApply != null) {
+                  String pixelDensityStr = getEntry().getProperty("_device_pixel_density");
+                  double dpi;
+
+                  if(pixelDensityStr != null) {
+                     int pixelDensity = Integer.parseInt(pixelDensityStr);
+
+                     if(pixelDensity < 200) {
+                        dpi = 160D;
+                     }
+                     else if(pixelDensity <= 280) {
+                        dpi = 240D;
+                     }
+                     else if(pixelDensity <= 400) {
+                        dpi = 320D;
+                     }
+                     else if(pixelDensity <= 560) {
+                        dpi = 480D;
+                     }
+                     else {
+                        dpi = 640D;
+                     }
+                  }
+                  else {
+                     // don't scale HTML
+                     dpi = 160D;
+                  }
+
+                  layoutToApply = layoutInfo.matchDPI(dpi, layoutToApply);
+               }
             }
          }
 
