@@ -5,7 +5,8 @@
     "outDir": "../../out-tsc/spec",
     "types": [
       "jest",
-      "node"
+      "node",
+      "@testing-library/jest-dom"
     ]
   },
   "include": [
