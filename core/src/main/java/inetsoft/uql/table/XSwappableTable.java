@@ -918,6 +918,14 @@ public class XSwappableTable implements XTable {
    }
 
    /**
+    * Get the meta info map for serialization purposes.
+    * @return map of table data path to meta info, or empty map if none.
+    */
+   public Map<TableDataPath, XMetaInfo> getXMetaInfoMap() {
+      return mmap != null ? Collections.unmodifiableMap(mmap) : Collections.emptyMap();
+   }
+
+   /**
     * Get internal table data descriptor which contains table structural
     * infos.
     * @return table data descriptor.

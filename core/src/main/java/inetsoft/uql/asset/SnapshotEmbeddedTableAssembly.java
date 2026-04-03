@@ -17,8 +17,10 @@
  */
 package inetsoft.uql.asset;
 
+import inetsoft.report.TableDataPath;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.XMetaInfo;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.schema.XSchema;
@@ -455,6 +457,32 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
          }
 
          writer.println("</headers>");
+
+         Map<TableDataPath, XMetaInfo> metaMap = stable.getXMetaInfoMap();
+
+         if(!metaMap.isEmpty()) {
+            writer.println("<metaInfos>");
+
+            for(Map.Entry<TableDataPath, XMetaInfo> entry : metaMap.entrySet()) {
+               XMetaInfo minfo = entry.getValue();
+
+               if(minfo != null && !minfo.isXFormatInfoEmpty()) {
+                  TableDataPath path = entry.getKey();
+                  String[] pathArr = path.getPath();
+
+                  if(pathArr != null && pathArr.length > 0) {
+                     writer.print("<metaInfo header=\"");
+                     writer.print(Tool.escape(pathArr[0]));
+                     writer.println("\">");
+                     minfo.writeXML(writer);
+                     writer.println("</metaInfo>");
+                  }
+               }
+            }
+
+            writer.println("</metaInfos>");
+         }
+
          writer.println("</sembeddedData>");
       }
       catch(Exception exc) {
@@ -660,6 +688,25 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
 
          if(realType != null && columnRef != null) {
             columnRef.setDataType(realType);
+         }
+      }
+
+      Element mnode = Tool.getChildNodeByTagName(delem, "metaInfos");
+
+      if(mnode != null) {
+         NodeList mnodes = Tool.getChildNodesByTagName(mnode, "metaInfo");
+         metaInfoMap = new HashMap<>();
+
+         for(int i = 0; i < mnodes.getLength(); i++) {
+            Element node = (Element) mnodes.item(i);
+            String header = Tool.getAttribute(node, "header");
+            Element minfoElem = Tool.getChildNodeByTagName(node, "XMetaInfo");
+
+            if(header != null && minfoElem != null) {
+               XMetaInfo minfo = new XMetaInfo();
+               minfo.parseXML(minfoElem);
+               metaInfoMap.put(header, minfo);
+            }
          }
       }
    }
@@ -899,6 +946,13 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
 
                stable.init(xcreators);
                stable.initFragments(tables, headers, rowCnt, dataPaths);
+
+               if(metaInfoMap != null) {
+                  for(Map.Entry<String, XMetaInfo> entry : metaInfoMap.entrySet()) {
+                     stable.setXMetaInfo(entry.getKey(), entry.getValue());
+                  }
+               }
+
                originalSTable = stable;
                this.stable = stable;
                SnapshotEmbeddedTableDataCache.getInstance().set(cacheKey, stable);
@@ -987,6 +1041,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
    // sheet is saved and the delete flag is true
    private String[] dataPaths = null;
    private Map<String, String> dataPathsLoadVersion = new HashMap<>();
+   private Map<String, XMetaInfo> metaInfoMap = null;
    private long dataTS = 0;
    private boolean fileDirty = false;
    private boolean deleted = false;
