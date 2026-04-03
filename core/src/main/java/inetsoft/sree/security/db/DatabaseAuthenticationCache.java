@@ -313,8 +313,22 @@ class DatabaseAuthenticationCache implements AutoCloseable {
     * Checks if the exception indicates that the Ignite service was not found.
     */
    private boolean isServiceNotFoundError(IgniteException e) {
-      String message = e.getMessage();
-      return message != null && message.contains("Failed to find deployed service");
+      for(Throwable t = e; t != null; t = t.getCause()) {
+         // GridServiceNotFoundException (org.apache.ignite.internal) is the typed signal;
+         // check by simple name to avoid a hard dependency on Ignite's internal API.
+         if("GridServiceNotFoundException".equals(t.getClass().getSimpleName())) {
+            return true;
+         }
+
+         // Fall back to message text in case the wrapping changes across Ignite versions.
+         String message = t.getMessage();
+
+         if(message != null && message.contains("Failed to find deployed service")) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
