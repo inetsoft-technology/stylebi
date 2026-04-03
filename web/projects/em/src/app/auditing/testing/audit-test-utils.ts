@@ -20,6 +20,7 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
 import { Observable, throwError } from "rxjs";
 
 /** Minimal stub so Angular Forms can find a ControlValueAccessor for mat-select. */
+// eslint-disable-next-line @angular-eslint/component-selector
 @Component({
    selector: "mat-select",
    template: "",
