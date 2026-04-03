@@ -27,7 +27,6 @@ import {
 import { Router } from "@angular/router";
 import { BehaviorSubject, Subscription } from "rxjs";
 import { debounceTime, distinctUntilChanged } from "rxjs/operators";
-import { ScheduleUsersService } from "../../../../shared/schedule/schedule-users.service";
 import { AppInfoService } from "../../../../shared/util/app-info.service";
 import { CustomRouteReuseStrategy } from "../custom-route-reuse-strategy";
 import { OrganizationDropdownService } from "../navbar/organization-dropdown.service";
@@ -64,7 +63,6 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
                private router: Router,
                private http: HttpClient,
                private appInfoService: AppInfoService,
-               private usersService: ScheduleUsersService,
                private ngZone: NgZone)
    {
    }
@@ -74,10 +72,11 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
       this.refreshModel(this.currentProvider);
 
       if(this.refreshSubscription == null) {
-         this.refreshSubscription = this.orgDropdownService.onRefresh.subscribe((res) => {
-            this.currentProvider = res.provider;
-            this.refreshModel(this.currentProvider, res.providerChanged);
-         });
+         this.refreshSubscription = this.orgDropdownService.onRefresh.pipe(debounceTime(100))
+            .subscribe((res) => {
+               this.currentProvider = res.provider;
+               this.refreshModel(this.currentProvider, res.providerChanged);
+            });
       }
 
       this.subscriptions.add(this.appInfoService.isEnterprise().subscribe((isEnterprise) => {
@@ -117,7 +116,6 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
                this.orgDropdownService.notifyOrgChange();
                let currRoute = this.router.url;
                this.routeToPath(currRoute);
-               this.usersService.loadScheduleUsers();
             }
 
             this.initSearchResults();
@@ -150,7 +148,6 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
             this.orgDropdownService.notifyOrgChange();
             let currRoute = this.router.url;
             this.routeToPath(currRoute);
-            this.usersService.loadScheduleUsers();
          });
    }
 
