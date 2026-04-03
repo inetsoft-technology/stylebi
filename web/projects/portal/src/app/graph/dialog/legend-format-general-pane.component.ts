@@ -126,6 +126,10 @@ export class LegendFormatGeneralPane implements OnInit {
          Validators.required,
          FormValidators.notWhiteSpace
       ]));
+      this.form.addControl("symbolSize", new UntypedFormControl(this.model.symbolSize, [
+         Validators.min(6),
+         Validators.max(50)
+      ]));
    }
 
    ngOnInit(): void {
