@@ -837,8 +837,25 @@ public class RuntimeViewsheet extends RuntimeSheet {
 
       // Apply the updated viewsheet
       if(processedViewsheet != null) {
-         if(rvsLayout != null) {
-            processedViewsheet = rvsLayout.apply(processedViewsheet);
+         ViewsheetLayout layoutToApply = rvsLayout;
+
+         if(layoutToApply == null) {
+            // rvsLayout is null when no layout matched the current device (e.g. a
+            // mobile-only layout opened from a non-mobile browser). For bookmark
+            // navigation we still need to apply a layout so that the stored positions
+            // are rendered correctly. Re-run the width match treating the device as
+            // mobile so that mobile-only layouts are considered as a fallback.
+            // Bug #74412
+            String displayWidthStr = getEntry().getProperty("_device_display_width");
+
+            if(displayWidthStr != null) {
+               LayoutInfo layoutInfo = vs.getLayoutInfo();
+               layoutToApply = layoutInfo.matchLayout(Integer.parseInt(displayWidthStr), true);
+            }
+         }
+
+         if(layoutToApply != null) {
+            processedViewsheet = layoutToApply.apply(processedViewsheet);
          }
 
          setOpenedBookmark(bookmark == null ? null : bookmark.getBookmarkInfo(name));
