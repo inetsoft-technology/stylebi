@@ -119,6 +119,8 @@ export class VSCalendar extends NavigationComponent<VSCalendarModel>
    @Input()
    set model(value: VSCalendarModel) {
       this._model = value;
+      this._model.objectHeight = this._model.dropdownCalendar
+         ? this._model.titleFormat.height : this._model.objectFormat.height;
       this.updateSelectedTitle();
    }
 
@@ -139,15 +141,14 @@ export class VSCalendar extends NavigationComponent<VSCalendarModel>
                return popDown ? this.model.objectFormat.top : this.model.objectFormat.top - height;
             }
             else if(inBottomTab) {
-               const titleExcess = this.model.titleFormat.height - this.model.objectFormat.height
-                  + Tool.getMarginSize(this.model.objectFormat.border.bottom)
+               const borderExcess = Tool.getMarginSize(this.model.objectFormat.border.bottom)
                   + Tool.getMarginSize(this.model.objectFormat.border.top);
 
                if(this.model.calendarsShown) {
-                  return this.model.objectFormat.top - VSUtil.CALENDAR_BODY_HEIGHT - titleExcess;
+                  return this.model.objectFormat.top - VSUtil.CALENDAR_BODY_HEIGHT - borderExcess;
                }
 
-               return this.model.objectFormat.top - titleExcess;
+               return this.model.objectFormat.top - borderExcess;
             }
          }
          else if(inBottomTab) {

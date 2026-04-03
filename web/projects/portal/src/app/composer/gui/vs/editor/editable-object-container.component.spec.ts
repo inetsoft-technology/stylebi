@@ -42,6 +42,8 @@ import { LineAnchorService } from "../../../services/line-anchor.service";
 import { ComposerObjectService } from "../composer-object.service";
 import { DragBorderType } from "../objects/selection/composer-selection-container-children.component";
 import { EditableObjectContainer } from "./editable-object-container.component";
+import { VSCalendarModel } from "../../../../vsobjects/model/calendar/vs-calendar-model";
+import { VSUtil } from "../../../../vsobjects/util/vs-util";
 import { ScaleService } from "../../../../widget/services/scale/scale-service";
 import { Observable } from "rxjs";
 import { ComposerVsSearchService } from "../composer-vs-search.service";
@@ -302,5 +304,49 @@ describe("EditableObjectContainer", () => {
 
       let tabElem: HTMLElement = fixture.nativeElement.querySelector("div.object-editor");
       expect(tabElem.getAttribute("class")).toContain("fade-assembly");
+   });
+
+   it("should return titleFormat height as minHeight for dropdown calendar", () => {
+      const fixture = TestBed.createComponent(EditableObjectContainer);
+      let calModel = TestUtils.createMockVSCalendarModel("Calendar1");
+      calModel.dropdownCalendar = true;
+      calModel.titleFormat.height = 20;
+      calModel.objectFormat.height = 162;
+      fixture.componentInstance.viewsheet = viewsheet;
+      fixture.componentInstance.touchDevice = false;
+      fixture.componentInstance.vsObjectModel = calModel;
+      fixture.detectChanges();
+      expect(fixture.componentInstance.getMinHeight()).toBe(20);
+   });
+
+   it("should return titleFormat + body height as minHeight for dropdown calendar in bottom-tabs with calendars shown", () => {
+      const fixture = TestBed.createComponent(EditableObjectContainer);
+      let tabModel = TestUtils.createMockVSTabModel("Tab1");
+      tabModel.bottomTabs = true;
+      let calModel = TestUtils.createMockVSCalendarModel("Calendar1");
+      calModel.dropdownCalendar = true;
+      calModel.calendarsShown = true;
+      calModel.titleFormat.height = 20;
+      calModel.objectFormat.height = 162;
+      calModel.container = "Tab1";
+      calModel.containerType = "VSTab";
+      viewsheet.vsObjects = [tabModel, calModel];
+      fixture.componentInstance.viewsheet = viewsheet;
+      fixture.componentInstance.touchDevice = false;
+      fixture.componentInstance.vsObjectModel = calModel;
+      fixture.detectChanges();
+      expect(fixture.componentInstance.getMinHeight()).toBe(20 + VSUtil.CALENDAR_BODY_HEIGHT);
+   });
+
+   it("should return objectFormat height as minHeight for non-dropdown calendar", () => {
+      const fixture = TestBed.createComponent(EditableObjectContainer);
+      let calModel = TestUtils.createMockVSCalendarModel("Calendar1");
+      calModel.dropdownCalendar = false;
+      calModel.objectFormat.height = 162;
+      fixture.componentInstance.viewsheet = viewsheet;
+      fixture.componentInstance.touchDevice = false;
+      fixture.componentInstance.vsObjectModel = calModel;
+      fixture.detectChanges();
+      expect(fixture.componentInstance.getMinHeight()).toBe(162);
    });
 });

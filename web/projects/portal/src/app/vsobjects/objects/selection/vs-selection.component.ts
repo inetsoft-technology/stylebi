@@ -227,6 +227,9 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
             let searchBarHeight = this.model.searchDisplayed ? this.model.titleFormat.height : 0;
             return this.model.objectFormat.top - this.getBodyHeight() - searchBarHeight;
          }
+         else if(!this.model.dropdown && inBottomTab) {
+            return this.model.objectFormat.top - this.getBodyHeight();
+         }
          else {
             return this.model.objectFormat.top;
          }

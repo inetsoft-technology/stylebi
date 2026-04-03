@@ -308,15 +308,14 @@ export class EditableObjectContainer extends AbstractActionComponent
          const obj = this.vsObject as any;
 
          if(obj.dropdownCalendar) {
-            const titleExcess = obj.titleFormat.height - this.vsObject.objectFormat.height
-               + Tool.getMarginSize(this.vsObject.objectFormat.border.bottom)
+            const borderExcess = Tool.getMarginSize(this.vsObject.objectFormat.border.bottom)
                + Tool.getMarginSize(this.vsObject.objectFormat.border.top);
 
             if(obj.calendarsShown) {
-               return top - VSUtil.CALENDAR_BODY_HEIGHT - titleExcess;
+               return top - VSUtil.CALENDAR_BODY_HEIGHT - borderExcess;
             }
 
-            return top - titleExcess;
+            return top - borderExcess;
          }
 
          const borderExcess = Tool.getMarginSize(this.vsObject.objectFormat.border.bottom)
@@ -324,15 +323,29 @@ export class EditableObjectContainer extends AbstractActionComponent
          return top - borderExcess;
       }
 
+      if(this.containerBottomTabs &&
+         (this.vsObject.objectType === "VSSelectionList" || this.vsObject.objectType === "VSSelectionTree"))
+      {
+         const obj = this.vsObject as any;
+
+         if(!obj.dropdown) {
+            const bodyHeight = this.vsObject.objectFormat.height - (obj.titleFormat?.height ?? 0);
+            return top - bodyHeight;
+         }
+      }
+
       return top;
    }
 
    getMinHeight(): number {
-      if(this.containerBottomTabs && this.vsObject.objectType === "VSCalendar") {
+      if(this.vsObject.objectType === "VSCalendar") {
          const obj = this.vsObject as any;
 
-         if(obj.dropdownCalendar && obj.calendarsShown) {
-            return obj.titleFormat.height + VSUtil.CALENDAR_BODY_HEIGHT;
+         if(obj.dropdownCalendar) {
+            if(this.containerBottomTabs && obj.calendarsShown) {
+               return obj.titleFormat.height + VSUtil.CALENDAR_BODY_HEIGHT;
+            }
+            return obj.titleFormat.height;
          }
       }
 
