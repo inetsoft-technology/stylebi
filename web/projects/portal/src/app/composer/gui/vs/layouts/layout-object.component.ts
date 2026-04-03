@@ -37,6 +37,7 @@ import { ViewsheetInfo } from "../../../../vsobjects/data/viewsheet-info";
 import { VSInputModel } from "../../../../vsobjects/model/vs-input-model";
 import { VSLineModel } from "../../../../vsobjects/model/vs-line-model";
 import { VSObjectModel } from "../../../../vsobjects/model/vs-object-model";
+import { VSTabModel } from "../../../../vsobjects/model/vs-tab-model";
 import { VSSelectionContainerModel } from "../../../../vsobjects/model/vs-selection-container-model";
 import { DebounceService } from "../../../../widget/services/debounce.service";
 import { ModelService } from "../../../../widget/services/model.service";
@@ -278,8 +279,11 @@ export class LayoutObject implements OnInit, OnDestroy {
    }
 
    private updateDimensions0(): void {
+      // for bottom tabs, model.top is the visual top (shifted up by backend);
+      // add back the child height to send the stored tab bar position
       let event: MoveResizeLayoutObjectsEvent = new MoveResizeLayoutObjectsEvent(
-         this.layout.name, [this.model.name], [this.model.left], [this.model.top],
+         this.layout.name, [this.model.name], [this.model.left],
+         [this.model.top + this.bottomTabsChildHeight],
          [this.model.width], [this.model.height]);
       event.region = this.layout.currentPrintSection;
 
@@ -433,6 +437,17 @@ export class LayoutObject implements OnInit, OnDestroy {
       }
 
       return true;
+   }
+
+   get bottomTabsChildHeight(): number {
+      if(this.model?.objectModel?.objectType != "VSTab" ||
+         !(this.model.objectModel as VSTabModel).bottomTabs ||
+         !this.model.childModels?.length)
+      {
+         return 0;
+      }
+
+      return Math.max(...this.model.childModels.map(c => c.objectFormat.height));
    }
 
    isTabLineOrCalendar(): boolean {

@@ -34,6 +34,7 @@ import inetsoft.web.composer.vs.command.ChangeCurrentLayoutCommand;
 import inetsoft.web.composer.vs.event.AddVSLayoutObjectEvent;
 import inetsoft.web.viewsheet.command.UpdateLayoutUndoStateCommand;
 import inetsoft.web.viewsheet.command.UpdateUndoStateCommand;
+import inetsoft.web.viewsheet.model.VSFormatModel;
 import inetsoft.web.viewsheet.model.VSObjectModel;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -432,6 +433,33 @@ public class VSLayoutService {
             // layout object and not as editable layout objects
             getChildAssemblies((ContainerVSAssembly) assembly, rvs,
                                childModels, objectModelService);
+
+            // for bottom tabs, children sit above the tab bar — position them
+            // relative to the tab's layout position
+            if(assembly instanceof TabVSAssembly &&
+               ((TabVSAssemblyInfo) assembly.getInfo()).isBottomTabs())
+            {
+               Point layoutPos = assemblyLayout.getPosition();
+
+               for(VSObjectModel childModel : childModels) {
+                  VSFormatModel fmt = childModel.getObjectFormat();
+                  fmt.setPositions(
+                     layoutPos.x, layoutPos.y - fmt.getHeight(),
+                     fmt.getWidth(), fmt.getHeight());
+               }
+            }
+         }
+      }
+
+      // for bottom tabs, shift top to visual top (children above tab bar)
+      int maxChildHeight = 0;
+
+      if(assembly instanceof TabVSAssembly &&
+         ((TabVSAssemblyInfo) assembly.getInfo()).isBottomTabs())
+      {
+         for(VSObjectModel childModel : childModels) {
+            maxChildHeight = Math.max(maxChildHeight,
+               (int) childModel.getObjectFormat().getHeight());
          }
       }
 
@@ -443,7 +471,7 @@ public class VSLayoutService {
          .width(assemblyLayout.getSize().width)
          .height(assemblyLayout.getSize().height)
          .left(assemblyLayout.getPosition().x)
-         .top(assemblyLayout.getPosition().y)
+         .top(assemblyLayout.getPosition().y - maxChildHeight)
          .tableLayout(assemblyLayout.getTableLayout())
          .supportTableLayout(supportTableLayout(assembly))
          .build();

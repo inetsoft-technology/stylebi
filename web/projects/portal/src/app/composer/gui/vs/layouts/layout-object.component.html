@@ -73,6 +73,7 @@
        [class.vertical-label]="hasVerticalLabel()"
        [style.width.px]="model.objectModel.objectType == 'VSPageBreak' ? guideSize.width : model.width + 4"
        [style.height.px]="model.height + 4"
+       [style.padding-top.px]="bottomTabsChildHeight > 0 ? bottomTabsChildHeight : null"
        [style.pointer-events]="model.editable ? 'auto': 'none'">
     <div *ngIf="model.objectModel"
          [class.object]="!isTabLineOrCalendar()"
