@@ -577,6 +577,26 @@ public class SVGVSExporter extends AbstractVSExporter {
          return;
       }
 
+      // Bug #74471, skip DATA-type annotations on cells truncated by table.output.maxcol/maxrow
+      if(info.getType() == AnnotationVSAssemblyInfo.DATA && base instanceof TableDataVSAssembly) {
+         if(info.getCol() >= VSTableLens.getConfiguredMaxCols()) {
+            return;
+         }
+
+         try {
+            VSTableLens baseLens = box.getVSTableLens(base.getAbsoluteName(), false);
+
+            // SVG caps rendered rows at 500 (see getRegionRowCount); use the same limit here
+            if(baseLens != null && info.getRow() >= Math.min(baseLens.getRowCount(), 500)) {
+               return;
+            }
+         }
+         catch(Exception e) {
+            LOG.debug("Failed to get table lens for annotation row check on '{}'",
+                      base.getAbsoluteName(), e);
+         }
+      }
+
       writeAnnotation0(info);
    }
 
