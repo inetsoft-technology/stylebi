@@ -308,10 +308,46 @@ public class CalendarPropertyDialogController {
       }
 
       int oMode = info.getViewModeValue();
+      int oldType = info.getShowTypeValue();
       int type = calendarAdvancedPaneModel.getShowType();
       int mode = calendarAdvancedPaneModel.getViewMode();
       info.setShowTypeValue(type);
       info.setViewModeValue(mode);
+
+      // adjust position for bottom-tabs container when show type changes
+      if(oldType != type) {
+         Viewsheet vs = viewsheet.getViewsheet();
+         CalendarVSAssembly calAssembly =
+            (CalendarVSAssembly) vs.getAssembly(objectId);
+         VSAssembly container = calAssembly.getContainer();
+
+         if(container instanceof TabVSAssembly) {
+            TabVSAssemblyInfo tabInfo =
+               (TabVSAssemblyInfo) container.getVSAssemblyInfo();
+
+            if(tabInfo.getBottomTabsValue() && tabInfo.getPixelOffset() != null
+               && info.getPixelOffset() != null)
+            {
+               int tabTop = tabInfo.getPixelOffset().y;
+               int x = info.getPixelOffset().x;
+
+               if(type == CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
+                  info.setPixelOffset(new Point(x, tabTop - info.getTitleHeight()));
+               }
+               else {
+                  // set runtime value so fixCalendarSize() reads the correct show type
+                  info.setShowType(CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE);
+                  info.fixCalendarSize();
+                  Dimension size = info.getPixelSize();
+                  // fall back if no prior pixel size assigned
+                  int calendarHeight = size != null ? size.height :
+                     CalendarVSAssemblyInfo.DEFAULT_CALENDAR_HEIGHT;
+                  info.setPixelOffset(new Point(x, tabTop - calendarHeight));
+                  info.setShowType(type);
+               }
+            }
+         }
+      }
       info.setYearViewValue(calendarAdvancedPaneModel.isYearView());
       info.setDaySelectionValue(calendarAdvancedPaneModel.isDaySelection());
       info.setSingleSelectionValue(calendarAdvancedPaneModel.isSingleSelection());

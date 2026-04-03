@@ -528,6 +528,11 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
                   let searchBarHeight = (<VSSelectionBaseModel> obj).searchDisplayed ? (<VSSelectionBaseModel> obj).titleFormat.height : 0;
                   return obj?.objectFormat?.top - bodyHeight - searchBarHeight;
                }
+               else if(!(<VSSelectionBaseModel> obj).dropdown && inBottomTab) {
+                  // searchDisplayed is always false for non-dropdown, so no searchOffset needed
+                  let bodyHeight = this.getSelectionBodyHeight(<VSSelectionBaseModel> obj);
+                  return obj?.objectFormat?.top - bodyHeight;
+               }
                else {
                   return obj?.objectFormat?.top;
                }
@@ -554,20 +559,17 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          if(top && (this.viewer || this.embeddedVS)
             && VSUtil.isInBottomTabContainer(obj, this.vsInfo?.vsObjects))
          {
-            if((<any> obj).dropdownCalendar) {
-               const titleExcess = (<any> obj).titleFormat?.height - obj?.objectFormat?.height
-                  + Tool.getMarginSize(obj?.objectFormat?.border?.bottom)
-                  + Tool.getMarginSize(obj?.objectFormat?.border?.top);
-
-               if((<any> obj).calendarsShown) {
-                  return obj?.objectFormat?.top - VSUtil.CALENDAR_BODY_HEIGHT - titleExcess;
-               }
-
-               return obj?.objectFormat?.top - titleExcess;
-            }
-
             const borderExcess = Tool.getMarginSize(obj?.objectFormat?.border?.bottom)
                + Tool.getMarginSize(obj?.objectFormat?.border?.top);
+
+            if((<any> obj).dropdownCalendar) {
+               if((<any> obj).calendarsShown) {
+                  return obj?.objectFormat?.top - VSUtil.CALENDAR_BODY_HEIGHT - borderExcess;
+               }
+
+               return obj?.objectFormat?.top - borderExcess;
+            }
+
             return obj?.objectFormat?.top - borderExcess;
          }
       }

@@ -306,33 +306,49 @@ export class EditableObjectContainer extends AbstractActionComponent
 
       if(this.containerBottomTabs && this.vsObject.objectType === "VSCalendar") {
          const obj = this.vsObject as any;
-
-         if(obj.dropdownCalendar) {
-            const titleExcess = obj.titleFormat.height - this.vsObject.objectFormat.height
-               + Tool.getMarginSize(this.vsObject.objectFormat.border.bottom)
-               + Tool.getMarginSize(this.vsObject.objectFormat.border.top);
-
-            if(obj.calendarsShown) {
-               return top - VSUtil.CALENDAR_BODY_HEIGHT - titleExcess;
-            }
-
-            return top - titleExcess;
-         }
-
          const borderExcess = Tool.getMarginSize(this.vsObject.objectFormat.border.bottom)
             + Tool.getMarginSize(this.vsObject.objectFormat.border.top);
+
+         if(obj.dropdownCalendar) {
+            if(obj.calendarsShown) {
+               return top - VSUtil.CALENDAR_BODY_HEIGHT - borderExcess;
+            }
+
+            return top - borderExcess;
+         }
+
          return top - borderExcess;
+      }
+
+      // composer-only: viewer mode handled by vs-selection.topPosition
+      if(this.containerBottomTabs &&
+         (this.vsObject.objectType === "VSSelectionList" || this.vsObject.objectType === "VSSelectionTree"))
+      {
+         const obj = this.vsObject as any;
+
+         if(!obj.dropdown) {
+            const bottomMargin = Tool.getMarginSize(this.vsObject.objectFormat.border.bottom);
+            const topMargin = Tool.getMarginSize(this.vsObject.objectFormat.border.top);
+            const titleTopMargin = Tool.getMarginSize(obj.titleFormat?.border?.top);
+            const offset = Math.max(0, bottomMargin + topMargin - titleTopMargin);
+            const bodyHeight = this.vsObject.objectFormat.height
+               - (obj.titleFormat?.height ?? 0) - offset;
+            return top - bodyHeight;
+         }
       }
 
       return top;
    }
 
    getMinHeight(): number {
-      if(this.containerBottomTabs && this.vsObject.objectType === "VSCalendar") {
+      if(this.vsObject.objectType === "VSCalendar") {
          const obj = this.vsObject as any;
 
-         if(obj.dropdownCalendar && obj.calendarsShown) {
-            return obj.titleFormat.height + VSUtil.CALENDAR_BODY_HEIGHT;
+         if(obj.dropdownCalendar) {
+            if(this.containerBottomTabs && obj.calendarsShown) {
+               return obj.titleFormat.height + VSUtil.CALENDAR_BODY_HEIGHT;
+            }
+            return obj.titleFormat.height;
          }
       }
 
