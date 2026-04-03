@@ -394,7 +394,13 @@ public class ValueOfColumn extends AbstractColumn {
             }
          }
          else {
-            Router router = getRouter(data, ndim);
+            // When ndim == innerDim and data is a facet sub-dataset, the sub-dataset only
+            // contains the rows for this facet (e.g. Q2 = months 4-6). The previous value
+            // may belong to a different facet (e.g. April → March, which is in Q1). Use the
+            // root dataset so the router can find cross-facet previous/next values.
+            DataSet routerData = (ndim.equals(innerDim) && data instanceof DataSetFilter)
+               ? ((DataSetFilter) data).getRootDataSet() : data;
+            Router router = getRouter(routerData, ndim);
             tval = router.getValue(val, ctype == ValueOfCalc.PREVIOUS ? -1 : 1);
          }
 
@@ -440,8 +446,12 @@ public class ValueOfColumn extends AbstractColumn {
          Map<String, Object> cond = createCond(data, ndim, row, ignoreList, tval);
          cond.put(ndim, tval);
 
-         if(!ndim.equals(innerDim)) {
-            data = data instanceof DataSetFilter ? ((DataSetFilter) data).getRootDataSet() : data;
+         // Switch to root dataset for the sub-dataset lookup so that cross-facet rows can be
+         // found (e.g. looking up March when the current data is a Q2 sub-dataset).
+         // This covers both the ndim != innerDim case (original behavior) and the
+         // ndim == innerDim case where the target value may be in a different facet.
+         if(data instanceof DataSetFilter) {
+            data = ((DataSetFilter) data).getRootDataSet();
          }
 
          data = getSubDataSet(data, cond);
