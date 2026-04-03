@@ -9,7 +9,7 @@
     ]
   },
   "include": [
-    "projects/**/*.spec.ts",
+    "projects/**/*.tl.spec.ts",
     "projects/**/*.d.ts",
     "setup-jest.ts",
     "mocks/**/*.ts"
