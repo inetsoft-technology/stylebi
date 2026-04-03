@@ -586,7 +586,8 @@ public class SVGVSExporter extends AbstractVSExporter {
          try {
             VSTableLens baseLens = box.getVSTableLens(base.getAbsoluteName(), false);
 
-            if(baseLens != null && info.getRow() >= baseLens.getRowCount()) {
+            // SVG caps rendered rows at 500 (see getRegionRowCount); use the same limit here
+            if(baseLens != null && info.getRow() >= Math.min(baseLens.getRowCount(), 500)) {
                return;
             }
          }

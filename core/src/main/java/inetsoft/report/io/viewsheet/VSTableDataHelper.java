@@ -20,6 +20,7 @@ package inetsoft.report.io.viewsheet;
 import inetsoft.report.Hyperlink;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.VSTableLens;
+import inetsoft.report.internal.Util;
 import inetsoft.report.io.rtf.RichText;
 import inetsoft.report.io.viewsheet.excel.ExcelVSUtil;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -661,8 +662,14 @@ public abstract class VSTableDataHelper extends ExporterHelper {
                continue;
             }
 
-            // Bug #74471, skip annotations on columns beyond the maxcol limit
+            // Bug #74471, skip annotations on cells truncated by table.output.maxcol/maxrow
             if(aInfo.getCol() >= VSTableLens.getConfiguredMaxCols()) {
+               continue;
+            }
+
+            int maxRows = Util.getTableOutputMaxrow();
+
+            if(maxRows > 0 && aInfo.getRow() >= maxRows) {
                continue;
             }
 
