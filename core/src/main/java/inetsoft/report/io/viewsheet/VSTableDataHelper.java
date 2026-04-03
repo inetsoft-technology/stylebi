@@ -661,6 +661,11 @@ public abstract class VSTableDataHelper extends ExporterHelper {
                continue;
             }
 
+            // Bug #74471, skip annotations on columns beyond the maxcol limit
+            if(aInfo.getCol() >= VSTableLens.getConfiguredMaxCols()) {
+               continue;
+            }
+
             String key = aInfo.getRow() + "_" + aInfo.getCol();
             List<VSAssemblyInfo> list = annotationMap.get(key);
 
