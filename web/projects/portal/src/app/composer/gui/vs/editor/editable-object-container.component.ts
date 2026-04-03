@@ -306,11 +306,10 @@ export class EditableObjectContainer extends AbstractActionComponent
 
       if(this.containerBottomTabs && this.vsObject.objectType === "VSCalendar") {
          const obj = this.vsObject as any;
+         const borderExcess = Tool.getMarginSize(this.vsObject.objectFormat.border.bottom)
+            + Tool.getMarginSize(this.vsObject.objectFormat.border.top);
 
          if(obj.dropdownCalendar) {
-            const borderExcess = Tool.getMarginSize(this.vsObject.objectFormat.border.bottom)
-               + Tool.getMarginSize(this.vsObject.objectFormat.border.top);
-
             if(obj.calendarsShown) {
                return top - VSUtil.CALENDAR_BODY_HEIGHT - borderExcess;
             }
@@ -318,11 +317,10 @@ export class EditableObjectContainer extends AbstractActionComponent
             return top - borderExcess;
          }
 
-         const borderExcess = Tool.getMarginSize(this.vsObject.objectFormat.border.bottom)
-            + Tool.getMarginSize(this.vsObject.objectFormat.border.top);
          return top - borderExcess;
       }
 
+      // composer-only: viewer mode handled by vs-selection.topPosition
       if(this.containerBottomTabs &&
          (this.vsObject.objectType === "VSSelectionList" || this.vsObject.objectType === "VSSelectionTree"))
       {

@@ -349,4 +349,25 @@ describe("EditableObjectContainer", () => {
       fixture.detectChanges();
       expect(fixture.componentInstance.getMinHeight()).toBe(162);
    });
+
+   it("should shift non-dropdown selection up by body height in bottom-tabs", () => {
+      const fixture = TestBed.createComponent(EditableObjectContainer);
+      let tabModel = TestUtils.createMockVSTabModel("Tab1");
+      tabModel.bottomTabs = true;
+      let selModel = TestUtils.createMockVSSelectionListModel("List1");
+      selModel.dropdown = false;
+      selModel.objectFormat.top = 300;
+      selModel.objectFormat.height = 200;
+      selModel.titleFormat.height = 20;
+      selModel.container = "Tab1";
+      selModel.containerType = "VSTab";
+      viewsheet.vsObjects = [tabModel, selModel];
+      fixture.componentInstance.viewsheet = viewsheet;
+      fixture.componentInstance.touchDevice = false;
+      fixture.componentInstance.selectionBorderOffset = 0;
+      fixture.componentInstance.vsObjectModel = selModel;
+      fixture.detectChanges();
+      // bodyHeight = 200 - 20 - 0 = 180; topPosition = 300 - 180 = 120
+      expect(fixture.componentInstance.getTopPosition()).toBe(120);
+   });
 });

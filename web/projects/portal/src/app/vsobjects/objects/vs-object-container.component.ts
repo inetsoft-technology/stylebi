@@ -529,6 +529,7 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
                   return obj?.objectFormat?.top - bodyHeight - searchBarHeight;
                }
                else if(!(<VSSelectionBaseModel> obj).dropdown && inBottomTab) {
+                  // searchDisplayed is always false for non-dropdown, so no searchOffset needed
                   let bodyHeight = this.getSelectionBodyHeight(<VSSelectionBaseModel> obj);
                   return obj?.objectFormat?.top - bodyHeight;
                }
