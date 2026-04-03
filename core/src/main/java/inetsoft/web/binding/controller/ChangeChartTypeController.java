@@ -199,8 +199,11 @@ public class ChangeChartTypeController {
       ChangeChartProcessor.fixTarget(oinfo.getVSChartInfo(), cinfo, desc);
       handleMulti(name, omulti, nmulti, separate, chart, principal, dispatcher, linkUri);
       plotDesc.setStackMeasures(nstackMeasures);
-      plotDesc.setValuesVisible(!GraphTypes.isGantt(cinfo.getChartType()) &&
-         !GraphTypes.isTreemap(cinfo.getChartType()) && !GraphTypes.isCandle(cinfo.getChartType()));
+      if(GraphTypes.isGantt(cinfo.getChartType()) || GraphTypes.isTreemap(cinfo.getChartType()) ||
+         GraphTypes.isCandle(cinfo.getChartType()))
+      {
+         plotDesc.setValuesVisible(false);
+      }
 
       if(!DateComparisonUtil.isDateComparisonChartTypeChanged(ninfo, oinfo)) {
          Catalog catalog = Catalog.getCatalog();
