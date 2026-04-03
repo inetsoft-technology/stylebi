@@ -30,6 +30,7 @@ import inetsoft.uql.viewsheet.internal.DatePeriod;
 import inetsoft.util.Tool;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class ValueOfColumn extends AbstractColumn {
    public ValueOfColumn() {
@@ -372,8 +373,6 @@ public class ValueOfColumn extends AbstractColumn {
       }
       else {
          Object val = data.getData(ndim, row);
-
-
          Object tval = null;
 
          if(ctype >= ValueOfCalc.PREVIOUS_YEAR) {
@@ -409,7 +408,36 @@ public class ValueOfColumn extends AbstractColumn {
             return INVALID;
          }
 
-         Map<String, Object> cond = createCond(data, ndim, row, dcTempGroups, tval);
+         // When ndim is the innermost dimension (no outer-dimension sub-grouping), exclude any
+         // PART_DATE_GROUP sibling dimensions (e.g. QuarterOfYear when looking up previous
+         // MonthOfYear) that share the same base date column. Including them in the lookup
+         // condition causes zero rows when the target value crosses a period boundary (e.g.
+         // April→March crosses Q2→Q1).
+         List<XDimensionRef> ignoreList = dcTempGroups;
+
+         if(ndim.equals(innerDim) && getDimensions() != null) {
+            String ndimBase = getDateColumnBase(ndim);
+
+            if(ndimBase != null) {
+               List<XDimensionRef> partSiblings = getDimensions().stream()
+                  .filter(d -> (d.getDateLevel() & XConstants.PART_DATE_GROUP) != 0)
+                  .filter(d -> !ndim.equals(d.getFullName()))
+                  .filter(d -> ndimBase.equals(getDateColumnBase(d.getFullName())))
+                  .collect(Collectors.toList());
+
+               if(!partSiblings.isEmpty()) {
+                  ignoreList = new ArrayList<>();
+
+                  if(dcTempGroups != null) {
+                     ignoreList.addAll(dcTempGroups);
+                  }
+
+                  ignoreList.addAll(partSiblings);
+               }
+            }
+         }
+
+         Map<String, Object> cond = createCond(data, ndim, row, ignoreList, tval);
          cond.put(ndim, tval);
 
          if(!ndim.equals(innerDim)) {
@@ -425,6 +453,22 @@ public class ValueOfColumn extends AbstractColumn {
 
          return data.getData(field, (ctype == ValueOfCalc.PREVIOUS) ? rcnt - 1 : 0);
       }
+   }
+
+   // Extract the base column name from a date function expression, e.g. "MonthOfYear(Date)" -> "Date".
+   private String getDateColumnBase(String dimName) {
+      if(dimName == null) {
+         return null;
+      }
+
+      int open = dimName.indexOf('(');
+      int close = dimName.lastIndexOf(')');
+
+      if(open >= 0 && close > open) {
+         return dimName.substring(open + 1, close);
+      }
+
+      return null;
    }
 
    // get the minimum date on the date dimention.
