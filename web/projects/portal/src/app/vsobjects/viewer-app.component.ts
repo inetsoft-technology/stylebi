@@ -454,6 +454,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    private initing: boolean = true;
    private serverUpdateIntervalId: any;
    private _active: boolean = true;
+   private _vsConnectionInitialized: boolean = false;
+   private _destroyed: boolean = false;
    private loadingEventCount: number = 0;
    private closeProgressSubject: Subject<any> = new Subject();
    public vsInfo: ViewsheetInfo = new ViewsheetInfo([], null, null, null, this.getOrgId());
@@ -656,7 +658,61 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    ngAfterViewInit(): void {
-      // Do not know the size of the viewsheet pane until after view is init
+      // Force a single check to populate @ViewChild refs (e.g. viewerRoot) when the component
+      // is created while the change detector is detached (inactive tab). This can produce
+      // ExpressionChangedAfterItHasBeenCheckedError in dev mode but is harmless in production.
+      if(!this.viewerRoot) {
+         this.changeDetectorRef.detectChanges();
+      }
+
+      // Do not know the size of the viewsheet pane until after view is init.
+      // If inactive at creation time, defer opening until the tab becomes active so the VS is
+      // opened with the correct viewport size rather than 0x0.
+      if(this._active) {
+         this.initViewsheetConnection();
+      }
+
+      if(this.viewerRoot?.nativeElement) {
+         this.zone.runOutsideAngular(() => {
+            new ResizeSensor(this.viewerRoot.nativeElement, () => {
+               this.onViewerRootResizeEvent();
+            });
+         });
+      }
+
+      this.dataTipService.viewerOffsetFunc = this.setDataTipOffsets.bind(this);
+      this.popComponentService.viewerOffsetFunc = this.setDataTipOffsets.bind(this);
+      this.popComponentService.getComponentModelFunc = this.getComponentModel.bind(this);
+
+      if(this.embed) {
+         this.handleDataTipPopComponentChanges();
+         const overlayContainer = document.getElementById("inetsoft-viewer-overlay");
+
+         if(overlayContainer) {
+            this.dialogService.container = overlayContainer;
+         }
+      }
+
+      // Feed to trigger scroll viewport sizing when the root is visible.
+      this.intersectionObserver = new IntersectionObserver((entries) => {
+         entries.forEach(entry => {
+            if(entry.isIntersecting) {
+               this.updateScrollViewport();
+            }
+         });
+      }, { root: null, rootMargin: "0px", threshold: 0.5});
+      if(this.viewerRoot?.nativeElement) {
+         this.intersectionObserver.observe(this.viewerRoot.nativeElement);
+      }
+   }
+
+   private initViewsheetConnection(): void {
+      if(this._vsConnectionInitialized) {
+         return;
+      }
+
+      this._vsConnectionInitialized = true;
+
       if(this.preview && this.runtimeId) {
          this.viewsheetClient.connect();
          this.viewsheetClient.beforeDestroy = () => this.beforeDestroy();
@@ -685,39 +741,6 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       else {
          console.error("The runtime or asset identifier must be provided");
       }
-
-      if(this.viewerRoot?.nativeElement) {
-         this.zone.runOutsideAngular(() => {
-            new ResizeSensor(this.viewerRoot.nativeElement, () => {
-               this.onViewerRootResizeEvent();
-            });
-         });
-      }
-
-      this.dataTipService.viewerOffsetFunc = this.setDataTipOffsets.bind(this);
-      this.popComponentService.viewerOffsetFunc = this.setDataTipOffsets.bind(this);
-      this.popComponentService.getComponentModelFunc = this.getComponentModel.bind(this);
-
-      if(this.embed) {
-         this.handleDataTipPopComponentChanges();
-         const overlayContainer = document.getElementById("inetsoft-viewer-overlay");
-
-         if(overlayContainer) {
-            this.dialogService.container = overlayContainer;
-         }
-      }
-
-      // Feed to trigger scroll viewport sizing when the root is visible. For example, if the
-      // application is in an iframe in a Bootstrap tab component, the viewport rect will not be
-      // initialized until the tab is switched and the root element is actually visible.
-      this.intersectionObserver = new IntersectionObserver((entries) => {
-         entries.forEach(entry => {
-            if(entry.isIntersecting) {
-               this.updateScrollViewport();
-            }
-         });
-      }, { root: null, rootMargin: "0px", threshold: 0.5});
-      this.intersectionObserver.observe(this.viewerRoot.nativeElement);
    }
 
    ngAfterContentInit(): void {
@@ -729,6 +752,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    ngOnDestroy(): void {
+      this._destroyed = true;
+
       // for some reason dialogService is not destroyed (angular 5)
       this.dialogService.ngOnDestroy();
 
@@ -767,6 +792,16 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          }
          else {
             this.changeDetectorRef.reattach();
+
+            // If the viewer-app was created while inactive, initialize the viewsheet connection now that we have
+            // the correct viewport dimensions.
+            if(!this._vsConnectionInitialized) {
+               setTimeout(() => {
+                  if(!this._destroyed) {
+                     this.initViewsheetConnection();
+                  }
+               }, 0);
+            }
          }
 
          // update preview viewsheet when it is changed to focused sheet,
