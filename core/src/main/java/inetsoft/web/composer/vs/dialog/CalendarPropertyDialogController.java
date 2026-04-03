@@ -339,9 +339,12 @@ public class CalendarPropertyDialogController {
                   info.setShowType(CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE);
                   info.fixCalendarSize();
                   Dimension size = info.getPixelSize();
+                  // fall back to default height if fixCalendarSize() no-ops due to
+                  // typeSValid/modeSValid being false (e.g. no prior script execution)
                   int calendarHeight = size != null ? size.height :
                      CalendarVSAssemblyInfo.DEFAULT_CALENDAR_HEIGHT;
                   info.setPixelOffset(new Point(x, tabTop - calendarHeight));
+                  info.setShowType(type);
                }
             }
          }

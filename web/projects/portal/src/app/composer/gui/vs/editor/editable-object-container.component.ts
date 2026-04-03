@@ -329,7 +329,12 @@ export class EditableObjectContainer extends AbstractActionComponent
          const obj = this.vsObject as any;
 
          if(!obj.dropdown) {
-            const bodyHeight = this.vsObject.objectFormat.height - (obj.titleFormat?.height ?? 0);
+            const bottomMargin = Tool.getMarginSize(this.vsObject.objectFormat.border.bottom);
+            const topMargin = Tool.getMarginSize(this.vsObject.objectFormat.border.top);
+            const titleTopMargin = Tool.getMarginSize(obj.titleFormat?.border?.top);
+            const offset = Math.max(0, bottomMargin + topMargin - titleTopMargin);
+            const bodyHeight = this.vsObject.objectFormat.height
+               - (obj.titleFormat?.height ?? 0) - offset;
             return top - bodyHeight;
          }
       }

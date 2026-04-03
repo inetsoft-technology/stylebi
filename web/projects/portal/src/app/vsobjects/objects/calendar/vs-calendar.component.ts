@@ -120,7 +120,7 @@ export class VSCalendar extends NavigationComponent<VSCalendarModel>
    set model(value: VSCalendarModel) {
       this._model = value;
       this._model.objectHeight = this._model.dropdownCalendar
-         ? this._model.titleFormat.height : this._model.objectFormat.height;
+         ? this._model.titleFormat?.height : this._model.objectFormat.height;
       this.updateSelectedTitle();
    }
 

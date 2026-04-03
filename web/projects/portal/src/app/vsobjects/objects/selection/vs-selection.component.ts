@@ -235,7 +235,8 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
          }
       }
 
-      // composer mode: shift up relative to wrapper
+      // composer mode: shift up relative to wrapper.
+      // non-dropdown case is handled by editable-object-container.getTopPosition()
       if(!(this.viewer || this.embeddedVS)
          && this.model.dropdown && !SelectionBaseController.isHidden(this.model)
          && inBottomTab)
