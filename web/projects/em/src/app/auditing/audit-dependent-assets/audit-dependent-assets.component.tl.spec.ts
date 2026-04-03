@@ -34,7 +34,7 @@ import { firstValueFrom } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
 import { MatSelectStub, makeErrorServiceMock } from "../testing/audit-test-utils";
 
-import { it } from "@jest/globals";
+import { it } from "@jest/globals";  //must be import, or it.failing didn't work
 import { server } from "../../../../../../mocks/server";
 import { AuditDependentAssetsComponent } from "./audit-dependent-assets.component";
 import { PageHeaderService } from "../../page-header/page-header.service";

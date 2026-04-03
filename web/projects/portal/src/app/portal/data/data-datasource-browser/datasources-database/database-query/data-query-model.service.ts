@@ -50,7 +50,7 @@ const UPDATE_QUERY_VARIABLES_URL = "../api/data/datasource/query/variables/updat
 
 @Injectable()
 export class DataQueryModelService {
-   private _modelChange: Subject<() => void> = new Subject<any>();
+   private _modelChange: Subject<() => void> = new Subject<() => void>();
    private _graphViewChange: Subject<void> = new Subject<void>();
    private _unjoinedTables: string[] = [];
 

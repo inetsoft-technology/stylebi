@@ -31,7 +31,8 @@ export class AsyncQueuedSubject<T> extends Subject<T> {
    private subscribed = false;
    private scheduled = false;
 
-   next(value?: T): void {
+   // Callers that need to invoke next() without an argument should use AsyncQueuedSubject<void>.
+   next(value: T): void {
       if(!this.subscribed) {
          this.queue.push(value);
          super.next(value);
@@ -45,12 +46,15 @@ export class AsyncQueuedSubject<T> extends Subject<T> {
    }
 
    public _subscribe(subscriber: Subscriber<T>): Subscription {
+      // HACK: super["_subscribe"] accesses an undocumented internal RxJS 7 Subject method.
+      // TypeScript 4.x+ disallows calling super._subscribe directly outside a constructor context.
+      // Must be revisited when upgrading RxJS beyond 7.x.
       let subscription: Subscription = super["_subscribe"](subscriber);
 
       if(!this.subscribed) {
          this.subscribed = true;
          const values = this.queue;
-         this.queue = null;
+         this.queue = [];
          const len = values.length;
 
          if(len > 0) {
