@@ -27,12 +27,12 @@ import { CurrentUser } from "../../portal/src/app/portal/current-user";
 export class CurrentUserService {
    private emCurrentUser$: Observable<CurrentUser> =
       this.http.get<CurrentUser>("../api/em/security/get-current-user").pipe(
-         shareReplay({ bufferSize: 1, refCount: false })
+         shareReplay({ bufferSize: 1, refCount: true })
       );
 
    private portalCurrentUser$: Observable<CurrentUser> =
       this.http.get<CurrentUser>("../api/portal/get-current-user").pipe(
-         shareReplay({ bufferSize: 1, refCount: false })
+         shareReplay({ bufferSize: 1, refCount: true })
       );
 
    constructor(private http: HttpClient) {}

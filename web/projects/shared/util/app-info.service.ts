@@ -29,7 +29,7 @@ export class AppInfoService implements OnDestroy {
    private ldapProviderUsed = new BehaviorSubject<boolean>(false);
    currentOrgInfo = new BehaviorSubject<CommonKVModel<string, string>>(null);
    private readonly enterprise$ = this.httpClient.get<boolean>("../api/enterprise").pipe(
-      shareReplay({ bufferSize: 1, refCount: false })
+      shareReplay({ bufferSize: 1, refCount: true })
    );
 
    constructor(private httpClient: HttpClient) {
