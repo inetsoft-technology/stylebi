@@ -53,7 +53,10 @@ public interface ScaleRange extends Cloneable, Serializable {
     * @param cols     the numeric columns to find range values.
     * @param selector select which rows are included in calculation.
     *
-    * @return an array of two values, minimum and maximum of the range.
+    * @return an array of two values, minimum and maximum of the range, or
+    *         {@code {Double.NaN, Double.NaN}} if no data was found for the
+    *         specified columns. Callers must guard against NaN before using
+    *         the result in min/max comparisons.
     */
    public double[] calculate(DataSet dataset, String[] cols, GraphtDataSelector selector);
 

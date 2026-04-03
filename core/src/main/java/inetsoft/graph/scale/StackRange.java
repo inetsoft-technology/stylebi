@@ -133,8 +133,10 @@ public class StackRange extends AbstractScaleRange {
          String[] cols2 = all.toArray(new String[all.size()]);
          double[] range2 = new LinearRange().calculate(data, cols2, selector);
 
-         range[0] = Math.min(range[0], range2[0]);
-         range[1] = Math.max(range[1], range2[1]);
+         if(!Double.isNaN(range2[0])) {
+            range[0] = Math.min(range[0], range2[0]);
+            range[1] = Math.max(range[1], range2[1]);
+         }
       }
 
       for(int i = 0; i < fields.size(); i++) {
