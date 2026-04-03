@@ -15,9 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Input, OnInit, ViewChild, TemplateRef } from "@angular/core";
+import { Component, Input, OnInit, OnDestroy, ViewChild, TemplateRef } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { Subscription } from "rxjs";
 import { ValueMode } from "../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { LegendFormatGeneralPaneModel } from "../model/dialog/legend-format-general-pane-model";
 import { FormValidators } from "../../../../../shared/util/form-validators";
@@ -29,12 +30,13 @@ import { UIContextService } from "../../common/services/ui-context.service";
    selector: "legend-format-general-pane",
    templateUrl: "legend-format-general-pane.component.html",
 })
-export class LegendFormatGeneralPane implements OnInit {
+export class LegendFormatGeneralPane implements OnInit, OnDestroy {
    public mode: ValueMode = ValueMode.TEXT;
    @Input() variableValues: string[] = [];
    @Input() model: LegendFormatGeneralPaneModel;
    @Input() form: UntypedFormGroup;
    @Input() vsId: string = null;
+   private symbolSizeSubscription: Subscription;
 
    constructor(private modalService: NgbModal,
                private uiContextService: UIContextService)
@@ -130,10 +132,18 @@ export class LegendFormatGeneralPane implements OnInit {
          Validators.min(6),
          Validators.max(50)
       ]));
+      this.symbolSizeSubscription = this.form.controls["symbolSize"].valueChanges
+         .subscribe(value => this.model.symbolSize = value);
    }
 
    ngOnInit(): void {
       this.initForm();
+   }
+
+   ngOnDestroy(): void {
+      if(this.symbolSizeSubscription) {
+         this.symbolSizeSubscription.unsubscribe();
+      }
    }
 
    onValueChange(value: string) {
