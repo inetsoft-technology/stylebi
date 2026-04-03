@@ -25,6 +25,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.*;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.condition.ExpressionValueModel;
 import inetsoft.web.composer.model.vs.VariableListDialogModel;
@@ -234,6 +235,16 @@ public class VariableAssemblyDialogController extends WorksheetController {
       }
       else {
          AssetVariable ovar = assembly.getVariable();
+
+         // If the variable name changed, rename the assembly so all dependent assemblies are updated
+         if(!Tool.equals(model.getOldName(), model.getNewName())) {
+            boolean renamed = ws.renameAssembly(model.getOldName(), model.getNewName(), true);
+
+            if(!renamed) {
+               throw new MessageException("Unable to rename assembly " + model.getOldName() + " to " + model.getNewName());
+            }
+         }
+
          assembly.setVariable(convertModelToAssetVariable(model, ws));
 
          // clear out remembered variable value in case default value changed
