@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -23,7 +23,6 @@
  *   Group 1 — fetchParameters: API state binding + error recovery
  *   Group 2 — fetchData: HTTP param construction
  *   Group 3 — clearFolders / clearTasks: filter mutual exclusion
- *   Group 4 — Design gap: organizationId column renderer vs displayedColumns
  *
  * Encoding contract for task params (intentional, NOT a bug):
  *   fetchData applies encodeURIComponent() to task assetIds before passing them to
@@ -38,35 +37,20 @@
  *   Other filter params (users, folders, hosts, organizations) are NOT pre-encoded because
  *   the server only decodes them once.
  */
-import { Component, forwardRef, NO_ERRORS_SCHEMA } from "@angular/core";
-import { ControlValueAccessor, NG_VALUE_ACCESSOR, ReactiveFormsModule } from "@angular/forms";
+import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { ReactiveFormsModule } from "@angular/forms";
 import { HttpClientModule, HttpParams } from "@angular/common/http";
 import { render } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
-import { firstValueFrom, Observable, throwError } from "rxjs";
+import { firstValueFrom } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
+import { MatSelectStub, makeErrorServiceMock } from "../testing/audit-test-utils";
 
 import { server } from "../../../../../../mocks/server";
 import { AuditScheduleHistoryComponent } from "./audit-schedule-history.component";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { ScheduleHistoryParameters } from "./schedule-history";
-
-// ---------------------------------------------------------------------------
-// Stubs
-// ---------------------------------------------------------------------------
-
-/** Minimal stub so Angular Forms can find a ControlValueAccessor for mat-select. */
-@Component({
-   selector: "mat-select",
-   template: "",
-   providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => MatSelectStub), multi: true }],
-})
-class MatSelectStub implements ControlValueAccessor {
-   writeValue() {}
-   registerOnChange() {}
-   registerOnTouched() {}
-}
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -90,22 +74,9 @@ const EMPTY_ADDITIONAL = {
    selectedUsers:     [] as string[],
    selectedFolders:   [] as string[],
    selectedHosts:     [] as string[],
-   selectOrganization: [] as string[],
+   selectOrganization: [] as string[],   // intentional: component reads additional.selectOrganization (no "d")
 };
 
-/**
- * Factory for the ErrorHandlerService mock.
- * Mirrors the real implementation: when a resultProducer is supplied it is called
- * and its Observable is returned; otherwise the error is re-thrown.
- */
-function makeErrorServiceMock() {
-   return {
-      showSnackBar: jest.fn().mockImplementation(
-         (error: any, _msg: string, producer?: () => Observable<any>) =>
-            producer ? producer() : throwError(() => error)
-      ),
-   };
-}
 
 /** Renders the component with NO_ERRORS_SCHEMA so em-audit-table-view is stubbed. */
 async function renderComponent(errorService = makeErrorServiceMock()) {
@@ -360,29 +331,5 @@ describe("AuditScheduleHistoryComponent — clearFolders / clearTasks", () => {
       comp.clearFolders({ value: [] });
 
       expect(comp.form.get("selectedFolders")!.value).toEqual(["Finance"]);
-   });
-});
-
-// ---------------------------------------------------------------------------
-// Group 4: Design gap — organizationId column renderer vs displayedColumns
-// ---------------------------------------------------------------------------
-
-describe("AuditScheduleHistoryComponent — column configuration", () => {
-
-   // P2 / Design gap
-   // columnRenderers includes an 'organizationId' entry (line 77) but displayedColumns does not
-   // (lines 64-66). getDisplayedColumns() always returns the static displayedColumns array, so
-   // the organization ID column is never rendered in the table even when organizationFilter is true.
-   //
-   // This test documents the current state. If the column is intentionally hidden, it is expected
-   // to pass indefinitely. If it should be shown when organizationFilter is active, this is a bug
-   // and the component needs a dynamic getDisplayedColumns() that inserts 'organizationId'.
-   it("should have an organizationId entry in columnRenderers but not in displayedColumns", async () => {
-      const { fixture } = await renderComponent();
-      const comp = fixture.componentInstance;
-
-      const rendererNames = comp.columnRenderers.map(r => r.name);
-      expect(rendererNames).toContain("organizationId");
-      expect(comp.getDisplayedColumns()).not.toContain("organizationId");
    });
 });

@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -26,35 +26,20 @@
  *   Group 4 — fetchData: HTTP param construction + error recovery
  *   Group 5 — Design gap: organizationId column renderer vs displayedColumns
  */
-import { Component, forwardRef, NO_ERRORS_SCHEMA } from "@angular/core";
-import { ControlValueAccessor, NG_VALUE_ACCESSOR, ReactiveFormsModule } from "@angular/forms";
+import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { ReactiveFormsModule } from "@angular/forms";
 import { HttpClientModule, HttpParams } from "@angular/common/http";
 import { render } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
-import { firstValueFrom, Observable, throwError } from "rxjs";
+import { firstValueFrom } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
+import { MatSelectStub, makeErrorServiceMock } from "../testing/audit-test-utils";
 
 import { server } from "../../../../../../mocks/server";
 import { AuditIdentityInfoComponent } from "./audit-identity-info.component";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { IdentityInfoParameters } from "./identity-info";
-
-// ---------------------------------------------------------------------------
-// Stubs
-// ---------------------------------------------------------------------------
-
-/** Minimal stub so Angular Forms can find a ControlValueAccessor for mat-select. */
-@Component({
-   selector: "mat-select",
-   template: "",
-   providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => MatSelectStub), multi: true }],
-})
-class MatSelectStub implements ControlValueAccessor {
-   writeValue() {}
-   registerOnChange() {}
-   registerOnTouched() {}
-}
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -79,19 +64,6 @@ const EMPTY_ADDITIONAL = {
    selectedOrganizations: [] as string[],
 };
 
-/**
- * Factory for the ErrorHandlerService mock.
- * Mirrors the real implementation: when a resultProducer is supplied it is called
- * and its Observable is returned; otherwise the error is re-thrown.
- */
-function makeErrorServiceMock() {
-   return {
-      showSnackBar: jest.fn().mockImplementation(
-         (error: any, _msg: string, producer?: () => Observable<any>) =>
-            producer ? producer() : throwError(() => error)
-      ),
-   };
-}
 
 /**
  * Renders the component with NO_ERRORS_SCHEMA so child components are stubbed.
@@ -284,27 +256,72 @@ describe("AuditIdentityInfoComponent — fetchData", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Group 5: Design gap — organizationId column renderer vs displayedColumns
+// Group 5: getTypeLabel() — identity type code to i18n label mapping
 // ---------------------------------------------------------------------------
 
-describe("AuditIdentityInfoComponent — column configuration", () => {
+describe("AuditIdentityInfoComponent — getTypeLabel()", () => {
 
-   // P2 / Design gap
-   // columnRenderers includes an 'organizationId' entry but _displayedColumns does not
-   // (it contains only 7 entries: name, type, actionType, actionTime, actionDescription,
-   // state, server). The displayedColumns getter returns _displayedColumns directly, so
-   // the organization ID column is never rendered in the table even when organizationFilter
-   // is true.
-   //
-   // This test documents the current state. If the column is intentionally hidden it is
-   // expected to pass indefinitely. If it should be shown when organizationFilter is active,
-   // this is a bug and the component needs a dynamic displayedColumns getter.
-   it("should have an organizationId entry in columnRenderers but not in displayedColumns getter", async () => {
+   // P1 / Happy — all four known codes map to their i18n tokens
+   it.each([
+      ["u", "_#(js:User)"],
+      ["g", "_#(js:Group)"],
+      ["r", "_#(js:Role)"],
+      ["o", "_#(js:Organization)"],
+   ])("should return '%s' label for type code '%s'", async (code, expected) => {
       const { fixture } = await renderComponent();
-      const comp = fixture.componentInstance;
+      expect(fixture.componentInstance.getTypeLabel(code)).toBe(expected);
+   });
 
-      const rendererNames = comp.columnRenderers.map(r => r.name);
-      expect(rendererNames).toContain("organizationId");
-      expect(comp.displayedColumns).not.toContain("organizationId");
+   // P1 / Boundary — unknown code is passed through unchanged
+   it("should return the original value for an unknown type code", async () => {
+      const { fixture } = await renderComponent();
+      expect(fixture.componentInstance.getTypeLabel("x")).toBe("x");
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 6: getActionTypeLabel() — action code to i18n label mapping
+// ---------------------------------------------------------------------------
+
+describe("AuditIdentityInfoComponent — getActionTypeLabel()", () => {
+
+   // P1 / Happy — all four known codes map to their i18n tokens
+   it.each([
+      ["c", "_#(js:Create)"],
+      ["d", "_#(js:Delete)"],
+      ["m", "_#(js:Modify)"],
+      ["r", "_#(js:Rename)"],
+   ])("should return '%s' label for action code '%s'", async (code, expected) => {
+      const { fixture } = await renderComponent();
+      expect(fixture.componentInstance.getActionTypeLabel(code)).toBe(expected);
+   });
+
+   // P1 / Boundary — unknown code is passed through unchanged
+   it("should return the original value for an unknown action code", async () => {
+      const { fixture } = await renderComponent();
+      expect(fixture.componentInstance.getActionTypeLabel("z")).toBe("z");
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 7: getStateLabel() — state code to display label mapping
+// ---------------------------------------------------------------------------
+
+describe("AuditIdentityInfoComponent — getStateLabel()", () => {
+
+   // P1 / Happy — all three known state codes map to their display labels
+   it.each([
+      ["0", "_#(js:Active)"],
+      ["1", "_#(js:Inactive)"],
+      ["2", "_#(js:None)"],
+   ])("should return '%s' label for state code '%s'", async (code, expected) => {
+      const { fixture } = await renderComponent();
+      expect(fixture.componentInstance.getStateLabel(code)).toBe(expected);
+   });
+
+   // P1 / Boundary — unknown code is passed through unchanged
+   it("should return the original value for an unknown state code", async () => {
+      const { fixture } = await renderComponent();
+      expect(fixture.componentInstance.getStateLabel("9")).toBe("9");
    });
 });

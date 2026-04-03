@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -23,7 +23,6 @@
  *   Group 1 — fetchParameters: API state binding, maxDuration logic, error recovery
  *   Group 2 — fetchData: HTTP param construction, duration falsy guard
  *   Group 3 — maxStartDuration / minEndDuration: slider bound computed properties
- *   Group 4 — Design gap: organizationId column renderer vs displayedColumns
  *
  * maxDuration update logic in fetchParameters:
  *   The component only updates this.maxDuration (and the form control) when two
@@ -36,35 +35,20 @@
  *   minDuration and maxDuration are only appended when the form value is truthy
  *   (non-zero). This means duration 0 is treated as "no filter" and omitted.
  */
-import { Component, forwardRef, NO_ERRORS_SCHEMA } from "@angular/core";
-import { ControlValueAccessor, NG_VALUE_ACCESSOR, ReactiveFormsModule } from "@angular/forms";
+import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { ReactiveFormsModule } from "@angular/forms";
 import { HttpClientModule, HttpParams } from "@angular/common/http";
 import { render } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
-import { firstValueFrom, Observable, throwError } from "rxjs";
+import { firstValueFrom } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
+import { MatSelectStub, makeErrorServiceMock } from "../testing/audit-test-utils";
 
 import { server } from "../../../../../../mocks/server";
 import { AuditUserSessionComponent } from "./audit-user-session.component";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { UserSessionParameters } from "./user-session";
-
-// ---------------------------------------------------------------------------
-// Stubs
-// ---------------------------------------------------------------------------
-
-/** Minimal stub so Angular Forms can find a ControlValueAccessor for mat-select. */
-@Component({
-   selector: "mat-select",
-   template: "",
-   providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => MatSelectStub), multi: true }],
-})
-class MatSelectStub implements ControlValueAccessor {
-   writeValue() {}
-   registerOnChange() {}
-   registerOnTouched() {}
-}
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -89,19 +73,6 @@ const EMPTY_ADDITIONAL = {
    maxDuration: 0,
 };
 
-/**
- * Factory for the ErrorHandlerService mock.
- * When a resultProducer is supplied it is called and its Observable is returned;
- * otherwise the error is re-thrown.
- */
-function makeErrorServiceMock() {
-   return {
-      showSnackBar: jest.fn().mockImplementation(
-         (error: any, _msg: string, producer?: () => Observable<any>) =>
-            producer ? producer() : throwError(() => error)
-      ),
-   };
-}
 
 /** Renders the component with NO_ERRORS_SCHEMA so em-audit-table-view is stubbed. */
 async function renderComponent(errorService = makeErrorServiceMock()) {
@@ -303,25 +274,5 @@ describe("AuditUserSessionComponent — slider bound getters", () => {
       // If minDuration is raised on the form, Math.min(form, comp.minDuration=0) = 0
       comp.form.get("minDuration")!.setValue(100, { emitEvent: false });
       expect(comp.minEndDuration).toBe(0);
-   });
-});
-
-// ---------------------------------------------------------------------------
-// Group 4: Design gap — organizationId column renderer vs displayedColumns
-// ---------------------------------------------------------------------------
-
-describe("AuditUserSessionComponent — column configuration", () => {
-
-   // P2 / Design gap
-   // columnRenderers includes an 'organizationId' entry but _displayedColumns does not.
-   // The displayedColumns getter always returns the static array, so the organization
-   // ID column is never rendered even when multi-tenancy is active.
-   it("should have an organizationId entry in columnRenderers but not in displayedColumns", async () => {
-      const { fixture } = await renderComponent();
-      const comp = fixture.componentInstance;
-
-      const rendererNames = comp.columnRenderers.map(r => r.name);
-      expect(rendererNames).toContain("organizationId");
-      expect(comp.displayedColumns).not.toContain("organizationId");
    });
 });

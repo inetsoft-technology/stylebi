@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -22,44 +22,29 @@
  * Risk-first coverage (from scenario analysis):
  *   Group 1 — fetchParameters: API state binding + error recovery
  *   Group 2 — fetchData: HTTP param construction
- *   Group 3 — Design gap: organizationId column renderer vs displayedColumns
  *
  * Known design gap in the error fallback (test 2):
  *   The catchError fallback object does NOT include systemAdministrator, so after
  *   an API error, this.systemAdministrator is set to undefined (not false).
  *   The component field initialises to false but tap() overwrites it with
  *   params.systemAdministrator which is absent from the fallback shape.
- *   Documented with xit so the test suite stays green while the gap is visible.
+ *   Documented with it.failing so the test suite stays green while the gap is visible.
  */
-import { Component, forwardRef, NO_ERRORS_SCHEMA } from "@angular/core";
-import { ControlValueAccessor, NG_VALUE_ACCESSOR, ReactiveFormsModule } from "@angular/forms";
+import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { ReactiveFormsModule } from "@angular/forms";
 import { HttpClientModule, HttpParams } from "@angular/common/http";
 import { render } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
-import { firstValueFrom, Observable, throwError } from "rxjs";
+import { firstValueFrom } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
+import { MatSelectStub, makeErrorServiceMock } from "../testing/audit-test-utils";
 
+import { it } from "@jest/globals";
 import { server } from "../../../../../../mocks/server";
 import { AuditLogonErrorComponent } from "./audit-logon-error.component";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { LogonErrorParameters } from "./logon-error";
-
-// ---------------------------------------------------------------------------
-// Stubs
-// ---------------------------------------------------------------------------
-
-/** Minimal stub so Angular Forms can find a ControlValueAccessor for mat-select. */
-@Component({
-   selector: "mat-select",
-   template: "",
-   providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => MatSelectStub), multi: true }],
-})
-class MatSelectStub implements ControlValueAccessor {
-   writeValue() {}
-   registerOnChange() {}
-   registerOnTouched() {}
-}
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -81,19 +66,6 @@ const EMPTY_ADDITIONAL = {
    selectedHosts: [] as string[],
 };
 
-/**
- * Factory for the ErrorHandlerService mock.
- * When a resultProducer is supplied it is called and its Observable is returned;
- * otherwise the error is re-thrown.
- */
-function makeErrorServiceMock() {
-   return {
-      showSnackBar: jest.fn().mockImplementation(
-         (error: any, _msg: string, producer?: () => Observable<any>) =>
-            producer ? producer() : throwError(() => error)
-      ),
-   };
-}
 
 /** Renders the component with NO_ERRORS_SCHEMA so em-audit-table-view is stubbed. */
 async function renderComponent(errorService = makeErrorServiceMock()) {
@@ -138,7 +110,7 @@ describe("AuditLogonErrorComponent — fetchParameters", () => {
    // tap() assigns params.systemAdministrator = undefined, overwriting the
    // initialised false value. The component should preserve false on error,
    // but currently it does not.
-   xit("should keep systemAdministrator as false after an error (currently becomes undefined due to missing field in fallback)", async () => {
+   it.failing("should keep systemAdministrator as false after an error (currently becomes undefined due to missing field in fallback)", async () => {
       const errorService = makeErrorServiceMock();
       const { fixture } = await renderComponent(errorService);
 
@@ -252,29 +224,5 @@ describe("AuditLogonErrorComponent — fetchData", () => {
 
       expect(capturedUrl!.searchParams.has("users")).toBe(false);
       expect(capturedUrl!.searchParams.has("hosts")).toBe(false);
-   });
-});
-
-// ---------------------------------------------------------------------------
-// Group 3: Design gap — organizationId column renderer vs displayedColumns
-// ---------------------------------------------------------------------------
-
-describe("AuditLogonErrorComponent — column configuration", () => {
-
-   // P2 / Design gap
-   // columnRenderers includes an 'organizationId' entry but _displayedColumns does not.
-   // The displayedColumns getter always returns the static array, so the organization
-   // ID column is never rendered even when multi-tenancy is active.
-   //
-   // This test documents the current state. If intentionally hidden it will pass
-   // indefinitely. If it should be shown for multi-tenant deployments, the component
-   // needs a dynamic getter that conditionally inserts 'organizationId'.
-   it("should have an organizationId entry in columnRenderers but not in displayedColumns", async () => {
-      const { fixture } = await renderComponent();
-      const comp = fixture.componentInstance;
-
-      const rendererNames = comp.columnRenderers.map(r => r.name);
-      expect(rendererNames).toContain("organizationId");
-      expect(comp.displayedColumns).not.toContain("organizationId");
    });
 });

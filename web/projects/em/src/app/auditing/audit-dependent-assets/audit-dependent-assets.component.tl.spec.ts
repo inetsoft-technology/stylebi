@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -25,35 +25,21 @@
  *   Group 3 — fetchData: fallback to all targetAssets when selectedTargetAssets is empty
  *   Group 4 — fetchParameters: reads form state to build HTTP params
  */
-import { Component, forwardRef, NO_ERRORS_SCHEMA } from "@angular/core";
-import { ControlValueAccessor, NG_VALUE_ACCESSOR, ReactiveFormsModule } from "@angular/forms";
+import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { ReactiveFormsModule } from "@angular/forms";
 import { HttpClientModule, HttpParams } from "@angular/common/http";
 import { render } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
-import { firstValueFrom, Observable, throwError } from "rxjs";
+import { firstValueFrom } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
+import { MatSelectStub, makeErrorServiceMock } from "../testing/audit-test-utils";
 
+import { it } from "@jest/globals";
 import { server } from "../../../../../../mocks/server";
 import { AuditDependentAssetsComponent } from "./audit-dependent-assets.component";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { NONE_USER } from "./dependency-util";
-
-// ---------------------------------------------------------------------------
-// Stubs
-// ---------------------------------------------------------------------------
-
-/** Minimal stub so Angular Forms can find a ControlValueAccessor for mat-select. */
-@Component({
-   selector: "mat-select",
-   template: "",
-   providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => MatSelectStub), multi: true }],
-})
-class MatSelectStub implements ControlValueAccessor {
-   writeValue() {}
-   registerOnChange() {}
-   registerOnTouched() {}
-}
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -76,17 +62,6 @@ const EMPTY_ADDITIONAL = {
    selectedDependentUsers: [] as string[],
 };
 
-/**
- * Factory for the ErrorHandlerService mock.
- */
-function makeErrorServiceMock() {
-   return {
-      showSnackBar: jest.fn().mockImplementation(
-         (error: any, _msg: string, producer?: () => Observable<any>) =>
-            producer ? producer() : throwError(() => error)
-      ),
-   };
-}
 
 /**
  * Sets up the parameters endpoint before rendering so that
@@ -129,7 +104,6 @@ describe("AuditDependentAssetsComponent — onTargetTypeChange", () => {
    // Selecting VIEWSHEET (a user asset type) must populate targetUsers with allUsers.
    // allUsers is set by fetchParameters tap() which maps users to {value,label} entries.
    it("should expand targetUsers to include allUsers when target type is VIEWSHEET", async () => {
-      setupParamsEndpoint();
       const { fixture } = await renderComponent();
       const comp = fixture.componentInstance;
 
@@ -182,13 +156,13 @@ describe("AuditDependentAssetsComponent — onDependentTypesChange", () => {
       expect(comp.dependentUsers).toEqual([NONE_USER]);
    });
 
-   // P0 / Bug — dependentUsers initial reference is stale after fetchParameters
+   // P0 / Bug #74453 — dependentUsers initial reference is stale after fetchParameters
    // dependentUsers is initialized as `this.allUsers` (reference to the initial []).
    // fetchParameters tap() reassigns this.allUsers to a brand-new array, breaking the
    // reference: dependentUsers still points to the old [] and stays empty until
    // onDependentTypesChange is triggered manually by the user.
    // Fix: reassign dependentUsers inside the tap() alongside allUsers.
-   xit("should populate dependentUsers after fetchParameters resolves without any type-change interaction", async () => {
+   it.failing("should populate dependentUsers after fetchParameters resolves without any type-change interaction", async () => {
       const { fixture } = await renderComponent();
       const comp = fixture.componentInstance;
 
