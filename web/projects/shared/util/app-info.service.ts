@@ -25,7 +25,6 @@ import { CommonKVModel } from "../../portal/src/app/common/data/common-kv-model"
 @Injectable({
    providedIn: "root"
 })
-@Injectable()
 export class AppInfoService implements OnDestroy {
    private ldapProviderUsed = new BehaviorSubject<boolean>(false);
    currentOrgInfo = new BehaviorSubject<CommonKVModel<string, string>>(null);

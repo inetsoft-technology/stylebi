@@ -17,28 +17,23 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
-import { Observable, Subject } from "rxjs";
-import { shareReplay, startWith, switchMap } from "rxjs/operators";
+import { Observable } from "rxjs";
+import { shareReplay } from "rxjs/operators";
 import { CurrentUser } from "../../portal/src/app/portal/current-user";
 
 @Injectable({
    providedIn: "root"
 })
 export class CurrentUserService {
-   private emReload$ = new Subject<void>();
-   private portalReload$ = new Subject<void>();
+   private emCurrentUser$: Observable<CurrentUser> =
+      this.http.get<CurrentUser>("../api/em/security/get-current-user").pipe(
+         shareReplay({ bufferSize: 1, refCount: false })
+      );
 
-   private emCurrentUser$: Observable<CurrentUser> = this.emReload$.pipe(
-      startWith(undefined as void),
-      switchMap(() => this.http.get<CurrentUser>("../api/em/security/get-current-user")),
-      shareReplay({ bufferSize: 1, refCount: false })
-   );
-
-   private portalCurrentUser$: Observable<CurrentUser> = this.portalReload$.pipe(
-      startWith(undefined as void),
-      switchMap(() => this.http.get<CurrentUser>("../api/portal/get-current-user")),
-      shareReplay({ bufferSize: 1, refCount: false })
-   );
+   private portalCurrentUser$: Observable<CurrentUser> =
+      this.http.get<CurrentUser>("../api/portal/get-current-user").pipe(
+         shareReplay({ bufferSize: 1, refCount: false })
+      );
 
    constructor(private http: HttpClient) {}
 
@@ -48,13 +43,5 @@ export class CurrentUserService {
 
    getPortalCurrentUser(): Observable<CurrentUser> {
       return this.portalCurrentUser$;
-   }
-
-   reloadEmCurrentUser(): void {
-      this.emReload$.next();
-   }
-
-   reloadPortalCurrentUser(): void {
-      this.portalReload$.next();
    }
 }

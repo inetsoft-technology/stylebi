@@ -52,10 +52,10 @@ export class OrganizationDropdownService implements OnDestroy  {
             (message) => this.loadAuthenticationProviders()));
       });
 
-      this.currentUserService.getEmCurrentUser().subscribe(userModel => {
+      this.subscription.add(this.currentUserService.getEmCurrentUser().subscribe(userModel => {
          this.currentUser = userModel;
          this.loadAuthenticationProviders();
-      });
+      }));
    }
 
    get loginUserName(): string {

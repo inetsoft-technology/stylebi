@@ -75,11 +75,11 @@ export class AppComponent implements OnInit, OnDestroy {
    }
 
    ngOnInit(): void {
-      this.currentUserService.getEmCurrentUser().subscribe(userModel => {
+      this.subscription.add(this.currentUserService.getEmCurrentUser().subscribe(userModel => {
          this.name = userModel.name?.name;
-      });
+      }));
 
-      this.authzService.getPermissions("").subscribe(p => this.permissions = p);
+      this.subscription.add(this.authzService.getPermissions("").subscribe(p => this.permissions = p));
 
       this.stompClient.connect("../vs-events", true).subscribe(connection => {
          this.connection = connection;
