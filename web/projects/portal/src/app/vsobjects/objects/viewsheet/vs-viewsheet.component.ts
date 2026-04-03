@@ -335,7 +335,8 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
          return false;
       }
 
-      // icon sits above the embedded VS content; its bottom edge is ~5px into the content area
+      // icon-container height is iconHeight + 5 (see template); relative to
+      // embedded VS content top, its bottom edge is at +5
       const iconBottom = 5;
       // must match .icon-container width in vs-viewsheet.component.scss
       const iconRight = 20;
@@ -368,7 +369,10 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
                return false;
             }
 
-            const expandedTop = cal.objectFormat.top - VSUtil.CALENDAR_BODY_HEIGHT;
+            // match vs-calendar.component.ts topPosition for bottom tabs
+            const borderExcess = Tool.getMarginSize(cal.objectFormat.border.bottom)
+               + Tool.getMarginSize(cal.objectFormat.border.top);
+            const expandedTop = cal.objectFormat.top - VSUtil.CALENDAR_BODY_HEIGHT - borderExcess;
             return expandedTop < iconBottom;
          }
 
