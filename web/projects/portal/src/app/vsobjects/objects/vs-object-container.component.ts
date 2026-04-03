@@ -559,10 +559,10 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          if(top && (this.viewer || this.embeddedVS)
             && VSUtil.isInBottomTabContainer(obj, this.vsInfo?.vsObjects))
          {
-            if((<any> obj).dropdownCalendar) {
-               const borderExcess = Tool.getMarginSize(obj?.objectFormat?.border?.bottom)
-                  + Tool.getMarginSize(obj?.objectFormat?.border?.top);
+            const borderExcess = Tool.getMarginSize(obj?.objectFormat?.border?.bottom)
+               + Tool.getMarginSize(obj?.objectFormat?.border?.top);
 
+            if((<any> obj).dropdownCalendar) {
                if((<any> obj).calendarsShown) {
                   return obj?.objectFormat?.top - VSUtil.CALENDAR_BODY_HEIGHT - borderExcess;
                }
@@ -570,8 +570,6 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
                return obj?.objectFormat?.top - borderExcess;
             }
 
-            const borderExcess = Tool.getMarginSize(obj?.objectFormat?.border?.bottom)
-               + Tool.getMarginSize(obj?.objectFormat?.border?.top);
             return obj?.objectFormat?.top - borderExcess;
          }
       }
