@@ -64,7 +64,7 @@ class GroupingServiceTest {
       TabVSAssembly tab = new TabVSAssembly();
       TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getVSAssemblyInfo();
       tabInfo.setName("Tab1");
-      tabInfo.setBottomTabs(true);
+      tabInfo.setBottomTabsValue(true);
       tabInfo.setPixelOffset(new Point(0, 300));
       tabInfo.setPixelSize(new Dimension(200, 30));
       tabInfo.setAssemblies(new String[0]);
@@ -123,7 +123,7 @@ class GroupingServiceTest {
       TabVSAssembly tab = new TabVSAssembly();
       TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getVSAssemblyInfo();
       tabInfo.setName("Tab1");
-      tabInfo.setBottomTabs(true);
+      tabInfo.setBottomTabsValue(true);
       tabInfo.setPixelOffset(new Point(0, 400));
       tabInfo.setPixelSize(new Dimension(300, 30));
       tabInfo.setAssemblies(new String[0]);
