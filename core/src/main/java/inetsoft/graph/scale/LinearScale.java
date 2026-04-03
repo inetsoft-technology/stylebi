@@ -114,7 +114,7 @@ public class LinearScale extends Scale {
       // NaN signals no column data was found in this subset (e.g. a facet cell that has
       // dataset rows but none for this particular measure). Skip the merge entirely so
       // empty cells don't contaminate the shared min/max across the facet.
-      if(Double.isNaN(pair[0])) {
+      if(Double.isNaN(pair[0]) || Double.isNaN(pair[1])) {
          return;
       }
 

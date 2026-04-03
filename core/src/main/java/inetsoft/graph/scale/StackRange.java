@@ -141,8 +141,16 @@ public class StackRange extends AbstractScaleRange {
 
       for(int i = 0; i < fields.size(); i++) {
          double[] minmax = calculate0(data, fields.get(i), selector);
-         range[0] = Math.min(range[0], minmax[0]);
-         range[1] = Math.max(range[1], minmax[1]);
+
+         if(!Double.isNaN(minmax[0])) {
+            range[0] = Math.min(range[0], minmax[0]);
+            range[1] = Math.max(range[1], minmax[1]);
+         }
+      }
+
+      // range[0] starts at Double.MAX_VALUE; if it was never updated, no data was found.
+      if(range[0] == Double.MAX_VALUE) {
+         return new double[] {Double.NaN, Double.NaN};
       }
 
       return range;
@@ -211,6 +219,7 @@ public class StackRange extends AbstractScaleRange {
       Object groupValue = null;
       double groupSum = 0;
       double groupNegSum = 0;
+      boolean processed = false;
       int start = getStartRow(data, cols), end = getEndRow(data, cols);
 
       for(int i = start; i < end; i++) {
@@ -232,6 +241,7 @@ public class StackRange extends AbstractScaleRange {
 
             // use get value to map object properly
             double v = getValue(val);
+            processed = true;
 
             if(v < 0 && negGrp) {
                negsum += v;
@@ -285,6 +295,10 @@ public class StackRange extends AbstractScaleRange {
 
          // accumulative negative total in the middle may become bigger later
          minValue = Math.min(minValue, maxValue);
+      }
+
+      if(!processed) {
+         return new double[] {Double.NaN, Double.NaN};
       }
 
       minValue = Math.min(minValue, maxValue);
