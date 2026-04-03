@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {
-   Component, EventEmitter, Input, OnDestroy, OnInit, Output
+   Component, EventEmitter, Input, OnInit, Output
 } from "@angular/core";
 import {
    UntypedFormBuilder, UntypedFormControl,
@@ -31,7 +31,7 @@ import { FormValidators } from "../../../../shared/util/form-validators";
    templateUrl: "./change-password-form.component.html",
    styleUrls: ["./change-password-form.component.scss"]
 })
-export class ChangePasswordFormComponent implements OnInit, OnDestroy {
+export class ChangePasswordFormComponent implements OnInit {
    @Input()
    set loading(value: boolean) {
       if(value) {
@@ -84,9 +84,6 @@ export class ChangePasswordFormComponent implements OnInit, OnDestroy {
 
    triggerPassword(index: number): void {
       this.showPwd[index] = !this.showPwd[index];
-   }
-
-   ngOnDestroy(): void {
    }
 
    get formDisabled(): boolean {
