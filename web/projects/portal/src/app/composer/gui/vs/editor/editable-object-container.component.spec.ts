@@ -42,6 +42,8 @@ import { LineAnchorService } from "../../../services/line-anchor.service";
 import { ComposerObjectService } from "../composer-object.service";
 import { DragBorderType } from "../objects/selection/composer-selection-container-children.component";
 import { EditableObjectContainer } from "./editable-object-container.component";
+import { VSCalendarModel } from "../../../../vsobjects/model/calendar/vs-calendar-model";
+import { VSUtil } from "../../../../vsobjects/util/vs-util";
 import { ScaleService } from "../../../../widget/services/scale/scale-service";
 import { Observable } from "rxjs";
 import { ComposerVsSearchService } from "../composer-vs-search.service";
@@ -302,5 +304,95 @@ describe("EditableObjectContainer", () => {
 
       let tabElem: HTMLElement = fixture.nativeElement.querySelector("div.object-editor");
       expect(tabElem.getAttribute("class")).toContain("fade-assembly");
+   });
+
+   it("should return titleFormat height as minHeight for dropdown calendar", () => {
+      const fixture = TestBed.createComponent(EditableObjectContainer);
+      let calModel = TestUtils.createMockVSCalendarModel("Calendar1");
+      calModel.dropdownCalendar = true;
+      calModel.titleFormat.height = 20;
+      calModel.objectFormat.height = 162;
+      fixture.componentInstance.viewsheet = viewsheet;
+      fixture.componentInstance.touchDevice = false;
+      fixture.componentInstance.vsObjectModel = calModel;
+      fixture.detectChanges();
+      expect(fixture.componentInstance.getMinHeight()).toBe(20);
+   });
+
+   it("should return titleFormat + body height as minHeight for dropdown calendar in bottom-tabs with calendars shown", () => {
+      const fixture = TestBed.createComponent(EditableObjectContainer);
+      let tabModel = TestUtils.createMockVSTabModel("Tab1");
+      tabModel.bottomTabs = true;
+      let calModel = TestUtils.createMockVSCalendarModel("Calendar1");
+      calModel.dropdownCalendar = true;
+      calModel.calendarsShown = true;
+      calModel.titleFormat.height = 20;
+      calModel.objectFormat.height = 162;
+      calModel.container = "Tab1";
+      calModel.containerType = "VSTab";
+      viewsheet.vsObjects = [tabModel, calModel];
+      fixture.componentInstance.viewsheet = viewsheet;
+      fixture.componentInstance.touchDevice = false;
+      fixture.componentInstance.vsObjectModel = calModel;
+      fixture.detectChanges();
+      expect(fixture.componentInstance.getMinHeight()).toBe(20 + VSUtil.CALENDAR_BODY_HEIGHT);
+   });
+
+   it("should return objectFormat height as minHeight for non-dropdown calendar", () => {
+      const fixture = TestBed.createComponent(EditableObjectContainer);
+      let calModel = TestUtils.createMockVSCalendarModel("Calendar1");
+      calModel.dropdownCalendar = false;
+      calModel.objectFormat.height = 162;
+      fixture.componentInstance.viewsheet = viewsheet;
+      fixture.componentInstance.touchDevice = false;
+      fixture.componentInstance.vsObjectModel = calModel;
+      fixture.detectChanges();
+      expect(fixture.componentInstance.getMinHeight()).toBe(162);
+   });
+
+   it("should shift non-dropdown selection up by body height in bottom-tabs", () => {
+      const fixture = TestBed.createComponent(EditableObjectContainer);
+      let tabModel = TestUtils.createMockVSTabModel("Tab1");
+      tabModel.bottomTabs = true;
+      let selModel = TestUtils.createMockVSSelectionListModel("List1");
+      selModel.dropdown = false;
+      selModel.objectFormat.top = 300;
+      selModel.objectFormat.height = 200;
+      selModel.titleFormat.height = 20;
+      selModel.container = "Tab1";
+      selModel.containerType = "VSTab";
+      viewsheet.vsObjects = [tabModel, selModel];
+      fixture.componentInstance.viewsheet = viewsheet;
+      fixture.componentInstance.touchDevice = false;
+      fixture.componentInstance.selectionBorderOffset = 0;
+      fixture.componentInstance.vsObjectModel = selModel;
+      fixture.detectChanges();
+      // bodyHeight = 200 - 20 - 0 = 180; topPosition = 300 - 180 = 120
+      expect(fixture.componentInstance.getTopPosition()).toBe(120);
+   });
+
+   it("should account for borders in non-dropdown selection body height in bottom-tabs", () => {
+      const fixture = TestBed.createComponent(EditableObjectContainer);
+      let tabModel = TestUtils.createMockVSTabModel("Tab1");
+      tabModel.bottomTabs = true;
+      let selModel = TestUtils.createMockVSSelectionListModel("List1");
+      selModel.dropdown = false;
+      selModel.objectFormat.top = 300;
+      selModel.objectFormat.height = 200;
+      selModel.objectFormat.border.bottom = "2px solid black";
+      selModel.objectFormat.border.top = "2px solid black";
+      selModel.titleFormat.height = 20;
+      selModel.titleFormat.border = { bottom: "", top: "1px solid black", left: "", right: "" };
+      selModel.container = "Tab1";
+      selModel.containerType = "VSTab";
+      viewsheet.vsObjects = [tabModel, selModel];
+      fixture.componentInstance.viewsheet = viewsheet;
+      fixture.componentInstance.touchDevice = false;
+      fixture.componentInstance.selectionBorderOffset = 0;
+      fixture.componentInstance.vsObjectModel = selModel;
+      fixture.detectChanges();
+      // offset = max(0, 2 + 2 - 1) = 3; bodyHeight = 200 - 20 - 3 = 177
+      // topPosition = 300 - 177 = 123
+      expect(fixture.componentInstance.getTopPosition()).toBe(123);
    });
 });
