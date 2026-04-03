@@ -600,13 +600,38 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
    }
 
    /**
-    * Converts a logical model path from "database/folder/name" format
-    * (as produced by RepositoryObjectService) to the XAsset ID format
-    * "database^__^folder^name" used in backup action XML.
-    * Paths already in ID format (containing "^") are returned unchanged.
+    * Converts a logical model path to the XAsset ID format "database^__^folder^name"
+    * used in backup action XML.
+    *
+    * Handles two input formats:
+    * - Slash format "database/folder/name" (produced by RepositoryObjectService for EM moves)
+    * - ID format already containing "^" (produced by DatabaseModelBrowserService for portal moves)
+    *
+    * Special case: the portal always prepends DATAMODEL_FOLDER_SPLITER even for root-level
+    * models, producing "database^__^name" instead of the correct "database^name". This case
+    * is detected and corrected.
     */
    String toModelAssetPath(String rawPath, String modelFolder) {
-      if(rawPath == null || rawPath.contains(XUtil.DATAMODEL_PATH_SPLITER)) {
+      if(rawPath == null) {
+         return rawPath;
+      }
+
+      if(rawPath.contains(XUtil.DATAMODEL_PATH_SPLITER)) {
+         // The portal builds paths with DATAMODEL_FOLDER_SPLITER even for root-level models,
+         // producing "database^__^name" instead of the correct "database^name". Detect and fix.
+         int folderSpliterIdx = rawPath.indexOf(XUtil.DATAMODEL_FOLDER_SPLITER);
+
+         if(folderSpliterIdx != -1) {
+            String afterSpliter = rawPath.substring(
+               folderSpliterIdx + XUtil.DATAMODEL_FOLDER_SPLITER.length());
+
+            if(!afterSpliter.contains(XUtil.DATAMODEL_PATH_SPLITER)) {
+               // "database^__^name" → "database^name"
+               return rawPath.substring(0, folderSpliterIdx) +
+                  XUtil.DATAMODEL_PATH_SPLITER + afterSpliter;
+            }
+         }
+
          return rawPath;
       }
 
