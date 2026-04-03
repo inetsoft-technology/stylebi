@@ -57,6 +57,8 @@ import { DateTipHelper } from "../data-tip/date-tip-helper";
 import { PopComponentService } from "../data-tip/pop-component.service";
 import { NavigationKeys } from "../navigation-keys";
 import { SelectionMobileService } from "../selection/services/selection-mobile.service";
+import { VSSelectionBaseModel } from "../../model/vs-selection-base-model";
+import { VSCalendarModel } from "../../model/calendar/vs-calendar-model";
 
 declare const window: any;
 
@@ -324,7 +326,58 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
    get showIconContainer(): boolean {
       return !this.deployed && !this.maxMode &&
          (this.model.embeddedIconVisible && this.composer ||
-          ((this.viewer || this.preview) &&  this.model.embeddedOpenIconVisible));
+          ((this.viewer || this.preview) &&  this.model.embeddedOpenIconVisible)) &&
+         !this.isChildDropdownExpanded();
+   }
+
+   private isChildDropdownExpanded(): boolean {
+      if(!this.viewer && !this.preview) {
+         return false;
+      }
+
+      // icon-container height is iconHeight + 5 (see template); relative to
+      // embedded VS content top, its bottom edge is at +5
+      const iconBottom = 5;
+      // must match .icon-container width in vs-viewsheet.component.scss
+      const iconRight = 20;
+
+      return this.vsObjects?.some(obj => {
+         if(!VSUtil.isInBottomTabContainer(obj, this.vsObjects)) {
+            return false;
+         }
+
+         if(obj.objectFormat.left >= iconRight) {
+            return false;
+         }
+
+         if(obj.objectType === "VSSelectionList" || obj.objectType === "VSSelectionTree") {
+            const sel = obj as VSSelectionBaseModel;
+
+            if(!sel.dropdown || sel.hidden) {
+               return false;
+            }
+
+            const cellHeight = this.mobileDevice ? Math.max(40, sel.cellHeight) : sel.cellHeight;
+            const expandedTop = sel.objectFormat.top - cellHeight * sel.listHeight;
+            return expandedTop < iconBottom;
+         }
+
+         if(obj.objectType === "VSCalendar") {
+            const cal = obj as VSCalendarModel;
+
+            if(!cal.dropdownCalendar || !cal.calendarsShown) {
+               return false;
+            }
+
+            // match vs-calendar.component.ts topPosition for bottom tabs
+            const borderExcess = Tool.getMarginSize(cal.objectFormat.border.bottom)
+               + Tool.getMarginSize(cal.objectFormat.border.top);
+            const expandedTop = cal.objectFormat.top - VSUtil.CALENDAR_BODY_HEIGHT - borderExcess;
+            return expandedTop < iconBottom;
+         }
+
+         return false;
+      }) ?? false;
    }
 
    selectViewsheet(payload: [number, AbstractVSActions<any>, MouseEvent]) {
