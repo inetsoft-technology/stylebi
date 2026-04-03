@@ -45,7 +45,7 @@ export class AsyncQueuedSubject<T> extends Subject<T> {
    }
 
    public _subscribe(subscriber: Subscriber<T>): Subscription {
-      let subscription: Subscription = super._subscribe(subscriber);
+      let subscription: Subscription = super["_subscribe"](subscriber);
 
       if(!this.subscribed) {
          this.subscribed = true;

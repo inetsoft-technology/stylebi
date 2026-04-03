@@ -67,7 +67,7 @@ export class PresentationSettingsViewComponent implements OnInit, OnDestroy {
    isSysAdmin: boolean = false;
    orgId: string;
 
-   private destroy$ = new Subject();
+   private destroy$ = new Subject<void>();
 
    navLinks = [
       new PresentationSettingsNavLink("general-format", "_#(js:General Format)"),
