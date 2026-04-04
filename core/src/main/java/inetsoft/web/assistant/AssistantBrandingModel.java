@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,11 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-export interface PresentationAISettingsModel {
-   aiAssistantVisible: boolean;
-   chatAppInternalUrl?: string;
-   chatAppServerUrl?: string;
-   chatAppTitle?: string;
-   chatAppVendorName?: string;
-   chatAppLogoUrl?: string;
-}
+
+package inetsoft.web.assistant;
+
+/**
+ * Branding configuration returned by {@code GET /api/assistant/get-branding}.
+ * Null fields mean "use the web component's built-in default".
+ */
+public record AssistantBrandingModel(
+   String title,
+   String vendorName,
+   String logoUrl
+) {}

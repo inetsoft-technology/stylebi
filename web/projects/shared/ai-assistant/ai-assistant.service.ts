@@ -56,6 +56,9 @@ export enum ContextType {
 export class AiAssistantService {
    chatAppServerUrl: string = "";
    styleBIUrl: string = "";
+   chatAppTitle: string | null = null;
+   chatAppVendorName: string | null = null;
+   chatAppLogoUrl: string | null = null;
    private _panelOpen$ = new BehaviorSubject<boolean>(false);
    readonly panelOpen$ = this._panelOpen$.asObservable();
    private _contextChange$ = new Subject<void>();
@@ -81,6 +84,41 @@ export class AiAssistantService {
          this.styleBIUrl = url || "";
       });
 
+      this.http.get<{title: string, vendorName: string, logoUrl: string}>(
+         "../api/assistant/get-branding").subscribe(branding => {
+         if(branding) {
+            this.chatAppTitle = branding.title || null;
+            this.chatAppVendorName = branding.vendorName || null;
+            this.chatAppLogoUrl = branding.logoUrl || null;
+         }
+      });
+   }
+
+   /**
+    * Reads the key StyleBI CSS custom properties from the document root and returns
+    * them as a JSON string suitable for passing to the ai-assistant web component's
+    * theme attribute so the component can apply them inside its shadow DOM.
+    */
+   getThemeConfig(): string {
+      const style = getComputedStyle(document.documentElement);
+      const vars = [
+         "--inet-primary-color",
+         "--inet-text-color",
+         "--inet-navbar-bg-color",
+         "--inet-navbar-text-color",
+         "--inet-main-panel-bg-color",
+      ];
+      const theme: Record<string, string> = {};
+
+      for(const v of vars) {
+         const val = style.getPropertyValue(v).trim();
+
+         if(val) {
+            theme[v] = val;
+         }
+      }
+
+      return JSON.stringify(theme);
    }
 
    /**

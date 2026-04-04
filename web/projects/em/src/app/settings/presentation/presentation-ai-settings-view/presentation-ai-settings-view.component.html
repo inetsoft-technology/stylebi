@@ -35,6 +35,21 @@
               <input matInput [(ngModel)]="model.chatAppServerUrl" (input)="emitModel()">
               <mat-hint>_#(ai.assistant.server.url.hint)</mat-hint>
             </mat-form-field>
+            <mat-form-field appearance="outline" color="accent" class="chat-url-field">
+              <mat-label>_#(AI Assistant Title)</mat-label>
+              <input matInput [(ngModel)]="model.chatAppTitle" (input)="emitModel()">
+              <mat-hint>_#(ai.assistant.title.hint)</mat-hint>
+            </mat-form-field>
+            <mat-form-field appearance="outline" color="accent" class="chat-url-field">
+              <mat-label>_#(AI Assistant Vendor Name)</mat-label>
+              <input matInput [(ngModel)]="model.chatAppVendorName" (input)="emitModel()">
+              <mat-hint>_#(ai.assistant.vendor.name.hint)</mat-hint>
+            </mat-form-field>
+            <mat-form-field appearance="outline" color="accent" class="chat-url-field">
+              <mat-label>_#(AI Assistant Logo URL)</mat-label>
+              <input matInput [(ngModel)]="model.chatAppLogoUrl" (input)="emitModel()">
+              <mat-hint>_#(ai.assistant.logo.url.hint)</mat-hint>
+            </mat-form-field>
           </div>
         </mat-card-content>
       </mat-card>
