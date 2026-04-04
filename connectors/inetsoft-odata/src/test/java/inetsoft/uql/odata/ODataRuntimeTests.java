@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.github.tomakehurst.wiremock.junit5.WireMockRuntimeInfo;
 import com.github.tomakehurst.wiremock.junit5.WireMockTest;
 import inetsoft.report.lens.xnode.XNodeTableLens;
+import inetsoft.test.SreeHome;
 import inetsoft.uql.*;
 import inetsoft.util.credential.*;
 import org.apache.commons.io.IOUtils;
@@ -40,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@SreeHome
 @WireMockTest
 class ODataRuntimeTests {
    private ODataDataSource dataSource;

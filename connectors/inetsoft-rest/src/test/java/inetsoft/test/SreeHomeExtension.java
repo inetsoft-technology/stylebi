@@ -18,10 +18,12 @@
 package inetsoft.test;
 
 import inetsoft.util.*;
+import inetsoft.util.config.*;
 import org.junit.jupiter.api.extension.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.*;
 
 public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
    @Override
@@ -34,6 +36,9 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
       }
 
       home = new File(home).getCanonicalPath();
+      Path homePath = Paths.get(home);
+      Files.createDirectories(homePath);
+      writeConfig(homePath);
       ConfigurationContext.getContext().setHome(home);
       Tool.setServer(true);
    }
@@ -41,5 +46,13 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
    @Override
    public void afterAll(ExtensionContext context) {
       SingletonManager.reset();
+   }
+
+   private void writeConfig(Path home) {
+      InetsoftConfig config = InetsoftConfig.createDefault(home);
+      KeyValueConfig keyValue = new KeyValueConfig();
+      keyValue.setType("test");
+      config.setKeyValue(keyValue);
+      InetsoftConfig.save(config, home.resolve("inetsoft.yaml"));
    }
 }

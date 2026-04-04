@@ -17,30 +17,20 @@
  */
 package inetsoft.uql.util;
 
+import inetsoft.test.SreeHome;
 import inetsoft.uql.XTable;
 import inetsoft.uql.schema.XSchema;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.pojava.datetime.DateTime;
 
-import java.io.File;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+@SreeHome
 class ExpandedJsonTableTest {
-   @BeforeAll
-   public static void setSreeHome() {
-      File home = new File("build/sreeHome");
-
-      if(!home.isDirectory() && !home.mkdirs()) {
-         throw new RuntimeException("Failed to create test sree.home: " + home);
-      }
-
-      System.setProperty("sree.home", home.getAbsolutePath());
-   }
 
    @Test
    public void testMixed() {
