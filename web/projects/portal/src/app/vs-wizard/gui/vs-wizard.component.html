@@ -38,6 +38,7 @@
                         [originalName]="model.objectModel?.absoluteName"
                         [oldOriginalName]="model.oldAbsoluteName"
                         [viewer]="model.viewer"
+                        [aiAssistantPermission]="aiAssistantPermission"
                         (onClose)="closeObjectWizard($event)"
                         (onFullEditor)="goToFullEditor($event)"
                         (onSwitchMeta)="switchToMeta()">
