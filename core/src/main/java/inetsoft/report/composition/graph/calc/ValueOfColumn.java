@@ -408,8 +408,6 @@ public class ValueOfColumn extends AbstractColumn {
             return INVALID;
          }
 
-         // the first year in the dataset should not assume the previous year (which is not in
-         // the dataset) to be 0 when calculating change.
          if(tval instanceof Date && getMinDate(data).after((Date) tval)) {
             return INVALID;
          }
@@ -463,18 +461,20 @@ public class ValueOfColumn extends AbstractColumn {
          // (e.g. QuarterOfYear=3) and switching to root causes the sub-dataset index to be
          // rebuilt unnecessarily and can return wrong rows.
          // When ndim != innerDim: always switch (original pre-bug behavior).
-         if(data instanceof DataSetFilter && (ndimIsPartDate || !ndim.equals(innerDim))) {
-            data = ((DataSetFilter) data).getRootDataSet();
+         DataSet lookupData = data;
+
+         if(lookupData instanceof DataSetFilter && (ndimIsPartDate || !ndim.equals(innerDim))) {
+            lookupData = ((DataSetFilter) lookupData).getRootDataSet();
          }
 
-         data = getSubDataSet(data, cond);
-         int rcnt = ((AbstractDataSet) data).getRowCountUnprojected();
+         DataSet sub = getSubDataSet(lookupData, cond);
+         int rcnt = ((AbstractDataSet) sub).getRowCountUnprojected();
 
-         if(data.getRowCount() <= 0) {
+         if(sub.getRowCount() <= 0) {
             return INVALID;
          }
 
-         return data.getData(field, (ctype == ValueOfCalc.PREVIOUS) ? rcnt - 1 : 0);
+         return sub.getData(field, (ctype == ValueOfCalc.PREVIOUS) ? rcnt - 1 : 0);
       }
    }
 
