@@ -18,7 +18,7 @@
 
 import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
-import { BehaviorSubject, Observable, of } from "rxjs";
+import { BehaviorSubject, Observable, of, Subject } from "rxjs";
 import { catchError, map, timeout } from "rxjs/operators";
 import { convertToKey } from "../../em/src/app/settings/security/users/identity-id";
 import { BindingModel } from "../../portal/src/app/binding/data/binding-model";
@@ -61,6 +61,8 @@ export class AiAssistantService {
    styleBIUrl: string = "";
    private _panelOpen$ = new BehaviorSubject<boolean>(false);
    readonly panelOpen$ = this._panelOpen$.asObservable();
+   private _contextChange$ = new Subject<void>();
+   readonly contextChange$ = this._contextChange$.asObservable();
    get panelOpen(): boolean { return this._panelOpen$.value; }
    set panelOpen(v: boolean) { this._panelOpen$.next(v); }
    aiAssistantVisible: boolean = false;
@@ -139,6 +141,7 @@ export class AiAssistantService {
 
    resetContextMap(): void {
       this.contextMap = {};
+      this._contextChange$.next();
    }
 
    loadCurrentUser(em: boolean = false): void {
@@ -151,6 +154,7 @@ export class AiAssistantService {
 
    setContextField(key: string, value: string) {
       this.contextMap[key] = value;
+      this._contextChange$.next();
    }
 
    getContextField(key: string): string {
@@ -159,6 +163,7 @@ export class AiAssistantService {
 
    removeContextField(key: string) {
       delete this.contextMap[key];
+      this._contextChange$.next();
    }
 
    getFullContext(): string {
