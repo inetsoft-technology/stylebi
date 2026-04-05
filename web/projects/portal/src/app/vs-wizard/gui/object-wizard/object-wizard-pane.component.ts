@@ -104,7 +104,7 @@ export class ObjectWizardPane extends CommandProcessor implements OnInit, OnDest
    @Input() oldOriginalName: string;
    @Input() viewer: boolean;
    @Input() set aiAssistantPermission(value: boolean) {
-      this.aiAssistantService.aiAssistantVisible = value;
+      this.aiAssistantService.aiAssistantVisible = value ?? false;
    }
    @Output() onFullEditor = new EventEmitter<any>();
    @Output() onClose = new EventEmitter<any>();
