@@ -394,10 +394,11 @@ public class ValueOfColumn extends AbstractColumn {
             }
          }
          else {
-            // When ndim == innerDim and data is a facet sub-dataset, the sub-dataset only
-            // contains the rows for this facet (e.g. Q2 = months 4-6). The previous value
-            // may belong to a different facet (e.g. April → March, which is in Q1). Use the
-            // root dataset so the router can find cross-facet previous/next values.
+            // In a facet chart each facet is backed by a DataSetFilter containing only that
+            // facet's rows. The router built from a per-facet dataset only knows values within
+            // that facet, so navigating to a previous/next period that falls in a different facet
+            // returns INVALID. Use getRootDataSet() when ndim is the inner dimension so the
+            // router can traverse values across all facets.
             DataSet routerData = (ndim.equals(innerDim) && data instanceof DataSetFilter)
                ? ((DataSetFilter) data).getRootDataSet() : data;
             Router router = getRouter(routerData, ndim);
@@ -408,6 +409,8 @@ public class ValueOfColumn extends AbstractColumn {
             return INVALID;
          }
 
+         // The first year in the dataset should not assume the previous year (which is not in
+         // the dataset) to be 0 when calculating change.
          if(tval instanceof Date && getMinDate(data).after((Date) tval)) {
             return INVALID;
          }
@@ -479,6 +482,9 @@ public class ValueOfColumn extends AbstractColumn {
    }
 
    // Extract the base column name from a date function expression, e.g. "MonthOfYear(Date)" -> "Date".
+   // Assumes the format "Function(ColumnName)" with no nesting — for a nested expression like
+   // "MonthOfYear(Year(Date))" this returns "Year(Date)", not "Date". Nested date functions are
+   // not currently used in dimension full names, so this is sufficient in practice.
    private String getDateColumnBase(String dimName) {
       if(dimName == null) {
          return null;
