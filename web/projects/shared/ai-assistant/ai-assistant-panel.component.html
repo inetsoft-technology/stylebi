@@ -23,15 +23,17 @@
      class="ai-assistant-panel"
      [class.side-mode]="mode === 'side'"
      [class.bottom-mode]="mode === 'bottom'"
+     [class.collapsed]="collapsed"
      [style.width.px]="mode === 'side' ? sideWidth : null"
-     [style.height.px]="mode === 'bottom' ? bottomHeight : null">
+     [style.height.px]="mode === 'bottom' && !collapsed ? bottomHeight : null">
   <div class="resize-handle" (mousedown)="startDrag($event)"></div>
   <div class="panel-header bg-white2">
     <span class="panel-title">_#(AI Assistant)</span>
     <div class="panel-actions">
       <button class="panel-action-btn"
               (click)="toggleMode()"
-              [title]="mode === 'side' ? '_#(Move to bottom)' : '_#(Move to side)'">
+              [title]="mode === 'side' ? '_#(Move to bottom)' : '_#(Move to side)'"
+              *ngIf="!collapsed">
         <svg *ngIf="mode === 'side'" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
           <rect x="1" y="1" width="14" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
           <rect x="1" y="11" width="14" height="4" rx="1"/>
@@ -41,11 +43,30 @@
           <rect x="11" y="1" width="4" height="14" rx="1"/>
         </svg>
       </button>
-      <button class="panel-action-btn" (click)="popOut()" title="_#(Pop out to new tab)">
+      <button class="panel-action-btn" (click)="popOut()" title="_#(Pop out to new tab)" *ngIf="!collapsed">
         <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <rect x="1.5" y="4.5" width="9" height="10" rx="1"/>
           <path d="M7 1.5h7.5V9"/>
           <line x1="8" y1="8" x2="14.5" y2="1.5"/>
+        </svg>
+      </button>
+      <!-- Collapse / expand toggle -->
+      <button class="panel-action-btn"
+              (click)="toggleCollapsed()"
+              [title]="collapsed ? '_#(Expand)' : '_#(Collapse)'">
+        <!-- Expand icon (shown when collapsed): chevron pointing up for bottom, left for side -->
+        <svg *ngIf="collapsed && mode === 'bottom'" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3,10 8,5 13,10"/>
+        </svg>
+        <svg *ngIf="collapsed && mode === 'side'" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="10,3 5,8 10,13"/>
+        </svg>
+        <!-- Collapse icon (shown when expanded): chevron pointing down for bottom, right for side -->
+        <svg *ngIf="!collapsed && mode === 'bottom'" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3,6 8,11 13,6"/>
+        </svg>
+        <svg *ngIf="!collapsed && mode === 'side'" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6,3 11,8 6,13"/>
         </svg>
       </button>
       <button class="panel-action-btn panel-close-btn" (click)="close()" aria-label="_#(Close)" title="_#(Close)">
@@ -56,7 +77,7 @@
       </button>
     </div>
   </div>
-  <div class="panel-body">
+  <div class="panel-body" [class.panel-body-hidden]="collapsed">
     <ng-container [ngSwitch]="serverState">
       <div *ngSwitchCase="'checking'" class="assistant-server-status">
         <span>_#(Connecting to AI assistant...)</span>
