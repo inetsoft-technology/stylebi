@@ -79,10 +79,29 @@ export class AiAssistantPopoutComponent implements OnInit, OnDestroy {
       // Start health check and web component loading.
       this.aiAssistantService.checkHealth().subscribe(online => {
          if(online) {
-            const timeoutGuard = new Promise<never>((_, reject) =>
-               setTimeout(() => reject(new Error("timeout")), 10000));
             this.aiAssistantService.loadWebComponentScript()
-               .then(() => Promise.race([customElements.whenDefined("ai-assistant"), timeoutGuard]))
+               .then(() => {
+                  // The script has loaded and executed. If the element is already registered
+                  // (synchronous define in the UMD bundle), go online immediately. Otherwise
+                  // wait with a generous timeout — some bundles register lazily via dynamic
+                  // imports that may take longer in a fresh tab with no warm connections.
+                  if(customElements.get("ai-assistant")) {
+                     return Promise.resolve();
+                  }
+
+                  return new Promise<void>((resolve) => {
+                     const timer = setTimeout(() => {
+                        // Element still not defined after 30s — show it anyway; the web
+                        // component will either work or render nothing, but "offline" would be
+                        // misleading since the server is reachable.
+                        resolve();
+                     }, 30000);
+                     customElements.whenDefined("ai-assistant").then(() => {
+                        clearTimeout(timer);
+                        resolve();
+                     });
+                  });
+               })
                .then(() => this.zone.run(() => {
                   this.chatAppServerUrl = this.aiAssistantService.chatAppServerUrl;
                   this.styleBIUrl = this.aiAssistantService.styleBIUrl;
