@@ -153,6 +153,10 @@ export class AiAssistantService {
    }
 
    setContextField(key: string, value: string) {
+      if(this.contextMap[key] === value) {
+         return;
+      }
+
       this.contextMap[key] = value;
       this._contextChange$.next();
    }
