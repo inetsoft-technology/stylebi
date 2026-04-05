@@ -48,10 +48,6 @@ const routes: Routes = [
             component: ReloadPageComponent
          },
          {
-            path: "ai-chat",
-            loadChildren: () => import("../../../shared/ai-assistant/ai-assistant-popout.module").then(m => m.AiAssistantPopoutModule)
-         },
-         {
             path: "**",
             redirectTo: "portal"
          }

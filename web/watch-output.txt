@@ -1,0 +1,74 @@
+src/agent/1/stylebi-enterprise$ cd community/web/
+ylebi-enterprise/community/web$ npm run build:watch
+
+> stylebi-portal@1.0.0 build:watch
+> concurrently -r "gulp watch" "ng build portal --configuration development --watch" "ng build em --configuration development --watch"
+
+(node:38976) [DEP0060] DeprecationWarning: The `util._extend` API is deprecated. Please use Object.assign() instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[14:43:53] Using gulpfile c:\src\agent\1\stylebi-enterprise\community\web\gulpfile.js
+[14:43:53] Starting 'watch'...
+[14:43:53] Starting 'em:metadata'...
+[14:43:53] Starting 'sass:watch'...
+[14:43:53] Starting 'fonts:stage'...
+[14:43:53] Starting 'sockjs'...
+[14:43:53] Starting 'sass'...
+[14:43:53] Starting 'sass:app'...
+- Generating browser application bundles (phase: setup)...
+- Generating browser application bundles (phase: setup)...
+[14:44:01] Finished 'sockjs' after 7.83 s
+[14:44:08] Finished 'sass:app' after 15 s
+[14:44:08] Starting 'sass:em'...
+[14:44:34] Finished 'fonts:stage' after 41 s
+[14:44:35] Finished 'sass:em' after 27 s
+[14:44:35] Starting 'sass:em-dark'...
+[14:44:55] Finished 'sass:em-dark' after 21 s
+[14:44:55] Starting 'sass:codemirror-themes'...
+[14:44:56] Finished 'sass:codemirror-themes' after 211 ms
+[14:44:56] Finished 'sass' after 1.03 min
+[14:44:56] Starting '<anonymous>'...
+(node:40612) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[14:44:56] Finished 'em:metadata' after 1.03 min
+√ Browser application bundle generation complete.
+
+Warning: c:\src\agent\1\stylebi-enterprise\community\web\node_modules\@ckeditor\ckeditor5-ui\dist\index.js depends on 'color-convert'. CommonJS or AMD dependencies can cause optimization bailouts.
+For more info see: https://angular.io/guide/build#configuring-commonjs-dependencies
+
+
+
+./projects/shared/ai-assistant/ai-assistant.service.ts:52:28-42 - Error: export 'firstValueFrom' (imported as 'firstValueFrom') was not found in 'rxjs' (possible exports: ArgumentOutOfRangeError, AsyncSubject, BehaviorSubject, ConnectableObservable, EMPTY, EmptyError, GroupedObservable, NEVER, Notification, NotificationKind, ObjectUnsubscribedError, Observable, ReplaySubject, Scheduler, Subject, Subscriber, Subscription, TimeoutError, UnsubscriptionError, VirtualAction, VirtualTimeScheduler, animationFrame, animationFrameScheduler, asap, asapScheduler, async, asyncScheduler, bindCallback, bindNodeCallback, combineLatest, concat, config, defer, empty, forkJoin, from, fromEvent, fromEventPattern, generate, identity, iif, interval, isObservable, merge, never, noop, observable, of, onErrorResumeNext, pairs, partition, pipe, queue, queueScheduler, race, range, scheduled, throwError, timer, using, zip)
+
+Error: projects/shared/ai-assistant/ai-assistant.service.ts:23:10 - error TS2305: Module '"rxjs"' has no exported member 'firstValueFrom'.
+
+23 import { firstValueFrom } from "rxjs";
+            ~~~~~~~~~~~~~~
+
+
+
+√ Browser application bundle generation complete.
+
+./projects/portal/src/app/widget/dialog/getting-started-dialog/whether-stay-composer-dialog.component.scss?ngResource - Warning: Module Warning (from ./node_modules/postcss-loader/dist/cjs.js):
+Warning
+
+(31:3) autoprefixer: end value has mixed support, consider using flex-end instead
+
+Warning: c:\src\agent\1\stylebi-enterprise\community\web\node_modules\@ckeditor\ckeditor5-ui\dist\index.js depends on 'color-convert'. CommonJS or AMD dependencies can cause optimization bailouts.
+For more info see: https://angular.io/guide/build#configuring-commonjs-dependencies
+
+
+
+./projects/portal/src/app/app-routing.module.ts:28:24-92 - Error: Module not found: Error: Can't resolve '../../../../shared/ai-assistant/ai-assistant-popout.module' in 'c:\src\agent\1\stylebi-enterprise\community\web\projects\portal\src\app'
+
+./projects/shared/ai-assistant/ai-assistant.service.ts:52:28-42 - Error: export 'firstValueFrom' (imported as 'firstValueFrom') was not found in 'rxjs' (possible exports: ArgumentOutOfRangeError, AsyncSubject, BehaviorSubject, ConnectableObservable, EMPTY, EmptyError, GroupedObservable, NEVER, Notification, NotificationKind, ObjectUnsubscribedError, Observable, ReplaySubject, Scheduler, Subject, Subscriber, Subscription, TimeoutError, UnsubscriptionError, VirtualAction, VirtualTimeScheduler, animationFrame, animationFrameScheduler, asap, asapScheduler, async, asyncScheduler, bindCallback, bindNodeCallback, combineLatest, concat, config, defer, empty, forkJoin, from, fromEvent, fromEventPattern, generate, identity, iif, interval, isObservable, merge, never, noop, observable, of, onErrorResumeNext, pairs, partition, pipe, queue, queueScheduler, race, range, scheduled, throwError, timer, using, zip)
+
+Error: projects/portal/src/app/app-routing.module.ts:52:40 - error TS2307: Cannot find module '../../../../shared/ai-assistant/ai-assistant-popout.module' or its corresponding type declarations.
+
+52             loadChildren: () => import("../../../../shared/ai-assistant/ai-assistant-popout.module").then(m => m.AiAssistantPopoutModule)
+                                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+Error: projects/shared/ai-assistant/ai-assistant.service.ts:23:10 - error TS2305: Module '"rxjs"' has no exported member 'firstValueFrom'.
+
+23 import { firstValueFrom } from "rxjs";
+            ~~~~~~~~~~~~~~

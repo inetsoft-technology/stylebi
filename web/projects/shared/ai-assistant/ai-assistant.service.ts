@@ -73,13 +73,9 @@ export class AiAssistantService {
    private _lastBindingObject: string = "";
    private _newChatFromBinding: boolean = false;
 
-   // Pop-out state
-   private _popoutWindow: Window | null = null;
-   private _broadcastChannel: BroadcastChannel | null = null;
-
-   // Caches the server-URL fetch so loadWebComponentScript() can await it even in
-   // the pop-out tab where the Angular app may not have had time to process the HTTP
-   // response before the component tree is ready.
+   // Caches the server-URL fetch so loadWebComponentScript() can await it even when
+   // the Angular app has not yet processed the HTTP response before the component
+   // tree is ready.
    private readonly _serverUrlLoaded: Promise<void>;
 
    constructor(private http: HttpClient) {
@@ -160,89 +156,8 @@ export class AiAssistantService {
       this._newChatFromBinding = false;
    }
 
-   // ---- Pop-out support -------------------------------------------------------
-
-   /**
-    * Opens the AI assistant in a new browser tab and establishes a BroadcastChannel
-    * to keep context in sync. If a pop-out window is already open, focuses it.
-    *
-    * @param popoutUrl The full URL of the ai-chat route in the current app
-    *                  (e.g. from Location.prepareExternalUrl('ai-chat?channel=...')).
-    *                  The caller must append the ?channel= query parameter themselves;
-    *                  this method inserts the generated channel ID before opening.
-    */
-   openPopOut(basePopoutUrl: string): void {
-      if(this._popoutWindow && !this._popoutWindow.closed) {
-         this._popoutWindow.focus();
-         return;
-      }
-
-      const channelId = this.generateChannelId();
-      const url = basePopoutUrl + "?channel=" + channelId;
-
-      this._broadcastChannel = new BroadcastChannel("ai-assistant-" + channelId);
-      this._broadcastChannel.onmessage = (event) => {
-         if(event.data?.type === "ready") {
-            // Pop-out is bootstrapped: send initial state.
-            this._broadcastChannel?.postMessage({
-               type: "init",
-               context: this.getFullContext(),
-               userId: this.userId,
-               userEmail: this.email
-            });
-         }
-         else if(event.data?.type === "popout-closed") {
-            this._cleanupPopout();
-         }
-      };
-
-      this._popoutWindow = window.open(url, "_blank");
-      // Close the inline panel so it doesn't compete with the pop-out.
-      this.panelOpen = false;
-   }
-
-   /**
-    * Closes the pop-out window (if open) and tears down the BroadcastChannel.
-    * Called from the panel's window:beforeunload handler so the pop-out tab
-    * closes whenever the parent tab closes or navigates away.
-    */
-   closePopOut(): void {
-      if(this._broadcastChannel) {
-         // Give the child a chance to react before we close it programmatically.
-         try { this._broadcastChannel.postMessage({type: "parent-closing"}); } catch { /* ignore */ }
-      }
-
-      if(this._popoutWindow && !this._popoutWindow.closed) {
-         this._popoutWindow.close();
-      }
-
-      this._cleanupPopout();
-   }
-
-   private _cleanupPopout(): void {
-      this._popoutWindow = null;
-      this._broadcastChannel?.close();
-      this._broadcastChannel = null;
-   }
-
-   private generateChannelId(): string {
-      return Date.now().toString(36) + Math.random().toString(36).substring(2);
-   }
-
-   private broadcastContextUpdate(): void {
-      if(this._broadcastChannel) {
-         try {
-            this._broadcastChannel.postMessage({type: "context", context: this.getFullContext()});
-         }
-         catch { /* ignore — channel may be closing */ }
-      }
-   }
-
-   // ---------------------------------------------------------------------------
-
    resetContextMap(): void {
       this.contextMap = {};
-      this.broadcastContextUpdate();
    }
 
    loadCurrentUser(em: boolean = false): void {
@@ -255,7 +170,6 @@ export class AiAssistantService {
 
    setContextField(key: string, value: string) {
       this.contextMap[key] = value;
-      this.broadcastContextUpdate();
    }
 
    getContextField(key: string): string {
@@ -264,7 +178,6 @@ export class AiAssistantService {
 
    removeContextField(key: string) {
       delete this.contextMap[key];
-      this.broadcastContextUpdate();
    }
 
    getFullContext(): string {

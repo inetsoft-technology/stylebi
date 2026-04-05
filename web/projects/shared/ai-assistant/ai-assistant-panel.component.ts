@@ -16,7 +16,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { Location } from "@angular/common";
 import { Component, HostListener, NgZone, OnDestroy, OnInit, Renderer2 } from "@angular/core";
 import { Subscription } from "rxjs";
 import { AiAssistantService } from "./ai-assistant.service";
@@ -57,8 +56,7 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
    constructor(
       private aiAssistantService: AiAssistantService,
       private renderer: Renderer2,
-      private zone: NgZone,
-      private location: Location
+      private zone: NgZone
    ) {}
 
    ngOnInit(): void {
@@ -117,20 +115,7 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
    }
 
    close(): void {
-      this.aiAssistantService.closePopOut();
       this.aiAssistantService.panelOpen = false;
-   }
-
-   popOut(): void {
-      const url = this.location.prepareExternalUrl("ai-chat");
-      this.aiAssistantService.openPopOut(url);
-   }
-
-   @HostListener("window:beforeunload")
-   onWindowUnload(): void {
-      // Close the pop-out window when the parent tab closes or reloads so the
-      // two windows always share the same lifetime.
-      this.aiAssistantService.closePopOut();
    }
 
    toggleCollapsed(): void {

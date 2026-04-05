@@ -45,7 +45,7 @@ public class AdminPageController {
    @GetMapping({
       "/em", "/em/", "/em/index.html", "/em/monitoring", "/em/monitoring/**",
       "/em/settings", "/em/settings/**", "/em/password", "/em/favorites",
-      "/em/auditing", "/em/auditing/**", "/em/ai-chat"
+      "/em/auditing", "/em/auditing/**"
    })
    public ModelAndView showAdminPage(HttpServletRequest request, HttpServletResponse response,
                                      Principal principal, @LinkUri String linkUri) throws Exception
