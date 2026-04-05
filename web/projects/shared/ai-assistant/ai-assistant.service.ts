@@ -102,6 +102,13 @@ export class AiAssistantService {
     * a retry on the next panel open.
     */
    loadWebComponentScript(): Promise<void> {
+      // If the element was already registered (e.g. by the @inetsoft-technology/ai-assistant
+      // npm package imported elsewhere in the app), skip loading the external UMD bundle to
+      // avoid a double-registration NotSupportedError.
+      if(customElements.get("ai-assistant")) {
+         return Promise.resolve();
+      }
+
       if(this.webComponentScriptPromise) {
          return this.webComponentScriptPromise;
       }
