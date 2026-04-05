@@ -85,7 +85,9 @@ export class AiAssistantService {
       });
 
       this.http.get<{title: string, vendorName: string, logoUrl: string}>(
-         "../api/assistant/get-branding").subscribe(branding => {
+         "../api/assistant/get-branding").pipe(
+         catchError(() => of(null))
+      ).subscribe(branding => {
          if(branding) {
             this.chatAppTitle = branding.title || null;
             this.chatAppVendorName = branding.vendorName || null;

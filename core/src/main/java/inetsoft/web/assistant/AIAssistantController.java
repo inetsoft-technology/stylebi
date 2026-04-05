@@ -228,7 +228,6 @@ public class AIAssistantController {
     * tells the web component to use its own built-in defaults.
     */
    @GetMapping("/api/assistant/get-branding")
-   @ResponseBody
    public AssistantBrandingModel getBranding() {
       return new AssistantBrandingModel(
          emptyToNull(SreeEnv.getProperty(CHAT_APP_TITLE)),
