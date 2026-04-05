@@ -34,7 +34,9 @@ import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.handler.*;
 import inetsoft.web.binding.model.*;
+import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartGeoRefModel;
+import inetsoft.web.binding.model.graph.ChartRefModel;
 import inetsoft.web.binding.model.graph.MapFeatureModel;
 import inetsoft.web.binding.model.graph.aesthetic.CategoricalColorModel;
 import inetsoft.web.binding.service.VSBindingService;
@@ -94,6 +96,15 @@ public class VSChartBindingController {
       if(model instanceof ChartBindingModel) {
          ChartBindingModel cmodel = (ChartBindingModel) model;
          cmodel.setChartType(downgrade3DChartType(cmodel.getChartType()));
+
+         // Also downgrade per-aggregate types for multi-style charts. (74475)
+         if(cmodel.isMultiStyles() && cmodel.getYFields() != null) {
+            for(ChartRefModel ref : cmodel.getYFields()) {
+               if(ref instanceof ChartAggregateRefModel aggr) {
+                  aggr.setChartType(downgrade3DChartType(aggr.getChartType()));
+               }
+            }
+         }
       }
 
       return model;
