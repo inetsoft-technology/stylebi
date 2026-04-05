@@ -19,8 +19,7 @@
 import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
 import { BehaviorSubject, Observable, of } from "rxjs";
-import { catchError, map, timeout } from "rxjs/operators";
-import { firstValueFrom } from "rxjs";
+import { catchError, map, take, timeout } from "rxjs/operators";
 import { convertToKey } from "../../em/src/app/settings/security/users/identity-id";
 import { BindingModel } from "../../portal/src/app/binding/data/binding-model";
 import { ChartBindingModel } from "../../portal/src/app/binding/data/chart/chart-binding-model";
@@ -84,11 +83,10 @@ export class AiAssistantService {
    private readonly _serverUrlLoaded: Promise<void>;
 
    constructor(private http: HttpClient) {
-      this._serverUrlLoaded = firstValueFrom(
-         this.http.get<string>("../api/assistant/get-chat-app-server-url").pipe(
-            catchError(() => of(""))
-         )
-      ).then((url: string) => {
+      this._serverUrlLoaded = this.http.get<string>("../api/assistant/get-chat-app-server-url").pipe(
+         catchError(() => of("")),
+         take(1)
+      ).toPromise().then((url: string) => {
          this.chatAppServerUrl = url || "";
       });
 
