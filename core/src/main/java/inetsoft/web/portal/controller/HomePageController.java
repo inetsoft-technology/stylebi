@@ -60,7 +60,7 @@ public class HomePageController {
       "/app", "/app/", "/app/index.html", "/app/adhoc", "/app/composer",
       "/app/portal", "/app/portal/**", "/app/viewer", "/app/viewer/**",
       "/app/wizard", "/app/wizard/**", "/app/reportviewer", "/app/reportviewer/**",
-      "/app/embed/**", "/app/reload"
+      "/app/embed/**", "/app/reload", "/app/ai-chat"
    })
    public ModelAndView showHomePage(HttpServletRequest request, HttpServletResponse response,
                                     @LinkUri String linkUri)
