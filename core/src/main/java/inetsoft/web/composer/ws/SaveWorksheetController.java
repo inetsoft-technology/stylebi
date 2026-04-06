@@ -255,7 +255,7 @@ public class SaveWorksheetController extends WorksheetController {
          entry.setAlias(alias);
          rws.getWorksheet().setLastModified(System.currentTimeMillis());
          getWorksheetEngine().setWorksheet(rws.getWorksheet(), entry, user, event.isForceSave(),
-                                           !event.isUpdateDepend());
+                                           !event.isUpdateDepend() && isSave);
          rws.getWorksheet().fireEvent(AbstractSheet.SHEET_SAVED, null);
 
          if(actionRecord != null) {
