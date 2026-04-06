@@ -33,7 +33,6 @@
       <button class="panel-action-btn"
               (click)="toggleMode()"
               [title]="mode === 'side' ? '_#(Move to bottom)' : '_#(Move to side)'"
-              *ngIf="!collapsed">
         <svg *ngIf="mode === 'side'" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
           <rect x="1" y="1" width="14" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
           <rect x="1" y="11" width="14" height="4" rx="1"/>
@@ -43,23 +42,15 @@
           <rect x="11" y="1" width="4" height="14" rx="1"/>
         </svg>
       </button>
-      <!-- Collapse / expand toggle -->
+      <!-- Collapse / expand toggle: always up/down since collapsing always produces a horizontal title bar -->
       <button class="panel-action-btn"
               (click)="toggleCollapsed()"
               [title]="collapsed ? '_#(Expand)' : '_#(Collapse)'">
-        <!-- Expand icon (shown when collapsed): chevron pointing up for bottom, left for side -->
-        <svg *ngIf="collapsed && mode === 'bottom'" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg *ngIf="collapsed" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="3,10 8,5 13,10"/>
         </svg>
-        <svg *ngIf="collapsed && mode === 'side'" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="10,3 5,8 10,13"/>
-        </svg>
-        <!-- Collapse icon (shown when expanded): chevron pointing down for bottom, right for side -->
-        <svg *ngIf="!collapsed && mode === 'bottom'" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg *ngIf="!collapsed" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="3,6 8,11 13,6"/>
-        </svg>
-        <svg *ngIf="!collapsed && mode === 'side'" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="6,3 11,8 6,13"/>
         </svg>
       </button>
       <button class="panel-action-btn panel-close-btn" (click)="close()" aria-label="_#(Close)" title="_#(Close)">
