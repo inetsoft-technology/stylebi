@@ -25,8 +25,9 @@ type PanelMode = "side" | "bottom";
 const LS_MODE_KEY = "ai-assistant-panel-mode";
 const LS_SIDE_WIDTH_KEY = "ai-assistant-panel-side-width";
 const LS_BOTTOM_HEIGHT_KEY = "ai-assistant-panel-bottom-height";
-const DEFAULT_SIDE_WIDTH = 680;
-const DEFAULT_BOTTOM_HEIGHT = 380;
+const LS_COLLAPSED_KEY = "ai-assistant-panel-collapsed";
+const DEFAULT_SIDE_WIDTH = 760;
+const DEFAULT_BOTTOM_HEIGHT = 520;
 const MIN_SIZE = 300;
 // Must match --ai-panel-top-offset in ai-assistant-panel.component.scss.
 const TOP_OFFSET = 52;
@@ -38,6 +39,7 @@ const TOP_OFFSET = 52;
 })
 export class AiAssistantPanelComponent implements OnInit, OnDestroy {
    mode: PanelMode = "side";
+   collapsed: boolean = false;
    sideWidth: number = DEFAULT_SIDE_WIDTH;
    bottomHeight: number = DEFAULT_BOTTOM_HEIGHT;
    serverState: "checking" | "online" | "offline" = "checking";
@@ -60,6 +62,10 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
    ngOnInit(): void {
       this.panelOpenSub = this.aiAssistantService.panelOpen$.subscribe(open => {
          if(open) {
+            // Reset collapsed state each time the panel is opened so users are never
+            // greeted by a header-only strip with no explanation.
+            this.collapsed = false;
+            try { localStorage.removeItem(LS_COLLAPSED_KEY); } catch { /* ignore */ }
             this.serverState = "checking";
             this.healthSub?.unsubscribe();
             this.healthSub = this.aiAssistantService.checkHealth().subscribe(online => {
@@ -98,6 +104,8 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
          if(savedHeight >= MIN_SIZE && savedHeight <= maxBottomHeight) {
             this.bottomHeight = savedHeight;
          }
+
+         this.collapsed = localStorage.getItem(LS_COLLAPSED_KEY) === "true";
       }
       catch {
          // localStorage unavailable (e.g. private browsing with strict settings) — use defaults.
@@ -112,6 +120,11 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
 
    close(): void {
       this.aiAssistantService.panelOpen = false;
+   }
+
+   toggleCollapsed(): void {
+      this.collapsed = !this.collapsed;
+      try { localStorage.setItem(LS_COLLAPSED_KEY, String(this.collapsed)); } catch { /* ignore */ }
    }
 
    toggleMode(): void {
@@ -150,6 +163,10 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
    }
 
    startDrag(event: MouseEvent): void {
+      if(this.collapsed) {
+         return;
+      }
+
       event.preventDefault();
       this.unlisten.forEach(fn => fn());
       this.unlisten = [];
