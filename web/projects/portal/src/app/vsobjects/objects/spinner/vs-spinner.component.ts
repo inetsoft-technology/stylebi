@@ -249,10 +249,6 @@ implements OnInit, OnChanges, OnDestroy
          "0px 0px " + padding + "px" : padding + "px 0px 0px";
    }
 
-   getLabelBorder(border: string): string {
-      return border || "solid 1px gray";
-   }
-
    selectLabel(event: MouseEvent): void {
       if(this.context.preview) {
          return;
