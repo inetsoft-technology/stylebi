@@ -29,7 +29,7 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
    @Override
    public void beforeAll(ExtensionContext context) throws IOException {
       SreeHome annotation = context.getRequiredTestClass().getAnnotation(SreeHome.class);
-      String home = annotation.value();
+      String home = annotation != null ? annotation.value() : "";
 
       if(home.isEmpty()) {
          home = System.getProperty("sree.home", ".");
