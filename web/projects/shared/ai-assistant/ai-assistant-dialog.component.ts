@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { Component } from "@angular/core";
+import { Component, OnDestroy, OnInit } from "@angular/core";
+import { Subscription } from "rxjs";
 import { AiAssistantService } from "./ai-assistant.service";
 
 @Component({
@@ -24,10 +25,11 @@ import { AiAssistantService } from "./ai-assistant.service";
   templateUrl: "./ai-assistant-dialog.component.html",
   styleUrls: ["./ai-assistant-dialog.component.scss"]
 })
-export class AiAssistantDialogComponent {
+export class AiAssistantDialogComponent implements OnInit, OnDestroy {
    userEmail: string = "";
    context: string = "";
    newChat: boolean = false;
+   private contextSub: Subscription | null = null;
 
    get userId(): string { return this.aiAssistantService.userId; }
    get chatAppServerUrl(): string { return this.aiAssistantService.chatAppServerUrl; }
@@ -38,5 +40,15 @@ export class AiAssistantDialogComponent {
       this.context = this.aiAssistantService.getFullContext();
       this.newChat = this.aiAssistantService.createNewChat;
       this.aiAssistantService.resetNewChat();
+   }
+
+   ngOnInit(): void {
+      this.contextSub = this.aiAssistantService.contextChange$.subscribe(() => {
+         this.context = this.aiAssistantService.getFullContext();
+      });
+   }
+
+   ngOnDestroy(): void {
+      this.contextSub?.unsubscribe();
    }
 }
