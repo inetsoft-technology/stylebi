@@ -110,7 +110,7 @@ public abstract class AbstractEditableAuthenticationProvider
                                 DataCycleManager dataCycleManager, Principal principal, boolean replace,
                                 String defaultPassword)
    {
-      copyOrganizationInternal(fromOrganization, null, newOrgID, null, identityService, themeService, principal, replace, defaultPassword);
+      copyOrganizationInternal(fromOrganization, null, newOrgID, null, identityService, themeService, dashboardRegistryManager, dataCycleManager, principal, replace, defaultPassword);
    }
 
    /**
