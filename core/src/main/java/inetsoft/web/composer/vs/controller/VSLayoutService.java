@@ -443,7 +443,7 @@ public class VSLayoutService {
                for(VSObjectModel childModel : childModels) {
                   VSFormatModel fmt = childModel.getObjectFormat();
                   fmt.setPositions(
-                     layoutPos.x, layoutPos.y - fmt.getHeight(),
+                     layoutPos.x, Math.max(0, layoutPos.y - fmt.getHeight()),
                      fmt.getWidth(), fmt.getHeight());
                }
             }

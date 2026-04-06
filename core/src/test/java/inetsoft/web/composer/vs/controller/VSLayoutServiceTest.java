@@ -89,11 +89,11 @@ class VSLayoutServiceTest {
          "model top should be shifted up by max child height");
       assertEquals(layoutX, result.left());
 
-      // child format should be repositioned above the tab bar
+      // child format repositioned above tab bar, clamped to canvas origin
       assertEquals(layoutX, (int) childFmt.getLeft(),
          "child left should match layout position");
-      assertEquals(layoutY - childHeight, (int) childFmt.getTop(),
-         "child top should be positioned above tab bar");
+      assertEquals(Math.max(0, layoutY - childHeight), (int) childFmt.getTop(),
+         "child top should be positioned above tab bar, clamped to 0");
    }
 
    @Test
@@ -136,13 +136,13 @@ class VSLayoutServiceTest {
       assertEquals(layoutY - child2Height, result.top(),
          "model top should be shifted by the tallest child height");
 
-      // each child positioned at its own height above the tab bar
-      assertEquals(layoutY - child1Height,
+      // each child positioned at its own height above tab bar, clamped to 0
+      assertEquals(Math.max(0, layoutY - child1Height),
          (int) childModel1.getObjectFormat().getTop(),
-         "child1 top should be positioned at its own height above tab bar");
-      assertEquals(layoutY - child2Height,
+         "child1 top should be its own height above tab bar, clamped to 0");
+      assertEquals(Math.max(0, layoutY - child2Height),
          (int) childModel2.getObjectFormat().getTop(),
-         "child2 top should be positioned at its own height above tab bar");
+         "child2 top should be its own height above tab bar, clamped to 0");
    }
 
    @Test
