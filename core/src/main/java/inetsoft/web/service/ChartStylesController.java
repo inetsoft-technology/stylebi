@@ -47,6 +47,12 @@ public class ChartStylesController {
          String typeStr = chartTypes.get(key);
          int typeNum = Integer.parseInt(key);
 
+         // 3D chart types are removed from the UI. Existing 3D charts continue to render
+         // at runtime; the type simply cannot be selected when creating/editing. (74475)
+         if(GraphTypes.is3DBar(typeNum) || typeNum == GraphTypes.CHART_3D_PIE) {
+            continue;
+         }
+
          if(key.equals(String.valueOf(GraphTypes.CHART_AUTO))) {
             styles.add(new ChartStyle(catalog.getString(typeStr), GraphTypes.CHART_AUTO));
             stackStyles.add(new ChartStyle(catalog.getString(typeStr), GraphTypes.CHART_AUTO));
