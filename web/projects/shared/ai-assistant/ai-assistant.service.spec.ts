@@ -28,23 +28,27 @@ function makeHttp(chatUrl = "", styleBIUrl = "") {
    };
 }
 
+function makeCurrentUserService() {
+   return {} as any;
+}
+
 describe("AiAssistantService", () => {
    let service: AiAssistantService;
 
    beforeEach(() => {
-      service = new AiAssistantService(makeHttp() as any);
+      service = new AiAssistantService(makeHttp() as any, makeCurrentUserService());
    });
 
    // ── Constructor HTTP calls ──────────────────────────────────────────────────
 
    it("should populate chatAppServerUrl from HTTP response on construction", () => {
-      const s = new AiAssistantService(makeHttp("https://chat.example.com") as any);
+      const s = new AiAssistantService(makeHttp("https://chat.example.com") as any, makeCurrentUserService());
       expect(s.chatAppServerUrl).toBe("https://chat.example.com");
    });
 
    it("should default chatAppServerUrl to empty string when response is falsy", () => {
       const http = { get: jest.fn().mockReturnValue(of(null)) };
-      const s = new AiAssistantService(http as any);
+      const s = new AiAssistantService(http as any, makeCurrentUserService());
       expect(s.chatAppServerUrl).toBe("");
    });
 
