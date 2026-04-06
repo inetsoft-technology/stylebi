@@ -42,14 +42,20 @@
           <rect x="11" y="1" width="4" height="14" rx="1"/>
         </svg>
       </button>
-      <!-- Collapse / expand toggle: always up/down since collapsing always produces a horizontal title bar -->
+      <!-- Collapse / expand toggle.
+           Side mode:   header is at top, body hangs below  → collapse folds body UP   (↑ to collapse, ↓ to expand)
+           Bottom mode: header is at bottom, body rises above → collapse folds body DOWN (↓ to collapse, ↑ to expand) -->
       <button class="panel-action-btn"
               (click)="toggleCollapsed()"
               [title]="collapsed ? '_#(Expand)' : '_#(Collapse)'">
-        <svg *ngIf="collapsed" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <!-- up chevron -->
+        <svg *ngIf="(mode === 'side' && !collapsed) || (mode === 'bottom' && collapsed)"
+             aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="3,10 8,5 13,10"/>
         </svg>
-        <svg *ngIf="!collapsed" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <!-- down chevron -->
+        <svg *ngIf="(mode === 'side' && collapsed) || (mode === 'bottom' && !collapsed)"
+             aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="3,6 8,11 13,6"/>
         </svg>
       </button>
