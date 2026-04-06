@@ -23,6 +23,8 @@ import inetsoft.report.internal.Util;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.*;
@@ -30,6 +32,8 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.RecycleUtils;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -46,6 +50,13 @@ public class AutoSaveController {
    /**
     * Delete the assets
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/autosave/delete")
    public void deleteAutoSaveAssets(@RequestBody Map<String, String> entryPath, Principal user)
        throws Exception
@@ -67,6 +78,13 @@ public class AutoSaveController {
    /**
     * Get the assets time
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/autosave/gettime")
    public String getAutoSaveTime(@RequestBody Map<String, String> entryPath, Principal user)
        throws Exception
@@ -80,6 +98,13 @@ public class AutoSaveController {
    /**
     * Restore the assets
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/autosave/restore")
    public void restoreAutoSaveAssets(@RequestBody Map<String, String> entryPath, Principal user)
       throws Exception
@@ -131,6 +156,13 @@ public class AutoSaveController {
    /**
     * Get the repository tree root
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/autosave/tree")
    public RestoreAssetTreeListModel getRepositoryTree(Principal principal,
       @RequestParam("isvs") boolean isVS) throws Exception

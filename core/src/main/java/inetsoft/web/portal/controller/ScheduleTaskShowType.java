@@ -18,6 +18,10 @@
 package inetsoft.web.portal.controller;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,11 +30,25 @@ public class ScheduleTaskShowType {
    public ScheduleTaskShowType() {
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/change-show-type")
    public boolean getScheduleTaskShowType() {
       return SreeEnv.getBooleanProperty("schedule.show.tasks.as.list", "true");
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PutMapping("/api/em/schedule/change-show-type")
    public void setConfiguration(@RequestParam("showTasksAsList") String showTasksAsList) {
       SreeEnv.setProperty("schedule.show.tasks.as.list", showTasksAsList);

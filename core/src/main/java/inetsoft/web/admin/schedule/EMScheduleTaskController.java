@@ -64,13 +64,18 @@ public class EMScheduleTaskController {
     *
     * @throws Exception if could not get task
     */
-   @Secured(
+   @Secured({
       @RequiredPermission(
          resourceType = ResourceType.SCHEDULER,
          resource = "*",
          actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
       )
-   )
+   })
    @PostMapping("/api/em/schedule/new")
    public ScheduleTaskDialogModel getNewTaskDialogModel(
       @RequestParam("timeZone") String timeZone,
@@ -155,13 +160,18 @@ public class EMScheduleTaskController {
       return scheduleTaskService.getDialogModel(taskName, principal, true);
    }
 
-   @Secured(
+   @Secured({
       @RequiredPermission(
          resourceType = ResourceType.SCHEDULER,
          resource = "*",
          actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
       )
-   )
+   })
    @PostMapping("/api/em/schedule/task/save")
    public ScheduleTaskDialogModel saveTask(@RequestBody ScheduleTaskEditorModel model,
                                            @LinkUri String linkURI,
@@ -170,13 +180,18 @@ public class EMScheduleTaskController {
       return scheduleTaskService.saveTask(model, linkURI, principal, true);
    }
 
-   @Secured(
+   @Secured({
       @RequiredPermission(
          resourceType = ResourceType.SCHEDULER,
          resource = "*",
          actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
       )
-   )
+   })
    @PostMapping("/api/em/schedule/enable/task")
    public ToggleTaskResponse toggleTaskEnabled(@RequestBody TaskListModel list, Principal principal)
       throws Exception
@@ -201,13 +216,18 @@ public class EMScheduleTaskController {
       return builder.build();
    }
 
-   @Secured(
+   @Secured({
       @RequiredPermission(
          resourceType = ResourceType.SCHEDULER,
          resource = "*",
          actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
       )
-   )
+   })
    @GetMapping("/api/em/schedule/executeAs/identities")
    public ExecuteAsIdentitiesModel getExecuteAsUsers(@RequestParam("owner") String owner,
                                                      Principal principal)

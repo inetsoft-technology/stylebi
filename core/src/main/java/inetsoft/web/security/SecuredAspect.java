@@ -25,6 +25,8 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.Tool;
+import inetsoft.web.admin.authz.ComponentAuthorizationService;
+import inetsoft.web.admin.authz.ViewComponent;
 import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -56,8 +58,11 @@ public class SecuredAspect {
     * Creates a new instance of <tt>SecuredAspect</tt>.
     */
    @Autowired
-   public SecuredAspect(ResourcePermissionService resourcePermissionService) {
+   public SecuredAspect(ResourcePermissionService resourcePermissionService,
+                        ComponentAuthorizationService componentAuthorizationService)
+   {
       this.resourcePermissionService = resourcePermissionService;
+      this.componentAuthorizationService = componentAuthorizationService;
    }
 
    /**
@@ -182,6 +187,10 @@ public class SecuredAspect {
          else {
             check = checkPermission(permission.resourceType(), permission.resource(), permission.actions(), user);
 
+            if(check && permission.resourceType() == ResourceType.EM_COMPONENT) {
+               check = isComponentAccessible(permission.resource(), user);
+            }
+
             if(orOperator && check || !orOperator && !check) {
                break;
             }
@@ -245,6 +254,17 @@ public class SecuredAspect {
       return result;
    }
 
+   private boolean isComponentAccessible(String resource, Principal user) {
+      if(!SUtil.isMultiTenant()) {
+         return true;
+      }
+
+      ViewComponent component = componentAuthorizationService.getComponent(resource);
+      return component == null || !component.hiddenForMultiTenancy() ||
+         OrganizationManager.getInstance().isSiteAdmin(user);
+   }
+
    private final SpelExpressionParser expressionParser = new SpelExpressionParser();
    private final ResourcePermissionService resourcePermissionService;
+   private final ComponentAuthorizationService componentAuthorizationService;
 }

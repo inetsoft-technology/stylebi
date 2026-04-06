@@ -23,6 +23,8 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.*;
 import inetsoft.web.adhoc.DecodeParam;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -40,6 +42,13 @@ public class RepositoryWorksheetController {
       this.treeService = treeService;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/worksheet")
    public RepositorySheetSettingsModel getWorksheetSettings(
       @DecodeParam("path") String path,
@@ -70,6 +79,13 @@ public class RepositoryWorksheetController {
       return sheetService.getSheetSettings(entry, ResourceType.ASSET, timeZone, owner, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/worksheet")
    public RepositorySheetSettingsModel setWorksheetSettings(
       @DecodeParam("path") String path,

@@ -17,9 +17,13 @@
  */
 package inetsoft.web.admin.user;
 
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.web.admin.monitoring.AbstractMonitoringController;
 import inetsoft.web.admin.monitoring.MonitoringDataService;
 import inetsoft.web.factory.RemainingPath;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
@@ -71,6 +75,13 @@ public class UserStatusController extends AbstractMonitoringController {
       });
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/users/session",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping(value = { "/api/em/monitor/user/logout", "/api/em/monitor/user/logout/**" })
    public void logout(@RequestBody String[] sessionIds, @RemainingPath() String server) {
       userService.logoutSession(getServerClusterNode(server), sessionIds);

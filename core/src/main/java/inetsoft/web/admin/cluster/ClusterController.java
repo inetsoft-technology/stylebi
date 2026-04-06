@@ -18,8 +18,12 @@
 package inetsoft.web.admin.cluster;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.web.admin.monitoring.MonitoringDataService;
 import inetsoft.web.cluster.ServerClusterClient;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
@@ -68,21 +72,49 @@ public class ClusterController {
          .addSubscriber(stompHeaderAccessor, clusterService::getClusterStatus);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/cluster/reportCluster",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/monitoring/cluster/cluster-status")
    public List<ReportClusterNodeModel> getClusterStatus() {
       return clusterService.getClusterStatus();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/cluster/reportCluster",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/monitoring/cluster/cluster-enabled")
    public ClusterEnabledModel getClusterEnabled() {
       return clusterService.getClusterEnabled();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/cluster/reportCluster",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/monitoring/cluster/pause-server")
    public void pauseServer(@RequestBody String[] servers) {
       clusterService.pauseServers(servers);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/cluster/reportCluster",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/monitoring/cluster/resume-server")
    public void resumeServer(@RequestBody String[] servers) {
       clusterService.resumeServers(servers);

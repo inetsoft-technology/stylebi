@@ -18,9 +18,13 @@
 package inetsoft.web.admin.viewsheet;
 
 import inetsoft.report.composition.ExpiredSheetException;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.web.admin.monitoring.AbstractMonitoringController;
 import inetsoft.web.admin.monitoring.MonitoringDataService;
 import inetsoft.web.factory.RemainingPath;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 
 import java.security.Principal;
 import java.util.List;
@@ -72,6 +76,13 @@ public class ViewsheetMonitorController extends AbstractMonitoringController {
       });
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/viewsheets/open",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/monitoring/viewsheets/remove/**")
    public void closeViewsheets(@RemainingPath String server,
                                @RequestBody() String[] viewsheetIds) throws Exception

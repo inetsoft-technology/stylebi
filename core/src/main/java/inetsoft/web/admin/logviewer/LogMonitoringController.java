@@ -41,11 +41,25 @@ public class LogMonitoringController {
       this.monitoringDataService = monitoringDataService;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/log",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/logviewer/all-logs")
    public LogMonitoringModel getLogs() {
       return logMonitoringService.getLogs();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/log",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/logviewer/refresh/{clusterNode}/{logFileName}/{offset}/{length}")
    public List<String> refreshLogViewer(
       @PathVariable("clusterNode") String clusterNode,
@@ -72,6 +86,13 @@ public class LogMonitoringController {
       });
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/log",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/logviewer/rotate")
    public LogMonitoringModel rotateLogFile(
       @RequestParam("clusterNode") String clusterNode,
@@ -80,6 +101,13 @@ public class LogMonitoringController {
       return logMonitoringService.rotateLogFile(clusterNode, logFileName);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/log",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/logviewer/download")
    public void downloadLogs(HttpServletResponse response,
                             @RequestParam(value = "clusterNode", required = false) String clusterNode)

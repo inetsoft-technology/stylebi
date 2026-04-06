@@ -23,7 +23,10 @@ import inetsoft.util.config.InetsoftConfig;
 import inetsoft.web.admin.schedule.model.CheckMailInfo;
 import inetsoft.web.admin.schedule.model.ScheduleConfigurationModel;
 import inetsoft.web.admin.schedule.model.ScheduleStatusModel;
-import inetsoft.web.security.DeniedMultiTenancyOrgUser;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 
 import java.security.Principal;
 
@@ -43,13 +46,25 @@ public class SchedulerConfigurationController implements MessageListener {
       this.configService = configService;
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/settings",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/settings/schedule/configuration")
    public ScheduleConfigurationModel getConfiguration(Principal principal) throws Exception {
       return this.configService.getConfiguration(principal);
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/settings",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PutMapping("/api/em/settings/schedule/configuration")
    public void setConfiguration(@RequestBody ScheduleConfigurationModel model, Principal principal)
       throws Exception
@@ -57,13 +72,25 @@ public class SchedulerConfigurationController implements MessageListener {
       this.configService.setConfiguration(model, principal);
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/settings",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/settings/schedule/status")
    public ScheduleStatusModel getStatus() {
       return this.configService.getStatus();
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/settings",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PutMapping("/api/em/settings/schedule/status")
    public void setStatus(@RequestBody ScheduleStatusModel status) throws Exception {
       this.configService.setStatus(status);
@@ -74,6 +101,13 @@ public class SchedulerConfigurationController implements MessageListener {
       return this.configService.checkMail(mailParams, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/settings",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/settings/schedule/cloudRunner")
    public boolean isCloudRunner() {
       return InetsoftConfig.getInstance().getCloudRunner() != null;

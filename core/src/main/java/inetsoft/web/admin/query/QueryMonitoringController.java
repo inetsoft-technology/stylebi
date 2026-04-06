@@ -17,9 +17,13 @@
  */
 package inetsoft.web.admin.query;
 
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.web.admin.monitoring.AbstractMonitoringController;
 import inetsoft.web.admin.monitoring.MonitoringDataService;
 import inetsoft.web.factory.RemainingPath;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 
 import java.security.Principal;
 import java.util.List;
@@ -59,6 +63,13 @@ public class QueryMonitoringController extends AbstractMonitoringController {
       });
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/queries/executing",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/monitoring/queries/remove/**")
    public void remove(@RequestBody String[] ids, @RemainingPath String server) {
       try {

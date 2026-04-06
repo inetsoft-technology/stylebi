@@ -19,7 +19,11 @@ package inetsoft.web.admin.schedule;
 
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.web.admin.schedule.model.TaskDependencyModel;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.bind.annotation.*;
 
@@ -35,6 +39,13 @@ public class ExportTaskController {
       this.scheduleManager = scheduleManager;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/export/get-dependent-tasks")
    public List<TaskDependencyModel> getDependentTasks(
            @RequestParam("tasks") String tasks, Principal principal)
@@ -99,6 +110,13 @@ public class ExportTaskController {
     *
     * @throws Exception if could not get task
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/schedule/export")
    public void exportScheduledTasks(
            @RequestParam("tasks") String tasks,

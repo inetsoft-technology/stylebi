@@ -25,11 +25,15 @@ import inetsoft.uql.viewsheet.graph.aesthetic.ImageShapes;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.admin.content.dataspace.model.DataSpaceFolderSettingsModel;
 import inetsoft.web.admin.content.dataspace.model.DataSpaceFolderUploadModel;
 import inetsoft.web.admin.upload.UploadService;
 import inetsoft.web.admin.upload.UploadedFile;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import inetsoft.web.security.auth.ResourceExistsException;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.compress.archivers.ArchiveEntry;
@@ -58,6 +62,13 @@ public class DataSpaceFolderSettingsController {
       this.uploadService = uploadService;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/data-space",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/data-space/folder/model")
    public DataSpaceFolderSettingsModel getModel(
       @DecodeParam("path") String path) throws Exception
@@ -70,6 +81,13 @@ public class DataSpaceFolderSettingsController {
          .build();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/data-space",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/data-space/folder/apply")
    public DataSpaceFolderSettingsModel apply(@RequestBody DataSpaceFolderSettingsModel model,
                                              Principal principal)
@@ -122,11 +140,25 @@ public class DataSpaceFolderSettingsController {
       return getModel(newPath);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/data-space",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @DeleteMapping("/api/em/content/data-space/folder")
    public void deleteDataSpaceFolder(@DecodeParam("path") String path) {
       this.dataSpaceContentSettingsService.deleteDataSpaceNode(path, true);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/data-space",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/data-space/folder/upload")
    public void uploadDataSpaceFiles(@RequestBody DataSpaceFolderUploadModel model,
                                     Principal principal)
@@ -201,6 +233,13 @@ public class DataSpaceFolderSettingsController {
       }
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/data-space",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/content/data-space/folder/download")
    public void downloadDataSpaceFolder(@RequestParam(value = "path") String path,
                                        @RequestParam(value = "name") String name,

@@ -18,8 +18,12 @@
 
 package inetsoft.web.admin.content.dataspace;
 
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.admin.content.dataspace.model.*;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -33,6 +37,13 @@ public class DataSpaceShapeTreeController {
       this.dataSpaceContentSettingsService = dataSpaceContentSettingsService;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/presentation/settings",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/data-space/shapes/tree")
    public DataSpaceTreeModel getDataSpaceTree(
       @DecodeParam(value = "path", required = false) String parentPath,
