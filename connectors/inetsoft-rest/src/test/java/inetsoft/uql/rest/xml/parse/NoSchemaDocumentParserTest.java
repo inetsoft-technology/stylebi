@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.rest.xml.parse;
 
+import inetsoft.test.SreeHome;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.ExpandedJsonTable;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,7 @@ import javax.xml.xpath.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@SreeHome
 class NoSchemaDocumentParserTest {
    @Test
    void parse() throws Exception {

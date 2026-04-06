@@ -20,6 +20,7 @@ package inetsoft.uql.onedrive;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import inetsoft.report.lens.xnode.XNodeTableLens;
+import inetsoft.test.SreeHome;
 import inetsoft.uql.*;
 import inetsoft.util.credential.*;
 import org.junit.jupiter.api.*;
@@ -34,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.*;
 
+@SreeHome
 @ExtendWith(MockitoExtension.class)
 public class OneDriveRuntimeTests {
    private OneDriveDataSource dataSource;

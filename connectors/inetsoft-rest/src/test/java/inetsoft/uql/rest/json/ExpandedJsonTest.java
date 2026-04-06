@@ -18,6 +18,7 @@
 package inetsoft.uql.rest.json;
 
 import inetsoft.report.lens.xnode.XNodeTableLens;
+import inetsoft.test.SreeHome;
 import inetsoft.uql.*;
 import org.junit.jupiter.api.Test;
 
@@ -25,6 +26,7 @@ import java.net.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@SreeHome
 public class ExpandedJsonTest {
    @Test
    void queryFile() throws URISyntaxException {

@@ -111,6 +111,9 @@
             ],
             "setupFiles": [
               "jest-canvas-mock"
+            ],
+            "testPathIgnorePatterns": [
+              "\\.tl\\.spec\\.ts$"
             ]
           }
         },
@@ -230,6 +233,9 @@
             ],
             "setupFiles": [
               "jest-canvas-mock"
+            ],
+            "testPathIgnorePatterns": [
+              "\\.tl\\.spec\\.ts$"
             ]
           }
         },
