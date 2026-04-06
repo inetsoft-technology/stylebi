@@ -272,9 +272,8 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
          .pipe(catchError((error: HttpErrorResponse) => this.errorService.showSnackBar(error)))
          .subscribe(model => {
             if(model) {
-               let id: IdentityId = {name: model.name, orgID: model.id};
-               this.refreshTree(id, IdentityType.ORGANIZATION);
                this.orgDropDownService.refreshProviders();
+               this.usersService.loadScheduleUsers();
             }
 
             this.loading = false;

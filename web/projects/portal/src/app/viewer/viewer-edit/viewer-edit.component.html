@@ -32,6 +32,7 @@
    </vs-binding-pane>
    <vs-wizard *ngIf="displayChartWizard"
       [model]="wizardModel"
+      [aiAssistantPermission]="aiAssistantPermission"
       (onCommit)="closeWizardPane($event)"
       (onFullEditor)="goToFullEditor($event)">
    </vs-wizard>

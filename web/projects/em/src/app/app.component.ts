@@ -17,7 +17,6 @@
  */
 
 import { BreakpointObserver } from "@angular/cdk/layout";
-import { HttpClient } from "@angular/common/http";
 import {
    Component,
    NgZone,
@@ -39,6 +38,7 @@ import { SessionExpirationModel } from "../../../shared/util/model/session-expir
 import { CloudLicenseState } from "../../../shared/util/security/cloud-license-state";
 import { AuthorizationService } from "./authorization/authorization.service";
 import { ComponentPermissions } from "./authorization/component-permissions";
+import { CurrentUserService } from "../../../shared/util/current-user.service";
 import { OrganizationDropdownService } from "./navbar/organization-dropdown.service";
 import { TopScrollService } from "./top-scroll/top-scroll.service";
 import { SessionExpirationDialog } from "./widget/dialog/session-expiration-dialog/session-expiration-dialog.component";
@@ -63,7 +63,7 @@ export class AppComponent implements OnInit, OnDestroy {
    private sessionExpirationDialog: MatDialogRef<SessionExpirationDialog>;
    private protectionExpirationDialog: MatDialogRef<SessionExpirationDialog>;
 
-   constructor(private http: HttpClient, private authzService: AuthorizationService,
+   constructor(private authzService: AuthorizationService,
                private stompClient: StompClientService, private zone: NgZone,
                private dialog: MatDialog, private breakpointObserver: BreakpointObserver,
                private scrollService: TopScrollService,
@@ -71,17 +71,18 @@ export class AppComponent implements OnInit, OnDestroy {
                public viewContainerRef: ViewContainerRef,
                private logoutService: LogoutService,
                private orgDropdownService: OrganizationDropdownService,
+               private currentUserService: CurrentUserService,
                private router: Router)
    {
       // viewContainerRef is used by the color picker in the theme page
    }
 
    ngOnInit(): void {
-      this.http.get("../api/em/security/get-current-user").subscribe(userModel => {
-         this.name = userModel["name"]?.name;
-      });
+      this.subscription.add(this.currentUserService.getEmCurrentUser().subscribe(userModel => {
+         this.name = userModel.name?.name;
+      }));
 
-      this.authzService.getPermissions("").subscribe(p => this.permissions = p);
+      this.subscription.add(this.authzService.getPermissions("").subscribe(p => this.permissions = p));
 
       this.stompClient.connect("../vs-events", true).subscribe(connection => {
          this.connection = connection;

@@ -18,7 +18,7 @@
 
 import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
-import { BehaviorSubject, Observable, of } from "rxjs";
+import { BehaviorSubject, Observable, of, Subject } from "rxjs";
 import { catchError, map, timeout } from "rxjs/operators";
 import { convertToKey } from "../../em/src/app/settings/security/users/identity-id";
 import { BindingModel } from "../../portal/src/app/binding/data/binding-model";
@@ -33,11 +33,8 @@ import {
 import { getChartBindingContext } from "../../portal/src/app/binding/services/assistant/chart-context-helper";
 import { getCrosstabBindingContext } from "../../portal/src/app/binding/services/assistant/crosstab-context-helper";
 import { CalcTableLayout } from "../../portal/src/app/common/data/tablelayout/calc-table-layout";
-import { CurrentUser } from "../../portal/src/app/portal/current-user";
 import { VSObjectModel } from "../../portal/src/app/vsobjects/model/vs-object-model";
-
-const PORTAL_CURRENT_USER_URI: string = "../api/portal/get-current-user";
-const EM_CURRENT_USER_URI: string = "../api/em/security/get-current-user";
+import { CurrentUserService } from "../util/current-user.service";
 
 export enum ContextType {
    VIEWSHEET = "dashboard",
@@ -61,6 +58,8 @@ export class AiAssistantService {
    styleBIUrl: string = "";
    private _panelOpen$ = new BehaviorSubject<boolean>(false);
    readonly panelOpen$ = this._panelOpen$.asObservable();
+   private _contextChange$ = new Subject<void>();
+   readonly contextChange$ = this._contextChange$.asObservable();
    get panelOpen(): boolean { return this._panelOpen$.value; }
    set panelOpen(v: boolean) { this._panelOpen$.next(v); }
    aiAssistantVisible: boolean = false;
@@ -73,7 +72,7 @@ export class AiAssistantService {
    private _lastBindingObject: string = "";
    private _newChatFromBinding: boolean = false;
 
-   constructor(private http: HttpClient) {
+   constructor(private http: HttpClient, private currentUserService: CurrentUserService) {
       this.http.get("../api/assistant/get-chat-app-server-url").subscribe((url: string) => {
          this.chatAppServerUrl = url || "";
       });
@@ -138,18 +137,27 @@ export class AiAssistantService {
 
    resetContextMap(): void {
       this.contextMap = {};
+      this._contextChange$.next();
    }
 
    loadCurrentUser(em: boolean = false): void {
-      const uri = em ? EM_CURRENT_USER_URI : PORTAL_CURRENT_USER_URI;
-      this.http.get(uri).subscribe((model: CurrentUser) => {
+      const user$ = em
+         ? this.currentUserService.getEmCurrentUser()
+         : this.currentUserService.getPortalCurrentUser();
+
+      user$.subscribe(model => {
          this.userId = convertToKey(model.name);
          this.email = model.email?.length > 0 ? model.email[0] : "";
       });
    }
 
    setContextField(key: string, value: string) {
+      if(this.contextMap[key] === value) {
+         return;
+      }
+
       this.contextMap[key] = value;
+      this._contextChange$.next();
    }
 
    getContextField(key: string): string {
@@ -158,6 +166,7 @@ export class AiAssistantService {
 
    removeContextField(key: string) {
       delete this.contextMap[key];
+      this._contextChange$.next();
    }
 
    getFullContext(): string {

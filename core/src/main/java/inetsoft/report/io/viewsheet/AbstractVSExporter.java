@@ -1413,7 +1413,7 @@ public abstract class AbstractVSExporter implements VSExporter {
                   }
 
                   if(titleObj != null) {
-                     titleObj.setViewsheet(viewsheet);
+                     titleObj.setViewsheet(assembly.getViewsheet());
                      prepareAssembly(titleObj);
                      writeText(titleObj);
                   }
@@ -2229,11 +2229,11 @@ public abstract class AbstractVSExporter implements VSExporter {
       Color ocolor = g2.getBackground();
       g2.scale(scale, scale);
       g2.translate((int) bounds.getX(), (int) bounds.getY());
+      final int titleHeight = getTitleHeight(info);
+      final Insets2D border = getBorderOffset(info.getFormat());
       chart.paint(g2);
 
-      final int titleHeight = getTitleHeight(info);
       g2.translate(info.getPadding().left, info.getPadding().top + titleHeight);
-      final Insets2D border = getBorderOffset(info.getFormat());
       g2.translate(border.left, border.top);
       g2.setColor(ocolor);
 

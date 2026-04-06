@@ -303,4 +303,28 @@ describe("VSSelection Test", () => {
 
       expect(vsSelection.leftMarginTitle).toEqual(-1);
    });
+
+   it("should shift non-dropdown selection up by body height in bottom-tab", () => {
+      let listModel = createListModel();
+      listModel.dropdown = false;
+      listModel.objectFormat.top = 300;
+      listModel.objectFormat.height = 200;
+      listModel.titleFormat.height = 20;
+      listModel.titleVisible = true;
+      listModel.containerType = "VSTab";
+      listModel.container = "Tab1";
+
+      let tabModel = Object.assign(
+         { bottomTabs: true },
+         TestUtils.createMockVSObjectModel("VSTab", "Tab1")
+      );
+
+      contextService.viewer = true;
+      fixture.componentInstance.model = listModel;
+      fixture.componentInstance.vsInfo = { vsObjects: [tabModel] } as any;
+
+      // bodyHeight = objectFormat.height - titleFormat.height = 200 - 20 = 180
+      // topPosition = objectFormat.top - bodyHeight = 300 - 180 = 120
+      expect(fixture.componentInstance.topPosition).toBe(120);
+   });
 });

@@ -260,7 +260,9 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler im
                Catalog.getCatalog(principal).getString("em.security.noSystemAdminProvider")));
 
          // Note: If this is a database provider, its service will be cleaned up by lazy cleanup
-         // after no clients have connected for the grace period.
+         // after no clients have connected for the grace period. Eager teardown is intentionally
+         // avoided here: the removal needs time to propagate across cluster nodes, and destroying
+         // the service immediately would cause errors on nodes that haven't yet received the update.
          removedProvider.tearDown();
          chain.setProviders(providerList);
       }
