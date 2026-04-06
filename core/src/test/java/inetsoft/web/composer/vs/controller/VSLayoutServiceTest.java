@@ -135,6 +135,14 @@ class VSLayoutServiceTest {
       // top offset should use the max of the two child heights
       assertEquals(layoutY - child2Height, result.top(),
          "model top should be shifted by the tallest child height");
+
+      // each child positioned at its own height above the tab bar
+      assertEquals(layoutY - child1Height,
+         (int) childModel1.getObjectFormat().getTop(),
+         "child1 top should be positioned at its own height above tab bar");
+      assertEquals(layoutY - child2Height,
+         (int) childModel2.getObjectFormat().getTop(),
+         "child2 top should be positioned at its own height above tab bar");
    }
 
    @Test

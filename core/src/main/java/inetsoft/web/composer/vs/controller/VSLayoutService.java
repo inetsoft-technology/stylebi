@@ -420,6 +420,8 @@ public class VSLayoutService {
       }
 
       VSObjectModel objectModel = null;
+      boolean isBottomTabs = assembly instanceof TabVSAssembly &&
+         ((TabVSAssemblyInfo) assembly.getInfo()).isBottomTabs();
 
       if(assembly != null) {
          assembly.getInfo().setVisible(true);
@@ -429,13 +431,8 @@ public class VSLayoutService {
          if(assembly instanceof TabVSAssembly ||
             assembly instanceof GroupContainerVSAssembly)
          {
-            // get child assemblies of layout object to render them only within the
-            // layout object and not as editable layout objects
             getChildAssemblies((ContainerVSAssembly) assembly, rvs,
                                childModels, objectModelService);
-
-            boolean isBottomTabs = assembly instanceof TabVSAssembly &&
-               ((TabVSAssemblyInfo) assembly.getInfo()).isBottomTabs();
 
             // for bottom tabs, children sit above the tab bar — position each
             // child at its own height above the layout position (only one is
@@ -454,11 +451,9 @@ public class VSLayoutService {
       }
 
       // for bottom tabs, shift top to visual top (children above tab bar).
-      // when assembly is null (editable overlay), childModels is empty so
+      // childModels is empty when assembly is null (editable overlay), so
       // maxChildHeight stays 0 and top is unchanged.
       int maxChildHeight = 0;
-      boolean isBottomTabs = assembly instanceof TabVSAssembly &&
-         ((TabVSAssemblyInfo) assembly.getInfo()).isBottomTabs();
 
       if(isBottomTabs) {
          for(VSObjectModel childModel : childModels) {
@@ -475,7 +470,7 @@ public class VSLayoutService {
          .width(assemblyLayout.getSize().width)
          .height(assemblyLayout.getSize().height)
          .left(assemblyLayout.getPosition().x)
-         .top(assemblyLayout.getPosition().y - maxChildHeight)
+         .top(Math.max(0, assemblyLayout.getPosition().y - maxChildHeight))
          .tableLayout(assemblyLayout.getTableLayout())
          .supportTableLayout(supportTableLayout(assembly))
          .build();
