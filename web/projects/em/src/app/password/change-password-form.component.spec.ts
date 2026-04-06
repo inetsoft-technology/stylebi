@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NO_ERRORS_SCHEMA, Renderer2 } from "@angular/core";
+import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { async, ComponentFixture, TestBed } from "@angular/core/testing";
 import { ReactiveFormsModule } from "@angular/forms";
 import { MatCardModule } from "@angular/material/card";
@@ -25,14 +25,9 @@ import { ChangePasswordService } from "./change-password.service";
 describe("ChangePasswordFormComponent", () => {
    let component: ChangePasswordFormComponent;
    let fixture: ComponentFixture<ChangePasswordFormComponent>;
-   let render: any;
    let pwdService: any;
 
    beforeEach(async(() => {
-      render = {
-         listen: jest.fn()
-      };
-
       pwdService = {
          verifyOldPassword: jest.fn(),
          notify: jest.fn()
@@ -44,7 +39,6 @@ describe("ChangePasswordFormComponent", () => {
             MatCardModule
          ],
          providers: [
-            { provide: Renderer2, useValue: render },
             { provide: ChangePasswordService, useValue: pwdService}
          ],
          declarations: [ChangePasswordFormComponent],
