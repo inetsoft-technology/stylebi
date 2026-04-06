@@ -1355,7 +1355,7 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
          return;
       }
 
-      Dimension pixel = runtimePixelSize == null ? getPixelSize() : pixelsize;
+      Dimension pixel = runtimePixelSize == null ? getPixelSize() : runtimePixelSize;
       runtimePixelSize = pixel = pixel == null ?
          new Dimension(3 * 70, DEFAULT_CALENDAR_HEIGHT) : pixel;
 
