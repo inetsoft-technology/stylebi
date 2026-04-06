@@ -33,11 +33,8 @@ import {
 import { getChartBindingContext } from "../../portal/src/app/binding/services/assistant/chart-context-helper";
 import { getCrosstabBindingContext } from "../../portal/src/app/binding/services/assistant/crosstab-context-helper";
 import { CalcTableLayout } from "../../portal/src/app/common/data/tablelayout/calc-table-layout";
-import { CurrentUser } from "../../portal/src/app/portal/current-user";
 import { VSObjectModel } from "../../portal/src/app/vsobjects/model/vs-object-model";
-
-const PORTAL_CURRENT_USER_URI: string = "../api/portal/get-current-user";
-const EM_CURRENT_USER_URI: string = "../api/em/security/get-current-user";
+import { CurrentUserService } from "../util/current-user.service";
 
 export enum ContextType {
    VIEWSHEET = "dashboard",
@@ -73,7 +70,7 @@ export class AiAssistantService {
    private _lastBindingObject: string = "";
    private _newChatFromBinding: boolean = false;
 
-   constructor(private http: HttpClient) {
+   constructor(private http: HttpClient, private currentUserService: CurrentUserService) {
       this.http.get("../api/assistant/get-chat-app-server-url").subscribe((url: string) => {
          this.chatAppServerUrl = url || "";
       });
@@ -142,8 +139,11 @@ export class AiAssistantService {
    }
 
    loadCurrentUser(em: boolean = false): void {
-      const uri = em ? EM_CURRENT_USER_URI : PORTAL_CURRENT_USER_URI;
-      this.http.get(uri).subscribe((model: CurrentUser) => {
+      const user$ = em
+         ? this.currentUserService.getEmCurrentUser()
+         : this.currentUserService.getPortalCurrentUser();
+
+      user$.subscribe(model => {
          this.userId = convertToKey(model.name);
          this.email = model.email?.length > 0 ? model.email[0] : null;
       });

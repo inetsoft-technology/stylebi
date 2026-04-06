@@ -22,6 +22,7 @@ import { map } from "rxjs/operators";
 import { CurrentUser } from "../../../../portal/src/app/portal/current-user";
 import { StompClientConnection } from "../../../../shared/stomp/stomp-client-connection";
 import { StompClientService } from "../../../../shared/stomp/stomp-client.service";
+import { CurrentUserService } from "../../../../shared/util/current-user.service";
 import {
    SecurityProviderStatus,
    SecurityProviderStatusList
@@ -39,7 +40,9 @@ export class OrganizationDropdownService implements OnDestroy  {
    public authenticationProviders: string[];
    currentUser: CurrentUser;
 
-   constructor(private http: HttpClient, private stompClient: StompClientService) {
+   constructor(private http: HttpClient, private stompClient: StompClientService,
+               private currentUserService: CurrentUserService)
+   {
       this.refreshSubject = new Subject<any>();
 
       this.stompClient.connect("../vs-events", true).subscribe(connection => {
@@ -49,10 +52,10 @@ export class OrganizationDropdownService implements OnDestroy  {
             (message) => this.loadAuthenticationProviders()));
       });
 
-      this.http.get<CurrentUser>("../api/em/security/get-current-user").subscribe(userModel => {
+      this.subscription.add(this.currentUserService.getEmCurrentUser().subscribe(userModel => {
          this.currentUser = userModel;
          this.loadAuthenticationProviders();
-      });
+      }));
    }
 
    get loginUserName(): string {
