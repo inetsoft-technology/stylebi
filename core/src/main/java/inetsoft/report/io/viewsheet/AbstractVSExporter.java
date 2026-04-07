@@ -3661,12 +3661,31 @@ public abstract class AbstractVSExporter implements VSExporter {
          return;
       }
 
-      Rectangle2D widgetBounds = writeInputLabelText(info);
-
-      if(widgetBounds == null) {
+      if(!hasVisibleLabel(info)) {
          writePicture(assembly);
          return;
       }
+
+      CoordinateHelper helper = getHelper();
+
+      if(helper == null) {
+         return;
+      }
+
+      InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
+      LabelInfo labelInfo = inputInfo.getLabelInfo();
+      Rectangle2D fullBounds = expandBoundsForLabel(helper.getBounds(info), labelInfo);
+      Rectangle2D[] bounds = splitInputBounds(fullBounds, labelInfo);
+      Rectangle2D labelBounds = bounds[0];
+      Rectangle2D widgetBounds = bounds[1];
+
+      // Draw the assembly background and border around the full area (label + widget).
+      // In the browser the outer wrapper element carries the assembly format (background,
+      // border, round corner), so both the label and the widget share one visual boundary.
+      helper.drawTextBox(fullBounds, fullBounds, info.getFormat(), null, null, null, false);
+
+      // Draw the label text with its own label-specific format.
+      helper.drawTextBox(labelBounds, getLabelFormat(labelInfo), labelInfo.getLabelText());
 
       if(isZeroSize(widgetBounds)) {
          return;
@@ -3675,13 +3694,45 @@ public abstract class AbstractVSExporter implements VSExporter {
       Dimension widgetSize = new Dimension(
          (int) Math.round(widgetBounds.getWidth()),
          (int) Math.round(widgetBounds.getHeight()));
-      BufferedImage img = getInputImage(assembly, widgetSize);
+
+      // Render the widget without the assembly background/border — they were drawn above
+      // around the full (label + widget) bounds so the widget image must not repeat them.
+      BufferedImage img = getInputImageNoAssemblyStyle(assembly, info, widgetSize);
 
       if(img != null) {
-         getHelper().drawImage(img, widgetBounds);
+         helper.drawImage(img, widgetBounds);
       }
       else {
          LOG.warn("No image for input assembly: {}", assembly.getAbsoluteName());
+      }
+   }
+
+   /**
+    * Render a widget image with the assembly-level background and borders suppressed.
+    * Used by {@link #writeInputWithLabel} which draws those styles around the full
+    * (label + widget) bounds instead.
+    */
+   private BufferedImage getInputImageNoAssemblyStyle(VSAssembly assembly,
+      VSAssemblyInfo info, Dimension widgetSize)
+   {
+      VSCompositeFormat fmt = info.getFormat();
+
+      if(fmt == null) {
+         return getInputImage(assembly, widgetSize);
+      }
+
+      VSFormat udf = fmt.getUserDefinedFormat();
+      Color savedBg = udf.getBackground();
+      Insets savedBorders = udf.getBorders();
+      udf.setBackground(null);
+      udf.setBorders(null);
+
+      try {
+         return getInputImage(assembly, widgetSize);
+      }
+      finally {
+         udf.setBackground(savedBg);
+         udf.setBorders(savedBorders);
       }
    }
 
