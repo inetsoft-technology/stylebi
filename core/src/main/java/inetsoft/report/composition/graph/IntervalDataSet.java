@@ -52,6 +52,9 @@ public class IntervalDataSet extends TopDataSet {
             .map(pair -> new int[]{ getDataSet().indexOfHeader(pair[0]),
                                     getDataSet().indexOfHeader(pair[1]) })
             .collect(Collectors.toList());
+         // bcols changed so getColCount0() result changed; invalidate so getColCount()
+         // recomputes instead of returning a stale value. (74492)
+         invalidateCachedColCount();
       }
    }
 
