@@ -263,6 +263,7 @@ public class SelectionListPropertyDialogController {
 
       int showType = selectionGeneralPane.getShowType();
       int oldShowType = selectionListAssemblyInfo.getShowTypeValue();
+      selectionListAssemblyInfo.setListHeight(selectionGeneralPane.getListHeight());
 
       Dimension size = rvs.getViewsheet().getPixelSize(selectionListAssemblyInfo);
 
@@ -294,7 +295,6 @@ public class SelectionListPropertyDialogController {
       }
 
       selectionListAssemblyInfo.setShowTypeValue(showType);
-      selectionListAssemblyInfo.setListHeight(selectionGeneralPane.getListHeight());
       selectionListAssemblyInfo.setSortTypeValue(selectionGeneralPane.getSortType());
       selectionListAssemblyInfo.setSubmitOnChangeValue(selectionGeneralPane.isSubmitOnChange());
       selectionListAssemblyInfo.setSingleSelectionValue(selectionGeneralPane.isSingleSelection());

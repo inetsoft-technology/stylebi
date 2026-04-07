@@ -91,6 +91,9 @@ class SelectionListPropertyDialogControllerTest {
                .getShowType())
          .willReturn(SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
       given(selectionListPropertyDialogModel.getSelectionGeneralPaneModel()
+               .getListHeight())
+         .willReturn(6);
+      given(selectionListPropertyDialogModel.getSelectionGeneralPaneModel()
                .getSizePositionPaneModel().getTitleHeight())
          .willReturn(20);
       given(selectionListPropertyDialogModel.getSelectionGeneralPaneModel()
@@ -115,6 +118,62 @@ class SelectionListPropertyDialogControllerTest {
       // switching from dropdown to list: titleHeight(20) + listHeight(6) * cellHeight(20) = 140
       // position should be: tabTop(420) - 140 = 280
       assertEquals(280, result.getPixelOffset().y);
+   }
+
+   @Test
+   void bottomTabsPositionAdjustedOnListToDropdown() throws Exception {
+      SelectionListVSAssemblyInfo info = new SelectionListVSAssemblyInfo();
+      info.setShowTypeValue(SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+      info.setPixelOffset(new Point(50, 280));
+      info.setPixelSize(new Dimension(200, 140));
+
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setBottomTabsValue(true);
+      tabInfo.setPixelOffset(new Point(0, 420));
+
+      TabVSAssembly tabAssembly = Mockito.mock(TabVSAssembly.class);
+      when(tabAssembly.getVSAssemblyInfo()).thenReturn(tabInfo);
+      when(selectionListAssembly.getContainer()).thenReturn(tabAssembly);
+      when(selectionListAssembly.getVSAssemblyInfo()).thenReturn(info);
+
+      when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
+      when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly(anyString())).thenReturn(selectionListAssembly);
+      when(viewsheet.getPixelSize(any()))
+         .thenReturn(new Dimension(200, 140));
+
+      given(selectionListPropertyDialogModel.getSelectionGeneralPaneModel()
+               .getGeneralPropPaneModel().getBasicGeneralPaneModel().getName())
+         .willReturn("SelectionList1");
+      given(selectionListPropertyDialogModel.getSelectionGeneralPaneModel()
+               .getShowType())
+         .willReturn(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      given(selectionListPropertyDialogModel.getSelectionGeneralPaneModel()
+               .getSizePositionPaneModel().getTitleHeight())
+         .willReturn(20);
+      given(selectionListPropertyDialogModel.getSelectionGeneralPaneModel()
+               .getSizePositionPaneModel().getCellHeight())
+         .willReturn(20);
+
+      controller.setSelectionListPropertyModel("SelectionList1",
+                                              selectionListPropertyDialogModel,
+                                              "", null, commandDispatcher);
+
+      ArgumentCaptor<SelectionListVSAssemblyInfo> argument =
+         ArgumentCaptor.forClass(SelectionListVSAssemblyInfo.class);
+      verify(vsObjectPropertyService).editObjectProperty(any(RuntimeViewsheet.class),
+                                                         argument.capture(),
+                                                         any(String.class),
+                                                         any(String.class),
+                                                         any(String.class),
+                                                         nullable(Principal.class),
+                                                         any(CommandDispatcher.class));
+
+      SelectionListVSAssemblyInfo result = argument.getValue();
+      // switching from list to dropdown: size.height = titleHeight = 20
+      // position should be: tabTop(420) - 20 = 400
+      assertEquals(400, result.getPixelOffset().y);
    }
 
    @Mock VSOutputService vsOutputService;

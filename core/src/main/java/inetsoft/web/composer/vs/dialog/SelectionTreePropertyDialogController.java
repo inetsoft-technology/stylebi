@@ -286,6 +286,7 @@ public class SelectionTreePropertyDialogController {
       int oldShowType = streeInfo.getShowTypeValue();
       int newShowType = selectionGeneralPane.getShowType();
       streeInfo.setShowTypeValue(newShowType);
+      streeInfo.setListHeight(selectionGeneralPane.getListHeight());
 
       Dimension size = viewsheet.getViewsheet().getPixelSize(streeInfo);
 
@@ -321,7 +322,6 @@ public class SelectionTreePropertyDialogController {
          }
       }
 
-      streeInfo.setListHeight(selectionGeneralPane.getListHeight());
       streeInfo.setSortTypeValue(selectionGeneralPane.getSortType());
       streeInfo.setSubmitOnChangeValue(selectionGeneralPane.isSubmitOnChange());
       streeInfo.setSuppressBlankValue(selectionGeneralPane.isSuppressBlank());
