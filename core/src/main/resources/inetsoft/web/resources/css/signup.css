@@ -40,7 +40,10 @@
 }
 
 .login-left .layout-item a {
+  display: block;
   font-size: 0.85rem;
+  text-align: center;
+  color: var(--ln-accent);
   text-decoration: none;
   transition: opacity 0.15s;
 }
