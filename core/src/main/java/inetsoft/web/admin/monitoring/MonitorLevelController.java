@@ -17,12 +17,18 @@
  */
 package inetsoft.web.admin.monitoring;
 
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
+
+import java.security.Principal;
 
 @Controller
 public class MonitorLevelController {
@@ -32,7 +38,15 @@ public class MonitorLevelController {
    }
 
    @SubscribeMapping("/monitoring/monitor-level")
-   public int getMonitoringLevel(StompHeaderAccessor stompHeaderAccessor) {
+   public int getMonitoringLevel(StompHeaderAccessor stompHeaderAccessor, Principal principal)
+      throws SecurityException
+   {
+      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+         principal, ResourceType.EM, "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to monitoring by user " + principal.getName());
+      }
+
       return this.monitoringDataService.addSubscriber(stompHeaderAccessor, () -> {
          try {
             return MonitorLevelService.getMonitorLevel();

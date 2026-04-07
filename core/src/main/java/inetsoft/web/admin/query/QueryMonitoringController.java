@@ -19,6 +19,8 @@ package inetsoft.web.admin.query;
 
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.web.admin.monitoring.AbstractMonitoringController;
 import inetsoft.web.admin.monitoring.MonitoringDataService;
 import inetsoft.web.factory.RemainingPath;
@@ -52,7 +54,14 @@ public class QueryMonitoringController extends AbstractMonitoringController {
    public List<QueryMonitoringTableModel> subscribe(StompHeaderAccessor stompHeaderAccessor,
                                                     @DestinationVariable("server") Optional<String> server,
                                                     Principal principal)
+      throws SecurityException
    {
+      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "monitoring/queries/executing", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to query monitoring by user " + principal.getName());
+      }
+
       return this.monitoringDataService.addSubscriber(stompHeaderAccessor, () -> {
          try {
             return queryService.getQueries(server.orElse(null), principal);

@@ -89,6 +89,7 @@ public class OrganizationController {
       return userTreeService.getOrganizationModel(provider, identityID, principal, false, null);
    }
 
+   // No @Secured: non-site-admins are scoped to their own org below, so no data is leaked.
    @GetMapping("/api/em/security/users/get-all-organization-names/")
    public List<String> getAllOrganizationNames(Principal principal)
    {
@@ -105,6 +106,7 @@ public class OrganizationController {
       return Arrays.stream(SecurityEngine.getSecurity().getSecurityProvider().getOrganizationNames()).toList();
    }
 
+   // No @Secured: non-site-admins are scoped to their own org below, so no data is leaked.
    @GetMapping("/api/em/security/users/get-all-organization-ids/")
    public List<String> getAllOrganizationIDs(Principal principal)
    {

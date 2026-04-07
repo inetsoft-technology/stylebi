@@ -19,6 +19,8 @@ package inetsoft.web.admin.schedule;
 
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.web.admin.monitoring.MonitoringDataService;
 import inetsoft.web.admin.schedule.model.DataCycleListModel;
 import inetsoft.web.admin.schedule.model.ScheduleCycleDialogModel;
@@ -48,7 +50,15 @@ public class ScheduleCycleController {
    @SubscribeMapping("/schedule/cycles/get-cycle-names")
    public DataCycleListModel subscribeToDataCycleNames(StompHeaderAccessor stompHeaderAccessor,
                                                        Principal principal)
+      throws SecurityException
    {
+      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "settings/schedule/cycles", ResourceAction.ACCESS))
+      {
+         throw new SecurityException(
+            "Unauthorized access to schedule cycles by user " + principal.getName());
+      }
+
       return this.monitoringDataService.addSubscriber(stompHeaderAccessor, () -> {
          try {
             return this.scheduleCycleService.getCycleInfos(principal);

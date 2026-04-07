@@ -96,6 +96,14 @@ public class SchedulerConfigurationController implements MessageListener {
       this.configService.setStatus(status);
    }
 
+   @Secured(
+      value = {
+         @RequiredPermission(resourceType = ResourceType.EM_COMPONENT, resource = "settings/general", actions = ResourceAction.ACCESS),
+         @RequiredPermission(resourceType = ResourceType.EM_COMPONENT, resource = "settings/schedule/tasks", actions = ResourceAction.ACCESS),
+         @RequiredPermission(resourceType = ResourceType.EM_COMPONENT, resource = "settings/security/users", actions = ResourceAction.ACCESS)
+      },
+      operator = "OR"
+   )
    @PostMapping("/api/em/settings/schedule/check-mail")
    public CheckMailInfo checkMail(@RequestBody CheckMailInfo mailParams, Principal principal) {
       return this.configService.checkMail(mailParams, principal);

@@ -37,6 +37,8 @@ import inetsoft.web.admin.viewsheet.ViewsheetService;
 import inetsoft.web.cluster.ServerClusterClient;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.web.reportviewer.service.HttpServletRequestWrapper;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
@@ -97,7 +99,16 @@ public class ServerMonitoringController {
    }
 
    @SubscribeMapping("/monitoring/server/charts")
-   public ServerModel subscribeServerCharts(StompHeaderAccessor stompHeaderAccessor) {
+   public ServerModel subscribeServerCharts(StompHeaderAccessor stompHeaderAccessor,
+                                            Principal principal)
+      throws SecurityException
+   {
+      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "monitoring/summary", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to server monitoring by user " + principal.getName());
+      }
+
       return this.monitoringDataService.addSubscriber(stompHeaderAccessor, () -> {
          Map<String, String> serverUpTimeMap = new HashMap<>();
          Map<String, String> serverDateTimeMap = new HashMap<>();

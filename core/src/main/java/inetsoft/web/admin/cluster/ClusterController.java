@@ -20,6 +20,8 @@ package inetsoft.web.admin.cluster;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.web.admin.monitoring.MonitoringDataService;
 import inetsoft.web.cluster.ServerClusterClient;
 import inetsoft.web.security.RequiredPermission;
@@ -29,6 +31,7 @@ import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.*;
 
 @RestController
@@ -66,8 +69,15 @@ public class ClusterController {
 
    @SubscribeMapping("/monitoring/cluster/report-cluster")
    public List<ReportClusterNodeModel> subscribeClusterStatus(
-      StompHeaderAccessor stompHeaderAccessor)
+      StompHeaderAccessor stompHeaderAccessor, Principal principal)
+      throws SecurityException
    {
+      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "monitoring/cluster/reportCluster", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to cluster monitoring by user " + principal.getName());
+      }
+
       return monitoringDataService
          .addSubscriber(stompHeaderAccessor, clusterService::getClusterStatus);
    }

@@ -19,7 +19,8 @@ package inetsoft.web.admin.schedule;
 
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
-import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.asset.*;
 import inetsoft.util.*;
 import jakarta.annotation.PostConstruct;
@@ -76,7 +77,13 @@ public class ScheduleTaskFolderChangeController {
    }
 
    @SubscribeMapping(EM_FOLDER_TOPIC)
-   public synchronized void subscribeEmFolderChange(Principal principal) {
+   public synchronized void subscribeEmFolderChange(Principal principal) throws SecurityException {
+      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "settings/schedule/tasks", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to schedule by user " + principal.getName());
+      }
+
       if(assetListener == null) {
          assetListener = this::emFolderChanged;
          subscriber = principal;

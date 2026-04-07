@@ -19,6 +19,8 @@ package inetsoft.web.admin.logviewer;
 
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.web.admin.monitoring.MonitoringDataService;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
@@ -74,8 +76,16 @@ public class LogMonitoringController {
                                        @DestinationVariable("clusterNode") String clusterNode,
                                        @DestinationVariable("logFileName") String logFileName,
                                        @DestinationVariable("offset") int offset,
-                                       @DestinationVariable("length") int length)
+                                       @DestinationVariable("length") int length,
+                                       Principal principal)
+      throws SecurityException
    {
+      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "monitoring/log", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to log viewer by user " + principal.getName());
+      }
+
       return this.monitoringDataService.addSubscriber(stompHeaderAccessor, () -> {
          try {
             return logMonitoringService.getLog(clusterNode, logFileName, offset, length);

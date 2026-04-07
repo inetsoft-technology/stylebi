@@ -125,7 +125,14 @@ public class SecuredAspect {
          defaultOwner = IdentityID.getIdentityIDFromKey(user.getName());
       }
 
-      boolean orOperator = Objects.equals(secured.operator(), "OR");
+      String operator = secured.operator().toUpperCase();
+
+      if(!operator.equals("AND") && !operator.equals("OR")) {
+         throw new IllegalArgumentException(
+            "Invalid @Secured operator \"" + secured.operator() + "\": must be \"AND\" or \"OR\" (case-insensitive)");
+      }
+
+      boolean orOperator = operator.equals("OR");
       boolean check = false;
 
       for(RequiredPermission permission : secured.value()) {
