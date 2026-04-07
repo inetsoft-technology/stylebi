@@ -21,7 +21,6 @@ import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms
 import { Subscription } from "rxjs";
 import { ValueMode } from "../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { LegendFormatGeneralPaneModel } from "../model/dialog/legend-format-general-pane-model";
-import { FormValidators } from "../../../../../shared/util/form-validators";
 import { StyleConstants } from "../../common/util/style-constants";
 import { LineStyle } from "../../common/data/line-style";
 import { UIContextService } from "../../common/services/ui-context.service";
@@ -123,11 +122,6 @@ export class LegendFormatGeneralPane implements OnInit, OnDestroy {
                                "_#(js:Left)", "_#(js:In Place)"];
 
    initForm(): void {
-      this.form.addControl("title", new UntypedFormControl(this.model.titleValue, [
-         FormValidators.containsSpecialChars,
-         Validators.required,
-         FormValidators.notWhiteSpace
-      ]));
       this.form.addControl("symbolSize", new UntypedFormControl(this.model.symbolSize, [
          Validators.min(6),
          Validators.max(50)
