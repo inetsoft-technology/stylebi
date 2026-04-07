@@ -2880,9 +2880,6 @@ public class VsToReportConverter {
     * Expand the section height if the given label bounds extend below the section's
     * current allocated area. Called when a label must be placed outside the component's
     * own layout bounds.
-    * <p>
-    * Note: setSectionBounds() passes pixels directly to setHeight(), which expects inches
-    * (pixels/72). We bypass it here to set both values correctly.
     */
    private void expandSectionForLabel(String sectionName, Rectangle labelBounds) {
       int labelBottom = labelBounds.y + labelBounds.height;
@@ -2915,7 +2912,9 @@ public class VsToReportConverter {
    private void setSectionBounds(String name, int height) {
       for(LayoutSection layout : contentSections) {
          if(name.equals(layout.section.getID())) {
-            getSectionContent(layout.section).setHeight(height);
+            // Only update the pixel-bounds record used for coordinate offsetting.
+            // The caller always follows with setHeight(bounds.height / 72f)
+            // to set the section's rendered height in inches.
             layout.bounds.height = height;
          }
       }
