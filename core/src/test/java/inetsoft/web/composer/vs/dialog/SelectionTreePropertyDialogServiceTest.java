@@ -111,7 +111,6 @@ class SelectionTreePropertyDialogServiceTest {
       when(selectionTreeAssembly.getContainer()).thenReturn(tabAssembly);
       when(selectionTreeAssembly.getVSAssemblyInfo()).thenReturn(info);
 
-      when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
       when(viewsheet.getAssembly(anyString())).thenReturn(selectionTreeAssembly);
@@ -135,7 +134,7 @@ class SelectionTreePropertyDialogServiceTest {
       given(selectionTreePropertyDialogModel.getSelectionTreePaneModel().getMode())
          .willReturn(2);
 
-      controller.setSelectionTreePropertyModel("SelectionTree1",
+      service.setSelectionTreePropertyModel("Viewsheet1", "SelectionTree1",
                                              selectionTreePropertyDialogModel,
                                              "", null, commandDispatcher);
 
@@ -172,7 +171,6 @@ class SelectionTreePropertyDialogServiceTest {
       when(selectionTreeAssembly.getContainer()).thenReturn(tabAssembly);
       when(selectionTreeAssembly.getVSAssemblyInfo()).thenReturn(info);
 
-      when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
       when(viewsheet.getAssembly(anyString())).thenReturn(selectionTreeAssembly);
@@ -193,7 +191,7 @@ class SelectionTreePropertyDialogServiceTest {
       given(selectionTreePropertyDialogModel.getSelectionTreePaneModel().getMode())
          .willReturn(2);
 
-      controller.setSelectionTreePropertyModel("SelectionTree1",
+      service.setSelectionTreePropertyModel("Viewsheet1", "SelectionTree1",
                                              selectionTreePropertyDialogModel,
                                              "", null, commandDispatcher);
 

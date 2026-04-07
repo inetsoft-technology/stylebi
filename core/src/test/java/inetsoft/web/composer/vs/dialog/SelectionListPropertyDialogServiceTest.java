@@ -46,19 +46,12 @@ import static org.mockito.Mockito.when;
 
 @SreeHome()
 @ExtendWith(MockitoExtension.class)
-class SelectionListPropertyDialogControllerTest {
+class SelectionListPropertyDialogServiceTest {
    @BeforeEach
    void setup() {
-      controller = new SelectionListPropertyDialogController(
-         vsObjectPropertyService,
-         vsOutputService,
-         runtimeViewsheetRef,
-         engine,
-         trapService,
-         dialogService,
-         selectionDialogService,
-         assemblyInfoHandler,
-         dataRefService);
+      service = new SelectionListPropertyDialogService(
+         vsObjectPropertyService, vsOutputService, engine, trapService, dialogService,
+         selectionDialogService, assemblyInfoHandler, dataRefService);
    }
 
    @Test
@@ -77,7 +70,6 @@ class SelectionListPropertyDialogControllerTest {
       when(selectionListAssembly.getContainer()).thenReturn(tabAssembly);
       when(selectionListAssembly.getVSAssemblyInfo()).thenReturn(info);
 
-      when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
       when(viewsheet.getAssembly(anyString())).thenReturn(selectionListAssembly);
@@ -100,9 +92,9 @@ class SelectionListPropertyDialogControllerTest {
                .getSizePositionPaneModel().getCellHeight())
          .willReturn(20);
 
-      controller.setSelectionListPropertyModel("SelectionList1",
-                                              selectionListPropertyDialogModel,
-                                              "", null, commandDispatcher);
+      service.setSelectionListPropertyModel("Viewsheet1", "SelectionList1",
+                                            selectionListPropertyDialogModel,
+                                            "", null, commandDispatcher);
 
       ArgumentCaptor<SelectionListVSAssemblyInfo> argument =
          ArgumentCaptor.forClass(SelectionListVSAssemblyInfo.class);
@@ -136,7 +128,6 @@ class SelectionListPropertyDialogControllerTest {
       when(selectionListAssembly.getContainer()).thenReturn(tabAssembly);
       when(selectionListAssembly.getVSAssemblyInfo()).thenReturn(info);
 
-      when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
       when(viewsheet.getAssembly(anyString())).thenReturn(selectionListAssembly);
@@ -156,9 +147,9 @@ class SelectionListPropertyDialogControllerTest {
                .getSizePositionPaneModel().getCellHeight())
          .willReturn(20);
 
-      controller.setSelectionListPropertyModel("SelectionList1",
-                                              selectionListPropertyDialogModel,
-                                              "", null, commandDispatcher);
+      service.setSelectionListPropertyModel("Viewsheet1", "SelectionList1",
+                                            selectionListPropertyDialogModel,
+                                            "", null, commandDispatcher);
 
       ArgumentCaptor<SelectionListVSAssemblyInfo> argument =
          ArgumentCaptor.forClass(SelectionListVSAssemblyInfo.class);
@@ -193,5 +184,5 @@ class SelectionListPropertyDialogControllerTest {
    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
    private SelectionListPropertyDialogModel selectionListPropertyDialogModel;
 
-   private SelectionListPropertyDialogController controller;
+   private SelectionListPropertyDialogService service;
 }
