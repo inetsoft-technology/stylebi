@@ -45,13 +45,6 @@ public class ScheduleCycleController {
       this.monitoringDataService = monitoringDataService;
    }
 
-   @Secured(
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/schedule/cycles",
-         actions = ResourceAction.ACCESS
-      )
-   )
    @SubscribeMapping("/schedule/cycles/get-cycle-names")
    public DataCycleListModel subscribeToDataCycleNames(StompHeaderAccessor stompHeaderAccessor,
                                                        Principal principal)
@@ -125,13 +118,6 @@ public class ScheduleCycleController {
       this.scheduleCycleService.removeCycles(model.cycles(), principal);
    }
 
-   @Secured(
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/schedule/cycles",
-         actions = ResourceAction.ACCESS
-      )
-   )
    @MessageMapping("/schedule/cycles/update-cycles")
    public void updateDataCycles(StompHeaderAccessor stompHeaderAccessor)
    {

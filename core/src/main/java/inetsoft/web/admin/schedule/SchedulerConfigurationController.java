@@ -101,13 +101,6 @@ public class SchedulerConfigurationController implements MessageListener {
       return this.configService.checkMail(mailParams, principal);
    }
 
-   @Secured(
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/schedule/settings",
-         actions = ResourceAction.ACCESS
-      )
-   )
    @GetMapping("/api/em/settings/schedule/cloudRunner")
    public boolean isCloudRunner() {
       return InetsoftConfig.getInstance().getCloudRunner() != null;

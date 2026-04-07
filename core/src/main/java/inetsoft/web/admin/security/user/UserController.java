@@ -60,11 +60,17 @@ public class UserController {
    }
 
    @GetMapping("/api/em/security/providers/{provider}/users/{user}/")
-   @Secured(
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      ),
       @RequiredPermission(
          resourceType = ResourceType.SECURITY_USER,
-         actions = ResourceAction.ADMIN)
-   )
+         actions = ResourceAction.ADMIN
+      )
+   })
    public EditUserPaneModel getUser(@DecodePathVariable("provider") String provider,
                                     @PermissionPath @DecodePathVariable(value = "user") String user,
                                     Principal principal)

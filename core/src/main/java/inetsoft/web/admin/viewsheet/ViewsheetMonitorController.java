@@ -77,11 +77,19 @@ public class ViewsheetMonitorController extends AbstractMonitoringController {
    }
 
    @Secured(
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "monitoring/viewsheets/open",
-         actions = ResourceAction.ACCESS
-      )
+      value = {
+         @RequiredPermission(
+            resourceType = ResourceType.EM_COMPONENT,
+            resource = "monitoring/viewsheets/open",
+            actions = ResourceAction.ACCESS
+         ),
+         @RequiredPermission(
+            resourceType = ResourceType.EM_COMPONENT,
+            resource = "monitoring/viewsheets/executing",
+            actions = ResourceAction.ACCESS
+         )
+      },
+      operator = "OR"
    )
    @PostMapping("/api/em/monitoring/viewsheets/remove/**")
    public void closeViewsheets(@RemainingPath String server,

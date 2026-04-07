@@ -30,6 +30,7 @@ import inetsoft.util.config.*;
 import inetsoft.web.admin.security.action.ActionPermissionService;
 import inetsoft.web.portal.model.CurrentUserModel;
 import inetsoft.web.viewsheet.Audited;
+import inetsoft.web.security.DeniedMultiTenancyOrgUser;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import org.slf4j.Logger;
@@ -53,6 +54,7 @@ public class SecurityConfigController {
       objectName = "Security-Security",
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
+   @DeniedMultiTenancyOrgUser
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
@@ -91,6 +93,7 @@ public class SecurityConfigController {
       objectName = "Multi-Tenancy",
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
+   @DeniedMultiTenancyOrgUser
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
@@ -221,6 +224,7 @@ public class SecurityConfigController {
       objectName = "Enable-Self-Signup",
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
+   @DeniedMultiTenancyOrgUser
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
@@ -243,6 +247,7 @@ public class SecurityConfigController {
       return getEnableSelfSignup();
    }
 
+   @DeniedMultiTenancyOrgUser
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
@@ -291,7 +296,7 @@ public class SecurityConfigController {
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/security",
+         resource = "settings/general",
          actions = ResourceAction.ACCESS
       )
    )
