@@ -320,23 +320,6 @@ export class EditableObjectContainer extends AbstractActionComponent
          return top - borderExcess;
       }
 
-      // composer-only: viewer mode handled by vs-selection.topPosition
-      if(this.containerBottomTabs &&
-         (this.vsObject.objectType === "VSSelectionList" || this.vsObject.objectType === "VSSelectionTree"))
-      {
-         const obj = this.vsObject as any;
-
-         if(!obj.dropdown) {
-            const bottomMargin = Tool.getMarginSize(this.vsObject.objectFormat.border.bottom);
-            const topMargin = Tool.getMarginSize(this.vsObject.objectFormat.border.top);
-            const titleTopMargin = Tool.getMarginSize(obj.titleFormat?.border?.top);
-            const offset = Math.max(0, bottomMargin + topMargin - titleTopMargin);
-            const bodyHeight = this.vsObject.objectFormat.height
-               - (obj.titleFormat?.height ?? 0) - offset;
-            return top - bodyHeight;
-         }
-      }
-
       return top;
    }
 

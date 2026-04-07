@@ -350,7 +350,7 @@ describe("EditableObjectContainer", () => {
       expect(fixture.componentInstance.getMinHeight()).toBe(162);
    });
 
-   it("should shift non-dropdown selection up by body height in bottom-tabs", () => {
+   it("should not shift non-dropdown selection in bottom-tabs (backend positions correctly)", () => {
       const fixture = TestBed.createComponent(EditableObjectContainer);
       let tabModel = TestUtils.createMockVSTabModel("Tab1");
       tabModel.bottomTabs = true;
@@ -367,32 +367,7 @@ describe("EditableObjectContainer", () => {
       fixture.componentInstance.selectionBorderOffset = 0;
       fixture.componentInstance.vsObjectModel = selModel;
       fixture.detectChanges();
-      // bodyHeight = 200 - 20 - 0 = 180; topPosition = 300 - 180 = 120
-      expect(fixture.componentInstance.getTopPosition()).toBe(120);
-   });
-
-   it("should account for borders in non-dropdown selection body height in bottom-tabs", () => {
-      const fixture = TestBed.createComponent(EditableObjectContainer);
-      let tabModel = TestUtils.createMockVSTabModel("Tab1");
-      tabModel.bottomTabs = true;
-      let selModel = TestUtils.createMockVSSelectionListModel("List1");
-      selModel.dropdown = false;
-      selModel.objectFormat.top = 300;
-      selModel.objectFormat.height = 200;
-      selModel.objectFormat.border.bottom = "2px solid black";
-      selModel.objectFormat.border.top = "2px solid black";
-      selModel.titleFormat.height = 20;
-      selModel.titleFormat.border = { bottom: "", top: "1px solid black", left: "", right: "" };
-      selModel.container = "Tab1";
-      selModel.containerType = "VSTab";
-      viewsheet.vsObjects = [tabModel, selModel];
-      fixture.componentInstance.viewsheet = viewsheet;
-      fixture.componentInstance.touchDevice = false;
-      fixture.componentInstance.selectionBorderOffset = 0;
-      fixture.componentInstance.vsObjectModel = selModel;
-      fixture.detectChanges();
-      // offset = max(0, 2 + 2 - 1) = 3; bodyHeight = 200 - 20 - 3 = 177
-      // topPosition = 300 - 177 = 123
-      expect(fixture.componentInstance.getTopPosition()).toBe(123);
+      // non-dropdown: backend sets objectFormat.top = tabTop - componentHeight
+      expect(fixture.componentInstance.getTopPosition()).toBe(300);
    });
 });

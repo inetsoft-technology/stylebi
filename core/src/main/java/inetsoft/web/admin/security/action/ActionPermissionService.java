@@ -727,13 +727,13 @@ public class ActionPermissionService {
          .actions(EnumSet.noneOf(ResourceAction.class));
 
       builder.addFilteredChildren(getChartNode(catalog, null,
-         "Bar", "Bar", "3D Bar", "Interval"));
+         "Bar", "Bar", "Interval"));
       builder.addFilteredChildren(getChartNode(catalog, null,
          "Line", "Line", "Step Line", "Jump Line"));
       builder.addFilteredChildren(getChartNode(catalog, null,
          "Area", "Area", "Step Area"));
       builder.addFilteredChildren(getChartNode(catalog, null,
-         "Pie", "Pie", "3D Pie", "Donut"));
+         "Pie", "Pie", "Donut"));
       builder.addFilteredChildren(getChartNode(catalog, null,
          "Radar", "Radar", "Filled Radar"));
       builder.addFilteredChildren(getChartNode(catalog, null,
