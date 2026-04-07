@@ -780,11 +780,14 @@ public class VsToReportConverter {
             String name = ((TabVSAssembly) assembly).getSelected();
             Viewsheet vs = assembly.getViewsheet();
             VSAssembly selected = vs.getAssembly(name);
-            Rectangle sub = getPixelBounds(selected);
-            int topY = Math.min(y, sub.y);
-            int bottomY = Math.max(y + assemblybounds.height, sub.y + sub.height);
-            y = topY;
-            height = bottomY - topY;
+
+            if(selected != null) {
+               Rectangle sub = getPixelBounds(selected);
+               int topY = Math.min(y, sub.y);
+               int bottomY = Math.max(y + assemblybounds.height, sub.y + sub.height);
+               y = topY;
+               height = bottomY - topY;
+            }
          }
 
          int currPage = getPageNumber(y, pheight);

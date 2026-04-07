@@ -188,7 +188,7 @@ public class VSLayoutService {
          if(((TabVSAssemblyInfo) info).getBottomTabsValue()) {
             int tabBarHeight = viewsheet.getPixelSize(info).height;
             int maxChildHeight = size.height - tabBarHeight;
-            position.y += maxChildHeight;
+            position.y += Math.max(0, maxChildHeight);
          }
       }
       else if(assembly instanceof Viewsheet) {
