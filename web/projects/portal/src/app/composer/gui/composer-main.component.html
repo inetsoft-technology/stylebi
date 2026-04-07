@@ -288,6 +288,7 @@
    </vs-binding-pane>
    <vs-wizard *ngIf="wizardEditMode"
       [model]="wizardModel"
+      [aiAssistantPermission]="aiAssistantPermission"
       (onCommit)="closeWizardPane($event)"
       (onCancel)="closeWizardPane()"
       (onFullEditor)="goToFullEditor($event)">
