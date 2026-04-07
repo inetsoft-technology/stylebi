@@ -25,6 +25,7 @@
      [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
      [style.width.px]="model.objectFormat.width"
      [objectHeight]="model.objectFormat.height"
+     [contentOverflow]="'visible'"
      [style.z-index]="viewer ? model.objectFormat.zIndex : null"
      [style.background-color]="model.objectFormat.background"
      VSDataTip [dataTipName]="getAssemblyName()"
