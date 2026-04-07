@@ -262,16 +262,35 @@ public class SelectionListPropertyDialogController {
       selectionListAssemblyInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
 
       int showType = selectionGeneralPane.getShowType();
+      int oldShowType = selectionListAssemblyInfo.getShowTypeValue();
 
       Dimension size = rvs.getViewsheet().getPixelSize(selectionListAssemblyInfo);
 
-      if(showType == SelectionListVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
+      if(showType == SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
          size.height = selectionListAssemblyInfo.getTitleHeight();
       }
-      else if(showType != selectionListAssemblyInfo.getShowTypeValue()){
+      else if(showType != oldShowType) {
          size.height = selectionListAssemblyInfo.getTitleHeight() +
             selectionListAssemblyInfo.getListHeight() *
             selectionListAssemblyInfo.getCellHeight();
+      }
+
+      if(oldShowType != showType) {
+         VSAssembly container = selectionListAssembly.getContainer();
+
+         if(container instanceof TabVSAssembly) {
+            TabVSAssemblyInfo tabInfo =
+               (TabVSAssemblyInfo) container.getVSAssemblyInfo();
+
+            if(tabInfo.getBottomTabsValue() && tabInfo.getPixelOffset() != null
+               && selectionListAssemblyInfo.getPixelOffset() != null)
+            {
+               int tabTop = tabInfo.getPixelOffset().y;
+               int x = selectionListAssemblyInfo.getPixelOffset().x;
+               selectionListAssemblyInfo.setPixelOffset(
+                  new Point(x, tabTop - size.height));
+            }
+         }
       }
 
       selectionListAssemblyInfo.setShowTypeValue(showType);

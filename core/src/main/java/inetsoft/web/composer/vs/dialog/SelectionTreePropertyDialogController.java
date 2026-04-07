@@ -28,8 +28,7 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
@@ -246,11 +245,12 @@ public class SelectionTreePropertyDialogController {
       throws Exception
    {
       RuntimeViewsheet viewsheet;
+      SelectionTreeVSAssembly selectionTreeAssembly;
       SelectionTreeVSAssemblyInfo streeInfo;
 
       try {
          viewsheet = viewsheetService.getViewsheet(this.runtimeViewsheetRef.getRuntimeId(), principal);
-         SelectionTreeVSAssembly selectionTreeAssembly = (SelectionTreeVSAssembly) viewsheet.getViewsheet().getAssembly(objectId);
+         selectionTreeAssembly = (SelectionTreeVSAssembly) viewsheet.getViewsheet().getAssembly(objectId);
          streeInfo = (SelectionTreeVSAssemblyInfo) Tool.clone(selectionTreeAssembly.getVSAssemblyInfo());
       }
       catch(Exception e) {
@@ -284,14 +284,15 @@ public class SelectionTreePropertyDialogController {
       streeInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
 
       int oldShowType = streeInfo.getShowTypeValue();
-      streeInfo.setShowTypeValue(selectionGeneralPane.getShowType());
+      int newShowType = selectionGeneralPane.getShowType();
+      streeInfo.setShowTypeValue(newShowType);
 
       Dimension size = viewsheet.getViewsheet().getPixelSize(streeInfo);
 
-      if(streeInfo.getShowTypeValue() == SelectionListVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
+      if(newShowType == SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
          size.height = streeInfo.getTitleHeight();
       }
-      else if(oldShowType != streeInfo.getShowTypeValue()) {
+      else if(oldShowType != newShowType) {
          int minListHeight = streeInfo.getListHeight() * streeInfo.getCellHeight();
 
          if(streeInfo.isTitleVisible()) {
@@ -300,6 +301,23 @@ public class SelectionTreePropertyDialogController {
 
          if(minListHeight > size.height) {
             size.height = minListHeight;
+         }
+      }
+
+      if(oldShowType != newShowType) {
+         VSAssembly container = selectionTreeAssembly.getContainer();
+
+         if(container instanceof TabVSAssembly) {
+            TabVSAssemblyInfo tabInfo =
+               (TabVSAssemblyInfo) container.getVSAssemblyInfo();
+
+            if(tabInfo.getBottomTabsValue() && tabInfo.getPixelOffset() != null
+               && streeInfo.getPixelOffset() != null)
+            {
+               int tabTop = tabInfo.getPixelOffset().y;
+               int x = streeInfo.getPixelOffset().x;
+               streeInfo.setPixelOffset(new Point(x, tabTop - size.height));
+            }
          }
       }
 
@@ -325,7 +343,7 @@ public class SelectionTreePropertyDialogController {
          principal, commandDispatcher);
 
       Viewsheet vs = viewsheet.getViewsheet();
-      SelectionTreeVSAssembly selectionTreeAssembly =
+      selectionTreeAssembly =
          (SelectionTreeVSAssembly) vs.getAssembly(basicGeneralPaneModel.getName());
       streeInfo = (SelectionTreeVSAssemblyInfo) selectionTreeAssembly.getVSAssemblyInfo();
       updateSelection(osingleSelection, osingleLevels, streeInfo, linkUri, principal, commandDispatcher);
