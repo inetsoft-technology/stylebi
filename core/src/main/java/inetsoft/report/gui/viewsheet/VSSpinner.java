@@ -70,10 +70,12 @@ public class VSSpinner extends VSFloatable {
 
       int upH = (h + 1) / 2;
       int downH = h + 1 - upH; // make sure no rounding error
-      Image upImg = getTheme() != null
-         ? getTheme().getImage("s|NumericStepper", "upArrowUpSkin", -1, upH) : null;
-      Image dnImg = getTheme() != null
-         ? getTheme().getImage("s|NumericStepper", "downArrowUpSkin", -1, downH) : null;
+      FlexTheme theme = getTheme();
+
+      Image upImg = theme != null
+         ? theme.getImage("s|NumericStepper", "upArrowUpSkin", -1, upH) : null;
+      Image dnImg = theme != null
+         ? theme.getImage("s|NumericStepper", "downArrowUpSkin", -1, downH) : null;
 
       if(upImg != null && dnImg != null) {
          int imgW = upImg.getWidth(null);
@@ -88,9 +90,9 @@ public class VSSpinner extends VSFloatable {
       else {
          // Fallback when theme images are unavailable: draw a simple bordered text box
          int arrowW = Math.max(12, h / 2);
-         drawString(g2, 0, 0, w - arrowW, h, label, format);
+         drawString(g2, 0, 0, Math.max(0, w - arrowW), h, label, format);
          g2.setColor(Color.lightGray);
-         g2.drawRect(1, 1, w - arrowW / 2, h - 2);
+         g2.drawRect(1, 1, Math.max(0, w - arrowW / 2), h - 2);
          // Vertical divider between text and arrow column
          g2.drawLine(w - arrowW, 1, w - arrowW, h - 1);
          // Up triangle — center apex on the arrow column (round to nearest pixel)
