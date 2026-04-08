@@ -81,7 +81,7 @@ class ComposerObjectControllerTest {
       TabVSAssembly tab = new TabVSAssembly();
       TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getVSAssemblyInfo();
       tabInfo.setName("Tab1");
-      tabInfo.setBottomTabs(true);
+      tabInfo.setBottomTabsValue(true);
       tabInfo.setPixelOffset(new Point(0, 100)); // tab bar initially at y=100
       tabInfo.setPixelSize(new Dimension(200, 30));
       vs.addAssembly(tab);
