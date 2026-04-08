@@ -85,6 +85,14 @@ public class RepositoryViewsheetController {
       int scope = treeService.getAssetScope(path);
       path = treeService.getUnscopedPath(path);
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
+
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.REPORT, path,
+                                                       ResourceAction.ADMIN))
+      {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", path));
+      }
+
       final AssetEntry oldEntry = new AssetEntry(scope, AssetEntry.Type.VIEWSHEET, path, ownerID);
       final AssetEntry newEntry =
          sheetService.setSheetSettings(oldEntry.toIdentifier(), principal, model);

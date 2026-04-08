@@ -100,6 +100,11 @@ public class RepositoryWorksheetController {
       path = treeService.getUnscopedPath(path);
       final AssetEntry entry = new AssetEntry(scope, AssetEntry.Type.WORKSHEET, path, ownerID);
 
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.ASSET, path, ResourceAction.ADMIN)) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", path));
+      }
+
       if(model.permissionTableModel() != null && model.permissionTableModel().changed()) {
          String fullPath = Util.getObjectFullPath(
             RepositoryEntry.WORKSHEET, path, principal, ownerID);

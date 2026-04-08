@@ -20,8 +20,6 @@ package inetsoft.web.admin.content.repository;
 import inetsoft.sree.security.*;
 import inetsoft.util.*;
 import inetsoft.web.adhoc.DecodeParam;
-import inetsoft.web.admin.content.repository.model.SetRepositoryFolderTableModel;
-import inetsoft.web.admin.security.ConnectionStatus;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -78,23 +76,6 @@ public class RepositoryFolderController {
    {
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
       return this.repositoryFolderService.applySettings(ownerID, model, principal);
-   }
-
-   @Secured(
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/content/repository",
-         actions = ResourceAction.ACCESS
-      )
-   )
-   @PostMapping("/api/em/content/repository/folder/delete")
-   public ConnectionStatus deleteRepositoryFolderSettings(@RequestParam(value = "owner", required = false) String owner,
-                                                          @RequestParam(value = "force", required = false) boolean force,
-                                                          @RequestBody() SetRepositoryFolderTableModel tableModel, Principal principal)
-      throws Exception
-   {
-      IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
-      return this.repositoryFolderService.deleteRepositoryFolderSettings(ownerID, force, tableModel, principal);
    }
 
    private final RepositoryFolderService repositoryFolderService;
