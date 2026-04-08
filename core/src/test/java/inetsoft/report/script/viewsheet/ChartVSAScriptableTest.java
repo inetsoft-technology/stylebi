@@ -28,6 +28,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.region.ChartConstants;
 import inetsoft.report.script.*;
+import inetsoft.uql.viewsheet.graph.PlotDescriptor;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
@@ -93,6 +94,39 @@ public class ChartVSAScriptableTest {
       assert chartVSAScriptable.get("singleStyle", null) instanceof VSChartArray;
       // Assert that the "dateComparisonEnabled" property is of type Boolean
       assert chartVSAScriptable.get("dateComparisonEnabled", null) instanceof Boolean;
+   }
+
+   @Test
+   void testBarCornerRadiusScriptProperty() {
+      chartVSAScriptable.addProperties();
+      PlotDescriptor plot = chartVSAScriptable.getRTChartDescriptor().getPlotDescriptor();
+
+      chartVSAScriptable.put("barCornerRadius", null, 0.4);
+      assertEquals(0.4, plot.getBarCornerRadius(), 0.001);
+      assertEquals(0.4, (double) chartVSAScriptable.get("barCornerRadius", null), 0.001);
+
+      // clamped to 0 for negative values
+      chartVSAScriptable.put("barCornerRadius", null, -0.1);
+      assertEquals(0, plot.getBarCornerRadius(), 0.001);
+
+      // clamped to 0.5 for values exceeding max
+      chartVSAScriptable.put("barCornerRadius", null, 0.8);
+      assertEquals(0.5, plot.getBarCornerRadius(), 0.001);
+
+      // boundary values
+      chartVSAScriptable.put("barCornerRadius", null, 0.0);
+      assertEquals(0.0, plot.getBarCornerRadius(), 0.001);
+
+      chartVSAScriptable.put("barCornerRadius", null, 0.5);
+      assertEquals(0.5, plot.getBarCornerRadius(), 0.001);
+
+      chartVSAScriptable.put("barRoundAllCorners", null, true);
+      assertTrue(plot.isBarRoundAllCorners());
+      assertTrue((boolean) chartVSAScriptable.get("barRoundAllCorners", null));
+
+      chartVSAScriptable.put("barRoundAllCorners", null, false);
+      assertFalse(plot.isBarRoundAllCorners());
+      assertFalse((boolean) chartVSAScriptable.get("barRoundAllCorners", null));
    }
 
    @Test
@@ -180,7 +214,7 @@ public class ChartVSAScriptableTest {
       chartVSAScriptable.setTipView("this is a tip view");
       assertEquals("this is a tip view", chartVSAScriptable.getTipView());
 
-      assertEquals(143, chartVSAScriptable.getIds().length);
+      assertEquals(145, chartVSAScriptable.getIds().length);
    }
 
    /**

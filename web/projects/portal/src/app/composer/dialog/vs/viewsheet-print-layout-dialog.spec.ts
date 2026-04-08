@@ -61,6 +61,7 @@ describe("Viewsheet print layout dialog Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
+            HttpClientTestingModule,
             ReactiveFormsModule,
             FormsModule,
             NgbDropdownModule,

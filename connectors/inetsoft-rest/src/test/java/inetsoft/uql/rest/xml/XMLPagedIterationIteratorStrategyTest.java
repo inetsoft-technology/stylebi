@@ -21,12 +21,14 @@ import inetsoft.test.*;
 import inetsoft.uql.rest.*;
 import inetsoft.uql.rest.pagination.*;
 import inetsoft.uql.rest.xml.parse.*;
+import inetsoft.test.SreeHome;
 import org.junit.jupiter.api.Test;
 
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@SreeHome
 class XMLPagedIterationIteratorStrategyTest {
    @Test
    public void test() throws Exception {

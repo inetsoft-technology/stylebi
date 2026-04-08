@@ -4540,6 +4540,13 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
    public Viewsheet prepareCheckpoint() {
       Viewsheet vs = clone0(true);
 
+      // Remove temporary wizard assemblies so that undo does not restore transient wizard state.
+      for(Assembly assembly : vs.getAssemblies(false, false, true)) {
+         if(WizardRecommenderUtil.isWizardTempAssembly(assembly.getName())) {
+            vs.removeAssembly(assembly.getName(), false);
+         }
+      }
+
       for(Assembly assembly : vs.getAssemblies()) {
          AssemblyInfo info = assembly.getInfo();
 

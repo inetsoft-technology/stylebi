@@ -68,6 +68,7 @@ public class ChartAddShapeController {
 
             tx.commit();
             dataSpaceContentSettingsService.updateFolder(folder);
+            ImageShapes.clearShapes();
          }
          catch(Throwable e) {
             LOG.error("Failed to write shape: " + fileName, e);

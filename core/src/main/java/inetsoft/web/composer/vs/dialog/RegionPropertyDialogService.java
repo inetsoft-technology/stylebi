@@ -40,6 +40,9 @@ import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.graph.handler.ChartRegionHandler;
 import inetsoft.web.graph.model.dialog.*;
+import inetsoft.web.viewsheet.controller.chart.VSChartAreasController;
+import inetsoft.web.viewsheet.controller.chart.VSChartAreasService;
+import inetsoft.web.viewsheet.event.chart.VSChartEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,12 +57,13 @@ public class RegionPropertyDialogService {
 
    public RegionPropertyDialogService(VSObjectPropertyService vsObjectPropertyService,
                                       ViewsheetService viewsheetService,
-                                      VSBindingService vsBindingService,
+                                      VSBindingService vsBindingService, VSChartAreasService vsChartAreasService,
                                       ChartRegionHandler regionHandler)
    {
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.viewsheetService = viewsheetService;
       this.vsBindingService = vsBindingService;
+      this.vsChartAreasService = vsChartAreasService;
       this.regionHandler = regionHandler;
    }
 
@@ -140,6 +144,25 @@ public class RegionPropertyDialogService {
       // Axis checkbox disabled when the measure editor is re-opened. (Bug #74140)
       BindingModel bindingModel = vsBindingService.createModel(chartAssembly);
       commandDispatcher.sendCommand(new SetVSBindingModelCommand(bindingModel));
+
+      // Proactively compute and send updated chart areas from the server so that
+      // SetVSObjectCommand and SetChartAreasCommand are delivered to the client
+      // atomically, eliminating the misalignment window that otherwise persists
+      // until the client's follow-up CHART_AREAS_URI round-trip completes. (Bug #74260)
+      try {
+         VSChartEvent chartAreasEvent = new VSChartEvent();
+         chartAreasEvent.setChartName(chartAssembly.getAbsoluteName());
+         chartAreasEvent.setMaxSize(vs.isMaxMode() ? chartAssemblyInfo.getMaxSize() : null);
+         vsChartAreasService.refreshChartAreasModel(
+            runtimeId, chartAreasEvent, commandDispatcher, principal);
+      }
+      catch(Exception e) {
+         // Chart area refresh is best-effort; the property save already succeeded and
+         // SetVSObjectCommand was dispatched. The client will fall back to its own
+         // CHART_AREAS_URI round-trip, so swallow here to avoid masking the successful save.
+         LOG.warn("Failed to proactively refresh chart areas for {}",
+                  chartAssembly.getAbsoluteName(), e);
+      }
 
       return null;
    }
@@ -340,6 +363,7 @@ public class RegionPropertyDialogService {
    private final VSObjectPropertyService vsObjectPropertyService;
    private final ViewsheetService viewsheetService;
    private final VSBindingService vsBindingService;
+   private final VSChartAreasService vsChartAreasService;
    private ChartRegionHandler regionHandler;
    private static final Logger LOG = LoggerFactory.getLogger(RegionPropertyDialogService.class);
 }

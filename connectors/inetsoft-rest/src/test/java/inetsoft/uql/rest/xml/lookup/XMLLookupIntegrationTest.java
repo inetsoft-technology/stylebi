@@ -19,6 +19,7 @@ package inetsoft.uql.rest.xml.lookup;
 
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.test.*;
+import inetsoft.test.SreeHome;
 import inetsoft.test.TestEndpoint;
 import inetsoft.uql.XTableNode;
 import inetsoft.uql.rest.*;
@@ -32,6 +33,7 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@SreeHome
 public class XMLLookupIntegrationTest {
    @Test
    void lookupEndpoint() {

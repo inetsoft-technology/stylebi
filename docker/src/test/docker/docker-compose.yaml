@@ -85,6 +85,8 @@ services:
       - "inetsoft_blob:/var/lib/inetsoft/blob"
       - "inetsoft_files:/var/lib/inetsoft/files"
     environment:
+      # required when enabling security — FileAuthenticationProvider needs this to create the admin user
+      INETSOFT_ADMIN_PASSWORD: "${INETSOFT_ADMIN_PASSWORD}"
       # Java command line options, overridden to set min and max heap memory
       JAVA_MEMORY_OPTS: "-Xms2g -Xmx2g"
       <<: *sharedenv

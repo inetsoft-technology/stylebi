@@ -209,6 +209,30 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    }
 
    public newUser(parentGroup: string) {
+      if(this.newUserIdentity) {
+         const ref = this.dialog.open(MessageDialog, {
+            data: {
+               title: "_#(js:em.users.newUser.incompleteTitle)",
+               content: "_#(js:em.users.newUser.incompleteContent)",
+               type: MessageDialogType.CONFIRMATION
+            }
+         });
+
+         ref.afterClosed().subscribe(val => {
+            if(val) {
+               this.clearIncompleteNewUser(false).subscribe({
+                  next: () => this.createNewUser(parentGroup),
+                  error: () => {}
+               });
+            }
+         });
+      }
+      else {
+         this.createNewUser(parentGroup);
+      }
+   }
+
+   private createNewUser(parentGroup: string) {
       const uri = "../api/em/security/users/create-user/" + Tool.byteEncodeURLComponent(this.selectedProvider);
       this.http.post<EditUserPaneModel>(uri, {parentGroup})
          .pipe(catchError((error: HttpErrorResponse) => this.errorService.showSnackBar(error)))
@@ -241,16 +265,15 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
       }
    }
 
-   public newOrganization(parentGroup: string) {
+   public newOrganization(event: {parentGroup: string, defaultPassword?: string}) {
       this.loading = true;
       const uri = "../api/em/security/users/create-organization/" + Tool.byteEncodeURLComponent(this.selectedProvider);
-      this.http.post<EditOrganizationPaneModel>(uri, {parentGroup})
+      this.http.post<EditOrganizationPaneModel>(uri, {parentGroup: event.parentGroup, defaultPassword: event.defaultPassword})
          .pipe(catchError((error: HttpErrorResponse) => this.errorService.showSnackBar(error)))
          .subscribe(model => {
             if(model) {
-               let id: IdentityId = {name: model.name, orgID: model.id};
-               this.refreshTree(id, IdentityType.ORGANIZATION);
                this.orgDropDownService.refreshProviders();
+               this.usersService.loadScheduleUsers();
             }
 
             this.loading = false;

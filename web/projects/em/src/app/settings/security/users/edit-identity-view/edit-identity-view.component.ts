@@ -106,6 +106,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    themes: IdentityTheme[] = [];
    isMultiTenant: boolean = false;
    identityEditable: boolean = true;
+   showPwd: boolean[] = [false, false];
 
    private originalModel: EditIdentityPaneModel;
    private originalRoles: IdentityModel[];
@@ -166,6 +167,10 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
       return !this.isMultiTenant || !((<EditRolePaneModel>this.model).organization == null);
    }
 
+   togglePwd(index: number): void {
+      this.showPwd[index] = !this.showPwd[index];
+   }
+
    setIsEnterprise() {
       let orgRoot = this.treeData.filter(node =>
          node.type == IdentityType.ORGANIZATION);
@@ -180,7 +185,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    {
       this.passwordErrorMatcher = {
          isErrorState: (control: UntypedFormControl | null, form: FormGroupDirective | NgForm | null) =>
-            !!this.pwForm.errors && !!this.pwForm.errors.passwordsMatch ||
+            (!!control?.dirty || !!control?.touched) && !!this.pwForm.errors && !!this.pwForm.errors.passwordsMatch ||
             defaultErrorMatcher.isErrorState(control, form)
       };
    }
@@ -205,6 +210,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    }
 
    init(): void {
+      this.showPwd = [false, false];
       this.setIsEnterprise();
 
       const nameValidator = this.type == IdentityType.USER ? FormValidators.validUserName :
@@ -328,7 +334,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
          this.pwForm.controls.password.setValue("", {emitEvent: false});
          this.pwForm.controls.confirmPassword.setValue("", {emitEvent: false});
       }
-      else if(!model.hasPassword) {
+      else if(!model.hasPassword && model.supportChangePassword) {
          this.form.get("changePasswordEnabled").setValue(true, {emitEvent: false});
          this.updatePassword(true);
          this.pwForm.controls.password.markAsTouched();
@@ -450,6 +456,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
          this.cancel.emit();
       }
 
+      this.showPwd = [false, false];
       this.restoreState();
       this.setOriginalState();
 
@@ -466,7 +473,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
             this.updatePassword(true);
             this.pwForm.controls.password.markAsTouched();
          }
-         else if(!this.userModel.hasPassword) {
+         else if(!this.userModel.hasPassword && this.userModel.supportChangePassword) {
             this.form.get("changePasswordEnabled").setValue(true, {emitEvent: false});
             this.updatePassword(true);
             this.pwForm.controls.password.markAsTouched();

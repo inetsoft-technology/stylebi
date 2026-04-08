@@ -50,11 +50,13 @@ public class SessionConnectionService {
    @Autowired
    public SessionConnectionService(IgniteSessionRepository sessionRepository,
                                    AuthenticationService authenticationService,
-                                   ApplicationEventPublisher eventPublisher)
+                                   ApplicationEventPublisher eventPublisher,
+                                   NodeProtectionService nodeProtectionService)
    {
       this.sessionRepository = sessionRepository;
       this.authenticationService = authenticationService;
       this.eventPublisher = eventPublisher;
+      this.nodeProtectionService = nodeProtectionService;
    }
 
    @PostConstruct
@@ -162,6 +164,33 @@ public class SessionConnectionService {
       }
    }
 
+   public void closeAllSessions() {
+      List<WebSocketSession> toClose = new ArrayList<>();
+
+      synchronized(httpSessions) {
+         for(WebSocketSessionRef ref : webSocketSessions.values()) {
+            WebSocketSession wsSession = ref.getSession();
+
+            if(wsSession != null) {
+               toClose.add(wsSession);
+            }
+         }
+
+         webSocketSessions.clear();
+         httpSessions.clear();
+         nodeProtectionService.updateNodeProtection(false);
+      }
+
+      for(WebSocketSession wsSession : toClose) {
+         try {
+            wsSession.close(CloseStatus.GOING_AWAY);
+         }
+         catch(IOException e) {
+            LOG.warn("Failed to close websocket connection on shutdown", e);
+         }
+      }
+   }
+
    private void cleanReferences() {
       synchronized(httpSessions) {
          for(Iterator<WebSocketSessionRef> i = webSocketSessions.values().iterator(); i.hasNext();)
@@ -225,6 +254,7 @@ public class SessionConnectionService {
    private Cluster cluster;
    private final MessageListener listener = this::messageReceived;
    private final AuthenticationService authenticationService;
+   private final NodeProtectionService nodeProtectionService;
    private final IgniteSessionRepository sessionRepository;
    private final ApplicationEventPublisher eventPublisher;
    private final Map<String, WebSocketSessionRef> webSocketSessions = new HashMap<>();

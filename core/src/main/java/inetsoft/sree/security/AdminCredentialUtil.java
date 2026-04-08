@@ -18,6 +18,8 @@
 package inetsoft.sree.security;
 
 import org.passay.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.stream.Collectors;
 
@@ -32,13 +34,28 @@ public final class AdminCredentialUtil {
     * Returns the administrator password from the {@code INETSOFT_ADMIN_PASSWORD} environment
     * variable. Throws {@link IllegalStateException} if the variable is not set, is blank, or
     * does not meet the minimum password strength requirements.
+    *
+    * <p>Leading and trailing whitespace is stripped from the value. Many environment variable
+    * sources (e.g. Docker Compose {@code .env} files) silently strip trailing whitespace from
+    * unquoted values, which would produce a mismatch between the stored password and login
+    * attempts. Stripping here ensures consistent behavior regardless of how the variable is
+    * set.</p>
     */
    public static String getRequiredAdminPassword() {
-      String password = System.getenv("INETSOFT_ADMIN_PASSWORD");
+      String raw = System.getenv("INETSOFT_ADMIN_PASSWORD");
 
-      if(password == null || password.isBlank()) {
+      if(raw == null || raw.isBlank()) {
          throw new IllegalStateException(
             "The INETSOFT_ADMIN_PASSWORD environment variable must be set before starting the server.");
+      }
+
+      String password = raw.strip();
+
+      if(password.length() != raw.length()) {
+         LOG.warn(
+            "INETSOFT_ADMIN_PASSWORD contained leading or trailing whitespace that has been " +
+            "stripped. If you set the password in a .env file without quotes, the whitespace " +
+            "may already have been removed by the .env parser.");
       }
 
       PasswordValidator validator = new PasswordValidator(
@@ -61,4 +78,6 @@ public final class AdminCredentialUtil {
 
       return password;
    }
+
+   private static final Logger LOG = LoggerFactory.getLogger(AdminCredentialUtil.class);
 }

@@ -383,7 +383,7 @@ describe("ViewerApp Unit Tests", () => {
          new NgbDatepickerConfig(), null, actionFactory, httpClient, null, formDataService,
          debounceService, scaleService, contextProvider, viewDataService, fullScreenService, router,
          renderer, null, sanitizer, titleService, hyperlinkService, viewerResizeService,
-         firstDayOfWeekService, tooltipConfig, shareService, null,
+         firstDayOfWeekService, TestBed.inject(NgbTooltipConfig), shareService, null,
          richTextService, viewerToolbarMessageService, mobileToolbarService, mockDocument, composerRecentService,
          pageTabService, pagingControlService, selectionMobileService,
          assetLoadingService, viewContainerRef, baseHrefService);
@@ -459,7 +459,7 @@ describe("ViewerApp Unit Tests", () => {
    it("should hide toolbar actions when permissions are set", () => {
       const fixture = TestBed.createComponent(ViewerAppComponent);
       const permissions = [
-         "Previous"
+         "Undo"
       ];
 
       fixture.componentInstance.toolbarPermissions = permissions;

@@ -467,6 +467,10 @@ export class VSFormatsPane implements OnInit, OnChanges {
    }
 
    isBorderDisabled(): boolean {
+      if(this.vsObjectFormat.borderDisabled) {
+         return true;
+      }
+
       if(this._focusedAssemblies && this._focusedAssemblies.length) {
          //disabled if shape or chart legend/axis
          return !!this._focusedAssemblies.find((object) => {

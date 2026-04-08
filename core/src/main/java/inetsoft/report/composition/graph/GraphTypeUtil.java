@@ -465,19 +465,37 @@ public class GraphTypeUtil {
       boolean appliedDc = cinfo instanceof VSChartInfo &&
          ((VSChartInfo) cinfo).isAppliedDateComparison();
 
-      if(!cinfo.isMultiStyles()) {
-         return func.test((cinfo.getChartType() == GraphTypes.CHART_AUTO) ?
-                          cinfo.getRTChartType() : cinfo.getChartType());
+      // for design-time checks, ignore DC's runtime multi-styles override so a
+      // single-style bar chart isn't treated as multi-styles with AUTO per-field types
+      boolean multi = appliedDc && !rt && cinfo instanceof VSChartInfo
+         ? ((VSChartInfo) cinfo).isMultiStyles(true)
+         : cinfo.isMultiStyles();
+
+      if(!multi) {
+         int designType = cinfo.getChartType();
+         int testType = (designType == GraphTypes.CHART_AUTO) ? cinfo.getRTChartType() : designType;
+
+         if(func.test(testType)) {
+            return true;
+         }
+
+         // DC can change the runtime chart type independently of the design type
+         // (e.g., a LINE chart where DC creates bars has getRTChartType() == BAR).
+         // If design type wasn't AUTO (RT already tested above), also check RT here.
+         if(appliedDc && designType != GraphTypes.CHART_AUTO) {
+            return func.test(cinfo.getRTChartType());
+         }
+
+         return false;
       }
       else {
          ChartRef[] fields = rt ? cinfo.getRTXFields() : cinfo.getXFields();
 
          for(int i = 0; i < fields.length; i++) {
             if(fields[i] instanceof ChartAggregateRef) {
-               ctype = (rt && appliedDc ? ((ChartAggregateRef) fields[i]).getChartType() :
-                        cinfo.getChartType()) == GraphTypes.CHART_AUTO ?
-                  ((ChartAggregateRef) fields[i]).getRTChartType() :
-                  ((ChartAggregateRef) fields[i]).getChartType();
+               int fieldType = ((ChartAggregateRef) fields[i]).getChartType();
+               ctype = fieldType == GraphTypes.CHART_AUTO ?
+                  ((ChartAggregateRef) fields[i]).getRTChartType() : fieldType;
 
                if(func.test(ctype)) {
                   return true;
@@ -489,10 +507,9 @@ public class GraphTypeUtil {
 
          for(int i = 0; i < fields.length; i++) {
             if(fields[i] instanceof ChartAggregateRef) {
-               ctype = (rt && appliedDc ? ((ChartAggregateRef) fields[i]).getChartType() :
-                        cinfo.getChartType()) == GraphTypes.CHART_AUTO ?
-                  ((ChartAggregateRef) fields[i]).getRTChartType() :
-                  ((ChartAggregateRef) fields[i]).getChartType();
+               int fieldType = ((ChartAggregateRef) fields[i]).getChartType();
+               ctype = fieldType == GraphTypes.CHART_AUTO ?
+                  ((ChartAggregateRef) fields[i]).getRTChartType() : fieldType;
 
                if(func.test(ctype)) {
                   return true;

@@ -451,7 +451,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       this.subscriptions.add(this.dashboardTabService.getDashboardTabModel()
          .subscribe({
             next: data => { this.dashboardTabModel = data; },
-            error: err => console.error('Failed to load dashboard tab model', err)
+            error: err => console.error("Failed to load dashboard tab model", err)
          }));
    }
 

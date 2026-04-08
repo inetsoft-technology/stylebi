@@ -914,10 +914,33 @@ public abstract class GraphGenerator {
          TitleDescriptor x2title = titlesDesc.getX2TitleDescriptor();
          TitleDescriptor y2title = titlesDesc.getY2TitleDescriptor();
 
-         graph.setXTitleSpec(getTitleSpec(xtitle, "x"));
-         graph.setX2TitleSpec(getTitleSpec(x2title, "x2"));
-         graph.setYTitleSpec(getTitleSpec(ytitle, "y"));
-         graph.setY2TitleSpec(getTitleSpec(y2title, "y2"));
+         // Build each title spec with its correct type (determines auto-generated label text),
+         // then swap placement when axis labels are on the opposite side.
+         // A Y field with labelOnSecondaryAxis=true puts labels on the right (Y2 position),
+         // so the Y title should also appear on the right. Similarly for X → X2 (top).
+         TitleSpec xSpec = getTitleSpec(xtitle, "x");
+         TitleSpec x2Spec = getTitleSpec(x2title, "x2");
+         TitleSpec ySpec = getTitleSpec(ytitle, "y");
+         TitleSpec y2Spec = getTitleSpec(y2title, "y2");
+
+         // Mirror the Pareto guard in setupAxisSpec: for Pareto charts, labelOnSecondaryAxis
+         // is suppressed on measure (linear) axes so the percentage scale stays on the right.
+         // Don't move the title for those fields either, or the title would be on the right
+         // while the labels are still on the left.
+         boolean isPareto = GraphTypes.isPareto(info.getChartType());
+         boolean yOnSecondary = Arrays.stream(info.getRTYFields())
+            .anyMatch(f -> f.getAxisDescriptor() != null &&
+               f.getAxisDescriptor().isLabelOnSecondaryAxis() &&
+               !(isPareto && f instanceof ChartAggregateRef));
+         boolean xOnSecondary = Arrays.stream(info.getRTXFields())
+            .anyMatch(f -> f.getAxisDescriptor() != null &&
+               f.getAxisDescriptor().isLabelOnSecondaryAxis() &&
+               !(isPareto && f instanceof ChartAggregateRef));
+
+         graph.setXTitleSpec(xOnSecondary ? x2Spec : xSpec);
+         graph.setX2TitleSpec(xOnSecondary ? xSpec : x2Spec);
+         graph.setYTitleSpec(yOnSecondary ? y2Spec : ySpec);
+         graph.setY2TitleSpec(yOnSecondary ? ySpec : y2Spec);
       }
 
       // setup visual frames, need to do before element options since GraphDefault.isInPlot
@@ -1654,6 +1677,10 @@ public abstract class GraphGenerator {
 
                gspec.setTextSpec(legend.getTextSpec());
                GraphUtil.setLegendSpec(gspec, legends);
+               // Bug #74360: propagate symbolSize to the guide frame so that
+               // "Symbol Size" set on a DC chart legend (CompositeVisualFrame)
+               // is actually applied to the rendered legend.
+               gspec.setSymbolSize(legend.getSymbolSize());
             }
          }
 
@@ -2303,7 +2330,7 @@ public abstract class GraphGenerator {
             }
 
             AxisDescriptor axisD = getAxisDescriptor(scale, null);
-            setupAxisSpec(axis, axisD, scale.getFields(), false);
+            setupAxisSpec(axis, axisD, scale.getFields(), false, scale instanceof LinearScale);
 
             if(scale instanceof TimeScale) {
                ((TimeScale) scale).setIncrement(axisD.getIncrement());
@@ -2342,7 +2369,7 @@ public abstract class GraphGenerator {
             boolean isY = scale instanceof LinearScale;
             AxisSpec axis = createAxisSpec(axisD, plotdesc, flds, scale, false, true, !isY);
 
-            setupAxisSpec(axis, axisD, scale.getFields(), false);
+            setupAxisSpec(axis, axisD, scale.getFields(), false, isY);
 
             if(axisD.isNoNull()) {
                scale.setScaleOption(scale.getScaleOption() | Scale.NO_NULL);
@@ -2491,7 +2518,9 @@ public abstract class GraphGenerator {
    }
 
    // set AxisSpec from axis descriptor
-   protected void setupAxisSpec(AxisSpec axis, AxisDescriptor axisD, String[] flds, boolean secondary) {
+   protected void setupAxisSpec(AxisSpec axis, AxisDescriptor axisD, String[] flds, boolean secondary,
+                                boolean linear)
+   {
       CompositeTextFormat format = getAxisLabelFormat(axisD, flds, secondary);
       // should only use the first field's default format (e.g. date comparison %change&value)
       String fld = flds.length > 0 ? flds[0] : null;
@@ -2511,9 +2540,10 @@ public abstract class GraphGenerator {
       axis.setTruncate(axisD.isTruncate());
       axis.setLabelGap(axisD.getLabelGap());
       // Bug #74171: pareto uses the right y-axis for its percentage scale, so
-      // labelOnSecondaryAxis would hide the primary measure axis. Ignore the setting.
+      // labelOnSecondaryAxis would hide the primary measure axis. Ignore the setting for
+      // measure (linear) axes only; dimension axes on y are not affected. (Bug #74191)
       axis.setLabelOnSecondaryAxis(axisD.isLabelOnSecondaryAxis() &&
-                                   info.getChartType() != CHART_PARETO);
+                                   !(GraphTypes.isPareto(info.getChartType()) && linear));
    }
 
    private void assignAxisCSS(AxisDescriptor axisDesc, String axis) {
@@ -2671,7 +2701,7 @@ public abstract class GraphGenerator {
          spec.setMaxLabelSpacing(continous ? 3 : 2);
       }
 
-      setupAxisSpec(spec, xdesc, flds, secondary);
+      setupAxisSpec(spec, xdesc, flds, secondary, scale instanceof LinearScale);
       addHighlightToAxis(spec, flds);
 
       return spec;

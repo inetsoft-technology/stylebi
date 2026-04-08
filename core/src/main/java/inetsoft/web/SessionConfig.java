@@ -25,7 +25,6 @@ import inetsoft.web.admin.security.SSOType;
 import inetsoft.web.admin.server.NodeProtectionService;
 import inetsoft.web.security.SessionAccessFilter;
 import inetsoft.web.session.IgniteSessionRepository;
-import jakarta.servlet.ServletContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -39,15 +38,12 @@ import org.springframework.session.web.http.DefaultCookieSerializer;
 @EnableSpringHttpSession
 @Configuration
 public class SessionConfig {
-   @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
    @Autowired
-   public SessionConfig(ServletContext servletContext,
-                        SecurityEngine securityEngine,
+   public SessionConfig(SecurityEngine securityEngine,
                         AuthenticationService authenticationService,
                         SSOSettingsService ssoSettingsService,
                         NodeProtectionService nodeProtectionService)
    {
-      this.servletContext = servletContext;
       this.securityEngine = securityEngine;
       this.authenticationService = authenticationService;
       this.ssoSettingsService = ssoSettingsService;
@@ -100,7 +96,6 @@ public class SessionConfig {
       }
    }
 
-   private final ServletContext servletContext;
    private final SecurityEngine securityEngine;
    private final AuthenticationService authenticationService;
    private final SSOSettingsService ssoSettingsService;

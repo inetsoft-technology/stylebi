@@ -131,6 +131,7 @@ export class AuditDependentAssetsComponent implements OnInit, OnDestroy {
                this.allUsers = p.users.map(u => ({value: u, label: u}));
                this.allUsers.push(NONE_USER);
                this.targetAssets = p.assets;
+               this.onDependentTypesChange();
             }));
    };
 

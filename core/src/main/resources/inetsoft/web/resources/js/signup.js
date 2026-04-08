@@ -283,8 +283,12 @@ function initSignUpDetailView(requestedUrl) {
    }
 
    function validatePassword(password) {
-      if((!password || password.length < PASSWORD_MIN_LENGTH || password.length > PASSWORD_MAX_LENGTH) ||
-          !/[A-Za-z]/g.test(password) || !/[0-9]/g.test(password))
+      if(!password || password.length < PASSWORD_MIN_LENGTH || password.length > PASSWORD_MAX_LENGTH) {
+         return false;
+      }
+
+      if(!/[A-Z]/.test(password) || !/[a-z]/.test(password) ||
+         !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password))
       {
          return false;
       }

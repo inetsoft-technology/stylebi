@@ -25,14 +25,9 @@ import { MaterialTestingModule } from "../testing/material-testing.module";
 describe("ChangePasswordFormComponent", () => {
    let component: ChangePasswordFormComponent;
    let fixture: ComponentFixture<ChangePasswordFormComponent>;
-   let render: any;
    let pwdService: any;
 
    beforeEach(waitForAsync(() => {
-      render = {
-         listen: jest.fn()
-      };
-
       pwdService = {
          verifyOldPassword: jest.fn(),
          notify: jest.fn()
@@ -44,7 +39,6 @@ describe("ChangePasswordFormComponent", () => {
             MaterialTestingModule
          ],
          providers: [
-            { provide: Renderer2, useValue: render },
             { provide: ChangePasswordService, useValue: pwdService}
          ],
          declarations: [ChangePasswordFormComponent],

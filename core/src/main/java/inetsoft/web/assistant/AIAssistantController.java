@@ -227,6 +227,6 @@ public class AIAssistantController {
    public static final String CHAT_APP_SERVER_URL = "chat.app.server.url";
    public static final String CHAT_APP_INTERNAL_URL = "chat.app.internal.url";
    public static final String PROXY_PATH_PREFIX = "/api/assistant/proxy";
-   public static final String AI_ASSISTANT_VISIBLE = "portal.ai.assistant.visible";
+   public static final String AI_ASSISTANT_VISIBLE = "ai.assistant.visible";
    private static final Logger LOG = LoggerFactory.getLogger(AIAssistantController.class);
 }

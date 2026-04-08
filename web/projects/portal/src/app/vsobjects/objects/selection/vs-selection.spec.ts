@@ -141,6 +141,13 @@ let createTreeModel: () => VSSelectionTreeModel = () => {
 };
 
 describe("VSSelection Test", () => {
+   beforeAll(() => {
+      jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+         font: "",
+         measureText: (_text: string) => ({ width: 0 })
+      } as any);
+   });
+
    let vsSelection: VSSelection;
    let fixture: ComponentFixture<VSSelection>;
    let viewsheetClientService: any = { sendEvent: jest.fn() };
@@ -295,5 +302,28 @@ describe("VSSelection Test", () => {
       };
 
       expect(vsSelection.leftMarginTitle).toEqual(-1);
+   });
+
+   it("should not shift non-dropdown selection in bottom-tab (backend already positions correctly)", () => {
+      let listModel = createListModel();
+      listModel.dropdown = false;
+      listModel.objectFormat.top = 300;
+      listModel.objectFormat.height = 200;
+      listModel.titleFormat.height = 20;
+      listModel.titleVisible = true;
+      listModel.containerType = "VSTab";
+      listModel.container = "Tab1";
+
+      let tabModel = Object.assign(
+         { bottomTabs: true },
+         TestUtils.createMockVSObjectModel("VSTab", "Tab1")
+      );
+
+      contextService.viewer = true;
+      fixture.componentInstance.model = listModel;
+      fixture.componentInstance.vsInfo = { vsObjects: [tabModel] } as any;
+
+      // non-dropdown: objectFormat.top already accounts for full component height
+      expect(fixture.componentInstance.topPosition).toBe(300);
    });
 });

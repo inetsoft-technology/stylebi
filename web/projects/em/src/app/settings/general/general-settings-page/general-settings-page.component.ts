@@ -66,7 +66,7 @@ export class GeneralSettingsPageComponent implements OnInit, OnDestroy {
    loading: boolean = false;
    currentView = "data-source";
 
-   private destroy$ = new Subject();
+   private destroy$ = new Subject<void>();
    private subscriptions = new Subscription();
    private licenseKeyChanged: boolean;
    securityEnabled?: boolean;

@@ -23,9 +23,11 @@ import {
 } from "../../../../../../../shared/schedule/model/time-condition-model";
 import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-zone-model";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
+import { Tool } from "../../../../../../../shared/util/tool";
 import { DateTimeService } from "../date-time.service";
 import { StartTimeChange, StartTimeData } from "../start-time-editor/start-time-editor.component";
 import { TaskConditionChanges } from "../task-condition-pane.component";
+import { TimeZoneValue } from "../time-zone-select/time-zone-select-component";
 
 @Component({
    selector: "em-weekly-condition-editor",
@@ -50,23 +52,16 @@ export class WeeklyConditionEditorComponent implements OnInit {
       const oldCondition = this._condition;
       this._condition = Object.assign({}, value);
 
-      if(oldCondition != null &&
-         oldCondition.label === value.label &&
-         oldCondition.timeZoneOffset === value.timeZoneOffset &&
-         oldCondition.hour === value.hour &&
-         oldCondition.minute === value.minute &&
-         oldCondition.second === value.second &&
-         oldCondition.interval === value.interval &&
-         oldCondition.daysOfWeek === value.daysOfWeek &&
-         oldCondition.timeRange === value.timeRange &&
-         oldCondition.timeZone === value.timeZone)
-      {
+      if(Tool.isEquals(oldCondition, value)) {
          return;
       }
 
       this.form.get("interval").setValue(this._condition.interval);
       this.form.get("weekdays").setValue(this._condition.daysOfWeek);
-      this.form.get("timeZone").setValue(this._condition.timeZone || "");
+      this.form.get("timeZone").setValue({
+         timeZoneId: this._condition.timeZone || "",
+         timeZoneLabel: this._condition.timeZoneLabel || ""
+      } as TimeZoneValue);
 
       this.startTimeData = {
          startTime: this.dateTimeService.getStartTime(this._condition),
@@ -74,14 +69,15 @@ export class WeeklyConditionEditorComponent implements OnInit {
          startTimeSelected: !this.timeRangeEnabled || !this._condition.timeRange
       };
       this.startTimeValid = !!this.startTimeData.startTime || !!this.startTimeData.timeRange;
-      this.timeZoneLabel = this.dateTimeService
-         .getTimeZoneLabel(this.timeZoneOptions, this._condition.timeZone, this.timeZone);
    }
 
    form: UntypedFormGroup;
    startTimeData: StartTimeData;
-   timeZoneLabel: string;
    timeZoneEnabled = true;
+
+   get timeZoneLabel(): string {
+      return (this.form.get("timeZone").value as TimeZoneValue)?.timeZoneLabel || "";
+   }
    private _condition: TimeConditionModel;
    private startTimeValid = false;
 
@@ -89,14 +85,11 @@ export class WeeklyConditionEditorComponent implements OnInit {
       this.form = fb.group({
          interval: [1, [Validators.required, FormValidators.positiveNonZeroIntegerInRange]],
          weekdays: [[], [Validators.required]],
-         timeZone: [""]
+         timeZone: [{ timeZoneId: "", timeZoneLabel: "" } as TimeZoneValue]
       });
    }
 
    ngOnInit() {
-      this.timeZoneLabel = this.dateTimeService
-         .getTimeZoneLabel(this.timeZoneOptions, this.condition?.timeZone, this.timeZone);
-
       if(!!this.startTimeData) {
          this.timeZoneEnabled = this.startTimeData.startTimeSelected;
       }
@@ -112,15 +105,13 @@ export class WeeklyConditionEditorComponent implements OnInit {
       this.fireModelChanged();
    }
 
-   setTimeZoneLabel(label: string): void {
-      this.timeZoneLabel = label;
-   }
-
    fireModelChanged(): void {
       const oldTZ = this.condition.timeZone;
+      const tzValue = this.form.get("timeZone").value as TimeZoneValue;
       this.condition.interval = this.form.get("interval").value;
       this.condition.daysOfWeek = this.form.get("weekdays").value;
-      this.condition.timeZone = this.form.get("timeZone").value;
+      this.condition.timeZone = tzValue?.timeZoneId || "";
+      this.condition.timeZoneLabel = tzValue?.timeZoneLabel || "";
 
       if(this.startTimeData) {
          this.startTimeData = this.dateTimeService

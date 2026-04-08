@@ -53,6 +53,7 @@ describe("input parameter dialog component unit case", () => {
 
    //Bug #19479
    it("check default status", () => {
+      inputParameterDialog.fields = [TestUtils.createMockColumnRef("city")];
       inputParameterDialog.model = createModel();
       fixture.detectChanges();
       let errorMsg: HTMLElement = fixture.debugElement.query(By.css("span.invalid-feedback")).nativeElement;
@@ -76,6 +77,29 @@ describe("input parameter dialog component unit case", () => {
       fixture.detectChanges();
       expect(TestUtils.toString(fixture.debugElement.query(By.css("span.invalid-feedback")).nativeElement.textContent)).toBe(
          "parameter.name.characterValid");
+   });
+
+   //Bug #74148 should default to constant when fields are empty
+   it("should default to constant valueSource when no fields", () => {
+      inputParameterDialog.fields = [];
+      inputParameterDialog.selectEdit = false;
+      inputParameterDialog.model = createModel();
+      fixture.detectChanges();
+      expect(inputParameterDialog.model.valueSource).toBe("constant");
+      let fieldRadio = fixture.debugElement.query(By.css("input.field_id")).nativeElement;
+      expect(fieldRadio.disabled).toBeTruthy();
+   });
+
+   //Bug #74148 should reset to constant when editing a field param with no fields
+   it("should reset valueSource to constant when editing with no fields", () => {
+      let model = createModel();
+      model.name = "para1";
+      model.valueSource = "field";
+      inputParameterDialog.fields = [];
+      inputParameterDialog.selectEdit = true;
+      inputParameterDialog.model = model;
+      fixture.detectChanges();
+      expect(inputParameterDialog.model.valueSource).toBe("constant");
    });
 
    //Bug #21452 should commit right model info

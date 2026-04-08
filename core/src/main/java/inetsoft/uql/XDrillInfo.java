@@ -27,6 +27,7 @@ import org.w3c.dom.NodeList;
 import java.io.PrintWriter;
 import java.io.Serializable;
 import java.util.Enumeration;
+import java.util.Objects;
 import java.util.Vector;
 
 /**
@@ -158,6 +159,17 @@ public class XDrillInfo implements XMLSerializable, Serializable, Cloneable {
    public void clear() {
       paths.removeAllElements();
       column = null;
+   }
+
+   @Override
+   public int hashCode() {
+      int result = Objects.hashCode(column);
+
+      for(int i = 0; i < paths.size(); i++) {
+         result = 31 * result + ((DrillPath) paths.get(i)).contentHashCode();
+      }
+
+      return result;
    }
 
    /**

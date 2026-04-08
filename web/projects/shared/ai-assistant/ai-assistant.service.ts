@@ -18,7 +18,7 @@
 
 import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
-import { BehaviorSubject, Observable, of } from "rxjs";
+import { BehaviorSubject, Observable, of, Subject } from "rxjs";
 import { catchError, map, timeout } from "rxjs/operators";
 import { convertToKey } from "../../em/src/app/settings/security/users/identity-id";
 import { BindingModel } from "../../portal/src/app/binding/data/binding-model";
@@ -33,11 +33,8 @@ import {
 import { getChartBindingContext } from "../../portal/src/app/binding/services/assistant/chart-context-helper";
 import { getCrosstabBindingContext } from "../../portal/src/app/binding/services/assistant/crosstab-context-helper";
 import { CalcTableLayout } from "../../portal/src/app/common/data/tablelayout/calc-table-layout";
-import { CurrentUser } from "../../portal/src/app/portal/current-user";
 import { VSObjectModel } from "../../portal/src/app/vsobjects/model/vs-object-model";
-
-const PORTAL_CURRENT_USER_URI: string = "../api/portal/get-current-user";
-const EM_CURRENT_USER_URI: string = "../api/em/security/get-current-user";
+import { CurrentUserService } from "../util/current-user.service";
 
 export enum ContextType {
    VIEWSHEET = "dashboard",
@@ -61,18 +58,21 @@ export class AiAssistantService {
    styleBIUrl: string = "";
    private _panelOpen$ = new BehaviorSubject<boolean>(false);
    readonly panelOpen$ = this._panelOpen$.asObservable();
+   private _contextChange$ = new Subject<void>();
+   readonly contextChange$ = this._contextChange$.asObservable();
    get panelOpen(): boolean { return this._panelOpen$.value; }
    set panelOpen(v: boolean) { this._panelOpen$.next(v); }
    aiAssistantVisible: boolean = false;
    userId: string = "";
    email: string = "";
+   private webComponentScriptPromise: Promise<void> | null = null;
    calcTableCellBindings: { [key: string]: CellBindingInfo } = {};
    calcTableAggregates: string[] = [];
    private contextMap: Record<string, string> = {};
    private _lastBindingObject: string = "";
    private _newChatFromBinding: boolean = false;
 
-   constructor(private http: HttpClient) {
+   constructor(private http: HttpClient, private currentUserService: CurrentUserService) {
       this.http.get("../api/assistant/get-chat-app-server-url").subscribe((url: string) => {
          this.chatAppServerUrl = url || "";
       });
@@ -80,6 +80,38 @@ export class AiAssistantService {
       this.http.get("../api/assistant/get-stylebi-url").subscribe((url: string) => {
          this.styleBIUrl = url || "";
       });
+   }
+
+   /**
+    * Dynamically loads the AI assistant web component script. Safe to call multiple times —
+    * concurrent calls share the same in-flight promise. Returns a promise that resolves when
+    * the script loads or rejects on error. The cached promise is cleared on error to allow
+    * a retry on the next panel open.
+    */
+   loadWebComponentScript(): Promise<void> {
+      if(this.webComponentScriptPromise) {
+         return this.webComponentScriptPromise;
+      }
+
+      const base = this.chatAppServerUrl ? this.chatAppServerUrl.replace(/\/$/, "") : "";
+
+      if(!base) {
+         return Promise.reject(new Error("AI assistant URL not configured"));
+      }
+
+      this.webComponentScriptPromise = new Promise<void>((resolve, reject) => {
+         const script = document.createElement("script");
+         script.src = base + "/web-component/ai-assistant.umd.js";
+         script.onload = () => resolve();
+         script.onerror = () => {
+            document.head.removeChild(script); // remove so a retry appends a fresh element
+            this.webComponentScriptPromise = null; // allow retry next time
+            reject(new Error("Failed to load AI assistant web component"));
+         };
+         document.head.appendChild(script);
+      });
+
+      return this.webComponentScriptPromise;
    }
 
    checkHealth(): Observable<boolean> {
@@ -105,18 +137,27 @@ export class AiAssistantService {
 
    resetContextMap(): void {
       this.contextMap = {};
+      this._contextChange$.next();
    }
 
    loadCurrentUser(em: boolean = false): void {
-      const uri = em ? EM_CURRENT_USER_URI : PORTAL_CURRENT_USER_URI;
-      this.http.get(uri).subscribe((model: CurrentUser) => {
+      const user$ = em
+         ? this.currentUserService.getEmCurrentUser()
+         : this.currentUserService.getPortalCurrentUser();
+
+      user$.subscribe(model => {
          this.userId = convertToKey(model.name);
          this.email = model.email?.length > 0 ? model.email[0] : "";
       });
    }
 
    setContextField(key: string, value: string) {
+      if(this.contextMap[key] === value) {
+         return;
+      }
+
       this.contextMap[key] = value;
+      this._contextChange$.next();
    }
 
    getContextField(key: string): string {
@@ -125,6 +166,7 @@ export class AiAssistantService {
 
    removeContextField(key: string) {
       delete this.contextMap[key];
+      this._contextChange$.next();
    }
 
    getFullContext(): string {

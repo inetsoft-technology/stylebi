@@ -55,7 +55,6 @@
   <em-hourly-condition-editor
     *ngSwitchCase="TimeConditionType.EVERY_HOUR"
     [condition]="condition"
-    [timeZone]="timeZone"
     [timeZoneOptions]="timeZoneOptions"
     [showMeridian]="showMeridian"
     (modelChanged)="onModelChanged($event)"
@@ -64,7 +63,6 @@
   <em-run-once-condition-editor
     *ngSwitchCase="TimeConditionType.AT"
     [condition]="condition"
-    [timeZone]="timeZone"
     [timeZoneOptions]="timeZoneOptions"
     [showMeridian]="showMeridian"
     (modelChanged)="onModelChanged($event)"

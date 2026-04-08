@@ -30,6 +30,7 @@ import java.io.PrintWriter;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
@@ -317,6 +318,14 @@ public class DrillPath implements XMLSerializable, Serializable, Cloneable {
     */
    public int hashCode() {
       return name.hashCode();
+   }
+
+   /**
+    * Get a content-based hash code consistent with equalsContent().
+    */
+   public int contentHashCode() {
+      return Objects.hash(link, targetFrame, tip, disablePrompting, passParams, linkType,
+                          query, params, types);
    }
 
    /**

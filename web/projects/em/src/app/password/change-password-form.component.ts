@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {
-   Component, EventEmitter, Input, OnDestroy, OnInit, Output, Renderer2
+   Component, EventEmitter, Input, OnInit, Output
 } from "@angular/core";
 import {
    UntypedFormBuilder, UntypedFormControl,
@@ -31,7 +31,7 @@ import { FormValidators } from "../../../../shared/util/form-validators";
    templateUrl: "./change-password-form.component.html",
    styleUrls: ["./change-password-form.component.scss"]
 })
-export class ChangePasswordFormComponent implements OnInit, OnDestroy {
+export class ChangePasswordFormComponent implements OnInit {
    @Input()
    set loading(value: boolean) {
       if(value) {
@@ -46,11 +46,9 @@ export class ChangePasswordFormComponent implements OnInit, OnDestroy {
    changePasswordForm: UntypedFormGroup;
    errorStateMatcher: ErrorStateMatcher;
    showPwd: boolean[] = [];
-   mouseupListener: () => void;
 
    constructor(formBuilder: UntypedFormBuilder,
-               defaultErrorMatcher: ErrorStateMatcher,
-               private renderer: Renderer2)
+               defaultErrorMatcher: ErrorStateMatcher)
    {
       this.changePasswordForm = formBuilder.group(
          {
@@ -70,10 +68,6 @@ export class ChangePasswordFormComponent implements OnInit, OnDestroy {
 
       };
 
-      this.mouseupListener = this.renderer.listen("document", "mouseup",
-         (evt: MouseEvent) => {
-            this.showPwd.fill(false);
-         });
    }
 
    ngOnInit() {
@@ -88,17 +82,8 @@ export class ChangePasswordFormComponent implements OnInit, OnDestroy {
       }
    }
 
-   triggerPassword(event: MouseEvent, index: number, show: boolean = true): void {
-      event.preventDefault();
-      event.stopPropagation();
-      this.showPwd[index] = show;
-   }
-
-   ngOnDestroy(): void {
-      if(this.mouseupListener) {
-         this.mouseupListener();
-         this.mouseupListener = null;
-      }
+   triggerPassword(index: number): void {
+      this.showPwd[index] = !this.showPwd[index];
    }
 
    get formDisabled(): boolean {

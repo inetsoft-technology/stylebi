@@ -33,7 +33,7 @@
          (click)="onLabelClick($event)">
     {{ labelText }}
   </label>
-  <div class="vs-input-content">
+  <div class="vs-input-content" [ngStyle]="contentStyle">
     <ng-content></ng-content>
   </div>
 </div>

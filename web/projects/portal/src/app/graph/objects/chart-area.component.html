@@ -71,7 +71,8 @@
      (leftMouseDown)="onDown($event)"
      outOfZone
      (onMousemove)="onMove($event)" (onDragover)="dragOver($event)"
-     (dragleave)="dragLeave($event)" (drop)="onDrop($event)">
+     (dragleave)="dragLeave($event)" (drop)="onDrop($event)"
+     (contextmenu)="clearSelectionOnBackground($event)">
   <div class="chart-area__background" [style.background]="backgroundColor"
        [style.border-radius.px]="vsChartModel.objectFormat.roundCorner">
     <div class="chart-border">
@@ -146,8 +147,8 @@
                        (scrollAxis)="onScrollAxis($event, axis)"
                        (sendFlyover)="sendFlyover($event)"
                        (showDataTip)="showDataTip($event)"
-                       (onLoad)="axisLoaded($event)"
-                       (onLoading)="axisLoading()"
+                       (onLoad)="axisLoaded($event, axis.areaName)"
+                       (onLoading)="axisLoading(axis.areaName)"
                        [supportHyperlink]="supportHyperlink"
                        [container]="container"
                        [resizeEnable]="!isResizeVisible || isResizeVisible('AxisResize')">
@@ -186,7 +187,7 @@
                        (showDataTip)="showDataTip($event)"
                        (selectRegion)="selectRegion($event)"
                        (showHyperlink)="showHyperlink($event)"
-                       (showTooltip)="showTooltip($event)"
+                       (showTooltip)="showTooltip($event, true)"
                        (brushChart)="onBrushChart.emit()"
                        (scrollArea)="onScrollArea($event)"
                        (onLoad)="plotLoaded($event)"

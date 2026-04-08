@@ -18,6 +18,7 @@
 package inetsoft.uql.rest.json.lookup;
 
 import inetsoft.report.lens.xnode.XNodeTableLens;
+import inetsoft.test.SreeHome;
 import inetsoft.test.TestEndpoint;
 import inetsoft.uql.XTableNode;
 import inetsoft.uql.rest.AbstractRestDataIteratorStrategy;
@@ -31,6 +32,7 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@SreeHome
 public class JsonLookupIntegrationTest {
     @Test
     void lookupEndpoint() {

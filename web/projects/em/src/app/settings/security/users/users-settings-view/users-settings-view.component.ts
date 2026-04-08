@@ -61,7 +61,7 @@ export class UsersSettingsViewComponent implements OnInit {
    @Output() newUser = new EventEmitter<String>();
    @Output() newRole = new EventEmitter<void>();
    @Output() newGroup = new EventEmitter<String>();
-   @Output() newOrganization = new EventEmitter<String>();
+   @Output() newOrganization = new EventEmitter<{parentGroup: string, defaultPassword?: string}>();
    @Output() userSettingsChanged = new EventEmitter<EditUserPaneModel>();
    @Output() roleSettingsChanged = new EventEmitter<EditRolePaneModel>();
    @Output() groupSettingsChanged = new EventEmitter<EditGroupPaneModel>();
@@ -215,12 +215,9 @@ export class UsersSettingsViewComponent implements OnInit {
    }
 
    createOrganization(): void {
-      this.triggerNewOrgDialog((newOrgString: string, proceed: boolean) => {
-         if(proceed && !!newOrgString && newOrgString != "") {
-            this.emitNewIdentity(this.newOrganization, newOrgString, true);
-         }
-         else if(proceed) {
-            this.emitNewIdentity(this.newOrganization, null, true);
+      this.triggerNewOrgDialog((newOrgString: string, proceed: boolean, defaultPassword: string) => {
+         if(proceed) {
+            this.newOrganization.emit({parentGroup: newOrgString || null, defaultPassword});
          }
       });
    }
@@ -289,7 +286,7 @@ export class UsersSettingsViewComponent implements OnInit {
       return true;
    }
 
-   triggerNewOrgDialog(callback: (newOrgString: string, proceed: boolean) => void): void {
+   triggerNewOrgDialog(callback: (newOrgString: string, proceed: boolean, defaultPassword: string) => void): void {
       this.dialog.open(CreateOrganizationDialogComponent, {
          role: "dialog",
          width: "350px",
@@ -300,7 +297,7 @@ export class UsersSettingsViewComponent implements OnInit {
             name: this.selectedProvider
          }
       }).afterClosed().subscribe((result) => {
-         callback(result.newOrgString, result.proceed);
+         callback(result.newOrgString, result.proceed, result.defaultPassword);
       });
    }
 

@@ -223,10 +223,12 @@ describe("VSImage", () => {
       expect(debugElement).not.toBeNull();
 
       while(debugElement && debugElement.nativeElement) {
-         const style = window.getComputedStyle(debugElement.nativeElement);
+         if(debugElement.nativeElement instanceof Element) {
+            const style = window.getComputedStyle(debugElement.nativeElement);
 
-         if(style != null && Object.keys(style).length > 0) {
-            expect(style.getPropertyValue("overflow")).not.toBe("hidden");
+            if(style != null && Object.keys(style).length > 0) {
+               expect(style.getPropertyValue("overflow")).not.toBe("hidden");
+            }
          }
 
          debugElement = debugElement.parent;

@@ -256,6 +256,7 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
    private dropType: number = -1;
    private _plotLoaded = true;
    private _axisLoaded = true;
+   private _loadingAxesSet = new Set<string>();
    private devicePixelRatioMedia: MediaQueryList;
 
    // Mouse position
@@ -431,6 +432,13 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
       }
    }
 
+   // clear selection when right-clicking on chart background (not on a sub-component)
+   clearSelectionOnBackground(event: MouseEvent): void {
+      if(!(event.target as HTMLElement).closest(".chart-object-area")) {
+         this.clearSelection();
+      }
+   }
+
    drill(payload: ChartDrillInfo): void {
       this.onDrill.emit(payload);
    }
@@ -587,17 +595,17 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
       });
    }
 
-   showTooltip(tipInfo: TooltipInfo): void {
+   showTooltip(tipInfo: TooltipInfo, fromPlot: boolean = false): void {
       const tipIndex = tipInfo ? tipInfo.tipIndex : -1;
       let tooltipString = Tool.unescapeHTML(this.model.stringDictionary[tipIndex]);
 
-      if(!this.mobileDevice && tooltipString && tipInfo.region.hyperlinks &&
-         tipInfo.region.hyperlinks.length == 1)
-      {
+      if(!this.mobileDevice && tooltipString && tipInfo?.region?.hyperlinks &&
+         tipInfo.region.hyperlinks.length == 1) {
          tooltipString += "_#(js:composer.graph.ctrlSelect)";
       }
 
-      if (!this.mobileDevice && this.emptyPlotLinkTooltip && !tipInfo) {
+      if(!this.mobileDevice && this.emptyPlotLinkTooltip && !tipInfo
+         && fromPlot && (this.viewerMode || this.previewMode)) {
          tooltipString += this.emptyPlotLinkTooltip;
       }
 
@@ -1399,14 +1407,36 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
       this.mouseoverLegendRegion = legendRegion;
    }
 
-   axisLoading(): void {
+   axisLoading(areaName: string): void {
+      if(this._axisLoaded) {
+         // Starting a new load cycle — stale entries from the previous cycle (e.g. from an
+         // axis that was removed by Angular's *ngFor diffing without firing axisLoaded) are
+         // no longer valid. Clear them so the new cycle has a clean baseline. (Bug #74260)
+         this._loadingAxesSet.clear();
+      }
+
+      this._loadingAxesSet.add(areaName);
       this._axisLoaded = false;
       this.fireLoading();
    }
 
-   public axisLoaded(success: boolean) {
+   public axisLoaded(success: boolean, areaName: string) {
       this.imageError = !success;
-      this._axisLoaded = true;
+
+      if(areaName === "") {
+         // Sentinel call from vs-chart when there are no axis tiles to load. Forcibly
+         // reset the set so stale entries from a previous cycle don't block fireLoaded.
+         this._loadingAxesSet.clear();
+         this._axisLoaded = true;
+      }
+      else {
+         this._loadingAxesSet.delete(areaName);
+
+         if(this._loadingAxesSet.size === 0) {
+            this._axisLoaded = true;
+         }
+      }
+
       this.fireLoaded();
    }
 

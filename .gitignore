@@ -188,6 +188,7 @@ buildNumber.properties
 web/*-lint-results.xml
 !/web/projects/portal/src/app/widget/target/
 !/docker/community/src/main/docker/files/bin/
+/web/temp/
 
 ### Terraform ####
 # Local .terraform directories
@@ -218,7 +219,9 @@ override.tf.json
 # example: *tfplan*
 *.tfplan
 
-
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc
+
+# Ignore local Claude Code settings
+.claude/settings.local.json

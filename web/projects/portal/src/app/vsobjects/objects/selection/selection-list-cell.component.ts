@@ -167,7 +167,8 @@ export class SelectionListCell implements OnInit, OnChanges, OnDestroy {
       this.measureTextHAlign = GuiTool.getFlexHAlign(this.measureTextFormat.hAlign);
       this.measureTextVAlign = GuiTool.getFlexVAlign(this.measureTextFormat.vAlign);
       this.isParentIDTree = model.objectType === "VSSelectionTree" && (<VSSelectionTreeModel> model).mode == MODE.ID;
-      this.quickSwitchAllowed = model.quickSwitchAllowed && model.objectType === "VSSelectionList"
+      this.quickSwitchAllowed = model.quickSwitchAllowed &&
+         (model.objectType === "VSSelectionList" || model.objectType === "VSSelectionTree")
          && (this.contextProvider.viewer || this.contextProvider.preview) && !this.mobile;
 
       switch(this.measureTextFormat.vAlign) {
@@ -340,6 +341,16 @@ export class SelectionListCell implements OnInit, OnChanges, OnDestroy {
       }
 
       this.selectionStateChanged.emit({ toggle, toggleAll });
+
+      // optimistically flip the overlay icon after alt+click, matching onQuickSwitchClick
+      if(this.quickSwitchAllowed && (toggle || toggleAll)) {
+         this.vsSelectionComponent.setQuickSwitchHover(
+            this.cell?.nativeElement ?? null,
+            !this.singleSelection,
+            () => this.click(new MouseEvent("click"), true)
+         );
+      }
+
       this.selectRegion(event, CellRegion.LABEL);
    }
 
@@ -410,7 +421,9 @@ export class SelectionListCell implements OnInit, OnChanges, OnDestroy {
    }
 
    onMouseLeave(event: MouseEvent): void {
-      if(this.vsSelectionComponent.isQuickSwitchRetainTarget(event.relatedTarget as Node | null)) {
+      const retain = this.vsSelectionComponent.isQuickSwitchRetainTarget(event.relatedTarget as Node | null);
+
+      if(retain) {
          return;
       }
 

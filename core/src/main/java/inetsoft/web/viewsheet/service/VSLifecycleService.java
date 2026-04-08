@@ -25,8 +25,8 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.AffinityCallable;
-import inetsoft.sree.security.*;
-import inetsoft.web.ServiceProxyContext;
+import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
@@ -36,6 +36,9 @@ import inetsoft.util.GroupedThread;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.audit.ExecutionRecord;
 import inetsoft.util.log.*;
+import inetsoft.web.ServiceProxyContext;
+import inetsoft.web.messaging.MessageAttributes;
+import inetsoft.web.messaging.MessageContextHolder;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRefServiceProxy;
@@ -186,6 +189,16 @@ public class VSLifecycleService {
 
          if(runtimeViewsheetManager != null) {
             runtimeViewsheetManager.sheetClosed(principal, runtimeId);
+         }
+
+         // Evict the per-runtimeId dispatch state so it doesn't accumulate in long-running
+         // sessions that open and close many viewsheets. (getMessageAttributes returns null
+         // when this is called outside a WebSocket message context, e.g. quota eviction.)
+         MessageAttributes msgAttrs = MessageContextHolder.getMessageAttributes();
+
+         if(msgAttrs != null) {
+            String sessionId = msgAttrs.getHeaderAccessor().getSessionId();
+            CommandDispatcher.removeRuntimeState(sessionId, runtimeId);
          }
       }
       catch(Exception e) {

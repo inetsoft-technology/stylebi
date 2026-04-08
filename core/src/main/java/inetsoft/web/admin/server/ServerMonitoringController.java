@@ -485,15 +485,19 @@ public class ServerMonitoringController {
       return ServerSummaryModel.builder()
          .versionNumber(Tool.getReportVersion())
          .buildNumber(Tool.getBuildNumber())
-         .currentNode(getCurrentNode())
+         .currentNode(getCurrentNode(clusterNode))
          .jvmModel(getJvmModel())
          .legends(getMonitoringChartLegends(clusterNode))
          .reverseProxyModel(getReverseProxyModel(srequest))
          .build();
    }
 
-   private String getCurrentNode() {
+   private String getCurrentNode(String clusterNode) {
       if(SUtil.isCluster()) {
+         if(clusterNode != null && !clusterNode.isEmpty()) {
+            return clusterNode;
+         }
+
          String node = Cluster.getInstance().getLocalMember();
          int index = node.indexOf(':');
 

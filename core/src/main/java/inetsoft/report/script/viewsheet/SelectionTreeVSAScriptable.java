@@ -208,6 +208,8 @@ public class SelectionTreeVSAScriptable extends SelectionVSAScriptable
                   getClass(), this);
       addProperty("suppressBlank", "isSuppressBlankValue",
                   "setSuppressBlankValue", boolean.class, info.getClass(), info);
+      addProperty("quickSwitchAllowed", "isQuickSwitchAllowed",
+                  "setQuickSwitchAllowed", boolean.class, info.getClass(), info);
       addProperty("expandAll", "isExpandAll",
                   "setExpandAll", boolean.class, info.getClass(), info);
       addProperty("value", null);

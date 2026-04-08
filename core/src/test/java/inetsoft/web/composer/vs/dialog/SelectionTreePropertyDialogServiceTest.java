@@ -20,9 +20,8 @@ package inetsoft.web.composer.vs.dialog;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.SreeHome;
-import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
+import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.vs.SelectionTreePropertyDialogModel;
@@ -38,6 +37,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.awt.*;
 import java.security.Principal;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
@@ -93,6 +93,122 @@ class SelectionTreePropertyDialogServiceTest {
 
       assertNotNull(argument.getValue().getLabelValue());
 
+   }
+
+   @Test
+   void bottomTabsPositionAdjustedOnShowTypeChange() throws Exception {
+      SelectionTreeVSAssemblyInfo info = new SelectionTreeVSAssemblyInfo();
+      info.setShowTypeValue(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      info.setPixelOffset(new Point(50, 400));
+      info.setPixelSize(new Dimension(200, 20));
+
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setBottomTabsValue(true);
+      tabInfo.setPixelOffset(new Point(0, 420));
+
+      TabVSAssembly tabAssembly = Mockito.mock(TabVSAssembly.class);
+      when(tabAssembly.getVSAssemblyInfo()).thenReturn(tabInfo);
+      when(selectionTreeAssembly.getContainer()).thenReturn(tabAssembly);
+      when(selectionTreeAssembly.getVSAssemblyInfo()).thenReturn(info);
+
+      when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly(anyString())).thenReturn(selectionTreeAssembly);
+      when(viewsheet.getPixelSize(any())).thenReturn(new Dimension(200, 20));
+
+      given(selectionTreePropertyDialogModel.getSelectionGeneralPaneModel()
+               .getGeneralPropPaneModel().getBasicGeneralPaneModel().getName())
+         .willReturn("SelectionTree1");
+      given(selectionTreePropertyDialogModel.getSelectionGeneralPaneModel()
+               .getShowType())
+         .willReturn(SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+      given(selectionTreePropertyDialogModel.getSelectionGeneralPaneModel()
+               .getListHeight())
+         .willReturn(6);
+      given(selectionTreePropertyDialogModel.getSelectionGeneralPaneModel()
+               .getSizePositionPaneModel().getTitleHeight())
+         .willReturn(20);
+      given(selectionTreePropertyDialogModel.getSelectionGeneralPaneModel()
+               .getSizePositionPaneModel().getCellHeight())
+         .willReturn(20);
+      given(selectionTreePropertyDialogModel.getSelectionTreePaneModel().getMode())
+         .willReturn(2);
+
+      service.setSelectionTreePropertyModel("Viewsheet1", "SelectionTree1",
+                                             selectionTreePropertyDialogModel,
+                                             "", null, commandDispatcher);
+
+      ArgumentCaptor<SelectionTreeVSAssemblyInfo> argument =
+         ArgumentCaptor.forClass(SelectionTreeVSAssemblyInfo.class);
+      verify(vsObjectPropertyService).editObjectProperty(any(RuntimeViewsheet.class),
+                                                         argument.capture(),
+                                                         any(String.class),
+                                                         any(String.class),
+                                                         any(String.class),
+                                                         nullable(Principal.class),
+                                                         any(CommandDispatcher.class));
+
+      SelectionTreeVSAssemblyInfo result = argument.getValue();
+      // switching from dropdown to list: listHeight(6) * cellHeight(20) = 120
+      // (titleVisible defaults to false, so no extra cellHeight added)
+      // position should be: tabTop(420) - 120 = 300
+      assertEquals(300, result.getPixelOffset().y);
+   }
+
+   @Test
+   void bottomTabsPositionAdjustedOnListToDropdown() throws Exception {
+      SelectionTreeVSAssemblyInfo info = new SelectionTreeVSAssemblyInfo();
+      info.setShowTypeValue(SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+      info.setPixelOffset(new Point(50, 300));
+      info.setPixelSize(new Dimension(200, 120));
+
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setBottomTabsValue(true);
+      tabInfo.setPixelOffset(new Point(0, 420));
+
+      TabVSAssembly tabAssembly = Mockito.mock(TabVSAssembly.class);
+      when(tabAssembly.getVSAssemblyInfo()).thenReturn(tabInfo);
+      when(selectionTreeAssembly.getContainer()).thenReturn(tabAssembly);
+      when(selectionTreeAssembly.getVSAssemblyInfo()).thenReturn(info);
+
+      when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly(anyString())).thenReturn(selectionTreeAssembly);
+      when(viewsheet.getPixelSize(any())).thenReturn(new Dimension(200, 120));
+
+      given(selectionTreePropertyDialogModel.getSelectionGeneralPaneModel()
+               .getGeneralPropPaneModel().getBasicGeneralPaneModel().getName())
+         .willReturn("SelectionTree1");
+      given(selectionTreePropertyDialogModel.getSelectionGeneralPaneModel()
+               .getShowType())
+         .willReturn(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      given(selectionTreePropertyDialogModel.getSelectionGeneralPaneModel()
+               .getSizePositionPaneModel().getTitleHeight())
+         .willReturn(20);
+      given(selectionTreePropertyDialogModel.getSelectionGeneralPaneModel()
+               .getSizePositionPaneModel().getCellHeight())
+         .willReturn(20);
+      given(selectionTreePropertyDialogModel.getSelectionTreePaneModel().getMode())
+         .willReturn(2);
+
+      service.setSelectionTreePropertyModel("Viewsheet1", "SelectionTree1",
+                                             selectionTreePropertyDialogModel,
+                                             "", null, commandDispatcher);
+
+      ArgumentCaptor<SelectionTreeVSAssemblyInfo> argument =
+         ArgumentCaptor.forClass(SelectionTreeVSAssemblyInfo.class);
+      verify(vsObjectPropertyService).editObjectProperty(any(RuntimeViewsheet.class),
+                                                         argument.capture(),
+                                                         any(String.class),
+                                                         any(String.class),
+                                                         any(String.class),
+                                                         nullable(Principal.class),
+                                                         any(CommandDispatcher.class));
+
+      SelectionTreeVSAssemblyInfo result = argument.getValue();
+      // switching from list to dropdown: size.height = titleHeight = 20
+      // position should be: tabTop(420) - 20 = 400
+      assertEquals(400, result.getPixelOffset().y);
    }
 
    @Mock VSOutputService vsOutputService;

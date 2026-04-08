@@ -50,4 +50,5 @@ export interface VSCalendarModel extends VSObjectModel {
    calendarsShown?: boolean;
    multiSelect?: boolean;
    comparisonVisible: boolean;
+   objectHeight?: number;
 }

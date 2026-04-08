@@ -837,8 +837,56 @@ public class RuntimeViewsheet extends RuntimeSheet {
 
       // Apply the updated viewsheet
       if(processedViewsheet != null) {
-         if(rvsLayout != null) {
-            processedViewsheet = rvsLayout.apply(processedViewsheet);
+         ViewsheetLayout layoutToApply = rvsLayout;
+
+         if(layoutToApply == null) {
+            // rvsLayout is null when no layout matched the current device (e.g. a
+            // mobile-only layout opened from a non-mobile browser). For bookmark
+            // navigation we still need to apply a layout so that the stored positions
+            // are rendered correctly. Re-run the width match treating the device as
+            // mobile so that mobile-only layouts are considered as a fallback.
+            // Bug #74412
+            String displayWidthStr = getEntry().getProperty("_device_display_width");
+
+            if(displayWidthStr != null) {
+               LayoutInfo layoutInfo = vs.getLayoutInfo();
+               layoutToApply = layoutInfo.matchLayout(Integer.parseInt(displayWidthStr), true);
+
+               if(layoutToApply != null) {
+                  String pixelDensityStr = getEntry().getProperty("_device_pixel_density");
+                  double dpi;
+
+                  if(pixelDensityStr != null) {
+                     int pixelDensity = Integer.parseInt(pixelDensityStr);
+
+                     if(pixelDensity < 200) {
+                        dpi = 160D;
+                     }
+                     else if(pixelDensity <= 280) {
+                        dpi = 240D;
+                     }
+                     else if(pixelDensity <= 400) {
+                        dpi = 320D;
+                     }
+                     else if(pixelDensity <= 560) {
+                        dpi = 480D;
+                     }
+                     else {
+                        dpi = 640D;
+                     }
+                  }
+                  else {
+                     // don't scale HTML
+                     dpi = 160D;
+                  }
+
+                  layoutToApply = layoutInfo.matchDPI(dpi, layoutToApply);
+               }
+            }
+         }
+
+         if(layoutToApply != null) {
+            processedViewsheet = layoutToApply.apply(processedViewsheet);
          }
 
          setOpenedBookmark(bookmark == null ? null : bookmark.getBookmarkInfo(name));
@@ -858,8 +906,17 @@ public class RuntimeViewsheet extends RuntimeSheet {
 
          if(sandboxVars != null) {
             for(Assembly assembly : processedViewsheet.getAssemblies()) {
-               if(assembly instanceof InputVSAssembly) {
+               if(assembly instanceof InputVSAssembly inputAssembly) {
                   sandboxVars.remove(assembly.getName());
+                  // For assemblies bound to a worksheet variable the variable table stores the
+                  // value under the variable name rather than the assembly name. Clear that key
+                  // too, otherwise applyParameterToInput() will find the stale variable value
+                  // and overwrite the bookmark-restored selection. (Bug #74212)
+                  String varKey = inputAssembly.getVariableTableKey();
+
+                  if(varKey != null) {
+                     sandboxVars.remove(varKey);
+                  }
                }
             }
          }
@@ -1936,6 +1993,16 @@ public class RuntimeViewsheet extends RuntimeSheet {
       // if viewsheet is swapped back from disk, need to initialize base worksheet
       if(requiresReset || reloadWS) {
          resetRuntime();
+      }
+
+      // After restoring from checkpoint, mark parameters as already applied so that
+      // applyParameterToInput() in the subsequent reset(initing=true) does not overwrite
+      // the restored input-assembly values with stale entries in the VariableTable.
+      // Must be called after resetRuntime() since that resets the flag. Checkpoint
+      // viewsheets always have ws=null (clone0(true) clears it), so reloadWS is always
+      // true and resetRuntime() always runs on every undo/redo. (Bug #74220)
+      if(box != null) {
+         box.markParametersApplied();
       }
    }
 

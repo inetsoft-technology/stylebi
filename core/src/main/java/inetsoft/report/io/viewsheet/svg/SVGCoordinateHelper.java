@@ -20,6 +20,7 @@ package inetsoft.report.io.viewsheet.svg;
 import inetsoft.report.Painter;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.internal.Common;
+import inetsoft.report.io.viewsheet.AbstractVSExporter;
 import inetsoft.report.io.viewsheet.CoordinateHelper;
 import inetsoft.report.io.viewsheet.ExportUtil;
 import inetsoft.uql.asset.Assembly;
@@ -78,7 +79,8 @@ public class SVGCoordinateHelper extends CoordinateHelper {
     */
    public void processViewsheet(Viewsheet sheet) {
       if(!sheet.isEmbedded()) {
-         Dimension size = sheet.getPreferredSize(false, true);
+         Dimension size = AbstractVSExporter.adjustSizeForInputLabels(
+            sheet, sheet.getPreferredSize(false, true));
          boolean adjustPaddingLeft = svgBounds.width < size.width;
          svgBounds.width = Math.max(svgBounds.width, size.width);
          svgBounds.height = Math.max(svgBounds.height, size.height);

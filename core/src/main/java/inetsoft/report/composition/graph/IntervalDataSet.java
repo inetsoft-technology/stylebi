@@ -88,14 +88,41 @@ public class IntervalDataSet extends TopDataSet {
    }
 
    @Override
+   public Object getData(String col, int row) {
+      // initColumns() is called here to snapshot bcols/baseIntervals, then the column
+      // index is resolved and used in the same call. This avoids the TOCTOU bug where
+      // AbstractDataSet.getData(String,int) calls indexOfHeader() → getData(int,int) as
+      // two separate invocations: if the base dataset loses a calc column between them,
+      // getData(int,int)'s own initColumns() recomputes a smaller bcols, making the
+      // already-resolved index stale and causing IndexOutOfBoundsException. (74311)
+      initColumns();
+      int cidx = indexOfHeader0(col, false);
+
+      if(cidx < 0) {
+         return null;
+      }
+
+      return getIntervalData(cidx, row);
+   }
+
+   @Override
    public Object getData(int col, int row) {
       initColumns();
+      return getIntervalData(col, row);
+   }
 
+   private Object getIntervalData(int col, int row) {
       if(col < bcols) {
          return getDataSet().getData(col, row);
       }
 
-      int[] baseInterval = baseIntervals.get(col - bcols);
+      int intervalIdx = col - bcols;
+
+      if(intervalIdx >= baseIntervals.size()) {
+         return null;
+      }
+
+      int[] baseInterval = baseIntervals.get(intervalIdx);
 
       if(baseInterval[0] < 0) {
          return null;

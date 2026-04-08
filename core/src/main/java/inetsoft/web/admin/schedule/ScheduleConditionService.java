@@ -72,6 +72,7 @@ public class ScheduleConditionService {
             .dateEnd(timeCondition.getDate() == null ? 0L
                         : timeCondition.getDate().getTime())
             .timeZone(timeZoneId)
+            .timeZoneLabel(timeCondition.getTimeZoneLabel())
             .timeZoneOffset(timeCondition.getDate() != null ?
                                TimeZone.getDefault().getOffset(timeCondition.getDate().getTime()) :
                                TimeZone.getDefault().getOffset(System.currentTimeMillis()))
@@ -178,6 +179,8 @@ public class ScheduleConditionService {
             if(timeConditionModel.timeZone() != null) {
                timeCondition.setTimeZone(TimeZone.getTimeZone(timeConditionModel.timeZone()));
             }
+
+            timeCondition.setTimeZoneLabel(timeConditionModel.timeZoneLabel());
          }
 
          condition = timeCondition;

@@ -57,6 +57,14 @@ import { TextFieldMc } from "./text-field-mc.component";
 import { TextureItem } from "./texture-item.component";
 
 describe("Aesthetic Pane Unit Test", () => {
+   beforeAll(() => {
+      jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+         font: "",
+         clearRect: jest.fn(),
+         fillRect: jest.fn(),
+         measureText: (_text: string) => ({ width: 0 })
+      } as any);
+   });
    let createMockChartAggregateRef: (name?: string) => ChartAggregateRef = (name?: string) => {
       let aggRef = TestUtils.createMockChartAggregateRef(name);
       aggRef.formula = "Sum";

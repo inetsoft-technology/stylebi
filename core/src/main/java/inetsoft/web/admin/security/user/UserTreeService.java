@@ -97,7 +97,10 @@ public class UserTreeService {
       //filter multi-tenant users to this organization only
       if(isMultiTenant) {
          userChildren = userChildren.stream()
-            .filter(node -> provider.getUser(node.identityID()).getOrganizationID().equals(curOrgID))
+            .filter(node -> {
+               User u = provider.getUser(node.identityID());
+               return u != null && u.getOrganizationID().equals(curOrgID);
+            })
             .collect(Collectors.toList());
       }
 
@@ -787,6 +790,12 @@ public class UserTreeService {
       }
 
       User user = currentProvider.getUser(userName);
+
+      if(user == null) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.security.userNotFound", userName.getName()));
+      }
+
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
 
       if(SUtil.isMultiTenant()) {
@@ -846,7 +855,8 @@ public class UserTreeService {
     * Create a new user
     */
    public EditOrganizationPaneModel createOrganization(String copyFromOrgID, String providerName,
-                                                       String orgName, String orgID, Principal principal)
+                                                       String orgName, String orgID, Principal principal,
+                                                       String defaultPassword)
    {
       ActionRecord actionRecord = SUtil.getActionRecord(
          principal, ActionRecord.ACTION_NAME_CREATE, null,
@@ -896,6 +906,18 @@ public class UserTreeService {
          fireCreateOrganizationEvent(EditOrganizationEvent.STARTED, copyFromOrgID, newOrgId, principal);
 
          if(copyFromOrgID != null && !Tool.isEmptyString(copyFromOrgID)) {
+            if(Tool.isEmptyString(defaultPassword)) {
+               throw new MessageException(Catalog.getCatalog().getString("em.cloneOrg.passwordRequired"));
+            }
+
+            try {
+               IdentityService.validatePasswordStrength(defaultPassword);
+            }
+            catch(MessageException e) {
+               throw new MessageException(
+                  Catalog.getCatalog().getString("em.cloneOrg.passwordInvalid"));
+            }
+
             Organization fromOrg = provider.getOrganization(copyFromOrgID);
             List<IdentityID> userList = Arrays.stream(provider.getUsers()).filter(user ->
                user.getOrgID().equals(copyFromOrgID)).collect(Collectors.toList());
@@ -908,7 +930,7 @@ public class UserTreeService {
                   catalog.getString("em.namedUsers.exceeded", userCount, namedUserCount));
             }
 
-            editProvider.copyOrganization(fromOrg, newOrgKey.orgID, identityService, themeService, principal, false);
+            editProvider.copyOrganization(fromOrg, newOrgKey.orgID, identityService, themeService, principal, false, defaultPassword);
             identity = (FSOrganization) editProvider.getOrganization(newOrgKey.orgID);
          }
          else {
@@ -1361,6 +1383,10 @@ public class UserTreeService {
 
       for(int i=0; i < users.length; i++) {
          User user = provider.getUser(users[i]);
+
+         if(user == null) {
+            continue;
+         }
 
          if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
             IdentityID userID = user.getIdentityID();

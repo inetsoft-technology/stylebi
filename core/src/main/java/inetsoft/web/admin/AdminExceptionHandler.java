@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin;
 
+import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.util.log.LogManager;
 import inetsoft.web.GlobalExceptionHandler;
@@ -111,6 +112,12 @@ public class AdminExceptionHandler {
    }
 
    private GenericError handleGenericException(Exception e) {
+      if(GlobalExceptionHandler.isCacheStoppedException(e)) {
+         LOG.debug("Cache stopped during request", e);
+         String msg = Catalog.getCatalog().getString("common.cacheStoppedError");
+         return new GenericError(e.getClass().getSimpleName(), msg);
+      }
+
       Throwable cause = e.getCause();
       boolean isClientAbortException =
          GlobalExceptionHandler.isClientAbortException(e.getClass().getName());

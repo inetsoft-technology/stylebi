@@ -91,7 +91,7 @@ export class IdentityClipboardService implements OnDestroy {
          return 0;
       }
 
-      return this.applyFilters(this.copiedIdentities!, typeFilter, excludeIdentities).length;
+      return this.applyFilters(this.copiedIdentities, typeFilter, excludeIdentities).length;
    }
 
    /**
@@ -106,7 +106,7 @@ export class IdentityClipboardService implements OnDestroy {
          return 0;
       }
 
-      return this.copiedIdentities!.length;
+      return this.copiedIdentities?.length || 0;
    }
 
    ngOnDestroy(): void {
@@ -131,7 +131,7 @@ export class IdentityClipboardService implements OnDestroy {
          return null;
       }
 
-      const cloned = Tool.clone(this.copiedIdentities!);
+      const cloned = Tool.clone(this.copiedIdentities);
       return this.applyFilters(cloned, typeFilter, excludeIdentities);
    }
 

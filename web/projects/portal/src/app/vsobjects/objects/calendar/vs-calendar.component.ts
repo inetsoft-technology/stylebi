@@ -119,6 +119,8 @@ export class VSCalendar extends NavigationComponent<VSCalendarModel>
    @Input()
    set model(value: VSCalendarModel) {
       this._model = value;
+      this._model.objectHeight = this._model.dropdownCalendar
+         ? this._model.titleFormat?.height : this._model.objectFormat.height;
       this.updateSelectedTitle();
    }
 
@@ -128,14 +130,31 @@ export class VSCalendar extends NavigationComponent<VSCalendarModel>
 
    get topPosition(): number {
       if(this.viewer || this.embeddedVS) {
+         const inBottomTab = VSUtil.isInBottomTabContainer(this.model, this.vsInfo?.vsObjects);
+
          if(this.model.dropdownCalendar) {
-            if(this.atBottom && this.model.calendarsShown) {
-               const height = 18 * 8; //the constant 18 is defh from AssetUtil.java
+            if(this.atBottom && this.model.calendarsShown && !inBottomTab) {
+               const height = VSUtil.CALENDAR_BODY_HEIGHT;
                let popDown = this.objectContainerHeight - this.model.objectFormat.top -
                   this.model.titleFormat.height - height > 0;
 
                return popDown ? this.model.objectFormat.top : this.model.objectFormat.top - height;
             }
+            else if(inBottomTab) {
+               const borderExcess = Tool.getMarginSize(this.model.objectFormat.border.bottom)
+                  + Tool.getMarginSize(this.model.objectFormat.border.top);
+
+               if(this.model.calendarsShown) {
+                  return this.model.objectFormat.top - VSUtil.CALENDAR_BODY_HEIGHT - borderExcess;
+               }
+
+               return this.model.objectFormat.top - borderExcess;
+            }
+         }
+         else if(inBottomTab) {
+            const borderExcess = Tool.getMarginSize(this.model.objectFormat.border.bottom)
+               + Tool.getMarginSize(this.model.objectFormat.border.top);
+            return this.model.objectFormat.top - borderExcess;
          }
 
          return this.model.objectFormat.top;
@@ -146,9 +165,14 @@ export class VSCalendar extends NavigationComponent<VSCalendarModel>
 
    get height(): number {
       if(this.model.dropdownCalendar) {
-         if(this.atBottom && this.model.calendarsShown) {
-            const height = 18 * 8; //the constant 18 is defh from AssetUtil.java
-            return this.model.objectFormat.height + height;
+         const inBottomTab = VSUtil.isInBottomTabContainer(this.model, this.vsInfo?.vsObjects);
+
+         if(this.atBottom && this.model.calendarsShown && !inBottomTab) {
+            return this.model.objectFormat.height + VSUtil.CALENDAR_BODY_HEIGHT;
+         }
+         else if((this.viewer || this.embeddedVS) && inBottomTab &&
+            this.model.calendarsShown) {
+            return this.model.titleFormat.height + VSUtil.CALENDAR_BODY_HEIGHT;
          }
          else {
             return this.model.titleFormat.height;
@@ -156,6 +180,10 @@ export class VSCalendar extends NavigationComponent<VSCalendarModel>
       }
 
       return this.model.objectFormat.height;
+   }
+
+   get bottomTabFlipped(): boolean {
+      return VSUtil.isInBottomTabContainer(this.model, this.vsInfo?.vsObjects);
    }
 
    get toolbarActions(): AssemblyActionGroup[] {

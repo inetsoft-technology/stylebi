@@ -32,8 +32,8 @@
       _#(viewer.schedule.condition.startTimeValid)
     </mat-error>
     <em-time-zone-select formControlName="timeZone"
-                         [timeZoneOptions]="timeZoneOptions" [serverTimeZone]="timeZone"
-                         (labelChanged)="setTimeZoneLabel($event)" (changed)="fireModelChanged()">
+                         [timeZoneOptions]="timeZoneOptions"
+                         (changed)="fireModelChanged()">
     </em-time-zone-select>
   </mat-card-content>
 </mat-card>

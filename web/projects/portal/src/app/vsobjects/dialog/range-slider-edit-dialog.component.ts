@@ -192,8 +192,8 @@ export class RangeSliderEditDialog implements OnDestroy {
          this.onCommit.emit({min: this.currentMin, max: this.currentMax});
       } else {
          this.onCommit.emit({
-            min: +this.rangeForm.get("min")!.value,
-            max: +this.rangeForm.get("max")!.value
+            min: +(this.rangeForm.get("min")?.value || 0),
+            max: +(this.rangeForm.get("max")?.value || 0)
          });
       }
    }

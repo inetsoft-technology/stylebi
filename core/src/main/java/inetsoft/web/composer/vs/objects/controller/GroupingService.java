@@ -216,14 +216,18 @@ public class GroupingService {
                VSAssemblyInfo objectInfo = (VSAssemblyInfo) object.getInfo();
 
                Dimension objectSize = objectInfo.getLayoutSize() != null ?
-                  objectInfo.getLayoutSize() : viewsheet.getPixelSize(objectInfo);
+                  objectInfo.getLayoutSize() : object.getPixelSize();
 
                int width = size.width > objectSize.width ? size.width: objectSize.width;
 
                Dimension updatedSize = new Dimension(width, size.height);
 
                info.setPixelSize(updatedSize);
-               Point objectPos = new Point(pos.x, pos.y + size.height);
+               boolean bottomTabs = ((TabVSAssemblyInfo) info).getBottomTabsValue();
+               int y = bottomTabs
+                  ? pos.y - objectSize.height
+                  : pos.y + size.height;
+               Point objectPos = new Point(pos.x, y);
                object.setPixelOffset(objectPos);
                objectInfo.setZIndex(container.getZIndex());
 
@@ -250,14 +254,18 @@ public class GroupingService {
             VSAssemblyInfo targetInfo = (VSAssemblyInfo) target.getInfo();
 
             Dimension targetSize = targetInfo.getLayoutSize() != null ?
-               targetInfo.getLayoutSize() : viewsheet.getPixelSize(targetInfo);
+               targetInfo.getLayoutSize() : target.getPixelSize();
 
             int width = size.width > targetSize.width ? size.width: targetSize.width;
 
             Dimension updatedSize = new Dimension(width, size.height);
 
             info.setPixelSize(updatedSize);
-            Point targetPos = new Point(pos.x, pos.y + size.height);
+            boolean bottomTabs = ((TabVSAssemblyInfo) info).getBottomTabsValue();
+            int targetY = bottomTabs
+               ? pos.y - targetSize.height
+               : pos.y + size.height;
+            Point targetPos = new Point(pos.x, targetY);
             target.setPixelOffset(targetPos);
             targetInfo.setZIndex(container.getZIndex());
 
@@ -288,10 +296,10 @@ public class GroupingService {
             VSAssemblyInfo targetInfo = (VSAssemblyInfo) target.getInfo();
 
             Dimension objectSize = objectInfo.getLayoutSize() != null ?
-               objectInfo.getLayoutSize() : viewsheet.getPixelSize(objectInfo);
+               objectInfo.getLayoutSize() : object.getPixelSize();
 
             Dimension targetSize = targetInfo.getLayoutSize() != null ?
-               targetInfo.getLayoutSize() : viewsheet.getPixelSize(targetInfo);
+               targetInfo.getLayoutSize() : target.getPixelSize();
 
             int width = objectSize.width > targetSize.width ?
                objectSize.width: targetSize.width;
@@ -354,21 +362,29 @@ public class GroupingService {
 
 
       Dimension objectSize = objectInfo.getLayoutSize() != null ?
-         objectInfo.getLayoutSize() : viewsheet.getPixelSize(objectInfo);
+         objectInfo.getLayoutSize() : object.getPixelSize();
 
       Dimension targetSize = targetInfo.getLayoutSize() != null ?
-         targetInfo.getLayoutSize() : viewsheet.getPixelSize(targetInfo);
+         targetInfo.getLayoutSize() : target.getPixelSize();
 
       int width = objectSize.width > targetSize.width ? objectSize.width: targetSize.width;
 
       Dimension updatedSize = new Dimension(width, defh);
       target.setPixelSize(updatedSize);
 
+      boolean bottomTabs = targetInfo instanceof TabVSAssemblyInfo &&
+         ((TabVSAssemblyInfo) targetInfo).getBottomTabsValue();
+
       for(String name: objectAssemblies) {
          VSAssembly assembly = (VSAssembly) viewsheet.getAssembly(name);
 
          VSAssemblyInfo info = (VSAssemblyInfo) assembly.getInfo();
-         Point objectPos = new Point(pos.x, pos.y + size.height);
+         Dimension childSize = info.getLayoutSize() != null ?
+            info.getLayoutSize() : assembly.getPixelSize();
+         int y = bottomTabs
+            ? pos.y - childSize.height
+            : pos.y + size.height;
+         Point objectPos = new Point(pos.x, y);
          info.setPixelOffset(objectPos);
          info.setZIndex(target.getZIndex());
 

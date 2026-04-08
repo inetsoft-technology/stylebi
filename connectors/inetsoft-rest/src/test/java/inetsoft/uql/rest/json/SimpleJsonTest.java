@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.rest.json;
 
+import inetsoft.test.SreeHome;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
 import inetsoft.uql.schema.XSchema;
@@ -28,6 +29,7 @@ import java.nio.file.Paths;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@SreeHome
 class SimpleJsonTest {
    @Test
    void queryFile() throws URISyntaxException {

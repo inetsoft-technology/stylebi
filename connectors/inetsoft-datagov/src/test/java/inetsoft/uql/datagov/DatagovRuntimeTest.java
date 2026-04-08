@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.datagov;
 
+import inetsoft.test.SreeHome;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
 import inetsoft.util.credential.*;
@@ -40,6 +41,7 @@ import static org.mockito.Mockito.mock;
 /**
  * Unit test cases for <tt>DatagovRuntime</tt>.
  */
+@SreeHome
 class DatagovRuntimeTest {
    @BeforeAll
    static void mockService() {

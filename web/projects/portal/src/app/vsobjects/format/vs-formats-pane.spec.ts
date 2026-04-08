@@ -50,6 +50,13 @@ import { VSChartModel } from "../model/vs-chart-model";
 import { VSFormatsPane } from "./vs-formats-pane.component";
 
 describe("VS Formats Pane Unit case", () => {
+   beforeAll(() => {
+      jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+         font: "",
+         clearRect: jest.fn(),
+         measureText: (_text: string) => ({ width: 0 })
+      } as any);
+   });
    let changeDetectorRef: any;
    let fontService: any;
    let fixture: ComponentFixture<VSFormatsPane>;

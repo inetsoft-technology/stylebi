@@ -305,7 +305,7 @@ public final class UpdateDependencyHandler {
       }
 
       list = getChildNodes(doc,
-         "./assembly/assemblies/oneAssembly/assembly/viewsheetEntry/assetEntry");
+         "./assembly/assemblies/oneAssembly/assembly/assemblyInfo/viewsheetEntry/assetEntry");
 
       for(int i = 0; i < list.getLength(); i++) {
          Element ele = (Element) list.item(i);

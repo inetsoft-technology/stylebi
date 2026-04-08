@@ -231,6 +231,16 @@ public class SVGShape extends GShape {
       return null;
    }
 
+   /**
+    * Clear the rendered image cache. Call this when SVG files are replaced on disk
+    * so that stale cached images are discarded and reloaded on next use.
+    */
+   public static void clearCache() {
+      if(cache != null) {
+         cache.clear();
+      }
+   }
+
    @Override
    public String getLegendId() {
       return super.getLegendId() + resource;

@@ -32,7 +32,25 @@ import { TimerService } from "../data-tip/timer.service";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSSlider } from "./vs-slider.component";
 
+global.ResizeObserver = jest.fn().mockImplementation(() => ({
+   observe: jest.fn(),
+   unobserve: jest.fn(),
+   disconnect: jest.fn()
+}));
+
 describe("VSSlider Unit Tests", () => {
+   beforeAll(() => {
+      jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+         font: "",
+         measureText: (_text: string) => ({ width: 0 })
+      } as any);
+      (global as any).ResizeObserver = jest.fn().mockImplementation(() => ({
+         observe: jest.fn(),
+         unobserve: jest.fn(),
+         disconnect: jest.fn()
+      }));
+   });
+
    let stompClient: any;
    let dataTipService: any;
    let fixture: ComponentFixture<VSSlider>;

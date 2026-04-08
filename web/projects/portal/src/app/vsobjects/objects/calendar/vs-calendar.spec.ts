@@ -129,4 +129,22 @@ describe("VSCalendar Unit Tests", () => {
          expect(fixture.componentInstance.selectionTitle).toContain("Calendar02");
       });
    });
+
+   it("should set objectHeight to titleFormat height for dropdown calendar", () => {
+      let model = createModel();
+      model.dropdownCalendar = true;
+      model.titleFormat.height = 20;
+      model.objectFormat.height = 162;
+      fixture.componentInstance.model = model;
+      expect(model.objectHeight).toBe(20);
+   });
+
+   it("should set objectHeight to objectFormat height for non-dropdown calendar", () => {
+      let model = createModel();
+      model.dropdownCalendar = false;
+      model.objectFormat.height = 162;
+      model.titleFormat.height = 20;
+      fixture.componentInstance.model = model;
+      expect(model.objectHeight).toBe(162);
+   });
 });

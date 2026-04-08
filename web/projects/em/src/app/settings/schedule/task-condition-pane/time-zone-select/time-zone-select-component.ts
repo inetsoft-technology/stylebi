@@ -18,7 +18,11 @@
 import { Component, EventEmitter, forwardRef, Input, OnInit, Output } from "@angular/core";
 import { ControlValueAccessor, NG_VALUE_ACCESSOR, } from "@angular/forms";
 import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-zone-model";
-import { DateTimeService } from "../date-time.service";
+
+export interface TimeZoneValue {
+   timeZoneId: string;
+   timeZoneLabel: string;
+}
 
 @Component({
    selector: "em-time-zone-select",
@@ -33,22 +37,29 @@ import { DateTimeService } from "../date-time.service";
    ]
 })
 export class TimeZoneSelectComponent implements OnInit, ControlValueAccessor {
-   timeZoneId: string;
-   @Input()  timeZoneOptions: TimeZoneModel[];
-   @Input()  startTimeEnabled: boolean = true;
-   @Input()  serverTimeZone: string;
-   @Input()  enabled: boolean = true;
-   @Output() labelChanged = new EventEmitter<string>();
+   selectedTimeZone: TimeZoneModel;
+   private _timeZoneOptions: TimeZoneModel[];
+   @Input()
+   get timeZoneOptions(): TimeZoneModel[] { return this._timeZoneOptions; }
+   set timeZoneOptions(value: TimeZoneModel[]) {
+      this._timeZoneOptions = value;
+      if(this.pendingValue != null && value?.length) {
+         this.writeValue(this.pendingValue);
+      }
+   }
+   @Input() startTimeEnabled: boolean = true;
+   @Input() enabled: boolean = true;
    @Output() changed = new EventEmitter<string>();
    private onChange = (fn: any) => {};
    private onTouched: any;
+   private pendingValue: TimeZoneValue | string | null = null;
 
-   constructor(private dateTimeService: DateTimeService) {
-   }
+   compareTimeZones = (a: TimeZoneModel, b: TimeZoneModel) =>
+      a?.timeZoneId === b?.timeZoneId && a?.label === b?.label;
 
    ngOnInit(): void {
-      if(!this.timeZoneId) {
-         this.timeZoneId = this.timeZoneOptions[0].timeZoneId;
+      if(!this.selectedTimeZone && this.timeZoneOptions?.length) {
+         this.selectedTimeZone = this.timeZoneOptions[0];
       }
    }
 
@@ -61,26 +72,33 @@ export class TimeZoneSelectComponent implements OnInit, ControlValueAccessor {
    }
 
    writeValue(obj: any): void {
-      if((!obj || !this.timeZoneOptions.find(option => option.timeZoneId == obj))) {
-         this.timeZoneId = this.timeZoneOptions[0].timeZoneId;
+      if(!this.timeZoneOptions?.length) {
+         this.pendingValue = obj;
+         return;
+      }
+
+      this.pendingValue = null;
+      const id = typeof obj === "string" ? obj : (obj as TimeZoneValue)?.timeZoneId;
+      const label = typeof obj === "string" ? null : (obj as TimeZoneValue)?.timeZoneLabel;
+      const candidates = this.timeZoneOptions.filter(o => o.timeZoneId === id);
+
+      if(!id || candidates.length === 0) {
+         this.selectedTimeZone = this.timeZoneOptions[0];
       }
       else {
-         this.timeZoneId = obj;
+         const matched = label
+            ? candidates.find(c => c.label === label)
+            : null;
+         this.selectedTimeZone = matched ?? candidates[0];
       }
    }
 
-   isEmpty(id: string) {
-      return !this.timeZoneId;
-   }
-
-   setTimeZoneLabel(changed: boolean) {
-      const localTimeZoneId = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      let timeZoneLabel = this.dateTimeService.getTimeZoneLabel(this.timeZoneOptions, this.timeZoneId, localTimeZoneId);
-      this.labelChanged.emit(timeZoneLabel);
-
-      if(changed) {
-         this.onChange(this.timeZoneId);
-         this.changed.emit(this.timeZoneId);
-      }
+   onSelectionChanged() {
+      const value: TimeZoneValue = {
+         timeZoneId: this.selectedTimeZone?.timeZoneId ?? "",
+         timeZoneLabel: this.selectedTimeZone?.label ?? ""
+      };
+      this.onChange(value);
+      this.changed.emit(this.selectedTimeZone?.timeZoneId);
    }
 }

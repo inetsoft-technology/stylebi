@@ -249,6 +249,9 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
             if(table.moreRows(0)) {
                row = 0;
             }
+            else {
+               return Undefined.instance;
+            }
          }
 
          return getTableArray().get(row, this);

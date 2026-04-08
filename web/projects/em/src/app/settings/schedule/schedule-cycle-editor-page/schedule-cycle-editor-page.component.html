@@ -85,7 +85,10 @@
       <mat-tab label="_#(Security)">
         <div class="editor">
           <div class="content-pane">
-            <em-resource-permission [model]="model.permissionModel" (permissionChanged)="taskChanged = true"></em-resource-permission>
+            <em-resource-permission [model]="model.permissionModel"
+                                    [showCopyPaste]="true"
+                                    [copyPasteContext]="copyPasteContext"
+                                    (permissionChanged)="taskChanged = true"></em-resource-permission>
           </div>
         </div>
       </mat-tab>

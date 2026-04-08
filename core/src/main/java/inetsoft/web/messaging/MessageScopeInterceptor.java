@@ -46,6 +46,9 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
    public Message<?> beforeHandle(Message<?> message, MessageChannel messageChannel,
                                   MessageHandler messageHandler)
    {
+      // Defensively discard any stale deferred callbacks left by a previous message
+      // on this pooled thread (in case afterMessageHandled was never invoked for it).
+      SafeSimpSessionScope.getAndClearDeferredCallbacks();
       MessageAttributes attributes = new MessageAttributes(message);
       MessageContextHolder.setMessageAttributes(attributes);
       Principal principal = attributes.getHeaderAccessor().getUser();
@@ -86,6 +89,18 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
       ThreadContext.setPrincipal(null);
       ThreadContext.setLocale(null);
       ThreadContext.setProfiling(null);
+
+      // Run any destruction callbacks deferred by SafeSimpSessionScope (beans created after
+      // WebSocket session completion). Running them here ensures @PreDestroy is called even when
+      // registerDestructionCallback threw because the session was already completed.
+      for(Runnable callback : SafeSimpSessionScope.getAndClearDeferredCallbacks()) {
+         try {
+            callback.run();
+         }
+         catch(Exception ex) {
+            LOG.warn("Error running deferred WebSocket scope destruction callback", ex);
+         }
+      }
    }
 
    private void addViewsheetRecord(GroupedThread thread) {
