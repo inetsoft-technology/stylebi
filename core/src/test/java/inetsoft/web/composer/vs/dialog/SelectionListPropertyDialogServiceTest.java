@@ -20,6 +20,7 @@ package inetsoft.web.composer.vs.dialog;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
@@ -51,7 +52,7 @@ class SelectionListPropertyDialogServiceTest {
    void setup() {
       service = new SelectionListPropertyDialogService(
          vsObjectPropertyService, vsOutputService, engine, trapService, dialogService,
-         selectionDialogService, assemblyInfoHandler, dataRefService);
+         selectionDialogService, assemblyInfoHandler, dataRefService, dataSourceRegistry);
    }
 
    @Test
@@ -179,6 +180,7 @@ class SelectionListPropertyDialogServiceTest {
    @Mock SelectionDialogService selectionDialogService;
    @Mock VSAssemblyInfoHandler assemblyInfoHandler;
    @Mock DataRefModelFactoryService dataRefService;
+   @Mock DataSourceRegistry dataSourceRegistry;
    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
    private Viewsheet viewsheet;
    @Mock(answer = Answers.RETURNS_DEEP_STUBS)

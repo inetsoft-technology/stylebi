@@ -63,7 +63,7 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
       this.clientId = null;
       this.sessionRepository = sessionRepository;
       String sessionId = headerAccessor.getSessionId();
-      MessageAttributes msgAttrs = MessageContextHolder.currentMessageAttributes();
+      MessageAttributes msgAttrs = MessageContextHolder.getMessageAttributes();
       String runtimeId = msgAttrs != null ? (String) msgAttrs.getAttribute(RUNTIME_ID_ATTR) : null;
       if(sessionId != null && runtimeId != null) {
          ConcurrentHashMap<String, SessionDispatchState> inner =

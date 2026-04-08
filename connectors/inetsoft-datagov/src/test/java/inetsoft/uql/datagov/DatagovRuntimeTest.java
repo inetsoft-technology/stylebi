@@ -17,13 +17,19 @@
  */
 package inetsoft.uql.datagov;
 
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
 import inetsoft.util.ConfigurationContext;
 import inetsoft.util.credential.*;
-import org.junit.jupiter.api.*;
-import org.springframework.context.ApplicationContext;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -42,18 +48,11 @@ import static org.mockito.Mockito.when;
 /**
  * Unit test cases for <tt>DatagovRuntime</tt>.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, DatagovRuntimeTest.TestConfig.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 class DatagovRuntimeTest {
-   @BeforeAll
-   static void mockService() {
-      CredentialService credentialService = mock(CredentialService.class);
-      when(credentialService.createCredential(CredentialType.PASSWORD)).thenReturn(mock(LocalPasswordCredential.class));
-      when(credentialService.createCredential(CredentialType.PASSWORD, false)).thenReturn(mock(LocalPasswordCredential.class));
-      ApplicationContext context = mock(ApplicationContext.class);
-      when(context.getBean(CredentialService.class)).thenReturn(credentialService);
-      ConfigurationContext.getContext().setApplicationContext(context);
-   }
-
    @AfterAll
    static void resetContext() {
       ConfigurationContext.getContext().setApplicationContext(null);
@@ -142,5 +141,16 @@ class DatagovRuntimeTest {
       }
 
       assertEquals(expectedData.size(), rowCount);
+   }
+
+   @Configuration
+   static class TestConfig {
+      @Bean
+      public CredentialService credentialService() {
+         CredentialService credentialService = mock(CredentialService.class);
+         when(credentialService.createCredential(CredentialType.PASSWORD)).thenReturn(mock(LocalPasswordCredential.class));
+         when(credentialService.createCredential(CredentialType.PASSWORD, false)).thenReturn(mock(LocalPasswordCredential.class));
+         return credentialService;
+      }
    }
 }

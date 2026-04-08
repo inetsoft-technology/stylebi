@@ -20,38 +20,32 @@ package inetsoft.uql.onedrive;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import inetsoft.report.lens.xnode.XNodeTableLens;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.util.ConfigurationContext;
 import inetsoft.util.credential.*;
 import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.*;
-import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, OneDriveRuntimeTests.TestConfig.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
-@ExtendWith(MockitoExtension.class)
 public class OneDriveRuntimeTests {
    private OneDriveDataSource dataSource;
    private OneDriveRuntime runtime;
-
-   @BeforeAll
-   static void mockService() {
-      CredentialService credentialService = mock(CredentialService.class);
-      when(credentialService.createCredential(CredentialType.CLIENT_GRANT)).thenReturn(mock(LocalPasswordCredential.class));
-      when(credentialService.createCredential(CredentialType.CLIENT_GRANT, false)).thenReturn(mock(LocalPasswordCredential.class));
-      ApplicationContext context = mock(ApplicationContext.class);
-      when(context.getBean(CredentialService.class)).thenReturn(credentialService);
-      ConfigurationContext.getContext().setApplicationContext(context);
-   }
 
    @AfterAll
    static void resetContext() {
@@ -158,6 +152,17 @@ public class OneDriveRuntimeTests {
       }
 
       return actual;
+   }
+
+   @Configuration
+   static class TestConfig {
+      @Bean
+      public CredentialService credentialService() {
+         CredentialService credentialService = mock(CredentialService.class);
+         when(credentialService.createCredential(CredentialType.PASSWORD)).thenReturn(mock(LocalPasswordCredential.class));
+         when(credentialService.createCredential(CredentialType.PASSWORD, false)).thenReturn(mock(LocalPasswordCredential.class));
+         return credentialService;
+      }
    }
 
 }

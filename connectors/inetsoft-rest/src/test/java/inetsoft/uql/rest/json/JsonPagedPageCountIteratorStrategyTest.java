@@ -17,18 +17,24 @@
  */
 package inetsoft.uql.rest.json;
 
-import inetsoft.test.RequestResponse;
-import inetsoft.test.TestHttpHandler;
-import inetsoft.test.TestHttpResponse;
+import inetsoft.test.*;
 import inetsoft.uql.rest.RestErrorHandler;
 import inetsoft.uql.rest.RestRequest;
 import inetsoft.uql.rest.pagination.*;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, CredentialTestConfig.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
 public class JsonPagedPageCountIteratorStrategyTest {
     @Test
     public void test() throws Exception {
