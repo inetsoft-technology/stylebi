@@ -21,25 +21,20 @@ import {
    RouterStateSnapshot
 } from "@angular/router";
 import { MonitorLevel, MonitorLevelService } from "./monitor-level.service";
-import { Observable } from "rxjs";
-import { map } from "rxjs/operators";
 
 @Injectable()
 export class MonitoringLevelGuard implements CanActivate {
    constructor(private monitorLevelService: MonitorLevelService, private router: Router) {
    }
 
-   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
+   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean {
       let isException = state.url == "/monitoring/exceptions";
+      const level = this.monitorLevelService.getMonitorLevel();
 
-      return this.monitorLevelService.monitorLevelForGuard().pipe(
-         map((level: number) => {
-            if(level <= MonitorLevel.OFF || isException && level <= MonitorLevel.MEDIUM) {
-               this.router.navigate(["monitoring/monitoringoff"]);
-            }
+      if(level <= MonitorLevel.OFF || isException && level <= MonitorLevel.MEDIUM) {
+         this.router.navigate(["monitoring/monitoringoff"]);
+      }
 
-            return true;
-         })
-      );
+      return true;
    }
 }

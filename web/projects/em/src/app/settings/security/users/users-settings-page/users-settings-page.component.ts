@@ -344,7 +344,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
             this.loading = false;
 
             if(orgNameChanged) {
-               this.orgDropdownService.refresh(this.selectedProvider, false);
+               this.orgDropdownService.refresh(this.selectedProvider, false, true);
             }
          });
       }
