@@ -333,6 +333,18 @@ public class VSObjectPropertyService {
       // if script contains binding change, re-process data
       hint = assembly instanceof SelectionVSAssembly ? (hint | hintScript) : hint;
 
+      // reposition bottom tabs when an input child's label affects its visual height
+      if(assembly instanceof InputVSAssembly &&
+         assembly.getContainer() instanceof TabVSAssembly tabContainer)
+      {
+         TabVSAssemblyInfo tabInfo =
+            (TabVSAssemblyInfo) tabContainer.getVSAssemblyInfo();
+
+         if(tabInfo.isBottomTabs() && inputLabelHeightChanged(oinfo, info)) {
+            TabVSAssemblyInfo.repositionForBottomTabs(tabInfo, vs, true);
+         }
+      }
+
       /* TODO some logic relevant to hyperlink dialog  charts, decide if need to keep when implementing chart property change
       boolean viewOnly = "true".equals(get("viewOnly"));
 
@@ -2172,6 +2184,32 @@ public class VSObjectPropertyService {
    private final VSWizardTemporaryInfoService temporaryInfoService;
    private final VSCompositionService vsCompositionService;
    private final SharedFilterService sharedFilterService;
+   /**
+    * Check if label properties that affect vertical height changed between old and new info.
+    */
+   private boolean inputLabelHeightChanged(VSAssemblyInfo oldInfo, VSAssemblyInfo newInfo) {
+      if(!(oldInfo instanceof InputVSAssemblyInfo oldInput) ||
+         !(newInfo instanceof InputVSAssemblyInfo newInput))
+      {
+         return false;
+      }
+
+      LabelInfo oldLabel = oldInput.getLabelInfo();
+      LabelInfo newLabel = newInput.getLabelInfo();
+
+      if(oldLabel == null && newLabel == null) {
+         return false;
+      }
+
+      if(oldLabel == null || newLabel == null) {
+         return true;
+      }
+
+      return oldLabel.getLabelVisibleValue() != newLabel.getLabelVisibleValue() ||
+         !Objects.equals(oldLabel.getLabelPositionValue(), newLabel.getLabelPositionValue()) ||
+         oldLabel.getLabelGapValue() != newLabel.getLabelGapValue();
+   }
+
    private final static String VIEWSHEET_FLAG = Catalog.getCatalog().getString("Current viewsheet");
 
    private final Logger LOG = LoggerFactory.getLogger(VSObjectPropertyService.class);

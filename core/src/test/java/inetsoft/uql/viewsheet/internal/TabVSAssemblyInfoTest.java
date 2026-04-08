@@ -24,6 +24,7 @@ import org.mockito.Mockito;
 import java.awt.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 class TabVSAssemblyInfoTest {
@@ -130,6 +131,58 @@ class TabVSAssemblyInfoTest {
    void getBottomTabChildHeightReturnsZeroForNullSize() {
       VSAssemblyInfo info = new SelectionListVSAssemblyInfo();
       assertEquals(0, TabVSAssemblyInfo.getBottomTabChildHeight(info, null));
+   }
+
+   @Test
+   void getBottomTabChildHeightIncludesTopLabelHeight() {
+      TextInputVSAssemblyInfo info = new TextInputVSAssemblyInfo();
+      LabelInfo labelInfo = info.getLabelInfo();
+      labelInfo.setLabelVisible(true);
+      labelInfo.setLabelPosition(LabelInfo.TOP);
+      labelInfo.setLabelGap(5);
+      Dimension size = new Dimension(200, 20);
+
+      int height = TabVSAssemblyInfo.getBottomTabChildHeight(info, size);
+      // should be pixel height + label font height + gap
+      assertTrue(height > 20, "height should include label + gap, was: " + height);
+   }
+
+   @Test
+   void getBottomTabChildHeightIncludesBottomLabelHeight() {
+      TextInputVSAssemblyInfo info = new TextInputVSAssemblyInfo();
+      LabelInfo labelInfo = info.getLabelInfo();
+      labelInfo.setLabelVisible(true);
+      labelInfo.setLabelPosition(LabelInfo.BOTTOM);
+      labelInfo.setLabelGap(8);
+      Dimension size = new Dimension(200, 20);
+
+      int height = TabVSAssemblyInfo.getBottomTabChildHeight(info, size);
+      assertTrue(height > 20, "height should include label + gap, was: " + height);
+   }
+
+   @Test
+   void getBottomTabChildHeightIgnoresLeftRightLabel() {
+      TextInputVSAssemblyInfo info = new TextInputVSAssemblyInfo();
+      LabelInfo labelInfo = info.getLabelInfo();
+      labelInfo.setLabelVisible(true);
+      labelInfo.setLabelPosition(LabelInfo.LEFT);
+      Dimension size = new Dimension(200, 20);
+
+      assertEquals(20, TabVSAssemblyInfo.getBottomTabChildHeight(info, size));
+
+      labelInfo.setLabelPosition(LabelInfo.RIGHT);
+      assertEquals(20, TabVSAssemblyInfo.getBottomTabChildHeight(info, size));
+   }
+
+   @Test
+   void getBottomTabChildHeightIgnoresHiddenLabel() {
+      TextInputVSAssemblyInfo info = new TextInputVSAssemblyInfo();
+      LabelInfo labelInfo = info.getLabelInfo();
+      labelInfo.setLabelVisible(false);
+      labelInfo.setLabelPosition(LabelInfo.TOP);
+      Dimension size = new Dimension(200, 20);
+
+      assertEquals(20, TabVSAssemblyInfo.getBottomTabChildHeight(info, size));
    }
 
    private VSAssembly mockChild(String name, SelectionBaseVSAssemblyInfo info,

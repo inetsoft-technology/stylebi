@@ -471,7 +471,22 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
          }
       }
 
-      return objectSize != null ? objectSize.height : 0;
+      int height = objectSize != null ? objectSize.height : 0;
+
+      // top/bottom labels render outside the declared pixel size
+      if(info instanceof InputVSAssemblyInfo inputInfo) {
+         LabelInfo labelInfo = inputInfo.getLabelInfo();
+
+         if(labelInfo != null && labelInfo.isLabelVisible()) {
+            String position = labelInfo.getLabelPosition();
+
+            if(LabelInfo.TOP.equals(position) || LabelInfo.BOTTOM.equals(position)) {
+               height += labelInfo.getRenderedHeight() + labelInfo.getLabelGap();
+            }
+         }
+      }
+
+      return height;
    }
 
    /**
