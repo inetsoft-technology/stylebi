@@ -518,7 +518,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
     */
    public boolean isBottomTabs() {
       Object rval = bottomTabs.getRValue();
-      return Boolean.parseBoolean(rval != null ? rval.toString() : "false");
+      return rval != null ? Boolean.parseBoolean(rval.toString()) : getBottomTabsValue();
    }
 
    public void setBottomTabs(boolean bottomTabs) {

@@ -268,6 +268,8 @@ public class SelectionListPropertyDialogController {
       Dimension size = rvs.getViewsheet().getPixelSize(selectionListAssemblyInfo);
 
       if(showType == SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
+         // uses titleHeight directly rather than getBottomTabChildHeight() because
+         // showTypeValue hasn't been set on the info yet at this point
          size.height = selectionListAssemblyInfo.getTitleHeight();
       }
       else if(showType != oldShowType) {

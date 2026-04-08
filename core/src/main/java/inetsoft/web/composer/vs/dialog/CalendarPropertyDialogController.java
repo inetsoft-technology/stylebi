@@ -308,7 +308,6 @@ public class CalendarPropertyDialogController {
       }
 
       int oMode = info.getViewModeValue();
-      int oldType = info.getShowTypeValue();
       int type = calendarAdvancedPaneModel.getShowType();
       int mode = calendarAdvancedPaneModel.getViewMode();
       info.setShowTypeValue(type);
@@ -337,13 +336,18 @@ public class CalendarPropertyDialogController {
                else {
                   // set runtime value so fixCalendarSize() reads the correct show type
                   info.setShowType(CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE);
-                  info.fixCalendarSize();
-                  Dimension size = info.getPixelSize();
-                  // fall back if no prior pixel size assigned
-                  int calendarHeight = size != null ? size.height :
-                     CalendarVSAssemblyInfo.DEFAULT_CALENDAR_HEIGHT;
-                  info.setPixelOffset(new Point(x, tabTop - calendarHeight));
-                  info.setShowType(type);
+
+                  try {
+                     info.fixCalendarSize();
+                     Dimension size = info.getPixelSize();
+                     // fall back if no prior pixel size assigned
+                     int calendarHeight = size != null ? size.height :
+                        CalendarVSAssemblyInfo.DEFAULT_CALENDAR_HEIGHT;
+                     info.setPixelOffset(new Point(x, tabTop - calendarHeight));
+                  }
+                  finally {
+                     info.setShowType(type);
+                  }
                }
             }
          }

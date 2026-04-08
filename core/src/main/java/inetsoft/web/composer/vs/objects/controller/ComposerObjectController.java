@@ -454,7 +454,7 @@ public class ComposerObjectController {
             TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getInfo();
             int ychange = event.getHeight() - originalSize.height;
 
-            if(ychange != 0 && !tabInfo.isBottomTabs()) {
+            if(ychange != 0 && !tabInfo.getBottomTabsValue()) {
                this.updateContainerChildrenYChange(tab, viewsheet, ychange);
             }
          }
@@ -467,7 +467,7 @@ public class ComposerObjectController {
          if(((VSAssembly) assembly).getContainer() instanceof TabVSAssembly tabParent) {
             TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tabParent.getVSAssemblyInfo();
 
-            if(tabInfo.isBottomTabs()) {
+            if(tabInfo.getBottomTabsValue()) {
                VSAssemblyInfo info2 = ((VSAssembly) assembly).getVSAssemblyInfo();
                int childH = TabVSAssemblyInfo.getBottomTabChildHeight(info2, size);
                reanchorBottomTabSiblings(tabInfo, tabParent, viewsheet, position.y + childH);
@@ -699,7 +699,7 @@ public class ComposerObjectController {
 
       TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getVSAssemblyInfo();
 
-      if(!tabInfo.isBottomTabs()) {
+      if(!tabInfo.getBottomTabsValue()) {
          return ychange;
       }
 

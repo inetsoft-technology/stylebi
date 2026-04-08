@@ -70,16 +70,16 @@ class TabVSAssemblyInfoTest {
    void repositionForBottomTabsUsesDropdownSelectionTitleHeight() {
       Viewsheet vs = Mockito.mock(Viewsheet.class);
 
-      // dropdown selection list at y=380, pixel height=20, title height=25
+      // dropdown selection list at y=380, pixel height=18, title height=25
       SelectionListVSAssemblyInfo selInfo = new SelectionListVSAssemblyInfo();
       selInfo.setShowTypeValue(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
       selInfo.setTitleHeightValue(25);
       selInfo.setPixelOffset(new Point(50, 380));
-      selInfo.setPixelSize(new Dimension(200, 25));
+      selInfo.setPixelSize(new Dimension(200, 18));
       VSAssembly selChild = Mockito.mock(VSAssembly.class);
       when(selChild.getVSAssemblyInfo()).thenReturn(selInfo);
       when(selChild.getPixelOffset()).thenReturn(new Point(50, 380));
-      when(selChild.getPixelSize()).thenReturn(new Dimension(200, 25));
+      when(selChild.getPixelSize()).thenReturn(new Dimension(200, 18));
 
       when(vs.getAssembly("Selection1")).thenReturn(selChild);
 
@@ -121,7 +121,7 @@ class TabVSAssemblyInfoTest {
       SelectionListVSAssemblyInfo info = new SelectionListVSAssemblyInfo();
       info.setShowTypeValue(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
       info.setTitleHeightValue(25);
-      Dimension size = new Dimension(200, 25);
+      Dimension size = new Dimension(200, 18);
 
       assertEquals(25, TabVSAssemblyInfo.getBottomTabChildHeight(info, size));
    }
