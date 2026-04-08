@@ -455,6 +455,9 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
     * Get the effective height for positioning a child in bottom tabs.
     * Dropdown components only show the title bar, so use title height
     * instead of the collapsed pixel height.
+    *
+    * <p>Note: uses design-time show type ({@code getShowTypeValue()}).
+    * Runtime show-type overrides are not consulted.</p>
     */
    public static int getBottomTabChildHeight(VSAssemblyInfo info, Dimension objectSize) {
       if(info instanceof CalendarVSAssemblyInfo calInfo) {
@@ -514,7 +517,9 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
 
    /**
     * Returns the effective bottomTabs value, reflecting the runtime value if set,
-    * otherwise the design-time value.
+    * otherwise the design-time value. Callers in the Composer (design-time) context
+    * should prefer {@link #getBottomTabsValue()} to avoid reading a stale runtime
+    * override.
     */
    public boolean isBottomTabs() {
       Object rval = bottomTabs.getRValue();
