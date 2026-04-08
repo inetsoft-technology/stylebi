@@ -306,7 +306,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
          try {
             nodeCertificate =
-               helper.generateCertificate(certificate, privateKey, Tool.getIP(), password);
+               helper.generateCertificate(certificate, privateKey, helper.getChildDN(certificate, Tool.getIP()), password);
          }
          catch(Exception e) {
             LOG.error("Failed to generate node SSL certificate", e);
