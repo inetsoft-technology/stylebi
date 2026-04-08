@@ -139,6 +139,12 @@ public class OrganizationController {
 
       AuthenticationProvider provider = authenticationProviderService.getProviderByName(name);
 
+      if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
+         String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+         String orgName = provider.getOrgNameFromID(orgID);
+         return orgName != null ? List.of(new IdentityID(orgName, orgID)) : new ArrayList<>();
+      }
+
       return Arrays.stream(provider.getOrganizationIDs())
          .map(id -> new IdentityID(provider.getOrgNameFromID(id), id)).toList();
    }

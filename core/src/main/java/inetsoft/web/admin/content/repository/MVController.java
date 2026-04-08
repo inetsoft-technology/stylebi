@@ -317,11 +317,15 @@ public class MVController {
       )
    )
    @GetMapping("/api/em/content/repository/mv/exceptions")
-   public MVExceptionResponse setCycle(HttpServletRequest req) {
+   public MVExceptionResponse getExceptions(HttpServletRequest req) {
       HttpSession session = req.getSession(true);
       MVSupportService.AnalysisResult jobs = (MVSupportService.AnalysisResult) session.getAttribute("mv_jobs");
       List<UserInfo> exceptions = jobs == null ? null : jobs.getExceptions();
-      assert exceptions != null;
+
+      if(exceptions == null) {
+         return MVExceptionResponse.builder().exceptions(List.of()).build();
+      }
+
       List<MVExceptionModel> exceptionModels = exceptions.stream()
          .map(exception -> MVExceptionModel.builder()
             .viewsheet(exception.getSheetName())
