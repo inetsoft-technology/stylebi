@@ -224,8 +224,9 @@ public class GroupingService {
 
                info.setPixelSize(updatedSize);
                boolean bottomTabs = ((TabVSAssemblyInfo) info).getBottomTabsValue();
+               int childHeight = TabVSAssemblyInfo.getBottomTabChildHeight(objectInfo, objectSize);
                int y = bottomTabs
-                  ? pos.y - objectSize.height
+                  ? pos.y - childHeight
                   : pos.y + size.height;
                Point objectPos = new Point(pos.x, y);
                object.setPixelOffset(objectPos);
@@ -262,8 +263,9 @@ public class GroupingService {
 
             info.setPixelSize(updatedSize);
             boolean bottomTabs = ((TabVSAssemblyInfo) info).getBottomTabsValue();
+            int childHeight = TabVSAssemblyInfo.getBottomTabChildHeight(targetInfo, targetSize);
             int targetY = bottomTabs
-               ? pos.y - targetSize.height
+               ? pos.y - childHeight
                : pos.y + size.height;
             Point targetPos = new Point(pos.x, targetY);
             target.setPixelOffset(targetPos);
@@ -381,8 +383,9 @@ public class GroupingService {
          VSAssemblyInfo info = (VSAssemblyInfo) assembly.getInfo();
          Dimension childSize = info.getLayoutSize() != null ?
             info.getLayoutSize() : assembly.getPixelSize();
+         int childHeight = TabVSAssemblyInfo.getBottomTabChildHeight(info, childSize);
          int y = bottomTabs
-            ? pos.y - childSize.height
+            ? pos.y - childHeight
             : pos.y + size.height;
          Point objectPos = new Point(pos.x, y);
          info.setPixelOffset(objectPos);

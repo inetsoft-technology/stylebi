@@ -393,7 +393,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
          }
 
          Point childPos = child.getPixelOffset();
-         int childHeight = child.getPixelSize() != null ? child.getPixelSize().height : 0;
+         int childHeight = getBottomTabChildHeight(child.getVSAssemblyInfo(), child.getPixelSize());
 
          if(childPos == null || childHeight == 0) {
             continue;
@@ -430,7 +430,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
 
          VSAssemblyInfo childInfo = child.getVSAssemblyInfo();
          Point childPos = child.getPixelOffset();
-         int childHeight = child.getPixelSize() != null ? child.getPixelSize().height : 0;
+         int childHeight = getBottomTabChildHeight(child.getVSAssemblyInfo(), child.getPixelSize());
 
          if(childPos == null || childHeight == 0) {
             continue;
@@ -449,6 +449,26 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
             }
          }
       }
+   }
+
+   /**
+    * Get the effective height for positioning a child in bottom tabs.
+    * Dropdown components only show the title bar, so use title height
+    * instead of the collapsed pixel height.
+    */
+   public static int getBottomTabChildHeight(VSAssemblyInfo info, Dimension objectSize) {
+      if(info instanceof CalendarVSAssemblyInfo calInfo) {
+         if(calInfo.getShowTypeValue() == CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
+            return calInfo.getTitleHeight();
+         }
+      }
+      else if(info instanceof SelectionBaseVSAssemblyInfo selInfo) {
+         if(selInfo.getShowTypeValue() == SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
+            return selInfo.getTitleHeight();
+         }
+      }
+
+      return objectSize != null ? objectSize.height : 0;
    }
 
    /**

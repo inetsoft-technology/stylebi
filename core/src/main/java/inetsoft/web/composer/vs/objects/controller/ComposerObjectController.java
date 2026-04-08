@@ -468,7 +468,9 @@ public class ComposerObjectController {
             TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tabParent.getVSAssemblyInfo();
 
             if(tabInfo.isBottomTabs()) {
-               reanchorBottomTabSiblings(tabInfo, tabParent, viewsheet, position.y + size.height);
+               VSAssemblyInfo info2 = ((VSAssembly) assembly).getVSAssemblyInfo();
+               int childH = TabVSAssemblyInfo.getBottomTabChildHeight(info2, size);
+               reanchorBottomTabSiblings(tabInfo, tabParent, viewsheet, position.y + childH);
             }
          }
 
@@ -530,7 +532,7 @@ public class ComposerObjectController {
          }
 
          VSAssemblyInfo childInfo = childAssembly.getVSAssemblyInfo();
-         int childH = childAssembly.getPixelSize() != null ? childAssembly.getPixelSize().height : 0;
+         int childH = TabVSAssemblyInfo.getBottomTabChildHeight(childInfo, childAssembly.getPixelSize());
 
          if(childH == 0) {
             continue; // no valid size yet; skip

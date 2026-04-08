@@ -314,8 +314,8 @@ public class CalendarPropertyDialogController {
       info.setShowTypeValue(type);
       info.setViewModeValue(mode);
 
-      // adjust position for bottom-tabs container when show type changes
-      if(oldType != type) {
+      // adjust position for bottom-tabs container when show type or height changes
+      {
          Viewsheet vs = viewsheet.getViewsheet();
          CalendarVSAssembly calAssembly =
             (CalendarVSAssembly) vs.getAssembly(objectId);
