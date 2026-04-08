@@ -719,7 +719,8 @@ public class Scheduler {
       long lastCheck = SchedulerHealthService.getInstance().getLastCheck();
       long nextCheck = healthCheckFuture == null ?
          0L : healthCheckFuture.getDelay(TimeUnit.MILLISECONDS);
-      Future.State checkState = healthCheckFuture.state();
+      Future.State checkState = healthCheckFuture == null ?
+         Future.State.CANCELLED : healthCheckFuture.state();
       int executingCount = 0;
       int threadCount = 0;
 
