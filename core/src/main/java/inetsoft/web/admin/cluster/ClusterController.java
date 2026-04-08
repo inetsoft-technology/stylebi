@@ -45,6 +45,13 @@ public class ClusterController {
       this.monitoringDataService = monitoringDataService;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/cluster/get-cluster-nodes")
    public ClusterNodesModel getClusterNodes() {
       Set<String> nodes = "server_cluster".equals(SreeEnv.getProperty("server.type")) ?

@@ -41,7 +41,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.lang.annotation.Annotation;
+import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
 import java.security.Principal;
 import java.util.Objects;
@@ -267,11 +271,19 @@ public class SecuredAspect {
       }
 
       ViewComponent component = componentAuthorizationService.getComponent(resource);
-      return component == null || !component.hiddenForMultiTenancy() ||
+
+      if(component == null) {
+         LOG.warn("EM component '{}' not found in view-components.json; defaulting to allow. " +
+                  "Check for a misspelled or unregistered @Secured resource path.", resource);
+         return true;
+      }
+
+      return !component.hiddenForMultiTenancy() ||
          OrganizationManager.getInstance().isSiteAdmin(user);
    }
 
    private final SpelExpressionParser expressionParser = new SpelExpressionParser();
    private final ResourcePermissionService resourcePermissionService;
    private final ComponentAuthorizationService componentAuthorizationService;
+   private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 }
