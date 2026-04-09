@@ -17,7 +17,7 @@
  */
 package inetsoft.storage;
 
-import inetsoft.util.config.BlobConfig;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.config.InetsoftConfig;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,7 +25,6 @@ import org.springframework.context.annotation.Lazy;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Objects;
 import java.util.ServiceLoader;
 
 /**
@@ -69,6 +68,30 @@ public class StorageConfiguration {
          "No BlobEngineFactory found for type: " + config.getBlob().getType());
    }
 
+   @Bean
+   public BlobStorageManager blobStorageManager(InetsoftConfig config, BlobEngine blobEngine,
+                                                KeyValueStorageManager keyValueStorageManager,
+                                                Cluster cluster)
+   {
+      String type = config.getBlob().getType();
+      BlobCache blobCache = null;
+
+      if(type != null && !type.equals("local")) {
+         String cacheDir = config.getBlob().getCacheDirectory();
+         Path baseDir = Paths.get(cacheDir);
+         Long maxSize = config.getBlob().getCacheMaxSize();
+
+         if(maxSize != null && maxSize > 0) {
+            blobCache = new BoundedBlobCache(baseDir, blobEngine, maxSize);
+         }
+         else {
+            blobCache = new BlobCache(baseDir, blobEngine);
+         }
+      }
+
+      return new BlobStorageManager(blobEngine, keyValueStorageManager, blobCache, cluster);
+   }
+
    /** External storage service — routes writes/reads to the configured storage backend. */
    @Bean
    @Lazy
@@ -85,16 +108,4 @@ public class StorageConfiguration {
       throw new RuntimeException("No ExternalStorageServiceFactory found for type: " + type);
    }
 
-   @Bean
-   public BlobCache blobCache(InetsoftConfig config, BlobEngine blobEngine) {
-      BlobConfig blobConfig = config.getBlob();
-      Path baseDir = Paths.get(Objects.requireNonNull(blobConfig.getCacheDirectory()));
-      Long maxSize = blobConfig.getCacheMaxSize();
-
-      if(maxSize != null && maxSize > 0) {
-         return new BoundedBlobCache(baseDir, blobEngine, maxSize);
-      }
-
-      return new BlobCache(baseDir, blobEngine);
-   }
 }

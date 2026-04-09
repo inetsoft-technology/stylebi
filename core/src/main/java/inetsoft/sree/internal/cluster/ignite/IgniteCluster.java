@@ -94,6 +94,10 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          ignite.getOrCreateCache(getCacheConfiguration(RW_MAP_NAME));
       }
 
+      if("reportServer".equals(System.getProperty("inetsoft.cluster.node.type"))) {
+         setLocalNodeProperty("reportServer", "true");
+      }
+
       registerSpringProxyPartitionedCache(WorksheetEngine.CACHE_NAME);
    }
 

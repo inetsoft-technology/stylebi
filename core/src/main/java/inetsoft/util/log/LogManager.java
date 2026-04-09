@@ -17,8 +17,7 @@
  */
 package inetsoft.util.log;
 
-import inetsoft.sree.*;
-import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.util.*;
@@ -26,8 +25,8 @@ import inetsoft.web.admin.logviewer.*;
 import jakarta.annotation.PreDestroy;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.*;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -53,18 +52,10 @@ import java.util.zip.ZipOutputStream;
 @Service
 @Lazy
 public final class LogManager implements AutoCloseable, MessageListener {
-   /**
-    * Creates a new instance of <tt>LogManager</tt>.
-    */
-   // For non-Spring environments (tests, non-Spring processes)
-   public LogManager() {
-      this(null, null, null);
-   }
-
-   public LogManager(SecurityEngine securityEngine, Cluster cluster,
+   public LogManager(ObjectProvider<SecurityEngine> securityEngineProvider, Cluster cluster,
                      FileSystemService fileSystemService)
    {
-      this.securityEngine = securityEngine;
+      this.securityEngineProvider = securityEngineProvider;
       this.cluster = cluster;
       this.fileSystemService = fileSystemService;
 
@@ -79,13 +70,6 @@ public final class LogManager implements AutoCloseable, MessageListener {
 
    public static void initializeForStartup() {
       useInitializer(LogInitializer::initializeForStartup);
-   }
-
-   @EventListener(LogResetEvent.class)
-   public void handleLogReset(LogResetEvent event) {
-      initialize(
-         event.getLogFile(), event.getLogFileDiscriminator(), event.isConsole(),
-         event.getMaxFileSize(), event.getMaxFileCount(), event.isPerformance());
    }
 
    public void initialize(String logFile, String logFileDiscriminator, boolean console,
@@ -109,19 +93,12 @@ public final class LogManager implements AutoCloseable, MessageListener {
       }
    }
 
-   @EventListener(ApplicationPropertiesClearedEvent.class)
-   public void handleApplicationPropertiesCleared(ApplicationPropertiesClearedEvent event) {
-      close();
-   }
-
    private static void useInitializer(Consumer<LogInitializer> fn) {
       String factory = LoggerFactory.getILoggerFactory().getClass().getName();
       String initializerClass = null;
 
-      switch(factory) {
-      case "ch.qos.logback.classic.LoggerContext":
+      if(factory.equals("ch.qos.logback.classic.LoggerContext")) {
          initializerClass = "inetsoft.util.log.logback.LogbackInitializer";
-         break;
       }
 
       if(initializerClass != null) {
@@ -133,6 +110,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
          catch(Exception e) {
             // logging is not initialized yet
             System.err.println("Failed to initialize logging framework");
+            //noinspection CallToPrintStackTrace
             e.printStackTrace();//NOSONAR
          }
       }
@@ -152,37 +130,15 @@ public final class LogManager implements AutoCloseable, MessageListener {
          String upperLevel = level.toUpperCase();
 
          // check legacy names
-         switch(upperLevel) {
-         case "WARNING":
-            result = LogLevel.WARN;
-            break;
-         case "INFO":
-            result = LogLevel.INFO;
-            break;
-         case "FINE":
-         case "FINER":
-         case "FINEST":
-            result = LogLevel.DEBUG;
-            break;
-         default:
-            result = LogLevel.ERROR;
-         }
+         result = switch(upperLevel) {
+            case "WARNING" -> LogLevel.WARN;
+            case "INFO" -> LogLevel.INFO;
+            case "FINE", "FINER", "FINEST" -> LogLevel.DEBUG;
+            default -> LogLevel.ERROR;
+         };
       }
 
       return result;
-   }
-
-   @EventListener(LogLevelChangedEvent.class)
-   public void handleLogLevelChanged(LogLevelChangedEvent event) {
-      if(event.getName() == null) {
-         setLevel(event.getLevel());
-      }
-      else if(event.getContext() == null) {
-         setLevel(event.getName(), event.getLevel());
-      }
-      else {
-         setContextLevel(event.getContext(), event.getName(), event.getLevel());
-      }
    }
 
    public LogLevel getLevel() {
@@ -252,7 +208,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
     */
    public List<LogLevelSetting> getContextLevels() {
       List<LogLevelSetting> result = new ArrayList<>();
-      final SecurityProvider provider = securityEngine.getSecurityProvider();
+      final SecurityProvider provider = securityEngineProvider.getObject().getSecurityProvider();
 
       for(Map.Entry<LogContext, Map<String, LogLevel>> entry : contextLevels.entrySet()) {
          entry.getValue().entrySet().stream()
@@ -356,6 +312,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
       return isLevelEnabled(name, LogLevel.INFO);
    }
 
+   @SuppressWarnings("unused")
    public boolean isWarnEnabled(String name) {
       return isLevelEnabled(name, LogLevel.WARN);
    }
@@ -414,10 +371,12 @@ public final class LogManager implements AutoCloseable, MessageListener {
       return level.ordinal() >= current.ordinal();
    }
 
+   @SuppressWarnings("unused")
    public void addLogMessageListener(LogMessageListener l, boolean exceptionsOnly) {
       messageListeners.put(l, exceptionsOnly);
    }
 
+   @SuppressWarnings("unused")
    public void removeLogMessageListener(LogMessageListener l) {
       messageListeners.remove(l);
    }
@@ -770,7 +729,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
             }
          }
 
-         return logFiles.get(0);
+         return logFiles.getFirst();
       }
 
       return null;
@@ -807,20 +766,18 @@ public final class LogManager implements AutoCloseable, MessageListener {
       List<String> selectedNodes = cluster.getClusterNodes().stream()
          .filter((node) -> (!scheduler && !Boolean.TRUE.equals(cluster.getClusterNodeProperty(node, "scheduler")))
             || (scheduler && Boolean.TRUE.equals(cluster.getClusterNodeProperty(node, "scheduler"))))
-         .collect(Collectors.toList());
+         .toList();
       String logFileIp  = extractIPFromLogName(fileName);
       List<String> targetNodes = selectedNodes.stream()
          .filter(node -> Tool.equals(logFileIp, extractIpFromNodeName(node)))
-         .collect(Collectors.toList());
+         .toList();
 
       if(!targetNodes.isEmpty()) {
          RotateLogMessage rotateLogMessage = new RotateLogMessage();
          rotateLogMessage.setId(UUID.randomUUID().toString());
          CountDownLatch latch = new CountDownLatch(targetNodes.size());
          MessageListener listener = event -> {
-            if(event.getMessage() instanceof RotateLogCompleteMessage) {
-               RotateLogCompleteMessage message = (RotateLogCompleteMessage) event.getMessage();
-
+            if(event.getMessage() instanceof RotateLogCompleteMessage message) {
                if(Tool.equals(rotateLogMessage.getId(), message.getId())) {
                   latch.countDown();
                }
@@ -868,7 +825,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
    }
 
    public static String extractIpFromNodeName(String node) {
-      if(node == null || node.indexOf(":") == -1) {
+      if(node == null || !node.contains(":")) {
          return null;
       }
 
@@ -901,13 +858,12 @@ public final class LogManager implements AutoCloseable, MessageListener {
       this.logFileProvider = provider;
    }
 
-   private final SecurityEngine securityEngine;
+   private final ObjectProvider<SecurityEngine> securityEngineProvider;
    private final Cluster cluster;
    private final FileSystemService fileSystemService;
    private LogFileProvider logFileProvider;
    private final Map<LogContext, Map<String, LogLevel>> contextLevels = new ConcurrentHashMap<>();
    private final Map<LogMessageListener, Boolean> messageListeners = new ConcurrentHashMap<>();
-   private SreeEnv.Value logProvider;
    private static final Logger LOG = LoggerFactory.getLogger(LogManager.class);
 
    /**

@@ -23,9 +23,6 @@ import inetsoft.util.ConfigurationContext;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
 import java.io.*;
 
 /**
@@ -38,16 +35,7 @@ import java.io.*;
  * reached the least-recently-used store is closed and evicted. This bounds memory use and
  * prevents stale references to stores for organizations that have been removed.</p>
  */
-@Service
 public class BlobStorageManager implements AutoCloseable {
-   /**
-    * Spring constructor — ensures {@link BlobEngine} and {@link KeyValueStorageManager} are
-    * initialized before this manager.
-    *
-    * @param blobEngine       the blob engine (injected for startup-ordering).
-    * @param kvStorageManager the key-value storage manager (injected for startup-ordering).
-    */
-   @Autowired
    public BlobStorageManager(BlobEngine blobEngine, KeyValueStorageManager kvStorageManager,
                              BlobCache blobCache, Cluster cluster)
    {

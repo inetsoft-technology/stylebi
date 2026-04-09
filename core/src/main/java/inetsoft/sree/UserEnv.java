@@ -17,6 +17,7 @@
  */
 package inetsoft.sree;
 
+import com.google.common.base.Suppliers;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.SRPrincipal;
@@ -32,6 +33,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -245,7 +247,7 @@ public class UserEnv {
       if(user == null ||
          ClientInfo.ANONYMOUS.equals(user.getName()))
       {
-         return enableAnonymous;
+         return enableAnonymous.get();
       }
 
       return true;
@@ -599,8 +601,8 @@ public class UserEnv {
    private static final String USER_DIR = "sreeUserData";
    // data change listener manager
    private static final DataChangeListenerManager dmgr = new DataChangeListenerManager();
-   private static final boolean enableAnonymous =
-      "true".equals(SreeEnv.getProperty("anonymous.userdata.save"));
+   private static final Supplier<Boolean> enableAnonymous = Suppliers.memoize(
+      () -> "true".equals(SreeEnv.getProperty("anonymous.userdata.save")));
    private static final Logger LOG =
       LoggerFactory.getLogger(UserEnv.class);
    private static final Set<String> transients = new HashSet<>();

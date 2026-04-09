@@ -19,13 +19,16 @@ package inetsoft.sree.schedule;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.RMICallThread;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.Tool;
 import inetsoft.util.health.HealthService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.BeansException;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.annotation.Configuration;
 
 /**
@@ -33,10 +36,11 @@ import org.springframework.context.annotation.Configuration;
  * registry binding and scheduler lifecycle after the application context starts.
  */
 @Configuration
-public class ScheduleServerContext implements ApplicationRunner {
-   @Autowired
-   public ScheduleServerContext(ScheduleServer scheduleServer) {
-      this.scheduleServer = scheduleServer;
+public class ScheduleServerContext implements ApplicationRunner, ApplicationContextAware {
+   @Override
+   public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+      this.applicationContext = applicationContext;
+      ConfigurationContext.getContext().setApplicationContext(applicationContext);
    }
 
    @Override
@@ -77,6 +81,8 @@ public class ScheduleServerContext implements ApplicationRunner {
       catch(Exception ignore) {
       }
 
+      ScheduleServer scheduleServer = applicationContext.getBean(ScheduleServer.class);
+
       try {
          boolean success;
          RMICallThread rct = new RMICallThread();
@@ -104,6 +110,6 @@ public class ScheduleServerContext implements ApplicationRunner {
       }
    }
 
-   private final ScheduleServer scheduleServer;
+   private ApplicationContext applicationContext;
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleServerContext.class);
 }

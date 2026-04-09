@@ -24,6 +24,7 @@ import ch.qos.logback.core.Appender;
 import ch.qos.logback.core.ConsoleAppender;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.ignite.IgniteCluster;
 import inetsoft.sree.security.*;
 import inetsoft.storage.LoadKeyValueTask;
 import inetsoft.util.*;
@@ -32,23 +33,22 @@ import inetsoft.util.config.SecretsConfig;
 import inetsoft.util.log.LogUtil;
 import inetsoft.util.log.logback.AuditLogFilter;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.*;
+import org.springframework.context.support.AbstractApplicationContext;
 import picocli.CommandLine;
 
 import java.io.*;
-import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 
 /**
  * Class that performs basic initialization of a new storage.
  */
 @CommandLine.Command(
-   name = "init-storage", mixinStandardHelpOptions = true, version = "init-storage 14.0",
+   name = "init-storage", mixinStandardHelpOptions = true, version = "init-storage 1.2",
    description = "Initializes storage for a StyleBI instance"
 )
 public class StorageInitializer implements Callable<Integer> {
@@ -105,18 +105,36 @@ public class StorageInitializer implements Callable<Integer> {
 
       SetupExtension.Context context = new SetupExtension.Context(
          initialized, configDirectory, pluginsDirectory, filesDirectory, assetsDirectory,
-         scriptsDirectory);
-      List<SetupExtension> extensions = new ArrayList<>();
-      ServiceLoader.load(SetupExtension.class).forEach(extensions::add);
-      System.err.println("LOADED EXTENSIONS: " + extensions);
-      context = applyExtensions(context, extensions, "start", (c, e) -> e.start(c));
-      System.err.println("UPDATED CONTEXT: " + context);
+         scriptsDirectory, new HashMap<>());
 
-      context = setProperties(context, extensions);
-      context = installPlugins(context, extensions);
-      context = configureSecurity(context, extensions);
-      context = importFiles(context, extensions);
-      context = importAssets(context, extensions);
+      try {
+         List<SetupExtension> extensions = new ArrayList<>();
+         ServiceLoader.load(SetupExtension.class).forEach(extensions::add);
+         System.err.println("LOADED EXTENSIONS: " + extensions);
+         context = applyExtensions(context, extensions, "start", (c, e) -> e.start(c));
+         System.err.println("UPDATED CONTEXT: " + context);
+
+         context = setProperties(context, extensions);
+         context = installPlugins(context, extensions);
+         context = configureSecurity(context, extensions);
+         context = importFiles(context, extensions);
+         context = importAssets(context, extensions);
+         reloadClusterPlugins(context);
+      }
+      finally {
+         for(Object value : context.attributes().values()) {
+            if(value instanceof AutoCloseable closeable) {
+               try {
+                  closeable.close();
+               }
+               catch(Exception e) {
+                  System.err.println("Failed to close context attribute");
+                  //noinspection CallToPrintStackTrace
+                  e.printStackTrace();
+               }
+            }
+         }
+      }
 
       if(!initialized) {
          setInitialized();
@@ -168,16 +186,16 @@ public class StorageInitializer implements Callable<Integer> {
                                                  List<SetupExtension> extensions)
       throws Exception
    {
-      installPlugins(new File("/usr/local/inetsoft/plugins"));
+      installPlugins(new File("/usr/local/inetsoft/plugins"), context);
 
       if(context.pluginsDirectory() != null && context.pluginsDirectory().isDirectory()) {
-         installPlugins(context.pluginsDirectory());
+         installPlugins(context.pluginsDirectory(), context);
       }
 
       return applyExtensions(context, extensions, "afterPluginsInstalled", (c, e) -> e.afterPluginsInstalled(c));
    }
 
-   private void installPlugins(File directory) throws Exception {
+   private void installPlugins(File directory, SetupExtension.Context context) throws Exception {
       File[] files = directory.listFiles(this::isPluginFile);
 
       if(files != null && files.length > 0) {
@@ -187,10 +205,7 @@ public class StorageInitializer implements Callable<Integer> {
             }
          }
 
-         // send a message to reload the plugins from the kv store
-         Cluster.getInstance().submit("plugins",
-                                      new LoadKeyValueTask<>("plugins", true))
-            .get(5L, TimeUnit.MINUTES);
+         context.attributes().put("pluginsInstalled", true);
       }
    }
 
@@ -298,78 +313,10 @@ public class StorageInitializer implements Callable<Integer> {
                                                List<SetupExtension> extensions)
    {
       if(!context.initialized()) {
-         try {
-            Class.forName("inetsoft.enterprise.client.ClientFactory");
-         }
-         catch(ClassNotFoundException ignore) {
-            // only supported in enterprise
-            return context;
-         }
-
-         if(context.assetsDirectory() != null && context.assetsDirectory().isDirectory()) {
-            File[] files = context.assetsDirectory().listFiles(
-               pathname -> pathname.isFile() && pathname.getName().toLowerCase().endsWith(".zip"));
-
-            if(files != null && files.length > 0) {
-               try(AutoCloseable client = openClient()) {
-                  Object fileService = getFileService(client);
-
-                  for(File file : files) {
-                     importAssets(fileService, file);
-                  }
-               }
-               catch(Exception e) {
-                  throw new RuntimeException(
-                     "Failed to import assets from '" + context.assetsDirectory().getAbsolutePath() + "'", e);
-               }
-            }
-         }
+         context = applyExtensions(context, extensions, "installAssets", (c, e) -> e.installAssets(c));
       }
 
       return applyExtensions(context, extensions, "afterAssetsInstalled", (c, e) -> e.afterAssetsInstalled(c));
-   }
-
-   private AutoCloseable openClient() {
-      try {
-         Class<?> clientFactoryClass = Class.forName("inetsoft.enterprise.client.ClientFactory");
-         Object clientFactory = clientFactoryClass.getConstructor().newInstance();
-         Method method = clientFactoryClass.getDeclaredMethod(
-            "createLocalClient", String.class, IdentityID.class, String.class);
-         String path = configDirectory.getAbsolutePath();
-         IdentityID username = new IdentityID("admin", Organization.getDefaultOrganizationID());
-         String password = AdminCredentialUtil.getRequiredAdminPassword();
-         return (AutoCloseable) method.invoke(clientFactory, path, username, password);
-      }
-      catch(IllegalStateException e) {
-         throw e;
-      }
-      catch(Exception e) {
-         throw new RuntimeException("Failed to create local client", e);
-      }
-   }
-
-   private Object getFileService(Object client) {
-      try {
-         Class<?> clazz = client.getClass();
-         Method method = clazz.getMethod("getFileService");
-         return method.invoke(client);
-      }
-      catch(Exception e) {
-         throw new RuntimeException("Failed to get file service", e);
-      }
-   }
-
-   private void importAssets(Object fileService, File zipFile) {
-      try {
-         Class<?> clazz = fileService.getClass();
-         Method method = clazz.getDeclaredMethod(
-            "importAssets", String.class, List.class, boolean.class);
-         method.invoke(fileService, zipFile.getAbsolutePath(), Collections.emptyList(), true);
-         System.out.println("Imported assets from " + zipFile.getAbsolutePath());
-      }
-      catch(Exception e) {
-         throw new RuntimeException("Failed to import assets from " + zipFile.getAbsolutePath(), e);
-      }
    }
 
    private SetupExtension.Context applyExtensions(
@@ -436,5 +383,43 @@ public class StorageInitializer implements Callable<Integer> {
       appender.addAppender(ref);
       appender.start();
       return appender;
+   }
+
+   private void reloadClusterPlugins(SetupExtension.Context context) {
+      if(Boolean.TRUE.equals(context.attributes().get("pluginsInstalled"))) {
+         // send a message to reload the plugins from the kv store
+         String home = context.configDirectory().getAbsolutePath();
+         System.setProperty("sree.home", home);
+         ConfigurationContext configContext = ConfigurationContext.getContext();
+         configContext.setHome(home);
+
+         try {
+            InetsoftConfig.bootstrap();
+
+            try(AbstractApplicationContext applicationContext = new AnnotationConfigApplicationContext(ClusterConfig.class)) {
+               configContext.setApplicationContext(applicationContext);
+               Cluster.getInstance().submit("plugins", new LoadKeyValueTask<>("plugins", true));
+               context.attributes().put("pluginsInstalled", false);
+            }
+         }
+         finally {
+            configContext.setApplicationContext(null);
+            InetsoftConfig.BOOTSTRAP_INSTANCE = null;
+         }
+      }
+   }
+
+   @Configuration
+   private static class ClusterConfig {
+      @Bean
+      public InetsoftConfig inetsoftConfig() {
+         return InetsoftConfig.BOOTSTRAP_INSTANCE;
+      }
+
+      @Bean
+      public Cluster cluster(InetsoftConfig config) {
+         // todo use client mode
+         return new IgniteCluster();
+      }
    }
 }

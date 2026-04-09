@@ -75,7 +75,7 @@ public abstract class BaseInetsoftApplication {
       if(!"true".equals(System.getProperty("spring.aot.processing"))) {
          LogManager.initializeForStartup();
          Tool.setServer(true);
-         Cluster.getInstance().setLocalNodeProperty("reportServer", "true");
+         System.setProperty("inetsoft.cluster.node.type", "reportServer");
       }
 
       SpringApplication.run(getClass(), args);
@@ -283,13 +283,7 @@ public abstract class BaseInetsoftApplication {
             // starts creating beans. StorageConfiguration.inetsoftConfig() returns this
             // instance directly, ensuring all downstream @Bean methods receive a
             // non-null InetsoftConfig without going through SingletonManager.
-            File configFile = InetsoftConfig.getConfigFile();
-            boolean saveConfig = !configFile.exists();
-            InetsoftConfig.BOOTSTRAP_INSTANCE = InetsoftConfig.load(configFile.toPath());
-
-            if(saveConfig) {
-               InetsoftConfig.save(InetsoftConfig.BOOTSTRAP_INSTANCE, configFile.toPath());
-            }
+            InetsoftConfig.bootstrap();
          }
       }
    }

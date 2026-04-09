@@ -169,11 +169,12 @@ public class RepositoryTreeSearchController {
       RepositoryEntry[] entries = null;
 
       if(hostOrgGlobalRepo) {
-         entries = ((AnalyticEngine) analyticRepository).getDefaultOrgRepositoryEntries(principal);
+         entries = analyticRepository.unwrap(AnalyticEngine.class)
+            .getDefaultOrgRepositoryEntries(principal);
       }
       else {
          entries = VSEventUtil.getRepositoryEntries(
-            (AnalyticEngine) analyticRepository, principal, ResourceAction.READ,
+            analyticRepository.unwrap(AnalyticEngine.class), principal, ResourceAction.READ,
             RepositoryEntry.ALL, "", new RepositoryEntry[]{parentEntry}, isDefaultOrgAsset);
       }
 
@@ -193,7 +194,7 @@ public class RepositoryTreeSearchController {
             if(exactMatch) {
                // add all the files from this folder
                RepositoryEntry[] childEntries = VSEventUtil.getRepositoryEntries(
-                  (AnalyticEngine) analyticRepository, principal, ResourceAction.READ,
+                  analyticRepository.unwrap(AnalyticEngine.class), principal, ResourceAction.READ,
                   RepositoryEntry.ALL & (~RepositoryEntry.FOLDER),
                   "", new RepositoryEntry[]{entry}, isDefaultOrgAsset);
 

@@ -169,7 +169,7 @@ public class LocalizationSettingsService {
    {
       try {
          RepositoryEntry[] entries;
-         AnalyticEngine engine = (AnalyticEngine) analyticRepository;
+         AnalyticEngine engine = analyticRepository.unwrap(AnalyticEngine.class);
          entries = engine.getRepositoryEntries(path, principal, action, selector, false);
          RepletEngine engine2 = SUtil.getRepletEngine(engine);
 

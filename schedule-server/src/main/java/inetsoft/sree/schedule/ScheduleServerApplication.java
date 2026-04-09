@@ -17,10 +17,11 @@
  */
 package inetsoft.sree.schedule;
 
-import inetsoft.sree.SreeEnv;
 import inetsoft.sree.UserEnv;
 import inetsoft.util.*;
+import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.log.LogManager;
+import org.apache.commons.lang3.SystemUtils;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.boot.*;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -30,18 +31,24 @@ import org.springframework.core.io.ClassPathResource;
 import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
-import java.util.List;
-import java.util.Properties;
+import java.nio.file.Paths;
+import java.util.*;
 
 /**
  * Spring Boot entry point for the standalone community schedule server process.
  * <p>
- * This class replaces the legacy {@link ScheduleServer#main(String[])} startup path.
+ * This class replaces the legacy {@code ScheduleServer.main()} startup path.
  * Pre-Spring configuration (system properties, logging, headless mode) is performed
  * here before the application context is started. RMI binding and scheduler startup
  * are handled by {@link ScheduleServerContext}.
  */
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = {
+   "inetsoft.sree.schedule",
+   "inetsoft.util",
+   "inetsoft.sree",
+   "inetsoft.storage",
+   "inetsoft.web.factory"
+})
 @Import(ScheduleServerContext.class)
 public class ScheduleServerApplication {
    public static void main(String[] args) {
@@ -82,9 +89,11 @@ public class ScheduleServerApplication {
                "derby.stream.error.file",
                new File(homeFile, "derby.log").getAbsolutePath());
             ConfigurationContext.getContext().setHome(homeFile.getAbsolutePath());
+            InetsoftConfig.BOOTSTRAP_INSTANCE =
+               InetsoftConfig.load(Paths.get(homeFile.getAbsolutePath(), "inetsoft.yaml"));
          }
 
-         System.setProperty("java.rmi.server.hostname", Tool.getRmiIP());
+         System.setProperty("java.rmi.server.hostname", Tool.getRmiIP(true));
          LogManager.initializeForStartup();
 
          RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
@@ -102,7 +111,7 @@ public class ScheduleServerApplication {
             }
          }
 
-         if(OperatingSystem.isUnix()) {
+         if(SystemUtils.IS_OS_UNIX) {
             String val = System.getProperty("java.awt.headless");
 
             if(val == null || val.isEmpty()) {
@@ -111,11 +120,15 @@ public class ScheduleServerApplication {
          }
 
          Catalog.setCatalogGetter(UserEnv.getCatalogGetter());
-         SreeEnv.setProperty("log.output.stderr", "false");
       }
 
       SpringApplication app = new SpringApplication(ScheduleServerApplication.class);
       app.setWebApplicationType(WebApplicationType.NONE);
+      app.setLazyInitialization(true);
+      // The scheduler is a non-web process; it doesn't register the server's custom health
+      // contributors (OutOfMemory, Deadlock, etc.), so the server's health group configuration
+      // (inherited via classpath application.yaml) would fail validation.
+      app.setDefaultProperties(Map.of("management.endpoint.health.validate-group-membership", "false"));
       app.run(args);
    }
 }

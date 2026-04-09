@@ -34,6 +34,7 @@ import jakarta.annotation.PreDestroy;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -53,11 +54,14 @@ import java.util.function.Supplier;
 @Lazy
 public class PropertiesEngine {
    public PropertiesEngine(KeyValueStorageManager keyValueStorageManager,
-                           FileSystemService fileSystemService, ApplicationEventPublisher eventPublisher)
+                           FileSystemService fileSystemService,
+                           ApplicationEventPublisher eventPublisher,
+                           ObjectProvider<LogManager> logManagerProvider)
    {
       this.keyValueStorageManager = keyValueStorageManager;
       this.fileSystemService = fileSystemService;
       this.eventPublisher = eventPublisher;
+      this.logManagerProvider = logManagerProvider;
    }
 
    @PostConstruct
@@ -313,18 +317,15 @@ public class PropertiesEngine {
    public void setLogLevel(LogContext context, String name, LogLevel level) {
       checkScriptThread();
       String property;
-      LogLevelChangedEvent event;
 
       if(context == LogContext.CATEGORY) {
-         event = new LogLevelChangedEvent(this, name, level);
          property = "log.level." + name;
+         logManagerProvider.ifAvailable(lm -> lm.setLevel(name, level));
       }
       else {
-         event = new LogLevelChangedEvent(this, context, name, level);
          property = "log." + context.name() + ".level." + name;
+         logManagerProvider.ifAvailable(lm -> lm.setContextLevel(context, name, level));
       }
-
-      eventPublisher.publishEvent(event);
 
       if(level == null) {
          setProperty(property, null);
@@ -396,18 +397,8 @@ public class PropertiesEngine {
       return propertyName;
    }
 
-   /**
-    * Get the properties which inited before loading storage, if a property is getted before
-    * loading storage then must get the property by getEarlyLoadedProperty function which will
-    * get the property from earlyLoadedProperties with the property name not added(or try to added)
-    * organizationID.
-    *
-    * It should be emphasized that the earlyLoadedProperties finally become same with
-    * UserEnhancedProperties after initing userEnhancedProperties.
-    */
    private Properties getEarlyLoadedProperties() {
-      initEarlyLoadedProperties();
-      return earlyLoadedProperties;
+      return EarlyLoadedProperties.getInstance().asProperties();
    }
 
    /**
@@ -500,75 +491,6 @@ public class PropertiesEngine {
       }
    }
 
-   private void initEarlyLoadedProperties() {
-      if(earlyLoadedProperties != null) {
-         return;
-      }
-
-      earlyLoadedPropertiesLock.lock();
-
-      try {
-         if(earlyLoadedProperties != null) {
-            return;
-         }
-
-         Properties defaultProperties = null;
-         Properties noSystemProperties = new Properties();
-         Properties base = noSystemProperties;
-
-         try {
-            // use the system property as base for all properties
-            // the logic was here before uses the defkey's property as base
-            // which is not correct because those are not logically connected
-            Properties systemProperties = System.getProperties();
-            base = new DefaultProperties(noSystemProperties, systemProperties);
-         }
-         catch(Exception ignore) {
-         }
-
-         try {
-            defaultProperties = getDefaultProperties();
-            Map<String, String> defaults = new HashMap<>();
-
-            for(String key : defaultProperties.stringPropertyNames()) {
-               defaults.put(key.toLowerCase(), key);
-            }
-
-            for(Map.Entry<String, String> e : System.getenv().entrySet()) {
-               String key = e.getKey().toLowerCase();
-
-               if(key.toLowerCase().startsWith("inetsoft_") &&
-                  !key.equals("inetsoft_master_password") && !key.equals("inetsoft_master_salt") &&
-                  !key.equals("inetsoft_admin_password")) {
-                  String name = key.toLowerCase().substring(9).replace('_', '.');
-                  name = defaults.getOrDefault(name, name);
-                  base.setProperty(name, e.getValue());
-               }
-            }
-         }
-         catch(Exception ignore) {
-         }
-
-         // get resource bundles
-         try {
-            if(base.getProperty("StyleReport.locale.resource") == null) {
-               base.put("StyleReport.locale.resource", "inetsoft/util/srinter");
-            }
-
-            if(base.getProperty("sree.bundle") == null) {
-               base.put("sree.bundle", "SreeBundle");
-            }
-         }
-         catch(Exception ignore) {
-         }
-
-         base = new DefaultProperties(base, defaultProperties);
-         earlyLoadedProperties = base;
-      }
-      finally {
-         earlyLoadedPropertiesLock.unlock();
-      }
-   }
 
    public Properties getDefaultProperties() {
       Properties prop = defaultProperties;
@@ -602,10 +524,9 @@ public class PropertiesEngine {
          // @by stephenwebster, For Bug #29148
          // Whenever SreeEnv is cleared, we must reset the log manager prior to a re-initialization
          // of SreeEnv.
-         eventPublisher.publishEvent(new ApplicationPropertiesClearedEvent(this));
+         logManagerProvider.ifAvailable(LogManager::close);
          internalProperties = null;
          defaultProperties = null;
-         earlyLoadedProperties = null;
 
          if(kvStorage != null) {
             try {
@@ -670,16 +591,16 @@ public class PropertiesEngine {
     * Initializes logging.
     */
    private void initLogging() {
-      eventPublisher.publishEvent(new LogLevelsChangedEvent(this, Map.of(
-         "inetsoft.scheduler_test", LogLevel.OFF,
-         "inetsoft.mv_debug", LogLevel.OFF,
-         "inetsoft.swap_data", LogLevel.OFF,
-         SUtil.MAC_LOG_NAME, LogLevel.OFF,
-         LogUtil.PERFORMANCE_LOGGER_NAME, LogLevel.OFF,
-         "inetsoft.storage.aws.com.amazonaws", LogLevel.WARN,
-         "inetsoft.storage.aws.org.apache", LogLevel.WARN,
-         "org.apache.ignite", LogLevel.WARN
-      )));
+      logManagerProvider.ifAvailable(lm -> {
+         lm.setLevel("inetsoft.scheduler_test", LogLevel.OFF);
+         lm.setLevel("inetsoft.mv_debug", LogLevel.OFF);
+         lm.setLevel("inetsoft.swap_data", LogLevel.OFF);
+         lm.setLevel(SUtil.MAC_LOG_NAME, LogLevel.OFF);
+         lm.setLevel(LogUtil.PERFORMANCE_LOGGER_NAME, LogLevel.OFF);
+         lm.setLevel("inetsoft.storage.aws.com.amazonaws", LogLevel.WARN);
+         lm.setLevel("inetsoft.storage.aws.org.apache", LogLevel.WARN);
+         lm.setLevel("org.apache.ignite", LogLevel.WARN);
+      });
 
       reloadLoggingFramework();
 
@@ -714,18 +635,18 @@ public class PropertiesEngine {
 
    private void applyLogProperty(String prop, String val) {
       if("log.detail.level".equals(prop)) {
-         eventPublisher.publishEvent(new LogLevelChangedEvent(this, LogManager.parseLevel(val)));
+         logManagerProvider.ifAvailable(lm -> lm.setLevel(LogManager.parseLevel(val)));
       }
       else if(prop.startsWith("log.level.")) {
          try {
             LogLevel level = LogManager.parseLevel(val);
-            prop = prop.substring(10);
+            String name = prop.substring(10);
 
-            if(prop.isEmpty()) {
+            if(name.isEmpty()) {
                throw new IllegalArgumentException("Empty logger name");
             }
 
-            eventPublisher.publishEvent(new LogLevelChangedEvent(this, prop, level));
+            logManagerProvider.ifAvailable(lm -> lm.setLevel(name, level));
          }
          catch(IllegalArgumentException exc) {
             // log is not initialized yet, use standard error
@@ -738,7 +659,7 @@ public class PropertiesEngine {
                prop.substring(4, prop.indexOf('.', 4)));
             String contextName = prop.substring(prop.indexOf('.', 4) + 7);
             LogLevel level = LogManager.parseLevel(val);
-            eventPublisher.publishEvent(new LogLevelChangedEvent(this, context, contextName, level));
+            logManagerProvider.ifAvailable(lm -> lm.setContextLevel(context, contextName, level));
          }
          catch(IllegalArgumentException exc) {
             // log is not initialized yet, use standard error
@@ -766,15 +687,16 @@ public class PropertiesEngine {
       }
 
       String discriminator = getProperty("log.file.discriminator");
-      boolean console = "true".equals(getProperty("log.output.stderr"));
+      boolean console = !"true".equals(System.getProperty("ScheduleServer")) &&
+         "true".equals(getProperty("log.output.stderr"));
       String performanceLevel = getProperty("log.level." + LogUtil.PERFORMANCE_LOGGER_NAME);
       long maxSize = Long.parseLong(getProperty("report.log.max"));
       int maxCount = Integer.parseInt(Objects.toString(getProperty("report.log.count"), "10"));
       boolean performance = performanceLevel != null &&
          !LogLevel.OFF.level().equalsIgnoreCase(performanceLevel) &&
          LogManager.parseLevel(prop) != null;
-      eventPublisher.publishEvent(new LogResetEvent(
-         this, logFile, discriminator, console, maxSize, maxCount, performance));
+      logManagerProvider.ifAvailable(lm -> lm.initialize(
+         logFile, discriminator, console, maxSize, maxCount, performance));
    }
 
    /**
@@ -1110,18 +1032,16 @@ public class PropertiesEngine {
       private final List<PropertyChange> changes;
    }
 
-//   private final LogManager logManager;
    private final KeyValueStorageManager keyValueStorageManager;
    private final FileSystemService fileSystemService;
    private final ApplicationEventPublisher eventPublisher;
+   private final ObjectProvider<LogManager> logManagerProvider;
    private final Set<String> changedProps = new TreeSet<>();
    private final PropertyChangeSupport support = new PropertyChangeSupport(PropertiesEngine.class);
    private KeyValueStorage<String> kvStorage;
-   private Properties earlyLoadedProperties;
    private Properties internalProperties;
    private Properties defaultProperties;
    private final Lock propertiesLock = new ReentrantLock();
-   private final Lock earlyLoadedPropertiesLock = new ReentrantLock();
    private final DefaultDebouncer<String> debouncer = new DefaultDebouncer<>();
    private final Map<String, Object> cache = new ConcurrentHashMap<>(); // cached objects
    private final Map<String, Font> fontMap = new ConcurrentHashMap<>();

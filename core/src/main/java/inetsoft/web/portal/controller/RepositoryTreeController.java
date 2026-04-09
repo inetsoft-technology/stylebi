@@ -184,7 +184,7 @@ public class RepositoryTreeController {
          new RepositoryEntry(path, RepositoryEntry.FOLDER);
       RepositoryEntry[] pentries = getParentEntries(isArchive, parentEntry, path);
       RepositoryEntry[] entries = null;
-      AnalyticEngine engine = (AnalyticEngine) analyticRepository;
+      AnalyticEngine engine = analyticRepository.unwrap(AnalyticEngine.class);
       ResourceAction action = ResourceAction.valueOf(permission);
 
       // hyperlink asset tree need to check the detail type.
@@ -275,7 +275,7 @@ public class RepositoryTreeController {
                                                  boolean isFavoritesTree, boolean isGlobal,
                                                  boolean isPortalData, boolean showVS) throws Exception
    {
-      AnalyticEngine engine = (AnalyticEngine) analyticRepository;
+      AnalyticEngine engine = analyticRepository.unwrap(AnalyticEngine.class);
       RepositoryEntry[] entries = engine.getDefaultOrgRepositoryEntries(principal);
       List<TreeNodeModel> folderNodes = new ArrayList<>();
       List<TreeNodeModel> fileNodes = new ArrayList<>();

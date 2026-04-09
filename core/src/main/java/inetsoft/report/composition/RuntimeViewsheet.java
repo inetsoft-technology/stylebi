@@ -205,7 +205,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
       preview = state.isPreview();
       needRefresh = state.isNeedsRefresh();
       mode = state.getMode();
-      rep = (AssetRepository) AnalyticAssistant.getAnalyticAssistant().getAnalyticRepository();
+      rep = AnalyticAssistant.getAnalyticAssistant().getAnalyticRepository().unwrap(AssetRepository.class);
 
       //need to recover worksheet before setting box
       vs.repopulateWorksheet(rep, user);

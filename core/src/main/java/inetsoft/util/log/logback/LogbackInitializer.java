@@ -154,12 +154,16 @@ public class LogbackInitializer implements LogInitializer {
 
    @Override
    public void reset() {
-      LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-      context.reset();
-      // use basic console logging when not configured
-      Logger rootLogger = context.getLogger(Logger.ROOT_LOGGER_NAME);
-      rootLogger.setLevel(Level.ERROR);
-      rootLogger.addAppender(createConsoleAppender(context));
+      try {
+         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+         context.reset();
+         // use basic console logging when not configured
+         Logger rootLogger = context.getLogger(Logger.ROOT_LOGGER_NAME);
+         rootLogger.setLevel(Level.ERROR);
+         rootLogger.addAppender(createConsoleAppender(context));
+      }
+      catch(ShutdownException ignore) {
+      }
    }
 
    private PatternLayoutEncoder createEncoder(LoggerContext context) {
@@ -170,7 +174,7 @@ public class LogbackInitializer implements LogInitializer {
       PatternLayoutEncoder encoder = new PatternLayoutEncoder();
       encoder.setContext(context);
       String pattern = startup
-         ? SreeEnv.getEarlyLoadedProperty("log.message.pattern")
+         ? "%d %level %property{LOCAL_IP_ADDR} [%mdc] %c{1}: %message %n%ex" // don't look up, Spring not initialized yet
          : SreeEnv.getProperty("log.message.pattern");
       encoder.setPattern(pattern);
       encoder.start();

@@ -2417,7 +2417,7 @@ public class AssetUtil {
       }
 
       if(rep == null) {
-         rep = (AssetRepository) AnalyticRepository.getInstance();
+         rep = AnalyticRepository.getInstance().unwrap(AssetRepository.class);
       }
 
       return rep;

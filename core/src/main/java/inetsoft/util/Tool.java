@@ -3525,7 +3525,7 @@ public final class Tool extends CoreTool {
       }
 
       if((name != null && name.length() > 0 && !name.startsWith("localhost")) ||
-         !OperatingSystem.isUnix())
+         !SystemUtils.IS_OS_UNIX)
       {
          return name;
       }
@@ -3587,7 +3587,7 @@ public final class Tool extends CoreTool {
       }
 
       if(phyip != null && phyip.length() > 0 && !phyip.equals("127.0.0.1") ||
-         !OperatingSystem.isUnix())
+         !SystemUtils.IS_OS_UNIX)
       {
          return phyip;
       }
@@ -3597,7 +3597,7 @@ public final class Tool extends CoreTool {
       //bug1407894598896
       //if the os is unix/mac and the network is unavailable
       //the return ip is null, try to avoid it
-      if(phyip == null && OperatingSystem.isUnix()) {
+      if(phyip == null && SystemUtils.IS_OS_UNIX) {
          try {
             phyip = InetAddress.getLocalHost().getHostAddress();
          }
@@ -3617,10 +3617,21 @@ public final class Tool extends CoreTool {
     * the sree.properties file, in which case it returns "localhost").
     */
    public static String getRmiIP() {
-      final String rmilocalhostip = SreeEnv.getProperty("rmi.localhost.ip");
+      return getRmiIP(false);
+   }
 
-      if(rmilocalhostip != null && rmilocalhostip.length() > 0 &&
-         rmilocalhostip.trim().equalsIgnoreCase("true"))
+   public static String getRmiIP(boolean early) {
+      String rmiLocalhostIp;
+
+      if(early) {
+         rmiLocalhostIp = SreeEnv.getEarlyLoadedProperty("rmi.localhost.ip");
+      }
+      else {
+         rmiLocalhostIp = SreeEnv.getProperty("rmi.localhost.ip");
+      }
+
+      if(rmiLocalhostIp != null && !rmiLocalhostIp.isEmpty() &&
+         rmiLocalhostIp.trim().equalsIgnoreCase("true"))
       {
          return "localhost";
       }

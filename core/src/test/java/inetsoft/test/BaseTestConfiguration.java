@@ -31,6 +31,7 @@ import inetsoft.uql.util.XSessionService;
 import inetsoft.util.*;
 import inetsoft.util.config.*;
 import inetsoft.util.log.LogManager;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -110,9 +111,11 @@ public class BaseTestConfiguration {
    @Bean
    public PropertiesEngine propertiesEngine(KeyValueStorageManager keyValueStorageManager,
                                             FileSystemService fileSystemService,
-                                            ApplicationEventPublisher eventPublisher)
+                                            ApplicationEventPublisher eventPublisher,
+                                            ObjectProvider<LogManager> logManagerProvider)
    {
-      return new PropertiesEngine(keyValueStorageManager, fileSystemService, eventPublisher);
+      return new PropertiesEngine(keyValueStorageManager, fileSystemService, eventPublisher,
+                                  logManagerProvider);
    }
 
    @Bean

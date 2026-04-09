@@ -88,9 +88,9 @@ public class RootAppAccessController {
     * Check if the access matches license.
     */
    private boolean checkAccess(Principal principal) {
-      if(assetRepository instanceof AnalyticEngine) {
+      if(assetRepository.isWrapperFor(AnalyticEngine.class)) {
          try {
-            ((AnalyticEngine) assetRepository).checkAccess(principal);
+            assetRepository.unwrap(AnalyticEngine.class).checkAccess(principal);
          }
          catch(RepletException ex) {
             return false;

@@ -22,16 +22,12 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.internal.LicenseException;
-import inetsoft.sree.SreeEnv;
-import inetsoft.sree.UserEnv;
-import inetsoft.sree.internal.RMICallThread;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.util.*;
 import inetsoft.util.health.HealthService;
 import inetsoft.util.health.HealthStatus;
-import inetsoft.util.log.LogManager;
-import org.springframework.beans.factory.annotation.Autowired;
 import inetsoft.web.admin.monitoring.StatusMetricsType;
 import inetsoft.web.admin.query.QueryService;
 import inetsoft.web.admin.schedule.ScheduleQueriesStatus;
@@ -41,15 +37,13 @@ import inetsoft.web.admin.server.ServerMetricsCalculator;
 import inetsoft.web.admin.viewsheet.ViewsheetModel;
 import inetsoft.web.admin.viewsheet.ViewsheetThreadModel;
 import inetsoft.web.cluster.ServerClusterClient;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.*;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
-import java.lang.management.ManagementFactory;
-import java.lang.management.RuntimeMXBean;
 import java.rmi.RemoteException;
-import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 import java.security.Principal;
 import java.util.*;
@@ -61,8 +55,13 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
    /**
     * Default constructor.
     */
-   public ScheduleServer() throws RemoteException {
+   public ScheduleServer(Cluster cluster, HealthService healthService,
+                         StatusDumpService statusDumpService) throws RemoteException
+   {
       super();
+      this.cluster = cluster;
+      this.healthService = healthService;
+      this.statusDumpService = statusDumpService;
    }
 
    /**
@@ -345,11 +344,15 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
       }
    }
 
-   @Autowired
-   private HealthService healthService;
-   @Autowired
-   private StatusDumpService statusDumpService;
-   private ServerMetricsCalculator metricsCalculator =
-      new ServerMetricsCalculator(new ServerClusterClient(), StatusMetricsType.SCHEDULE_METRICS);
+   @PostConstruct
+   private void init() {
+      metricsCalculator = new ServerMetricsCalculator(
+         new ServerClusterClient(false, cluster), StatusMetricsType.SCHEDULE_METRICS);
+   }
+
+   private final Cluster cluster;
+   private final HealthService healthService;
+   private final StatusDumpService statusDumpService;
+   private ServerMetricsCalculator metricsCalculator;
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleServer.class);
 }

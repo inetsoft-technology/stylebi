@@ -234,6 +234,16 @@ public class InetsoftConfig implements Serializable {
       return BOOTSTRAP_INSTANCE;
    }
 
+   public static void bootstrap() {
+      File configFile = getConfigFile();
+      boolean saveConfig = !configFile.exists();
+      BOOTSTRAP_INSTANCE = InetsoftConfig.load(configFile.toPath());
+
+      if(saveConfig) {
+         save(BOOTSTRAP_INSTANCE, configFile.toPath());
+      }
+   }
+
    /**
     * Creates the default configuration.
     *

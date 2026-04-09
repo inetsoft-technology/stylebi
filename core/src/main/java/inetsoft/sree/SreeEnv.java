@@ -40,15 +40,14 @@ import java.util.function.Supplier;
  * @version 3.0, 5/10/2000
  * @author InetSoft Technology Corp
  */
-@SuppressWarnings("deprecation")
 public class SreeEnv {
 
    public static String getEarlyLoadedProperty(String name) {
-      return PropertiesEngine.getInstance().getProperty(name, true);
+      return EarlyLoadedProperties.getInstance().getProperty(name.toLowerCase());
    }
 
    public static String getEarlyLoadedProperty(String name, String def) {
-      return PropertiesEngine.getInstance().getProperty(name, def, true);
+      return EarlyLoadedProperties.getInstance().getProperty(name.toLowerCase(), def);
    }
 
    public static String getProperty(String name) {

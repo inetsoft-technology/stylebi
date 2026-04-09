@@ -34,6 +34,7 @@ import inetsoft.report.internal.license.*;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.*;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.ignite.IgniteCluster;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityProvider;
@@ -183,16 +184,13 @@ public class EngineConfiguration {
    }
 
    /**
-    * The distributed cluster. In the normal server startup path this wraps the instance
-    * pre-created by {@code BaseInetsoftApplication.start()} (before Spring runs). The
-    * {@code InetsoftConfig} parameter ensures the config bean is resolved first.
-    * {@code destroyMethod=""} prevents Spring from auto-calling {@code close()} — lifecycle
-    * is managed by {@code BaseInetsoftApplication.shutdownInetsoft()}.
+    * The distributed cluster. The {@code InetsoftConfig} parameter ensures the config bean is
+    * resolved first. {@code destroyMethod=""} prevents Spring from auto-calling {@code close()} —
+    * lifecycle is managed by {@code BaseInetsoftApplication.shutdownInetsoft()}.
     */
    @Bean(destroyMethod = "")
    public Cluster cluster(InetsoftConfig config) {
-      // Return the instance pre-created by BaseInetsoftApplication.start() before Spring ran.
-      return Cluster.getInstance();
+      return new IgniteCluster();
    }
 
    /**
