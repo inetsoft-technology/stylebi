@@ -3935,6 +3935,32 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
+    * Split an input assembly's pixel bounds into [labelBounds, widgetBounds].
+    * Returns null if the assembly has no visible label.
+    * The returned bounds are in the viewsheet pixel coordinate space.
+    */
+   protected static Rectangle2D[] splitInputPixelBounds(VSAssemblyInfo info, Viewsheet vs) {
+      if(!(info instanceof InputVSAssemblyInfo)) {
+         return null;
+      }
+
+      InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
+      LabelInfo labelInfo = inputInfo.getLabelInfo();
+
+      if(labelInfo == null || !labelInfo.isLabelVisible() ||
+         labelInfo.getLabelText() == null || labelInfo.getLabelText().isEmpty())
+      {
+         return null;
+      }
+
+      Point pos = vs.getPixelPosition(info);
+      Dimension size = vs.getPixelSize(info);
+      Rectangle2D pixelBounds = new Rectangle2D.Double(pos.x, pos.y, size.width, size.height);
+      Rectangle2D fullBounds = expandBoundsForLabel(pixelBounds, labelInfo);
+      return splitInputBounds(fullBounds, labelInfo);
+   }
+
+   /**
     * Get [width, height] for the label, matching VsToReportConverter.addInputLabel().
     */
    private static int[] getLabelDimensions(LabelInfo labelInfo) {
