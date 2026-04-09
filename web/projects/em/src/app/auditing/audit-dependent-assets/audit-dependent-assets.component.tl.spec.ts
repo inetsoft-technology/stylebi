@@ -156,13 +156,13 @@ describe("AuditDependentAssetsComponent — onDependentTypesChange", () => {
       expect(comp.dependentUsers).toEqual([NONE_USER]);
    });
 
-   // P0 / Bug #74453 — dependentUsers initial reference is stale after fetchParameters
+   // P0 / Bug #74453(fixed) — dependentUsers initial reference is stale after fetchParameters
    // dependentUsers is initialized as `this.allUsers` (reference to the initial []).
    // fetchParameters tap() reassigns this.allUsers to a brand-new array, breaking the
    // reference: dependentUsers still points to the old [] and stays empty until
    // onDependentTypesChange is triggered manually by the user.
    // Fix: reassign dependentUsers inside the tap() alongside allUsers.
-   it.failing("should populate dependentUsers after fetchParameters resolves without any type-change interaction", async () => {
+   it("should populate dependentUsers after fetchParameters resolves without any type-change interaction", async () => {
       const { fixture } = await renderComponent();
       const comp = fixture.componentInstance;
 
