@@ -22,8 +22,8 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.web.composer.model.*;
 import inetsoft.web.wiz.WizUtil;
-import inetsoft.web.wiz.model.DatabaseTableMeta;
 import inetsoft.web.wiz.model.WorksheetMeta;
+import inetsoft.web.wiz.model.osi.OsiDataset;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
 import inetsoft.web.wiz.service.MetadataApiService;
 import org.springframework.web.bind.annotation.*;
@@ -38,7 +38,7 @@ public class DatasourceMetaApiController {
    }
 
    @PostMapping("/datasource/table/meta")
-   public DatabaseTableMeta getDatabaseTableMeta(
+   public OsiDataset getDatabaseTableMeta(
       @RequestBody GetDatabaseTableMetaRequest data)
       throws Exception
    {
