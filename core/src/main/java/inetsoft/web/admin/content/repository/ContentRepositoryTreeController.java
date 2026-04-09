@@ -42,6 +42,13 @@ public class ContentRepositoryTreeController {
    /**
     * Get the repository tree root
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/tree")
    public ContentRepositoryTreeModel getRepositoryTree(@RequestBody List<String> usersToLoad,
                                                        Principal principal) throws Exception
@@ -56,6 +63,13 @@ public class ContentRepositoryTreeController {
       return new ContentRepositoryTreeModel(nodes);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/private/tree")
    public ContentRepositoryTreeModel getRepositoryPrivateTree(@RequestBody CommonKVModel<String, String>[] users,
                                                               Principal principal) throws Exception
@@ -81,6 +95,11 @@ public class ContentRepositoryTreeController {
    /**
     * Get the repository tree node
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.EM_COMPONENT,
+      resource = "settings/content/repository",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("/api/em/content/repository/tree")
    public ContentRepositoryTreeModel getRepositoryTree(@DecodeParam("path") String path,
                                                        @DecodeParam("owner") String owner,

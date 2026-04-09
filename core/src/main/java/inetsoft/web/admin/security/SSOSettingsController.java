@@ -27,13 +27,19 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@DeniedMultiTenancyOrgUser
 public class SSOSettingsController {
    @Autowired
    public SSOSettingsController(SSOSettingsService service) {
       this.service = service;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/sso",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/sso/settings")
    public SSOSettingsModel getSSOSettings(Principal principal) {
       final SAMLAttributesModel samlAttributesModel = service.buildSAMLModel();

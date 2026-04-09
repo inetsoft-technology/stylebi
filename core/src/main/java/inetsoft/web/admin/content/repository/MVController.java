@@ -33,6 +33,8 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.security.ConnectionStatus;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,6 +63,18 @@ public class MVController {
          .build();
    }
 
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping("/api/em/content/repository/mv/analyze")
    public void analyze(@RequestBody AnalyzeMVRequest analyzeMVRequest, HttpServletRequest req,
                        Principal principal)
@@ -71,6 +85,13 @@ public class MVController {
       session.setAttribute("mv_jobs", jobs);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/materialized-view/check-analysis")
    public AnalyzeMVResponse checkStatus(HttpServletRequest req, Principal principal)
       throws Exception
@@ -87,6 +108,18 @@ public class MVController {
       return response;
    }
 
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @GetMapping("/api/em/content/repository/mv/get-model")
    @SuppressWarnings("unchecked")
    public AnalyzeMVResponse getModel(HttpServletRequest req,
@@ -115,6 +148,18 @@ public class MVController {
          .build();
    }
 
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping("/api/em/content/repository/mv/show-plan")
    public String showPlan(HttpServletRequest req,
                           @RequestBody CreateUpdateMVRequest createUpdateMVRequest)
@@ -129,6 +174,18 @@ public class MVController {
       return info.toString();
    }
 
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping("/api/em/content/repository/mv/create")
    public CreateMVResponse create(HttpServletRequest req,
                       @RequestParam(name = "createId", required = false) String createId,
@@ -229,6 +286,18 @@ public class MVController {
       }
    }
 
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping("/api/em/content/repository/mv/set-cycle")
    public void setCycle(HttpServletRequest req,
                         @RequestBody CreateUpdateMVRequest createUpdateMVRequest)
@@ -240,12 +309,23 @@ public class MVController {
                            createUpdateMVRequest.cycle());
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/mv/exceptions")
-   public MVExceptionResponse setCycle(HttpServletRequest req) {
+   public MVExceptionResponse getExceptions(HttpServletRequest req) {
       HttpSession session = req.getSession(true);
       MVSupportService.AnalysisResult jobs = (MVSupportService.AnalysisResult) session.getAttribute("mv_jobs");
       List<UserInfo> exceptions = jobs == null ? null : jobs.getExceptions();
-      assert exceptions != null;
+
+      if(exceptions == null) {
+         return MVExceptionResponse.builder().exceptions(List.of()).build();
+      }
+
       List<MVExceptionModel> exceptionModels = exceptions.stream()
          .map(exception -> MVExceptionModel.builder()
             .viewsheet(exception.getSheetName())
@@ -254,6 +334,13 @@ public class MVController {
       return MVExceptionResponse.builder().exceptions(exceptionModels).build();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/materialized-view/info")
    public MVManagementModel getMVInfo(@RequestBody(required = false) AnalyzeMVRequest nodes,
                                       Principal principal)
@@ -275,6 +362,18 @@ public class MVController {
       return mvService.getMVInfo(ids, principal);
    }
 
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/materialized-views",
+         actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping("/api/em/content/materialized-view/analysis")
    public AnalyzeMVResponse analyze(@RequestBody MVManagementModel model,
                                     HttpServletRequest request,
@@ -288,6 +387,13 @@ public class MVController {
       return checkStatus(request, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/materialized-view/remove")
    public void deleteMVs(@RequestBody MVManagementModel model) {
       support.dispose(
@@ -298,6 +404,18 @@ public class MVController {
       );
    }
 
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/materialized-views",
+         actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping("/api/em/content/materialized-view/date-as-ages")
    public void setShowAges(@RequestBody MVManagementModel model) throws Exception {
       String showDateAsAges = model.showDateAsAges() ? "true" : "false";
@@ -305,12 +423,36 @@ public class MVController {
       SreeEnv.save();
    }
 
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/materialized-views",
+         actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping("/api/em/content/materialized-view/data-cycle")
    public void setDataCycle(@RequestBody MVManagementModel model) {
       String[] mvNames = model.mvs().stream().map(MaterializedModel::name).toArray(String[]::new);
       support.setDataCycle(mvNames, model.cycle());
    }
 
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/materialized-views",
+         actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping("/api/em/content/materialized-view/update")
    public ConnectionStatus updateMaterializedViews(@RequestBody MVManagementModel model,
                                                    Principal principal) throws Throwable
@@ -347,6 +489,13 @@ public class MVController {
       return MVHasPermissionModel.builder().allow(canMaterialize).build();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/asset-exists")
    public boolean mvAssetExists(@RequestParam("path") String path, Principal principal) {
       try {

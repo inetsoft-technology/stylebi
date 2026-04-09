@@ -21,7 +21,8 @@ import inetsoft.mv.MVManager;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
-import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.util.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Scope;
@@ -62,6 +63,12 @@ public class MVChangeController implements MessageListener {
 
    @SubscribeMapping(CHANGE_TOPIC)
    public void subscribeToTopic(Principal principal) throws Exception {
+      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "settings/content/materialized-views", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to MV changes by user " + principal.getName());
+      }
+
       this.principal = principal;
    }
 

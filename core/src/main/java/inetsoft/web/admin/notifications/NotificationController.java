@@ -17,8 +17,12 @@
  */
 package inetsoft.web.admin.notifications;
 
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.web.notifications.NotificationMessage;
 import inetsoft.web.notifications.NotificationService;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -29,6 +33,13 @@ public class NotificationController {
       this.notificationService = notificationService;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "notification",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/notify")
    public void sendMessage(@RequestBody NotificationMessage message) throws Exception {
       notificationService.sendNotification(message.message());

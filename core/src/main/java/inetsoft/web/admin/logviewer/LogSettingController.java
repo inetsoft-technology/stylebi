@@ -17,6 +17,10 @@
  */
 package inetsoft.web.admin.logviewer;
 
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -29,11 +33,25 @@ public class LogSettingController {
       this.logSettingService = logSettingService;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/logging",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/log/setting/get-configuration")
    public LogSettingsModel getLogSettings() {
       return logSettingService.getConfiguration();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/logging",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/log/setting/set-configuration")
    public void setLogSettings(@RequestBody() LogSettingsModel model, Principal principal) {
       logSettingService.setConfiguration(model, principal);

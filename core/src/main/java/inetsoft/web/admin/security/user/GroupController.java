@@ -32,6 +32,13 @@ public class GroupController {
       this.userTreeService = userTreeService;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/security/providers/{provider}/create-group")
    public EditGroupPaneModel createGroup(@DecodePathVariable("provider") String provider,
                                          @RequestBody CreateEntityRequest createRequest,
@@ -40,9 +47,14 @@ public class GroupController {
       return userTreeService.createGroup(provider, createRequest.parentGroup(), principal);
    }
 
-   @Secured(
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      ),
       @RequiredPermission(resourceType = ResourceType.SECURITY_GROUP, actions = ResourceAction.ADMIN)
-   )
+   })
    @PostMapping("/api/em/security/providers/{provider}/groups/{group}/")
    public void editGroup(@DecodePathVariable("provider") String provider,
                          @PermissionPath @DecodePathVariable("group") String group,
@@ -54,9 +66,14 @@ public class GroupController {
    }
 
    @GetMapping("/api/em/security/providers/{provider}/groups/{group}/")
-   @Secured(
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      ),
       @RequiredPermission(resourceType = ResourceType.SECURITY_GROUP, actions = ResourceAction.ADMIN)
-   )
+   })
    public EditGroupPaneModel getGroupModel(@DecodePathVariable("provider") String provider,
                                @PermissionPath @DecodePathVariable(value = "group") String group,
                                Principal principal)

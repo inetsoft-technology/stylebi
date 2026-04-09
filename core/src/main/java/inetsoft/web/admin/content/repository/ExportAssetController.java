@@ -18,10 +18,14 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.util.*;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.deploy.DeployService;
 import inetsoft.web.admin.deploy.ExportJarProperties;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,6 +45,13 @@ public class ExportAssetController {
       this.deployService = deployService;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/export/check-permission")
    public void checkAssetPermission(@RequestBody() SelectedAssetModelList assets,
                                     HttpServletRequest request, Principal principal)
@@ -60,11 +71,25 @@ public class ExportAssetController {
       });
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/export/check-permission/status")
    public ResponseEntity<ExportStatusModel> getAssetPermissionStatus(HttpServletRequest request) {
       return getStatus(PERM_ATTR, request);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/export/check-permission/value")
    public SelectedAssetModelList getAssetPermissionValue(HttpServletRequest request) throws Exception {
       try {
@@ -75,6 +100,13 @@ public class ExportAssetController {
       }
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/export/get-dependent-assets")
    public void getDependentAssets(@RequestBody() SelectedAssetModelList selectedEntities,
                                   HttpServletRequest request, Principal principal)
@@ -95,11 +127,25 @@ public class ExportAssetController {
       });
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/export/get-dependent-assets/status")
    public ResponseEntity<ExportStatusModel> getDependentAssetsStatus(HttpServletRequest request) {
       return getStatus(DEPS_ATTR, request);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/export/get-dependent-assets/value")
    public RequiredAssetModelList getDependentAssetsValue(HttpServletRequest request)
       throws Exception
@@ -112,6 +158,13 @@ public class ExportAssetController {
       }
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/export/create")
    public void createExport(HttpServletRequest req,
                             @RequestBody() ExportedAssetsModel exportedAssetsModel,
@@ -135,11 +188,25 @@ public class ExportAssetController {
       });
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/export/create/status")
    public ResponseEntity<ExportStatusModel> getCreateExportStatus(HttpServletRequest request) {
       return getStatus(PROPS_ATTR, request);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/content/repository/export/download")
    public void downloadJar(HttpServletRequest req, HttpServletResponse res)
       throws Exception

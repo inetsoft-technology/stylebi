@@ -27,7 +27,10 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.log.*;
 import inetsoft.web.MapSessionRepository;
 import inetsoft.web.admin.security.PropertyModel;
-import inetsoft.web.security.DeniedMultiTenancyOrgUser;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import inetsoft.web.viewsheet.AuditObjectName;
 import inetsoft.web.viewsheet.Audited;
 
@@ -40,7 +43,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@DeniedMultiTenancyOrgUser
 public class PropertiesController {
    @Autowired
    private AssetRepository assetRepository;
@@ -49,6 +51,13 @@ public class PropertiesController {
       actionName = ActionRecord.ACTION_NAME_DELETE,
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY,
       defaultOrg = true
+   )
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/properties",
+         actions = ResourceAction.ACCESS
+      )
    )
    @DeleteMapping("/api/admin/properties/delete")
    public void deleteProperty(Principal user,
@@ -69,6 +78,13 @@ public class PropertiesController {
       actionName = ActionRecord.ACTION_NAME_EDIT,
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY,
       defaultOrg = true
+   )
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/properties",
+         actions = ResourceAction.ACCESS
+      )
    )
    @PutMapping("/api/admin/properties/edit")
    public void editProperty(Principal user,
@@ -108,6 +124,13 @@ public class PropertiesController {
       }
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/properties",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/admin/properties")
    public Properties getProperties() {
       Properties properties = SreeEnv.getProperties();
@@ -119,6 +142,13 @@ public class PropertiesController {
       return properties;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/properties",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/admin/properties/defaults")
    public Properties getDefaultProperties() {
       Properties properties = SreeEnv.getDefaultProperties();

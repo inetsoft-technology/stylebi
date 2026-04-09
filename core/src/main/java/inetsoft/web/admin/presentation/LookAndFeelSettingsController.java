@@ -19,6 +19,8 @@ package inetsoft.web.admin.presentation;
 
 import inetsoft.sree.security.*;
 import inetsoft.web.admin.presentation.model.GetAllIdentitiesResponse;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -41,6 +43,13 @@ public class LookAndFeelSettingsController<K extends String, V extends Multipart
       this.securityProvider = securityProvider;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/presentation/settings",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/presentation/look-and-feel/identities")
    public GetAllIdentitiesResponse getIdentities(Principal principal) {
       return GetAllIdentitiesResponse.builder()

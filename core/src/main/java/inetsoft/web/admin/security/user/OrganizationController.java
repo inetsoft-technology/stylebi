@@ -47,6 +47,13 @@ public class OrganizationController {
    }
 
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/security/users/create-organization/{provider}")
    public EditOrganizationPaneModel createOrganization(Principal principal,
                                        @DecodePathVariable("provider") String provider,
@@ -64,11 +71,16 @@ public class OrganizationController {
    }
 
    @GetMapping("/api/em/security/providers/{provider}/organization/{organization}/")
-   @Secured(
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      ),
       @RequiredPermission(
          resourceType = ResourceType.SECURITY_ORGANIZATION,
          actions = ResourceAction.ADMIN)
-   )
+   })
    public EditOrganizationPaneModel getOrganization(@DecodePathVariable("provider") String provider,
                                     @PermissionPath @DecodePathVariable("organization") String organizationId,
                                     Principal principal)
@@ -77,6 +89,7 @@ public class OrganizationController {
       return userTreeService.getOrganizationModel(provider, identityID, principal, false, null);
    }
 
+   // No @Secured: non-site-admins are scoped to their own org below, so no data is leaked.
    @GetMapping("/api/em/security/users/get-all-organization-names/")
    public List<String> getAllOrganizationNames(Principal principal)
    {
@@ -84,9 +97,16 @@ public class OrganizationController {
          return new ArrayList<>();
       }
 
+      if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
+         String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+         String orgName = SecurityEngine.getSecurity().getSecurityProvider().getOrgNameFromID(orgID);
+         return orgName != null ? List.of(orgName) : new ArrayList<>();
+      }
+
       return Arrays.stream(SecurityEngine.getSecurity().getSecurityProvider().getOrganizationNames()).toList();
    }
 
+   // No @Secured: non-site-admins are scoped to their own org below, so no data is leaked.
    @GetMapping("/api/em/security/users/get-all-organization-ids/")
    public List<String> getAllOrganizationIDs(Principal principal)
    {
@@ -94,9 +114,21 @@ public class OrganizationController {
          return new ArrayList<>();
       }
 
+      if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
+         String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+         return orgID != null ? List.of(orgID) : new ArrayList<>();
+      }
+
       return Arrays.stream(SecurityEngine.getSecurity().getSecurityProvider().getOrganizationIDs()).toList();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/security/users/get-all-organizations")
    public List<IdentityID> getAllOrganizationIdentityIDs(@RequestParam("name") String name,
                                                          Principal principal)
@@ -107,12 +139,23 @@ public class OrganizationController {
 
       AuthenticationProvider provider = authenticationProviderService.getProviderByName(name);
 
+      if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
+         String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+         String orgName = provider.getOrgNameFromID(orgID);
+         return orgName != null ? List.of(new IdentityID(orgName, orgID)) : new ArrayList<>();
+      }
+
       return Arrays.stream(provider.getOrganizationIDs())
          .map(id -> new IdentityID(provider.getOrgNameFromID(id), id)).toList();
    }
 
    @GetMapping("/api/em/security/users/get-organization-detail-string/{orgID}")
    @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      ),
       @RequiredPermission(
          resourceType = ResourceType.SECURITY_ORGANIZATION,
          actions = ResourceAction.ADMIN
@@ -126,6 +169,11 @@ public class OrganizationController {
 
    @PostMapping("/api/em/security/users/edit-organization/{provider}")
    @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      ),
       @RequiredPermission(
          resourceType = ResourceType.SECURITY_ORGANIZATION,
          actions = ResourceAction.ADMIN

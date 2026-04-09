@@ -18,20 +18,16 @@
 package inetsoft.web.portal.controller;
 
 import inetsoft.sree.SreeEnv;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 public class ScheduleTaskShowType {
-   public ScheduleTaskShowType() {
-   }
-
-   @GetMapping("/api/em/schedule/change-show-type")
+   @GetMapping("/api/portal/schedule/change-show-type")
    public boolean getScheduleTaskShowType() {
       return SreeEnv.getBooleanProperty("schedule.show.tasks.as.list", "true");
    }
 
-   @PutMapping("/api/em/schedule/change-show-type")
+   @PutMapping("/api/portal/schedule/change-show-type")
    public void setConfiguration(@RequestParam("showTasksAsList") String showTasksAsList) {
       SreeEnv.setProperty("schedule.show.tasks.as.list", showTasksAsList);
    }

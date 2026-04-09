@@ -30,6 +30,8 @@ import inetsoft.web.admin.content.repository.model.ExportedAssetsModel;
 import inetsoft.web.admin.content.repository.model.ImportAssetResponse;
 import inetsoft.web.admin.deploy.*;
 import inetsoft.web.admin.model.FileData;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
@@ -53,6 +55,13 @@ public class ImportAssetController {
          .build();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/set-jar-file")
    public ExportedAssetsModel setJarFile(
       @RequestBody FileData file, HttpServletRequest request,
@@ -76,6 +85,13 @@ public class ImportAssetController {
       return getJarInfo(null, request, principal, isImportAsSiteAdmin);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/update-import-info")
    public ExportedAssetsModel updateImportInfo(
       HttpServletRequest request,
@@ -97,6 +113,13 @@ public class ImportAssetController {
       return getJarInfo(targetFolderInfo, request, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/get-jar-file-info")
    public ExportedAssetsModel getJarFileInfo(
       HttpServletRequest request,
@@ -105,6 +128,13 @@ public class ImportAssetController {
       return getJarInfo(null, request, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/import/{overwriting}")
    public ImportAssetResponse importAsset(
       HttpServletRequest req, Principal principal,
@@ -184,6 +214,13 @@ public class ImportAssetController {
       return ImportAssetResponse.builder().complete(false).build();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/import/clear-cache")
    public void importFinish(HttpServletRequest req) {
       HttpSession session = req.getSession(false);
