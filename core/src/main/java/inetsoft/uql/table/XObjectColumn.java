@@ -508,6 +508,11 @@ public final class XObjectColumn extends AbstractTableColumn {
       }
       catch(Exception ex) {
          LOG.error("Failed to read data", ex);
+         // Ensure arr is never null even if deserialization fails (e.g. old Kryo4 data
+         // in imported VSO files), so access() does not return null and cause NPE. (74483)
+         if(this.arr == null) {
+            this.arr = new Object[pos];
+         }
       }
    }
 
@@ -558,6 +563,11 @@ public final class XObjectColumn extends AbstractTableColumn {
             if(arr == null) {
                load();
                arr = this.arr;
+
+               // load() may not set arr (e.g. swapsize == 0). Defend against NPE. (74483)
+               if(arr == null) {
+                  arr = this.arr = new Object[pos];
+               }
             }
          }
       }
