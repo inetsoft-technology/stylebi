@@ -827,7 +827,7 @@ public abstract class Legend extends BoundedContainer {
     */
    public void paintContent(Graphics2D g) {
       paintBg(g, getContentPreferredBounds(),
-              frame.getLegendSpec().getTextSpec().getBackground());
+              frame.getLegendSpec().getTextSpec().getBackground(), false);
 
       if(isScalar) {
          paintBand(g);
@@ -899,7 +899,7 @@ public abstract class Legend extends BoundedContainer {
 
       LegendSpec spec = frame.getLegendSpec();
 
-      paintBg(g, paintBounds, spec.getBackground());
+      paintBg(g, paintBounds, spec.getBackground(), true);
       paintTitle(g);
       // make sure content not paint to title, fix bug1244448217295
       Graphics2D g2 = (Graphics2D) g.create();
@@ -907,7 +907,7 @@ public abstract class Legend extends BoundedContainer {
 
       // textSpec background covers only the content (items) area, not the title row.
       // Paint it here on g2 after clipping to contentBounds to preserve the original scope.
-      paintBg(g2, getContentBounds(), spec.getTextSpec().getBackground());
+      paintBg(g2, getContentBounds(), spec.getTextSpec().getBackground(), false);
 
       // Belt-and-suspenders: also intersect with the rounded paint region when round corners
       // are enabled. In practice, getContentBounds() already insets by BORDER_PADDING (8px)
@@ -960,12 +960,16 @@ public abstract class Legend extends BoundedContainer {
 
    /**
     * Fill in background color.
+    * @param useRoundCorners true only when painting the outermost legend background rectangle
+    *   where rounded corners are intentional; false for inner regions (title row, content area)
+    *   that are always rectangular regardless of the round-corners setting.
     */
-   private void paintBg(Graphics2D g, Rectangle2D bounds, Color bg) {
+   private void paintBg(Graphics2D g, Rectangle2D bounds, Color bg, boolean useRoundCorners) {
       if(bg != null && paintBackground) {
          g.setColor(bg);
 
-         if(frame.getLegendSpec().isRoundCorners()) {
+         if(useRoundCorners && frame.getLegendSpec().isRoundCorners()) {
+            // arcWidth=arcHeight=20 → 10px corner radius, matching CSS border-radius:10px
             g.fill(new RoundRectangle2D.Double(bounds.getX(), bounds.getY(),
                                                bounds.getWidth(), bounds.getHeight(), 20, 20));
          }
@@ -995,7 +999,7 @@ public abstract class Legend extends BoundedContainer {
          title.setTextSpec(spec.getTitleTextSpec());
       }
 
-      paintBg(g2, getTitleBounds(), spec.getTitleTextSpec().getBackground());
+      paintBg(g2, getTitleBounds(), spec.getTitleTextSpec().getBackground(), false);
       title.paint(g2, paintBackground);
 
       if(spec.getBorder() != 0) {
@@ -1190,9 +1194,12 @@ public abstract class Legend extends BoundedContainer {
    // Spacing inset from each edge of the allocated bounds before painting background/border.
    // Creates a visible gap between adjacent legends. This value is propagated to the
    // LegendContainer web model so the Angular overlay wrapper offsets by the same amount.
+   // INVARIANT: BORDER_PADDING must be >= OUTER_GAP. Item layout starts at bounds + BORDER_PADDING
+   // while the painted background starts at bounds + OUTER_GAP. If OUTER_GAP ever exceeds
+   // BORDER_PADDING, items would render outside the visible painted background area.
    public static final int OUTER_GAP = 4;
    private static final int BAND_GAP = 10; // horizontal margin on each side of gradient band
-   private static final int BORDER_PADDING = 8;
+   private static final int BORDER_PADDING = 8; // must remain >= OUTER_GAP (see invariant above)
    private static final int TITLE_LEFT_PADDING = 2;
    private static final int TITLE_RIGHT_PADDING = 1;
    private static final int ITEM_LEFT_PADDING = TITLE_LEFT_PADDING;
