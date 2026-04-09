@@ -291,6 +291,8 @@ public class SelectionTreePropertyDialogController {
       Dimension size = viewsheet.getViewsheet().getPixelSize(streeInfo);
 
       if(newShowType == SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
+         // uses titleHeight directly rather than getBottomTabChildHeight() because
+         // the else branch handles showType transitions specific to property-apply
          size.height = streeInfo.getTitleHeight();
       }
       else if(oldShowType != newShowType) {
@@ -305,20 +307,18 @@ public class SelectionTreePropertyDialogController {
          }
       }
 
-      if(oldShowType != newShowType) {
-         VSAssembly container = selectionTreeAssembly.getContainer();
+      VSAssembly container = selectionTreeAssembly.getContainer();
 
-         if(container instanceof TabVSAssembly) {
-            TabVSAssemblyInfo tabInfo =
-               (TabVSAssemblyInfo) container.getVSAssemblyInfo();
+      if(container instanceof TabVSAssembly) {
+         TabVSAssemblyInfo tabInfo =
+            (TabVSAssemblyInfo) container.getVSAssemblyInfo();
 
-            if(tabInfo.getBottomTabsValue() && tabInfo.getPixelOffset() != null
-               && streeInfo.getPixelOffset() != null)
-            {
-               int tabTop = tabInfo.getPixelOffset().y;
-               int x = streeInfo.getPixelOffset().x;
-               streeInfo.setPixelOffset(new Point(x, tabTop - size.height));
-            }
+         if(tabInfo.getBottomTabsValue() && tabInfo.getPixelOffset() != null
+            && streeInfo.getPixelOffset() != null)
+         {
+            int tabTop = tabInfo.getPixelOffset().y;
+            int x = streeInfo.getPixelOffset().x;
+            streeInfo.setPixelOffset(new Point(x, tabTop - size.height));
          }
       }
 

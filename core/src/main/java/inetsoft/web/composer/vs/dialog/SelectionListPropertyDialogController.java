@@ -268,6 +268,8 @@ public class SelectionListPropertyDialogController {
       Dimension size = rvs.getViewsheet().getPixelSize(selectionListAssemblyInfo);
 
       if(showType == SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
+         // uses titleHeight directly rather than getBottomTabChildHeight() because
+         // showTypeValue hasn't been set on the info yet at this point
          size.height = selectionListAssemblyInfo.getTitleHeight();
       }
       else if(showType != oldShowType) {
@@ -276,21 +278,19 @@ public class SelectionListPropertyDialogController {
             selectionListAssemblyInfo.getCellHeight();
       }
 
-      if(oldShowType != showType) {
-         VSAssembly container = selectionListAssembly.getContainer();
+      VSAssembly container = selectionListAssembly.getContainer();
 
-         if(container instanceof TabVSAssembly) {
-            TabVSAssemblyInfo tabInfo =
-               (TabVSAssemblyInfo) container.getVSAssemblyInfo();
+      if(container instanceof TabVSAssembly) {
+         TabVSAssemblyInfo tabInfo =
+            (TabVSAssemblyInfo) container.getVSAssemblyInfo();
 
-            if(tabInfo.getBottomTabsValue() && tabInfo.getPixelOffset() != null
-               && selectionListAssemblyInfo.getPixelOffset() != null)
-            {
-               int tabTop = tabInfo.getPixelOffset().y;
-               int x = selectionListAssemblyInfo.getPixelOffset().x;
-               selectionListAssemblyInfo.setPixelOffset(
-                  new Point(x, tabTop - size.height));
-            }
+         if(tabInfo.getBottomTabsValue() && tabInfo.getPixelOffset() != null
+            && selectionListAssemblyInfo.getPixelOffset() != null)
+         {
+            int tabTop = tabInfo.getPixelOffset().y;
+            int x = selectionListAssemblyInfo.getPixelOffset().x;
+            selectionListAssemblyInfo.setPixelOffset(
+               new Point(x, tabTop - size.height));
          }
       }
 
