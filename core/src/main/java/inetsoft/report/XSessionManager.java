@@ -81,21 +81,6 @@ public class XSessionManager {
    }
 
    /**
-    * Restarts the session manager by tearing down and re-binding.
-    */
-   public static void restart() {
-      XSessionManager mgr = getSessionManager();
-      mgr.tearDown();
-
-      try {
-         mgr.rebind();
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to restart the session manager", ex);
-      }
-   }
-
-   /**
     * Create a session manager with specific key.
     */
    public XSessionManager(XDataService dataService, XSessionService sessionService,
@@ -108,7 +93,6 @@ public class XSessionManager {
 
    /**
     * Initializes cache settings, registers DataSourceRegistry listeners, and binds the session.
-    * Called by Spring after construction and by {@link #restart()} after a {@link #tearDown()}.
     */
    @PostConstruct
    public void initAfterCreate() throws RemoteException {
@@ -148,14 +132,6 @@ public class XSessionManager {
       dataSourceRegistry.removeRefreshedListener(refreshedListener);
       dataSourceRegistry.removeModifiedListener(modifiedListener);
       tearDown();
-   }
-
-   /**
-    * Re-acquires the data service and re-binds the session after a {@link #tearDown()}.
-    */
-   public void rebind() throws RemoteException {
-      service = XFactory.getDataService();
-      bind(System.getProperty("user.name"));
    }
 
    /**

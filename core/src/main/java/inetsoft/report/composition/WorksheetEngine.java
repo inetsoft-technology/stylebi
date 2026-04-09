@@ -59,7 +59,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    public WorksheetEngine(AssetRepository engine, Cluster cluster) throws RemoteException {
       this.cluster = cluster;
       cluster.registerSpringProxyPartitionedCache(CACHE_NAME);
-      amap = new RuntimeSheetCache(CACHE_NAME);
+      amap = new RuntimeSheetCache(cluster, CACHE_NAME);
       emap = new ConcurrentHashMap<>();
       executionMap = new ExecutionMap();
       renameInfoMap = new HashMap<>();

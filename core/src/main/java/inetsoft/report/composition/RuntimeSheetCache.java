@@ -52,8 +52,8 @@ import com.github.luben.zstd.ZstdInputStream;
 public class RuntimeSheetCache
    implements Map<String, RuntimeSheet>, Closeable
 {
-   public RuntimeSheetCache(String name) {
-      this.cluster = Cluster.getInstance();
+   public RuntimeSheetCache(Cluster cluster, String name) {
+      this.cluster = cluster;
       this.local = new LinkedHashMap<>();
       this.cache = getCache(cluster, name);
       this.maxSheetCount = getMaxSheetCount();

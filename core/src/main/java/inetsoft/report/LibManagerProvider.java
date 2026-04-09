@@ -60,8 +60,9 @@ public class LibManagerProvider {
 
    public LibManager getManager(String orgID) {
       lock.lock();
-      LibManager manager = managers.get(orgID);
       try {
+         LibManager manager = managers.get(orgID);
+
          if(manager == null) {
             manager = new LibManager(new NoopLibrarySecurity(), orgID, cluster, blobStorageManager);
             managers.put(orgID, manager);
@@ -69,12 +70,12 @@ public class LibManagerProvider {
          else {
             manager.getStorage();
          }
+
+         return manager;
       }
       finally {
          lock.unlock();
       }
-
-      return manager;
    }
 
    /**

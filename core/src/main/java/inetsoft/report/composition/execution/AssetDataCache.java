@@ -43,6 +43,7 @@ import inetsoft.web.messaging.MessageContextHolder;
 import inetsoft.web.vswizard.recommender.execution.WizardDataExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.beans.PropertyChangeListener;
 import java.security.Principal;
@@ -216,7 +217,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
     * @return the entries that is removed from the cache.
     */
    public List<AssemblyEntry> removeCacheDependence(String source) {
-      DistributedTableCacheStore store = DistributedTableCacheStore.getInstance();
+      DistributedTableCacheStore store = distributedTableCacheStoreProvider.getObject();
 
       // find entries matching the source
       List<DataKey> entries = dependenceMap.entrySet().stream()
@@ -245,7 +246,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
    }
 
    private Object removeCache(DataKey key) {
-      DistributedTableCacheStore store = DistributedTableCacheStore.getInstance();
+      DistributedTableCacheStore store = distributedTableCacheStoreProvider.getObject();
 
       if(store.exists(key)) {
          store.remove(key);
@@ -505,7 +506,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
 
          // check for distributed cache data
          if(data == null) {
-            DistributedTableCacheStore store = DistributedTableCacheStore.getInstance();
+            DistributedTableCacheStore store = distributedTableCacheStoreProvider.getObject();
 
             if(store.exists(key)) {
                try {
@@ -588,7 +589,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
 
          if(executingKey != null) {
             synchronized(executingKey) {
-               DistributedTableCacheStore store = DistributedTableCacheStore.getInstance();
+               DistributedTableCacheStore store = distributedTableCacheStoreProvider.getObject();
                store.put(key, get(key));
                unmarkExecuting(executingKey);
                executingKey.notifyAll();
@@ -666,8 +667,11 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
    /**
     * Create an asset data cache.
     */
-   public AssetDataCache(DataSourceRegistry dataSourceRegistry) {
+   public AssetDataCache(DataSourceRegistry dataSourceRegistry,
+                         ObjectProvider<DistributedTableCacheStore> distributedTableCacheStoreProvider)
+   {
       this.dataSourceRegistry = dataSourceRegistry;
+      this.distributedTableCacheStoreProvider = distributedTableCacheStoreProvider;
       String prop = SreeEnv.getProperty("query.cache.limit", "100");
 
       if(prop != null) {
@@ -1281,6 +1285,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
    }
 
    private final DataSourceRegistry dataSourceRegistry;
+   private final ObjectProvider<DistributedTableCacheStore> distributedTableCacheStoreProvider;
 
    private boolean cache = true;
    private long lts = System.currentTimeMillis();

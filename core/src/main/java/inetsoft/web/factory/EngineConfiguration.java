@@ -55,14 +55,17 @@ import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.config.SecretsConfig;
 import inetsoft.web.cluster.ServerClusterClient;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.BeanCreationException;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.*;
 import org.springframework.lang.Nullable;
 
 import java.rmi.RemoteException;
+import java.util.NoSuchElementException;
 import java.util.ServiceLoader;
 
 /**
@@ -311,7 +314,11 @@ public class EngineConfiguration {
       try {
          return ServiceLoader.load(ElasticLicenseService.class).iterator().next();
       }
+      catch(NoSuchElementException e) {
+         return new NoopElasticLicenseService();
+      }
       catch(Exception e) {
+         LOG.warn("Failed to load ElasticLicenseService, using no-op", e);
          return new NoopElasticLicenseService();
       }
    }
@@ -325,7 +332,11 @@ public class EngineConfiguration {
       try {
          return ServiceLoader.load(HostedLicenseService.class).iterator().next();
       }
+      catch(NoSuchElementException e) {
+         return new NoopHostedLicenseService();
+      }
       catch(Exception e) {
+         LOG.warn("Failed to load HostedLicenseService, using no-op", e);
          return new NoopHostedLicenseService();
       }
    }
@@ -371,8 +382,10 @@ public class EngineConfiguration {
     */
    @Bean
    @Lazy
-   public AssetDataCache assetDataCache(@Lazy DataSourceRegistry dataSourceRegistry) {
-      return new AssetDataCache(dataSourceRegistry);
+   public AssetDataCache assetDataCache(@Lazy DataSourceRegistry dataSourceRegistry,
+                                        ObjectProvider<DistributedTableCacheStore> distributedTableCacheStoreProvider)
+   {
+      return new AssetDataCache(dataSourceRegistry, distributedTableCacheStoreProvider);
    }
 
    /**
@@ -505,5 +518,5 @@ public class EngineConfiguration {
 
       return factory;
    }
-
+   private static final Logger LOG = LoggerFactory.getLogger(EngineConfiguration.class);
 }
