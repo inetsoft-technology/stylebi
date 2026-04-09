@@ -32,6 +32,9 @@ public class OsiDimension {
       this.isTime = isTime;
    }
 
+   public OsiDimension() {
+   }
+
    public OsiDimension(boolean isTime) {
       this.isTime = isTime;
    }

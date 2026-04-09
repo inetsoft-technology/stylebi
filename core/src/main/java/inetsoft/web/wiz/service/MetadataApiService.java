@@ -36,6 +36,8 @@ import inetsoft.web.composer.AssetTreeService;
 import inetsoft.web.composer.model.LoadAssetTreeNodesEvent;
 import inetsoft.web.composer.model.LoadAssetTreeNodesValidator;
 import inetsoft.web.portal.controller.database.DataSourceService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -94,8 +96,8 @@ public class MetadataApiService {
          node.setAttribute("supportCatalog", rootMetaData.getAttribute("supportCatalog"));
       }
 
-      XNode tableNode = metaDataProvider.getMetaData(node, true);
-      tableNode = tableNode.getChild(0);
+      XNode tableData = metaDataProvider.getMetaData(node, true);
+      XNode tableNode = tableData != null ? tableData.getChild(0) : null;
 
       if(tableNode == null) {
          throw new Exception(Tool.buildString("Table ", data.getTableName(), " not found in data source ", dsName));
@@ -175,7 +177,10 @@ public class MetadataApiService {
    private OsiExpression buildExpression(String tableName, String columnName) {
       OsiDialectExpression dialectExpr = new OsiDialectExpression();
       dialectExpr.setDialect("ANSI_SQL");
-      dialectExpr.setExpression("\"" + tableName + "\".\"" + columnName + "\"");
+      // Escape embedded double-quotes by doubling them before wrapping in double-quotes.
+      String quotedTable = "\"" + tableName.replace("\"", "\"\"") + "\"";
+      String quotedColumn = "\"" + columnName.replace("\"", "\"\"") + "\"";
+      dialectExpr.setExpression(quotedTable + "." + quotedColumn);
 
       OsiExpression expression = new OsiExpression();
       expression.setDialects(List.of(dialectExpr));
@@ -188,8 +193,16 @@ public class MetadataApiService {
       try {
          Map<String, Object> extData = new LinkedHashMap<>();
          extData.put("dsName", dsName);
-         extData.put("catalog", catalog);
-         extData.put("schema", schema);
+
+         // Only include catalog/schema when non-null to keep the extension compact.
+         if(!Tool.isEmptyString(catalog)) {
+            extData.put("catalog", catalog);
+         }
+
+         if(!Tool.isEmptyString(schema)) {
+            extData.put("schema", schema);
+         }
+
          extData.put("path", path);
 
          OsiCustomExtension ext = new OsiCustomExtension();
@@ -210,7 +223,7 @@ public class MetadataApiService {
          extData.put("type", type);
          extData.put("length", length);
 
-         if(foreignKeys != null && !foreignKeys.isEmpty()) {
+         if(!foreignKeys.isEmpty()) {
             extData.put("foreignKeys", foreignKeys);
          }
 
@@ -239,7 +252,7 @@ public class MetadataApiService {
          return foreignKeys;
       }
 
-      return null;
+      return Collections.emptyList();
    }
 
    public JDBCDataSource getJDBCDatasource(String dsName) throws Exception {
@@ -417,12 +430,12 @@ public class MetadataApiService {
    }
 
    /**
-    * Populate metadata for mirror table assemblies
+    * Populate metadata for rotated table assemblies
     */
-   private RotatedTableMeta getRotatedTableMetadata(RotatedTableAssembly mirrorTable) {
+   private RotatedTableMeta getRotatedTableMetadata(RotatedTableAssembly rotatedTable) {
       RotatedTableMeta rotatedTableMeta = new RotatedTableMeta();
 
-      Assembly baseAssembly = mirrorTable.getTableAssembly();
+      Assembly baseAssembly = rotatedTable.getTableAssembly();
 
       if(baseAssembly != null) {
          rotatedTableMeta.setSourceTable(baseAssembly.getName());
@@ -482,6 +495,7 @@ public class MetadataApiService {
          return getMetaDataProvider(dataSource);
       }
       catch(Exception e) {
+         log.warn("Failed to get meta data provider for data source '{}'", database, e);
          return null;
       }
    }
@@ -492,6 +506,7 @@ public class MetadataApiService {
          return dataSourceService.getDefaultMetaDataProvider(jdbcDatasource, dataModel);
       }
       catch(Exception e) {
+         log.warn("Failed to get meta data provider for data source '{}'", jdbcDatasource.getFullName(), e);
          return null;
       }
    }
@@ -501,4 +516,5 @@ public class MetadataApiService {
    private final AssetRepository assetRepository;
    private final AssetTreeService assetTreeService;
    private final ObjectMapper objectMapper;
+   private static final Logger log = LoggerFactory.getLogger(MetadataApiService.class);
 }

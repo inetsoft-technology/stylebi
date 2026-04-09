@@ -18,12 +18,15 @@
 
 package inetsoft.web.wiz.model.osi;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.util.List;
 
 /**
  * Multi-dialect expression container (Expression in osi-schema.json).
  * At least one DialectExpression is required.
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class OsiExpression {
    public List<OsiDialectExpression> getDialects() {
       return dialects;

@@ -18,12 +18,13 @@
 
 package inetsoft.web.wiz.model.osi;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.*;
 
 /**
  * Vendor-specific extension for OSI entities (CustomExtension in osi-schema.json).
  * {@code data} is a JSON string containing vendor-specific key/value pairs.
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class OsiCustomExtension {
    public String getVendorName() {
       return vendorName;
