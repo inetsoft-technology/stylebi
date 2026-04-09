@@ -725,8 +725,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
                                               (int) widgetPixelBounds.getHeight());
          BufferedImage img = getInputImage(assembly, widgetSize);
          ClientAnchor widgetAnchor = getAnchorFromPixelRect(widgetPixelBounds);
-         writePicture(img != null ? img : getImage(assembly),
-                      img != null ? widgetAnchor : getAnchorPosition(info));
+         writePicture(img != null ? img : getImage(assembly), widgetAnchor);
       }
       catch(SheetMaxRowsException e) {
          throw e;
@@ -761,8 +760,8 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
    private ClientAnchor getAnchorFromPixelRect(Rectangle2D pixelBounds) {
       int x = Math.max(0, (int) pixelBounds.getX());
       int y = Math.max(0, (int) pixelBounds.getY());
-      int w = (int) pixelBounds.getWidth();
-      int h = (int) pixelBounds.getHeight();
+      int w = Math.max(1, (int) pixelBounds.getWidth());
+      int h = Math.max(1, (int) pixelBounds.getHeight());
       Point top = new Point();
       Point bottom = new Point();
       Point p1 = getRowCol(x, y, top);

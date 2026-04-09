@@ -466,8 +466,7 @@ public class PPTVSExporter extends AbstractVSExporter {
       BufferedImage img = getInputImage(assembly, widgetSize);
 
       try {
-         writePicture(img != null ? img : getImage(assembly),
-                      img != null ? widgetBounds : coordinator.getBounds(info));
+         writePicture(img != null ? img : getImage(assembly), widgetBounds);
       }
       catch(Exception e) {
          LOG.error("Failed to write input: " + assembly.getAbsoluteName(), e);

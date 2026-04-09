@@ -3953,8 +3953,8 @@ public abstract class AbstractVSExporter implements VSExporter {
          return null;
       }
 
-      Point pos = vs.getPixelPosition(info);
-      Dimension size = vs.getPixelSize(info);
+      Dimension size = info.getLayoutSize() != null ? info.getLayoutSize() : vs.getPixelSize(info);
+      Point pos = info.getLayoutPosition() != null ? info.getLayoutPosition() : vs.getPixelPosition(info);
       Rectangle2D pixelBounds = new Rectangle2D.Double(pos.x, pos.y, size.width, size.height);
       Rectangle2D fullBounds = expandBoundsForLabel(pixelBounds, labelInfo);
       return splitInputBounds(fullBounds, labelInfo);
