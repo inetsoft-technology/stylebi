@@ -19,6 +19,8 @@ package inetsoft.web.admin.logviewer;
 
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.web.admin.monitoring.MonitoringDataService;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
@@ -41,11 +43,25 @@ public class LogMonitoringController {
       this.monitoringDataService = monitoringDataService;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/log",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/logviewer/all-logs")
    public LogMonitoringModel getLogs() {
       return logMonitoringService.getLogs();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/log",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/logviewer/refresh/{clusterNode}/{logFileName}/{offset}/{length}")
    public List<String> refreshLogViewer(
       @PathVariable("clusterNode") String clusterNode,
@@ -60,8 +76,16 @@ public class LogMonitoringController {
                                        @DestinationVariable("clusterNode") String clusterNode,
                                        @DestinationVariable("logFileName") String logFileName,
                                        @DestinationVariable("offset") int offset,
-                                       @DestinationVariable("length") int length)
+                                       @DestinationVariable("length") int length,
+                                       Principal principal)
+      throws SecurityException
    {
+      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "monitoring/log", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to log viewer by user " + principal.getName());
+      }
+
       return this.monitoringDataService.addSubscriber(stompHeaderAccessor, () -> {
          try {
             return logMonitoringService.getLog(clusterNode, logFileName, offset, length);
@@ -72,6 +96,13 @@ public class LogMonitoringController {
       });
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/log",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/logviewer/rotate")
    public LogMonitoringModel rotateLogFile(
       @RequestParam("clusterNode") String clusterNode,
@@ -80,6 +111,13 @@ public class LogMonitoringController {
       return logMonitoringService.rotateLogFile(clusterNode, logFileName);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/log",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/logviewer/download")
    public void downloadLogs(HttpServletResponse response,
                             @RequestParam(value = "clusterNode", required = false) String clusterNode)

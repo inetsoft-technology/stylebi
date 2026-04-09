@@ -31,6 +31,8 @@ import inetsoft.web.admin.content.repository.ContentRepositoryTreeService;
 import inetsoft.web.admin.schedule.model.*;
 import inetsoft.web.portal.model.QueryColumnsModel;
 import inetsoft.web.security.PermissionUser;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -59,6 +61,13 @@ public class EMScheduleBatchActionController {
       this.securityEngine = securityEngine;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/batch-action/scheduled-tasks")
    public ScheduleTaskList getScheduledTasks(
       @RequestParam("taskName") String taskId,
@@ -110,11 +119,25 @@ public class EMScheduleBatchActionController {
       return builder.addAllTasks(taskModels).build();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/batch-action/query-tree")
    public LabeledAssetEntries getQueryTree(Principal principal) throws Exception {
       return getWorksheets(principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/batch-action/parameters")
    public BatchParameterListModel getParameters(@RequestParam("taskName") String taskName,
                                                 Principal principal) throws Exception
@@ -165,6 +188,13 @@ public class EMScheduleBatchActionController {
       }
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/schedule/batch-action/query-columns")
    public QueryColumnsModel getQueryColumns(@RequestBody AssetEntry entry,
                                             Principal principal) throws Exception

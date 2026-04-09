@@ -17,9 +17,15 @@
  */
 package inetsoft.web.admin.user;
 
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.web.admin.monitoring.AbstractMonitoringController;
 import inetsoft.web.admin.monitoring.MonitoringDataService;
 import inetsoft.web.factory.RemainingPath;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
@@ -44,7 +50,14 @@ public class UserStatusController extends AbstractMonitoringController {
    public List<UserSessionMonitoringTableModel> subscribeSessionModel(
       StompHeaderAccessor stompHeaderAccessor,
       @DestinationVariable("address") Optional<String> address, Principal principal)
+      throws SecurityException
    {
+      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "monitoring/users", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to user monitoring by user " + principal.getName());
+      }
+
       return this.monitoringDataService.addSubscriber(stompHeaderAccessor, () -> {
          try {
             return userService.getServerSessionModel(address.orElse(null), principal);
@@ -59,8 +72,15 @@ public class UserStatusController extends AbstractMonitoringController {
                                "/monitoring/user/get-failed-grid/{address}" })
    public List<UserFailedLoginMonitoringTableModel> subscribeFailedLoginGrid(
       StompHeaderAccessor stompHeaderAccessor,
-      @DestinationVariable("address") Optional<String> address)
+      @DestinationVariable("address") Optional<String> address, Principal principal)
+      throws SecurityException
    {
+      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "monitoring/users", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to user monitoring by user " + principal.getName());
+      }
+
       return this.monitoringDataService.addSubscriber(stompHeaderAccessor, () -> {
          try {
             return userService.getServerFailedModel(address.orElse(null));
@@ -71,6 +91,13 @@ public class UserStatusController extends AbstractMonitoringController {
       });
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/users/session",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping(value = { "/api/em/monitor/user/logout", "/api/em/monitor/user/logout/**" })
    public void logout(@RequestBody String[] sessionIds, @RemainingPath() String server) {
       userService.logoutSession(getServerClusterNode(server), sessionIds);
@@ -80,8 +107,15 @@ public class UserStatusController extends AbstractMonitoringController {
                                "/monitoring/user/get-top-five-users-grid/{address}" })
    public List<TopUsersMonitoringTableModel> subscribeTop5UsersGrid(
       StompHeaderAccessor stompHeaderAccessor,
-      @DestinationVariable("address") Optional<String> address)
+      @DestinationVariable("address") Optional<String> address, Principal principal)
+      throws SecurityException
    {
+      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "monitoring/summary", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to user monitoring by user " + principal.getName());
+      }
+
       return this.monitoringDataService.addSubscriber(stompHeaderAccessor, () -> {
          try {
             return userService.getTopNUsersModel(address.orElse(null), 5);

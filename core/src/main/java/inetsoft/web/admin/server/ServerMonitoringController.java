@@ -35,8 +35,13 @@ import inetsoft.web.admin.schedule.SchedulerMonitoringService;
 import inetsoft.web.admin.viewsheet.ViewsheetHistory;
 import inetsoft.web.admin.viewsheet.ViewsheetService;
 import inetsoft.web.cluster.ServerClusterClient;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.web.reportviewer.service.HttpServletRequestWrapper;
-import inetsoft.web.security.DeniedMultiTenancyOrgUser;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 
 import java.awt.*;
 import java.io.*;
@@ -94,7 +99,16 @@ public class ServerMonitoringController {
    }
 
    @SubscribeMapping("/monitoring/server/charts")
-   public ServerModel subscribeServerCharts(StompHeaderAccessor stompHeaderAccessor) {
+   public ServerModel subscribeServerCharts(StompHeaderAccessor stompHeaderAccessor,
+                                            Principal principal)
+      throws SecurityException
+   {
+      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "monitoring/summary", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to server monitoring by user " + principal.getName());
+      }
+
       return this.monitoringDataService.addSubscriber(stompHeaderAccessor, () -> {
          Map<String, String> serverUpTimeMap = new HashMap<>();
          Map<String, String> serverDateTimeMap = new HashMap<>();
@@ -159,7 +173,13 @@ public class ServerMonitoringController {
     * @param response  The response which will be returned to the browser, into
     *                  which the requested image data is to be returned.
     */
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/getSummaryImage/{id}/{width}/{height}")
    public void processSummaryImage(@PathVariable("id") String id,
                                    @PathVariable("width") double width,
@@ -198,6 +218,13 @@ public class ServerMonitoringController {
       }
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/scheduler/get-thread-dump")
    public void getSchedulerThreadDump(@RequestParam(value = "clusterNode", required = false) String clusterNode,
                                       HttpServletResponse response)
@@ -227,6 +254,13 @@ public class ServerMonitoringController {
       return false;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/server/get-thread-dump")
    public void getThreadDump(@RequestParam(value = "clusterNode", required = false) String clusterNode,
                              HttpServletResponse response) throws Exception
@@ -268,6 +302,13 @@ public class ServerMonitoringController {
       }
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/monitoring/scheduler/get-heap-dump")
    public void getSchedulerHeapDump(@RequestBody HeapDumpRequest request) {
       ThreadPool.addOnDemand(new Runnable() {
@@ -301,6 +342,13 @@ public class ServerMonitoringController {
       return false;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/monitoring/server/get-heap-dump")
    public void getHeapDump(@RequestBody HeapDumpRequest request) {
       String node = request.clusterNode() == null ? Cluster.getInstance().getLocalMember() :
@@ -406,6 +454,13 @@ public class ServerMonitoringController {
       return heapId;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/server/get-usage-history")
    public void getUsageHistory(
       @RequestParam(value = "clusterNode", required = false) String clusterNode,
@@ -446,6 +501,13 @@ public class ServerMonitoringController {
       }
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/server/summary")
    public ServerSummaryModel getServerSummaryModel(
       @RequestParam(value = "clusterNode", required = false) String clusterNode,
@@ -527,6 +589,13 @@ public class ServerMonitoringController {
       return s.replaceAll("[\\r\\n]", "").replace(File.pathSeparator, "<br>");
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/server/get-monitoring-summary-chart-legends")
    public SummaryChartLegends getMonitoringChartLegends(
       @RequestParam(value = "clusterNode", required = false) String clusterNode)
@@ -644,6 +713,13 @@ public class ServerMonitoringController {
       return legends.build();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/server/threads/{id}")
    public ThreadStackTrace getThreadInfo(@PathVariable("id") long id) {
       String stackTrace = serverService.getStackTrace(id);

@@ -21,6 +21,8 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.*;
 import inetsoft.web.adhoc.DecodeParam;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -38,6 +40,13 @@ public class RepositoryViewsheetController {
       this.permissionService = permissionService;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/viewsheet")
    public RepositorySheetSettingsModel getViewsheetSettings(
       @DecodeParam("path") String path,
@@ -59,6 +68,13 @@ public class RepositoryViewsheetController {
       return sheetService.getSheetSettings(entry, ResourceType.REPORT, timeZone, owner, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/viewsheet")
    public RepositorySheetSettingsModel setViewsheetSettings(
       @DecodeParam("path") String path,

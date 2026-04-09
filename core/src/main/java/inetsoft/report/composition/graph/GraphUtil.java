@@ -2765,12 +2765,9 @@ public class GraphUtil {
 
          for(VSDataRef aggr : aggrRefs) {
             String aggrName = aggr.getFullName();
-            // check for date comparison ref too. (63178)
-            String aggrName2 = ((ChartAggregateRef) aggr).getFullName(false);
 
-            if(varnames.contains(aggrName) || varnames.contains(aggrName2) ||
+            if(varnames.contains(aggrName) ||
                varnames.contains(BrushDataSet.ALL_HEADER_PREFIX + aggrName) ||
-               varnames.contains(BrushDataSet.ALL_HEADER_PREFIX + aggrName2) ||
                isMultiAesthetic && aggr instanceof ChartBindable &&
                   GraphTypes.isInterval(((ChartBindable) aggr).getRTChartType()) &&
                   varnames.contains(IntervalDataSet.TOP_PREFIX + aggrName))

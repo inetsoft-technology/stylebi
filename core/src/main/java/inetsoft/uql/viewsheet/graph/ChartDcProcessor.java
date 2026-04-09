@@ -787,8 +787,8 @@ public class ChartDcProcessor {
    }
 
    private void syncAestheticRefs(AestheticRef newRef, AestheticRef oldRef) {
-      if(oldRef != null && newRef != null) {
-         newRef.setLegendDescriptor(oldRef.getLegendDescriptor());
+      if(oldRef != null && newRef != null && oldRef.getLegendDescriptor() != null) {
+         newRef.setLegendDescriptor((LegendDescriptor) oldRef.getLegendDescriptor().clone());
       }
    }
 

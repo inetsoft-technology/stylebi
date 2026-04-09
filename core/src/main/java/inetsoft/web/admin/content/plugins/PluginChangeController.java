@@ -19,6 +19,8 @@
 package inetsoft.web.admin.content.plugins;
 
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.util.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -55,6 +57,12 @@ public class PluginChangeController {
 
    @SubscribeMapping(CHANGE_TOPIC)
    public void subscribeToTopic(Principal principal) throws Exception {
+      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "settings/content/drivers-and-plugins", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to plugin changes by user " + principal.getName());
+      }
+
       this.principal = principal;
    }
 

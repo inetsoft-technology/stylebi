@@ -680,11 +680,9 @@ public class VsToReportConverter {
          case AbstractSheet.TEXTINPUT_ASSET:
             Rectangle textInputBounds = addInputLabel(assembly, sectionName);
             Object value = ((TextInputVSAssemblyInfo) info).getValue();
-
             if(value != null) {
                addTextBoxElement0(info, null, value + "", textInputBounds, sectionName);
             }
-
             break;
          case AbstractSheet.SUBMIT_ASSET:
             text = ((SubmitVSAssemblyInfo) info).getLabelName();
@@ -775,15 +773,22 @@ public class VsToReportConverter {
          final Rectangle assemblybounds = getPixelBounds(assembly);
          int y = assemblybounds.y;
          int height = assemblybounds.height;
-         int currPage = getPageNumber(y, pheight);
 
          if(assembly instanceof TabVSAssembly) {
             String name = ((TabVSAssembly) assembly).getSelected();
             Viewsheet vs = assembly.getViewsheet();
             VSAssembly selected = vs.getAssembly(name);
-            Rectangle sub = getPixelBounds(selected);
-            height = sub.y + sub.height - y;
+
+            if(selected != null) {
+               Rectangle sub = getPixelBounds(selected);
+               int topY = Math.min(y, sub.y);
+               int bottomY = Math.max(y + assemblybounds.height, sub.y + sub.height);
+               y = topY;
+               height = bottomY - topY;
+            }
          }
+
+         int currPage = getPageNumber(y, pheight);
 
          if(assembly instanceof LineVSAssembly) {
             height += 5;
@@ -1792,6 +1797,44 @@ public class VsToReportConverter {
             break;
       }
 
+      // When the component's layout bounds are too small to split between widget and label,
+      // extend the label beyond the component's allocated bounds and use the full bounds for the widget.
+      if(contentBounds.height <= 0) {
+         switch(position) {
+            case LabelInfo.TOP:
+               // Cannot grow the section upward; overlap label at the widget's top edge
+               // instead of trying to place it above the allocated band.
+               labelBounds = new Rectangle(bounds.x, bounds.y, bounds.width, labelH);
+               break;
+            case LabelInfo.BOTTOM:
+               labelBounds = new Rectangle(bounds.x, bounds.y + bounds.height, bounds.width, labelH);
+               expandSectionForLabel(sectionName, labelBounds);
+               break;
+            default:
+               break;
+         }
+
+         contentBounds = new Rectangle(bounds.x, bounds.y, bounds.width, bounds.height);
+      }
+
+      if(contentBounds.width <= 0) {
+         switch(position) {
+            case LabelInfo.LEFT:
+               // Places label to the left of the widget. If bounds.x is near 0 the label
+               // will have a negative x-coordinate and be clipped; this is an inherent
+               // limitation of a component sized too narrow to contain its own label.
+               labelBounds = new Rectangle(bounds.x - labelW, bounds.y, labelW, bounds.height);
+               break;
+            case LabelInfo.RIGHT:
+               labelBounds = new Rectangle(bounds.x + bounds.width, bounds.y, labelW, bounds.height);
+               break;
+            default:
+               break;
+         }
+
+         contentBounds = new Rectangle(bounds.x, bounds.y, bounds.width, bounds.height);
+      }
+
       addElement0(labelBounds, textbox, sectionName);
       return contentBounds;
    }
@@ -2351,17 +2394,27 @@ public class VsToReportConverter {
                   ((VSGauge) obj).setDrawbg(false);
                }
 
-               Dimension size = new Dimension(contentBounds.width, contentBounds.height);
-               obj.setPixelSize(size);
-               img = (BufferedImage) ((VSFloatable) obj).getImage(false);
+               if(contentBounds.width > 0 && contentBounds.height > 0) {
+                  Dimension size = new Dimension(contentBounds.width, contentBounds.height);
+                  obj.setPixelSize(size);
+                  img = (BufferedImage) ((VSFloatable) obj).getImage(false);
+
+                  if(img == null) {
+                     LOG.warn("Image rendering returned null for {} '{}' (size={}x{})",
+                              assembly.getClass().getSimpleName(), assembly.getName(),
+                              contentBounds.width, contentBounds.height);
+                  }
+               }
             }
 
-            addPainterElement(img, assembly, sectionName, contentBounds);
+            if(img != null) {
+               addPainterElement(img, assembly, sectionName, contentBounds);
+            }
          }
       }
       catch(Exception ex) {
-         LOG.error(
-            "Failed to convert imageable assembly to report painter", ex);
+         LOG.error("Failed to render {} '{}' in print layout",
+                   assembly.getClass().getSimpleName(), assembly.getName(), ex);
       }
    }
 
@@ -2831,6 +2884,29 @@ public class VsToReportConverter {
       return null;
    }
 
+   /**
+    * Expand the section height if the given label bounds extend below the section's
+    * current allocated area. Called when a label must be placed outside the component's
+    * own layout bounds.
+    */
+   private void expandSectionForLabel(String sectionName, Rectangle labelBounds) {
+      int labelBottom = labelBounds.y + labelBounds.height;
+
+      for(LayoutSection layout : contentSections) {
+         if(sectionName.equals(layout.section.getID())) {
+            int sectionBottom = layout.bounds.y + layout.bounds.height;
+
+            if(labelBottom > sectionBottom) {
+               int newHeightPixels = labelBottom - layout.bounds.y;
+               layout.bounds.height = newHeightPixels;
+               getSectionContent(layout.section).setHeight(newHeightPixels / 72f);
+            }
+
+            return;
+         }
+      }
+   }
+
    private void addPageBreakElement() {
       PageBreakElementDef pageBreak = new PageBreakElementDef(report);
       report.addElement(0, 0, pageBreak);
@@ -2844,7 +2920,9 @@ public class VsToReportConverter {
    private void setSectionBounds(String name, int height) {
       for(LayoutSection layout : contentSections) {
          if(name.equals(layout.section.getID())) {
-            getSectionContent(layout.section).setHeight(height);
+            // Only update the pixel-bounds record used for coordinate offsetting.
+            // The caller always follows with setHeight(bounds.height / 72f)
+            // to set the section's rendered height in inches.
             layout.bounds.height = height;
          }
       }

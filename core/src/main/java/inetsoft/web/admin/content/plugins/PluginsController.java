@@ -18,7 +18,10 @@
 package inetsoft.web.admin.content.plugins;
 
 import inetsoft.web.admin.content.plugins.model.*;
-import inetsoft.web.security.DeniedMultiTenancyOrgUser;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 
 import java.security.Principal;
 
@@ -26,7 +29,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@DeniedMultiTenancyOrgUser
 public class PluginsController {
    @Autowired
    public PluginsController(PluginsService pluginsService) {
@@ -38,6 +40,13 @@ public class PluginsController {
     *
     * @return PluginsModel List of all available plugins
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/drivers-and-plugins",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/data/plugins")
    public PluginsModel getPluginsModel(Principal principal) throws Exception {
       return this.pluginsService.getModel(principal);
@@ -48,6 +57,13 @@ public class PluginsController {
     *
     * @param request request containing file upload
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/drivers-and-plugins",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/settings/content/plugins")
    public PluginsModel installPluginFiles(@RequestBody UploadDriverFileModel request,
                                           Principal principal) throws Exception
@@ -56,6 +72,13 @@ public class PluginsController {
       return getPluginsModel(principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/drivers-and-plugins",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/settings/content/plugins/delete")
    public PluginsModel deletePluginFiles(@RequestBody PluginsModel model, Principal principal)
       throws Exception
@@ -64,6 +87,13 @@ public class PluginsController {
       return getPluginsModel(principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/drivers-and-plugins",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/settings/content/plugins/drivers/scan/{id}")
    public DriverList scanDrivers(@PathVariable("id") String id, Principal principal)
       throws Exception
@@ -73,6 +103,13 @@ public class PluginsController {
          .build();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/drivers-and-plugins",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/settings/content/plugins/drivers")
    public void createDriverPlugin(@RequestBody CreateDriverPluginRequest request,
                                   Principal principal) throws Exception

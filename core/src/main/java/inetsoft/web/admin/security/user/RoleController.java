@@ -59,6 +59,13 @@ public class RoleController {
       this.themeService = themeService;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/security/user/get-security-tree-root/{provider}/{providerChanged}")
    public SecurityTreeRootModel getSecurityTreeRoot(@DecodePathVariable("provider") String provider,
                                                     @PathVariable("providerChanged") boolean providerChanged,
@@ -67,6 +74,13 @@ public class RoleController {
       return securityTreeServer.getSecurityTree(provider, principal, false, providerChanged);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/security/user/create-role/{provider}")
    public EditRolePaneModel createRole(HttpServletRequest req, Principal principal,
                                        @DecodePathVariable("provider") String providerName)
@@ -152,6 +166,11 @@ public class RoleController {
 
    @GetMapping("/api/em/security/providers/{provider}/roles/{role}/")
    @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      ),
       @RequiredPermission(
          resourceType = ResourceType.SECURITY_ROLE,
          actions = ResourceAction.ADMIN
@@ -271,6 +290,13 @@ public class RoleController {
          .orElse(null);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/security/user/edit-role/{provider}")
    @Audited(
       actionName = ActionRecord.ACTION_NAME_EDIT,
@@ -313,6 +339,13 @@ public class RoleController {
       }
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/security/user/delete-identities/{provider}")
    public DeleteIdentitiesResponse deleteIdentities(@RequestBody IdentityModel[] models,
                                                     @DecodePathVariable("provider") String providerName,

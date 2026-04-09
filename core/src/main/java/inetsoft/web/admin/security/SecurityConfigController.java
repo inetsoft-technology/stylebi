@@ -30,6 +30,9 @@ import inetsoft.util.config.*;
 import inetsoft.web.admin.security.action.ActionPermissionService;
 import inetsoft.web.portal.model.CurrentUserModel;
 import inetsoft.web.viewsheet.Audited;
+import inetsoft.web.security.DeniedMultiTenancyOrgUser;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
@@ -50,6 +53,14 @@ public class SecurityConfigController {
       actionName = ActionRecord.ACTION_NAME_EDIT,
       objectName = "Security-Security",
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
+   )
+   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security",
+         actions = ResourceAction.ACCESS
+      )
    )
    @PostMapping("/api/em/security/set-enable-security")
    public SecurityEnabledEvent setEnableSecurity(@RequestBody SecurityEnabledEvent event,
@@ -81,6 +92,14 @@ public class SecurityConfigController {
       actionName = ActionRecord.ACTION_NAME_EDIT,
       objectName = "Multi-Tenancy",
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
+   )
+   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security",
+         actions = ResourceAction.ACCESS
+      )
    )
    @PostMapping("/api/em/security/set-multi-tenancy")
    public SecurityEnabledEvent setEnableMultiTenancy(@RequestBody SecurityEnabledEvent event, Principal principal)
@@ -142,6 +161,13 @@ public class SecurityConfigController {
          .build();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/security/get-multi-tenancy")
    public SecurityEnabledEvent getMultiTenancy(Principal principal) {
       boolean securityEnabled = securityEngine.isSecurityEnabled();
@@ -198,8 +224,17 @@ public class SecurityConfigController {
       objectName = "Enable-Self-Signup",
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
+   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/security/set-enable-self-signup")
-   public SecurityEnabledEvent setEnableSelfSignup(@RequestBody SecurityEnabledEvent event)
+   public SecurityEnabledEvent setEnableSelfSignup(@RequestBody SecurityEnabledEvent event,
+                                                   Principal principal)
       throws Exception
    {
       if(event.enable()) {
@@ -212,14 +247,29 @@ public class SecurityConfigController {
       return getEnableSelfSignup();
    }
 
+   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/security/updatePassOrgIdOption")
-   public void updatePassOrgIdOption(@RequestBody String passOption)
+   public void updatePassOrgIdOption(@RequestBody String passOption, Principal principal)
       throws Exception
    {
       SreeEnv.setProperty("security.login.orgLocation", passOption);
       SreeEnv.save();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/security/get-enable-self-signup")
    public SecurityEnabledEvent getEnableSelfSignup() {
       return SecurityEnabledEvent.builder()
@@ -227,6 +277,13 @@ public class SecurityConfigController {
          .build();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/general",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/security/get-api-key")
    public String getOpenSourceLicenseKey()
    {
@@ -236,6 +293,13 @@ public class SecurityConfigController {
       return null;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/general",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/security/set-api-key")
    public void setOpenSourceLicenseKey(@RequestBody(required = false) String key)
    {

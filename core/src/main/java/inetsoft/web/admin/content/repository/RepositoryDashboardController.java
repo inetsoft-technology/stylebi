@@ -23,6 +23,8 @@ import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.schedule.ScheduleTaskActionService;
 import inetsoft.web.admin.schedule.model.ViewsheetTreeListModel;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -40,6 +42,13 @@ public class RepositoryDashboardController {
       this.taskActionService = taskActionService;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/dashboard")
    public RepositoryDashboardSettingsModel getDashboardSettings(@DecodeParam("path") String path,
                                                                 @DecodeParam(value = "owner", required = false) String owner,
@@ -57,6 +66,13 @@ public class RepositoryDashboardController {
       return repositoryDashboardService.getSettings(path, ownerID, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/dashboard")
    public RepositoryDashboardSettingsModel setDashboardSettings(@DecodeParam("path") String path,
                                                                 @DecodeParam(value = "owner", required = false) String owner,
@@ -68,6 +84,13 @@ public class RepositoryDashboardController {
       return repositoryDashboardService.setSettings(path, model, ownerID, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/settings/content/repository/dashboard/add")
    public ContentRepositoryTreeNode addDashboard(@RequestBody NewRepositoryFolderRequest info,
                                                         Principal principal)
@@ -76,6 +99,13 @@ public class RepositoryDashboardController {
       return repositoryDashboardService.addDashboard(info, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/folder/dashboard")
    public RepositoryFolderDashboardSettingsModel getDashboardFolderSettings(Principal principal)
       throws Exception
@@ -83,6 +113,13 @@ public class RepositoryDashboardController {
       return repositoryDashboardService.getDashboardFolderSettings(principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/folder/dashboard")
    public RepositoryFolderDashboardSettingsModel setDashboardFolderSettings(
       @RequestBody RepositoryFolderDashboardSettingsModel model,
@@ -91,6 +128,13 @@ public class RepositoryDashboardController {
       return repositoryDashboardService.setDashboardFolderSettings(model, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/settings/repository/dashboard/viewsheet/folders")
    public ViewsheetTreeListModel getViewsheetFolders(Principal principal)
       throws Exception

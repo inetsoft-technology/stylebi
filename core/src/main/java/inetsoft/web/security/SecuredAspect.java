@@ -25,6 +25,8 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.Tool;
+import inetsoft.web.admin.authz.ComponentAuthorizationService;
+import inetsoft.web.admin.authz.ViewComponent;
 import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -39,7 +41,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.lang.annotation.Annotation;
+import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
 import java.security.Principal;
 import java.util.Objects;
@@ -56,8 +62,11 @@ public class SecuredAspect {
     * Creates a new instance of <tt>SecuredAspect</tt>.
     */
    @Autowired
-   public SecuredAspect(ResourcePermissionService resourcePermissionService) {
+   public SecuredAspect(ResourcePermissionService resourcePermissionService,
+                        ComponentAuthorizationService componentAuthorizationService)
+   {
       this.resourcePermissionService = resourcePermissionService;
+      this.componentAuthorizationService = componentAuthorizationService;
    }
 
    /**
@@ -120,7 +129,14 @@ public class SecuredAspect {
          defaultOwner = IdentityID.getIdentityIDFromKey(user.getName());
       }
 
-      boolean orOperator = Objects.equals(secured.operator(), "OR");
+      String operator = secured.operator().toUpperCase();
+
+      if(!operator.equals("AND") && !operator.equals("OR")) {
+         throw new IllegalArgumentException(
+            "Invalid @Secured operator \"" + secured.operator() + "\": must be \"AND\" or \"OR\" (case-insensitive)");
+      }
+
+      boolean orOperator = operator.equals("OR");
       boolean check = false;
 
       for(RequiredPermission permission : secured.value()) {
@@ -181,6 +197,10 @@ public class SecuredAspect {
          }
          else {
             check = checkPermission(permission.resourceType(), permission.resource(), permission.actions(), user);
+
+            if(check && permission.resourceType() == ResourceType.EM_COMPONENT) {
+               check = isComponentAccessible(permission.resource(), user);
+            }
 
             if(orOperator && check || !orOperator && !check) {
                break;
@@ -245,6 +265,25 @@ public class SecuredAspect {
       return result;
    }
 
+   private boolean isComponentAccessible(String resource, Principal user) {
+      if(!SUtil.isMultiTenant()) {
+         return true;
+      }
+
+      ViewComponent component = componentAuthorizationService.getComponent(resource);
+
+      if(component == null) {
+         LOG.warn("EM component '{}' not found in view-components.json; defaulting to allow. " +
+                  "Check for a misspelled or unregistered @Secured resource path.", resource);
+         return true;
+      }
+
+      return !component.hiddenForMultiTenancy() ||
+         OrganizationManager.getInstance().isSiteAdmin(user);
+   }
+
    private final SpelExpressionParser expressionParser = new SpelExpressionParser();
    private final ResourcePermissionService resourcePermissionService;
+   private final ComponentAuthorizationService componentAuthorizationService;
+   private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 }

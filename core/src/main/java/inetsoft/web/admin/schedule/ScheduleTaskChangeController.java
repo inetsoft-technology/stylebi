@@ -90,7 +90,13 @@ public class ScheduleTaskChangeController {
    }
 
    @SubscribeMapping(ADMIN_TOPIC)
-   public synchronized void subscribeAdmin(Principal principal) {
+   public synchronized void subscribeAdmin(Principal principal) throws SecurityException {
+      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "settings/schedule/tasks", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to schedule by user " + principal.getName());
+      }
+
       if(listener == null) {
          listener = this::messageReceived;
          subscriber = principal;

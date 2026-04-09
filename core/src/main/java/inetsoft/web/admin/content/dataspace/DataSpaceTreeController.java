@@ -17,9 +17,13 @@
  */
 package inetsoft.web.admin.content.dataspace;
 
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.util.MessageException;
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.admin.content.dataspace.model.*;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +37,13 @@ public class DataSpaceTreeController {
       this.dataSpaceContentSettingsService = dataSpaceContentSettingsService;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/data-space",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/data-space/tree")
    public DataSpaceTreeModel getDataSpaceTree(
       @DecodeParam(value = "path", required = false) String parentPath,
@@ -43,6 +54,13 @@ public class DataSpaceTreeController {
    /**
     * Get the data space tree nodes
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/data-space",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/data-space/tree")
    public DataSpaceTreeModel getDataSpaceTree(
       @DecodeParam(value = "path", required = false) String parentPath)
@@ -54,6 +72,13 @@ public class DataSpaceTreeController {
    /**
     * Get the data space tree node for the specified path
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/data-space",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/data-space/tree/node")
    public DataSpaceTreeNodeModel getDataSpaceTreeNode(
       @DecodeParam("path") String path) throws Exception
@@ -61,6 +86,13 @@ public class DataSpaceTreeController {
       return dataSpaceContentSettingsService.getTreeNode(path);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/data-space",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/data-space/repair-files")
    public void repairDataSpaceFiles() {
       dataSpaceContentSettingsService.repairFiles();
@@ -69,6 +101,13 @@ public class DataSpaceTreeController {
    /**
     * Delete the selected repository entry
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/data-space",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("api/em/content/data-space/tree/delete")
    public void deleteNodes(@RequestBody DeleteDataSpaceTreeNodesRequest deleteRequest)
       throws MessageException

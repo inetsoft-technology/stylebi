@@ -111,6 +111,13 @@ public class LinearScale extends Scale {
       ScaleRange calc = range == null ? new LinearRange() : range;
       double[] pair = calc.calculate(data, cols, getGraphDataSelector());
 
+      // NaN signals no column data was found in this subset (e.g. a facet cell that has
+      // dataset rows but none for this particular measure). Skip the merge entirely so
+      // empty cells don't contaminate the shared min/max across the facet.
+      if(Double.isNaN(pair[0]) || Double.isNaN(pair[1])) {
+         return;
+      }
+
       // use explicitly set min
       if(omin.get() != null) {
          pair[0] = omin.getDouble(Double.NaN);
