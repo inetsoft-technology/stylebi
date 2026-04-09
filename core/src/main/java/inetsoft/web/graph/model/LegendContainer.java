@@ -118,6 +118,10 @@ public class LegendContainer {
       return outerGap;
    }
 
+   public void setOuterGap(int outerGap) {
+      this.outerGap = outerGap;
+   }
+
    private int legendIndex;
    private RectangularShape bounds;
    private String border;

@@ -900,15 +900,19 @@ public abstract class Legend extends BoundedContainer {
       LegendSpec spec = frame.getLegendSpec();
 
       paintBg(g, paintBounds, spec.getBackground());
-      paintBg(g, paintBounds, spec.getTextSpec().getBackground());
       paintTitle(g);
       // make sure content not paint to title, fix bug1244448217295
       Graphics2D g2 = (Graphics2D) g.create();
       g2.clip(getContentBounds());
 
-      // When round corners are enabled, also clip to the rounded shape so items
-      // near the corners don't bleed into the arc areas that the background fill
-      // has already excluded.
+      // textSpec background covers only the content (items) area, not the title row.
+      // Paint it here on g2 after clipping to contentBounds to preserve the original scope.
+      paintBg(g2, getContentBounds(), spec.getTextSpec().getBackground());
+
+      // Belt-and-suspenders: also intersect with the rounded paint region when round corners
+      // are enabled. In practice, getContentBounds() already insets by BORDER_PADDING (8px)
+      // which is larger than OUTER_GAP (4px), so content items cannot reach the arc pixels —
+      // but this guard keeps the invariant correct if either constant changes in the future.
       if(spec.isRoundCorners()) {
          g2.clip(new RoundRectangle2D.Double(paintBounds.x, paintBounds.y,
                                              paintBounds.width, paintBounds.height, 20, 20));
