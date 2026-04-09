@@ -30,4 +30,5 @@ export interface LegendContainer {
    aestheticType: string;
    nodeAesthetic?: boolean;
    roundCorners?: boolean;
+   outerGap?: number;
 }

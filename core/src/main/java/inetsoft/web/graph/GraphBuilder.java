@@ -1539,7 +1539,8 @@ public class GraphBuilder {
       return new LegendContainer(legendIndex, region.getBounds(), border, field, targetFields,
          minSize, legends, aestheticType,
          GraphUtil.isNodeAestheticFrame(legendArea.getVisualFrame(), legendArea.getLegend().getGraphElement()),
-         legendSpec.isRoundCorners());
+         legendSpec.isRoundCorners(),
+         inetsoft.graph.guide.legend.Legend.OUTER_GAP);
    }
 
    // Returns the index of the given string in the chart-wide stringDictionary,

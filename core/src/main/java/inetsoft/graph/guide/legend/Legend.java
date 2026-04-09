@@ -906,6 +906,14 @@ public abstract class Legend extends BoundedContainer {
       Graphics2D g2 = (Graphics2D) g.create();
       g2.clip(getContentBounds());
 
+      // When round corners are enabled, also clip to the rounded shape so items
+      // near the corners don't bleed into the arc areas that the background fill
+      // has already excluded.
+      if(spec.isRoundCorners()) {
+         g2.clip(new RoundRectangle2D.Double(paintBounds.x, paintBounds.y,
+                                             paintBounds.width, paintBounds.height, 20, 20));
+      }
+
       if(isScalar) {
          paintBand(g2);
       }
@@ -921,6 +929,8 @@ public abstract class Legend extends BoundedContainer {
          float lw = getBorderWidth();
 
          if(spec.isRoundCorners()) {
+            // arcWidth/arcHeight of 20 means a 20px-diameter corner ellipse, i.e. 10px radius.
+            // This matches the CSS border-radius: 10px applied by the Angular overlay.
             g.setStroke(new BasicStroke(lw));
             g.draw(new RoundRectangle2D.Double(paintBounds.x - lw + 1, paintBounds.y,
                                                paintBounds.width, paintBounds.height, 20, 20));
@@ -1173,7 +1183,10 @@ public abstract class Legend extends BoundedContainer {
    }
 
    private static final int GAP = 4;
-   private static final int OUTER_GAP = 4; // spacing between adjacent legends
+   // Spacing inset from each edge of the allocated bounds before painting background/border.
+   // Creates a visible gap between adjacent legends. This value is propagated to the
+   // LegendContainer web model so the Angular overlay wrapper offsets by the same amount.
+   public static final int OUTER_GAP = 4;
    private static final int BAND_GAP = 10; // horizontal margin on each side of gradient band
    private static final int BORDER_PADDING = 8;
    private static final int TITLE_LEFT_PADDING = 2;

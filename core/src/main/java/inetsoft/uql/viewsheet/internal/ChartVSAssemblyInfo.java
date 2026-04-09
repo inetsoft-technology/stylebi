@@ -87,6 +87,9 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       setPadding(new Insets(10, 10, 10, 10));
       super.setDefaultFormat(border, setFormat, fill);
       getFormat().getDefaultFormat().setBackgroundValue("#ffffff");
+      // Enable round corners by default for newly created charts.
+      // Existing charts loaded from XML default to false for backward compatibility.
+      getChartDescriptor().getLegendsDescriptor().setRoundCorners(true);
 
       VSCompositeFormat tFormat = new VSCompositeFormat();
       tFormat.getCSSFormat().setCSSType(getObjCSSType() + CSSConstants.TITLE);

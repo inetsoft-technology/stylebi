@@ -580,7 +580,7 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
                                                                     GDefaults.DEFAULT_LINE_COLOR);
    private CompositeValue<Integer> border = new CompositeValue<>(Integer.class,
                                                                  StyleConstants.THIN_LINE);
-   private boolean roundCorners = true;
+   private boolean roundCorners = false;
    private LegendDescriptor colorDesc;
    private LegendDescriptor shapeDesc;
    private LegendDescriptor sizeDesc;
