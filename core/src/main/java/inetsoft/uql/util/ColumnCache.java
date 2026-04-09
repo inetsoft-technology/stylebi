@@ -163,13 +163,6 @@ public class ColumnCache {
       return new String[][] { vals, lbs };
    }
 
-   /**
-    * Initialize column cache.
-    */
-   public ColumnCache(DataSourceRegistry dataSourceRegistry) {
-      this(dataSourceRegistry, null);
-   }
-
    public ColumnCache(DataSourceRegistry dataSourceRegistry, XRepository repository) {
       this.dataSourceRegistry = dataSourceRegistry;
       this.repository = repository;

@@ -344,7 +344,7 @@ public class XEngine implements XRepository, XQueryRepository {
 
          RenameDependencyInfo dinfo =
             DependencyTransformer.createDependencyInfo(dx, oname, dx.getFullName());
-         XRepository.getRepository().renameTransform(dinfo);
+         renameTransform(dinfo);
       }
 
       if(dx instanceof AdditionalConnectionDataSource) {

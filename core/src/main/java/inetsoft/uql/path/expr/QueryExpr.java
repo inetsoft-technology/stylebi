@@ -53,27 +53,6 @@ public class QueryExpr extends Expr {
    @Override
    public Object execute(XNode tree, VariableTable vars) throws Exception {
       throw new UnsupportedOperationException();
-      // set the subquery parameters
-//      if(params.size() > 0) {
-//         VariableTable nvars = (VariableTable) vars.clone();
-//         Enumeration pnames = params.keys();
-//
-//         while(pnames.hasMoreElements()) {
-//            String pname = (String) pnames.nextElement();
-//            Expr pval = (Expr) params.get(pname);
-//
-//            nvars.put(pname, pval.execute(tree, vars));
-//         }
-//
-//         vars = nvars;
-//      }
-//
-//      XNode root =
-//         XRepository.getRepository().execute(vars.getSession(), name, vars,
-//                                           ThreadContext.getContextPrincipal(),
-//                                           false, null);
-//
-//      return root;
    }
 
    /**
