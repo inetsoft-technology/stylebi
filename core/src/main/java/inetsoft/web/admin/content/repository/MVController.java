@@ -36,11 +36,13 @@ public class MVController {
    @Autowired
    public MVController(MVService mvService,
                        MVSupportService support,
-                       SecurityProvider securityProvider)
+                       SecurityProvider securityProvider,
+                       SecurityEngine securityEngine)
    {
       this.mvService = mvService;
       this.support = support;
       this.securityProvider = securityProvider;
+      this.securityEngine = securityEngine;
    }
 
    @PostMapping("/api/em/content/repository/mv/analyze")
@@ -137,7 +139,7 @@ public class MVController {
       List<String> ids = null;
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -229,4 +231,5 @@ public class MVController {
    private final MVService mvService;
    private final MVSupportService support;
    private final SecurityProvider securityProvider;
+   private final SecurityEngine securityEngine;
 }

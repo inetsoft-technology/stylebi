@@ -85,6 +85,7 @@
     <module>utils</module>
     <module>core</module>
     <module>server</module>
+    <module>schedule-server</module>
     <module>connectors</module>
     <module>web</module>
     <module>docker</module>

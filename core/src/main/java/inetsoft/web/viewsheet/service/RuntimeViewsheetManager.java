@@ -23,6 +23,7 @@ import inetsoft.sree.internal.cluster.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.ConfigurationContext;
 import inetsoft.web.ServiceProxyContext;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,48 +40,60 @@ import java.util.Set;
 @Component
 public class RuntimeViewsheetManager {
    @Autowired
-   public RuntimeViewsheetManager(ViewsheetService viewsheetService) {
+   public RuntimeViewsheetManager(ViewsheetService viewsheetService, Cluster cluster) {
       this.viewsheetService = viewsheetService;
-      Cluster cluster = Cluster.getInstance();
+      this.cluster = cluster;
+   }
+
+   @PostConstruct
+   public void init() {
       openSheets = cluster.getReplicatedMap(OPEN_SHEETS_MAP);
+   }
+
+   private DistributedMap<String, Set<String>> getOpenSheets() {
+      if(openSheets == null) {
+         openSheets = cluster.getReplicatedMap(OPEN_SHEETS_MAP);
+      }
+
+      return openSheets;
    }
 
    public void sheetOpened(Principal user, String runtimeId) {
       String sessionId = getSessionId(user);
 
-      openSheets.lock(sessionId);
+      getOpenSheets().lock(sessionId);
 
       try {
-         Set<String> sheets = openSheets.computeIfAbsent(sessionId, k -> new HashSet<>());
+         Set<String> sheets = getOpenSheets().computeIfAbsent(sessionId, k -> new HashSet<>());
          sheets.add(runtimeId);
-         openSheets.put(sessionId, sheets);
+         getOpenSheets().put(sessionId, sheets);
       }
       finally {
-         openSheets.unlock(sessionId);
+         getOpenSheets().unlock(sessionId);
       }
    }
 
    public void sheetClosed(Principal user, String runtimeId) {
       String sessionId = getSessionId(user);
 
-      openSheets.lock(sessionId);
+      getOpenSheets().lock(sessionId);
 
       try {
-         Set<String> sheets = openSheets.get(sessionId);
+         Set<String> sheets = getOpenSheets().get(sessionId);
 
          if(sheets != null) {
             sheets.remove(runtimeId);
 
             if(sheets.isEmpty()) {
-               openSheets.remove(sessionId);
+               getOpenSheets().remove(sessionId);
             }
             else {
-               openSheets.put(sessionId, sheets);
+               getOpenSheets().put(sessionId, sheets);
             }
          }
       }
       finally {
-         openSheets.unlock(sessionId);
+         getOpenSheets().unlock(sessionId);
       }
    }
 
@@ -92,13 +105,13 @@ public class RuntimeViewsheetManager {
       String sessionId = getSessionId(user);
       Set<String> sheetsToClose;
 
-      openSheets.lock(sessionId);
+      getOpenSheets().lock(sessionId);
 
       try {
-         sheetsToClose = openSheets.remove(sessionId);
+         sheetsToClose = getOpenSheets().remove(sessionId);
       }
       finally {
-         openSheets.unlock(sessionId);
+         getOpenSheets().unlock(sessionId);
       }
 
       if(sheetsToClose != null) {
@@ -112,8 +125,9 @@ public class RuntimeViewsheetManager {
       return user instanceof XPrincipal ? ((XPrincipal) user).getSessionID() : "unknown-session";
    }
 
-   private final DistributedMap<String, Set<String>> openSheets;
+   private DistributedMap<String, Set<String>> openSheets;
    private final ViewsheetService viewsheetService;
+   private final Cluster cluster;
    private static final String OPEN_SHEETS_MAP = RuntimeViewsheetManager.class.getName() + ".openSheetsMap";
    private static final Logger LOG = LoggerFactory.getLogger(RuntimeViewsheetManager.class);
 

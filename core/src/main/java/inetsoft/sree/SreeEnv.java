@@ -40,15 +40,14 @@ import java.util.function.Supplier;
  * @version 3.0, 5/10/2000
  * @author InetSoft Technology Corp
  */
-@SuppressWarnings("deprecation")
 public class SreeEnv {
 
    public static String getEarlyLoadedProperty(String name) {
-      return PropertiesEngine.getInstance().getProperty(name, true);
+      return EarlyLoadedProperties.getInstance().getProperty(name.toLowerCase());
    }
 
    public static String getEarlyLoadedProperty(String name, String def) {
-      return PropertiesEngine.getInstance().getProperty(name, def, true);
+      return EarlyLoadedProperties.getInstance().getProperty(name.toLowerCase(), def);
    }
 
    public static String getProperty(String name) {
@@ -298,13 +297,6 @@ public class SreeEnv {
    }
 
    /**
-    * Clear and reload the properties.
-    */
-   public static void clear() {
-      PropertiesEngine.getInstance().clear();
-   }
-
-   /**
     * Initialize the environment.
     */
    public static void init() {
@@ -331,7 +323,7 @@ public class SreeEnv {
       // Use a non-initializing presence check to avoid triggering PropertiesEngine
       // initialization from Ignite internal threads (e.g. sys-stripe during transaction
       // commit callbacks), which can block partition exchange under high concurrency.
-      return SingletonManager.isPresent(PropertiesEngine.class);
+      return ConfigurationContext.getContext().getApplicationContext() != null;
    }
 
    private static final Map<String, Object> cache = new ConcurrentHashMap<>(); // cached objects

@@ -48,11 +48,11 @@ public abstract class XAgent implements java.io.Serializable {
       XAgent agent = (XAgent) agentmap.get(dtype);
 
       if(agent == null) {
-         String cls = Config.getAgentClass(dtype);
+         String cls = Config.getConfig().getAgentClass(dtype);
 
          if(cls != null) {
             try {
-               agent = (XAgent) Config.getClass(dtype, cls).newInstance();
+               agent = (XAgent) Config.getConfig().getClass(dtype, cls).newInstance();
                agentmap.put(dtype, agent);
             }
             catch(Exception ex) {

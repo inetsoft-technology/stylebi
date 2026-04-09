@@ -32,6 +32,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
@@ -55,9 +56,10 @@ import java.util.*;
 public class ExpressionDialogService extends WorksheetControllerService {
 
    public ExpressionDialogService(ViewsheetService viewsheetService,
-                                  VSScriptableController scriptController)
+                                  VSScriptableController scriptController,
+                                  DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
       this.scriptController = scriptController;
    }
 

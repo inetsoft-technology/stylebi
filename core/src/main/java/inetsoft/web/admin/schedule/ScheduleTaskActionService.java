@@ -29,14 +29,13 @@ import inetsoft.report.filter.Highlight;
 import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.report.io.viewsheet.excel.CSVUtil;
-import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.RepletRegistry;
+import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.VariableTable;
-import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.schema.UserVariable;
@@ -46,7 +45,6 @@ import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.web.RecycleUtils;
-import inetsoft.web.admin.content.repository.RepletRegistryManager;
 import inetsoft.web.admin.schedule.model.*;
 import inetsoft.web.viewsheet.model.VSBookmarkInfoModel;
 import org.apache.commons.lang3.ArrayUtils;
@@ -63,18 +61,19 @@ import java.util.stream.Collectors;
 @ClusterProxy
 public class ScheduleTaskActionService {
    @Autowired
-   public ScheduleTaskActionService(AnalyticRepository analyticRepository,
-                                    ScheduleManager scheduleManager,
+   public ScheduleTaskActionService(ScheduleManager scheduleManager,
                                     ScheduleService scheduleService,
-                                    ViewsheetService viewsheetService, XRepository xRepository,
-                                    SecurityEngine securityEngine)
+                                    ViewsheetService viewsheetService,
+                                    SecurityEngine securityEngine,
+                                    IndexedStorage indexedStorage,
+                                    RepletRegistryManager repletRegistryManager)
    {
-      this.analyticRepository = analyticRepository;
       this.scheduleManager = scheduleManager;
       this.scheduleService = scheduleService;
       this.viewsheetService = viewsheetService;
-      this.xRepository = xRepository;
       this.securityEngine = securityEngine;
+      this.indexedStorage = indexedStorage;
+      this.repletRegistryManager = repletRegistryManager;
    }
 
    public ScheduleActionModel getTaskAction(String taskName, int index,
@@ -429,7 +428,7 @@ public class ScheduleTaskActionService {
    public ViewsheetTreeListModel getViewsheetTree(Principal user) throws Exception {
       ViewsheetTreeListModel.Builder builder = ViewsheetTreeListModel.builder();
       LinkedHashMap<AssetEntry, ModifiableViewsheetTreeModel> tree = new LinkedHashMap<>();
-      Set<String> keys = IndexedStorage.getIndexedStorage().getKeys(this::isViewsheetTreeEntry);
+      Set<String> keys = indexedStorage.getKeys(this::isViewsheetTreeEntry);
       boolean myReportsAvailable = user != null &&
          securityEngine.checkPermission(user, ResourceType.MY_DASHBOARDS, "*", ResourceAction.READ);
       List<AssetEntry> entries = new ArrayList<>();
@@ -565,7 +564,7 @@ public class ScheduleTaskActionService {
       }
       else if(entry.getType() == AssetEntry.Type.REPOSITORY_FOLDER) {
          try {
-            alias = RepletRegistry.getRegistry(entry.getUser()).getFolderAlias(entry.getPath());
+            alias = repletRegistryManager.getRegistry(entry.getUser()).getFolderAlias(entry.getPath());
          }
          catch(Exception e) {
             throw new RuntimeException("Failed to get replet registry", e);
@@ -646,13 +645,12 @@ public class ScheduleTaskActionService {
       return null;
    }
 
-   private final AnalyticRepository analyticRepository;
    private final ScheduleManager scheduleManager;
    private final ScheduleService scheduleService;
    private final ViewsheetService viewsheetService;
-   private final XRepository xRepository;
    private final SecurityEngine securityEngine;
-   private final RepletRegistryManager registryManager = new RepletRegistryManager();
+   private final IndexedStorage indexedStorage;
+   private final RepletRegistryManager repletRegistryManager;
 
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleTaskActionService.class);
 }

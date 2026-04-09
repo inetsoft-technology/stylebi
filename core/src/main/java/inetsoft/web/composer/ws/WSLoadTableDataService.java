@@ -29,6 +29,7 @@ import inetsoft.report.filter.SortFilter;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.GroupedThread;
 import inetsoft.util.Tool;
@@ -50,9 +51,9 @@ import java.time.Instant;
 @ClusterProxy
 public class WSLoadTableDataService extends WorksheetControllerService {
 
-   public WSLoadTableDataService(ViewsheetService viewsheetService)
+   public WSLoadTableDataService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

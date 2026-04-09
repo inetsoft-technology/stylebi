@@ -55,7 +55,8 @@ public class ExportController {
                            AssemblyImageServiceProxy assemblyImageServiceProxy,
                            AssemblyImageService imageService,
                            VSExportService exportService,
-                           ExportControllerServiceProxy exportControllerServiceProxy)
+                           ExportControllerServiceProxy exportControllerServiceProxy,
+                           SecurityEngine securityEngine)
    {
       this.lifecycleService = lifecycleService;
       this.binaryTransferService = binaryTransferService;
@@ -63,6 +64,7 @@ public class ExportController {
       this.exportService = exportService;
       this.exportControllerServiceProxy = exportControllerServiceProxy;
       this.imageService = imageService;
+      this.securityEngine = securityEngine;
    }
 
    @GetMapping("/export/check/**")
@@ -167,7 +169,7 @@ public class ExportController {
                                  boolean print, String[] bookmarks, boolean onlyDataComponents, boolean exportAllTabbedTables,
                                  CSVConfig csvConfig, HttpServletResponse response, Principal principal) throws Exception {
       String runtimeId;
-      boolean exportEnabled = SecurityEngine.getSecurity().checkPermission(
+      boolean exportEnabled = securityEngine.checkPermission(
          principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Export", ResourceAction.READ);
 
       if(!previewPrintLayout && !exportEnabled) {
@@ -346,6 +348,7 @@ public class ExportController {
    private final VSExportService exportService;
    private final ExportControllerServiceProxy exportControllerServiceProxy;
    private final AssemblyImageService imageService;
+   private final SecurityEngine securityEngine;
 
    private static final Logger LOG = LoggerFactory.getLogger(ExportController.class);
 }

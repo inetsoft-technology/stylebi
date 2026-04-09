@@ -35,9 +35,11 @@ import java.io.IOException;
 import java.security.Principal;
 import java.util.*;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.Tag;
 
 @Service
 @ClusterProxy
+@Tag("core")
 public class HeartBeatService {
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public String touchAsset(@ClusterProxyKey String vsId,

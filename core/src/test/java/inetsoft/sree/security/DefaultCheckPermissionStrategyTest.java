@@ -18,34 +18,41 @@
 package inetsoft.sree.security;
 
 import inetsoft.sree.internal.SUtil;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.util.Tool;
-
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.ArrayList;
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
+@Tag("core")
 class DefaultCheckPermissionStrategyTest {
    static DefaultCheckPermissionStrategy defaultCheckPermissionStrategy;
    static SRPrincipal org_admin, normalUser;
 
    @BeforeAll
-   static void before() throws Exception {
-      SecurityEngine.clear();
-      SecurityEngine engine = SecurityEngine.getSecurity();
-      engine.enableSecurity();
+   static void before(@Autowired SecurityEngine securityEngine) throws Exception {
+      securityEngine.enableSecurity();
       SUtil.setMultiTenant(true);
       defaultCheckPermissionStrategy =
-         new DefaultCheckPermissionStrategy(engine.getSecurityProvider());
+         new DefaultCheckPermissionStrategy(securityEngine.getSecurityProvider());
 
       IdentityID[] orgAdministrator = {new IdentityID("Organization Administrator",null)};
       org_admin = new SRPrincipal(new IdentityID("org_admin", "org0"), orgAdministrator,
@@ -54,12 +61,6 @@ class DefaultCheckPermissionStrategyTest {
       IdentityID[] everyoneRoles = {new IdentityID("Everyone", "org0")};
       normalUser = new SRPrincipal(new IdentityID("normalUser", "org0"), everyoneRoles,
                                    new String[0], "org0", Tool.getSecureRandom().nextLong());
-   }
-
-   @AfterAll
-   static void cleanup() throws Exception {
-      SecurityEngine.getSecurity().disableSecurity();
-      SecurityEngine.clear();
    }
 
    @Test

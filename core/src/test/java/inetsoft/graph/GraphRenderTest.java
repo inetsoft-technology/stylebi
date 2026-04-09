@@ -23,8 +23,14 @@ import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.test.*;
 import inetsoft.util.FileSystemService;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -36,8 +42,16 @@ import java.nio.file.Files;
  * Test that tests rendering a viewsheet chart. This test requires human verification and should be
  * skipped in automated testing.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(
+   classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
+   initializers = ConfigurationContextInitializer.class
+)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome(importResources = "GraphRenderTest.zip")
 @Disabled("Don't run during automated tests, requires human verification of output")
+@Tag("core")
+@Tag("integration")
 class GraphRenderTest {
    @Test
    void testRenderGraph() throws Exception {
@@ -71,13 +85,8 @@ class GraphRenderTest {
    }
 
    @RegisterExtension
-   @Order(1)
-   ControllersExtension controllers = new ControllersExtension();
-
-   @RegisterExtension
-   @Order(2)
    RuntimeViewsheetExtension viewsheetResource =
-      new RuntimeViewsheetExtension(createOpenViewsheetEvent(), controllers);
+      new RuntimeViewsheetExtension(createOpenViewsheetEvent());
 
    private static final String ASSET_ID = "1^128^__NULL__^TEST_GraphRender";
 }

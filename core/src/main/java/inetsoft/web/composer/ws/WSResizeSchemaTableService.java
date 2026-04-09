@@ -26,6 +26,7 @@ import inetsoft.uql.asset.RelationalJoinTableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.asset.internal.CompositeTableAssemblyInfo;
 import inetsoft.uql.asset.internal.SchemaTableInfo;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSResizeSchemaTableEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -37,9 +38,9 @@ import java.security.Principal;
 @ClusterProxy
 public class WSResizeSchemaTableService extends WorksheetControllerService {
 
-   public WSResizeSchemaTableService(ViewsheetService viewsheetService)
+   public WSResizeSchemaTableService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

@@ -40,8 +40,9 @@ import java.util.TimeZone;
 @Service
 public class SheetService {
    @Autowired
-   public SheetService(ResourcePermissionService permissionService)
+   public SheetService(RepletRegistryService registryManager, ResourcePermissionService permissionService)
    {
+      this.registryManager = registryManager;
       this.permissionService = permissionService;
    }
 
@@ -136,7 +137,7 @@ public class SheetService {
          identifier, model.oname(), model.name(), model.alias(), model.description(), principal);
    }
 
-   private final RepletRegistryManager registryManager = new RepletRegistryManager();
+   private final RepletRegistryService registryManager;
    private final ResourcePermissionService permissionService;
    private static final Logger LOG = LoggerFactory.getLogger(SheetService.class.getName());
 }

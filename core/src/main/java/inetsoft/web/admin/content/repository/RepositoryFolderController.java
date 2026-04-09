@@ -30,9 +30,11 @@ import java.security.Principal;
 @RestController
 public class RepositoryFolderController {
    @Autowired
-   public RepositoryFolderController(RepositoryFolderService repositoryFolderService)
+   public RepositoryFolderController(RepositoryFolderService repositoryFolderService,
+                                     SecurityEngine securityEngine)
    {
       this.repositoryFolderService = repositoryFolderService;
+      this.securityEngine = securityEngine;
    }
 
    @GetMapping("/api/em/content/repository/folder/")
@@ -45,7 +47,7 @@ public class RepositoryFolderController {
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -75,4 +77,5 @@ public class RepositoryFolderController {
    }
 
    private final RepositoryFolderService repositoryFolderService;
+   private final SecurityEngine securityEngine;
 }

@@ -186,7 +186,7 @@
             <disable.updateAssetDependencies>true</disable.updateAssetDependencies>
             <kryo.unsafe>false</kryo.unsafe>
             <show.license.exception>true</show.license.exception>
-            <inetsoft.sree.internal.cluster.implementation>inetsoft.test.TestCluster</inetsoft.sree.internal.cluster.implementation>
+            <inetsoft.sree.internal.cluster.implementation>inetsoft.sree.internal.cluster.MockCluster</inetsoft.sree.internal.cluster.implementation>
           </systemPropertyVariables>
         </configuration>
       </plugin>

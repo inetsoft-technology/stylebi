@@ -19,7 +19,8 @@ package inetsoft.web.composer.vs.dialog;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
@@ -33,6 +34,9 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
 import java.security.Principal;
@@ -43,8 +47,12 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
 @ExtendWith({MockitoExtension.class})
+@Tag("core")
 class SelectionTreePropertyDialogServiceTest {
    @BeforeEach
    void setup(){
@@ -57,7 +65,8 @@ class SelectionTreePropertyDialogServiceTest {
          vsSelectionService,
          selectionDialogService,
          assemblyInfoHandler,
-         dataRefService);
+         dataRefService,
+         dataSourceRegistry);
    }
 
    @Test
@@ -225,6 +234,7 @@ class SelectionTreePropertyDialogServiceTest {
    @Mock SelectionDialogService selectionDialogService;
    @Mock VSAssemblyInfoHandler assemblyInfoHandler;
    @Mock DataRefModelFactoryService dataRefService;
+   @Mock DataSourceRegistry dataSourceRegistry;
    @Mock (answer = Answers.RETURNS_DEEP_STUBS)
    private Viewsheet viewsheet;
    @Mock (answer = Answers.RETURNS_DEEP_STUBS)

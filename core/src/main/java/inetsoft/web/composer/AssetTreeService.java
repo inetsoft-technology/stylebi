@@ -46,9 +46,12 @@ import java.util.stream.Collectors;
 @ClusterProxy
 public class AssetTreeService {
 
-   public AssetTreeService(ViewsheetService viewsheetService, AssetRepository assetRepository) {
+   public AssetTreeService(ViewsheetService viewsheetService, AssetRepository assetRepository,
+                           XRepository xRepository)
+   {
       this.viewsheetService = viewsheetService;
       this.assetRepository = assetRepository;
+      this.xRepository = xRepository;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -82,14 +85,13 @@ public class AssetTreeService {
             name = path.substring(index + 1);
          }
 
-         XRepository rep = XFactory.getRepository();
          ViewsheetInfo vinfo = vs.getViewsheetInfo();
 
          if(vinfo != null && vinfo.isDisableParameterSheet()) {
             return result;
          }
 
-         XDataSource ds = rep.getDataSource(source);
+         XDataSource ds = xRepository.getDataSource(source);
 
          if(!(ds instanceof JDBCDataSource) && !(ds instanceof XMLADataSource))
          {
@@ -100,12 +102,12 @@ public class AssetTreeService {
          XUtil.copyDBCredentials((XPrincipal)principal, vtbl);
 
          if(vtbl.contains(XUtil.DB_USER_PREFIX + source)) {
-            rep.connect(assetRepository.getSession(), ":" + source, vtbl);
+            xRepository.connect(assetRepository.getSession(), ":" + source, vtbl);
             return result;
          }
 
          try{
-            UserVariable[] vars = rep.getConnectionParameters(
+            UserVariable[] vars = xRepository.getConnectionParameters(
                assetRepository.getSession(), ":" + name);
 
             if(vars != null && vars.length > 0) {
@@ -131,4 +133,5 @@ public class AssetTreeService {
 
    private ViewsheetService viewsheetService;
    private AssetRepository assetRepository;
+   private final XRepository xRepository;
 }

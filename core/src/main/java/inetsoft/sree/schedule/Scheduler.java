@@ -19,6 +19,8 @@ package inetsoft.sree.schedule;
 
 import inetsoft.mv.MVTool;
 import inetsoft.report.internal.LicenseException;
+import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.util.log.LogManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.UserEnv;
 import inetsoft.sree.internal.DataCycleManager;
@@ -564,7 +566,7 @@ public class Scheduler {
             }
 
             listeners.add(new ServerServiceMessageListener(cluster));
-            listeners.add(new LogMonitoringService());
+            listeners.add(new LogMonitoringService(LogManager.getInstance(), cluster, LicenseManager.getInstance()));
             listeners.forEach(cluster::addMessageListener);
          }
       }

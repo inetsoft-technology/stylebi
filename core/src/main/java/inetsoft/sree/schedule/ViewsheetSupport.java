@@ -66,10 +66,10 @@ public interface ViewsheetSupport extends ScheduleAction {
    /**
     * Get the runtimeViewsheet
     */
-   default RuntimeViewsheet getRuntimeViewsheet(Principal principal)
+   default RuntimeViewsheet getRuntimeViewsheet(Principal principal, ScheduleViewsheetService vsService)
       throws Throwable
    {
-      String id = prepareViewsheet(principal);
+      String id = prepareViewsheet(principal, vsService);
 
       if(id == null) {
          return null;
@@ -89,7 +89,7 @@ public interface ViewsheetSupport extends ScheduleAction {
 
          if(!box.map(ViewsheetSandbox::isScheduleAction).orElse(false)) {
             LOG.debug("Closing viewsheet {} - sandbox null or not schedule action", id);
-            closeViewsheet(id, principal);
+            closeViewsheet(id, principal, vsService);
             success = true; // viewsheet already closed, don't close again in finally
             return null;
          }
@@ -107,7 +107,7 @@ public interface ViewsheetSupport extends ScheduleAction {
       finally {
          if(!success) {
             LOG.debug("Closing viewsheet {} in finally block due to failure", id);
-            closeViewsheet(id, principal);
+            closeViewsheet(id, principal, vsService);
          }
       }
    }
@@ -123,7 +123,7 @@ public interface ViewsheetSupport extends ScheduleAction {
       return fullName.substring(idx + 1);
    }
 
-   default String prepareViewsheet(Principal principal) throws Throwable {
+   default String prepareViewsheet(Principal principal, ScheduleViewsheetService vsService) throws Throwable {
       // create a default principal so developer key can work on local machine
       if(principal == null) {
          try {
@@ -152,8 +152,7 @@ public interface ViewsheetSupport extends ScheduleAction {
       entry.setProperty("_scheduler_", "true");
       entry.setProperty("taskName", getViewsheetTaskName(principal));
 
-      return ScheduleViewsheetService.getInstance().openViewsheet(entry, getRepletRequest(),
-                                                                  principal);
+      return vsService.openViewsheet(entry, getRepletRequest(), principal);
    }
 
    default AssetEntry buildAssetEntry(Principal principal) {
@@ -166,12 +165,12 @@ public interface ViewsheetSupport extends ScheduleAction {
       return buildAssetEntry(null);
    }
 
-   default void closeViewsheet(String id, Principal principal) {
+   default void closeViewsheet(String id, Principal principal, ScheduleViewsheetService vsService) {
       if(LOG.isDebugEnabled()) {
          LOG.debug("Closing scheduled viewsheet: {} for {}", id, principal);
       }
 
-      ScheduleViewsheetService.getInstance().closeViewsheet(id, principal);
+      vsService.closeViewsheet(id, principal);
    }
 
    Logger LOG = LoggerFactory.getLogger(ViewsheetSupport.class);

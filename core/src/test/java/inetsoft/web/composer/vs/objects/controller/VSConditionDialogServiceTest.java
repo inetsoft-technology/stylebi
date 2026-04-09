@@ -19,33 +19,43 @@ package inetsoft.web.composer.vs.objects.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
-import inetsoft.web.composer.vs.dialog.*;
+import inetsoft.web.composer.vs.dialog.VSConditionDialogService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.*;
+import org.junit.jupiter.api.Tag;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
 
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
 @ExtendWith({MockitoExtension.class})
 @MockitoSettings(strictness = Strictness.LENIENT)
+@Tag("core")
 class VSConditionDialogServiceTest {
 
    @BeforeEach
    void setup() throws Exception {
-      service = new VSConditionDialogService(dataRefModelFactoryService, vsAssemblyInfoHandler, viewsheetEngine);
+      service = new VSConditionDialogService(dataRefModelFactoryService, vsAssemblyInfoHandler, viewsheetEngine, dataSourceRegistry);
    }
 
    @Test
@@ -92,5 +102,6 @@ class VSConditionDialogServiceTest {
    @Mock RuntimeViewsheet rvs;
    @Mock Viewsheet viewsheet;
    @Mock BindingInfo bindingInfo;
+   @Mock DataSourceRegistry dataSourceRegistry;
    private VSConditionDialogService service;
 }

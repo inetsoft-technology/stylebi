@@ -31,6 +31,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.CompositeTableAssemblyInfo;
 import inetsoft.uql.asset.internal.TableAssemblyInfo;
 import inetsoft.uql.asset.sync.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -57,9 +58,14 @@ import java.util.List;
 public class SaveWorksheetService extends WorksheetControllerService {
    @Autowired
    public SaveWorksheetService(AssetRepository assetRepository,
-                               ViewsheetService viewsheetService) {
-      super(viewsheetService);
+                               ViewsheetService viewsheetService,
+                               MVManager mvManager,
+                               DataSourceRegistry dataSourceRegistry,
+                               RenameTransformHandler renameTransformHandler) {
+      super(viewsheetService, dataSourceRegistry);
       this.assetRepository = assetRepository;
+      this.mvManager = mvManager;
+      this.renameTransformHandler = renameTransformHandler;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -77,7 +83,7 @@ public class SaveWorksheetService extends WorksheetControllerService {
       RenameDependencyInfo dinfo = DependencyTransformer.createRenameInfo(rws);
 
       if(!dinfo.getDependencyMap().isEmpty()) {
-         RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+         this.renameTransformHandler.addTransformTask(dinfo);
       }
 
       initWorksheetOldName(rws);
@@ -336,7 +342,7 @@ public class SaveWorksheetService extends WorksheetControllerService {
       }
 
       String mvmsg = "";
-      String[] wpaths = MVManager.getManager().findSheets(entry, true);
+      String[] wpaths = mvManager.findSheets(entry, true);
 
       if(wpaths.length > 0) {
          mvmsg += catalog.getString("Worksheets") + ":\n";
@@ -346,7 +352,7 @@ public class SaveWorksheetService extends WorksheetControllerService {
          mvmsg += (i > 0 ? ",\n" : "") + "   " + wpaths[i];
       }
 
-      String[] vpaths = MVManager.getManager().findSheets(entry, false);
+      String[] vpaths = mvManager.findSheets(entry, false);
 
       if(vpaths.length > 0) {
          if(wpaths.length > 0) {
@@ -438,5 +444,7 @@ public class SaveWorksheetService extends WorksheetControllerService {
 
 
    private AssetRepository assetRepository;
+   private MVManager mvManager;
+   private RenameTransformHandler renameTransformHandler;
    private Catalog catalog;
 }

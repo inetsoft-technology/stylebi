@@ -3,6 +3,16 @@
 @javax.annotation.processing.Generated("inetsoft.cluster.apt.ClusterAnnotationProcessor")
 @org.springframework.stereotype.Service
 public class {{proxySimpleName}} {
+   private final inetsoft.sree.internal.cluster.Cluster _cluster;
+   private final inetsoft.report.composition.WorksheetService _wsService;
+   private final {{targetClass}} _localService;
+
+   public {{proxySimpleName}}(inetsoft.sree.internal.cluster.Cluster _cluster, inetsoft.report.composition.WorksheetService _wsService, {{targetClass}} _localService) {
+      this._cluster = _cluster;
+      this._wsService = _wsService;
+      this._localService = _localService;
+   }
+
 {{#methods}}
 
    public static final class {{callableClassName}} implements inetsoft.sree.internal.cluster.AffinityCallable<{{{returnType}}}> {
@@ -24,7 +34,7 @@ public class {{proxySimpleName}} {
          serviceProxyContext.preprocess();
 
          try {
-            {{targetClass}} service = inetsoft.util.ConfigurationContext.getContext().getSpringBean({{targetClass}}.class);
+            {{targetClass}} service = inetsoft.util.ConfigurationContext.getContext().lookupProxyTarget({{targetClass}}.class);
             return service.{{name}}({{#parameters}}{{^first}}, {{/first}}{{value.getter}}{{/parameters}});
          }
          finally {
@@ -38,9 +48,7 @@ public class {{proxySimpleName}} {
    }
 
    public {{{returnType}}} {{name}}({{#parameters}}{{^first}}, {{/first}}{{{value.type}}} {{value.name}}{{/parameters}}){{#exceptions}}{{#first}} throws {{/first}}{{^first}}, {{/first}}{{value}}{{/exceptions}} {
-      inetsoft.sree.internal.cluster.Cluster _cluster = inetsoft.sree.internal.cluster.Cluster.getInstance();
       {{#worksheetCache}}
-      inetsoft.report.composition.WorksheetService _wsService = inetsoft.report.composition.WorksheetEngine.getWorksheetService();
       boolean _local = _wsService.isLocal({{keyParam}});
       {{/worksheetCache}}
       {{^worksheetCache}}
@@ -48,8 +56,7 @@ public class {{proxySimpleName}} {
       {{/worksheetCache}}
 
       if(_local) {
-         {{targetClass}} _service = inetsoft.util.ConfigurationContext.getContext().getSpringBean({{targetClass}}.class);
-         return _service.{{name}}({{#parameters}}{{^first}}, {{/first}}{{value.name}}{{/parameters}});
+         return _localService.{{name}}({{#parameters}}{{^first}}, {{/first}}{{value.name}}{{/parameters}});
       }
 
       {{callableClassName}} _serviceProxyCallable = new {{callableClassName}}(false{{#parameters}}, {{value.name}}{{/parameters}});
@@ -68,11 +75,6 @@ public class {{proxySimpleName}} {
    }
 
    public java.util.concurrent.Future<{{{returnType}}}> {{name}}Async({{#parameters}}{{^first}}, {{/first}}{{{value.type}}} {{value.name}}{{/parameters}}){{#exceptions}}{{#first}} throws {{/first}}{{^first}}, {{/first}}{{value}}{{/exceptions}} {
-      inetsoft.sree.internal.cluster.Cluster _cluster = inetsoft.sree.internal.cluster.Cluster.getInstance();
-      {{#worksheetCache}}
-      inetsoft.report.composition.WorksheetService _wsService = inetsoft.report.composition.WorksheetEngine.getWorksheetService();
-      {{/worksheetCache}}
-
       {{callableClassName}} _serviceProxyCallable = new {{callableClassName}}(true{{#parameters}}, {{value.name}}{{/parameters}});
 
       {{#worksheetCache}}

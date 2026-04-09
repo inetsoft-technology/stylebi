@@ -61,7 +61,7 @@ public class DBScriptable extends ScriptableObject {
       XDataSource xds = null;
 
       try {
-         XRepository rep = XFactory.getRepository();
+         XRepository rep = XRepository.getRepository();
          xds = ConnectionProcessor.getInstance().getDatasource(principal, rep.getDataSource(source, true));
       }
       catch(Throwable ex) {
@@ -181,7 +181,7 @@ public class DBScriptable extends ScriptableObject {
       try {
          conn.commit();
          Thread.sleep(1000);
-         AssetDataCache.removeCacheDependence(jdbcSrc.getName());
+         AssetDataCache.getCache().removeCacheDependence(jdbcSrc.getName());
       }
       catch(Throwable ex) {
          LOG.error("Failed to commit transaction", ex);

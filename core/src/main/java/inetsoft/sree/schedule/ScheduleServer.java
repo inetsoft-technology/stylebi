@@ -22,15 +22,12 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.internal.LicenseException;
-import inetsoft.sree.SreeEnv;
-import inetsoft.sree.UserEnv;
-import inetsoft.sree.internal.RMICallThread;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.util.*;
 import inetsoft.util.health.HealthService;
 import inetsoft.util.health.HealthStatus;
-import inetsoft.util.log.LogManager;
 import inetsoft.web.admin.monitoring.StatusMetricsType;
 import inetsoft.web.admin.query.QueryService;
 import inetsoft.web.admin.schedule.ScheduleQueriesStatus;
@@ -40,31 +37,31 @@ import inetsoft.web.admin.server.ServerMetricsCalculator;
 import inetsoft.web.admin.viewsheet.ViewsheetModel;
 import inetsoft.web.admin.viewsheet.ViewsheetThreadModel;
 import inetsoft.web.cluster.ServerClusterClient;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.*;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
-import java.lang.management.ManagementFactory;
-import java.lang.management.RuntimeMXBean;
 import java.rmi.RemoteException;
-import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 import java.security.Principal;
 import java.util.*;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
-@SingletonManager.Singleton(ScheduleServer.Reference.class)
+@Service
+@Lazy
 public class ScheduleServer extends UnicastRemoteObject implements Schedule {
    /**
     * Default constructor.
     */
-   @SuppressWarnings("WeakerAccess")
-   private ScheduleServer() throws RemoteException {
+   public ScheduleServer(Cluster cluster, HealthService healthService,
+                         StatusDumpService statusDumpService) throws RemoteException
+   {
       super();
-   }
-
-   public static ScheduleServer getInstance() {
-      return SingletonManager.getInstance(ScheduleServer.class);
+      this.cluster = cluster;
+      this.healthService = healthService;
+      this.statusDumpService = statusDumpService;
    }
 
    /**
@@ -73,8 +70,8 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
    @Override
    public void start() throws RemoteException {
       LOG.debug(
-         "Received start server request on " + Tool.getRmiIP() +
-         " with config directory " + ConfigurationContext.getContext().getHome());
+         "Received start server request on {} with config directory {}",
+         Tool.getRmiIP(), ConfigurationContext.getContext().getHome());
 
       try {
          Scheduler.getScheduler().start();
@@ -95,8 +92,8 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
    @Override
    public void stop() throws RemoteException {
       LOG.debug(
-         "Received stop server request on " + Tool.getRmiIP() +
-         " with config directory " + ConfigurationContext.getContext().getHome());
+         "Received stop server request on {} with config directory {}",
+         Tool.getRmiIP(), ConfigurationContext.getContext().getHome());
 
       new Thread(() -> {
          try {
@@ -242,10 +239,10 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
 
    @Override
    public HealthStatus getHealth() throws RemoteException {
-      HealthStatus status = HealthService.getInstance().getStatus();
+      HealthStatus status = healthService.getStatus();
 
       if(status.isDown()) {
-         StatusDumpService.getInstance().dumpStatus();
+         statusDumpService.dumpStatus();
       }
 
       return status;
@@ -324,112 +321,6 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
    }
 
    /**
-    * Create a new schedule process.
-    * @param args args[0] can contain the identifier for the scheduler.
-    */
-   public static void main(String[] args) {
-      System.setProperty("ScheduleServer", "true");
-      ConfigurationContext.getContext().setHome(System.getProperty("sree.home"));
-      System.setProperty("java.rmi.server.hostname", Tool.getRmiIP());
-      LogManager.initializeForStartup();
-
-      RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
-      List<String> arguments = runtimeBean.getInputArguments();
-
-      for(int i = 0; i < arguments.size() - 1; i++) {
-         if("-jar".equals(arguments.get(i))) {
-            String jar = arguments.get(i + 1);
-
-            if(jar.matches("^bootstrap.*\\.jar$")) {
-               FileSystemService.getInstance().getFile(jar).deleteOnExit();
-            }
-
-            break;
-         }
-      }
-
-      // @by billh, for a unix server, it's likely that there is no graphics
-      // env, here we set the default value of java.awt.headless as true, so
-      // that the unix server could work as well
-      if(OperatingSystem.isUnix()) {
-         String val = System.getProperty("java.awt.headless");
-
-         if(val == null || val.length() == 0) {
-            System.setProperty("java.awt.headless", "true");
-         }
-      }
-
-      Catalog.setCatalogGetter(UserEnv.getCatalogGetter());
-
-      // log must be called after sree env has been initialized.
-      LOG.info("Initializing schedule server");
-      SreeEnv.setProperty("log.output.stderr", "false");
-
-      int port = Integer.parseInt(SreeEnv.getProperty("scheduler.rmi.port"));
-      // @by: ChrisSpagnoli feature1366221225905 2014-9-30
-      // Support RMI invocation to "localhost", as alternative to the local IP
-      String host = Tool.getRmiIP();
-      String name = "//" + host + ':' + port + "/ScheduleServer";
-
-      try {
-         RMICallThread rct = new RMICallThread();
-         Registry reg = rct.getRegistry(host, port, 15000L);
-         LOG.debug("Init RMI Call thread.");
-
-         if(reg == null) {
-            throw new Exception();
-         }
-      }
-      catch(Exception exc) {
-         LOG.error("Failed to locate RMI registry, aborting", exc);
-         System.exit(-1);
-      }
-
-      try {
-         RMICallThread rct = new RMICallThread();
-         Schedule schedule = (Schedule) rct.lookup(name, 1500L, false);
-         LOG.debug("Look up RMI Call thread.");
-
-         if(schedule != null) {
-            LOG.error("Scheduler server is already running, aborting");
-            System.exit(-1);
-         }
-      }
-      catch(Exception ignore) {
-      }
-
-      try {
-         ScheduleServer obj = ScheduleServer.getInstance();
-         boolean success;
-         RMICallThread rct = new RMICallThread();
-         success = rct.rebind(name, obj, 30000);
-         LOG.debug("Rebind RMI Call thread:" + success);
-
-         if(!success) {
-            LOG.debug("Start RMI registry on port: " + port);
-            rct = new RMICallThread();
-            rct.startRegistry(host, port, 30000);
-            LOG.debug("Rebind RMI call thread");
-            rct = new RMICallThread();
-            success = rct.rebind(name, obj, 30000);
-
-            if(!success) {
-               throw new Exception();
-            }
-         }
-
-         LOG.info("Schedule server bound in RMI registry.");
-         // make sure the health services start tracking status
-         HealthService.getInstance();
-         obj.start();
-      }
-      catch(Exception exc) {
-         LOG.error("Unable to bind schedule server to RMI registry.", exc);
-         System.exit(-1);
-      }
-   }
-
-   /**
     * To test whether the remote schedule is running.
     */
    @Override
@@ -443,53 +334,25 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
       return Scheduler.getScheduler().isRunning();
    }
 
-   public static final class Reference extends SingletonManager.Reference<ScheduleServer> {
-      @Override
-      public ScheduleServer get(Object... parameters) {
-         if(instance == null) {
-            lock.lock();
-
-            try {
-               if(instance == null) {
-                  try {
-                     instance = new ScheduleServer();
-                  }
-                  catch(RemoteException e) {
-                     LOG.error("Failed to initialize Schedule", e);
-                  }
-               }
-            }
-            finally {
-               lock.unlock();
-            }
-         }
-
-         return instance;
+   @PreDestroy
+   public void shutdown() {
+      try {
+         stop();
       }
-
-      @Override
-      public void dispose() {
-         lock.lock();
-
-         try {
-            if(instance != null) {
-               instance.stop();
-               instance = null;
-            }
-         }
-         catch(RemoteException e) {
-            LOG.error("Failed to stop Schedule", e);
-         }
-         finally {
-            lock.unlock();
-         }
+      catch(RemoteException e) {
+         LOG.error("Failed to stop schedule server during shutdown", e);
       }
-
-      private ScheduleServer instance;
-      private final Lock lock = new ReentrantLock();
    }
 
-   private ServerMetricsCalculator metricsCalculator =
-      new ServerMetricsCalculator(new ServerClusterClient(), StatusMetricsType.SCHEDULE_METRICS);
+   @PostConstruct
+   private void init() {
+      metricsCalculator = new ServerMetricsCalculator(
+         new ServerClusterClient(false, cluster), StatusMetricsType.SCHEDULE_METRICS);
+   }
+
+   private final Cluster cluster;
+   private final HealthService healthService;
+   private final StatusDumpService statusDumpService;
+   private ServerMetricsCalculator metricsCalculator;
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleServer.class);
 }

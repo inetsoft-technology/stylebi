@@ -22,14 +22,17 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.script.VariableScriptable;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.ImageVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.util.DataSpace;
+import inetsoft.util.FileSystemService;
 import inetsoft.web.binding.drm.*;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
@@ -49,12 +52,16 @@ import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
 import java.security.Principal;
@@ -65,14 +72,18 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
+@Tag("core")
 class ImagePropertyDialogServiceTest {
 
    @BeforeEach
    void setup() {
-      VSTrapService trapService = new VSTrapService();
+      VSTrapService trapService = new VSTrapService(dataSourceRegistry);
       List<DataRefModelFactory<?, ?>> dataRefModelFactories = Arrays.asList(
          new AggregateRefModel.AggregateRefModelFactory(),
          new AliasDataRefModel.AliasDataRefModelFactory(),
@@ -95,18 +106,20 @@ class ImagePropertyDialogServiceTest {
       };
       CoreLifecycleService coreLifecycleService = new CoreLifecycleService(
          objectModelService, viewsheetEngine, vsLayoutService, parameterService,
-         vsCompositionService, dataRefModelFactoryService, null, eventPublisher);
+         vsCompositionService, dataRefModelFactoryService, null, eventPublisher,
+         null, null, null, null);
       temporaryInfoService = new VSWizardTemporaryInfoService(viewsheetService);
       VSObjectPropertyService vsObjectPropertyService = spy(new VSObjectPropertyService(coreLifecycleService,
                                                                                         vsColumnHandler,
                                                                                         vsObjectTreeService,
-                                                                                        infoHandler, viewsheetEngine,
+                                                                                        infoHandler,
                                                                                         temporaryInfoService,
                                                                                         vsCompositionService,
-                                                                                        sharedFilterService));
-      BinaryTransferService binaryTransferService = new BinaryTransferService();
+                                                                                        sharedFilterService,
+                                                                                        dataSourceRegistry));
+      BinaryTransferService binaryTransferService = new BinaryTransferService(fileSystemService);
       ImagePreviewPaneService imagePreviewPaneService =
-         new ImagePreviewPaneService(viewsheetService, vsObjectService, binaryTransferService);
+         new ImagePreviewPaneService(viewsheetService, vsObjectService, binaryTransferService, fileSystemService, dataSpace);
       service = new ImagePropertyDialogService(vsObjectPropertyService,
                                                vsOutputService,
                                                viewsheetEngine,
@@ -172,5 +185,8 @@ class ImagePropertyDialogServiceTest {
    @Mock SharedFilterService sharedFilterService;
    @Mock VSObjectService vsObjectService;
    @Mock VSColumnHandler vsColumnHandler;
+   @Mock DataSourceRegistry dataSourceRegistry;
+   @Mock FileSystemService fileSystemService;
+   @Mock DataSpace dataSpace;
    private ImagePropertyDialogService service;
 }

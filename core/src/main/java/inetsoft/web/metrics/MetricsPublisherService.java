@@ -32,14 +32,15 @@ import java.util.concurrent.TimeUnit;
 @Service
 @Lazy(false)
 public class MetricsPublisherService {
-   public MetricsPublisherService(ScalingMetricsService metricsService) {
+   @org.springframework.beans.factory.annotation.Autowired
+   public MetricsPublisherService(ScalingMetricsService metricsService, Cluster cluster) {
       this.metricsService = metricsService;
+      this.cluster = cluster;
    }
 
    @PostConstruct
    public void init() {
-      cluster = Cluster.getInstance();
-      scalingMetricMap = Cluster.getInstance().getMap(SCALING_METRIC_MAP);
+      scalingMetricMap = cluster.getMap(SCALING_METRIC_MAP);
       MetricsConfig metricsConfig = InetsoftConfig.getInstance().getMetrics();
 
       if(metricsConfig != null && metricsConfig.getType() != null) {
@@ -59,7 +60,7 @@ public class MetricsPublisherService {
    }
 
    private final ScalingMetricsService metricsService;
-   private Cluster cluster;
+   private final Cluster cluster;
    private DistributedMap<String, Double> scalingMetricMap;
    public static final String SCALING_METRIC_MAP = MetricsPublisherService.class.getName() + ".scalingMetricMap";
 }

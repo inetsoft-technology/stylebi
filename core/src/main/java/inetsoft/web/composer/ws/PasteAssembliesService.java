@@ -26,6 +26,7 @@ import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.DependencyComparator;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.*;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.command.WSFinishPasteWithCutCommand;
@@ -43,8 +44,8 @@ import java.util.stream.Collectors;
 @Service
 @ClusterProxy
 public class PasteAssembliesService extends WorksheetControllerService {
-   public PasteAssembliesService(ViewsheetService viewsheetService) {
-      super(viewsheetService);
+   public PasteAssembliesService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry) {
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

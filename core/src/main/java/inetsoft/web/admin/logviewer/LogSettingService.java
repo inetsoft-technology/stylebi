@@ -29,6 +29,7 @@ import inetsoft.util.log.*;
 import inetsoft.util.log.logback.LogbackUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -37,6 +38,15 @@ import java.util.stream.Collectors;
 
 @Service
 public class LogSettingService {
+   @Autowired
+   public LogSettingService(SecurityEngine securityEngine, LogManager logManager,
+                            LicenseManager licenseManager)
+   {
+      this.securityEngine = securityEngine;
+      this.logManager = logManager;
+      this.licenseManager = licenseManager;
+   }
+
    public LogSettingsModel getConfiguration() {
       try {
          String provider = SreeEnv.getProperty("log.provider");
@@ -48,9 +58,9 @@ public class LogSettingService {
 
          boolean outputToStd = "true".equals(SreeEnv.getProperty("log.output.stderr"));
          String str = SreeEnv.getProperty("log.detail.level");
-         String detailLevel = LogManager.getInstance().parseLevel(str).level();
+         String detailLevel = logManager.parseLevel(str).level();
 
-         List<LogLevelDTO> logLevelDTOList = LogManager.getInstance().getContextLevels().stream()
+         List<LogLevelDTO> logLevelDTOList = logManager.getContextLevels().stream()
             .sorted()
             .map(LogLevelDTO.builder()::from)
             .collect(Collectors.toList());
@@ -75,7 +85,7 @@ public class LogSettingService {
    }
 
    private FileLogSettingsModel getFileSettings() {
-      String file = LogManager.getInstance().getBaseLogFile(false);
+      String file = logManager.getBaseLogFile(false);
       long maxLogSize = Long.parseLong(SreeEnv.getProperty("report.log.max"));
       int count = Integer.parseInt(SreeEnv.getProperty("report.log.count"));
 
@@ -130,7 +140,7 @@ public class LogSettingService {
       ActionRecord actionRecord =
          SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_EDIT,
                                "Logging-Log Configuration", ActionRecord.OBJECT_TYPE_EMPROPERTY);
-      SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider securityProvider = securityEngine.getSecurityProvider();
 
       try {
          String provider = model.provider();
@@ -144,14 +154,14 @@ public class LogSettingService {
 
          String detailLevel = model.detailLevel();
          SreeEnv.setProperty("log.detail.level", detailLevel);
-         LogManager.getInstance().setLevel(LogManager.getInstance().parseLevel(detailLevel));
+         logManager.setLevel(logManager.parseLevel(detailLevel));
 
          LogbackUtil.resetLog();
 
          SreeEnv.reloadLoggingFramework();
 
          List<LogLevelSetting> oldLogLevels =
-            LogManager.getInstance().getContextLevels();
+            logManager.getContextLevels();
          List<LogLevelDTO> logLevels = model.logLevels();
 
          for(LogLevelSetting level : oldLogLevels) {
@@ -181,7 +191,7 @@ public class LogSettingService {
                LogContext context = LogContext.valueOf(logLevel.context());
                String name = fixLogName(logLevel.name(), logLevel.orgName(),
                                         LogContext.valueOf(logLevel.context()), securityProvider);
-               LogLevel level = LogManager.getInstance().parseLevel(logLevel.level());
+               LogLevel level = logManager.parseLevel(logLevel.level());
                SreeEnv.setLogLevel(context, name, level);
             }
          }
@@ -200,7 +210,7 @@ public class LogSettingService {
    }
 
    private String fixLogName(String name, String orgName, LogContext context, SecurityProvider provider) {
-      if(!LicenseManager.getInstance().isEnterprise()) {
+      if(!licenseManager.isEnterprise()) {
          return name;
       }
 
@@ -292,5 +302,8 @@ public class LogSettingService {
       return null;
    }
 
+   private final SecurityEngine securityEngine;
+   private final LogManager logManager;
+   private final LicenseManager licenseManager;
    private static final Logger LOG = LoggerFactory.getLogger(LogSettingService.class);
 }

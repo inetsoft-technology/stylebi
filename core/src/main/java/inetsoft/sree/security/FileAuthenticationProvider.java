@@ -32,7 +32,6 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -53,16 +52,14 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
             return;
          }
 
-         roleStorage = SingletonManager.getInstance(KeyValueStorage.class,
-           "defaultSecurityRoles",
-           (Supplier<LoadRolesTask>) (() -> new LoadRolesTask("defaultSecurityRoles")));
-         userStorage = SingletonManager.getInstance(KeyValueStorage.class,
-           "defaultSecurityUsers",
-           (Supplier<LoadUsersTask>) (() -> new LoadUsersTask("defaultSecurityUsers")));
-         groupStorage = SingletonManager.getInstance(KeyValueStorage.class, "defaultSecurityGroups");
-         organizationStorage = SingletonManager.getInstance(KeyValueStorage.class,
-                                                 "defaultSecurityOrganizations",
-                                                 (Supplier<LoadOrganizationsTask>) (() -> new LoadOrganizationsTask("defaultSecurityOrganizations")));
+         roleStorage = KeyValueStorageManager.getInstance().getStorage(
+            "defaultSecurityRoles", new LoadRolesTask("defaultSecurityRoles"));
+         userStorage = KeyValueStorageManager.getInstance().getStorage(
+            "defaultSecurityUsers", new LoadUsersTask("defaultSecurityUsers"));
+         groupStorage = KeyValueStorageManager.getInstance().getStorage("defaultSecurityGroups");
+         organizationStorage = KeyValueStorageManager.getInstance().getStorage(
+            "defaultSecurityOrganizations",
+            new LoadOrganizationsTask("defaultSecurityOrganizations"));
       }
    }
 

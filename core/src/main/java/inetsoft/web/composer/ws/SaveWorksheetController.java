@@ -39,8 +39,11 @@ import java.security.Principal;
 @Controller
 public class SaveWorksheetController extends WorksheetController {
    @Autowired
-   public SaveWorksheetController(SaveWorksheetServiceProxy saveWorksheetServiceProxy) {
+   public SaveWorksheetController(SaveWorksheetServiceProxy saveWorksheetServiceProxy,
+                                  SecurityEngine securityEngine)
+   {
       this.saveWorksheetServiceProxy = saveWorksheetServiceProxy;
+      this.securityEngine = securityEngine;
    }
 
    @LoadingMask
@@ -48,7 +51,7 @@ public class SaveWorksheetController extends WorksheetController {
    public boolean saveWorksheet(@Payload SaveSheetEvent event,
       Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.WORKSHEET,
+      if(!securityEngine.checkPermission(principal, ResourceType.WORKSHEET,
                                                        "*", ResourceAction.ACCESS))
       {
          throw new SecurityException(Catalog.getCatalog().getString(
@@ -73,7 +76,7 @@ public class SaveWorksheetController extends WorksheetController {
    public SaveWSConfirmationModel checkPrimaryAssembly(@RequestBody SaveSheetEvent event,
       @RemainingPath String runtimeId, Principal principal) throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.WORKSHEET,
+      if(!securityEngine.checkPermission(principal, ResourceType.WORKSHEET,
                                                        "*", ResourceAction.ACCESS))
       {
          throw new SecurityException(Catalog.getCatalog().getString(
@@ -89,7 +92,7 @@ public class SaveWorksheetController extends WorksheetController {
    public boolean checkDependChanged(@RequestParam("rid") String rid, Principal principal)
       throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.WORKSHEET,
+      if(!securityEngine.checkPermission(principal, ResourceType.WORKSHEET,
                                                        "*", ResourceAction.ACCESS))
       {
          throw new SecurityException(Catalog.getCatalog().getString(
@@ -109,4 +112,5 @@ public class SaveWorksheetController extends WorksheetController {
    }
 
    private final SaveWorksheetServiceProxy saveWorksheetServiceProxy;
+   private final SecurityEngine securityEngine;
 }

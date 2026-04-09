@@ -69,7 +69,9 @@ public class DatabaseDatasourcesService {
                                      XRepository repository,
                                      ResourcePermissionService resourcePermissionService,
                                      DataSourceStatusService dataSourceStatusService,
-                                     IgniteSessionRepository sessionRepository)
+                                     IgniteSessionRepository sessionRepository,
+                                     DataSourceRegistry dataSourceRegistry,
+                                     RenameTransformHandler renameTransformHandler)
    {
       this.databaseTypeService = databaseTypeService;
       this.securityEngine = securityEngine;
@@ -78,6 +80,8 @@ public class DatabaseDatasourcesService {
       this.resourcePermissionService = resourcePermissionService;
       this.dataSourceStatusService = dataSourceStatusService;
       this.sessionRepository = sessionRepository;
+      this.dataSourceRegistry = dataSourceRegistry;
+      this.renameTransformHandler = renameTransformHandler;
    }
 
    public DriverAvailability getDriverAvailability() {
@@ -121,7 +125,7 @@ public class DatabaseDatasourcesService {
    public DataSourceFolderSettingsModel getDataSourceFolder(String path, Principal principal)
       throws Exception
    {
-      DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      DataSourceRegistry registry = dataSourceRegistry;
       DataSourceFolderSettingsModel.Builder builder = DataSourceFolderSettingsModel.builder();
       boolean root = (path == null || path.isEmpty() || "/".equals(path));
 
@@ -224,7 +228,7 @@ public class DatabaseDatasourcesService {
             DependencyTransformer.prepareChildrenSources(path, childrenSources, repository);
             RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
                path, newPath, childrenSources);
-            RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+            renameTransformHandler.addTransformTask(dinfo);
             folder.setName(newPath);
 
             Permission permission =
@@ -288,7 +292,7 @@ public class DatabaseDatasourcesService {
       if(def != null) {
          def.setDeletable(securityEngine.checkPermission(
             principal, ResourceType.DATA_SOURCE,
-            resourcePermissionService.getDataSourceResourceName(path), ResourceAction.DELETE));
+            resourcePermissionService.getDataSourceResourceName(path, dataSourceRegistry), ResourceAction.DELETE));
       }
 
       return def;
@@ -355,7 +359,7 @@ public class DatabaseDatasourcesService {
          return null;
       }
 
-      final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      final DataSourceRegistry registry = dataSourceRegistry;
       String name = database.getName().trim();
       String fullName = path;
       String oname = fullName;
@@ -455,7 +459,7 @@ public class DatabaseDatasourcesService {
          registry.getDataSource(newSrc.getFullName()) != null)
       {
          if(!securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE,
-            resourcePermissionService.getDataSourceResourceName(fullName),
+            resourcePermissionService.getDataSourceResourceName(fullName, dataSourceRegistry),
             ResourceAction.DELETE))
          {
             throw new SecurityException(
@@ -469,7 +473,7 @@ public class DatabaseDatasourcesService {
       }
       else if(!newDataSource && !securityEngine.checkPermission(
          principal, ResourceType.DATA_SOURCE,
-         resourcePermissionService.getDataSourceResourceName(fullName), ResourceAction.WRITE))
+         resourcePermissionService.getDataSourceResourceName(fullName, dataSourceRegistry), ResourceAction.WRITE))
       {
          throw new SecurityException(
             "User=" + principal.getName() + ", Path=/api/data/databases/*, Update=" + fullName);
@@ -618,7 +622,7 @@ public class DatabaseDatasourcesService {
    }
 
    private void renameAdditionalSource(JDBCDataSource xds, String oname, String nname) {
-      XDataModel model = DataSourceRegistry.getRegistry().getDataModel(xds.getFullName());
+      XDataModel model = dataSourceRegistry.getDataModel(xds.getFullName());
       String[] names = model.getPartitionNames();
 
       for(String name : names) {
@@ -651,7 +655,7 @@ public class DatabaseDatasourcesService {
 
    private void refreshAdditionalSource(JDBCDataSource xds) {
       String[] connectNames = xds.getDataSourceNames();
-      XDataModel model = DataSourceRegistry.getRegistry().getDataModel(xds.getFullName());
+      XDataModel model = dataSourceRegistry.getDataModel(xds.getFullName());
       String[] names = model.getPartitionNames();
 
       for(String name : names) {
@@ -737,7 +741,6 @@ public class DatabaseDatasourcesService {
          return false;
       }
 
-      XRepository repository = XFactory.getRepository();
       String[] existDataSourceNames = repository.getDataSourceNames();
 
       for(String exitName : existDataSourceNames) {
@@ -773,7 +776,6 @@ public class DatabaseDatasourcesService {
    private boolean checkAdditionalConnectionsDuplicate(String baseDataSource, String[] additionalConnections)
       throws RemoteException
    {
-      XRepository repository = XFactory.getRepository();
       String[] existDataSourceNames = repository.getDataSourceNames();
       String[] existDataSourceFullNames = repository.getDataSourceFullNames();
 
@@ -931,7 +933,7 @@ public class DatabaseDatasourcesService {
    }
 
    public boolean dataSourceExists(String path, String oldPath) throws Exception {
-      final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      final DataSourceRegistry registry = dataSourceRegistry;
       XDataSource dataSource = repository.getDataSource(path);
       XDataSource renamed = null;
 
@@ -970,7 +972,7 @@ public class DatabaseDatasourcesService {
             return false;
          }
 
-         XDataModel model = DataSourceRegistry.getRegistry().getDataModel(xds.getFullName());
+         XDataModel model = dataSourceRegistry.getDataModel(xds.getFullName());
 
          if(model != null) {
             String[] names = model.getPartitionNames();
@@ -1197,7 +1199,7 @@ public class DatabaseDatasourcesService {
     *
     */
    private AssetEntry getDataSourceAssetEntry(AssetEntry oldEntry) {
-      AssetEntry[] entries = DataSourceRegistry.getRegistry()
+      AssetEntry[] entries = dataSourceRegistry
          .getEntries(oldEntry.getPath(), AssetEntry.Type.DATA_SOURCE);
 
       for(AssetEntry newEntry : entries) {
@@ -1215,7 +1217,7 @@ public class DatabaseDatasourcesService {
     * @param entry the updated asset entry
     */
    private void updateDataSourceAssetEntry(AssetEntry entry) {
-      final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      final DataSourceRegistry registry = dataSourceRegistry;
 
       try {
          registry.setObject(entry, registry.getObject(entry, true));
@@ -1276,7 +1278,7 @@ public class DatabaseDatasourcesService {
 
 
       if(changeTableOption) {
-         RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+         renameTransformHandler.addTransformTask(dinfo);
       }
    }
 
@@ -1308,8 +1310,10 @@ public class DatabaseDatasourcesService {
    private final XRepository repository;
    private final SecurityEngine securityEngine;
    private final DatabaseTypeService databaseTypeService;
+   private final RenameTransformHandler renameTransformHandler;
    private final DatabaseSettingsService databaseSettingsService;
    private final ResourcePermissionService resourcePermissionService;
    private final DataSourceStatusService dataSourceStatusService;
    private final IgniteSessionRepository sessionRepository;
+   private final DataSourceRegistry dataSourceRegistry;
 }

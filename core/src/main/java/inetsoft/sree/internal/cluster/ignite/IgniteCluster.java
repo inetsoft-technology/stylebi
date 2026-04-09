@@ -64,7 +64,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.function.*;
 import java.util.stream.Collectors;
 
-@SingletonManager.ShutdownOrder(after = AuthenticationService.class)
 public final class IgniteCluster implements inetsoft.sree.internal.cluster.Cluster {
    /**
     * Creates a new instance of <tt>Cluster</tt>.
@@ -93,6 +92,10 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       if(!config.isClientMode()) {
          initLockTimer();
          ignite.getOrCreateCache(getCacheConfiguration(RW_MAP_NAME));
+      }
+
+      if("reportServer".equals(System.getProperty("inetsoft.cluster.node.type"))) {
+         setLocalNodeProperty("reportServer", "true");
       }
 
       registerSpringProxyPartitionedCache(WorksheetEngine.CACHE_NAME);

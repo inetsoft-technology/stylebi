@@ -23,6 +23,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -55,8 +56,8 @@ public class SecuredAspect {
     * Creates a new instance of <tt>SecuredAspect</tt>.
     */
    @Autowired
-   public SecuredAspect(ResourcePermissionService resourcePermissionService) {
-      this.resourcePermissionService = resourcePermissionService;
+   public SecuredAspect(DataSourceRegistry dataSourceRegistry) {
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    /**
@@ -164,7 +165,7 @@ public class SecuredAspect {
             }
             else if(path != null) {
                if(resourceType == ResourceType.DATA_SOURCE) {
-                  path = resourcePermissionService.getDataSourceResourceName(path);
+                  path = ResourcePermissionService.getDataSourceResourceName(path, dataSourceRegistry);
                }
 
                check = checkPermission(permission.resourceType(), path, permission.actions(), user);
@@ -245,5 +246,5 @@ public class SecuredAspect {
    }
 
    private final SpelExpressionParser expressionParser = new SpelExpressionParser();
-   private final ResourcePermissionService resourcePermissionService;
+   private final DataSourceRegistry dataSourceRegistry;
 }

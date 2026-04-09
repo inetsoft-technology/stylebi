@@ -49,10 +49,18 @@ import java.util.stream.Collectors;
 @Service
 public class PluginsService {
    @Autowired
-   public PluginsService(UploadService uploadService, SecurityEngine securityEngine) {
+   public PluginsService(UploadService uploadService, SecurityEngine securityEngine,
+                         DataSourceRegistry dataSourceRegistry, Config uqlConfig,
+                         ScheduleClient scheduleClient, Plugins plugins,
+                         FileSystemService fileSystemService)
+   {
       this.uploadService = uploadService;
       this.securityEngine = securityEngine;
-      plugins = Plugins.getInstance();
+      this.dataSourceRegistry = dataSourceRegistry;
+      this.uqlConfig = uqlConfig;
+      this.scheduleClient = scheduleClient;
+      this.plugins = plugins;
+      this.fileSystemService = fileSystemService;
    }
 
    public PluginsModel getModel(Principal principal) throws Exception {
@@ -86,7 +94,6 @@ public class PluginsService {
          return;
       }
 
-      FileSystemService fileSystemService = FileSystemService.getInstance();
       File plugins = fileSystemService.getFile(testerPluginsDir);
 
       if(!plugins.exists()) {
@@ -135,7 +142,7 @@ public class PluginsService {
 
       if(installedPlugins > 0) {
          plugins.validatePlugins();
-         DataSourceRegistry.getRegistry().clearCache();
+         dataSourceRegistry.clearCache();
       }
 
       if(installedPlugins < pluginFiles.size()) {
@@ -182,7 +189,7 @@ public class PluginsService {
          }
 
          try {
-            Config.removePlugin(plugins.getPlugin(plugin.id()));
+            uqlConfig.removePlugin(plugins.getPlugin(plugin.id()));
             plugins.uninstallPlugin(plugin.id());
             actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
 
@@ -222,7 +229,7 @@ public class PluginsService {
       Optional<List<UploadedFile>> files = uploadService.get(request.uploadId());
 
       if(files.isPresent()) {
-         File pluginFile = FileSystemService.getInstance().getCacheTempFile("plugin", ".zip");
+         File pluginFile = fileSystemService.getCacheTempFile("plugin", ".zip");
 
          try {
             UploadedFile[] jars = files.get().toArray(new UploadedFile[0]);
@@ -233,7 +240,7 @@ public class PluginsService {
             try(InputStream input = Files.newInputStream(pluginFile.toPath())) {
                plugins.installPlugin(input, request.pluginId() + "-" +
                   request.pluginVersion() + ".zip", false);
-               DataSourceRegistry.getRegistry().clearCache();
+               dataSourceRegistry.clearCache();
             }
          }
          finally {
@@ -265,11 +272,15 @@ public class PluginsService {
 
    private boolean isCluster() {
       return "server_cluster".equals(SreeEnv.getProperty("server.type")) ||
-         ScheduleClient.getScheduleClient().isCluster();
+         scheduleClient.isCluster();
    }
 
    private final Plugins plugins;
    private final UploadService uploadService;
    private final SecurityEngine securityEngine;
+   private final DataSourceRegistry dataSourceRegistry;
+   private final Config uqlConfig;
+   private final ScheduleClient scheduleClient;
+   private final FileSystemService fileSystemService;
    private static final Logger LOG = LoggerFactory.getLogger(PluginsService.class);
 }

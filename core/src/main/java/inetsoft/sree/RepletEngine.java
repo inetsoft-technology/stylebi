@@ -18,11 +18,15 @@
 package inetsoft.sree;
 
 import inetsoft.mv.*;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.filter.DefaultComparer;
-import inetsoft.report.internal.*;
-import inetsoft.report.internal.license.*;
+import inetsoft.report.internal.LicenseException;
+import inetsoft.report.internal.Util;
+import inetsoft.report.internal.license.License;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.pdf.FontManager;
 import inetsoft.sree.internal.*;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.*;
@@ -35,6 +39,9 @@ import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.RecycleUtils;
 import inetsoft.web.admin.deploy.ImportTargetFolderInfo;
+import org.apache.commons.io.IOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
@@ -46,10 +53,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.commons.io.IOUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 /**
  * This is the implementation of the RepletRepository. It is the server
  * side report engine for processing replets.
@@ -57,9 +60,6 @@ import org.slf4j.LoggerFactory;
  * @version 7.0
  * @author InetSoft Technology Corp
  */
-@SuppressWarnings({
-   "SynchronizationOnLocalVariableOrMethodParameter", "SynchronizeOnNonFinalField"
-})
 public class RepletEngine extends AbstractAssetEngine
    implements RepletRepository, PropertyChangeListener, SessionListener
 {
@@ -76,18 +76,18 @@ public class RepletEngine extends AbstractAssetEngine
    public static final String PARA_LIVE = "live";
 
    /**
-    * Main entrance.
-    */
-   public static void main(String[] args) {
-      Catalog.setCatalogGetter(UserEnv.getCatalogGetter());
-      RepletEngine engine = new RepletEngine();
-      engine.init();
-   }
-
-   /**
     * Create a default local replet engine.
     */
-   public RepletEngine() {
+   public RepletEngine(DeployManagerService deployManagerService,
+                       LibManagerProvider libManagerProvider,
+                       DataCycleManager dataCycleManager,
+                       Cluster cluster,
+                       RepletRegistryManager repletRegistryManager)
+   {
+      super(libManagerProvider, cluster);
+      this.deployManagerService = deployManagerService;
+      this.dataCycleManager = dataCycleManager;
+      this.repletRegistryManager = repletRegistryManager;
       cdir = Tool.getCacheDirectory();
       // initialize global viewer actions
       this.scopes = new int[] {GLOBAL_SCOPE, REPORT_SCOPE, USER_SCOPE};
@@ -112,26 +112,6 @@ public class RepletEngine extends AbstractAssetEngine
       catch(Exception ex) {
          LOG.error("Failed to get indexed stoage", ex);
       }
-   }
-
-   /**
-    * Create a local replet engine.
-    * @param id the unique engine ID.
-    */
-   public RepletEngine(String id) {
-      this();
-
-   }
-
-   /**
-    * Create a local replet engine and evaluate against a given license key.
-    * @param id the unique engine id
-    * @param licenseKey the license key for the slave
-    */
-   @SuppressWarnings("UnusedParameters")
-   public RepletEngine(String id, String licenseKey) {
-      this();
-
    }
 
    /**
@@ -197,8 +177,8 @@ public class RepletEngine extends AbstractAssetEngine
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
 
       try {
-         registry = RepletRegistry.getRegistry();
-         userRegistry = RepletRegistry.getRegistry(pId);
+         registry = repletRegistryManager.getRegistry();
+         userRegistry = repletRegistryManager.getRegistry(pId);
       }
       catch(Exception e) {
          LOG.warn("Failed to get replet registry for user " + principal, e);
@@ -292,8 +272,8 @@ public class RepletEngine extends AbstractAssetEngine
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
 
       return SUtil.isMyReport(name) ?
-         RepletRegistry.getRegistry(pId) :
-         RepletRegistry.getRegistry(orgID);
+         repletRegistryManager.getRegistry(pId) :
+         repletRegistryManager.getRegistry(orgID);
    }
 
    /**
@@ -355,13 +335,11 @@ public class RepletEngine extends AbstractAssetEngine
          @Override
          public void run() {
             try {
-               DataCycleManager dmgr = DataCycleManager.getDataCycleManager();
-
-               if(dmgr != null) {
+               if(dataCycleManager != null) {
                   MVManager mgr = MVManager.getManager();
 
                   if(mgr != null) {
-                     String dcycle = dmgr.getDefaultCycle();
+                     String dcycle = dataCycleManager.getDefaultCycle();
 
                      if(dcycle != null) {
                         mgr.setDefaultCycle(dcycle);
@@ -1210,7 +1188,7 @@ public class RepletEngine extends AbstractAssetEngine
 
       try {
          List<String> failedList = new ArrayList<>();
-         DeployManagerService.importAssets(
+         deployManagerService.importAssets(
             overwriting, order, info, desktop, principal,
             ignoreList, actionRecord, failedList, targetFolderInfo, ignoreUserAssets);
          return failedList;
@@ -1236,7 +1214,7 @@ public class RepletEngine extends AbstractAssetEngine
       writeLock.lock();
 
       try {
-         DeployManagerService.getService().importAssets(data, replace, actionRecord);
+         deployManagerService.importAssets(data, replace, actionRecord);
       }
       finally {
          writeLock.unlock();
@@ -1560,7 +1538,7 @@ public class RepletEngine extends AbstractAssetEngine
          RepletRegistry registry = null;
 
          try {
-            registry = RepletRegistry.getRegistry(entry.getUser());
+            registry = repletRegistryManager.getRegistry(entry.getUser());
          }
          catch(Exception ex) {
             LOG.error("Failed to get replet registry", ex);
@@ -2074,8 +2052,8 @@ public class RepletEngine extends AbstractAssetEngine
          }
 
          RepletRegistry registry = SUtil.isMyReport(entry.getPath()) ?
-            RepletRegistry.getRegistry(pId) :
-               RepletRegistry.getRegistry();
+            repletRegistryManager.getRegistry(pId) :
+            repletRegistryManager.getRegistry();
 
          String parentFolder = entry.getPath();
          String folderName = "/".equalsIgnoreCase(parentFolder) ? name :
@@ -2136,6 +2114,10 @@ public class RepletEngine extends AbstractAssetEngine
       // no-op
    }
 
+   private final DeployManagerService deployManagerService;
+   private final DataCycleManager dataCycleManager;
+   private final RepletRegistryManager repletRegistryManager;
+
     // server ip address
    private static String ipAddress = null;
    private static long lastUpdateMillis = 0;
@@ -2155,6 +2137,14 @@ public class RepletEngine extends AbstractAssetEngine
    private CountDownLatch initLatch;
 
    protected Properties inserts = new Properties(); // html/js inserts
+
+   public boolean isWrapperFor(Class<?> iface) {
+      return iface.isAssignableFrom(getClass());
+   }
+
+   public <T> T unwrap(Class<T> iface) {
+      return iface.cast(this);
+   }
 
    private static final Logger LOG = LoggerFactory.getLogger(RepletEngine.class);
 }

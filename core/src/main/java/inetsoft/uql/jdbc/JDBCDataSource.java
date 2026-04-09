@@ -1555,7 +1555,8 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
 
    public void initCredential(boolean forceLocal) {
       credential =
-         (PasswordCredential) CredentialService.newCredential(CredentialType.PASSWORD, forceLocal);
+         (PasswordCredential) CredentialService.getInstance()
+            .createCredential(CredentialType.PASSWORD, forceLocal);
    }
 
    private String[] systemSchemas = null;

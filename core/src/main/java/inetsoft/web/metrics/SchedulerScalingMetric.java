@@ -26,14 +26,13 @@ import org.slf4j.LoggerFactory;
 import java.util.Optional;
 
 public class SchedulerScalingMetric extends ScalingMetric {
-   public SchedulerScalingMetric(boolean movingAverage, int capacity) {
+   public SchedulerScalingMetric(ScheduleClient client, boolean movingAverage, int capacity) {
       super(movingAverage, capacity);
+      this.client = client;
    }
 
    @Override
    protected double calculate() {
-      ScheduleClient client = new ScheduleClient();
-
       if(client.isCloud()) {
          try {
             Optional<HealthStatus> health = client.getHealthStatus();
@@ -55,4 +54,6 @@ public class SchedulerScalingMetric extends ScalingMetric {
 
       return 0D;
    }
+
+   private final ScheduleClient client;
 }

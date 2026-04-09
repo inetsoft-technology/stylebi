@@ -20,16 +20,24 @@ package inetsoft.report.lens;
 import inetsoft.report.TableLens;
 import inetsoft.report.filter.SortFilter;
 import inetsoft.sree.SreeEnv;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * For bug #46758
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
+@Tag("core")
 class RightJoinWithNullsTest {
    private static String forceHash;
    private TableLens expected;

@@ -35,21 +35,35 @@ public class LogbackSpringExceptionFilter extends TurboFilter {
    public FilterReply decide(Marker marker, Logger logger, Level level, String format,
                              Object[] params, Throwable t)
    {
-      if(log == null) {
-         log = LogManager.getInstance();
-      }
-
-      // don't call isDebugEnabled() if level is debug, otherwise it creates an
-      // infinite recursion
-      if(level != Level.DEBUG && log.isDebugEnabled(logger.getName())) {
+      // Guard against re-entrant calls: LogManager.getInstance() triggers a Spring bean lookup
+      // which causes trace-level logging in doGetBean(), which calls back into this filter,
+      // producing a StackOverflowError.
+      if(IN_DECIDE.get()) {
          return FilterReply.NEUTRAL;
       }
 
-      if(isDeliveryException(t) || isConnectionResetException(t) || isSandboxDisposedException(t)) {
-         return FilterReply.DENY;
-      }
+      IN_DECIDE.set(Boolean.TRUE);
 
-      return FilterReply.NEUTRAL;
+      try {
+         if(log == null) {
+            log = LogManager.getInstance();
+         }
+
+         // don't call isDebugEnabled() if level is debug, otherwise it creates an
+         // infinite recursion
+         if(log != null && level != Level.DEBUG && log.isDebugEnabled(logger.getName())) {
+            return FilterReply.NEUTRAL;
+         }
+
+         if(isDeliveryException(t) || isConnectionResetException(t) || isSandboxDisposedException(t)) {
+            return FilterReply.DENY;
+         }
+
+         return FilterReply.NEUTRAL;
+      }
+      finally {
+         IN_DECIDE.remove();
+      }
    }
 
    private boolean isDeliveryException(Throwable t) {
@@ -68,6 +82,7 @@ public class LogbackSpringExceptionFilter extends TurboFilter {
    }
 
    private LogManager log = null;
+   private static final ThreadLocal<Boolean> IN_DECIDE = ThreadLocal.withInitial(() -> Boolean.FALSE);
    private static final String DELIVERY_EXCEPTION =
       "org.springframework.web.socket.sockjs.SockJsMessageDeliveryException";
    private static final String EOF_EXCEPTION = "org.eclipse.jetty.io.EofException";

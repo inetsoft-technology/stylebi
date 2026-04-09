@@ -1,0 +1,140 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2025  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.storage;
+
+import com.github.benmanes.caffeine.cache.*;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.util.ConfigurationContext;
+import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.io.*;
+
+/**
+ * Manages the pool of {@link BlobStorage} instances keyed by store ID.
+ * Constructor-injecting {@link BlobEngine} and {@link KeyValueStorageManager} ensures proper
+ * startup ordering in a Spring context. In non-Spring environments the no-arg constructor is
+ * used in non-Spring environments.
+ *
+ * <p>At most {@value #MAX_SIZE} stores are held open simultaneously. When the limit is
+ * reached the least-recently-used store is closed and evicted. This bounds memory use and
+ * prevents stale references to stores for organizations that have been removed.</p>
+ */
+public class BlobStorageManager implements AutoCloseable {
+   public BlobStorageManager(BlobEngine blobEngine, KeyValueStorageManager kvStorageManager,
+                             BlobCache blobCache, Cluster cluster)
+   {
+      this.blobCache = blobCache;
+      this.keyValueStorageManager = kvStorageManager;
+      this.cluster = cluster;
+   }
+
+   public static BlobStorageManager getInstance() {
+      return ConfigurationContext.getContext().getSpringBean(BlobStorageManager.class);
+   }
+
+   /**
+    * Gets or creates the {@link BlobStorage} with the given store ID.
+    *
+    * @param storeId the store identifier.
+    * @param preload {@code true} to preload the storage contents on first access.
+    * @param <T>     the extended metadata type.
+    *
+    * @return the storage instance.
+    */
+   public <T extends Serializable> BlobStorage<T> getStorage(String storeId, boolean preload) {
+      return getStorage(storeId, preload, null);
+   }
+
+   /**
+    * Gets or creates the {@link BlobStorage} with the given store ID, optionally attaching a
+    * listener when the storage is first created.
+    *
+    * @param storeId  the store identifier.
+    * @param preload  {@code true} to preload the storage contents on first access.
+    * @param listener a listener to add the first time this storage is created, or {@code null}.
+    * @param <T>      the extended metadata type.
+    *
+    * @return the storage instance.
+    */
+   @SuppressWarnings("unchecked")
+   public <T extends Serializable> BlobStorage<T> getStorage(
+      String storeId, boolean preload, BlobStorage.Listener<T> listener)
+   {
+      while(true) {
+         boolean[] created = { false };
+         BlobStorage<T> storage = (BlobStorage<T>) storages.get(storeId, id -> {
+            created[0] = true;
+
+            try {
+               return BlobStorage.createBlobStorage(id, preload, blobCache, keyValueStorageManager, cluster);
+            }
+            catch(IOException e) {
+               throw new UncheckedIOException(e);
+            }
+         });
+
+         if(storage.isClosed()) {
+            // Storage was closed externally; evict it so the next iteration creates a fresh one.
+            storages.asMap().remove(storeId, storage);
+            continue;
+         }
+
+         if(created[0] && listener != null) {
+            storage.addListener(listener);
+         }
+
+         return storage;
+      }
+   }
+
+   @Override
+   @PreDestroy
+   public void close() {
+      storages.asMap().values().forEach(s -> {
+         try {
+            s.close();
+         }
+         catch(Exception e) {
+            LOG.error("Failed to close BlobStorage", e);
+         }
+      });
+      storages.invalidateAll();
+   }
+
+   private final BlobCache blobCache;
+   private final KeyValueStorageManager keyValueStorageManager;
+   private final Cluster cluster;
+   private static final int MAX_SIZE = 50;
+
+   private final Cache<String, BlobStorage<?>> storages = Caffeine.newBuilder()
+      .maximumSize(MAX_SIZE)
+      .removalListener((String id, BlobStorage<?> storage, RemovalCause cause) -> {
+         if(storage != null && !storage.isClosed()) {
+            try {
+               storage.close();
+            }
+            catch(Exception e) {
+               LOG.error("Failed to close evicted BlobStorage '{}'", id, e);
+            }
+         }
+      })
+      .build();
+
+   private static final Logger LOG = LoggerFactory.getLogger(BlobStorageManager.class);
+}

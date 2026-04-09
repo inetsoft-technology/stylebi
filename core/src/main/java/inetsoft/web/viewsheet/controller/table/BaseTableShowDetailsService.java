@@ -43,7 +43,6 @@ import inetsoft.util.*;
 import inetsoft.web.adhoc.model.FormatInfoModel;
 import inetsoft.web.composer.model.SortInfoModel;
 import inetsoft.web.composer.model.vs.TableStylePaneModel;
-import inetsoft.web.composer.vs.dialog.TableViewStylePaneController;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.viewsheet.command.LoadPreviewTableCommand;
 import inetsoft.web.viewsheet.command.MessageCommand;
@@ -406,7 +405,6 @@ public class BaseTableShowDetailsService extends BaseTableService<ShowDetailsEve
             }
          }
 
-         TableViewStylePaneController styleController = new TableViewStylePaneController();
          TableStylePaneModel styleModel = new TableStylePaneModel();
          styleModel.setTableStyle(style);
          styleModel.setStyleTree(dialogService.getStyleTree(rvs, principal, false));

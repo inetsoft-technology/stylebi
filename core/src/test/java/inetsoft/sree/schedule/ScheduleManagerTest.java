@@ -21,12 +21,18 @@ package inetsoft.sree.schedule;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.security.*;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
-import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.VSBookmark;
+import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.IOException;
 import java.util.*;
@@ -39,13 +45,34 @@ import static org.mockito.Mockito.*;
  *  repletRemoved, assetRemoved,  assetRenamed, only RepletEngine used, ignore
  *  archiveRenamed: useless, ignore
  */
-@SreeHome
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@SreeHome
+@Tag("core")
 public class ScheduleManagerTest {
-   private  ScheduleManager scheduleManager;
+   @Autowired
+   ScheduleManager scheduleManager;
 
-   @BeforeAll
-   void beforeAll() throws IOException {
+   private IdentityID identityID_admin;
+   private IdentityID identityID_tuser0;
+   private SRPrincipal admin;
+   private SRPrincipal tuser0;
+
+   @BeforeEach
+   void before() {
+      identityID_admin = new IdentityID("admin", "host-org");
+      identityID_tuser0 = new IdentityID("tuser0", "host-org");
+      admin = new SRPrincipal(new IdentityID("admin", Organization.getDefaultOrganizationID()),
+                              new IdentityID[] { new IdentityID("Administrator", null)},
+                              new String[] {"g0"}, "host-org",
+                              Tool.getSecureRandom().nextLong());
+      admin.setIgnoreLogin(true);
+      tuser0 = new SRPrincipal(new IdentityID("tuser0", Organization.getDefaultOrganizationID()),
+                               new IdentityID[]{ new IdentityID("Everyone", null) },
+                               new String[]{ "g0" }, "host-org",
+                               Tool.getSecureRandom().nextLong());
       tuser0.setIgnoreLogin(true);
    }
 
@@ -107,8 +134,7 @@ public class ScheduleManagerTest {
     * check save and remove  task
     */
    @Test
-   void testSaveTask()  {
-      scheduleManager = ScheduleManager.getScheduleManager();
+   void testSaveTask() throws Exception {
       ScheduleTask tk1 = new ScheduleTask("tk1");
       tk1.setOwner(identityID_tuser0);
       ScheduleTask mvtk2  = new ScheduleTask("mvtk2");
@@ -118,45 +144,38 @@ public class ScheduleManagerTest {
       Collection<ScheduleTask> tasks = Arrays.asList(tk1, mvtk2);
       assertFalse(scheduleManager.getScheduleTasks().contains(tk1));
 
-      try {
-         scheduleManager.save(tasks, "host-org" );
-         assertTrue(scheduleManager.getScheduleTasks().contains(tk1));
-         assertTrue(scheduleManager.getScheduleTasks().contains(mvtk2));
+      scheduleManager.save(tasks, "host-org" );
+      assertTrue(scheduleManager.getScheduleTasks().contains(tk1));
+      assertTrue(scheduleManager.getScheduleTasks().contains(mvtk2));
 
-         //check didn't remove task without D permission
-         Throwable exception = assertThrows(
-            IOException.class,
-            () ->  scheduleManager.removeScheduleTask("tuser0~;~host-org:tk1", tuser0)
-         );
-         assertTrue(exception.getMessage().contains("doesn't have delete permission for"));
+      //check didn't remove task without D permission
+      Throwable exception = assertThrows(
+         IOException.class,
+         () ->  scheduleManager.removeScheduleTask("tuser0~;~host-org:tk1", tuser0)
+      );
+      assertTrue(exception.getMessage().contains("doesn't have delete permission for"));
 
-         // check normal remove task
-         scheduleManager.removeScheduleTask("tuser0~;~host-org:tk1", admin);
+      // check normal remove task
+      scheduleManager.removeScheduleTask("tuser0~;~host-org:tk1", admin);
 
-         // check didn't remove task, such as mv task
-         assertFalse(mvtk2.isRemovable());
-         exception = assertThrows(
-            IOException.class,
-            () -> scheduleManager.removeScheduleTask("tuser0~;~host-org:mvtk2", admin)
-         );
-         assertTrue(exception.getMessage().contains("Task is not removable:"));
-
-      } catch(Exception e) {
-         e.printStackTrace();
-      }
+      // check didn't remove task, such as mv task
+      assertFalse(mvtk2.isRemovable());
+      exception = assertThrows(
+         IOException.class,
+         () -> scheduleManager.removeScheduleTask("tuser0~;~host-org:mvtk2", admin)
+      );
+      assertTrue(exception.getMessage().contains("Task is not removable:"));
    }
 
    /**
     * check save and remove external task
     */
    @Test
-   void testSaveTaskWithExtTask() {
+   void testSaveTaskWithExtTask() throws Exception {
       //mock CycleInfo
       DataCycleManager.CycleInfo mockCycleInfo = mock(DataCycleManager.CycleInfo.class);
       when(mockCycleInfo.getOrgId()).thenReturn("host-org");
       when(mockCycleInfo.getName()).thenReturn("cycle1");
-
-      scheduleManager = ScheduleManager.getScheduleManager();
 
       ScheduleTask tk1 = new ScheduleTask("tk1");
       tk1.setOwner(identityID_tuser0);
@@ -170,20 +189,15 @@ public class ScheduleManagerTest {
       when(mockScheduleExt.isEnable("tuser0~;~host-org:tk1", "host-org")).thenReturn(false);
       when(mockScheduleExt.deleteTask("tuser0~;~host-org:tk1")).thenReturn(true);
 
-      try{
-         scheduleManager.addScheduleExt(mockScheduleExt);
-         scheduleManager.save(List.of(tk1), "host-org");
+      scheduleManager.addScheduleExt(mockScheduleExt);
+      scheduleManager.save(List.of(tk1), "host-org");
 
-        // assertFalse(scheduleManager.getAllScheduleTasks().contains(tk1));  //check ext task in all tasks
-         assertTrue(scheduleManager.getScheduleTasks().contains(tk1));  //check 1 ext task
-         assertTrue(scheduleManager.getScheduleTasks("host-org").contains(tk1));  //check task in org
+     // assertFalse(scheduleManager.getAllScheduleTasks().contains(tk1));  //check ext task in all tasks
+      assertTrue(scheduleManager.getScheduleTasks().contains(tk1));  //check 1 ext task
+      assertTrue(scheduleManager.getScheduleTasks("host-org").contains(tk1));  //check task in org
 
-         assertTrue(scheduleManager.getExtensionTasks().contains(tk1));
-         assertEquals(2, scheduleManager.getExtensions().size());
-
-      } catch(Exception e) {
-         e.printStackTrace();
-      }
+      assertTrue(scheduleManager.getExtensionTasks().contains(tk1));
+      assertEquals(1, scheduleManager.getExtensions().size());
    }
 
    /**
@@ -191,38 +205,31 @@ public class ScheduleManagerTest {
     * getScheduleTasks, getScheduleActivities,getScheduleTasks
     */
    @Test
-   void testSetScheduleTask() {
-      scheduleManager = ScheduleManager.getScheduleManager();
-
+   void testSetScheduleTask() throws Exception {
       ScheduleTask tk1 = new ScheduleTask("tk1");
       tk1.setOwner(identityID_tuser0);
       ScheduleTask tk2 = new ScheduleTask("tk2");
 
-      try {
-         //check tuser0 no permission to set task
-         Throwable exception = assertThrows(
-            IOException.class,
-            () -> scheduleManager.setScheduleTask("tk1", tk1, tuser0)
-         );
-         assertTrue(exception.getMessage().contains("User 'tuser0' doesn't have schedule permission"));
+      //check tuser0 no permission to set task
+      Throwable exception = assertThrows(
+         IOException.class,
+         () -> scheduleManager.setScheduleTask("tk1", tk1, tuser0)
+      );
+      assertTrue(exception.getMessage().contains("User 'tuser0' doesn't have schedule permission"));
 
-         // set task with tuser0 owner
-         scheduleManager.setScheduleTask("tk1", tk1, admin);
-         assertTrue(scheduleManager.getScheduleTasks().contains(tk1));
+      // set task with tuser0 owner
+      scheduleManager.setScheduleTask("tk1", tk1, admin);
+      assertTrue(scheduleManager.getScheduleTasks().contains(tk1));
 
-         // set task no owner, use admin as owner
-         scheduleManager.setScheduleTask("tk2", tk2, admin);
-         assertEquals("admin~;~host-org", scheduleManager.getScheduleTask("admin~;~host-org:tk2").getOwner().convertToKey());
+      // set task no owner, use admin as owner
+      scheduleManager.setScheduleTask("tk2", tk2, admin);
+      assertEquals("admin~;~host-org", scheduleManager.getScheduleTask("admin~;~host-org:tk2").getOwner().convertToKey());
 
-         //check get ScheduleTasks by taskList
-         Vector<ScheduleTask> taskList= scheduleManager.getScheduleTasks(admin, List.of(tk1, tk2), "host-org");
-         assertEquals(2, taskList.size());
-         assertEquals("admin~;~host-org", taskList.getFirst().getOwner().convertToKey());
-         assertEquals("tuser0~;~host-org", taskList.getLast().getOwner().convertToKey());
-
-      } catch (Exception e) {
-         e.printStackTrace();
-      }
+      //check get ScheduleTasks by taskList
+      Vector<ScheduleTask> taskList= scheduleManager.getScheduleTasks(admin, List.of(tk1, tk2), "host-org");
+      assertEquals(2, taskList.size());
+      assertEquals("admin~;~host-org", taskList.getFirst().getOwner().convertToKey());
+      assertEquals("tuser0~;~host-org", taskList.getLast().getOwner().convertToKey());
    }
 
    /**
@@ -230,8 +237,6 @@ public class ScheduleManagerTest {
     */
    @Test
    void testDependentTasks() {
-      scheduleManager = ScheduleManager.getScheduleManager();
-
       assertEquals("__balance tasks__", scheduleManager.getBalanceTask().getName());
       assertEquals("__asset file backup__", scheduleManager.getAssetBackupTask().getName());
       assertFalse(scheduleManager.isArchiveTaskEnabled());
@@ -242,90 +247,77 @@ public class ScheduleManagerTest {
    }
 
    @Test
-   void testViewSheetRenamed() {
-      scheduleManager = ScheduleManager.getScheduleManager();
+   void testViewSheetRenamed() throws Exception {
       ScheduleTask vstk1 = createScheduleTask("vstk1");
 
-      try {
-         scheduleManager.setScheduleTask("admin~;~host-org:vstk1", vstk1, admin);
+      scheduleManager.setScheduleTask("admin~;~host-org:vstk1", vstk1, admin);
 
-         // check viewsheetRenamed, change to new vs name:vs1_1
-         scheduleManager.viewSheetRenamed("1^128^__NULL__^f1/vs1^host-org",
-                                          "1^128^__NULL__^f1/vs1_1^host-org", "admin", "host-org");
-         ViewsheetAction vsaction =  (ViewsheetAction)scheduleManager.getScheduleTask("admin~;~host-org:vstk1").getAction(0);
-         assertEquals("1^128^__NULL__^f1/vs1_1^host-org", vsaction.getViewsheetName());
+      // check viewsheetRenamed, change to new vs name:vs1_1
+      scheduleManager.viewSheetRenamed("1^128^__NULL__^f1/vs1^host-org",
+                                       "1^128^__NULL__^f1/vs1_1^host-org", "admin", "host-org");
+      ViewsheetAction vsaction =  (ViewsheetAction)scheduleManager.getScheduleTask("admin~;~host-org:vstk1").getAction(0);
+      assertEquals("1^128^__NULL__^f1/vs1_1^host-org", vsaction.getViewsheetName());
 
-         //check bookmarkRenamed, change to new bookmark name:abk1_1
-         scheduleManager.bookmarkRenamed("abk1", "abk1_1", "1^128^__NULL__^f1/vs1_1^host-org", identityID_admin);
-         vsaction =  (ViewsheetAction)scheduleManager.getScheduleTask("admin~;~host-org:vstk1").getAction(0);
+      //check bookmarkRenamed, change to new bookmark name:abk1_1
+      scheduleManager.bookmarkRenamed("abk1", "abk1_1", "1^128^__NULL__^f1/vs1_1^host-org", identityID_admin);
+      vsaction =  (ViewsheetAction)scheduleManager.getScheduleTask("admin~;~host-org:vstk1").getAction(0);
 
-         assertTrue(Arrays.toString(vsaction.getBookmarks()).contains("abk1_1"));
+      assertTrue(Arrays.toString(vsaction.getBookmarks()).contains("abk1_1"));
 
-         // check vs folderRenamed, change to new folder name: f1_1
-         scheduleManager.folderRenamed("f1", "f1_1", null, "host-org");
-         vsaction =  (ViewsheetAction)scheduleManager.getScheduleTask("admin~;~host-org:vstk1").getAction(0);
-         assertEquals("1^128^__NULL__^f1_1/vs1_1^host-org", vsaction.getViewsheetName());
+      // check vs folderRenamed, change to new folder name: f1_1
+      scheduleManager.folderRenamed("f1", "f1_1", null, "host-org");
+      vsaction =  (ViewsheetAction)scheduleManager.getScheduleTask("admin~;~host-org:vstk1").getAction(0);
+      assertEquals("1^128^__NULL__^f1_1/vs1_1^host-org", vsaction.getViewsheetName());
 
-         // check viewsheetRemoved,  action be remove
-         AssetEntry vs1Entry = AssetEntry.createAssetEntry("1^128^__NULL__^f1_1/vs1_1^host-org");
-         scheduleManager.viewsheetRemoved(vs1Entry, "host-org");
-         ScheduleTask task1 =  scheduleManager.getScheduleTask("admin~;~host-org:vstk1");
-         assertEquals(0, task1.getActionCount());
-
-      } catch(Exception e) {
-         e.printStackTrace();
-      }
+      // check viewsheetRemoved,  action be remove
+      AssetEntry vs1Entry = AssetEntry.createAssetEntry("1^128^__NULL__^f1_1/vs1_1^host-org");
+      scheduleManager.viewsheetRemoved(vs1Entry, "host-org");
+      ScheduleTask task1 =  scheduleManager.getScheduleTask("admin~;~host-org:vstk1");
+      assertEquals(0, task1.getActionCount());
    }
 
    /**
     * check rename vs, folder and ws assetEntry, task info change rightly
     */
    @Test
-   void checkRenameSheetInSchedule() {
-      scheduleManager = ScheduleManager.getScheduleManager();
+   void checkRenameSheetInSchedule() throws Exception {
       ScheduleTask vstk1 = createScheduleTask("vstk1");
 
-      try {
-         scheduleManager.setScheduleTask("admin~;~host-org:vstk1", vstk1, admin);
+      scheduleManager.setScheduleTask("admin~;~host-org:vstk1", vstk1, admin);
 
-         //check assetentry is vs
-         AssetEntry oentry = AssetEntry.createAssetEntry("1^128^__NULL__^f1/vs1^host-org");
-         AssetEntry nentry = AssetEntry.createAssetEntry("1^128^__NULL__^f1/vs1_1^host-org");
-         scheduleManager.renameSheetInSchedule(oentry, nentry);
-         ViewsheetAction vsaction =  (ViewsheetAction)scheduleManager.getScheduleTask("admin~;~host-org:vstk1").getAction(0);
-         assertEquals("1^128^__NULL__^f1/vs1_1^host-org", vsaction.getViewsheetName());
+      //check assetentry is vs
+      AssetEntry oentry = AssetEntry.createAssetEntry("1^128^__NULL__^f1/vs1^host-org");
+      AssetEntry nentry = AssetEntry.createAssetEntry("1^128^__NULL__^f1/vs1_1^host-org");
+      scheduleManager.renameSheetInSchedule(oentry, nentry);
+      ViewsheetAction vsaction =  (ViewsheetAction)scheduleManager.getScheduleTask("admin~;~host-org:vstk1").getAction(0);
+      assertEquals("1^128^__NULL__^f1/vs1_1^host-org", vsaction.getViewsheetName());
 
-         //check assetEntry is folder
-         AssetEntry folderOEntry = AssetEntry.createAssetEntry("0^65605^__NULL__^f1");
-         AssetEntry folderNEntry = AssetEntry.createAssetEntry("0^65605^__NULL__^f1_1");
-         scheduleManager.renameSheetInSchedule(folderOEntry, folderNEntry);
-         vsaction =  (ViewsheetAction)scheduleManager.getScheduleTask("admin~;~host-org:vstk1").getAction(0);
-         assertEquals("1^128^__NULL__^f1_1/vs1_1^host-org", vsaction.getViewsheetName());
+      //check assetEntry is folder
+      AssetEntry folderOEntry = AssetEntry.createAssetEntry("0^65605^__NULL__^f1");
+      AssetEntry folderNEntry = AssetEntry.createAssetEntry("0^65605^__NULL__^f1_1");
+      scheduleManager.renameSheetInSchedule(folderOEntry, folderNEntry);
+      vsaction =  (ViewsheetAction)scheduleManager.getScheduleTask("admin~;~host-org:vstk1").getAction(0);
+      assertEquals("1^128^__NULL__^f1_1/vs1_1^host-org", vsaction.getViewsheetName());
 
-         //check batch action
-         BatchAction batchAction = spy(BatchAction.class);
-         AssetEntry wsOEntry = AssetEntry.createAssetEntry("1^2^__NULL__^ws1^host-org");
-         AssetEntry wsNEntry = AssetEntry.createAssetEntry("1^2^__NULL__^ws1_1^host-org");
-         batchAction.setQueryEntry(wsOEntry);
+      //check batch action
+      BatchAction batchAction = spy(BatchAction.class);
+      AssetEntry wsOEntry = AssetEntry.createAssetEntry("1^2^__NULL__^ws1^host-org");
+      AssetEntry wsNEntry = AssetEntry.createAssetEntry("1^2^__NULL__^ws1_1^host-org");
+      batchAction.setQueryEntry(wsOEntry);
 
-         vstk1.addAction(batchAction);
-         vstk1.setAction(1, batchAction);
-         scheduleManager.setScheduleTask("admin~;~host-org:vstk1", vstk1, admin);
-         scheduleManager.renameSheetInSchedule(wsOEntry, wsNEntry);
-         BatchAction batchAction1 =  (BatchAction)scheduleManager.getScheduleTask("admin~;~host-org:vstk1").getAction(1);
-         assertEquals("ws1_1", batchAction1.getQueryEntry().toString());
-
-      }catch(Exception e) {
-         e.printStackTrace();
-      }
+      vstk1.addAction(batchAction);
+      vstk1.setAction(1, batchAction);
+      scheduleManager.setScheduleTask("admin~;~host-org:vstk1", vstk1, admin);
+      scheduleManager.renameSheetInSchedule(wsOEntry, wsNEntry);
+      BatchAction batchAction1 =  (BatchAction)scheduleManager.getScheduleTask("admin~;~host-org:vstk1").getAction(1);
+      assertEquals("ws1_1", batchAction1.getQueryEntry().toString());
    }
 
    /**
     * check rename user, task info change rightly
     */
    @Test
-   void checkIdentityRenamed() {
-      scheduleManager = ScheduleManager.getScheduleManager();
+   void checkIdentityRenamed() throws Exception {
       ViewsheetAction spyVSAction = spy(ViewsheetAction.class);
       spyVSAction.setViewsheet("1^128^__NULL__^f3/vs2^host-org");
 
@@ -340,21 +332,16 @@ public class ScheduleManagerTest {
       user_tk1.setCondition(0, condition);
       user_tk1.setIdentity(new User(identityID_tuser0));
 
-      try {
-         scheduleManager.setScheduleTask("tuser0~;~host-org:user_tk1", user_tk1, admin);
-         // check rename user.
-         User tuser0_1 = new User(new IdentityID("tuser0_1", "host-org"));
-         scheduleManager.identityRenamed(identityID_tuser0, tuser0_1);
-         assertEquals("tuser0_1~;~host-org", scheduleManager.getScheduleTask("tuser0_1~;~host-org:user_tk1").getOwner().convertToKey());
+      scheduleManager.setScheduleTask("tuser0~;~host-org:user_tk1", user_tk1, admin);
+      // check rename user.
+      User tuser0_1 = new User(new IdentityID("tuser0_1", "host-org"));
+      scheduleManager.identityRenamed(identityID_tuser0, tuser0_1);
+      assertEquals("tuser0_1~;~host-org", scheduleManager.getScheduleTask("tuser0_1~;~host-org:user_tk1").getOwner().convertToKey());
 
-         // check composition condition task user name changed.
-         CompletionCondition completionCondition =
-            (CompletionCondition) scheduleManager.getScheduleTask("tuser0_1~;~host-org:user_tk1").getCondition(0);
-         assertEquals("tuser0_1~;~host-org:user_tk2",  completionCondition.getTaskName());
-
-      }catch(Exception e) {
-         e.printStackTrace();
-      }
+      // check composition condition task user name changed.
+      CompletionCondition completionCondition =
+         (CompletionCondition) scheduleManager.getScheduleTask("tuser0_1~;~host-org:user_tk1").getCondition(0);
+      assertEquals("tuser0_1~;~host-org:user_tk2",  completionCondition.getTaskName());
    }
 
    private ScheduleTask createScheduleTask(String taskName) {
@@ -401,16 +388,5 @@ public class ScheduleManagerTest {
       );
       scheduleManager.removeTaskCacheOfOrg(orgId);
    }
-
-   IdentityID identityID_admin = new IdentityID("admin", "host-org");
-   IdentityID identityID_tuser0= new IdentityID("tuser0", "host-org");
-   SRPrincipal admin = new SRPrincipal(new IdentityID("admin", Organization.getDefaultOrganizationID()),
-                                       new IdentityID[] { new IdentityID("Administrator", null)},
-                                       new String[] {"g0"}, "host-org",
-                                       Tool.getSecureRandom().nextLong());
-   SRPrincipal tuser0 = new SRPrincipal(new IdentityID("tuser0", Organization.getDefaultOrganizationID()),
-                                       new IdentityID[] { new IdentityID("Everyone", null)},
-                                       new String[] {"g0"}, "host-org",
-                                       Tool.getSecureRandom().nextLong());
 }
 

@@ -56,11 +56,12 @@ import java.util.*;
 public class DataSourceService {
    @Autowired
    public DataSourceService(AssetRepository assetRepository, SecurityEngine securityEngine,
-                            XRepository repository)
+                            XRepository repository, DataSourceRegistry dataSourceRegistry)
    {
       this.assetRepository = assetRepository;
       this.securityEngine = securityEngine;
       this.repository = repository;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    /**
@@ -683,7 +684,7 @@ public class DataSourceService {
     */
    public void updateDataSourceAssetEntry(AssetEntry entry) {
       try {
-         DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+         DataSourceRegistry registry = dataSourceRegistry;
          registry.setObject(entry, registry.getObject(entry, true));
       }
       catch(Exception e) {
@@ -719,7 +720,7 @@ public class DataSourceService {
     * @return the asset entries for the entry type.
     */
    public AssetEntry[] getModelAssetEntries(String path, AssetEntry.Type type) {
-      DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      DataSourceRegistry registry = dataSourceRegistry;
       return registry.getEntries(path, type);
    }
 
@@ -788,7 +789,7 @@ public class DataSourceService {
          .findFirst().orElse(null);
 
       if(meta == null) {
-         meta = new DefaultMetaDataProvider();
+         meta = new DefaultMetaDataProvider(repository);
          meta.setDataSource(ds);
          meta.setDataModel(dm);
          meta.setPortalData(true);
@@ -849,4 +850,5 @@ public class DataSourceService {
    private final AssetRepository assetRepository;
    private final SecurityEngine securityEngine;
    private final XRepository repository;
+   private final DataSourceRegistry dataSourceRegistry;
 }

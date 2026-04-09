@@ -34,6 +34,7 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.security.ResourcePermissionModel;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -42,16 +43,24 @@ import java.util.stream.Collectors;
 
 @Service
 public class RepositoryDashboardService {
+   @Autowired
    public RepositoryDashboardService(ResourcePermissionService permissionService,
                                      SecurityProvider securityProvider,
                                      ContentRepositoryTreeService contentRepositoryTreeService,
-                                     AnalyticRepository analyticRepository)
+                                     DashboardManager dashboardManager,
+                                     SecurityEngine securityEngine,
+                                     DependencyHandler dependencyHandler,
+                                     DashboardRegistryManager dashboardRegistryManager,
+                                     RenameTransformHandler renameTransformHandler)
    {
       this.permissionService = permissionService;
       this.securityProvider = securityProvider;
-      dashboardManager = DashboardManager.getManager();
+      this.dashboardManager = dashboardManager;
       this.contentRepositoryTreeService = contentRepositoryTreeService;
-      this.analyticRepository = analyticRepository;
+      this.securityEngine = securityEngine;
+      this.dependencyHandler = dependencyHandler;
+      this.dashboardRegistryManager = dashboardRegistryManager;
+      this.renameTransformHandler = renameTransformHandler;
    }
 
    /**
@@ -62,8 +71,8 @@ public class RepositoryDashboardService {
    public RepositoryDashboardSettingsModel getSettings(String dashboardName, IdentityID owner,
                                                        Principal principal)
    {
-      DashboardRegistry registry = owner != null ? DashboardRegistry.getRegistry(owner) :
-         DashboardRegistry.getRegistry();
+      DashboardRegistry registry = owner != null ? dashboardRegistryManager.getRegistry(owner) :
+         dashboardRegistryManager.getRegistry();
       dashboardName = fixDashboardName(dashboardName, owner);
       VSDashboard dashboard = (VSDashboard) registry.getDashboard(dashboardName);
       final ResourcePermissionModel tableModel = owner != null ? null :
@@ -86,13 +95,13 @@ public class RepositoryDashboardService {
                            .viewsheet(vsEntry != null ? vsEntry.getIdentifier() : null)
                            .path(path)
                            .enable(enable)
-                           .visible(!SecurityEngine.getSecurity().isSecurityEnabled())
+                           .visible(!securityEngine.isSecurityEnabled())
                            .permissions(tableModel)
                            .build();
    }
 
-   private static Identity effectiveIdentity(IdentityID owner, Principal principal) {
-      if(!SecurityEngine.getSecurity().isSecurityEnabled()) {
+   private Identity effectiveIdentity(IdentityID owner, Principal principal) {
+      if(!securityEngine.isSecurityEnabled()) {
          return new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
       }
 
@@ -121,8 +130,8 @@ public class RepositoryDashboardService {
       try {
          actionRecord = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_EDIT, null,
                                               ActionRecord.OBJECT_TYPE_DASHBOARD);
-         DashboardRegistry registry = owner != null ? DashboardRegistry.getRegistry(owner) :
-            DashboardRegistry.getRegistry();
+         DashboardRegistry registry = owner != null ? dashboardRegistryManager.getRegistry(owner) :
+            dashboardRegistryManager.getRegistry();
          String name = model.name();
          VSDashboard dashboard = new VSDashboard();
          String desp = model.description();
@@ -130,7 +139,7 @@ public class RepositoryDashboardService {
          AssetEntry entry = Objects.requireNonNull(AssetEntry.createAssetEntry(identifier));
          String oldName = model.oname();
          Dashboard oldDashboard = registry.getDashboard(oldName);
-         DependencyHandler.getInstance().updateDashboardDependencies(owner, oldName, false);
+         dependencyHandler.updateDashboardDependencies(owner, oldName, false);
          ViewsheetEntry oldEntry = ((VSDashboard) oldDashboard).getViewsheet();
          ViewsheetEntry viewsheet = new ViewsheetEntry(entry.getPath(), entry.getUser());
          viewsheet.setIdentifier(identifier);
@@ -170,7 +179,7 @@ public class RepositoryDashboardService {
             }
 
             RenameInfo rinfo = new RenameInfo(okey, nkey, RenameInfo.DASHBOARD);
-            RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
+            renameTransformHandler.addTransformTask(rinfo);
          }
 
          // remove the base vs if a new vs replaces it
@@ -194,11 +203,11 @@ public class RepositoryDashboardService {
 
          registry.addDashboard(name, dashboard);
          registry.save();
-         DependencyHandler.getInstance().updateDashboardDependencies(owner, name, true);
+         dependencyHandler.updateDashboardDependencies(owner, name, true);
 
          //security permission part
          ResourcePermissionModel permissions = model.permissions();
-         boolean security = SecurityEngine.getSecurity().isSecurityEnabled();
+         boolean security = securityEngine.isSecurityEnabled();
 
          if(security && permissions != null && (permissions.changed() || renamed)) {
             permissionService.setResourcePermissions(path, ResourceType.DASHBOARD,
@@ -299,7 +308,7 @@ public class RepositoryDashboardService {
          actionRecord = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_CREATE, null,
                                               ActionRecord.OBJECT_TYPE_DASHBOARD);
          IdentityID owner = parentInfo.getOwner();
-         DashboardRegistry registry = DashboardRegistry.getRegistry(owner);
+         DashboardRegistry registry = dashboardRegistryManager.getRegistry(owner);
          String dashboardName = null;
 
          for(int i = 1; i < Integer.MAX_VALUE; i++) {
@@ -322,7 +331,7 @@ public class RepositoryDashboardService {
          dashboard.setLastModifiedBy(identityID.getName());
          registry.addDashboard(dashboardName, dashboard);
          registry.save();
-         Identity identity = SecurityEngine.getSecurity().isSecurityEnabled() ?
+         Identity identity = securityEngine.isSecurityEnabled() ?
             contentRepositoryTreeService.getIdentity((XPrincipal) principal) :
             new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
          dashboardManager.addDashboard(identity, dashboardName);
@@ -369,13 +378,13 @@ public class RepositoryDashboardService {
    }
 
    public void delete(String path, IdentityID owner) throws Exception {
-      DashboardRegistry registry = DashboardRegistry.getRegistry(owner);
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry(owner);
 
       if(owner != null && SUtil.isMyDashboard(path)) {
          path = SUtil.getUnscopedPath(path);
       }
 
-      DependencyHandler.getInstance().updateDashboardDependencies(owner, path, false);
+      dependencyHandler.updateDashboardDependencies(owner, path, false);
       Dashboard dashboard = registry.getDashboard(path);
       registry.removeDashboard(path);
       registry.save();
@@ -387,7 +396,7 @@ public class RepositoryDashboardService {
 
    public RepositoryFolderDashboardSettingsModel getDashboardFolderSettings(Principal principal)
    {
-      DashboardRegistry registry = DashboardRegistry.getRegistry();
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry();
       List<String> dashboardNames = Arrays.asList(registry.getDashboardNames());
       Identity identity = getDashboardFolderIdentity(principal);
       List<String> sortedDashboards = Arrays.asList(dashboardManager.getDashboards(identity));
@@ -410,7 +419,7 @@ public class RepositoryDashboardService {
       List<String> all = Arrays.asList(dashboardManager.getDashboards(identity));
       all.sort(Comparator.comparingInt(model.dashboards()::indexOf));
       dashboardManager.setDashboards(identity, all.toArray(new String[0]));
-      boolean security = SecurityEngine.getSecurity().isSecurityEnabled();
+      boolean security = securityEngine.isSecurityEnabled();
       ResourcePermissionModel permissionModel = model.permissions();
 
       if(security && permissionModel != null && permissionModel.changed()) {
@@ -429,7 +438,7 @@ public class RepositoryDashboardService {
       IdentityID currentUser = IdentityID.getIdentityIDFromKey(principal.getName());
       Identity identity = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
 
-      if(SecurityEngine.getSecurity().isSecurityEnabled()) {
+      if(securityEngine.isSecurityEnabled()) {
          if(orgID.equals(currentUser.orgID)) {
             identity = contentRepositoryTreeService.getIdentity((XPrincipal) principal);
          }
@@ -541,5 +550,8 @@ public class RepositoryDashboardService {
    private final ResourcePermissionService permissionService;
    private final SecurityProvider securityProvider;
    private final DashboardManager dashboardManager;
-   private AnalyticRepository analyticRepository;
+   private final SecurityEngine securityEngine;
+   private final DependencyHandler dependencyHandler;
+   private final DashboardRegistryManager dashboardRegistryManager;
+   private final RenameTransformHandler renameTransformHandler;
 }

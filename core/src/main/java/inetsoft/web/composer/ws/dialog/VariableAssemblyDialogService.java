@@ -29,6 +29,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.condition.ExpressionValueModel;
@@ -51,9 +52,9 @@ import java.util.List;
 @ClusterProxy
 public class VariableAssemblyDialogService extends WorksheetControllerService {
 
-   public VariableAssemblyDialogService(ViewsheetService viewsheetService)
+   public VariableAssemblyDialogService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

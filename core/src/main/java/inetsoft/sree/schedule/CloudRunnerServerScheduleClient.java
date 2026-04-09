@@ -29,14 +29,19 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 public class CloudRunnerServerScheduleClient extends ScheduleClient {
+   public CloudRunnerServerScheduleClient(ScheduleServer scheduleServer, Cluster cluster) {
+      super(cluster);
+      this.scheduleServer = scheduleServer;
+   }
+
    @Override
    public void startServer() throws Exception {
-      getSchedule().start();
+      scheduleServer.start();
    }
 
    @Override
    public void startServer(long timeout, TimeUnit timeoutUnit) throws Exception {
-      getSchedule().start();
+      scheduleServer.start();
    }
 
    @Override
@@ -56,12 +61,12 @@ public class CloudRunnerServerScheduleClient extends ScheduleClient {
 
    @Override
    protected Schedule getSchedule(String server) {
-      return getSchedule();
+      return scheduleServer;
    }
 
    @Override
    public boolean isRunning() {
-      return getSchedule().isLocalServerRunning();
+      return scheduleServer.isLocalServerRunning();
    }
 
    @Override
@@ -71,7 +76,7 @@ public class CloudRunnerServerScheduleClient extends ScheduleClient {
 
    @Override
    public boolean isReady() {
-      return getSchedule().isLocalServerRunning();
+      return scheduleServer.isLocalServerRunning();
    }
 
    @Override
@@ -81,8 +86,6 @@ public class CloudRunnerServerScheduleClient extends ScheduleClient {
 
    @Override
    public String getSchedulerServer() {
-      Cluster cluster = Cluster.getInstance();
-
       return cluster.getClusterNodeHost(cluster.getLocalMember());
    }
 
@@ -114,17 +117,14 @@ public class CloudRunnerServerScheduleClient extends ScheduleClient {
 
    @Override
    public Optional<HealthStatus> getHealthStatus() throws RemoteException {
-      return Optional.of(getSchedule().getHealth());
+      return Optional.of(scheduleServer.getHealth());
    }
 
    @Override
    public Optional<HealthStatus> getHealthStatus(String server) throws RemoteException {
-      return Optional.of(getSchedule().getHealth());
+      return Optional.of(scheduleServer.getHealth());
    }
 
-   private ScheduleServer getSchedule() {
-      return ScheduleServer.getInstance();
-   }
-
+   private final ScheduleServer scheduleServer;
    private static final Logger LOG = LoggerFactory.getLogger(CloudRunnerServerScheduleClient.class);
 }

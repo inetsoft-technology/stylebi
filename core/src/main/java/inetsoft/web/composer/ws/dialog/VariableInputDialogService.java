@@ -27,6 +27,7 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.WSExecution;
 import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.CoreTool;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
@@ -43,9 +44,9 @@ import java.util.List;
 @ClusterProxy
 public class VariableInputDialogService extends WorksheetControllerService {
 
-   public VariableInputDialogService(ViewsheetService viewsheetService)
+   public VariableInputDialogService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

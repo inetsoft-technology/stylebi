@@ -26,6 +26,7 @@ import org.apache.ignite.cache.CachePeekMode;
 import org.apache.ignite.internal.binary.BinaryObjectImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.cache.Cache;
@@ -34,8 +35,9 @@ import java.util.*;
 
 @Service
 public class ClusterCacheUsageService implements MessageListener {
-   public ClusterCacheUsageService() {
-      cluster = Cluster.getInstance();
+   @Autowired
+   public ClusterCacheUsageService(Cluster cluster) {
+      this.cluster = cluster;
 
       if(SUtil.isCluster()) {
          cluster.addMessageListener(this);

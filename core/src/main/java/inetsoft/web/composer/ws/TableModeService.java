@@ -29,6 +29,7 @@ import inetsoft.uql.XQuery;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.TableAssemblyInfo;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.Tool;
 import inetsoft.util.UserMessage;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
@@ -48,9 +49,10 @@ import java.util.Map;
 @ClusterProxy
 public class TableModeService extends WorksheetControllerService {
 
-   public TableModeService(ViewsheetService viewsheetService)
+   public TableModeService(ViewsheetService viewsheetService, AssetDataCache assetDataCache, DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
+      this.assetDataCache = assetDataCache;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -220,7 +222,7 @@ public class TableModeService extends WorksheetControllerService {
          try {
             int mode = AssetEventUtil.getMode(table);
             DataKey key = AssetDataCache.getCacheKey(table, box, null, mode, true);
-            AssetDataCache.removeCachedData(key);
+            assetDataCache.removeCachedData(key);
             box.resetTableLens(tableName);
 
             TableAssembly clone = (TableAssembly) table.clone();
@@ -365,5 +367,6 @@ public class TableModeService extends WorksheetControllerService {
       }
    }
 
+   private final AssetDataCache assetDataCache;
    private static final Logger LOG = LoggerFactory.getLogger(TableModeService.class);
 }

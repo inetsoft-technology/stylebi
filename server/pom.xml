@@ -440,6 +440,7 @@
             <element>${basedir}/../web/target/generated-resources/gulp</element>
             <element>${basedir}/../web/target/generated-resources/ng</element>
             <element>${basedir}/src/test/config/orders.jar</element>
+            <element>${basedir}/../schedule-server/target/inetsoft-schedule-server-${project.version}.jar}</element>
           </additionalClasspathElements>
         </configuration>
       </plugin>
@@ -455,7 +456,7 @@
             <disable.updateAssetDependencies>true</disable.updateAssetDependencies>
             <kryo.unsafe>false</kryo.unsafe>
             <show.license.exception>true</show.license.exception>
-            <inetsoft.sree.internal.cluster.implementation>inetsoft.test.TestCluster</inetsoft.sree.internal.cluster.implementation>
+            <inetsoft.sree.internal.cluster.implementation>inetsoft.sree.internal.cluster.MockCluster</inetsoft.sree.internal.cluster.implementation>
           </systemPropertyVariables>
         </configuration>
       </plugin>

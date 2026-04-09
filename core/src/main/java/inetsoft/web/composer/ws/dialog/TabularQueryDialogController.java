@@ -42,8 +42,11 @@ import java.util.*;
 @Controller
 public class TabularQueryDialogController extends WorksheetController {
    @Autowired
-   public TabularQueryDialogController(TabularQueryDialogServiceProxy dialogServiceProxy) {
+   public TabularQueryDialogController(TabularQueryDialogServiceProxy dialogServiceProxy,
+                                       FileSystemService fileSystemService)
+   {
       this.dialogServiceProxy = dialogServiceProxy;
+      this.fileSystemService = fileSystemService;
    }
 
    @GetMapping("/api/composer/ws/tabular-query-dialog-model")
@@ -281,7 +284,7 @@ public class TabularQueryDialogController extends WorksheetController {
                }
             }
             else {
-               File[] list = FileSystemService.getInstance()
+               File[] list = fileSystemService
                   .getFile(relativeTo + "/" + path + "/")
                   .listFiles(filter);
 
@@ -360,4 +363,5 @@ public class TabularQueryDialogController extends WorksheetController {
    }
 
    private TabularQueryDialogServiceProxy dialogServiceProxy;
+   private final FileSystemService fileSystemService;
 }

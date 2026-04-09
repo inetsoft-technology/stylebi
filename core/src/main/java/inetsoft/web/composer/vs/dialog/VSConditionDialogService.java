@@ -34,6 +34,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -62,11 +63,13 @@ public class VSConditionDialogService {
    public VSConditionDialogService(
       DataRefModelFactoryService dataRefModelFactoryService,
       VSAssemblyInfoHandler vsAssemblyInfoHandler,
-      ViewsheetService viewsheetService)
+      ViewsheetService viewsheetService,
+      DataSourceRegistry dataSourceRegistry)
    {
       this.dataRefModelFactoryService = dataRefModelFactoryService;
       this.vsAssemblyInfoHandler = vsAssemblyInfoHandler;
       this.viewsheetService = viewsheetService;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -370,7 +373,7 @@ public class VSConditionDialogService {
       ConditionList newConditionList = ConditionUtil.fromModelToConditionList(
          model.newConditionList(), sourceInfo, viewsheetService, principal, rws, tName);
 
-      VSModelTrapContext mtc = new VSModelTrapContext(rvs);
+      VSModelTrapContext mtc = new VSModelTrapContext(rvs, dataSourceRegistry);
 
       if(mtc.isCheckTrap()) {
          AbstractModelTrapContext.TrapInfo trapInfo =
@@ -463,6 +466,7 @@ public class VSConditionDialogService {
    }
 
    private final ViewsheetService viewsheetService;
-   private DataRefModelFactoryService dataRefModelFactoryService;
-   private VSAssemblyInfoHandler vsAssemblyInfoHandler;
+   private final DataRefModelFactoryService dataRefModelFactoryService;
+   private final VSAssemblyInfoHandler vsAssemblyInfoHandler;
+   private final DataSourceRegistry dataSourceRegistry;
 }

@@ -22,6 +22,7 @@ import inetsoft.web.admin.content.repository.model.ExportedAssetsModel;
 import inetsoft.web.admin.content.repository.model.ImportAssetResponse;
 import inetsoft.web.admin.model.FileData;
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -30,15 +31,16 @@ import java.util.UUID;
 
 @RestController
 public class ImportAssetController {
-   public ImportAssetController(ImportAssetServiceProxy importService) {
+   @Autowired
+   public ImportAssetController(ImportAssetServiceProxy importService, Cluster cluster) {
       this.importService = importService;
+      this.cluster = cluster;
    }
 
    @PostConstruct
    public void initializeCache() {
       // ensure that the cache is initialized because ImportAssetService may be lazily initialized
       // in a different order than the controller and proxy
-      Cluster cluster = Cluster.getInstance();
       cluster.registerSpringProxyPartitionedCache(ImportAssetService.CACHE_NAME);
       cluster.getCache(ImportAssetService.CACHE_NAME);
    }
@@ -92,4 +94,5 @@ public class ImportAssetController {
    }
 
    private final ImportAssetServiceProxy importService;
+   private final Cluster cluster;
 }

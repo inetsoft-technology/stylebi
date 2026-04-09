@@ -19,6 +19,7 @@ package inetsoft.web.composer;
 
 import inetsoft.mv.MVManager;
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.composition.AssetTreeModel;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.style.XTableStyle;
@@ -56,9 +57,17 @@ public class AssetTreeController {
     * @param assetRepository the asset repository.
     */
    @Autowired
-   public AssetTreeController(AssetRepository assetRepository, AssetTreeServiceProxy assetTreeServiceProxy) {
+   public AssetTreeController(AssetRepository assetRepository,
+                              AssetTreeServiceProxy assetTreeServiceProxy,
+                              SecurityEngine securityEngine,
+                              LibManagerProvider libManagerProvider,
+                              XRepository xRepository)
+   {
       this.assetRepository = assetRepository;
       this.assetTreeServiceProxy = assetTreeServiceProxy;
+      this.securityEngine = securityEngine;
+      this.libManagerProvider = libManagerProvider;
+      this.xRepository = xRepository;
    }
 
    @PostMapping("/api/vs/bindingtree/getConnectionParameters")
@@ -95,7 +104,7 @@ public class AssetTreeController {
          includeTableStyles, includeScripts, includeLibrary, reportRepositoryEnabled, readOnly,
          physical, event, principal, readOnly || assetRepository.checkPermission(
             principal, ResourceType.WORKSHEET, "*", EnumSet.of(ResourceAction.ACCESS)),
-            SecurityEngine.getSecurity().checkPermission(
+            securityEngine.checkPermission(
             principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS),
             readOnly || assetRepository.checkPermission(
             principal, ResourceType.VIEWSHEET, "*", EnumSet.of(ResourceAction.ACCESS)));
@@ -180,7 +189,6 @@ public class AssetTreeController {
          AssetTreeModel.Node atmNode = new AssetTreeModel.Node(expandedEntry);
 
          if(!"cubeRoot".equals(expandedEntry.getProperty("entryName"))) {
-            XRepository rep = XFactory.getRepository();
             Set<UserVariable> list = new HashSet<>();
 
             if("true".equals(expandedEntry.getProperty("CUBE_TABLE")) ||
@@ -189,7 +197,7 @@ public class AssetTreeController {
                UserVariable[] vars = null;
 
                try {
-                  vars = rep.getConnectionParameters(
+                  vars = xRepository.getConnectionParameters(
                      assetRepository.getSession(), ":" + expandedEntry.getPath());
                }
                catch(RemoteException re) {
@@ -495,16 +503,15 @@ public class AssetTreeController {
          }
 
          Object session = assetRepository.getSession();
-         XRepository rep = XFactory.getRepository();
          Iterator iterator = dbs.iterator();
 
          while(iterator.hasNext()) {
             String db = (String) iterator.next();
-            XDataSource ds = rep.getDataSource(db);
+            XDataSource ds = xRepository.getDataSource(db);
 
             if(db != null) {
                try {
-                  rep.testDataSource(session, ds, vtable);
+                  xRepository.testDataSource(session, ds, vtable);
                }
                catch(Exception ex) {
                   message = ex.getMessage();
@@ -524,7 +531,7 @@ public class AssetTreeController {
                                                   pass);
                }
 
-               rep.connect(session, ":" + db, vtable);
+               xRepository.connect(session, ":" + db, vtable);
             }
          }
       }
@@ -566,7 +573,7 @@ public class AssetTreeController {
          assets = Arrays.stream(assets).filter(asset -> {
             try {
                if(!assetRepository.containsEntry(asset)) {
-                  LibManager manager = LibManager.getManager();
+                  LibManager manager = libManagerProvider.getManager();
 
                   if(asset.isTableStyle()) {
                      XTableStyle style = manager.getTableStyleByName(asset.getProperty("styleName"));
@@ -1060,6 +1067,9 @@ public class AssetTreeController {
 
    private final AssetRepository assetRepository;
    private final AssetTreeServiceProxy assetTreeServiceProxy;
+   private final SecurityEngine securityEngine;
+   private final LibManagerProvider libManagerProvider;
+   private final XRepository xRepository;
    private static final String TABLE_STYLE = "Table Style";
    private static final String SCRIPT = "Script Function";
    private static final Catalog catalog = Catalog.getCatalog();

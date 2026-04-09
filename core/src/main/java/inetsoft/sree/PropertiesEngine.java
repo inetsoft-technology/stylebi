@@ -18,41 +18,70 @@
 package inetsoft.sree;
 
 import inetsoft.report.StyleFont;
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationManager;
-import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.storage.KeyValueStorage;
+import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.jdbc.SQLHelper;
 import inetsoft.util.*;
 import inetsoft.util.log.*;
 import inetsoft.util.log.logback.LogbackUtil;
 import inetsoft.util.script.JavaScriptEngine;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.awt.*;
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.io.*;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 
+@Service
+@Lazy
 public class PropertiesEngine {
+   public PropertiesEngine(KeyValueStorageManager keyValueStorageManager,
+                           FileSystemService fileSystemService,
+                           ApplicationEventPublisher eventPublisher,
+                           ObjectProvider<LogManager> logManagerProvider)
+   {
+      this.keyValueStorageManager = keyValueStorageManager;
+      this.fileSystemService = fileSystemService;
+      this.eventPublisher = eventPublisher;
+      this.logManagerProvider = logManagerProvider;
+   }
+
+   @PostConstruct
+   public void initEngine() {
+      addPropertyChangeListener("string.compare.casesensitive", evt -> Tool.invalidateCaseSensitive());
+      kvStorage = keyValueStorageManager.getStorage("sreeProperties");
+   }
+
+   @PreDestroy
+   public void shutdown() throws Exception {
+      debouncer.close();
+   }
+
    /**
     * Gets the singleton instance of {@code PropertiesEngine}.
     *
     * @return the PropertiesEngine instance.
     */
    public static PropertiesEngine getInstance() {
-      return SingletonManager.getInstance(PropertiesEngine.class);
+      return ConfigurationContext.getContext().getSpringBean(PropertiesEngine.class);
    }
 
    /**
@@ -63,7 +92,7 @@ public class PropertiesEngine {
    }
 
    public Properties getInternalProperties() {
-      return ConfigurationContext.getContext().get(PROPERTIES_KEY);
+      return internalProperties;
    }
 
    public String getProperty(String name) {
@@ -214,8 +243,6 @@ public class PropertiesEngine {
 
             if(homeU != null && valU.contains(homeU)) {
                try {
-                  FileSystemService fileSystemService = FileSystemService.getInstance();
-
                   home = (fileSystemService.getFile(home)).getCanonicalPath();
                   val = (fileSystemService.getFile(val)).getCanonicalPath();
                }
@@ -292,12 +319,12 @@ public class PropertiesEngine {
       String property;
 
       if(context == LogContext.CATEGORY) {
-         LogManager.getInstance().setLevel(name, level);
          property = "log.level." + name;
+         logManagerProvider.ifAvailable(lm -> lm.setLevel(name, level));
       }
       else {
-         LogManager.getInstance().setContextLevel(context, name, level);
          property = "log." + context.name() + ".level." + name;
+         logManagerProvider.ifAvailable(lm -> lm.setContextLevel(context, name, level));
       }
 
       if(level == null) {
@@ -370,18 +397,8 @@ public class PropertiesEngine {
       return propertyName;
    }
 
-   /**
-    * Get the properties which inited before loading storage, if a property is getted before
-    * loading storage then must get the property by getEarlyLoadedProperty function which will
-    * get the property from earlyLoadedProperties with the property name not added(or try to added)
-    * organizationID.
-    *
-    * It should be emphasized that the earlyLoadedProperties finally become same with
-    * UserEnhancedProperties after initing userEnhancedProperties.
-    */
    private Properties getEarlyLoadedProperties() {
-      initEarlyLoadedProperties();
-      return ConfigurationContext.getContext().get(EARLY_LOADED_PROPERTIES_KEY);
+      return EarlyLoadedProperties.getInstance().asProperties();
    }
 
    /**
@@ -390,7 +407,7 @@ public class PropertiesEngine {
     */
    private Properties getUserEnhancedProperties() {
       init();
-      return ConfigurationContext.getContext().get(PROPERTIES_KEY);
+      return internalProperties;
    }
 
    /**
@@ -405,8 +422,7 @@ public class PropertiesEngine {
          return;
       }
 
-      getStorage(); // make sure it's initialized outside of lock
-      PROPERTIES_LOCK.lock();
+      propertiesLock.lock();
 
       try {
          if(fromChange) {
@@ -431,9 +447,8 @@ public class PropertiesEngine {
 
          String home = ConfigurationContext.getContext().getHome();
 
-         KeyValueStorage<String> storage = getStorage();
-         storage.addListener(changeListener);
-         loadFromStorage(prop, storage);
+         kvStorage.addListener(changeListener);
+         loadFromStorage(prop, kvStorage);
 
          // @by mikec, if sree.home was defined in sree.properties file
          // do not use the parent folder as sree.home
@@ -444,17 +459,15 @@ public class PropertiesEngine {
 
          prop.setProperty("sree.home", home);
 
-         DefaultProperties topProp = new DefaultProperties(prop, getDefaultProperties());
-         ConfigurationContext.getContext().put(PROPERTIES_KEY, topProp);
+         internalProperties = new DefaultProperties(prop, getDefaultProperties());
       }
       catch(Exception ex) {
-         LOG.error("Failed to initialize SreeEnv: " + ex, ex);
+         LOG.error("Failed to initialize SreeEnv: {}", ex, ex);
          Properties prop = getDefaultProperties();
-         DefaultProperties topProp = new DefaultProperties(prop, prop);
-         ConfigurationContext.getContext().put(PROPERTIES_KEY, topProp);
+         internalProperties = new DefaultProperties(prop, prop);
       }
       finally {
-         PROPERTIES_LOCK.unlock();
+         propertiesLock.unlock();
       }
 
       initLogging();
@@ -470,7 +483,7 @@ public class PropertiesEngine {
       name = fixPropertyNameCase(name);
 
       try {
-         return getStorage().get(name);
+         return kvStorage.get(name);
       }
       catch(Exception e) {
          LOG.debug("Failed to read property from storage: {}", name, e);
@@ -478,101 +491,9 @@ public class PropertiesEngine {
       }
    }
 
-   private KeyValueStorage<String> getStorage() {
-      KeyValueStorage<String> storage = ConfigurationContext.getContext().get(STORAGE_KEY);
-
-      // init before lock to prevent deadlock
-      if(storage == null) {
-         STORAGE_LOCK.lock();
-
-         try {
-            storage = ConfigurationContext.getContext().get(STORAGE_KEY);
-
-            if(storage == null) {
-               storage = SingletonManager.getInstance(KeyValueStorage.class, "sreeProperties");
-               ConfigurationContext.getContext().put(STORAGE_KEY, storage);
-            }
-         }
-         finally {
-            STORAGE_LOCK.unlock();
-         }
-      }
-
-      return storage;
-   }
-
-   private void initEarlyLoadedProperties() {
-      if(ConfigurationContext.getContext().get(EARLY_LOADED_PROPERTIES_KEY) != null) {
-         return;
-      }
-
-      EARLY_LOADED_PROPERTIES_LOCK.lock();
-
-      try {
-         if(ConfigurationContext.getContext().get(EARLY_LOADED_PROPERTIES_KEY) != null) {
-            return;
-         }
-
-         Properties defaultProperties = null;
-         Properties noSystemProperties = new Properties();
-         Properties base = noSystemProperties;
-
-         try {
-            // use the system property as base for all properties
-            // the logic was here before uses the defkey's property as base
-            // which is not correct because those are not logically connected
-            Properties systemProperties = System.getProperties();
-            base = new DefaultProperties(noSystemProperties, systemProperties);
-         }
-         catch(Exception ignore) {
-         }
-
-         try {
-            defaultProperties = getDefaultProperties();
-            Map<String, String> defaults = new HashMap<>();
-
-            for(String key : defaultProperties.stringPropertyNames()) {
-               defaults.put(key.toLowerCase(), key);
-            }
-
-            for(Map.Entry<String, String> e : System.getenv().entrySet()) {
-               String key = e.getKey().toLowerCase();
-
-               if(key.toLowerCase().startsWith("inetsoft_") &&
-                  !key.equals("inetsoft_master_password") && !key.equals("inetsoft_master_salt") &&
-                  !key.equals("inetsoft_admin_password")) {
-                  String name = key.toLowerCase().substring(9).replace('_', '.');
-                  name = defaults.getOrDefault(name, name);
-                  base.setProperty(name, e.getValue());
-               }
-            }
-         }
-         catch(Exception ignore) {
-         }
-
-         // get resource bundles
-         try {
-            if(base.getProperty("StyleReport.locale.resource") == null) {
-               base.put("StyleReport.locale.resource", "inetsoft/util/srinter");
-            }
-
-            if(base.getProperty("sree.bundle") == null) {
-               base.put("sree.bundle", "SreeBundle");
-            }
-         }
-         catch(Exception ignore) {
-         }
-
-         base = new DefaultProperties(base, defaultProperties);
-         ConfigurationContext.getContext().put(EARLY_LOADED_PROPERTIES_KEY, base);
-      }
-      finally {
-         EARLY_LOADED_PROPERTIES_LOCK.unlock();
-      }
-   }
 
    public Properties getDefaultProperties() {
-      Properties prop = ConfigurationContext.getContext().get(DEFAULTS_PROPERTIES_KEY);
+      Properties prop = defaultProperties;
 
       if(prop != null) {
          return prop;
@@ -589,8 +510,7 @@ public class PropertiesEngine {
          LOG.error("Failed to load default properties", exc);
       }
 
-      ConfigurationContext.getContext().put(DEFAULTS_PROPERTIES_KEY, prop);
-
+      defaultProperties = prop;
       return prop;
    }
 
@@ -598,21 +518,19 @@ public class PropertiesEngine {
     * Clear and reload the properties.
     */
    public void clear() {
-      PROPERTIES_LOCK.lock();
+      propertiesLock.lock();
 
       try {
          // @by stephenwebster, For Bug #29148
          // Whenever SreeEnv is cleared, we must reset the log manager prior to a re-initialization
          // of SreeEnv.
-         SingletonManager.reset(LogManager.class);
-         ConfigurationContext.getContext().remove(PROPERTIES_KEY);
-         ConfigurationContext.getContext().remove(DEFAULTS_PROPERTIES_KEY);
-         ConfigurationContext.getContext().remove(EARLY_LOADED_PROPERTIES_KEY);
-         KeyValueStorage<String> storage = ConfigurationContext.getContext().remove(STORAGE_KEY);
+         logManagerProvider.ifAvailable(LogManager::close);
+         internalProperties = null;
+         defaultProperties = null;
 
-         if(storage != null) {
+         if(kvStorage != null) {
             try {
-               storage.removeListener(changeListener);
+               kvStorage.removeListener(changeListener);
             }
             catch(Exception e) {
                LOG.warn("Failed to close key-value storage", e);
@@ -620,7 +538,7 @@ public class PropertiesEngine {
          }
       }
       finally {
-         PROPERTIES_LOCK.unlock();
+         propertiesLock.unlock();
       }
    }
 
@@ -673,19 +591,16 @@ public class PropertiesEngine {
     * Initializes logging.
     */
    private void initLogging() {
-      LogManager logManager = LogManager.getInstance();
-      logManager.setLevel("inetsoft.scheduler_test", LogLevel.OFF);
-      logManager.setLevel("inetsoft.mv_debug", LogLevel.OFF);
-      logManager.setLevel("inetsoft.swap_data", LogLevel.OFF);
-      logManager.setLevel(SUtil.MAC_LOG_NAME, LogLevel.OFF);
-      logManager.setLevel(LogUtil.PERFORMANCE_LOGGER_NAME, LogLevel.OFF);
-
-      if(LicenseManager.getInstance().isEnterprise()) {
-         logManager.setLevel("inetsoft.storage.aws.com.amazonaws", LogLevel.WARN);
-         logManager.setLevel("inetsoft.storage.aws.org.apache", LogLevel.WARN);
-      }
-
-      logManager.setLevel("org.apache.ignite", LogLevel.WARN);
+      logManagerProvider.ifAvailable(lm -> {
+         lm.setLevel("inetsoft.scheduler_test", LogLevel.OFF);
+         lm.setLevel("inetsoft.mv_debug", LogLevel.OFF);
+         lm.setLevel("inetsoft.swap_data", LogLevel.OFF);
+         lm.setLevel(SUtil.MAC_LOG_NAME, LogLevel.OFF);
+         lm.setLevel(LogUtil.PERFORMANCE_LOGGER_NAME, LogLevel.OFF);
+         lm.setLevel("inetsoft.storage.aws.com.amazonaws", LogLevel.WARN);
+         lm.setLevel("inetsoft.storage.aws.org.apache", LogLevel.WARN);
+         lm.setLevel("org.apache.ignite", LogLevel.WARN);
+      });
 
       reloadLoggingFramework();
 
@@ -719,21 +634,19 @@ public class PropertiesEngine {
    }
 
    private void applyLogProperty(String prop, String val) {
-      LogManager logManager = LogManager.getInstance();
-
       if("log.detail.level".equals(prop)) {
-         logManager.setLevel(logManager.parseLevel(val));
+         logManagerProvider.ifAvailable(lm -> lm.setLevel(LogManager.parseLevel(val)));
       }
       else if(prop.startsWith("log.level.")) {
          try {
-            LogLevel level = logManager.parseLevel(val);
-            prop = prop.substring(10);
+            LogLevel level = LogManager.parseLevel(val);
+            String name = prop.substring(10);
 
-            if(prop.isEmpty()) {
+            if(name.isEmpty()) {
                throw new IllegalArgumentException("Empty logger name");
             }
 
-            logManager.setLevel(prop, level);
+            logManagerProvider.ifAvailable(lm -> lm.setLevel(name, level));
          }
          catch(IllegalArgumentException exc) {
             // log is not initialized yet, use standard error
@@ -745,8 +658,8 @@ public class PropertiesEngine {
             LogContext context = LogContext.valueOf(
                prop.substring(4, prop.indexOf('.', 4)));
             String contextName = prop.substring(prop.indexOf('.', 4) + 7);
-            LogLevel level = LogManager.getInstance().parseLevel(val);
-            logManager.setContextLevel(context, contextName, level);
+            LogLevel level = LogManager.parseLevel(val);
+            logManagerProvider.ifAvailable(lm -> lm.setContextLevel(context, contextName, level));
          }
          catch(IllegalArgumentException exc) {
             // log is not initialized yet, use standard error
@@ -774,15 +687,16 @@ public class PropertiesEngine {
       }
 
       String discriminator = getProperty("log.file.discriminator");
-      boolean console = "true".equals(getProperty("log.output.stderr"));
+      boolean console = !"true".equals(System.getProperty("ScheduleServer")) &&
+         "true".equals(getProperty("log.output.stderr"));
       String performanceLevel = getProperty("log.level." + LogUtil.PERFORMANCE_LOGGER_NAME);
       long maxSize = Long.parseLong(getProperty("report.log.max"));
       int maxCount = Integer.parseInt(Objects.toString(getProperty("report.log.count"), "10"));
       boolean performance = performanceLevel != null &&
          !LogLevel.OFF.level().equalsIgnoreCase(performanceLevel) &&
-         LogManager.getInstance().parseLevel(prop) != null;
-      LogManager.getInstance().initialize(
-         logFile, discriminator, console, maxSize, maxCount, performance);
+         LogManager.parseLevel(prop) != null;
+      logManagerProvider.ifAvailable(lm -> lm.initialize(
+         logFile, discriminator, console, maxSize, maxCount, performance));
    }
 
    /**
@@ -826,11 +740,9 @@ public class PropertiesEngine {
     * @return physical file path.
     */
    public String getPath(String path) {
-      if(path == null || path.length() == 0) {
+      if(path == null || path.isEmpty()) {
          return path;
       }
-
-      FileSystemService fileSystemService = FileSystemService.getInstance();
 
       // if the file exists, don't check sree.home
       if(path.startsWith("$(sree.home)") || !(fileSystemService.getFile(path)).exists()) {
@@ -855,7 +767,7 @@ public class PropertiesEngine {
          }
 
          // '/' can be used on win32 but it is not recognized as absolute
-         if(home != null && !fileSystemService.getFile(path).isAbsolute() && path.length() != 0 &&
+         if(home != null && !fileSystemService.getFile(path).isAbsolute() && !path.isEmpty() &&
             path.charAt(0) != '/' && path.charAt(0) != '\\')
          {
             path = home + File.separator + path;
@@ -866,7 +778,7 @@ public class PropertiesEngine {
 
       // '/' can be used on win32 but it is not recognized as absolute
       if(!fileSystemService.getFile(path).exists() &&
-         !fileSystemService.getFile(path).isAbsolute() && path.length() != 0 &&
+         !fileSystemService.getFile(path).isAbsolute() && !path.isEmpty() &&
          path.charAt(0) != '/' && path.charAt(0) != '\\' && !path.startsWith(configHome))
       {
          path = configHome + File.separator + path;
@@ -882,8 +794,8 @@ public class PropertiesEngine {
          String[] paths = prop.split(";", 0);
 
          for(String path : paths) {
-            if(path != null && path.trim().length() > 0) {
-               scanFonts(FileSystemService.getInstance().getFile(path.trim()));
+            if(path != null && !path.trim().isEmpty()) {
+               scanFonts(fileSystemService.getFile(path.trim()));
             }
          }
       }
@@ -900,7 +812,7 @@ public class PropertiesEngine {
          return;
       }
 
-      for(File file : dir.listFiles()) {
+      for(File file : Objects.requireNonNull(dir.listFiles())) {
          if(file.isDirectory()) {
             scanFonts(file);
          }
@@ -912,7 +824,7 @@ public class PropertiesEngine {
                      .registerFont(font);
                }
                catch(Throwable exc) {
-                  System.err.println("Failed to load font " + file + ": " + exc.toString());
+                  System.err.println("Failed to load font " + file + ": " + exc);
                }
             }
          }
@@ -985,29 +897,16 @@ public class PropertiesEngine {
       prop.remove("sree.home");
       prop.put("adm.home", admHome);
 
-      KeyValueStorage<String> storage = getStorage();
-      storage.removeListener(changeListener);
+      kvStorage.removeListener(changeListener);
 
       try {
-         saveToStorage(prop, storage, changedProps);
+         saveToStorage(prop, kvStorage, changedProps);
       }
       catch(ExecutionException | InterruptedException | TimeoutException e) {
          throw new IOException("Failed to store properties in storage", e);
       }
       finally {
-         storage.addListener(changeListener);
-      }
-   }
-
-   private static DefaultDebouncer<String> getDebouncer() {
-      DEBOUNCER_LOCK.lock();
-
-      try {
-         return ConfigurationContext.getContext()
-            .computeIfAbsent(DEBOUNCER_KEY, k -> new DefaultDebouncer<>());
-      }
-      finally {
-         DEBOUNCER_LOCK.unlock();
+         kvStorage.addListener(changeListener);
       }
    }
 
@@ -1025,7 +924,7 @@ public class PropertiesEngine {
       }
    }
 
-   private final KeyValueStorage.Listener<String> changeListener = new KeyValueStorage.Listener<String>() {
+   private final KeyValueStorage.Listener<String> changeListener = new KeyValueStorage.Listener<>() {
       @Override
       public void entryAdded(KeyValueStorage.Event<String> event) {
          onChange(event);
@@ -1046,7 +945,7 @@ public class PropertiesEngine {
 
          support.firePropertyChange(e.getKey(), e.getOldValue(), e.getNewValue());
 
-         getDebouncer().debounce(
+         debouncer.debounce(
             "change", 500L, TimeUnit.MILLISECONDS, new ChangeTask(change), this::reduce);
       }
 
@@ -1067,7 +966,7 @@ public class PropertiesEngine {
       }
    };
 
-   private final class PropertyChange {
+   private static final class PropertyChange {
       public PropertyChange(String name, String oldValue, String newValue) {
          this.name = name;
          this.oldValue = oldValue;
@@ -1116,7 +1015,7 @@ public class PropertiesEngine {
          String security = instance.getProperty("security.provider");
          String license = instance.getProperty("license.key");
 
-         getStorage().removeListener(changeListener);
+         kvStorage.removeListener(changeListener);
          instance.init(true);
 
          if(instance.getProperty("license.key") == null ||
@@ -1125,41 +1024,28 @@ public class PropertiesEngine {
             instance.setProperty("license.key", license);
          }
 
-         // reinitialize security provider if changed
-         if(!Tool.equals(instance.getProperty("security.provider"), security)) {
-            try {
-               SecurityEngine engine = SecurityEngine.getSecurity();
-
-               if(engine != null) {
-                  SecurityEngine.clear();
-               }
-            }
-            catch(Exception ex) {
-               LOG.error("Failed to reload security provider", ex);
-            }
-         }
-
-         // reload licenses
-         LicenseManager.getInstance().reload();
+         ApplicationPropertiesChangedEvent event = new ApplicationPropertiesChangedEvent(
+            this, !Tool.equals(instance.getProperty("security.provider"), security));
+         eventPublisher.publishEvent(event);
       }
 
       private final List<PropertyChange> changes;
    }
 
+   private final KeyValueStorageManager keyValueStorageManager;
+   private final FileSystemService fileSystemService;
+   private final ApplicationEventPublisher eventPublisher;
+   private final ObjectProvider<LogManager> logManagerProvider;
    private final Set<String> changedProps = new TreeSet<>();
    private final PropertyChangeSupport support = new PropertyChangeSupport(PropertiesEngine.class);
-   private static final String EARLY_LOADED_PROPERTIES_KEY = PropertiesEngine.class.getName() + "_early_loaded_properties";
-   private static final String PROPERTIES_KEY = PropertiesEngine.class.getName() + ".properties";
-   private static final String DEFAULTS_PROPERTIES_KEY = PropertiesEngine.class.getName() + "_defaults.properties";
-   private static final String STORAGE_KEY = PropertiesEngine.class.getName() + ".storage";
-   private static final String DEBOUNCER_KEY = PropertiesEngine.class.getName() + ".debouncer";
-   private static final Lock PROPERTIES_LOCK = new ReentrantLock();
-   private static final Lock EARLY_LOADED_PROPERTIES_LOCK = new ReentrantLock();
-   private static final Lock STORAGE_LOCK = new ReentrantLock();
-   private static final Lock DEBOUNCER_LOCK = new ReentrantLock();
-   private static final Map<String, Object> cache = new ConcurrentHashMap<>(); // cached objects
-   private static final Map<String, Font> fontMap = new ConcurrentHashMap<>();
-   private static final Map<String, String> propertyNameCaseCache = new ConcurrentHashMap<>();
+   private KeyValueStorage<String> kvStorage;
+   private Properties internalProperties;
+   private Properties defaultProperties;
+   private final Lock propertiesLock = new ReentrantLock();
+   private final DefaultDebouncer<String> debouncer = new DefaultDebouncer<>();
+   private final Map<String, Object> cache = new ConcurrentHashMap<>(); // cached objects
+   private final Map<String, Font> fontMap = new ConcurrentHashMap<>();
+   private final Map<String, String> propertyNameCaseCache = new ConcurrentHashMap<>();
    private static final Set<String> EXCLUDED_ORG_PROPERTIES = Set.of(
       "security.enabled", "sree.security.listeners", "security.cache", "security.cache.interval",
       "inetsoft.sree.security.CheckPermissionStrategy");

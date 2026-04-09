@@ -17,6 +17,8 @@
  */
 package inetsoft.web.security;
 
+import inetsoft.sree.security.AuthenticationService;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import inetsoft.web.admin.security.SSOSettingsService;
 import inetsoft.web.admin.security.SSOType;
 import jakarta.servlet.*;
@@ -28,9 +30,12 @@ import java.io.IOException;
 @Component
 public class FallbackAuthenticationFilter implements Filter {
    @Autowired
-   public FallbackAuthenticationFilter(SSOSettingsService settingsService) {
+   public FallbackAuthenticationFilter(SSOSettingsService settingsService,
+                                       SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                                       AuthenticationService authenticationService)
+   {
       this.settingsService = settingsService;
-      this.filter = new BasicAuthenticationFilter();
+      this.filter = new BasicAuthenticationFilter(sessionLicenseServiceProvider, authenticationService);
    }
 
    @Override

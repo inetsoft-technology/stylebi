@@ -53,6 +53,7 @@ import inetsoft.report.painter.PresenterPainter;
 import inetsoft.report.script.viewsheet.ChartVSAScriptable;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -140,7 +141,7 @@ public abstract class AbstractVSExporter implements VSExporter {
          exporter = OfficeExporterFactory.getInstance().createPowerpointExporter(stream);
       }
       else if(type == FileFormatInfo.EXPORT_TYPE_PDF) {
-         exporter = new PDFVSExporter(stream);
+         exporter = new PDFVSExporter(LibManagerProvider.getInstance(), Cluster.getInstance(), FileSystemService.getInstance(), DataSpace.getDataSpace(), stream);
          ((PDFVSExporter) exporter).setPrintOnOpen(print);
       }
       else if(type == FileFormatInfo.EXPORT_TYPE_PNG) {
@@ -1128,11 +1129,12 @@ public abstract class AbstractVSExporter implements VSExporter {
          ExecutionRecord executionRecord = null;
 
          if(log) {
+            XSessionService sessionService = XSessionService.getService();
             String userSessionID = box.getUser() == null ?
-                                   XSessionService.createSessionID(XSessionService.USER, null) :
+                                   sessionService.createSessionID(XSessionService.USER, null) :
                                    ((XPrincipal) box.getUser()).getSessionID();
             String objectName = entry.getDescription();
-            String execSessionID = XSessionService.createSessionID(
+            String execSessionID = sessionService.createSessionID(
                XSessionService.EXPORE_VIEW, entry.getName());
             String objectType = ExecutionRecord.OBJECT_TYPE_VIEW;
             String execType = ExecutionRecord.EXEC_TYPE_START;

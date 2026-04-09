@@ -2113,7 +2113,7 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
       // if VPM exists, don't allow creating MV from portal (it could be skipped
       // if not properly configured).
       if(REJECT_VPM.get() && source != null) {
-         XDataModel model = XFactory.getRepository().getDataModel(source.getFullName());
+         XDataModel model = XRepository.getRepository().getDataModel(source.getFullName());
 
          if(model != null && model.getVirtualPrivateModelNames().length > 0) {
             throw new SecurityException(Catalog.getCatalog().getString("vs.mv.portal.vpm"));

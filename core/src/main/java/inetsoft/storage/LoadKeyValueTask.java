@@ -19,6 +19,7 @@ package inetsoft.storage;
 
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.SingletonRunnableTask;
+import inetsoft.util.ShutdownException;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
@@ -82,6 +83,10 @@ public class LoadKeyValueTask<T extends Serializable>
             map.clear();
             map.putAll(temp);
          }
+      }
+      catch(ShutdownException e) {
+         LoggerFactory.getLogger(LoadKeyValueTask.class)
+            .debug("Tried to load KV store during shutdown", e);
       }
       catch(RuntimeException e) {
          throw e;

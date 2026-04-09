@@ -28,6 +28,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.TabularTableAssemblyInfo;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
@@ -50,9 +51,10 @@ public class TabularQueryDialogService extends WorksheetControllerService {
 
    public TabularQueryDialogService(ViewsheetService viewsheetService,
                                     SecurityEngine securityEngine,
-                                    XRepository repository)
+                                    XRepository repository,
+                                    DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
       this.securityEngine = securityEngine;
       this.repository = repository;
    }
@@ -160,7 +162,7 @@ public class TabularQueryDialogService extends WorksheetControllerService {
 
          try {
             if(dataSource != null) {
-               ds = XFactory.getRepository().getDataSource(dataSource);
+               ds = repository.getDataSource(dataSource);
             }
          }
          catch(Exception e) {

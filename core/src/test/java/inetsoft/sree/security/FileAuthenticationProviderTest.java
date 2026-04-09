@@ -19,15 +19,25 @@
 package inetsoft.sree.security;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.test.*;
 import inetsoft.util.PasswordEncryption;
-
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mindrot.BCrypt;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class FileAuthenticationProviderTest {
    @BeforeEach
    void createProvider() throws Exception {

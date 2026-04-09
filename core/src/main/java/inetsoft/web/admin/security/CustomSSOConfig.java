@@ -29,6 +29,10 @@ import java.nio.charset.StandardCharsets;
 
 @Component
 public class CustomSSOConfig {
+   public CustomSSOConfig(DataSpace dataSpace) {
+      this.dataSpace = dataSpace;
+   }
+
    public String getClassName() {
       return SreeEnv.getProperty("sso.custom.class");
    }
@@ -42,7 +46,7 @@ public class CustomSSOConfig {
    }
 
    public String getInlineGroovyClass() {
-      DataSpace dataSpace = DataSpace.getDataSpace();
+      DataSpace dataSpace = this.dataSpace;
 
       if(dataSpace.exists(null, FILE_NAME)) {
 
@@ -58,7 +62,7 @@ public class CustomSSOConfig {
    }
 
    public void setInlineGroovyClass(String content) {
-      DataSpace dataSpace = DataSpace.getDataSpace();
+      DataSpace dataSpace = this.dataSpace;
 
       if(content == null) {
          if(dataSpace.exists(null, FILE_NAME)) {
@@ -78,6 +82,7 @@ public class CustomSSOConfig {
       }
    }
 
+   private final DataSpace dataSpace;
    private static final String FILE_NAME = "GroovySSOFilter.groovy";
    private static final Logger LOG = LoggerFactory.getLogger(CustomSSOConfig.class);
 }

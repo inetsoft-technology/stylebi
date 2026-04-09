@@ -18,6 +18,7 @@
 package inetsoft.report.internal;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.style.TableStyle;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.util.*;
@@ -74,7 +75,7 @@ public class StyleTreeModel implements XMLSerializable {
     */
    public static void addFolder(String folder, boolean save) {
       try {
-         LibManager mgr = LibManager.getManager();
+         LibManager mgr = LibManagerProvider.getInstance().getManager();
          mgr.addTableStyleFolder(folder);
 
          if(save) {
@@ -93,7 +94,7 @@ public class StyleTreeModel implements XMLSerializable {
     */
    public static String getTableStyleID(String name) {
       Objects.requireNonNull(name);
-      LibManager mgr = LibManager.getManager();
+      LibManager mgr = LibManagerProvider.getInstance().getManager();
       Enumeration<String> styles = mgr.getTableStyles();
 
       while(styles.hasMoreElements()) {
@@ -115,11 +116,11 @@ public class StyleTreeModel implements XMLSerializable {
     * @return table style.
     */
    public static TableStyle get(String name) {
-      return LibManager.getManager().getTableStyle(name);
+      return LibManagerProvider.getInstance().getManager().getTableStyle(name);
    }
 
    public static TableStyle get(String name, String orgID) {
-      return LibManager.getManager(orgID).getTableStyle(name);
+      return LibManagerProvider.getInstance().getManager(orgID).getTableStyle(name);
    }
 
    /**

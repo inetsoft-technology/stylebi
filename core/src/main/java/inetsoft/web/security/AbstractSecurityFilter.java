@@ -20,18 +20,14 @@ package inetsoft.web.security;
 import inetsoft.report.internal.LicenseException;
 import inetsoft.report.internal.UnlicensedUserNameException;
 import inetsoft.sree.*;
-import inetsoft.sree.web.SessionsExceededException;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
-import inetsoft.sree.web.SessionLicenseManager;
-import inetsoft.sree.web.SessionLicenseService;
+import inetsoft.sree.web.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
-import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
-import org.apache.hc.core5.net.InetAddressUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.AntPathMatcher;
@@ -39,7 +35,6 @@ import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
-import java.net.URI;
 import java.security.Principal;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -52,6 +47,13 @@ import java.util.stream.Stream;
 public abstract class AbstractSecurityFilter
    implements Filter, SessionAccessDispatcher.SessionAccessListener
 {
+   public AbstractSecurityFilter(SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                                 AuthenticationService authenticationService)
+   {
+      this.sessionLicenseServiceProvider = sessionLicenseServiceProvider;
+      this.authenticationService = authenticationService;
+   }
+
    @Override
    public void init(FilterConfig config) throws ServletException {
       try {
@@ -105,7 +107,7 @@ public abstract class AbstractSecurityFilter
       RequestUriInfo uriInfo = new RequestUriInfo(httpRequest);
 
       try {
-         principal = (SRPrincipal) AuthenticationService.getInstance().authenticate(
+         principal = (SRPrincipal) authenticationService.authenticate(
             userID, loginAsUser, password, request.getRemoteHost(), uriInfo.getRemoteIp(),
             httpRequest.getServerName(), locale, request.getLocale(), false, true, httpRequest.getSession(true).getId(),
             uriInfo.getRequestedUri());
@@ -147,7 +149,7 @@ public abstract class AbstractSecurityFilter
       IdentityID anonID = new IdentityID(ClientInfo.ANONYMOUS,
          getCookieRecordedOrgID((HttpServletRequest) request));
       ClientInfo info = createClientInfo(anonID, request);
-      return (SRPrincipal) AuthenticationService.getInstance().authenticate(info, null);
+      return (SRPrincipal) authenticationService.authenticate(info, null);
    }
 
    protected String getCookieRecordedOrgID(HttpServletRequest request) {
@@ -182,7 +184,7 @@ public abstract class AbstractSecurityFilter
       final ClientInfo info = createClientInfo(principal.getIdentityID(), request);
       principal = new SRPrincipal(principal, info);
       createSession(request, principal);
-      AuthenticationService.getInstance().authenticate(info, principal);
+      authenticationService.authenticate(info, principal);
       SUtil.loginRecord(request, pId, true, null);
       return principal;
    }
@@ -220,9 +222,8 @@ public abstract class AbstractSecurityFilter
    {
       HttpServletRequest httpRequest = (HttpServletRequest) request;
       HttpSession session = httpRequest.getSession(true);
-      AuthenticationService authentication = AuthenticationService.getInstance();
       SessionLicenseManager sessionLicenseManager =
-         SessionLicenseService.getSessionLicenseService();
+         sessionLicenseServiceProvider.getSessionLicenseManager();
 
       try {
          if(sessionLicenseManager != null) {
@@ -239,17 +240,17 @@ public abstract class AbstractSecurityFilter
                   long userLastAccess = userSession.getLastAccess();
 
                   if(System.currentTimeMillis() - userLastAccess > userSessionTimeout) {
-                     authentication.logout(userSession, request.getRemoteHost(), "", true);
+                     authenticationService.logout(userSession, request.getRemoteHost(), "", true);
                   }
                }
             }
          }
 
          if(sessionIdToReplace != null) {
-            authentication.addSession(principal, sessionIdToReplace);
+            authenticationService.addSession(principal, sessionIdToReplace);
          }
          else {
-            authentication.addSession(principal);
+            authenticationService.addSession(principal);
          }
 
          session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
@@ -307,7 +308,7 @@ public abstract class AbstractSecurityFilter
 
          if(sameClientPrincipals.size() >= maxSessions) {
             sameClientPrincipals.subList(0, sameClientPrincipals.size() - (maxSessions - 1))
-               .forEach(authentication::logout);
+               .forEach(authenticationService::logout);
          }
       }
    }
@@ -368,7 +369,7 @@ public abstract class AbstractSecurityFilter
             (Principal) session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
 
          if(principal != null) {
-            AuthenticationService.getInstance().logout(principal, uriInfo.getRemoteIp(), "");
+            authenticationService.logout(principal, uriInfo.getRemoteIp(), "");
          }
 
          if(invalidate) {
@@ -711,6 +712,13 @@ public abstract class AbstractSecurityFilter
    boolean isSecurityAllowIframe() {
       return "true".equals(securityAllowIframe.get());
    }
+
+   protected AuthenticationService getAuthenticationService() {
+      return authenticationService;
+   }
+
+   private final SessionLicenseServiceProvider sessionLicenseServiceProvider;
+   private final AuthenticationService authenticationService;
 
    private final AntPathMatcher pathMatcher = new AntPathMatcher();
    private boolean sessionAccessRegistered = false;

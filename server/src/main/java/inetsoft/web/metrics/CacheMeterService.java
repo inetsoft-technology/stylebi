@@ -53,8 +53,9 @@ public class CacheMeterService extends MonitorLevelService implements XSwappable
    private static final String[] MED_ATTRS = { READ, WRITTEN };
    private static final String[] LOW_ATTRS = { TYPE, LOCATION, COUNT };
 
-   public CacheMeterService() {
+   public CacheMeterService(XSwapper swapper) {
       super(LOW_ATTRS, MED_ATTRS, HIGH_ATTRS);
+      this.swapper = swapper;
    }
 
    @Override
@@ -136,12 +137,12 @@ public class CacheMeterService extends MonitorLevelService implements XSwappable
 
    @PostConstruct
    public void registerMonitor() {
-      XSwapper.registerMonitor(this);
+      swapper.registerMonitor(this);
    }
 
    @PreDestroy
    public void deregisterMonitor() {
-      XSwapper.deregisterMonitor(this);
+      swapper.deregisterMonitor(this);
    }
 
    @Scheduled(fixedRate = 5000L, initialDelay = 0L)
@@ -151,7 +152,7 @@ public class CacheMeterService extends MonitorLevelService implements XSwappable
       int dataMemoryCount = 0;
       int dataDiskCount = 0;
 
-      for(XSwappable swap : XSwapper.getAllSwappables()) {
+      for(XSwappable swap : swapper.getAllSwappables()) {
          if(swap instanceof PageGroup group) {
             if(group.isSwappable()) {
                if(group.isValid()) {
@@ -246,4 +247,6 @@ public class CacheMeterService extends MonitorLevelService implements XSwappable
          dataWritten.increment(num);
       }
    }
+
+   private final XSwapper swapper;
 }

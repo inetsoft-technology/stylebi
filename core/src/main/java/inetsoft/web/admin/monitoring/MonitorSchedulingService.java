@@ -39,15 +39,16 @@ import java.util.concurrent.TimeUnit;
 public class MonitorSchedulingService implements MessageListener {
    @Autowired
    public MonitorSchedulingService(List<StatusUpdater> updaters,
-                                   MonitoringDataService monitoringDataService)
+                                   MonitoringDataService monitoringDataService,
+                                   Cluster cluster)
    {
       this.updaters = updaters;
       this.monitoringDataService = monitoringDataService;
+      this.cluster = cluster;
    }
 
    @PostConstruct
    public void startScheduling() {
-      cluster = Cluster.getInstance();
       cluster.addMessageListener(this);
 
       LocalDateTime now = LocalDateTime.now();
@@ -60,9 +61,7 @@ public class MonitorSchedulingService implements MessageListener {
 
    @PreDestroy
    public void stopScheduling() {
-      if(cluster != null) {
-         cluster.removeMessageListener(this);
-      }
+      cluster.removeMessageListener(this);
    }
 
    @Override
@@ -89,7 +88,7 @@ public class MonitorSchedulingService implements MessageListener {
 
    private final List<StatusUpdater> updaters;
    private final MonitoringDataService monitoringDataService;
-   private Cluster cluster;
+   private final Cluster cluster;
 
    private static final Logger LOG = LoggerFactory.getLogger(MonitorSchedulingService.class);
 }

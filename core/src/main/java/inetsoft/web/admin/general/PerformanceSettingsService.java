@@ -29,6 +29,10 @@ import java.security.Principal;
 
 @Service
 public class PerformanceSettingsService {
+   public PerformanceSettingsService(AssetDataCache assetDataCache) {
+      this.assetDataCache = assetDataCache;
+   }
+
    public PerformanceSettingsModel getModel() {
       return PerformanceSettingsModel.builder()
          .queryTimeout(Long.parseLong(SreeEnv.getProperty("query.runtime.timeout")))
@@ -81,7 +85,9 @@ public class PerformanceSettingsService {
       }
 
       if(oldMaxRow != npreviewMaxRow) {
-         AssetDataCache.getCache().clear();
+         assetDataCache.clear();
       }
    }
+
+   private final AssetDataCache assetDataCache;
 }

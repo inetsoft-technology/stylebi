@@ -27,6 +27,7 @@ import inetsoft.analytic.web.adhoc.AdHocQueryHandler;
 import inetsoft.cluster.*;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.data.DataSetFilter;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.*;
@@ -71,9 +72,12 @@ import java.util.stream.Collectors;
 @ClusterProxy
 public class VSScriptableService {
 
-   public VSScriptableService(ViewsheetService viewsheetService, VSTreeHandler treeHandler) {
+   public VSScriptableService(ViewsheetService viewsheetService, VSTreeHandler treeHandler,
+                              LibManagerProvider libManagerProvider)
+   {
       this.viewsheetService = viewsheetService;
       this.treeHandler = treeHandler;
+      this.libManagerProvider = libManagerProvider;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -312,7 +316,7 @@ public class VSScriptableService {
    }
 
    private void createUserDefinedScript(ObjectMapper mapper, ObjectNode root) {
-      List<String> list = AdHocQueryHandler.getUserDefinedScriptFunctions();
+      List<String> list = AdHocQueryHandler.getUserDefinedScriptFunctions(libManagerProvider);
 
       if(list.size() == 0) {
          return;
@@ -1850,8 +1854,9 @@ public class VSScriptableService {
       return XUtil.getScriptType(schemaType);
    }
 
-   private ViewsheetService viewsheetService;
-   private VSTreeHandler treeHandler;
+   private final ViewsheetService viewsheetService;
+   private final VSTreeHandler treeHandler;
+   private final LibManagerProvider libManagerProvider;
    private static final Map<String, String> FUNCTION_CSHIDS = new HashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(VSScriptableService.class);
 

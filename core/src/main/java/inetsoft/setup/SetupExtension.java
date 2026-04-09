@@ -19,6 +19,7 @@
 package inetsoft.setup;
 
 import java.io.File;
+import java.util.Map;
 
 /**
  * Interface for classes that extend the setup process during storage initialization.
@@ -90,6 +91,17 @@ public interface SetupExtension {
    }
 
    /**
+    * Called to import assets into storage.
+    *
+    * @param context the setup context.
+    *
+    * @return the context with any modifications made by the extension.
+    */
+   default Context installAssets(Context context) {
+      return context;
+   }
+
+   /**
     * Called after the assets have been imported into storage.
     *
     * @param context the setup context.
@@ -112,9 +124,13 @@ public interface SetupExtension {
     *                         data space.
     * @param assetsDirectory  the path to the directory containing the assets to be imported.
     * @param scriptsDirectory the path to the directory containing the scripts to execute.
+    * @param attributes       arbitrary attributes that can be used to share state between
+    *                         extensions. Any values that implement {@link AutoCloseable} will be
+    *                         closed when the setup is complete.
     */
    record Context(boolean initialized, File configDirectory, File pluginsDirectory,
-                  File filesDirectory, File assetsDirectory, File scriptsDirectory)
+                  File filesDirectory, File assetsDirectory, File scriptsDirectory,
+                  Map<String, Object> attributes)
    {
    }
 }

@@ -44,6 +44,7 @@ import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import inetsoft.web.vswizard.service.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
@@ -57,6 +58,7 @@ import static inetsoft.web.vswizard.recommender.execution.WizardDataExecutor.CAC
 @ClusterProxy
 public class VSWizardObjectService {
 
+   @Autowired
    public VSWizardObjectService(VSTreeHandler treeHandler,
                                 ViewsheetService viewsheetService,
                                 WizardVSObjectService objectService,
@@ -65,7 +67,8 @@ public class VSWizardObjectService {
                                 VSAssemblyInfoHandler assemblyHandler,
                                 VSWizardBindingHandler bindingHandler,
                                 WizardViewsheetService wizardVSService,
-                                VSWizardTemporaryInfoService temporaryInfoService)
+                                VSWizardTemporaryInfoService temporaryInfoService,
+                                MVManager mvManager, AssetDataCache assetDataCache)
    {
       this.treeHandler = treeHandler;
       this.objectService = objectService;
@@ -76,6 +79,8 @@ public class VSWizardObjectService {
       this.viewsheetService = viewsheetService;
       this.coreLifecycleService = coreLifecycleService;
       this.temporaryInfoService = temporaryInfoService;
+      this.mvManager = mvManager;
+      this.assetDataCache = assetDataCache;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -105,7 +110,7 @@ public class VSWizardObjectService {
       try {
          AssetEntry vsEntry = rvs.getEntry();
          boolean materialized = vsEntry != null &&
-            MVManager.getManager().isMaterialized(vsEntry.toIdentifier(), false);
+            mvManager.isMaterialized(vsEntry.toIdentifier(), false);
 
          if(rvs.getRuntimeWorksheet() != null && !materialized) {
             rvs.getRuntimeWorksheet().getWorksheet().getWorksheetInfo().setTempMaxRow(100);
@@ -560,7 +565,7 @@ public class VSWizardObjectService {
 
       if(box.isPresent()) {
          box.get().cancel();
-         AssetDataCache.cancel(CACHE_ID_PREFIX + box.get().getID());
+         assetDataCache.cancel(CACHE_ID_PREFIX + box.get().getID());
       }
    }
 
@@ -616,6 +621,7 @@ public class VSWizardObjectService {
 
 
    private final VSTreeHandler treeHandler;
+   private final MVManager mvManager;
    private final VSAssemblyInfoHandler assemblyHandler;
    private final ViewsheetService viewsheetService;
    private final WizardVSObjectService objectService;
@@ -624,6 +630,7 @@ public class VSWizardObjectService {
    private final VSWizardBindingHandler bindingHandler;
    private final WizardViewsheetService wizardVSService;
    private final VSWizardTemporaryInfoService temporaryInfoService;
+   private final AssetDataCache assetDataCache;
    private static final Logger LOGGER = LoggerFactory.getLogger(VSWizardObjectService.class);
 
 }

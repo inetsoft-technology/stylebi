@@ -29,9 +29,13 @@ import java.util.stream.Collectors;
 
 @Service
 public class IdentityThemeService {
+   public IdentityThemeService(CustomThemesManager customThemesManager) {
+      this.customThemesManager = customThemesManager;
+   }
+
    public IdentityThemeList getThemes() {
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
-      Set<CustomTheme> themes = CustomThemesManager.getManager()
+      Set<CustomTheme> themes = customThemesManager
          .getCustomThemes()
          .stream()
          .filter(theme -> theme.getOrgID() == null || theme.getOrgID().equals(orgID))
@@ -44,7 +48,7 @@ public class IdentityThemeService {
    public String getTheme(IdentityID name, Function<CustomTheme, List<String>> fn) {
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      return CustomThemesManager.getManager().getCustomThemes().stream()
+      return customThemesManager.getCustomThemes().stream()
          .filter(t -> fn.apply(t).contains(name.name))
          .filter(theme -> theme.getOrgID() == null || theme.getOrgID().equals(orgID))
          .map(CustomTheme::getId)
@@ -54,8 +58,7 @@ public class IdentityThemeService {
    }
 
    public void removeTheme(String orgID) {
-      CustomThemesManager themeManager = CustomThemesManager.getManager();
-      Set<CustomTheme> themes = new HashSet<>(themeManager.getCustomThemes());
+      Set<CustomTheme> themes = new HashSet<>(customThemesManager.getCustomThemes());
       Iterator<CustomTheme> iterator = themes.iterator();
 
       while (iterator.hasNext()) {
@@ -66,13 +69,12 @@ public class IdentityThemeService {
          }
       }
 
-      themeManager.setCustomThemes(themes);
-      themeManager.setOrgSelectedTheme("default", orgID);
+      customThemesManager.setCustomThemes(themes);
+      customThemesManager.setOrgSelectedTheme("default", orgID);
    }
 
    public void updateTheme(String oldId, String id, Function<CustomTheme, List<String>> fn) {
-      CustomThemesManager themeManager = CustomThemesManager.getManager();
-      Set<CustomTheme> themes = new HashSet<>(themeManager.getCustomThemes());
+      Set<CustomTheme> themes = new HashSet<>(customThemesManager.getCustomThemes());
       String oldThemeIdentity = oldId == null ? id : oldId;
       themes.stream()
       .map(theme -> {
@@ -90,12 +92,11 @@ public class IdentityThemeService {
       })
       .collect(Collectors.toList());
 
-      themeManager.setCustomThemes(themes);
+      customThemesManager.setCustomThemes(themes);
    }
 
    public void updateUserTheme(String oldId, String id, String ntheme) {
-      CustomThemesManager themeManager = CustomThemesManager.getManager();
-      Set<CustomTheme> themes = new HashSet<>(themeManager.getCustomThemes());
+      Set<CustomTheme> themes = new HashSet<>(customThemesManager.getCustomThemes());
 
       themes.stream().map(theme -> {
          if(theme.getUsers().contains(oldId)) {
@@ -111,6 +112,8 @@ public class IdentityThemeService {
       })
       .collect(Collectors.toList());
 
-      themeManager.setCustomThemes(themes);
+      customThemesManager.setCustomThemes(themes);
    }
+
+   private final CustomThemesManager customThemesManager;
 }

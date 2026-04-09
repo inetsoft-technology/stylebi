@@ -41,7 +41,14 @@ import java.util.Properties;
 @DeniedMultiTenancyOrgUser
 public class PropertiesController {
    @Autowired
-   private AssetRepository assetRepository;
+   public PropertiesController(AssetRepository assetRepository, LicenseManager licenseManager,
+                               LogManager logManager, SecurityEngine securityEngine)
+   {
+      this.assetRepository = assetRepository;
+      this.licenseManager = licenseManager;
+      this.logManager = logManager;
+      this.securityEngine = securityEngine;
+   }
 
    @Audited(
       actionName = ActionRecord.ACTION_NAME_DELETE,
@@ -110,7 +117,7 @@ public class PropertiesController {
    public Properties getProperties() {
       Properties properties = SreeEnv.getProperties();
 
-      if(!LicenseManager.getInstance().isEnterprise()) {
+      if(!licenseManager.isEnterprise()) {
          removeUnuseProperties(properties);
       }
 
@@ -121,7 +128,7 @@ public class PropertiesController {
    public Properties getDefaultProperties() {
       Properties properties = SreeEnv.getDefaultProperties();
 
-      if(!LicenseManager.getInstance().isEnterprise()) {
+      if(!licenseManager.isEnterprise()) {
          removeUnuseProperties(properties);
       }
 
@@ -157,14 +164,13 @@ public class PropertiesController {
          return;
       }
 
-      LogManager logManager = LogManager.getInstance();
       List<LogLevelSetting> logLevels = logManager.getContextLevels();
 
       boolean found = logLevels.stream().anyMatch(logLevel -> {
          String name = logLevel.getName();
 
          if(logLevel.getOrgName() != null) {
-            String orgId = SecurityEngine.getSecurity()
+            String orgId = securityEngine
                .getSecurityProvider()
                .getOrgIdFromName(logLevel.getOrgName());
             name = Tool.buildString(name, "^", orgId);
@@ -180,4 +186,9 @@ public class PropertiesController {
          logManager.setContextLevel(logContext, name, null);
       }
    }
+
+   private final AssetRepository assetRepository;
+   private final LicenseManager licenseManager;
+   private final LogManager logManager;
+   private final SecurityEngine securityEngine;
 }

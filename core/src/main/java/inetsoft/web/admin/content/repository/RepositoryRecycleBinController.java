@@ -45,12 +45,16 @@ public class RepositoryRecycleBinController {
    public RepositoryRecycleBinController(RepositoryObjectService repositoryObjectService,
                                          ContentRepositoryTreeService contentRepositoryTreeService,
                                          SecurityProvider securityProvider,
-                                         RepletRegistryManager registryManager)
+                                         RepletRegistryService registryManager,
+                                         IndexedStorage indexedStorage,
+                                         RecycleBin recycleBin)
    {
       this.repositoryObjectService = repositoryObjectService;
       this.contentRepositoryTreeService = contentRepositoryTreeService;
       this.securityProvider = securityProvider;
       this.registryManager = registryManager;
+      this.indexedStorage = indexedStorage;
+      this.recycleBin = recycleBin;
    }
 
    @GetMapping("/api/em/content/repository/folder/recycleBin")
@@ -59,7 +63,6 @@ public class RepositoryRecycleBinController {
       @RequestParam(value = "timeZone", required = false, defaultValue = "") String timeZone)
       throws Exception
    {
-      RecycleBin recycleBin = RecycleBin.getRecycleBin();
       List<RepositoryFolderRecycleBinTableModel> table = new ArrayList<>();
       addRecycleSheets(table, principal, recycleBin, timeZone);
 
@@ -99,7 +102,6 @@ public class RepositoryRecycleBinController {
       }
 
       // clear recycle bin
-      final RecycleBin recycleBin = RecycleBin.getRecycleBin();
       final List<String> toRemove = recycleBin.getEntries()
          .stream()
          .map(RecycleBin.Entry::getPath)
@@ -114,7 +116,7 @@ public class RepositoryRecycleBinController {
    }
 
    private List<AssetEntry> getAssetsInTrash() throws Exception {
-      return IndexedStorage.getIndexedStorage()
+      return indexedStorage
          .getKeys(key -> true)
          .stream()
          .map(AssetEntry::createAssetEntry)
@@ -220,7 +222,6 @@ public class RepositoryRecycleBinController {
       @RequestParam("path") String path,
       @RequestParam(value = "timeZone", required = false, defaultValue = "") String timeZone)
    {
-      RecycleBin recycleBin = RecycleBin.getRecycleBin();
       RecycleBin.Entry entry = recycleBin.getEntry(path);
       SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
       format.setTimeZone(timeZone.isEmpty() ? TimeZone.getDefault() : TimeZone.getTimeZone(timeZone));
@@ -240,12 +241,11 @@ public class RepositoryRecycleBinController {
       @RequestBody() RepositoryFolderRecycleBinSettingsModel model, Principal principal) {
       List<RepositoryFolderRecycleBinTableModel> table = model.table();
       ArrayList<TreeNodeInfo> recycleNodes = new ArrayList<>();
-      RecycleBin recycleBinFile = RecycleBin.getRecycleBin();
 
       for(RepositoryFolderRecycleBinTableModel item : table) {
          String path = item.path();
          path = SUtil.isMyDashboard(item.originalPath()) ? Tool.MY_DASHBOARD + "/" + path : path;
-         RecycleBin.Entry binEntry  = recycleBinFile.getEntry(path);
+         RecycleBin.Entry binEntry  = recycleBin.getEntry(path);
 
          final TreeNodeInfo recycleNodeInfo = new TreeNodeInfo.Builder()
             .label(binEntry.getName())
@@ -290,23 +290,22 @@ public class RepositoryRecycleBinController {
    }
 
    public String restoreNode(String path, boolean overwrite, Principal principal) throws Exception {
-      RecycleBin recycleBinFile = RecycleBin.getRecycleBin();
-      RecycleBin.Entry rEntry  = recycleBinFile.getEntry(path);
+      RecycleBin.Entry rEntry  = recycleBin.getEntry(path);
 
       if(rEntry == null) {
          return null;
       }
 
       if(rEntry.isSheet()) {
-         RecycleUtils.restoreSheet(rEntry, overwrite, principal, recycleBinFile);
+         RecycleUtils.restoreSheet(rEntry, overwrite, principal, recycleBin);
       }
       else if(rEntry.isFolder()) {
          try {
             if(rEntry.isWSFolder()) {
-               return RecycleUtils.restoreWSFolder(rEntry, overwrite, principal, recycleBinFile);
+               return RecycleUtils.restoreWSFolder(rEntry, overwrite, principal, recycleBin);
             }
             else {
-               return RecycleUtils.restoreRepositoryFolder(rEntry, overwrite, principal, recycleBinFile);
+               return RecycleUtils.restoreRepositoryFolder(rEntry, overwrite, principal, recycleBin);
             }
          }
          catch(Exception ex) {
@@ -321,6 +320,8 @@ public class RepositoryRecycleBinController {
    private final RepositoryObjectService repositoryObjectService;
    private final ContentRepositoryTreeService contentRepositoryTreeService;
    private final SecurityProvider securityProvider;
-   private final RepletRegistryManager registryManager;
+   private final RepletRegistryService registryManager;
+   private final IndexedStorage indexedStorage;
+   private final RecycleBin recycleBin;
    private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 }

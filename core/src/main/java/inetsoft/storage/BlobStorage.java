@@ -36,8 +36,6 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -45,7 +43,6 @@ import java.util.stream.Stream;
  *
  * @param <T> the extended metadata type.
  */
-@SingletonManager.Singleton(BlobStorage.Reference.class)
 public abstract class BlobStorage<T extends Serializable> implements AutoCloseable {
    /**
     * Creates a new instance of {@code BlobStorage}.
@@ -53,12 +50,12 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
     * @param id      the unique identifier of the blob storage.
     * @param storage the key-value store for the blob metadata.
     */
-   protected BlobStorage(String id, KeyValueStorage<Blob<T>> storage) {
+   protected BlobStorage(String id, KeyValueStorage<Blob<T>> storage, Cluster cluster) {
       Objects.requireNonNull(id, "The store identifier cannot be null");
       this.id = id;
       Objects.requireNonNull(storage, "The metadata storage cannot be null");
       this.storage = storage;
-      this.cluster = Cluster.getInstance();
+      this.cluster = cluster;
       this.lastModified = cluster.getLong("inetsoft.storage.blob.ts." + id);
       String host = cluster.getLocalMember();
       int index = host.lastIndexOf(':');
@@ -599,22 +596,23 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
    }
 
    public static <T extends Serializable> BlobStorage<T> createBlobStorage(String id,
-                                                                           boolean preload)
+                                                                           boolean preload,
+                                                                           BlobCache blobCache,
+                                                                           KeyValueStorageManager keyValueStorageManager,
+                                                                           Cluster cluster)
       throws IOException
    {
-      KeyValueStorage<Blob<T>> storage =
-         SingletonManager.getInstance(KeyValueStorage.class, id,
-                                      (Supplier<LoadBlobsTask<?>>) () -> new LoadBlobsTask<>(id));
+      KeyValueStorage<Blob<T>> storage = keyValueStorageManager.getStorage(id, new LoadBlobsTask<>(id));
       InetsoftConfig config = InetsoftConfig.getInstance();
       String type = config.getBlob().getType();
 
       if(type == null || type.equals("local")) {
          Path base = Paths.get(config.getBlob().getFilesystem().getDirectory());
-         return new LocalBlobStorage<>(id, base, storage);
+         return new LocalBlobStorage<>(id, base, storage, cluster);
       }
 
       Path cacheDir = Paths.get(config.getBlob().getCacheDirectory());
-      return new CachedBlobStorage<>(id, cacheDir, storage, BlobCache.getInstance(), preload);
+      return new CachedBlobStorage<>(id, cacheDir, storage, blobCache, cluster, preload);
    }
 
    private Blob<T> getBlob(String path) throws FileNotFoundException {
@@ -917,71 +915,4 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
       private final BlobLock lock;
    }
 
-   public static final class Reference extends SingletonManager.Reference<BlobStorage<?>> {
-      @Override
-      public  BlobStorage<?> get(Object... parameters) {
-         if(parameters.length < 2 || parameters.length > 3) {
-            return null;
-         }
-
-         if(storages == null) {
-            storages = new HashMap<>();
-         }
-
-         String storeID = (String) parameters[0];
-         boolean preload = (Boolean) parameters[1];
-         BlobStorage<?> storage = (BlobStorage<?>) storages.get(storeID);
-
-         if(storage == null || storage.isClosed()) {
-            try {
-               storage = BlobStorage.createBlobStorage(storeID, preload);
-
-               if(storages.get(storeID) == null || storages.get(storeID).isClosed()) {
-                  lock.lock();
-
-                  try {
-                     storages.put(storeID, storage);
-
-                     if(parameters.length == 3) {
-                        Listener listener = (Listener) parameters[2];
-                        storage.addListener(listener);
-                     }
-                  }
-                  finally {
-                     lock.unlock();
-                  }
-               }
-            }
-            catch(IOException e) {
-               LOG.error("Failed to create blob storage with storeID " + storeID, e);
-            }
-         }
-
-         return storage;
-      }
-
-      @Override
-      public void dispose() {
-         if(storages != null) {
-            for(String storeID : storages.keySet()) {
-               try {
-                  BlobStorage<?> storage = storages.get(storeID);
-
-                  if(!storage.isClosed()) {
-                     storage.close();
-                  }
-               }
-               catch(Exception e) {
-                  LOG.error("Failed to close storage with storeID " + storeID, e);
-               }
-            }
-
-            storages = null;
-         }
-      }
-
-      private HashMap<String, BlobStorage<?>> storages;
-      private final ReentrantLock lock = new ReentrantLock();
-      private final Logger LOG = LoggerFactory.getLogger(Reference.class);
-   }
 }

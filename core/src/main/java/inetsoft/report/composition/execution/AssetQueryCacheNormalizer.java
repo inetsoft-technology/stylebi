@@ -369,7 +369,7 @@ public class AssetQueryCacheNormalizer {
          AssetQuery query = AssetQuery.createAssetQuery(
             cacheNormalizer.table, mode, box, false, -1L, true, false);
          DataKey key = AssetDataCache.getCacheKey(query.getTable(), box, null, mode, true);
-         AssetDataCache.removeCachedData(key);
+         AssetDataCache.getCache().removeCachedData(key);
       }
    }
 

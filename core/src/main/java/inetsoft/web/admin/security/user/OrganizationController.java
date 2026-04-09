@@ -39,11 +39,13 @@ public class OrganizationController {
    @Autowired
    public OrganizationController(UserTreeService userTreeService,
                                  IdentityService identityService,
-                                 AuthenticationProviderService authenticationProviderService)
+                                 AuthenticationProviderService authenticationProviderService,
+                                 SecurityEngine securityEngine)
    {
       this.userTreeService = userTreeService;
       this.identityService = identityService;
       this.authenticationProviderService = authenticationProviderService;
+      this.securityEngine = securityEngine;
    }
 
 
@@ -84,7 +86,7 @@ public class OrganizationController {
          return new ArrayList<>();
       }
 
-      return Arrays.stream(SecurityEngine.getSecurity().getSecurityProvider().getOrganizationNames()).toList();
+      return Arrays.stream(securityEngine.getSecurityProvider().getOrganizationNames()).toList();
    }
 
    @GetMapping("/api/em/security/users/get-all-organization-ids/")
@@ -94,7 +96,7 @@ public class OrganizationController {
          return new ArrayList<>();
       }
 
-      return Arrays.stream(SecurityEngine.getSecurity().getSecurityProvider().getOrganizationIDs()).toList();
+      return Arrays.stream(securityEngine.getSecurityProvider().getOrganizationIDs()).toList();
    }
 
    @GetMapping("/api/em/security/users/get-all-organizations")
@@ -138,7 +140,7 @@ public class OrganizationController {
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -159,5 +161,6 @@ public class OrganizationController {
    private final UserTreeService userTreeService;
    private final IdentityService identityService;
    private final AuthenticationProviderService authenticationProviderService;
+   private final SecurityEngine securityEngine;
    private static final Logger LOG = LoggerFactory.getLogger(OrganizationController.class);
 }

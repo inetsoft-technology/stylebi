@@ -17,13 +17,14 @@
  */
 package inetsoft.web.admin.content.repository;
 
-import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.RepletRegistry;
+import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.MessageListener;
 import inetsoft.sree.security.*;
-import inetsoft.sree.web.dashboard.*;
+import inetsoft.sree.web.dashboard.DashboardChangeEvent;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.service.DataSourceRegistry;
@@ -61,24 +62,32 @@ public class RepositoryChangeController {
    @Autowired
    public RepositoryChangeController(
       AssetRepository assetRepository,
-      SimpMessagingTemplate messagingTemplate)
+      SimpMessagingTemplate messagingTemplate,
+      Cluster cluster,
+      SecurityEngine securityEngine,
+      DataSourceRegistry dataSourceRegistry,
+      LibManagerProvider libManagerProvider,
+      RepletRegistryManager repletRegistryManager)
    {
       this.assetRepository = assetRepository;
       this.messagingTemplate = messagingTemplate;
+      this.libManagerProvider = libManagerProvider;
+      this.repletRegistryManager = repletRegistryManager;
       this.debouncer = new DefaultDebouncer<>();
-      this.cluster = Cluster.getInstance();
+      this.cluster = cluster;
+      this.securityEngine = securityEngine;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    @PostConstruct
    public void addListeners() throws Exception {
-      RepletRegistry.getRegistry().addPropertyChangeListener(this.reportListener);
+      repletRegistryManager.getRegistry().addPropertyChangeListener(this.reportListener);
       assetRepository.addAssetChangeListener(this.assetListener);
       assetRepository.addAssetChangeListener(this.autoSaveListener);
-      DashboardManager.getManager().addDashboardChangeListener(this.dashboardListener);
-      DataSourceRegistry.getRegistry().addRefreshedListener(dataSourceListener);
+      dataSourceRegistry.addRefreshedListener(dataSourceListener);
       cluster.addMessageListener(this.clusterMessageListener);
 
-      for(String orgId : SecurityEngine.getSecurity().getOrganizations()) {
+      for(String orgId : securityEngine.getOrganizations()) {
          addLibManagerListener(orgId);
       }
    }
@@ -88,7 +97,7 @@ public class RepositoryChangeController {
       closed = true;
 
       try {
-         RepletRegistry.getRegistry().removePropertyChangeListener(this.reportListener);
+         repletRegistryManager.getRegistry().removePropertyChangeListener(this.reportListener);
       }
       catch(Exception e) {
          LOG.debug("Exception occurred while removing listener, this usually indicates a shutdown in progress", e);
@@ -97,24 +106,23 @@ public class RepositoryChangeController {
       try {
          assetRepository.removeAssetChangeListener(this.assetListener);
          assetRepository.removeAssetChangeListener(this.autoSaveListener);
-         DashboardManager.getManager().removeDashboardChangeListener(this.dashboardListener);
-         DataSourceRegistry.getRegistry().removeRefreshedListener(dataSourceListener);
+         dataSourceRegistry.removeRefreshedListener(dataSourceListener);
          cluster.removeMessageListener(this.clusterMessageListener);
 
          for(PropertyChangeListener listener : adminReportListeners.values()) {
-            RepletRegistry.removeGlobalPropertyChangeListener(listener);
+            repletRegistryManager.removeGlobalPropertyChangeListener(listener);
          }
 
          for(Map.Entry<Principal, PropertyChangeListener> entry : userReportListeners.entrySet()) {
             IdentityID pId = IdentityID.getIdentityIDFromKey(entry.getKey().getName());
-            RepletRegistry registry = RepletRegistry.getRegistry(pId, false);
+            RepletRegistry registry = repletRegistryManager.getRegistry(pId, false);
 
             if(registry != null) {
                registry.removePropertyChangeListener(entry.getValue());
             }
          }
 
-         for(String orgId : SecurityEngine.getSecurity().getOrganizations()) {
+         for(String orgId : securityEngine.getOrganizations()) {
             removeLibManagerListener(orgId);
          }
 
@@ -139,12 +147,12 @@ public class RepositoryChangeController {
          if(isSysAdmin) {
             PropertyChangeListener listener = new ReportChangeListener(null);
             adminReportListeners.put(principal, listener);
-            RepletRegistry.addGlobalPropertyChangeListener(listener);
+            repletRegistryManager.addGlobalPropertyChangeListener(listener);
          }
          else {
             PropertyChangeListener listener = new ReportChangeListener(principal);
             userReportListeners.put(principal, listener);
-            RepletRegistry.getRegistry(pId).addPropertyChangeListener(listener);
+            repletRegistryManager.getRegistry(pId).addPropertyChangeListener(listener);
          }
       }
 
@@ -154,7 +162,7 @@ public class RepositoryChangeController {
       }
    }
 
-   @EventListener
+   @EventListener(SessionDisconnectEvent.class)
    public void handleDisconnect(SessionDisconnectEvent event) {
       removeSubscription(event);
    }
@@ -172,7 +180,7 @@ public class RepositoryChangeController {
             PropertyChangeListener listener = adminReportListeners.remove(principal);
 
             if(listener != null) {
-               RepletRegistry.removeGlobalPropertyChangeListener(listener);
+               repletRegistryManager.removeGlobalPropertyChangeListener(listener);
             }
 
             listener = userReportListeners.remove(principal);
@@ -180,7 +188,7 @@ public class RepositoryChangeController {
             if(listener != null) {
                try {
                   IdentityID identityId = IdentityID.getIdentityIDFromKey(principal.getName());
-                  RepletRegistry.getRegistry(identityId).removePropertyChangeListener(listener);
+                  repletRegistryManager.getRegistry(identityId).removePropertyChangeListener(listener);
                }
                catch(Exception e) {
                   LOG.warn("Failed to remove registry listener for user {}", principal.getName(), e);
@@ -193,7 +201,7 @@ public class RepositoryChangeController {
    private boolean isSysAdmin(Principal principal) {
       try {
          IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-         SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider securityProvider = securityEngine.getSecurityProvider();
          IdentityID[] roles = securityProvider.getRoles(pId);
 
          if(roles != null) {
@@ -220,7 +228,8 @@ public class RepositoryChangeController {
       scheduleChangeMessage(null, getOrgId(event));
    }
 
-   private void dashboardChanged(DashboardChangeEvent event) {
+   @EventListener(DashboardChangeEvent.class)
+   public void dashboardChanged(DashboardChangeEvent event) {
       scheduleChangeMessage(null, event == null ? null : event.getOrgID());
    }
 
@@ -316,13 +325,13 @@ public class RepositoryChangeController {
 
    private void addLibManagerListener(String orgId) {
       if(!libManagerListenerOrgs.contains(orgId)) {
-         LibManager.getManager(orgId).addActionListener(libraryListener);
+         libManagerProvider.getManager(orgId).addActionListener(libraryListener);
          libManagerListenerOrgs.add(orgId);
       }
    }
 
    private void removeLibManagerListener(String orgId) {
-      LibManager.getManager(orgId).removeActionListener(libraryListener);
+      libManagerProvider.getManager(orgId).removeActionListener(libraryListener);
       libManagerListenerOrgs.remove(orgId);
    }
 
@@ -338,10 +347,13 @@ public class RepositoryChangeController {
    private final ReportChangeListener reportListener = new ReportChangeListener(null);
    private final AssetChangeListener assetListener = this::assetChanged;
    private final ActionListener libraryListener = this::libraryChanged;
-   private final DashboardChangeListener dashboardListener = this::dashboardChanged;
    private final PropertyChangeListener dataSourceListener = this::dataSourceChanged;
    private final AssetChangeListener autoSaveListener = this::autoSaveChanged;
    private final Cluster cluster;
+   private final SecurityEngine securityEngine;
+   private final DataSourceRegistry dataSourceRegistry;
+   private final LibManagerProvider libManagerProvider;
+   private final RepletRegistryManager repletRegistryManager;
 
    private static final String CHANGE_TOPIC = "/em-content-changed";
    private static final Logger LOG = LoggerFactory.getLogger(RepositoryChangeController.class);

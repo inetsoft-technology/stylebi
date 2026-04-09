@@ -20,6 +20,7 @@ package inetsoft.report.composition;
 import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.erm.AbstractModelTrapContext;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.service.DataSourceRegistry;
 
 import java.security.Principal;
 import java.util.HashSet;
@@ -34,16 +35,17 @@ public class WSModelTrapContext extends AbstractModelTrapContext {
    /**
     * Constructor.
     */
-   public WSModelTrapContext(TableAssembly table, Principal user) {
-      this(table, user, false, false);
+   public WSModelTrapContext(TableAssembly table, Principal user, DataSourceRegistry dataSourceRegistry) {
+      this(table, user, false, false, dataSourceRegistry);
    }
 
    /**
     * Constructor.
     */
    public WSModelTrapContext(TableAssembly table, Principal user,
-                             boolean agg, boolean initAgg)
+                             boolean agg, boolean initAgg, DataSourceRegistry dataSourceRegistry)
    {
+      super(dataSourceRegistry);
       isWS = true;
       this.agg = agg;
       this.initAgg = initAgg;

@@ -27,6 +27,7 @@ import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSColumnDescriptionEvent;
@@ -39,9 +40,9 @@ import java.security.Principal;
 @ClusterProxy
 public class ColumnDescriptionDialogService extends WorksheetControllerService {
 
-   public ColumnDescriptionDialogService(ViewsheetService viewsheetService)
+   public ColumnDescriptionDialogService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

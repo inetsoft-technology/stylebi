@@ -35,9 +35,11 @@ import java.security.Principal;
 @Controller
 public class ExpressionDialogController extends WorksheetController {
 
-   public ExpressionDialogController(ExpressionDialogServiceProxy expressionDialogServiceProxy)
+   public ExpressionDialogController(ExpressionDialogServiceProxy expressionDialogServiceProxy,
+                                     SecurityEngine securityEngine)
    {
       this.expressionDialogServiceProxy = expressionDialogServiceProxy;
+      this.securityEngine = securityEngine;
    }
 
    @RequestMapping(
@@ -51,7 +53,7 @@ public class ExpressionDialogController extends WorksheetController {
       @RequestParam(value = "showOriginalName", required = false) boolean showOriginalName,
       Principal principal) throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(
+      if(!securityEngine.checkPermission(
          principal, ResourceType.WORKSHEET_EXPRESSION_COLUMN, "*", ResourceAction.ACCESS))
       {
          throw new SecurityException("You do not have permission to modify expression columns.");
@@ -84,7 +86,7 @@ public class ExpressionDialogController extends WorksheetController {
       @Payload ExpressionDialogModel model, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(
+      if(!securityEngine.checkPermission(
          principal, ResourceType.WORKSHEET_EXPRESSION_COLUMN, "*", ResourceAction.ACCESS))
       {
          throw new inetsoft.sree.security.SecurityException("You do not have permission to modify expression columns.");
@@ -94,4 +96,5 @@ public class ExpressionDialogController extends WorksheetController {
    }
 
    private ExpressionDialogServiceProxy expressionDialogServiceProxy;
+   private final SecurityEngine securityEngine;
 }

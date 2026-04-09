@@ -39,9 +39,12 @@ import org.springframework.stereotype.Controller;
 public class CacheMonitoringController {
    @Autowired
    public CacheMonitoringController(CacheService cacheService,
-                                    MonitoringDataService monitoringDataService) {
+                                    MonitoringDataService monitoringDataService,
+                                    SecurityEngine securityEngine)
+   {
       this.cacheService = cacheService;
       this.monitoringDataService = monitoringDataService;
+      this.securityEngine = securityEngine;
    }
 
    @SubscribeMapping(value = {"/monitoring/cache/getDataGrid/{address}",
@@ -52,7 +55,7 @@ public class CacheMonitoringController {
    {
       return this.monitoringDataService.addSubscriber(stompHeaderAccessor, () -> {
          IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
-         if (SecurityEngine.getSecurity().isSecurityEnabled() && SUtil.isMultiTenant() && !OrganizationManager.getInstance().isSiteAdmin(principal)) {
+         if (securityEngine.isSecurityEnabled() && SUtil.isMultiTenant() && !OrganizationManager.getInstance().isSiteAdmin(principal)) {
             throw new RuntimeException(
                     "Unauthorized access to resource cache  monitoring by user " + pId);
          }
@@ -68,4 +71,5 @@ public class CacheMonitoringController {
 
    private final CacheService cacheService;
    private final MonitoringDataService monitoringDataService;
+   private final SecurityEngine securityEngine;
 }

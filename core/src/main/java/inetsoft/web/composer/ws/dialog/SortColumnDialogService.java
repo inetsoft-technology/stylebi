@@ -28,6 +28,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.ws.SortColumnDialogModel;
@@ -44,9 +45,9 @@ import java.util.stream.Stream;
 @ClusterProxy
 public class SortColumnDialogService extends WorksheetControllerService {
 
-   public SortColumnDialogService(ViewsheetService viewsheetService)
+   public SortColumnDialogService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

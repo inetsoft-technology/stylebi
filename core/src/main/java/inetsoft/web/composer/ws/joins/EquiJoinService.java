@@ -25,6 +25,7 @@ import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSEquiJoinEvent;
@@ -38,9 +39,9 @@ import java.util.Enumeration;
 @ClusterProxy
 public class EquiJoinService extends WorksheetControllerService {
 
-   public EquiJoinService(ViewsheetService viewsheetService)
+   public EquiJoinService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

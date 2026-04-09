@@ -38,19 +38,20 @@ import java.util.concurrent.atomic.AtomicLong;
 @Service
 public class CacheService extends MonitorLevelService implements XSwappableMonitor, StatusUpdater {
    @Autowired
-   public CacheService(ServerClusterClient clusterClient) {
+   public CacheService(ServerClusterClient clusterClient, XSwapper swapper) {
       super(lowAttrs, medAttrs, highAttrs);
       this.clusterClient = clusterClient;
+      this.swapper = swapper;
    }
 
    @PostConstruct
    public void addListeners() {
-      XSwapper.registerMonitor(this);
+      swapper.registerMonitor(this);
    }
 
    @PreDestroy
    public void removeListeners() {
-      XSwapper.deregisterMonitor(this);
+      swapper.deregisterMonitor(this);
    }
 
    @Override
@@ -60,7 +61,7 @@ public class CacheService extends MonitorLevelService implements XSwappableMonit
       AtomicInteger dataMemory = new AtomicInteger(0);
       AtomicInteger dataDisk = new AtomicInteger(0);
 
-      for(XSwappable swp : XSwapper.getAllSwappables()) {
+      for(XSwappable swp : swapper.getAllSwappables()) {
          if(swp instanceof RuntimeSheet.XSwappableSheet || swp instanceof PageGroup) {
             calculateXFragmentCount(swp, sheetMemory, sheetDisk);
          }
@@ -478,6 +479,7 @@ public class CacheService extends MonitorLevelService implements XSwappableMonit
 
    private final Catalog catalog = Catalog.getCatalog();
    private final ServerClusterClient clusterClient;
+   private final XSwapper swapper;
    private final CacheCounts counts = new CacheCounts();
 
    private static final String[] highAttrs = {"misses", "hits"};

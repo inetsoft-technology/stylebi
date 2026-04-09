@@ -56,17 +56,18 @@ public class ScheduleTaskChangeController {
    public ScheduleTaskChangeController(AnalyticRepository repository,
                                        ScheduleService scheduleService,
                                        ScheduleManager scheduleManager,
-                                       SimpMessagingTemplate messagingTemplate)
+                                       SimpMessagingTemplate messagingTemplate,
+                                       Cluster cluster)
    {
       this.repository = repository;
       this.scheduleService = scheduleService;
       this.scheduleManager = scheduleManager;
       this.messagingTemplate = messagingTemplate;
+      this.cluster = cluster;
    }
 
    @PostConstruct
    public void initCluster() {
-      cluster = Cluster.getInstance();
       cluster.addMessageListener(listener);
    }
 
@@ -96,7 +97,7 @@ public class ScheduleTaskChangeController {
       adminSubscribers.put(sessionId, principal);
    }
 
-   @EventListener
+   @EventListener(SessionDisconnectEvent.class)
    public void handleDisconnect(SessionDisconnectEvent event) {
       removeSubscription(event);
    }
@@ -370,7 +371,7 @@ public class ScheduleTaskChangeController {
       return name;
    }
 
-   private Cluster cluster;
+   private final Cluster cluster;
    private final MessageListener listener = this::messageReceived;
    private final Map<String, Principal> adminSubscribers = new ConcurrentHashMap<>();
    private final Map<String, Principal> portalSubscribers = new ConcurrentHashMap<>();

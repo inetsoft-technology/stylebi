@@ -18,6 +18,7 @@
 package inetsoft.web;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.AuthenticationService;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.web.admin.security.SSOSettingsService;
@@ -42,12 +43,14 @@ public class SessionConfig {
    public SessionConfig(SecurityEngine securityEngine,
                         AuthenticationService authenticationService,
                         SSOSettingsService ssoSettingsService,
-                        NodeProtectionService nodeProtectionService)
+                        NodeProtectionService nodeProtectionService,
+                        Cluster cluster)
    {
       this.securityEngine = securityEngine;
       this.authenticationService = authenticationService;
       this.ssoSettingsService = ssoSettingsService;
       this.nodeProtectionService = nodeProtectionService;
+      this.cluster = cluster;
    }
 
    /**
@@ -61,7 +64,7 @@ public class SessionConfig {
    @Bean
    public IgniteSessionRepository igniteSessionRepository() {
       return new IgniteSessionRepository(
-         securityEngine, authenticationService, nodeProtectionService);
+         securityEngine, authenticationService, nodeProtectionService, cluster);
    }
 
    @Bean
@@ -100,4 +103,5 @@ public class SessionConfig {
    private final AuthenticationService authenticationService;
    private final SSOSettingsService ssoSettingsService;
    private final NodeProtectionService nodeProtectionService;
+   private final Cluster cluster;
 }

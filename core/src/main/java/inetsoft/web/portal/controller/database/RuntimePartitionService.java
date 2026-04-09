@@ -20,6 +20,8 @@ package inetsoft.web.portal.controller.database;
 import com.google.common.collect.Sets;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.uql.erm.XDataModel;
+import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Autowired;
 import inetsoft.uql.erm.XPartition;
 import inetsoft.web.portal.model.database.graph.PhysicalGraphLayout;
 import org.apache.commons.collections4.EnumerationUtils;
@@ -36,8 +38,14 @@ import java.util.concurrent.TimeUnit;
 
 @Service
 public class RuntimePartitionService {
-   public RuntimePartitionService() {
-      cache = Cluster.getInstance().getCache(
+   @Autowired
+   public RuntimePartitionService(Cluster cluster) {
+      this.cluster = cluster;
+   }
+
+   @PostConstruct
+   public void init() {
+      cache = cluster.getCache(
          CACHE_NAME, false, new TouchedExpiryPolicy(new Duration(TimeUnit.MINUTES, 3L)));
    }
 
@@ -183,7 +191,8 @@ public class RuntimePartitionService {
       return cache.get(id) == null;
    }
 
-   private final Cache<String, RuntimeXPartition> cache;
+   private final Cluster cluster;
+   private Cache<String, RuntimeXPartition> cache;
    public static final String CACHE_NAME =
       "inetsoft.web.portal.controller.database.RuntimePartitionService.cache";
 

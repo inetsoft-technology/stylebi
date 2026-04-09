@@ -17,42 +17,56 @@
  */
 package inetsoft.web.portal.controller;
 
-import inetsoft.sree.DefaultFolderEntry;
-import inetsoft.sree.FolderEntry;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.*;
+import inetsoft.test.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.sync.RenameTransformHandler;
+import inetsoft.util.IndexedStorage;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.schedule.ScheduleService;
 import inetsoft.web.admin.schedule.ScheduleTaskFolderService;
 import inetsoft.web.admin.schedule.model.EditTaskFolderDialogModel;
 import inetsoft.web.portal.model.NewTaskFolderEvent;
-
-import inetsoft.test.SreeHome;
-
 import org.junit.jupiter.api.*;
-import org.mockito.Mockito;
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
+
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, ScheduleTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
+@Tag("core")
 class ScheduleTaskFolderControllerTest {
-   static SecurityEngine securityEngine;
-   static ScheduleTaskFolderController scheduleTaskFolderController;
-   static ScheduleTaskFolderService scheduleTaskFolderService;
+   private ScheduleTaskFolderController scheduleTaskFolderController;
+   private ScheduleTaskFolderService scheduleTaskFolderService;
 
-   static SRPrincipal admin;
+   private SRPrincipal admin;
 
-   @BeforeAll
-   static void before() throws Exception {
+   @Autowired ScheduleManager scheduleManager;
+   @Autowired SecurityEngine securityEngine;
+   @Autowired IndexedStorage indexedStorage;
+
+   @BeforeEach
+   void before() throws Exception {
       securityEngine = SecurityEngine.getSecurity();
       securityEngine.enableSecurity();
       SUtil.setMultiTenant(true);
 
+      RenameTransformHandler renameTransformHandler = mock(RenameTransformHandler.class);
+
       scheduleTaskFolderService = new ScheduleTaskFolderService(
-         ScheduleManager.getScheduleManager(), securityEngine, securityEngine.getSecurityProvider());
-      ScheduleService scheduleService = Mockito.mock(ScheduleService.class);
+         scheduleManager, securityEngine, securityEngine.getSecurityProvider(),
+         indexedStorage, renameTransformHandler);
+      ScheduleService scheduleService = mock(ScheduleService.class);
       scheduleTaskFolderController = new ScheduleTaskFolderController(scheduleTaskFolderService, scheduleService);
 
       admin = new SRPrincipal(new IdentityID("admin", Organization.getDefaultOrganizationID()), new IdentityID[] { new IdentityID("Administrator", null)}, new String[0], "host_org",
@@ -60,10 +74,8 @@ class ScheduleTaskFolderControllerTest {
       admin.setIgnoreLogin(true);
    }
 
-   @AfterAll
-   static void cleanup() throws Exception {
-
-      SecurityEngine.clear();
+   @AfterEach
+   void cleanup() throws Exception {
       securityEngine.disableSecurity();
    }
 

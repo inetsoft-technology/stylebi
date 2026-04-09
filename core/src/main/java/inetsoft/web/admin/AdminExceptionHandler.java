@@ -34,6 +34,11 @@ import org.springframework.web.bind.annotation.*;
  */
 @ControllerAdvice(basePackages = { "inetsoft.web.admin", "inetsoft.enterprise.web.admin" })
 public class AdminExceptionHandler {
+
+   public AdminExceptionHandler(LogManager logManager) {
+      this.logManager = logManager;
+   }
+
    /**
     * Error handler for a request for a missing resource.
     */
@@ -136,9 +141,10 @@ public class AdminExceptionHandler {
 
    private GenericError handleMessageException(MessageException e) {
       MessageException thrown = e.isDumpStack() ? e : null;
-      LogManager.getInstance().logException(LOG, e.getLogLevel(), e.getMessage(), thrown);
+      logManager.logException(LOG, e.getLogLevel(), e.getMessage(), thrown);
       return new GenericError(e);
    }
 
+   private final LogManager logManager;
    private static final Logger LOG = LoggerFactory.getLogger(AdminExceptionHandler.class);
 }

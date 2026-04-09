@@ -31,11 +31,13 @@ public class RepositoryViewsheetController {
    @Autowired
    public RepositoryViewsheetController(SheetService sheetService,
                                         ContentRepositoryTreeService treeService,
-                                        ResourcePermissionService permissionService)
+                                        ResourcePermissionService permissionService,
+                                        SecurityEngine securityEngine)
    {
       this.sheetService = sheetService;
       this.treeService = treeService;
       this.permissionService = permissionService;
+      this.securityEngine = securityEngine;
    }
 
    @GetMapping("/api/em/content/repository/viewsheet")
@@ -48,7 +50,7 @@ public class RepositoryViewsheetController {
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -84,4 +86,5 @@ public class RepositoryViewsheetController {
    private final SheetService sheetService;
    private final ContentRepositoryTreeService treeService;
    private final ResourcePermissionService permissionService;
+   private final SecurityEngine securityEngine;
 }

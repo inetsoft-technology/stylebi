@@ -38,6 +38,7 @@ import jakarta.annotation.PreDestroy;
 import org.awaitility.Awaitility;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -54,7 +55,17 @@ import java.util.stream.Collectors;
 @Service
 public class MVSupportService {
    public static MVSupportService getInstance() {
-      return SingletonManager.getInstance(MVSupportService.class);
+      return ConfigurationContext.getContext().getSpringBean(MVSupportService.class);
+   }
+
+   @Autowired
+   public MVSupportService(MVManager mvManager, SecurityEngine securityEngine,
+                           ScheduleManager scheduleManager, Cluster cluster)
+   {
+      this.mvManager = mvManager;
+      this.securityEngine = securityEngine;
+      this.scheduleManager = scheduleManager;
+      this.cluster = cluster;
    }
 
    /**
@@ -73,12 +84,11 @@ public class MVSupportService {
             .getString("mv.permission.missing.message"));
       }
 
-      MVManager mgr = MVManager.getManager();
       Map<MVCandidate, MVDef> vs2def = new HashMap<>();
       Map<MVCandidate, MVDef> ws2def = new HashMap<>();
 
       for(String mv : mvs) {
-         MVDef def = mgr.get(mv);
+         MVDef def = mvManager.get(mv);
 
          if(def != null) {
             String[] sheetIds = def.getMetaData().getRegisteredSheets();
@@ -125,7 +135,8 @@ public class MVSupportService {
 
       String id = UUID.randomUUID().toString();
       analyzePool.submit(new AnalysisTask(
-         id, candidates, exceptions, plans, expanded, bypass, full, true, principal, false));
+         id, candidates, exceptions, plans, expanded, bypass, full, true, principal, false,
+         securityEngine, cluster));
       return new AnalysisResult(id);
    }
 
@@ -185,7 +196,7 @@ public class MVSupportService {
       analyzePool.submit(new AnalysisTask(
          id, candidates, exceptions, plans, new boolean[] { expandGroups },
          new boolean[] { bypassVpm }, new boolean[] { fullData }, false,
-         principal, portal));
+         principal, portal, securityEngine, cluster));
 
       return new AnalysisResult(id);
    }
@@ -205,11 +216,10 @@ public class MVSupportService {
    public String recreateMV(String[] names, boolean background, Principal principal)
       throws Throwable
    {
-      MVManager manager = MVManager.getManager();
       ArrayList<MVStatus> views = new ArrayList<>();
 
       for(String name : names) {
-         MVDef def = manager.get(name);
+         MVDef def = mvManager.get(name);
 
          if(def != null) {
             MVStatus status = new MVStatus(def, "");
@@ -276,14 +286,14 @@ public class MVSupportService {
       // base MV to generate
       views.sort(new MVComparator());
 
-      Map<String, String> statusMap = Cluster.getInstance().getMap("inetsoft.mv.status.map");
+      Map<String, String> statusMap = cluster.getMap("inetsoft.mv.status.map");
 
       for(MVStatus status : views) {
          statusMap.put(status.getDefinition().getName(), "Pending");
       }
 
       if(background) {
-         if(Cluster.getInstance().isSchedulerRunning()) {
+         if(cluster.isSchedulerRunning()) {
             createMVBackground(views, principal);
          }
          else {
@@ -339,20 +349,19 @@ public class MVSupportService {
     *
     */
    private String createMVForeground0(List<MVStatus> views, boolean noData, Principal principal) {
-      MVManager manager = MVManager.getManager();
       final String prefix = principal.getName() + ":";
       ScheduleTask task = new ScheduleTask(
          prefix + MV_TASK_PREFIX + UUID.randomUUID().toString(), ScheduleTask.Type.MV_TASK);
 
       for(MVStatus status : views) {
          if(noData) {
-            manager.add(status.getDefinition(), false);
+            mvManager.add(status.getDefinition(), false);
          }
          else {
             MVAction action = new MVAction(status.getDefinition());
             task.addAction(action);
             status.getDefinition().setSuccess(false);
-            manager.add(status.getDefinition(), false);
+            mvManager.add(status.getDefinition(), false);
          }
       }
 
@@ -365,7 +374,7 @@ public class MVSupportService {
          return ex.getMessage();
       }
       finally {
-         manager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
+         mvManager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
       }
    }
 
@@ -375,26 +384,25 @@ public class MVSupportService {
     * @param mvs the names of the materialized views to delete.
     */
    public void dispose(List<String> mvs) {
-      MVManager manager = MVManager.getManager();
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
       for(String mv : mvs) {
          ClusterUtil.deleteClusterMV(mv);
-         MVDef def = manager.get(mv, orgID);
+         MVDef def = mvManager.get(mv, orgID);
 
          if(def != null) {
-            manager.remove(def, false, orgID);
+            mvManager.remove(def, false, orgID);
          }
       }
 
       ClusterUtil.clearRemovedMVFiles();
-      manager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
+      mvManager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
       removeAnalysisStatusEntries(mvs);
    }
 
    private void removeAnalysisStatusEntries(List<String> mvNames) {
       Set<String> nameSet = new HashSet<>(mvNames);
-      Map<String, AnalysisStatus> map = Cluster.getInstance().getMap(ANALYSIS_STATUS_MAP);
+      Map<String, AnalysisStatus> map = cluster.getMap(ANALYSIS_STATUS_MAP);
       map.entrySet().stream()
          .filter(e -> {
             List<MVStatus> results = e.getValue().getResults();
@@ -413,11 +421,10 @@ public class MVSupportService {
     * @param dataCycle the name of the data cycle.
     */
    public void setDataCycle(String[] mvs, String dataCycle) {
-      MVManager manager = MVManager.getManager();
       boolean event = mvs.length > 0;
 
       for(String mv : mvs) {
-         MVDef def = manager.get(mv);
+         MVDef def = mvManager.get(mv);
 
          if(def == null) {
             continue;
@@ -425,11 +432,11 @@ public class MVSupportService {
 
          def.setCycle(getCycle(dataCycle));
          def.setChanged(true);
-         manager.add(def, false);
+         mvManager.add(def, false);
       }
 
       if(event) {
-         manager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
+         mvManager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
       }
    }
 
@@ -437,19 +444,16 @@ public class MVSupportService {
     * Sets the data cycle for materialized views that have not been created yet.
     *
     * @param mvs       the names of the materialized views.
-    * @param statuses  the pending materialized view definitions.
     * @param dataCycle the name of the data cycle.
     */
    public void setDataCycle(List<String> mvs, AnalysisResult result, String dataCycle) {
-      MVManager manager = MVManager.getManager();
-
       for(String name : mvs) {
          for(MVStatus status : result.getStatus()) {
             if(status.getDefinition().getName().equals(name)) {
                status.getDefinition().setCycle(getCycle(dataCycle));
                status.getDefinition().setChanged(true);
 
-               MVDef odef = manager.get(name);
+               MVDef odef = mvManager.get(name);
 
                if(odef != null) {
                   status.getDefinition().setSuccess(odef.isSuccess());
@@ -458,7 +462,7 @@ public class MVSupportService {
                // this is called when analyzing MV, don't trigger event
                // until it's actually created later to avoid creating
                // schedule task
-               manager.add(status.getDefinition(), false);
+               mvManager.add(status.getDefinition(), false);
             }
          }
       }
@@ -467,9 +471,9 @@ public class MVSupportService {
       AnalysisStatus status = new AnalysisStatus(result.getCandidates(), result.getExceptions(),
                                                  result.getPlans(), result.getStatus(),
                                                  result.getError());
-      Map<String, AnalysisStatus> map = Cluster.getInstance().getMap(ANALYSIS_STATUS_MAP);
+      Map<String, AnalysisStatus> map = cluster.getMap(ANALYSIS_STATUS_MAP);
       map.put(result.getId(), status);
-      manager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
+      mvManager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
    }
 
    /**
@@ -482,7 +486,6 @@ public class MVSupportService {
     */
    private void createMVBackground(List<MVStatus> statuses, Principal principal) throws Exception {
       long time = System.currentTimeMillis() + 6000 * 2;
-      MVManager mvManager = MVManager.getManager();
       TimeCondition condition = TimeCondition.at(new Date(time));
       ScheduleTask task = new ScheduleTask(MV_TASK_PREFIX + UUID.randomUUID(), ScheduleTask.Type.MV_TASK);
       IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
@@ -530,11 +533,10 @@ public class MVSupportService {
          mvManager.add(status.getDefinition(), false);
       }
 
-      ScheduleManager manager = ScheduleManager.getScheduleManager();
-      manager.setScheduleTask(task.getTaskId(), task, principal);
+      scheduleManager.setScheduleTask(task.getTaskId(), task, principal);
 
       if(task2.getActionCount() > 0) {
-         manager.setScheduleTask(task2.getTaskId(), task2, principal);
+         scheduleManager.setScheduleTask(task2.getTaskId(), task2, principal);
       }
 
       mvManager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
@@ -560,7 +562,7 @@ public class MVSupportService {
       SecurityProvider provider;
 
       try {
-         provider = SecurityEngine.getSecurity().getSecurityProvider();
+         provider = securityEngine.getSecurityProvider();
       }
       catch(Exception ex) {
          LOG.error("Failed to get security provider", ex);
@@ -641,12 +643,14 @@ public class MVSupportService {
       }
    }
 
-   private static Permission findPermission(String orgId, ResourceType type, String path) {
+   private static Permission findPermission(String orgId, ResourceType type, String path,
+                                            SecurityEngine securityEngine)
+   {
       if(orgId == null) {
          orgId = OrganizationManager.getInstance().getCurrentOrgID();
       }
 
-      Permission perm = SecurityEngine.getSecurity().getPermission(type, path);
+      Permission perm = securityEngine.getPermission(type, path);
 
       if((perm == null || perm.isBlank() && !perm.hasOrgEditedGrantAll(orgId)) &&
          type.isHierarchical())
@@ -655,7 +659,7 @@ public class MVSupportService {
          Resource parent = type.getParent(path);
 
          if(parent != null && !Objects.equals(resource, parent)) {
-            return findPermission(orgId, parent.getType(), parent.getPath());
+            return findPermission(orgId, parent.getType(), parent.getPath(), securityEngine);
          }
       }
 
@@ -709,7 +713,7 @@ public class MVSupportService {
 
    @Scheduled(initialDelay = ANALYSIS_STATUS_MAP_CLEANUP_INTERVAL, fixedDelay = ANALYSIS_STATUS_MAP_CLEANUP_INTERVAL)
    public void removeExpiredAnalysis() {
-      Map<String, AnalysisStatus> map = Cluster.getInstance().getMap(ANALYSIS_STATUS_MAP);
+      Map<String, AnalysisStatus> map = cluster.getMap(ANALYSIS_STATUS_MAP);
 
       long limit = System.currentTimeMillis() - ANALYSIS_STATUS_MAP_CLEANUP_INTERVAL;
       map.entrySet().stream()
@@ -831,8 +835,7 @@ public class MVSupportService {
        * Update the exist/hasData status.
        */
       public void updateStatus() {
-         MVManager manager = MVManager.getManager();
-         setExists(manager.get(mvDef.getName()) != null);
+         setExists(MVManager.getManager().get(mvDef.getName()) != null);
          setDataPresent(mvDef.hasData());
       }
 
@@ -1010,7 +1013,7 @@ public class MVSupportService {
             return Optional.of(completed);
          }
 
-         Map<String, AnalysisStatus> map = Cluster.getInstance().getMap(ANALYSIS_STATUS_MAP);
+         Map<String, AnalysisStatus> map = ConfigurationContext.getContext().getSpringBean(Cluster.class).getMap(ANALYSIS_STATUS_MAP);
          AnalysisStatus status = map.get(id);
 
          if(status == null) {
@@ -1033,7 +1036,9 @@ public class MVSupportService {
       public AnalysisTask(String id, List<MVCandidate> candidates,
                           List<UserInfo> exceptions, Map<MVCandidate, StringBuffer> plans,
                           boolean[] expanded, boolean[] bypass, boolean[] full, boolean reanalyze,
-                          Principal principal, boolean portal) throws Exception
+                          Principal principal, boolean portal, SecurityEngine securityEngine,
+                          Cluster cluster)
+         throws Exception
       {
          this.id = id;
          this.candidates = candidates;
@@ -1042,13 +1047,14 @@ public class MVSupportService {
          this.reanalyze = reanalyze;
          this.portal = portal;
          this.principal = principal;
+         this.cluster = cluster;
 
          jobs = new AnalysisJob[candidates.size()];
 
          for(int i = 0; i < candidates.size(); i++) {
             int mod = i % expanded.length;
             jobs[i] = new AnalysisJob(candidates.get(i), expanded[mod],
-                                      bypass[mod], full[mod], principal);
+                                      bypass[mod], full[mod], principal, securityEngine);
          }
 
          updateStatus(null, null);
@@ -1151,7 +1157,7 @@ public class MVSupportService {
             }
          }
 
-         Map<String, AnalysisStatus> map = Cluster.getInstance().getMap(ANALYSIS_STATUS_MAP);
+         Map<String, AnalysisStatus> map = cluster.getMap(ANALYSIS_STATUS_MAP);
          AnalysisStatus status = new AnalysisStatus(candidates, exceptions, plans, results, error);
          map.put(id, status);
       }
@@ -1164,11 +1170,12 @@ public class MVSupportService {
       private final Map<MVCandidate, StringBuffer> plans;
       private final boolean portal;
       private final Principal principal;
+      private final Cluster cluster;
    }
 
    private static final class AnalysisJob {
       public AnalysisJob(MVCandidate candidate, boolean expanded, boolean bypass,
-                         boolean full, Principal principal)
+                         boolean full, Principal principal, SecurityEngine securityEngine)
          throws Exception
       {
          this.candidate = candidate;
@@ -1179,6 +1186,7 @@ public class MVSupportService {
          this.bypass = bypass;
          this.full = full;
          this.principal = principal;
+         this.securityEngine = securityEngine;
 
          if(sheet instanceof Viewsheet) {
             ViewsheetInfo vinfo = ((Viewsheet) sheet).getViewsheetInfo();
@@ -1204,8 +1212,7 @@ public class MVSupportService {
        * Get identities.
        */
       private void createIdentities() {
-         SecurityEngine engine = SecurityEngine.getSecurity();
-         SecurityProvider securityProvider = engine.getSecurityProvider();
+         SecurityProvider securityProvider = securityEngine.getSecurityProvider();
 
          if(entry.getScope() == AssetRepository.USER_SCOPE) {
             identities.add(new DefaultIdentity(entry.getUser().name, entry.getOrgID(), Identity.USER));
@@ -1213,14 +1220,15 @@ public class MVSupportService {
          else if(!bypass) {
             Resource resource = AssetUtil.getSecurityResource(entry);
             String orgID = Optional.ofNullable(entry.getOrgID()).orElse(Organization.getDefaultOrganizationID());
-            Permission permission = findPermission(orgID, resource.getType(), resource.getPath());
+            Permission permission = findPermission(orgID, resource.getType(), resource.getPath(),
+                                                   securityEngine);
 
             if(permission != null) {
                for(Permission.PermissionIdentity pident : permission.getGroupGrants(ResourceAction.READ)) {
                   if(expanded) {
                      SRIdentityFinder finder = (SRIdentityFinder) XUtil.getXIdentityFinder();
 
-                     for(IdentityID usr : engine.getOrgUsers(pident.getOrganizationID())) {
+                     for(IdentityID usr : securityEngine.getOrgUsers(pident.getOrganizationID())) {
                         Identity user = new DefaultIdentity(usr.name, pident.getOrganizationID(), Identity.USER);
 
                         if(finder.isParentGroup(user, pident.getName())) {
@@ -1247,7 +1255,7 @@ public class MVSupportService {
             }
 
             // user enable security, but without any permission, default to administrator
-            if(!SecurityEngine.getSecurity().getSecurityProvider().isVirtual() &&
+            if(!securityEngine.getSecurityProvider().isVirtual() &&
                identities.isEmpty())
             {
                List<IdentityID> orgAdminUsers = OrganizationManager.getInstance().orgAdminUsers(orgID);
@@ -1257,7 +1265,7 @@ public class MVSupportService {
                {
                   //assign org admin role instead of printing all org admins
                   if(orgAdminUsers.size() > 1) {
-                     SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+                     SecurityProvider provider = securityEngine.getSecurityProvider();
 
                      for(IdentityID roleID : provider.getRoles()) {
                         if(roleID != null && (roleID.orgID == null || Tool.equals(roleID.orgID, orgID)) && provider.isOrgAdministratorRole(roleID)) {
@@ -1486,6 +1494,7 @@ public class MVSupportService {
       private boolean expanded;
       private boolean bypass;
       private boolean full;
+      private SecurityEngine securityEngine;
 
       private MVAnalyzer analyzer;
       private List<MVDef> defs = new ArrayList<>();
@@ -1502,6 +1511,11 @@ public class MVSupportService {
                                 mv2.getDefinition().isAssociationMV());
       }
    }
+
+   private final MVManager mvManager;
+   private final SecurityEngine securityEngine;
+   private final ScheduleManager scheduleManager;
+   private final Cluster cluster;
 
    private final ExecutorService analyzePool =
       Executors.newFixedThreadPool(4, new GroupedThreadFactory());

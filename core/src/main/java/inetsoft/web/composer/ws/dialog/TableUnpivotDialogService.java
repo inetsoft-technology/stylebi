@@ -27,6 +27,7 @@ import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.MessageException;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.composer.ws.TableModeService;
@@ -44,9 +45,10 @@ import java.security.Principal;
 public class TableUnpivotDialogService extends WorksheetControllerService {
 
    public TableUnpivotDialogService(ViewsheetService viewsheetService,
-                                    VSLayoutService vsLayoutService)
+                                    VSLayoutService vsLayoutService,
+                                    DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
       this.vsLayoutService = vsLayoutService;
    }
 

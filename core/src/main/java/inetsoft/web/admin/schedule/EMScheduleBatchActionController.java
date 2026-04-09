@@ -53,7 +53,8 @@ public class EMScheduleBatchActionController {
                                           SecurityEngine securityEngine,
                                           ViewsheetService viewsheetService,
                                           ScheduleTaskActionServiceProxy actionServiceProxy,
-                                          EMScheduleTaskActionServiceProxy emActionServiceProxy)
+                                          EMScheduleTaskActionServiceProxy emActionServiceProxy,
+                                          LicenseManager licenseManager)
    {
       this.assetRepository = assetRepository;
       this.scheduleService = scheduleService;
@@ -64,6 +65,7 @@ public class EMScheduleBatchActionController {
       this.viewsheetService = viewsheetService;
       this.actionServiceProxy = actionServiceProxy;
       this.emActionServiceProxy = emActionServiceProxy;
+      this.licenseManager = licenseManager;
    }
 
    @GetMapping("/api/em/schedule/batch-action/scheduled-tasks")
@@ -93,7 +95,7 @@ public class EMScheduleBatchActionController {
             String id = task.getTaskId();
             String label = id;
 
-            if(!LicenseManager.getInstance().isEnterprise()) {
+            if(!licenseManager.isEnterprise()) {
                int index = id.indexOf(":");
 
                if(index != -1) {
@@ -331,6 +333,7 @@ public class EMScheduleBatchActionController {
    private final ScheduleTaskActionService actionService;
    private final ContentRepositoryTreeService contentRepositoryTreeService;
    private final SecurityEngine securityEngine;
+   private final LicenseManager licenseManager;
    private final ViewsheetService viewsheetService;
    private final ScheduleTaskActionServiceProxy actionServiceProxy;
    private final EMScheduleTaskActionServiceProxy emActionServiceProxy;

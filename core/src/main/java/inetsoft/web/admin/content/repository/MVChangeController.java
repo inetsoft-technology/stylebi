@@ -18,6 +18,7 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.mv.MVManager;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
@@ -50,23 +51,26 @@ import java.util.concurrent.TimeUnit;
 @Controller
 public class MVChangeController implements MessageListener {
    @Autowired
-   public MVChangeController(SimpMessagingTemplate messagingTemplate)
+   public MVChangeController(SimpMessagingTemplate messagingTemplate, MVManager mvManager,
+                             Cluster cluster)
    {
       this.messagingTemplate = messagingTemplate;
+      this.mvManager = mvManager;
+      this.cluster = cluster;
       this.debouncer = new DefaultDebouncer<>();
    }
 
    @PostConstruct
    public void addListeners() {
-      MVManager.getManager().addPropertyChangeListener(this.mvListener);
-      Cluster.getInstance().addMessageListener(this);
+      mvManager.addPropertyChangeListener(this.mvListener);
+      cluster.addMessageListener(this);
    }
 
    @PreDestroy
    public void removeListeners() {
       try {
-         MVManager.getManager().removePropertyChangeListener(this.mvListener);
-         Cluster.getInstance().removeMessageListener(this);
+         mvManager.removePropertyChangeListener(this.mvListener);
+         cluster.removeMessageListener(this);
          debouncer.close();
       }
       catch(Exception e) {
@@ -82,7 +86,7 @@ public class MVChangeController implements MessageListener {
       subscriptions.put(sessionId, principal);
    }
 
-   @EventListener
+   @EventListener(SessionDisconnectEvent.class)
    public void handleDisconnect(SessionDisconnectEvent event) {
       removeSubscription(event);
    }
@@ -130,6 +134,8 @@ public class MVChangeController implements MessageListener {
    private final Map<String, Principal> subscriptions = new ConcurrentHashMap<>();
 
    private final SimpMessagingTemplate messagingTemplate;
+   private final MVManager mvManager;
+   private final Cluster cluster;
    private final Debouncer<String> debouncer;
    private final PropertyChangeListener mvListener = this::mvPropertyChanged;
 

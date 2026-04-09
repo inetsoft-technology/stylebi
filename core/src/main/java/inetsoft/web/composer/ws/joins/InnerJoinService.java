@@ -27,6 +27,7 @@ import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.*;
 import inetsoft.web.composer.model.ws.TableAssemblyOperatorModel;
 import inetsoft.web.composer.ws.TableModeService;
@@ -45,9 +46,9 @@ import java.util.*;
 @ClusterProxy
 public class InnerJoinService extends WorksheetControllerService {
 
-   public InnerJoinService(ViewsheetService viewsheetService)
+   public InnerJoinService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

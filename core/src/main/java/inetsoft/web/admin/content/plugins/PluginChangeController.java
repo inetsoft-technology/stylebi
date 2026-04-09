@@ -43,19 +43,20 @@ import java.util.concurrent.TimeUnit;
 @Controller
 public class PluginChangeController {
    @Autowired
-   public PluginChangeController(SimpMessagingTemplate messagingTemplate) {
+   public PluginChangeController(SimpMessagingTemplate messagingTemplate, Plugins plugins) {
       this.debouncer = new DefaultDebouncer<>();
       this.messagingTemplate = messagingTemplate;
+      this.plugins = plugins;
    }
 
    @PostConstruct
    public void addListeners() {
-      Plugins.getInstance().addActionListener(this.pluginListener);
+      plugins.addActionListener(this.pluginListener);
    }
 
    @PreDestroy
    public void removeListeners() {
-      Plugins.getInstance().removeActionListener(this.pluginListener);
+      plugins.removeActionListener(this.pluginListener);
    }
 
    @SubscribeMapping(CHANGE_TOPIC)
@@ -66,7 +67,7 @@ public class PluginChangeController {
       subscriptions.put(sessionId, principal);
    }
 
-   @EventListener
+   @EventListener(SessionDisconnectEvent.class)
    public void handleDisconnect(SessionDisconnectEvent event) {
       removeSubscription(event);
    }
@@ -96,6 +97,7 @@ public class PluginChangeController {
    private final Map<String, Principal> subscriptions = new ConcurrentHashMap<>();
    private final Debouncer<String> debouncer;
    private final SimpMessagingTemplate messagingTemplate;
+   private final Plugins plugins;
    private static final String CHANGE_TOPIC = "/em-plugin-changed";
    private final ActionListener pluginListener = this::pluginChanged;
 }

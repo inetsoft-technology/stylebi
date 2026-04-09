@@ -18,31 +18,18 @@
 package inetsoft.web.composer.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.VSEventUtil;
-import inetsoft.report.composition.*;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.report.composition.region.ChartArea;
-import inetsoft.report.internal.Util;
-import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.OrganizationManager;
-import inetsoft.uql.*;
-import inetsoft.uql.asset.*;
-import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.graph.VSChartInfo;
-import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.VSUtil;
-import inetsoft.util.Tool;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.web.viewsheet.service.LinkUri;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import org.junit.jupiter.api.Tag;
 
 @Controller
+@Tag("core")
 public class VSTestController {
 
    @Autowired

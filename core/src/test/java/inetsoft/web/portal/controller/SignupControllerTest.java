@@ -20,46 +20,53 @@ package inetsoft.web.portal.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.portal.CustomThemesManager;
+import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.SecurityEngine;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.web.admin.security.AuthenticationProviderService;
 import inetsoft.web.portal.model.SignupResponseModel;
 import inetsoft.web.portal.service.UserSignupService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
+@Tag("core")
 class SignupControllerTest {
-   static SecurityEngine securityEngine;
-   static SignupController signupController;
+   @Autowired
+   SecurityEngine securityEngine;
+   SignupController signupController;
 
    @Mock
-   static SimpMessagingTemplate messagingTemplate;
+   SimpMessagingTemplate messagingTemplate;
 
-   @BeforeAll
-   static void before() throws Exception {
-      securityEngine = SecurityEngine.getSecurity();
+   @BeforeEach
+   void before() throws Exception {
       securityEngine.enableSecurity();
       SUtil.setMultiTenant(true);
 
       ObjectMapper objectMapper = Mockito.mock(ObjectMapper.class);
       AuthenticationProviderService authenticationProviderService =
-         new AuthenticationProviderService(securityEngine, objectMapper, messagingTemplate);
+         new AuthenticationProviderService(securityEngine, objectMapper, messagingTemplate, null, null);
       UserSignupService userSignupService = new UserSignupService(authenticationProviderService);
-      signupController = new SignupController(userSignupService);
-   }
-
-   @AfterAll
-   static void cleanup() throws Exception {
-      SecurityEngine.clear();
-      securityEngine.disableSecurity();
+      CustomThemesManager customThemesManager = Mockito.mock(CustomThemesManager.class);
+      PortalThemesManager portalThemesManager = Mockito.mock(PortalThemesManager.class);
+      signupController = new SignupController(userSignupService, customThemesManager, portalThemesManager);
    }
 
    @Test

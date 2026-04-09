@@ -22,17 +22,19 @@ import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityProvider;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.AnnotationVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.BaseAnnotationVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.viewsheet.event.annotation.AddAnnotationEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
 import java.util.List;
@@ -40,7 +42,11 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
+@Tag("core")
 class VSAnnotationAddServiceTest {
    @BeforeEach
    void setUp() throws Exception {

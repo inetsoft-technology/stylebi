@@ -18,8 +18,7 @@
 package inetsoft.uql.asset.sync;
 
 import inetsoft.sree.store.port.TransformerUtil;
-import inetsoft.sree.web.dashboard.DashboardRegistry;
-import inetsoft.sree.web.dashboard.VSDashboard;
+import inetsoft.sree.web.dashboard.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
@@ -60,8 +59,8 @@ public class DashboardAssetDependencyTransformer extends DependencyTransformer {
          }
          else {
             DashboardRegistry registry = dashboard.getUser() == null ?
-               DashboardRegistry.getRegistry(dashboard.getOrgID()) :
-               DashboardRegistry.getRegistry(dashboard.getUser());
+               DashboardRegistryManager.getInstance().getRegistry(dashboard.getOrgID()) :
+               DashboardRegistryManager.getInstance().getRegistry(dashboard.getUser());
             VSDashboard dash = (VSDashboard) registry.getDashboard(dashboard.getName());
 
             if(dash == null || dash.getViewsheet() == null) {

@@ -28,6 +28,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
@@ -59,7 +60,8 @@ public class SelectionTreePropertyDialogService {
                                              VSSelectionService vsSelectionService,
                                              SelectionDialogService selectionDialogService,
                                              VSAssemblyInfoHandler assemblyInfoHandler,
-                                             DataRefModelFactoryService dataRefService)
+                                             DataRefModelFactoryService dataRefService,
+                                             DataSourceRegistry dataSourceRegistry)
    {
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.vsOutputService = vsOutputService;
@@ -70,6 +72,7 @@ public class SelectionTreePropertyDialogService {
       this.selectionDialogService = selectionDialogService;
       this.assemblyInfoHandler = assemblyInfoHandler;
       this.dataRefService = dataRefService;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -399,7 +402,7 @@ public class SelectionTreePropertyDialogService {
                                               SelectionTreeVSAssemblyInfo oinfo,
                                               SelectionTreeVSAssemblyInfo ninfo)
    {
-      VSModelTrapContext context = new VSModelTrapContext(rvs, true);
+      VSModelTrapContext context = new VSModelTrapContext(rvs, dataSourceRegistry, true);
       context.checkTrap(oinfo, ninfo);
       DataRef[] refs = context.getGrayedFields();;
       List<DataRefModel> fields = new ArrayList<>();
@@ -555,4 +558,5 @@ public class SelectionTreePropertyDialogService {
    private final SelectionDialogService selectionDialogService;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
    private final DataRefModelFactoryService dataRefService;
+   private final DataSourceRegistry dataSourceRegistry;
 }

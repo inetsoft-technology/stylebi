@@ -64,11 +64,15 @@ import java.util.regex.Pattern;
 public class VSExportService {
    @Autowired
    public VSExportService(ViewsheetService viewsheetService, CoreLifecycleService coreLifecycleService,
-                          ParameterService parameterService)
+                          ParameterService parameterService, SecurityEngine securityEngine,
+                          XSessionService sessionService, FileSystemService fileSystemService)
    {
       this.viewsheetService = viewsheetService;
       this.coreLifecycleService = coreLifecycleService;
       this.parameterService = parameterService;
+      this.securityEngine = securityEngine;
+      this.sessionService = sessionService;
+      this.fileSystemService = fileSystemService;
    }
 
    public void exportViewsheet(String path, int format, boolean match, boolean expandSelections,
@@ -123,7 +127,7 @@ public class VSExportService {
       int format = req.format;
       boolean match = req.matchLayout;
       String runtimeId;
-      boolean exportEnabled = SecurityEngine.getSecurity().checkPermission(
+      boolean exportEnabled = securityEngine.checkPermission(
          req.principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Export", ResourceAction.READ);
 
       if(!req.previewPrintLayout && !exportEnabled) {
@@ -229,7 +233,7 @@ public class VSExportService {
       stompHeaderAccessor.setSessionId(sessionId);
       VariableTable vt = parameterService.readParameters(paramMap);
       String execSessionId =
-         XSessionService.createSessionID(XSessionService.EXPORE_VIEW, entry.getName());
+         sessionService.createSessionID(XSessionService.EXPORE_VIEW, entry.getName());
 
       return CommandDispatcher.withDummyDispatcher(principal, d -> {
          CoreLifecycleService.ProcessSheetResult result = coreLifecycleService.openViewsheet(
@@ -283,7 +287,7 @@ public class VSExportService {
       rvs.setProperty("__EXPORTING__", "true");
 
       try {
-         boolean expandEnabled = SecurityEngine.getSecurity().checkPermission(
+         boolean expandEnabled = securityEngine.checkPermission(
             principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ExportExpandComponents",
             ResourceAction.READ);
 
@@ -619,7 +623,6 @@ public class VSExportService {
       // When excel data is large, export excel first and add it to csv zip.
       if(excelToCSV) {
          int fmt = FileFormatInfo.EXPORT_TYPE_EXCEL;
-         FileSystemService fileSystemService = FileSystemService.getInstance();
          File tmpDir = this.createTmpDir();
          String excel = rvs.getEntry().getName() + ".xlsx";
          File excelFile = fileSystemService.getFile(tmpDir.getPath(), excel);
@@ -632,7 +635,7 @@ public class VSExportService {
          }
 
          // export to csv. add the excel file to csv zip.
-         try(TempFile tempFile = new TempFile(rvs.getID())) {
+         try(TempFile tempFile = new TempFile(rvs.getID(), fileSystemService)) {
             tempFile.write(out -> {
                writeViewsheetExport(rvs, out, principal, format,  previewPrintLayout, print,
                   false, expandSelections, current, bookmarks, onlyDataComponents, csvConfig,
@@ -646,7 +649,7 @@ public class VSExportService {
          return;
       }
 
-      try(TempFile tempFile = new TempFile(rvs.getID())) {
+      try(TempFile tempFile = new TempFile(rvs.getID(), fileSystemService)) {
          tempFile.write(out -> {
             writeViewsheetExport(
                     rvs, out, principal, format,  previewPrintLayout, print, match,
@@ -660,7 +663,6 @@ public class VSExportService {
    }
 
    private File createTmpDir() throws IOException {
-      FileSystemService fileSystemService = FileSystemService.getInstance();
       String uuid =  UUID.randomUUID().toString();
       String dir = fileSystemService.getCacheDirectory() + File.separator + uuid;
       File tmpDir = fileSystemService.getFile(dir);
@@ -902,15 +904,18 @@ public class VSExportService {
    private final ViewsheetService viewsheetService;
    private final CoreLifecycleService coreLifecycleService;
    private final ParameterService parameterService;
+   private final SecurityEngine securityEngine;
+   private final XSessionService sessionService;
+   private final FileSystemService fileSystemService;
 
    private static final Logger LOG = LoggerFactory.getLogger(VSExportService.class);
    private static final Pattern USER_PATH_PATTERN = Pattern.compile("^user/([^/]+)/(.+)$");
    private static final Pattern GLOBAL_PATH_PATTERN = Pattern.compile("^global/(.+)$");
 
    private static final class TempFile implements Closeable {
-      TempFile(String id) {
-         file = FileSystemService.getInstance()
-            .getCacheTempFile(Tool.normalizeFileName(id), "export");
+      TempFile(String id, FileSystemService fileSystemService) {
+         this.fileSystemService = fileSystemService;
+         file = fileSystemService.getCacheTempFile(Tool.normalizeFileName(id), "export");
       }
 
       public void write(IOConsumer fn) throws Exception {
@@ -949,13 +954,14 @@ public class VSExportService {
       @Override
       public void close() throws IOException {
          try {
-            FileSystemService.getInstance().deleteFile(file.getAbsolutePath());
+            fileSystemService.deleteFile(file.getAbsolutePath());
          }
          catch(NoSuchFileException ex) {
             // ignore
          }
       }
 
+      private final FileSystemService fileSystemService;
       private final File file;
    }
 

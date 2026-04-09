@@ -534,7 +534,7 @@ public abstract class VSGauge extends VSImageable implements Cloneable {
        * Get the resource cache.
        */
       public static ResourceCache getResourceCache() {
-         return SingletonManager.getInstance(ResourceCache2.class);
+         return CACHE;
       }
 
       /**
@@ -543,6 +543,8 @@ public abstract class VSGauge extends VSImageable implements Cloneable {
       public ResourceCache2() {
          super("gauge", 15, 604800000L); // one week timeout
       }
+
+      private static final ResourceCache2 CACHE = new ResourceCache2();
 
       /**
        * Create a resource.

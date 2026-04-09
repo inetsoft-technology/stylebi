@@ -42,8 +42,12 @@ import java.util.Arrays;
 @Controller
 @Scope(value = "websocket", proxyMode = ScopedProxyMode.TARGET_CLASS)
 public class OrganizationChangedController implements MessageListener {
-   public OrganizationChangedController(SimpMessagingTemplate messagingTemplate) {
+   public OrganizationChangedController(SimpMessagingTemplate messagingTemplate,
+                                        Cluster cluster, SecurityEngine securityEngine)
+   {
       this.messagingTemplate = messagingTemplate;
+      this.cluster = cluster;
+      this.securityEngine = securityEngine;
    }
 
    @SubscribeMapping(CHANGE_TOPIC)
@@ -53,13 +57,13 @@ public class OrganizationChangedController implements MessageListener {
 
    @PostConstruct
    public void addListeners() throws Exception {
-      Cluster.getInstance().addMessageListener(this);
+      cluster.addMessageListener(this);
    }
 
    @PreDestroy
    public void removeListeners() {
       try {
-         Cluster.getInstance().removeMessageListener(this);
+         cluster.removeMessageListener(this);
       }
       catch(Exception e) {
          LOG.debug("Failed to remove listeners during shutdown", e);
@@ -93,7 +97,7 @@ public class OrganizationChangedController implements MessageListener {
       String newOrgName = message.getIdentity() != null ? message.getIdentity().getName() : null;
 
       EditableAuthenticationProvider provider =
-         SUtil.getEditableAuthenticationProvider(SecurityEngine.getSecurity().getSecurityProvider(),
+         SUtil.getEditableAuthenticationProvider(securityEngine.getSecurityProvider(),
             new IdentityID(newOrgName, newOrgId), Identity.ORGANIZATION);
 
       messagingTemplate
@@ -105,6 +109,8 @@ public class OrganizationChangedController implements MessageListener {
    }
 
    private final transient SimpMessagingTemplate messagingTemplate;
+   private final Cluster cluster;
+   private final SecurityEngine securityEngine;
    private Principal principal;
    private static final String CHANGE_TOPIC = "/current-org-changed";
    private static final Logger LOG = LoggerFactory.getLogger(OrganizationChangedController.class);

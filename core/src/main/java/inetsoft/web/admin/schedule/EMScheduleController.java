@@ -29,8 +29,6 @@ import inetsoft.report.composition.graph.GraphGenerator;
 import inetsoft.report.composition.region.*;
 import inetsoft.report.internal.binding.BaseField;
 import inetsoft.sree.portal.CustomThemesManager;
-import inetsoft.sree.portal.PortalThemesManager;
-import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.AssetEntry;
@@ -60,15 +58,15 @@ import java.util.*;
 @RestController
 public class EMScheduleController {
    @Autowired
-   public EMScheduleController(ScheduleManager scheduleManager, ScheduleService scheduleService,
-                               ScheduleTaskService taskService, ScheduleTaskFolderService taskFolderService,
-                               ScheduleUsersChangeService usersChangeService)
+   public EMScheduleController(ScheduleService scheduleService,
+                               ScheduleTaskService taskService,
+                               ScheduleUsersChangeService usersChangeService,
+                               CustomThemesManager customThemesManager)
    {
       this.scheduleService = scheduleService;
-      this.scheduleManager = scheduleManager;
       this.taskService = taskService;
-      this.taskFolderService = taskFolderService;
       this.usersChangeService = usersChangeService;
+      this.customThemesManager = customThemesManager;
    }
 
    /**
@@ -344,7 +342,7 @@ public class EMScheduleController {
          max = Math.max(max, point.hardCount() + point.softCount());
       }
 
-      boolean isDarkEM = CustomThemesManager.getManager().isEMDarkTheme();
+      boolean isDarkEM = customThemesManager.isEMDarkTheme();
       Color fgColor = isDarkEM ? Color.lightGray : GDefaults.DEFAULT_TEXT_COLOR;
       Color bgColor = isDarkEM ? new Color(0x424242) : Color.WHITE;
       DataSet dataSet = new DefaultDataSet(data);
@@ -501,8 +499,7 @@ public class EMScheduleController {
    }
 
    private final ScheduleService scheduleService;
-   private final ScheduleManager scheduleManager;
    private final ScheduleTaskService taskService;
-   private final ScheduleTaskFolderService taskFolderService;
    private final ScheduleUsersChangeService usersChangeService;
+   private final CustomThemesManager customThemesManager;
 }

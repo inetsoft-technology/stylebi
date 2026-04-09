@@ -18,126 +18,41 @@
 
 package inetsoft.sree.schedule;
 
-import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.sree.RepletRequest;
-import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.util.*;
-import inetsoft.web.binding.drm.*;
-import inetsoft.web.binding.model.*;
-import inetsoft.web.binding.service.DataRefModelFactory;
-import inetsoft.web.binding.service.DataRefModelFactoryService;
-import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
-import inetsoft.web.viewsheet.model.*;
-import inetsoft.web.viewsheet.model.annotation.VSAnnotationModel;
-import inetsoft.web.viewsheet.model.calendar.VSCalendarModel;
-import inetsoft.web.viewsheet.model.chart.VSChartModel;
-import inetsoft.web.viewsheet.model.table.*;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.Enumeration;
-import java.util.List;
 
-@SingletonManager.Singleton
+@Service
+@Lazy
 public class ScheduleViewsheetService {
    /**
     * Get the schedule viewsheet service.
     */
    public static ScheduleViewsheetService getInstance() {
-      return SingletonManager.getInstance(ScheduleViewsheetService.class);
+      return ConfigurationContext.getContext().getSpringBean(ScheduleViewsheetService.class);
    }
 
-   public ScheduleViewsheetService() {
-      this.engine = ViewsheetEngine.getViewsheetEngine();
-      this.coreLifecycleService = createCoreLifecycleService();
-      this.vsBookmarkService = createBookmarkService();
-   }
-
-   /**
-    * Only for use within the scheduler
-    */
-   private CoreLifecycleService createCoreLifecycleService() {
-      List<VSObjectModelFactory<?, ?>> modelFactories = List.of(
-         new VSAnnotationModel.VSAnnotationModelFactory(),
-         new VSCalcTableModel.VSCalcTableModelFactory(),
-         new VSCalendarModel.VSCalendarModelFactory(),
-         new VSChartModel.VSChartModelFactory(),
-         new VSCheckBoxModel.VSCheckBoxModelFactory(),
-         new VSComboBoxModel.VSComboBoxModelFactory(),
-         new VSCrosstabModel.VSCrosstabModelFactory(),
-         new VSCylinderModel.VSCylinderModelFactory(),
-         new VSEmbeddedTableModel.VSEmbeddedTableModelFactory(),
-         new VSGaugeModel.VSGaugeModelFactory(),
-         new VSGroupContainerModel.VSGaugeModelFactory(),
-         new VSImageModel.VSImageModelFactory(),
-         new VSLineModel.VSLineModelFactory(),
-         new VSOvalModel.VSOvalModelFactory(),
-         new VSPageBreakModel.VSPageBreakModelFactory(),
-         new VSRadioButtonModel.VSRadioButtonModelFactory(),
-         new VSRangeSliderModel.VSRangeSliderModelFactory(),
-         new VSRectangleModel.VSRectangleModelFactory(),
-         new VSSelectionContainerModel.VSSelectionContainerModelFactory(),
-         new VSSelectionListModel.VSSelectionListModelFactory(),
-         new VSSelectionTreeModel.VSSelectionTreeModelFactory(),
-         new VSSliderModel.VSSliderModelFactory(),
-         new VSSlidingScaleModel.VSThermometerModelFactory(),
-         new VSSpinnerModel.VSSpinnerModelFactory(),
-         new VSSubmitModel.VSSubmitModelFactory(),
-         new VSTableModel.VSTableModelFactory(),
-         new VSTabModel.VSTabModelFactory(),
-         new VSTextInputModel.VSTextInputModelFactory(),
-         new VSTextModel.VSTextModelFactory(),
-         new VSThermometerModel.VSThermometerModelFactory(),
-         new VSViewsheetModel.VSViewsheetModelFactory()
-      );
-
-      List<DataRefModelFactory<?, ?>> dataRefModelFactories = List.of(
-         new AggregateRefModel.AggregateRefModelFactory(),
-         new AliasDataRefModel.AliasDataRefModelFactory(),
-         new AttributeRefModel.AttributeRefModelFactory(),
-         new BaseFieldModel.BaseFieldModelFactory(),
-         new CalculateRefModel.CalculateRefModelFactory(),
-         new ColumnRefModel.ColumnRefModelFactory(),
-         new FormRefModel.FormRefModelFactory(),
-         new FormulaFieldModel.FormulaFieldModelFactory(),
-         new BAggregateRefModel.VSAggregateRefModelFactory(),
-         new BDimensionRefModel.VSChartDimensionRefModelFactory(),
-         new DateRangeRefModel.DateRangeRefModelFactory(),
-         new ExpressionRefModel.ExpressionRefModelFactory(),
-         new GroupRefModel.GroupRefModelFactory(),
-         new NamedRangeRefModel.NamedRangeRefModelFactory(),
-         new NumericRangeRefModel.NumericRangeRefModelFactory()
-      );
-
-      VSObjectModelFactoryService objectModelFactoryService =
-         new VSObjectModelFactoryService(modelFactories);
-      VSLayoutService vsLayoutService = new VSLayoutService(objectModelFactoryService);
-      ParameterService parameterService = new ParameterService(engine);
-      VSCompositionService vsCompositionService = new VSCompositionService();
-      DataRefModelFactoryService dataRefModelFactoryService =
-         new DataRefModelFactoryService(dataRefModelFactories);
-      return new CoreLifecycleService(objectModelFactoryService, engine, vsLayoutService,
-                                      parameterService, vsCompositionService,
-                                      dataRefModelFactoryService, null,
-                                      this::publishProcessBookmarkEvent);
-
-   }
-
-   private VSBookmarkService createBookmarkService() {
-      SimpMessagingTemplate messagingTemplate = new SimpMessagingTemplate((message, timeout) -> false);
-      SharedFilterService sharedFilterService = new SharedFilterService(messagingTemplate, engine);
-      SecurityEngine security = SecurityEngine.getSecurity();
-      VSObjectService vsObjectService = new VSObjectService(coreLifecycleService, engine, security, sharedFilterService);
-      return new VSBookmarkService(vsObjectService, engine, security, coreLifecycleService);
+   public ScheduleViewsheetService(ViewsheetService engine,
+                                   CoreLifecycleService coreLifecycleService,
+                                   XSessionService sessionService)
+   {
+      this.engine = engine;
+      this.coreLifecycleService = coreLifecycleService;
+      this.sessionService = sessionService;
    }
 
    public String openViewsheet(AssetEntry entry, RepletRequest repletRequest, Principal principal)
@@ -150,7 +65,7 @@ public class ScheduleViewsheetService {
 
       VariableTable vt = buildParameters(repletRequest);
       String execSessionId =
-         XSessionService.createSessionID(XSessionService.EXPORE_VIEW, entry.getName());
+         sessionService.createSessionID(XSessionService.EXPORE_VIEW, entry.getName());
 
       return CommandDispatcher.withDummyDispatcher(principal, d -> {
          CoreLifecycleService.ProcessSheetResult result = coreLifecycleService.openViewsheet(
@@ -190,14 +105,8 @@ public class ScheduleViewsheetService {
       return VSEventUtil.decodeParameters(params);
    }
 
-   private void publishProcessBookmarkEvent(Object event) {
-      if(vsBookmarkService != null && event instanceof ProcessBookmarkEvent pbe) {
-         vsBookmarkService.onApplicationEvent(pbe);
-      }
-   }
-
    private final ViewsheetService engine;
    private final CoreLifecycleService coreLifecycleService;
-   private final VSBookmarkService vsBookmarkService;
+   private final XSessionService sessionService;
    private final static Logger LOG = LoggerFactory.getLogger(ScheduleViewsheetService.class);
 }

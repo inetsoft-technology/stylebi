@@ -17,19 +17,20 @@
  */
 package inetsoft.test;
 
-import com.google.auto.service.AutoService;
 import inetsoft.mv.trans.UserInfo;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.MockCluster;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
-import inetsoft.util.config.KeyValueConfig;
+import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.web.admin.content.repository.MVSupportService;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.extension.*;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.*;
 import java.lang.management.*;
@@ -40,19 +41,18 @@ import java.security.Principal;
 import java.util.*;
 import java.util.stream.Collectors;
 
-@AutoService(Extension.class)
 public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
    @Override
    public void beforeAll(ExtensionContext context) throws Exception {
       if(deadlockThreadDump != null) {
          throw new Exception(
-            "SingletonManager.reset() is stalled. Thread dump:\n" + deadlockThreadDump);
+            "Cleanup is stalled. Thread dump:\n" + deadlockThreadDump);
       }
 
       ExtensionContext.Store store = context.getStore(NAMESPACE);
 
       System.setProperty(
-         "inetsoft.sree.internal.cluster.implementation", TestCluster.class.getName());
+         "inetsoft.sree.internal.cluster.implementation", MockCluster.class.getName());
       Path clusterDir = Files.createTempDirectory("ignite-test");
       System.setProperty("inetsoftClusterDir", clusterDir.toAbsolutePath().toString());
       store.put(CLUSTER_DIR, clusterDir);
@@ -71,8 +71,9 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
       home = new File(home).getCanonicalPath();
       Path homePath = Paths.get(home);
       Files.createDirectories(homePath);
-      writeConfig(homePath);
+//      writeConfig(homePath);
       ConfigurationContext.getContext().setHome(home);
+      ConfigurationContext.getContext().setApplicationContext(SpringExtension.getApplicationContext(context));
       Tool.setServer(true);
 
       if(annotation != null) {
@@ -147,7 +148,10 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
          mvSupport.dispose(mvNames);
       }
 
-      Thread thread = new Thread(SingletonManager::reset);
+      Thread thread = new Thread(() -> {
+         ConfigurationContext.getContext().setApplicationContext(null);
+         InetsoftConfig.BOOTSTRAP_INSTANCE = null;
+      });
       thread.setDaemon(true);
       thread.start();
       thread.join(120000L);
@@ -162,7 +166,7 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
          deadlockThreadDump = getThreadDump();
          thread.interrupt();
          throw new Exception(
-            "SingletonManager.reset() is stalled. Thread dump:\n" + deadlockThreadDump);
+            "Cleanup is stalled. Thread dump:\n" + deadlockThreadDump);
       }
    }
 
@@ -170,7 +174,7 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
       System.err.println("Importing assets from " + url);
       AnalyticRepository repository = SUtil.getRepletRepository();
 
-      if(repository instanceof RepletEngine) {
+      if(repository.isWrapperFor(RepletEngine.class)) {
          try(InputStream input = url.openStream()) {
             XPrincipal testPrincipal = SUtil.getPrincipal(
                new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()), null, false);
@@ -178,7 +182,7 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
             ThreadContext.setPrincipal(testPrincipal);
             ByteArrayOutputStream buffer = new ByteArrayOutputStream();
             Tool.copyTo(input, buffer);
-            ((RepletEngine) repository).importAssets(buffer.toByteArray(), true);
+            repository.unwrap(RepletEngine.class).importAssets(buffer.toByteArray(), true);
          }
       }
       else {
@@ -371,14 +375,14 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
       }
    }
 
-   private void writeConfig(Path home) {
-      InetsoftConfig config = InetsoftConfig.createDefault(home);
-      KeyValueConfig keyValue = new KeyValueConfig();
-      keyValue.setType("test");
-      config.setKeyValue(keyValue);
-
-      InetsoftConfig.save(config, home.resolve("inetsoft.yaml"));
-   }
+//   private void writeConfig(Path home) {
+//      Path configFile = home.resolve("inetsoft.yaml");
+//      InetsoftConfig.BOOTSTRAP_INSTANCE = InetsoftConfig.load(configFile);
+//      KeyValueConfig keyValue = new KeyValueConfig();
+//      keyValue.setType("test");
+//      InetsoftConfig.BOOTSTRAP_INSTANCE.setKeyValue(keyValue);
+//      InetsoftConfig.save(InetsoftConfig.BOOTSTRAP_INSTANCE, configFile);
+//   }
 
    private static final ExtensionContext.Namespace NAMESPACE =
       ExtensionContext.Namespace.create(SreeHomeExtension.class.getName());

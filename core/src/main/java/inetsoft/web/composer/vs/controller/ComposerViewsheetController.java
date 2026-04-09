@@ -52,11 +52,13 @@ public class ComposerViewsheetController {
    @Autowired
    public ComposerViewsheetController(RuntimeViewsheetRef runtimeViewsheetRef,
                                       ViewsheetService viewsheetService,
-                                      ComposerViewsheetServiceProxy composerViewsheetService)
+                                      ComposerViewsheetServiceProxy composerViewsheetService,
+                                      SecurityEngine securityEngine)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.viewsheetService = viewsheetService;
       this.composerViewsheetService = composerViewsheetService;
+      this.securityEngine = securityEngine;
    }
 
    /**
@@ -72,7 +74,7 @@ public class ComposerViewsheetController {
                             CommandDispatcher commandDispatcher, @LinkUri String linkUri)
       throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.VIEWSHEET,
+      if(!securityEngine.checkPermission(principal, ResourceType.VIEWSHEET,
                                                        "*", ResourceAction.ACCESS))
       {
          throw new SecurityException(Catalog.getCatalog().getString(
@@ -97,7 +99,7 @@ public class ComposerViewsheetController {
                                 CommandDispatcher dispatcher, @LinkUri String linkUri)
       throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.VIEWSHEET,
+      if(!securityEngine.checkPermission(principal, ResourceType.VIEWSHEET,
                                                        "*", ResourceAction.ACCESS))
       {
          throw new SecurityException(Catalog.getCatalog().getString(
@@ -160,7 +162,7 @@ public class ComposerViewsheetController {
                                 CommandDispatcher dispatcher,
                                 @LinkUri String linkUri) throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.VIEWSHEET,
+      if(!securityEngine.checkPermission(principal, ResourceType.VIEWSHEET,
                                                        "*", ResourceAction.ACCESS))
       {
          throw new SecurityException(Catalog.getCatalog().getString(
@@ -194,7 +196,7 @@ public class ComposerViewsheetController {
                                        @LinkUri String linkUri)
       throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.VIEWSHEET,
+      if(!securityEngine.checkPermission(principal, ResourceType.VIEWSHEET,
                                                        "*", ResourceAction.ACCESS))
       {
          throw new SecurityException(Catalog.getCatalog().getString(
@@ -224,7 +226,7 @@ public class ComposerViewsheetController {
                                 @LinkUri String linkUri)
       throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.VIEWSHEET,
+      if(!securityEngine.checkPermission(principal, ResourceType.VIEWSHEET,
                                                        "*", ResourceAction.ACCESS))
       {
          throw new SecurityException(Catalog.getCatalog().getString(
@@ -285,5 +287,6 @@ public class ComposerViewsheetController {
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final ViewsheetService viewsheetService;
    private final ComposerViewsheetServiceProxy composerViewsheetService;
+   private final SecurityEngine securityEngine;
    private static final Logger LOG = LoggerFactory.getLogger(ComposerViewsheetController.class);
 }

@@ -31,6 +31,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.ColumnInfo;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.model.*;
@@ -53,9 +54,10 @@ import java.util.List;
 public class ValueRangeService extends WorksheetControllerService {
 
    public ValueRangeService(ViewsheetService viewsheetService,
-                            DataRefModelFactoryService dataRefModelFactoryService)
+                            DataRefModelFactoryService dataRefModelFactoryService,
+                            DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
       this.dataRefModelFactoryService = dataRefModelFactoryService;
    }
 

@@ -48,6 +48,10 @@ import java.util.*;
 
 @Component
 public class VSEmailService {
+   public VSEmailService(FileSystemService fileSystemService) {
+      this.fileSystemService = fileSystemService;
+   }
+
    public void emailViewsheet(RuntimeViewsheet rvs, int formatType, String[] bookmarks,
                               boolean matchLayout, boolean expandSelections,
                               boolean includeCurrent, String toaddrs,
@@ -121,7 +125,7 @@ public class VSEmailService {
       boolean multipleFiles = formatType == FileFormatInfo.EXPORT_TYPE_PNG && bookmarks.length > 1;
       List<File> fileList = new ArrayList<>();
 
-      FileSystemService fileSystemService = FileSystemService.getInstance();
+      FileSystemService fileSystemService = this.fileSystemService;
 
       if(formatType != -1) {
          ftype = ExportUtil.getSuffix(formatType);
@@ -628,4 +632,6 @@ public class VSEmailService {
 
       return false;
    }
+
+   private final FileSystemService fileSystemService;
 }

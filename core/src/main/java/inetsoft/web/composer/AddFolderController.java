@@ -19,6 +19,7 @@ package inetsoft.web.composer;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.RepositoryEntry;
@@ -94,7 +95,7 @@ public class AddFolderController {
       try{
          // could throw MessageException(Write access denied)
          assetRepository.checkAssetPermission(principal, parent, ResourceAction.WRITE);
-         LibManager manager = LibManager.getManager(principal);
+         LibManager manager = libManagerProvider.getManager(principal);
          boolean isStyleDuplicate = false;
          String pname = parent.getProperty("folder");
 
@@ -179,7 +180,7 @@ public class AddFolderController {
          else if(ex instanceof MessageException) {
             MessageException messageException = (MessageException) ex;
             Throwable throwable = messageException.isDumpStack() || LOG.isDebugEnabled() ? ex : null;
-            LogManager.getInstance().logException(
+            logManager.logException(
                LOG, messageException.getLogLevel(), ex.getMessage(), throwable);
          }
          else {
@@ -226,10 +227,22 @@ public class AddFolderController {
       this.tableStyleService = tableStyleService;
    }
 
+   @Autowired
+   public void setLogManager(LogManager logManager) {
+      this.logManager = logManager;
+   }
+
+   @Autowired
+   public void setLibManagerProvider(LibManagerProvider libManagerProvider) {
+      this.libManagerProvider = libManagerProvider;
+   }
+
    private AssetRepository assetRepository;
    private RepletRepository repletRepository;
    private ViewsheetService viewsheetService;
    private TableStyleService tableStyleService;
+   private LibManagerProvider libManagerProvider;
+   private LogManager logManager;
    private static final Logger LOG =
       LoggerFactory.getLogger(AddFolderController.class);
 }

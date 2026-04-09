@@ -19,16 +19,20 @@ package inetsoft.util.health;
 
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedMap;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 /**
  * {@code ClusterHealthService} provides health status for the cluster.
  */
+@Service
+@Lazy
 public class ClusterHealthService {
-   public static ClusterHealthService getInstance() {
-      return SingletonManager.getInstance(ClusterHealthService.class);
+   public ClusterHealthService(Cluster cluster) {
+      this.cluster = cluster;
    }
 
    /**
@@ -38,8 +42,6 @@ public class ClusterHealthService {
     */
    public ClusterHealthStatus getStatus() {
       try {
-         Cluster cluster = Cluster.getInstance();
-
          if(cluster == null) {
             return new ClusterHealthStatus(false, "Cluster not initialized");
          }
@@ -93,6 +95,7 @@ public class ClusterHealthService {
       }
    }
 
+   private final Cluster cluster;
    private static final String SREE_PROPERTIES_MAP = "inetsoft.storage.kv.sreeProperties";
    private static final Logger LOG = LoggerFactory.getLogger(ClusterHealthService.class);
 }

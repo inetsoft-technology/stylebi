@@ -45,11 +45,13 @@ public class ExportDialogService {
 
    public ExportDialogService(AssetRepository assetRepository,
                               AnalyticRepository analyticRepository,
-                              ViewsheetService viewsheetService)
+                              ViewsheetService viewsheetService,
+                              SecurityEngine securityEngine)
    {
       this.assetRepository = assetRepository;
       this.analyticRepository = analyticRepository;
       this.viewsheetService = viewsheetService;
+      this.securityEngine = securityEngine;
       catalog =  Catalog.getCatalog();
    }
 
@@ -96,8 +98,8 @@ public class ExportDialogService {
       }
 
       boolean expandComponentEnabled = SreeEnv.getBooleanProperty("export.expandComponents");
-      boolean expandComponentAllowed = SecurityEngine.getSecurity().checkPermission(principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION,
-                                                                                    "ExportExpandComponents", ResourceAction.READ);
+      boolean expandComponentAllowed = securityEngine.checkPermission(principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION,
+                                                                      "ExportExpandComponents", ResourceAction.READ);
       //by nickgovus 2023-10-26, matchLayout = !ExportComponents = false only if (ExportSecurityPermission and setExportComponent = true)
       boolean matchLayout = !(expandComponentEnabled && expandComponentAllowed);
 
@@ -172,6 +174,7 @@ public class ExportDialogService {
    private final AssetRepository assetRepository;
    private final ViewsheetService viewsheetService;
    private final AnalyticRepository analyticRepository;
+   private final SecurityEngine securityEngine;
    private Catalog catalog;
 }
 

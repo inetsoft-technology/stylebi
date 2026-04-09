@@ -30,6 +30,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -62,9 +63,13 @@ public class LogMonitoringService implements MessageListener {
     */
    private static final long LOG_LIST_TIMEOUT_SECONDS = 10L;
 
-   public LogMonitoringService() {
-      this.logManager = LogManager.getInstance();
-      this.cluster = Cluster.getInstance();
+   @Autowired
+   public LogMonitoringService(LogManager logManager, Cluster cluster,
+                               LicenseManager licenseManager)
+   {
+      this.logManager = logManager;
+      this.cluster = cluster;
+      this.licenseManager = licenseManager;
    }
 
    @PostConstruct
@@ -74,10 +79,7 @@ public class LogMonitoringService implements MessageListener {
 
    @PreDestroy
    public void removeListener() {
-      if(cluster != null) {
-         cluster.removeMessageListener(this);
-      }
-
+      cluster.removeMessageListener(this);
       executor.shutdownNow();
    }
 
@@ -165,7 +167,7 @@ public class LogMonitoringService implements MessageListener {
                      clusterNode, new GetLogFilesRequest(), GetLogFilesResponse.class,
                      LOG_LIST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
-                  if(LicenseManager.getInstance().isEnterprise()) {
+                  if(licenseManager.isEnterprise()) {
                      return response.getLogFiles();
                   }
                }
@@ -392,9 +394,14 @@ public class LogMonitoringService implements MessageListener {
 
    private final LogManager logManager;
    private final Cluster cluster;
+   private final LicenseManager licenseManager;
    // CachedThreadPool allows all cluster nodes to be queried concurrently regardless of cluster
    // size. The thread count is bounded by the number of cluster nodes per request (a small,
    // operator-controlled value), so there is no unbounded thread growth risk.
-   private final ExecutorService executor = Executors.newCachedThreadPool();
+   private final ExecutorService executor = Executors.newCachedThreadPool(r -> {
+      Thread t = new Thread(r, "LogMonitoringService");
+      t.setDaemon(true);
+      return t;
+   });
    private static final Logger LOG = LoggerFactory.getLogger(LogMonitoringService.class);
 }

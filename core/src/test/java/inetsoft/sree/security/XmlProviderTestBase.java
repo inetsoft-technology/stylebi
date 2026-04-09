@@ -24,7 +24,9 @@ import java.io.IOException;
 import java.io.InputStream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import org.junit.jupiter.api.Tag;
 
+@Tag("core")
 public abstract class XmlProviderTestBase {
    protected InputStream openTestXml(String test) {
       return getClass().getResourceAsStream(

@@ -42,12 +42,12 @@ public final class XStringFragment extends XSwappable {
    public XStringFragment(String val, long interval) {
       super();
       this.interval = interval;
-      XSwapper.cur = System.currentTimeMillis();
-      this.iaccessed = XSwapper.cur;
+      XSwapper.getSwapper().cur = System.currentTimeMillis();
+      this.iaccessed = XSwapper.getSwapper().cur;
       value = val;
       len = value == null ? 0 : value.length();
       this.valid = true;
-      this.monitor = XSwapper.getMonitor();
+      this.monitor = XSwapper.getSwapper().getMonitor();
 
       if(monitor != null) {
          isCountHM = monitor.isLevelQualified(XSwappableMonitor.HITS);
@@ -106,7 +106,7 @@ public final class XStringFragment extends XSwappable {
     * Access the int fragment.
     */
    public final void access() {
-      iaccessed = XSwapper.cur;
+      iaccessed = XSwapper.getSwapper().cur;
 
       if(isCountHM) {
          if(valid && !lastValid) {
@@ -155,7 +155,7 @@ public final class XStringFragment extends XSwappable {
          return;
       }
 
-      XSwapper.deregister(this);
+      XSwapper.getSwapper().deregister(this);
       disposed = true;
       value = null;
       File file = getFile(prefix + ".tdat");
@@ -188,7 +188,7 @@ public final class XStringFragment extends XSwappable {
          return 0;
       }
 
-      return getAgePriority(XSwapper.cur - iaccessed, interval);
+      return getAgePriority(XSwapper.getSwapper().cur - iaccessed, interval);
    }
 
    /**

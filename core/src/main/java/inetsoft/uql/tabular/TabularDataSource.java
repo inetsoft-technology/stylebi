@@ -53,7 +53,7 @@ public abstract class TabularDataSource<SELF extends TabularDataSource<SELF>>
 
    protected Credential createCredential(boolean forceLocal) {
       CredentialType type = getCredentialType();
-      return type == null ? null : CredentialService.newCredential(type, forceLocal);
+      return type == null ? null : CredentialService.getInstance().createCredential(type, forceLocal);
    }
 
    public Credential getCredential() {

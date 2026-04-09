@@ -18,6 +18,7 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.internal.SUtil;
@@ -36,8 +37,13 @@ import java.sql.Timestamp;
 @RestController
 public class RepositoryScriptController {
    @Autowired
-   public RepositoryScriptController(ResourcePermissionService resourcePermissionService) {
+   public RepositoryScriptController(ResourcePermissionService resourcePermissionService,
+                                     SecurityEngine securityEngine,
+                                     LibManagerProvider libManagerProvider)
+   {
       this.resourcePermissionService = resourcePermissionService;
+      this.securityEngine = securityEngine;
+      this.libManagerProvider = libManagerProvider;
    }
 
    @GetMapping("/api/em/settings/content/repository/script")
@@ -49,7 +55,7 @@ public class RepositoryScriptController {
       ResourcePermissionModel permissionModel = this.resourcePermissionService.getTableModel(
          resource.getPath(), resource.getType(),
          ResourcePermissionService.ADMIN_ACTIONS, principal);
-      LibManager manager = LibManager.getManager(principal);
+      LibManager manager = libManagerProvider.getManager(principal);
 
       return ScriptSettingsModel.builder()
          .name(path)
@@ -74,7 +80,7 @@ public class RepositoryScriptController {
                                                    actionTimestamp, ActionRecord.ACTION_STATUS_FAILURE,
                                                    null);
 
-      LibManager manager = LibManager.getManager(principal);
+      LibManager manager = libManagerProvider.getManager(principal);
       boolean change = false;
       String npath = "";
 
@@ -98,10 +104,9 @@ public class RepositoryScriptController {
          Resource resource = resourcePermissionService.getRepositoryResourceType(type, path);
 
          if(npath != null && !npath.isEmpty()) {
-            SecurityEngine security = SecurityEngine.getSecurity();
-            Permission temp = security.getPermission(resource.getType(), path);
-            security.removePermission(resource.getType(), path);
-            security.setPermission(resource.getType(), npath, temp);
+            Permission temp = securityEngine.getPermission(resource.getType(), path);
+            securityEngine.removePermission(resource.getType(), path);
+            securityEngine.setPermission(resource.getType(), npath, temp);
          }
 
          if(model.permissions() != null && model.permissions().changed()) {
@@ -120,5 +125,7 @@ public class RepositoryScriptController {
       }
    }
 
-   private ResourcePermissionService resourcePermissionService;
+   private final ResourcePermissionService resourcePermissionService;
+   private final SecurityEngine securityEngine;
+   private final LibManagerProvider libManagerProvider;
 }

@@ -28,28 +28,31 @@ import inetsoft.util.health.HealthStatus;
 import inetsoft.web.admin.schedule.ScheduleQueriesStatus;
 import inetsoft.web.admin.schedule.ScheduleViewsheetsStatus;
 import inetsoft.web.admin.server.ServerMetrics;
-import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.SystemUtils;
 import org.awaitility.Awaitility;
 import org.awaitility.core.ConditionTimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.nio.file.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Paths;
 import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.jar.*;
-import java.util.stream.Stream;
 
 /**
  * Class providing client-side access to the schedule server.
  */
 @SuppressWarnings("WeakerAccess")
 public class ScheduleClient {
+   public ScheduleClient(Cluster cluster) {
+      this.cluster = cluster;
+   }
+
    /**
     * Starts the schedule server with a timeout of 5 minutes.
     *
@@ -90,19 +93,14 @@ public class ScheduleClient {
          javacmd = javahome + separator + "bin" + separator + "java";
       }
 
-      if(OperatingSystem.isWindows() && javacmd.indexOf(" ") > 0) {
-         javacmd = "\"" + javacmd + "\"";
-      }
-
       cp = cp2.trim() + File.pathSeparator + cp.trim();
 
       String opts = SreeEnv.getProperty("schedule.java.opts");
-      String sreeHome;
 
       // @by billh, for a unix server, it's likely that there is no graphics
       // env, here we set the default value of java.awt.headless as true, so
       // that the unix server could work as well
-      if(OperatingSystem.isUnix()) {
+      if(SystemUtils.IS_OS_UNIX) {
          String val = System.getProperty("java.awt.headless");
 
          if(val == null || val.length() == 0) {
@@ -110,24 +108,11 @@ public class ScheduleClient {
          }
       }
 
-      // @by henryh, add quotation marks to sree.home for Windows
-      // @by larryl, single quote seems to be passed to java literally and
-      // causes the sree.home to be wrong. must use double quote
-      // @by stephenwebster, fix bug1379901694751. Quote entire argument
-      // otherwise, could be interpreted incorrectly by Java's ProcessBuilder
-      if(OperatingSystem.isWindows()) {
-         sreeHome = "\"" + "-Dsree.home=" +
-            SreeEnv.getProperty("sree.home") + "\"";
-      }
-      else {
-         sreeHome = "-Dsree.home=" + SreeEnv.getProperty("sree.home");
-      }
-
+      String sreeHome = "-Dsree.home=" + SreeEnv.getProperty("sree.home");
       String headless =
          System.getProperty("java.awt.headless", "false").equals("true") ?
             "-Djava.awt.headless=true" : "-Djava.awt.headless=false";
       List<String> args = new ArrayList<>();
-      args.add(javacmd);
 
       if(!opts.contains("-Xms")) {
          args.add("-Xms" + SreeEnv.getProperty("schedule.memory.min") + "m");
@@ -235,19 +220,15 @@ public class ScheduleClient {
       args.add("--add-opens=java.desktop/java.beans=ALL-UNNAMED");
       args.add(sreeHome);
       args.add(headless);
-      args.add("-jar");
-      args.add(createBootstrapJar(cp).getAbsolutePath());
+      args.add("-cp");
+      args.add(cp);
+      args.add("inetsoft.sree.schedule.ScheduleServerApplication");
 
-      StringBuilder cmdArgs = new StringBuilder();
-
-      for(String argument : args) {
-         cmdArgs.append(" ").append(argument);
-      }
-
-      LOG.info("Starting scheduler with arguments: {}", cmdArgs);
+      File argFile = createArgFile(args);
+      LOG.info("Starting scheduler with argument file: {}", argFile.getAbsolutePath());
 
       // start the new process
-      ProcessBuilder builder = new ProcessBuilder(args);
+      ProcessBuilder builder = new ProcessBuilder(javacmd, "@" + argFile.getAbsolutePath());
       Process proc = builder.start();
       ProcessReader pr = new ProcessReader(proc);
       pr.read();
@@ -517,7 +498,6 @@ public class ScheduleClient {
     */
    public boolean isRunning(String server) {
       boolean found = false;
-      Cluster cluster = Cluster.getInstance();
 
       for(String node : cluster.getClusterNodes()) {
          if(cluster.getClusterNodeHost(node).equals(server) &&
@@ -609,7 +589,6 @@ public class ScheduleClient {
     */
    public String[] getScheduleServers() {
       List<String> servers = new ArrayList<>();
-      final Cluster cluster = Cluster.getInstance();
 
       for(String node : cluster.getClusterNodes()) {
          if(Boolean.TRUE.equals(cluster.getClusterNodeProperty(node, "scheduler"))) {
@@ -715,101 +694,86 @@ public class ScheduleClient {
     * @return a singleton of this class
     */
    public static ScheduleClient getScheduleClient() {
-      if(client == null) {
-         if(InetsoftConfig.getInstance().getCloudRunner() == null) {
-            client = new ScheduleClient();
-         }
-         else {
-            client = new CloudRunnerServerScheduleClient();
-         }
-
-      }
-
-      return client;
+      return ConfigurationContext.getContext().getSpringBean(ScheduleClient.class);
    }
 
    /**
     * Get the schedule start Date.
     */
-   public static Date getScheduleStartDate() {
-      return getScheduleStartDate(getScheduleClient().getSchedulerServer());
+   public Date getScheduleStartDate() {
+      return getScheduleStartDate(getSchedulerServer());
    }
 
    /**
     * Get the schedule start Date.
     */
-   public static Date getScheduleStartDate(String server) {
-      ScheduleClient client = ScheduleClient.getScheduleClient();
-
-      if(client.isReady(server)) {
+   public Date getScheduleStartDate(String server) {
+      if(isReady(server)) {
          try {
-            Schedule schedule = client.getSchedule(server);
+            Schedule schedule = getSchedule(server);
 
             if(schedule != null) {
                return schedule.getStartTime();
             }
             else {
-               LOG.error("Failed to get status of server: " + server);
+               LOG.error("Failed to get status of server: {}", server);
             }
          }
          catch(RemoteException e) {
-            LOG.error("Failed to get the start time of server: " + server, e);
+            LOG.error("Failed to get the start time of server: {}", server, e);
          }
       }
 
       return null;
    }
 
-   public static ServerMetrics getServerMetrics(ServerMetrics oldMetrics, long timestamp,
-                                                String address) throws RemoteException
+   public ServerMetrics getServerMetrics(ServerMetrics oldMetrics, long timestamp,
+                                         String address) throws RemoteException
    {
-      String server = getScheduleClient().getSchedulerServer();
+      String server = getSchedulerServer();
       ServerMetrics metrics = oldMetrics;
-      ScheduleClient client1 = ScheduleClient.getScheduleClient();
 
-      if(client1.isReady(server)) {
-         metrics = client1.getSchedule(server).getServerMetrics(oldMetrics, timestamp, address);
+      if(isReady(server)) {
+         metrics = getSchedule(server).getServerMetrics(oldMetrics, timestamp, address);
       }
 
       return metrics;
    }
 
-   public static ScheduleViewsheetsStatus getViewsheets(ScheduleViewsheetsStatus oldViewsheets)
+   public ScheduleViewsheetsStatus getViewsheets(ScheduleViewsheetsStatus oldViewsheets)
       throws RemoteException
    {
       return getViewsheets(oldViewsheets, null);
    }
 
-   public static ScheduleViewsheetsStatus getViewsheets(ScheduleViewsheetsStatus oldViewsheets,
-                                                        String address)
+   public ScheduleViewsheetsStatus getViewsheets(ScheduleViewsheetsStatus oldViewsheets,
+                                                 String address)
       throws RemoteException
    {
-      String server = address == null ? getScheduleClient().getSchedulerServer() : address;
-      ScheduleClient client1 = ScheduleClient.getScheduleClient();
+      String server = address == null ? getSchedulerServer() : address;
       ScheduleViewsheetsStatus viewsheets = oldViewsheets;
 
-      if(client1.isReady(server)) {
-         viewsheets = client1.getSchedule(server).getViewsheets();
+      if(isReady(server)) {
+         viewsheets = getSchedule(server).getViewsheets();
       }
 
       return viewsheets;
    }
 
-   public static ScheduleQueriesStatus getQueries(ScheduleQueriesStatus oldQueries)
+   public ScheduleQueriesStatus getQueries(ScheduleQueriesStatus oldQueries)
       throws RemoteException
    {
       return getQueries(oldQueries, null);
    }
 
-   public static ScheduleQueriesStatus getQueries(ScheduleQueriesStatus oldQueries, String address)
+   public ScheduleQueriesStatus getQueries(ScheduleQueriesStatus oldQueries, String address)
       throws RemoteException
    {
-      String server = address == null ? getScheduleClient().getSchedulerServer() : address;
-      ScheduleClient client1 = ScheduleClient.getScheduleClient();
+      String server = address == null ? getSchedulerServer() : address;
       ScheduleQueriesStatus queries = oldQueries;
 
-      if(client1.isReady(server)) {
-         queries = client1.getSchedule(server).getQueries();
+      if(isReady(server)) {
+         queries = getSchedule(server).getQueries();
       }
 
       return queries;
@@ -839,13 +803,13 @@ public class ScheduleClient {
     * @return int The port number to which the RMI registry is
     *             listening.
     */
-   public static int getSchedulerPort() {
+   public int getSchedulerPort() {
       int nPort = 1099;
 
       try {
          String port = SreeEnv.getProperty("scheduler.rmi.port");
 
-         if(port != null && !port.equals("")) {
+         if(port != null && !port.isEmpty()) {
             nPort = Integer.parseInt(port);
          }
       }
@@ -857,66 +821,39 @@ public class ScheduleClient {
    }
 
    /**
-    * Creates the bootstrap JAR file used to launch the schedule server.
+    * Creates the argument file used to launch the schedule server.
     *
-    * @param classpath the classpath for the schedule server.
+    * @param args the JVM and application arguments.
     *
-    * @return the bootstrap JAR file.
+    * @return the argument file.
     *
-    * @throws Exception if the JAR could not be generated.
+    * @throws IOException if the argument file could not be written.
     */
-   private static File createBootstrapJar(String classpath) throws Exception {
-      File file = File.createTempFile("schedule-launcher", ".jar");
+   private static File createArgFile(List<String> args) throws IOException {
+      File file = File.createTempFile("schedule-", ".argfile");
       file.deleteOnExit();
-      Manifest manifest = new Manifest();
-      manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
-      manifest.getMainAttributes().put(Attributes.Name.MAIN_CLASS, ScheduleLauncher.class.getName());
 
-      try(JarOutputStream output = new JarOutputStream(new FileOutputStream(file), manifest)) {
-         JarEntry entry = new JarEntry("inetsoft/sree/schedule/");
-         entry.setTime(System.currentTimeMillis());
-         output.putNextEntry(entry);
-         output.closeEntry();
-
-         String launcherPath = ScheduleLauncher.class.getName().replace('.', '/') + ".class";
-         entry = new JarEntry(launcherPath);
-         entry.setTime(System.currentTimeMillis());
-         output.putNextEntry(entry);
-
-         try(InputStream input = ScheduleClient.class.getResourceAsStream("/" + launcherPath)) {
-            IOUtils.copy(input, output);
+      try(PrintWriter writer = new PrintWriter(new OutputStreamWriter(
+         new FileOutputStream(file), StandardCharsets.UTF_8)))
+      {
+         for(String arg : args) {
+            writer.println(quoteArgFileToken(arg));
          }
-
-         output.closeEntry();
-
-         launcherPath = ScheduleLauncher.class.getName().replace('.', '/') + ".txt";
-         entry = new JarEntry(launcherPath);
-         entry.setTime(System.currentTimeMillis());
-         output.putNextEntry(entry);
-
-         PrintWriter writer = new PrintWriter(new OutputStreamWriter(output));
-         Arrays.stream(classpath.split(File.pathSeparator))
-            .map(p -> p.endsWith("/lib/") ? p + "*" : p)
-            .flatMap(p -> p.endsWith("*") ? listFiles(p) : Stream.of(p))
-            .map(p -> Paths.get(p).toAbsolutePath().toString())
-            .forEach(writer::println);
-         writer.flush();
-
-         output.closeEntry();
       }
 
       return file;
    }
 
-   private static Stream<String> listFiles(String path) {
-      File dir = FileSystemService.getInstance().getFile(path.substring(0, path.length() - 2));
+   /**
+    * Quotes an argument file token if it contains whitespace, escaping backslashes and
+    * double quotes within.
+    */
+   private static String quoteArgFileToken(String arg) {
+      if(!arg.contains(" ") && !arg.contains("\t")) {
+         return arg;
+      }
 
-      try {
-         return Files.list(dir.toPath()).map(Path::toString);
-      }
-      catch(IOException e) {
-         throw new RuntimeException("Failed to list files in directory \"" + path + "\"", e);
-      }
+      return "\"" + arg.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
    }
 
    private class StartupTask {
@@ -937,6 +874,7 @@ public class ScheduleClient {
       private ScheduleTask task;
    }
 
+   protected final Cluster cluster;
    private ArrayList<StartupTask> startupTasks = null;
    private final Map<String, AtomicInteger> attempts = new HashMap<>();
    private static ScheduleClient client = null;

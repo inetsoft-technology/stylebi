@@ -20,6 +20,8 @@ package inetsoft.web.portal.controller.database;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.uql.VariableTable;
+import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Autowired;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.uql.jdbc.*;
@@ -42,8 +44,14 @@ import java.util.concurrent.TimeUnit;
 
 @Service
 public class RuntimeQueryService {
-   public RuntimeQueryService() {
-      cache = Cluster.getInstance().getCache(
+   @Autowired
+   public RuntimeQueryService(Cluster cluster) {
+      this.cluster = cluster;
+   }
+
+   @PostConstruct
+   public void init() {
+      cache = cluster.getCache(
          CACHE_NAME, false, new TouchedExpiryPolicy(new Duration(TimeUnit.MINUTES, 3L)));
    }
 
@@ -135,7 +143,8 @@ public class RuntimeQueryService {
       return cache.get(id) == null;
    }
 
-   private final Cache<String, RuntimeXQuery> cache;
+   private final Cluster cluster;
+   private Cache<String, RuntimeXQuery> cache;
    private static final String CACHE_NAME = RuntimeQueryService.class.getName() + ".cache";
    private static final Logger LOG = LoggerFactory.getLogger(RuntimeQueryService.class);
 

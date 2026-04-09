@@ -18,11 +18,11 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.internal.Util;
 import inetsoft.report.style.XTableStyle;
-import inetsoft.sree.RepletRegistry;
-import inetsoft.sree.RepositoryEntry;
+import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
@@ -58,21 +58,33 @@ import static inetsoft.uql.util.XUtil.DATAMODEL_FOLDER_SPLITER;
 @Service
 public class RepositoryObjectService {
    @Autowired
-   public RepositoryObjectService(ContentRepositoryTreeService treeService,
+   public RepositoryObjectService(RepletRegistryService registryManager,
+                                  ContentRepositoryTreeService treeService,
                                   SecurityProvider securityProvider,
                                   ResourcePermissionService resourcePermissionService,
                                   XRepository xRepository,
                                   RepositoryDashboardService repositoryDashboardService,
-                                  DataModelFolderManagerService dataModelFolderManagerService)
+                                  DataModelFolderManagerService dataModelFolderManagerService,
+                                  DataSourceRegistry dataSourceRegistry,
+                                  LibManagerProvider libManagerProvider,
+                                  RecycleBin recycleBin,
+                                  DependencyHandler dependencyHandler,
+                                  RenameTransformHandler renameTransformHandler,
+                                  RepletRegistryManager repletRegistryManager)
    {
+      this.registryManager = registryManager;
       this.treeService = treeService;
-      registryManager = new RepletRegistryManager();
-      dataSourceRegistry = DataSourceRegistry.getRegistry();
+      this.libManagerProvider = libManagerProvider;
+      this.dataSourceRegistry = dataSourceRegistry;
       this.xRepository = xRepository;
       this.securityProvider = securityProvider;
       this.resourcePermissionService = resourcePermissionService;
       this.repositoryDashboardService = repositoryDashboardService;
       this.dataModelFolderManagerService = dataModelFolderManagerService;
+      this.recycleBin = recycleBin;
+      this.dependencyHandler = dependencyHandler;
+      this.renameTransformHandler = renameTransformHandler;
+      this.repletRegistryManager = repletRegistryManager;
    }
 
    public ConnectionStatus deleteNodes(TreeNodeInfo[] nodes, Principal principal, boolean force,
@@ -80,7 +92,6 @@ public class RepositoryObjectService {
    {
       ArrayList<TreeNodeInfo> trashNodes = new ArrayList<>();
       ArrayList<TreeNodeInfo> autoSaveNodes = new ArrayList<>();
-      RecycleBin recycleBin = RecycleBin.getRecycleBin();
 
       for(TreeNodeInfo node : nodes) {
          if(node.type() == RepositoryEntry.TRASHCAN) {
@@ -147,7 +158,7 @@ public class RepositoryObjectService {
             ActionRecord.ACTION_NAME_DELETE, objectName, getActionRecordType(node.type()));
 
          try {
-            final RepletRegistry registry = RepletRegistry.getRegistry(node.owner());
+            final RepletRegistry registry = repletRegistryManager.getRegistry(node.owner());
 
             switch(node.type()) {
             case RepositoryEntry.VIEWSHEET:
@@ -176,7 +187,7 @@ public class RepositoryObjectService {
                      AssetEntry dasset = new AssetEntry(
                         binEntry.getOriginalScope(), type, binEntry.getOriginalPath(),
                         node.owner());
-                     DependencyHandler.getInstance().updateSheetDependencies(assetSheet, dasset, false);
+                     this.dependencyHandler.updateSheetDependencies(assetSheet, dasset, false);
                   }
                   catch(MissingAssetClassNameException e) {
                      LOG.error(
@@ -367,8 +378,8 @@ public class RepositoryObjectService {
                removeQueryFolder(node.label(), node.path());
                break;
             case RepositoryEntry.SCRIPT:
-               LibManager.getManager(principal).removeScript(node.label());
-               LibManager.getManager(principal).save();
+               libManagerProvider.getManager(principal).removeScript(node.label());
+               libManagerProvider.getManager(principal).save();
                securityProvider.removePermission(ResourceType.SCRIPT, node.label());
                break;
             case RepositoryEntry.TABLE_STYLE:
@@ -379,18 +390,18 @@ public class RepositoryObjectService {
                   folder = node.path().substring(0, index);
                }
 
-               for(XTableStyle style : LibManager.getManager().getTableStyles(folder)) {
+               for(XTableStyle style : libManagerProvider.getManager().getTableStyles(folder)) {
                   if(node.path().equals(style.getName())) {
-                     LibManager.getManager().removeTableStyle(style.getID());
+                     libManagerProvider.getManager().removeTableStyle(style.getID());
                      break;
                   }
                }
 
-               LibManager.getManager().save();
+               libManagerProvider.getManager().save();
                break;
             case RepositoryEntry.TABLE_STYLE | RepositoryEntry.FOLDER:
-               AssetEventUtil.removeStyleFolder(node.path(), LibManager.getManager());
-               LibManager.getManager().save();
+               AssetEventUtil.removeStyleFolder(node.path(), libManagerProvider.getManager());
+               libManagerProvider.getManager().save();
                break;
             case RepositoryEntry.FOLDER:
             case RepositoryEntry.REPOSITORY | RepositoryEntry.FOLDER:
@@ -867,7 +878,7 @@ public class RepositoryObjectService {
             dataSourceRegistry.renameDataSourceFolder(pathFrom, newPath);
 
             for(RenameDependencyInfo renameDependencyInfo : renameDependencyInfos) {
-               RenameTransformHandler.getTransformHandler().addTransformTask(renameDependencyInfo);
+               this.renameTransformHandler.addTransformTask(renameDependencyInfo);
             }
          }
          else if((typeFrom & RepositoryEntry.DATA_SOURCE) == RepositoryEntry.DATA_SOURCE) {
@@ -877,7 +888,7 @@ public class RepositoryObjectService {
             XDataSource ds = xRepository.getDataSource(pathFrom);
             RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
                pathFrom, newPath);
-            RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+            this.renameTransformHandler.addTransformTask(dinfo);
             ds.setName(newPath);
             xRepository.updateDataSource(ds, pathFrom, false);
          }
@@ -944,7 +955,7 @@ public class RepositoryObjectService {
       }
       else {
          if(move) {
-            RepletRegistry registryTo = RepletRegistry.getRegistry(userTo);
+            RepletRegistry registryTo = repletRegistryManager.getRegistry(userTo);
             registryTo.save();
          }
       }
@@ -1053,7 +1064,7 @@ public class RepositoryObjectService {
             dinfo.addRenameInfo(obj, rinfo);
          }
 
-         RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+         this.renameTransformHandler.addTransformTask(dinfo);
       }
       else if((type & RepositoryEntry.PARTITION) == RepositoryEntry.PARTITION) {
          XPartition view = name == null ? null : dataModel.getPartition(name);
@@ -1261,7 +1272,7 @@ public class RepositoryObjectService {
 
    private static final Logger LOG = LoggerFactory.getLogger(RepositoryObjectService.class);
    private final Catalog catalog = Catalog.getCatalog();
-   private final RepletRegistryManager registryManager;
+   private final RepletRegistryService registryManager;
    private final DataSourceRegistry dataSourceRegistry;
    private final XRepository xRepository;
    private final ContentRepositoryTreeService treeService;
@@ -1269,4 +1280,9 @@ public class RepositoryObjectService {
    private final ResourcePermissionService resourcePermissionService;
    private final RepositoryDashboardService repositoryDashboardService;
    private final DataModelFolderManagerService dataModelFolderManagerService;
+   private final LibManagerProvider libManagerProvider;
+   private final RecycleBin recycleBin;
+   private final DependencyHandler dependencyHandler;
+   private final RenameTransformHandler renameTransformHandler;
+   private final RepletRegistryManager repletRegistryManager;
 }

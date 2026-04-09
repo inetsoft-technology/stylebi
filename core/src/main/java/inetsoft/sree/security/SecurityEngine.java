@@ -18,15 +18,19 @@
 package inetsoft.sree.security;
 
 import inetsoft.report.internal.license.LicenseManager;
-import inetsoft.sree.ClientInfo;
-import inetsoft.sree.SreeEnv;
+import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.*;
 import inetsoft.util.*;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.event.EventListener;
+import org.springframework.stereotype.Service;
 
 import java.io.*;
 import java.security.Principal;
@@ -45,17 +49,29 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author Helen Chen
  * @version 5.1, 9/20/2003
  */
-public class SecurityEngine implements SessionListener, MessageListener, AutoCloseable {
+@Service
+public class SecurityEngine implements MessageListener, AutoCloseable {
    /**
-    * Create a <code>SecurityEngine</code> object
+    * Create a <code>SecurityEngine</code> object with Spring-injected dependencies.
     */
-   public SecurityEngine() {
+   @Autowired
+   public SecurityEngine(LicenseManager licenseManager, Cluster cluster) {
+      this.licenseManager = licenseManager;
+      this.clusterInstance = cluster;
+   }
+
+   @PostConstruct
+   public void postConstruct() {
       init();
-      authenticationService = AuthenticationService.getInstance();
-      authenticationService.addSessionListener(this);
-      clusterInstance = Cluster.getInstance();
       clusterInstance.addMessageListener(this);
       users = clusterInstance.getReplicatedMap(USER_MAP_NAME);
+   }
+
+   @EventListener(ApplicationPropertiesChangedEvent.class)
+   public void handleApplicationPropertiesChanged(ApplicationPropertiesChangedEvent event) {
+      if(event.isSecurityProviderChanged()) {
+         init();
+      }
    }
 
    /**
@@ -76,7 +92,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
    private void doInit() {
       XUtil.setXIdentityFinder(new SRIdentityFinder());
       boolean secEnabled = isSecurityEnabled();
-      int userCount = LicenseManager.getInstance().getNamedUserCount();
+      int userCount = licenseManager.getNamedUserCount();
 
       if(provider != null) {
          provider.tearDown();
@@ -143,7 +159,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
     * @return a <code>SecurityEngine</code> object
     */
    public static SecurityEngine getSecurity() {
-      return SingletonManager.getInstance(SecurityEngine.class);
+      return ConfigurationContext.getContext().getSpringBean(SecurityEngine.class);
    }
 
    /**
@@ -314,6 +330,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       SreeEnv.save();
    }
 
+   @PreDestroy
    @Override
    public void close() throws Exception {
       retryExecutor.shutdownNow();
@@ -322,17 +339,9 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          provider.tearDown();
       }
 
-      if(authenticationService != null) {
-         authenticationService.removeSessionListener(this);
-      }
-
       if(clusterInstance != null) {
          clusterInstance.removeMessageListener(this);
       }
-   }
-
-   public static void clear() {
-      SingletonManager.reset(SecurityEngine.class);
    }
 
    /**
@@ -1618,13 +1627,8 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       return file;
    }
 
-   @Override
-   public void loggedIn(SessionEvent event) {
-      // NO-OP
-   }
-
-   @Override
-   public void loggedOut(SessionEvent event) {
+   @EventListener(SessionLoggedOutEvent.class)
+   public void loggedOut(SessionLoggedOutEvent event) {
       logout(event.getPrincipal());
    }
 
@@ -1766,12 +1770,12 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
    private SecurityProvider provider = null;
    private SecurityProvider vprovider = null;
    private SecurityProvider vpm_provider = null;
-   private final Map<ClientInfo, SRPrincipal> users;
+   private Map<ClientInfo, SRPrincipal> users;
    private final Set<LoginListener> loginListeners = new LinkedHashSet<>();
    private final Set<AuthenticationChangeListener> authenticationChangeListeners =
       new LinkedHashSet<>();
    private final Lock initLock = new ReentrantLock();
-   private final AuthenticationService authenticationService;
+   private final LicenseManager licenseManager;
    private final Cluster clusterInstance;
    private final ScheduledExecutorService retryExecutor =
       Executors.newSingleThreadScheduledExecutor(r -> {

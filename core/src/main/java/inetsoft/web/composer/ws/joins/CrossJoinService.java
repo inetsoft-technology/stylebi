@@ -24,6 +24,7 @@ import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSUtil;
@@ -51,9 +52,10 @@ import java.util.Optional;
 public class CrossJoinService extends WorksheetControllerService {
    @Autowired
    public CrossJoinService(CoreLifecycleService service,
-                           ViewsheetService viewsheetService)
+                           ViewsheetService viewsheetService,
+                           DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
       this.service = service;
    }
 

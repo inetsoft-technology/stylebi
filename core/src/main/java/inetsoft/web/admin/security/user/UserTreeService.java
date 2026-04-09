@@ -25,8 +25,9 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
+import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.storage.KeyValueStorage;
-import inetsoft.uql.XFactory;
+import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.asset.sync.DependencyTool;
@@ -60,7 +61,16 @@ public class UserTreeService {
                           LocalizationSettingsService localizationSettingsService,
                           SecurityEngine securityEngine,
                           IdentityThemeService themeService,
-                          SimpMessagingTemplate messagingTemplate)
+                          SimpMessagingTemplate messagingTemplate,
+                          KeyValueStorageManager keyValueStorageManager,
+                          DataCycleManager dataCycleManager,
+                          LicenseManager licenseManager,
+                          MVManager mvManager,
+                          IndexedStorage indexedStorage,
+                          CustomThemesManager customThemesManager,
+                          DashboardRegistryManager dashboardRegistryManager,
+                          XRepository xRepository,
+                          DependencyStorageService dependencyStorageService)
    {
       this.authenticationProviderService = authenticationProviderService;
       this.systemAdminService = systemAdminService;
@@ -69,7 +79,16 @@ public class UserTreeService {
       this.securityEngine = securityEngine;
       this.themeService = themeService;
       this.messagingTemplate = messagingTemplate;
-      this.editOrganizationListener = new EditOrganizationListener(messagingTemplate);
+      this.customThemesManager = customThemesManager;
+      this.dashboardRegistryManager = dashboardRegistryManager;
+      this.editOrganizationListener = new EditOrganizationListener(messagingTemplate, securityEngine);
+      this.keyValueStorageManager = keyValueStorageManager;
+      this.dataCycleManager = dataCycleManager;
+      this.licenseManager = licenseManager;
+      this.mvManager = mvManager;
+      this.indexedStorage = indexedStorage;
+      this.xRepository = xRepository;
+      this.dependencyStorageService = dependencyStorageService;
    }
 
    public List<String> getOrganizationTree(String providerName, Principal principal) {
@@ -429,7 +448,7 @@ public class UserTreeService {
     */
    EditGroupPaneModel createGroup(String selectedProvider, String parentGroup, Principal principal)
    {
-      SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider securityProvider = securityEngine.getSecurityProvider();
       String currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
 
       if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_GROUP,
@@ -618,7 +637,7 @@ public class UserTreeService {
 
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -659,8 +678,8 @@ public class UserTreeService {
       identityService.setIdentity(oldGroup, model, provider, principal);
       identityService.setIdentityPermissions(oldID, newID, ResourceType.SECURITY_GROUP,
                                              principal, permittedIdentities, "");
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
-      DataCycleManager cycleManager = DataCycleManager.getDataCycleManager();
+      IndexedStorage storage = indexedStorage;
+      DataCycleManager cycleManager = dataCycleManager;
       storage.migrateStorageData(oldID.getName(), newID.getName());
       cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), false);
    }
@@ -669,7 +688,7 @@ public class UserTreeService {
     * Create a new user
     */
    EditUserPaneModel createUser(String providerName, String parentGroup, Principal principal) {
-      SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider securityProvider = securityEngine.getSecurityProvider();
       String currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
 
       if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
@@ -688,7 +707,7 @@ public class UserTreeService {
       ThreadContext.setContextPrincipal(principal);
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -778,7 +797,7 @@ public class UserTreeService {
       String rootUser = "Users";
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(orgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(orgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -875,7 +894,7 @@ public class UserTreeService {
          }
 
          EditableAuthenticationProvider editProvider = (EditableAuthenticationProvider) provider;
-         SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider securityProvider = securityEngine.getSecurityProvider();
          FSOrganization identity;
          IdentityID newOrgKey = new IdentityID(orgName, orgID);
 
@@ -930,7 +949,7 @@ public class UserTreeService {
                   catalog.getString("em.namedUsers.exceeded", userCount, namedUserCount));
             }
 
-            editProvider.copyOrganization(fromOrg, newOrgKey.orgID, identityService, themeService, principal, false, defaultPassword);
+            editProvider.copyOrganization(fromOrg, newOrgKey.orgID, identityService, themeService, dashboardRegistryManager, dataCycleManager, principal, false, defaultPassword);
             identity = (FSOrganization) editProvider.getOrganization(newOrgKey.orgID);
          }
          else {
@@ -992,7 +1011,7 @@ public class UserTreeService {
    }
 
    private int getNamedUserCount() {
-      LicenseManager manager = LicenseManager.getInstance();
+      LicenseManager manager = licenseManager;
       return manager.getNamedUserCount() + manager.getNamedUserViewerSessionCount();
    }
 
@@ -1053,7 +1072,7 @@ public class UserTreeService {
       }
 
       List<IdentityModel> members = getOrganizationMembers(info.getMembers(), principal);
-      Set<CustomTheme> themes = CustomThemesManager.getManager().getCustomThemes();
+      Set<CustomTheme> themes = customThemesManager.getCustomThemes();
       String themeID = null;
 
       if(setTheme) {
@@ -1271,7 +1290,7 @@ public class UserTreeService {
    }
 
    private void checkDuplicateOrgIDs(EditOrganizationPaneModel model, Organization oldOrg) throws MessageException {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
       String[] organizations = provider.getOrganizationIDs();
       String[] orgNames = provider.getOrganizationNames();
 
@@ -1750,12 +1769,11 @@ public class UserTreeService {
    }
 
    private void renameVPMRole(String oldName, String newName) throws RemoteException {
-      XRepository repository = XFactory.getRepository();
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
-      String[] dataSources = repository.getDataSourceFullNames(new IdentityID(orgID, orgID));
+      String[] dataSources = xRepository.getDataSourceFullNames(new IdentityID(orgID, orgID));
 
       for(String dataSource : dataSources) {
-         XDataModel dataModel = repository.getDataModel(dataSource);
+         XDataModel dataModel = xRepository.getDataModel(dataSource);
 
          if(dataModel == null) {
             continue;
@@ -1793,11 +1811,11 @@ public class UserTreeService {
          return;
       }
 
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
-      MVManager mvManager = MVManager.getManager();
-      DataCycleManager cycleManager = DataCycleManager.getDataCycleManager();
+      IndexedStorage storage = indexedStorage;
+      MVManager mvManager = this.mvManager;
+      DataCycleManager cycleManager = this.dataCycleManager;
       KeyValueStorage<FavoriteList> favorites =
-         SingletonManager.getInstance(KeyValueStorage.class, "emFavorites");
+         keyValueStorageManager.getStorage("emFavorites");
 
       if(favorites != null && oldID != null && newID != null &&
          favorites.contains(oldID.convertToKey()))
@@ -1811,7 +1829,7 @@ public class UserTreeService {
       mvManager.migrateUserAssetsMV(oldID, newID);
       mvManager.updateMVUser(oldID, newID);
       cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), true);
-      DependencyStorageService.getInstance().migrateStorageData(oldID, newID);
+      this.dependencyStorageService.migrateStorageData(oldID, newID);
    }
 
    private SecurityProvider getSecurityProvider() {
@@ -1828,7 +1846,11 @@ public class UserTreeService {
       }
 
       ExecutorService executor =
-         Executors.newFixedThreadPool(DependencyTool.getThreadNumber(members.size()));
+         Executors.newFixedThreadPool(DependencyTool.getThreadNumber(members.size()), r -> {
+            Thread t = new Thread(r, "UserTreeServiceFilter");
+            t.setDaemon(true);
+            return t;
+         });
 
       List<CompletableFuture<IdentityModel>> futures = members.stream()
          .map(identityModel -> CompletableFuture.supplyAsync(() -> {
@@ -1901,5 +1923,14 @@ public class UserTreeService {
    private final IdentityThemeService themeService;
    private final SimpMessagingTemplate messagingTemplate;
    private final EditOrganizationListener editOrganizationListener;
+   private final KeyValueStorageManager keyValueStorageManager;
+   private final DataCycleManager dataCycleManager;
+   private final LicenseManager licenseManager;
+   private final MVManager mvManager;
+   private final IndexedStorage indexedStorage;
+   private final CustomThemesManager customThemesManager;
+   private final DashboardRegistryManager dashboardRegistryManager;
+   private final XRepository xRepository;
+   private final DependencyStorageService dependencyStorageService;
    private final Set<String> propertyNames = Set.of("max.row.count", "max.col.count", "max.cell.size", "max.user.count");
 }

@@ -66,7 +66,8 @@ public class ScheduleTaskService {
                               ScheduleService scheduleService,
                               ScheduleConditionService scheduleConditionService,
                               SecurityProvider securityProvider,
-                              ScheduleTaskFolderService scheduleTaskFolderService)
+                              ScheduleTaskFolderService scheduleTaskFolderService,
+                              SecurityEngine securityEngine)
    {
       this.analyticRepository = analyticRepository;
       this.scheduleManager = scheduleManager;
@@ -74,6 +75,7 @@ public class ScheduleTaskService {
       this.scheduleConditionService = scheduleConditionService;
       this.securityProvider = securityProvider;
       this.scheduleTaskFolderService = scheduleTaskFolderService;
+      this.securityEngine = securityEngine;
    }
 
    public ScheduleTaskDialogModel getNewTaskDialogModel(PortalNewTaskRequest model,
@@ -266,7 +268,6 @@ public class ScheduleTaskService {
       }
 
       try {
-         SecurityEngine securityEngine = SecurityEngine.getSecurity();
 
          if(securityEngine.checkPermission(principal, ResourceType.SECURITY_USER,
                                            task.getOwner(), ResourceAction.ADMIN))
@@ -474,7 +475,7 @@ public class ScheduleTaskService {
          .saveFileFormats(getSaveFormats(principal))
          .vsSaveFileFormats(getVSSaveFormats())
          .serverLocations(scheduleService.getServerLocations(catalog))
-         .expandEnabled(SecurityEngine.getSecurity().checkPermission(
+         .expandEnabled(securityEngine.checkPermission(
             principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ScheduleExpandComponents",
             ResourceAction.READ))
          .mailHistoryEnabled(historyEnabled)
@@ -585,7 +586,7 @@ public class ScheduleTaskService {
 
                if((!vsAction.isMatchLayout() || vsAction.isExpandSelections() ||
                   vsAction.isOnlyDataComponents()) &&
-                  !SecurityEngine.getSecurity().checkPermission(principal,
+                  !securityEngine.checkPermission(principal,
                   ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ScheduleExpandComponents",
                   ResourceAction.READ))
                {
@@ -1035,7 +1036,7 @@ public class ScheduleTaskService {
 
 //      if(SUtil.isAdmin(principal)) {
 //         model.adminName(Optional.ofNullable(principal.getName()));
-//         SecurityEngine security = SecurityEngine.getSecurity();
+//         SecurityEngine security = securityEngine;
 //         owners = security.getUsers();
 //
 //         Tool.qsort(owners, true);
@@ -1337,6 +1338,7 @@ public class ScheduleTaskService {
    private final ScheduleConditionService scheduleConditionService;
    private final SecurityProvider securityProvider;
    private final ScheduleTaskFolderService scheduleTaskFolderService;
+   private final SecurityEngine securityEngine;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(ScheduleTaskService.class);

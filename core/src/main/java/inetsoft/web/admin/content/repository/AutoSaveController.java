@@ -37,8 +37,9 @@ import java.util.*;
 @RestController
 public class AutoSaveController {
    @Autowired
-   public AutoSaveController(AutoSaveServiceProxy autoSaveService) {
+   public AutoSaveController(AutoSaveServiceProxy autoSaveService, IndexedStorage indexedStorage) {
       this.autoSaveService = autoSaveService;
+      this.indexedStorage = indexedStorage;
    }
 
    /**
@@ -120,8 +121,8 @@ public class AutoSaveController {
    private RestoreAssetTreeListModel getAssetFolder(Principal user, boolean isVS) throws Exception {
       RestoreAssetTreeListModel.Builder builder = RestoreAssetTreeListModel.builder();
       Set<String> keys = isVS ?
-         IndexedStorage.getIndexedStorage().getKeys(this::isViewsheetFolder) :
-         IndexedStorage.getIndexedStorage().getKeys(this::isWorksheetFolder);
+         indexedStorage.getKeys(this::isViewsheetFolder) :
+         indexedStorage.getKeys(this::isWorksheetFolder);
       List<String> folders = new ArrayList<String>();
       String root = null;
 
@@ -219,4 +220,5 @@ public class AutoSaveController {
    }
 
    private final AutoSaveServiceProxy autoSaveService;
+   private final IndexedStorage indexedStorage;
 }

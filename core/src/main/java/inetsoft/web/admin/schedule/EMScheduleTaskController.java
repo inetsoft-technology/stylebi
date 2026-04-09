@@ -49,10 +49,14 @@ public class EMScheduleTaskController {
     */
    @Autowired
    public EMScheduleTaskController(ScheduleTaskService scheduleTaskService,
-                                   ScheduleTaskFolderService scheduleTaskFolderService)
+                                   ScheduleTaskFolderService scheduleTaskFolderService,
+                                   SecurityEngine securityEngine,
+                                   ScheduleManager scheduleManager)
    {
       this.scheduleTaskService = scheduleTaskService;
       this.scheduleTaskFolderService = scheduleTaskFolderService;
+      this.securityEngine = securityEngine;
+      this.scheduleManager = scheduleManager;
    }
 
    /**
@@ -183,12 +187,10 @@ public class EMScheduleTaskController {
       throws Exception
    {
       final ToggleTaskResponse.Builder builder = ToggleTaskResponse.builder();
-      ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
-
       for(String name : list.taskNames()) {
          ScheduleTask task = scheduleManager.getScheduleTask(name);
 
-         if(!(SecurityEngine.getSecurity().checkPermission(principal, ResourceType.SCHEDULE_TASK, name,
+         if(!(securityEngine.checkPermission(principal, ResourceType.SCHEDULE_TASK, name,
             ResourceAction.WRITE) ||
             (task != null && scheduleTaskService.canDeleteTask(task, principal))))
          {
@@ -220,11 +222,13 @@ public class EMScheduleTaskController {
                         .distinct()
                         .collect(Collectors.toList()));
       List<IdentityID> groups = this.scheduleTaskService.getExecuteAsGroups(owner, principal);
-      SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider securityProvider = securityEngine.getSecurityProvider();
       model.setGroups(groups);
       return model;
    }
 
    private final ScheduleTaskService scheduleTaskService;
    private final ScheduleTaskFolderService scheduleTaskFolderService;
+   private final SecurityEngine securityEngine;
+   private final ScheduleManager scheduleManager;
 }
