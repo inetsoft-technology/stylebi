@@ -407,11 +407,14 @@ public abstract class AbstractLayout implements AssetObject {
     * Apply tab assembly layout.
     */
    private void applyTab(TabVSAssembly vsassembly, Point npos, Dimension nsize) {
+      TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) vsassembly.getVSAssemblyInfo();
+      boolean bottomTabs = tabInfo.getBottomTabsValue();
       Dimension tabSize = getSize(vsassembly);
       Dimension osize = getComponentSize(vsassembly);
+      int contentHeight = nsize.height - tabSize.height;
       Point2D.Double scaleRadio = getScaleRatio(
          new Dimension(osize.width, osize.height - tabSize.height),
-         new Dimension(nsize.width, nsize.height - tabSize.height));
+         new Dimension(nsize.width, contentHeight));
       String[] assemblies = vsassembly.getAssemblies();
       Viewsheet viewsheet = vsassembly.getViewsheet();
 
@@ -423,7 +426,10 @@ public abstract class AbstractLayout implements AssetObject {
             childSize =
                new Dimension((int) (childSize.width * scaleRadio.x),
                              (int) (childSize.height * scaleRadio.y));
-            Point childPos =
+            // for bottom tabs, the layout position (npos) is the tab bar at the
+            // bottom; children sit above it, each positioned by its own height
+            Point childPos = bottomTabs ?
+               new Point(npos.x, npos.y - childSize.height) :
                new Point(npos.x, npos.y + tabSize.height);
             applyAssembly(child, childPos, childSize);
          }
