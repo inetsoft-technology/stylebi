@@ -340,7 +340,7 @@ public class VSObjectPropertyService {
          TabVSAssemblyInfo tabInfo =
             (TabVSAssemblyInfo) tabContainer.getVSAssemblyInfo();
 
-         if(tabInfo.isBottomTabs() && inputLabelHeightChanged(oinfo, info)) {
+         if(tabInfo.getBottomTabsValue() && inputLabelHeightChanged(oinfo, info)) {
             TabVSAssemblyInfo.repositionForBottomTabs(tabInfo, vs, true);
          }
       }
@@ -2207,7 +2207,10 @@ public class VSObjectPropertyService {
 
       return oldLabel.getLabelVisibleValue() != newLabel.getLabelVisibleValue() ||
          !Objects.equals(oldLabel.getLabelPositionValue(), newLabel.getLabelPositionValue()) ||
-         oldLabel.getLabelGapValue() != newLabel.getLabelGapValue();
+         oldLabel.getLabelGapValue() != newLabel.getLabelGapValue() ||
+         !Objects.equals(
+            oldLabel.getLabelFormat() == null ? null : oldLabel.getLabelFormat().getFont(),
+            newLabel.getLabelFormat() == null ? null : newLabel.getLabelFormat().getFont());
    }
 
    private final static String VIEWSHEET_FLAG = Catalog.getCatalog().getString("Current viewsheet");

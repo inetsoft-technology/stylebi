@@ -317,6 +317,11 @@ public class CalendarPropertyDialogController {
       Viewsheet vs = viewsheet.getViewsheet();
       CalendarVSAssembly calAssembly =
          (CalendarVSAssembly) vs.getAssembly(objectId);
+
+      if(calAssembly == null) {
+         return;
+      }
+
       VSAssembly container = calAssembly.getContainer();
 
       if(container instanceof TabVSAssembly) {
