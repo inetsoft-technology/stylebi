@@ -58,14 +58,18 @@
            [style.width.px]="tile.bounds.width"
            [style.height.px]="tile.bounds.height">
         <!-- <div class="loading-hint" *ngIf="!tile.loaded"></div> -->
-        <img [chartImage]="getSrc(tile, container)"
+        <img *ngIf="!inlineSvg"
+             [chartImage]="getSrc(tile, container)"
              (onLoading)="loading(tile)"
              (onLoaded)="loaded(true, tile)"
              (onError)="loaded(false, tile)">
-<!-- use nature size to avoid scaling image
-             [style.width.px]="tile.bounds.width"
-             [style.height.px]="tile.bounds.height"
--->
+        <div *ngIf="inlineSvg"
+             class="chart-plot-area__inline-svg"
+             [chartInlineSvg]="getSrc(tile, container)"
+             (onLoading)="loading(tile)"
+             (onLoaded)="loaded(true, tile)"
+             (onError)="loaded(false, tile)">
+        </div>
       </div>
       <!-- double buffer to prevent flickering  -->
       <div class="chart-plot-area__tile" *ngIf="panning || panX != 0 || panY != 0"
@@ -73,8 +77,14 @@
            [style.left.px]="tile.bounds.x + panX"
            [style.width.px]="tile.bounds.width"
            [style.height.px]="tile.bounds.height">
-        <img (onLoaded)="panImgLoaded()"
+        <img *ngIf="!inlineSvg"
+             (onLoaded)="panImgLoaded()"
              [chartImage]="panSnapshot">
+        <div *ngIf="inlineSvg"
+             class="chart-plot-area__inline-svg"
+             (onLoaded)="panImgLoaded()"
+             [chartInlineSvg]="panSnapshot">
+        </div>
 <!-- use nature size to avoid scaling image
              [style.width.px]="tile.bounds.width"
              [style.height.px]="tile.bounds.height"

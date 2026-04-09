@@ -27,6 +27,7 @@ import inetsoft.graph.geometry.*;
 import inetsoft.graph.internal.*;
 import inetsoft.graph.scale.LinearScale;
 import inetsoft.util.CoreTool;
+import inetsoft.util.graphics.SVGSupport;
 import net.jafama.FastMath;
 
 import java.awt.*;
@@ -139,11 +140,35 @@ public class LineVO extends ElementVO {
       LineGeometry gobj = (LineGeometry) getGeometry();
       LineElement elem = (LineElement) gobj.getElement();
 
+      SVGSupport svg = SVGSupport.isSVGContext(g) ? SVGSupport.getInstance() : null;
+
+      if(svg != null) {
+         Map<String, String> annotAttrs = new HashMap<>();
+         annotAttrs.put(SVGSupport.ATTR_SERIES, String.valueOf(getColIndex()));
+
+         if(points.length > 0) {
+            Color c0 = lineInfo.getColor(0);
+            GLine gl0 = lineInfo.getLine(0);
+            annotAttrs.put(SVGSupport.ATTR_COLOR,
+                           c0.getRed() + "," + c0.getGreen() + "," + c0.getBlue());
+
+            if(gl0 != null && gl0.getDash() != 0) {
+               annotAttrs.put(SVGSupport.ATTR_DASHED, "true");
+            }
+         }
+
+         svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_LINE, annotAttrs);
+      }
+
       if(elem.getOutlineColor() != null) {
          paintLine(g, alpha, new BorderLineInfo(elem.getOutlineColor()));
       }
 
       paintLine(g, alpha, lineInfo);
+
+      if(svg != null) {
+         svg.endAnnotationGroup(g);
+      }
    }
 
    /**
@@ -242,7 +267,9 @@ public class LineVO extends ElementVO {
 
       boolean horizontal = GTool.isHorizontal(lineInfo.getScreenTransform());
       boolean ignoreNull = lineInfo.isIgnoreNull();
-      boolean dotend = style.getDash() != 0 && !lineInfo.isClosed() || lineInfo.getType() == JUMP;
+      // In SVG context the endpoint dots become visible animation artifacts; suppress them.
+      boolean dotend = !SVGSupport.isSVGContext(g2) &&
+         (style.getDash() != 0 && !lineInfo.isClosed() || lineInfo.getType() == JUMP);
       boolean samepos = true; // all points at same position
       boolean overplotx = pts.length > 200; // overplotted on x direction
       boolean first = true;

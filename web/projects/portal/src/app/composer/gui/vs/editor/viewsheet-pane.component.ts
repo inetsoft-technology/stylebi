@@ -69,6 +69,7 @@ import { GuiTool } from "../../../../common/util/gui-tool";
 import { CommandProcessor, ViewsheetClientService } from "../../../../common/viewsheet-client";
 import { MessageCommand } from "../../../../common/viewsheet-client/message-command";
 import { ChartTool } from "../../../../graph/model/chart-tool";
+import { ChartConfigService } from "../../../../graph/services/chart-config.service";
 import { ChartService } from "../../../../graph/services/chart.service";
 import { AssemblyActionFactory } from "../../../../vsobjects/action/assembly-action-factory.service";
 import { AddVSObjectCommand } from "../../../../vsobjects/command/add-vs-object-command";
@@ -464,7 +465,8 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
                private resizeHandlerService: ResizeHandlerService,
                private composerVsSearchService: ComposerVsSearchService,
                private appInfoService: AppInfoService,
-               private fontService: FontService)
+               private fontService: FontService,
+               private chartConfigService: ChartConfigService)
    {
       super(viewsheetClient, zone, true);
       actionFactory.stateProvider = {
@@ -771,6 +773,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
     * @param {SetViewsheetInfoCommand} command
     */
    private processSetViewsheetInfoCommand(command: SetViewsheetInfoCommand): void {
+      this.chartConfigService.inlineSvg = command.info["inlineSvg"] ?? false;
       this.vs.label = command.assemblyInfo["name"];
       this.vs.layouts = command.layouts;
       this.vs.baseEntry = command.baseEntry;

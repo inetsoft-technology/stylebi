@@ -28,6 +28,7 @@ import inetsoft.graph.geometry.*;
 import inetsoft.graph.guide.VLabel;
 import inetsoft.graph.internal.*;
 import inetsoft.util.CoreTool;
+import inetsoft.util.graphics.SVGSupport;
 
 import java.awt.*;
 import java.awt.geom.*;
@@ -378,8 +379,15 @@ public class Pie3DVO extends ElementVO {
       GraphElement elem = gobj.getElement();
       vlabels = new VLabel[transformedShapes.size()];
       int[] rows = getSubRowIndexes();
+      SVGSupport svg = SVGSupport.isSVGContext(g) ? SVGSupport.getInstance() : null;
 
       for(int i = 0; i < transformedShapes.size(); i++) {
+         if(svg != null) {
+            svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_PIE, Map.of(
+               SVGSupport.ATTR_SLICE, String.valueOf(i),
+               SVGSupport.ATTR_FACE,  "top"
+            ));
+         }
          Color color = gobj.getColor(rows[i]);
          GTexture texture = gobj.getTexture(rows[i]);
          GLine line = gobj.getLine(rows[i]);
@@ -424,6 +432,10 @@ public class Pie3DVO extends ElementVO {
             }
 
             g.setStroke(ostroke);
+         }
+
+         if(svg != null) {
+            svg.endAnnotationGroup(g);
          }
       }
    }

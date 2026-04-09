@@ -26,8 +26,112 @@ import java.awt.image.BufferedImage;
 import java.awt.print.PageFormat;
 import java.io.*;
 import java.net.URL;
+import java.util.Map;
 
 public interface SVGSupport {
+   // -------------------------------------------------------------------------
+   // Animation rendering hint
+   // -------------------------------------------------------------------------
+
+   /** Rendering hint key used to request CSS animation in the SVG output.
+    *  Set the value to one of the {@code ANIMATION_*} constants below. */
+   RenderingHints.Key ANIMATION_KEY = new AnimationKey();
+
+   /** Bars grow from the baseline with a spring easing (default animation style). */
+   String ANIMATION_GROW = "grow";
+
+   /** Bars fade in from transparent (simpler alternative to grow). */
+   String ANIMATION_FADE = "fade";
+
+   /** Pie/donut slices sweep in from the start angle, staggered by slice order. */
+   String ANIMATION_PIE = "pie";
+
+   /** Line/area series draw on from left using stroke-dasharray, dots pop with spring easing. */
+   String ANIMATION_LINE = "line";
+
+   // Sub-type flags appended to the base hint with ":" separators.
+   // The injector parses these to handle each chart variant correctly.
+
+   /** 3D chart variant (pie or bar). Example hints: "pie:3d", "grow:3d". */
+   String ANIMATION_FLAG_3D = "3d";
+
+   /** Stacked bar chart. Example hint: "grow:stacked". */
+   String ANIMATION_FLAG_STACKED = "stacked";
+
+   // -------------------------------------------------------------------------
+   // Semantic annotation constants (stamped on <g> elements during rendering)
+   // -------------------------------------------------------------------------
+
+   /** CSS class for bar annotation groups ({@code <g class="inetsoft-bar" ...>}). */
+   String ANNOTATION_BAR        = "inetsoft-bar";
+   /** CSS class for pie/donut annotation groups. */
+   String ANNOTATION_PIE        = "inetsoft-pie";
+   /** CSS class for line series annotation groups. */
+   String ANNOTATION_LINE       = "inetsoft-line";
+   /** CSS class for area-fill annotation groups. */
+   String ANNOTATION_AREA       = "inetsoft-area";
+   /** CSS class for the donut center-hole overlay (white circle that punches out the center). */
+   String ANNOTATION_DONUT_HOLE = "inetsoft-bar-hole";
+   /** CSS class for value-label annotation groups, paired with their bar/slice by data-row/col. */
+   String ANNOTATION_LABEL      = "inetsoft-bar-label";
+
+   /** {@code data-col} — bar stagger column index (same value for all segments in one column). */
+   String ATTR_COL    = "col";
+   /** {@code data-slice} — pie/donut slice index (0-based, DOM order). */
+   String ATTR_SLICE  = "slice";
+   /** {@code data-series} — line/area series index (0-based column index). */
+   String ATTR_SERIES = "series";
+   /** {@code data-color} — series RGB color as {@code "r,g,b"} integers, e.g. {@code "60,105,138"}. */
+   String ATTR_COLOR  = "color";
+   /** {@code data-dashed} — {@code "true"} when the line uses a non-zero dash pattern. */
+   String ATTR_DASHED = "dashed";
+   /** {@code data-face} — {@code "top"} or {@code "depth"} for 3D pie faces. */
+   String ATTR_FACE   = "face";
+   /** {@code data-orient} — {@code "v"} (vertical) or {@code "h"} (horizontal) for bars. */
+   String ATTR_ORIENT = "orient";
+   /** {@code data-row} — dataset row index for a bar (matches {@code rowIdx} in ChartRegion). */
+   String ATTR_ROW    = "row";
+
+   /**
+    * Redirect all subsequent SVG drawing into a new {@code <g class="cssClass" data-*="...">}
+    * element.  Must be paired with {@link #endAnnotationGroup}.
+    * No-op when {@code g} is not an SVG graphics context.
+    */
+   default void beginAnnotationGroup(Graphics2D g, String cssClass, Map<String, String> attrs) {}
+
+   /**
+    * Restore the drawing group that was active before the matching
+    * {@link #beginAnnotationGroup} call.
+    */
+   default void endAnnotationGroup(Graphics2D g) {}
+
+   // -------------------------------------------------------------------------
+   // Cached singleton
+   // -------------------------------------------------------------------------
+
+   /** Cached singleton — engine property does not change at runtime. */
+   SVGSupport[] _CACHE = new SVGSupport[1];
+
+   /**
+    * Returns {@code true} if {@code g} is a Batik {@code SVGGraphics2D} context.
+    *
+    * <p>This check is intentionally done via class simple-name so that it never triggers
+    * loading of the Batik SVG classes.  Call this before {@link #getInstance()} in paint
+    * methods that are also invoked for non-SVG output (raster images, gauges, PDF) to avoid
+    * {@code ClassNotFoundException} for Batik's transitive W3C DOM CSS dependencies in those
+    * rendering paths.
+    */
+   static boolean isSVGContext(Graphics2D g) {
+      return "SVGGraphics2D".equals(g.getClass().getSimpleName());
+   }
+
+   final class AnimationKey extends RenderingHints.Key {
+      AnimationKey() { super(77); }
+
+      @Override
+      public boolean isCompatibleValue(Object val) { return val instanceof String; }
+   }
+
    Document createSVGDocument(URL url) throws IOException;
 
    Document createSVGDocument(InputStream input) throws IOException;
@@ -96,13 +200,18 @@ public interface SVGSupport {
                                        String color);
 
    static SVGSupport getInstance() {
+      if(_CACHE[0] != null) {
+         return _CACHE[0];
+      }
+
       try {
          Class<?> clazz = SVGSupport.class.getClassLoader()
             .loadClass("inetsoft.util.graphics.BatikSVGSupport");
-         return (SVGSupport) clazz.getConstructor().newInstance();
+         _CACHE[0] = (SVGSupport) clazz.getConstructor().newInstance();
+         return _CACHE[0];
       }
       catch(Exception e) {
-         throw new RuntimeException("Failed to create parser instance", e);
+         throw new RuntimeException("Failed to create SVGSupport instance", e);
       }
    }
 }

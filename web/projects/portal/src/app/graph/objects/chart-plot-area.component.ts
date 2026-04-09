@@ -28,8 +28,10 @@ import {
    NgZone,
    OnChanges,
    Output,
+   QueryList,
    SimpleChanges,
-   ViewChild
+   ViewChild,
+   ViewChildren
 } from "@angular/core";
 import { SafeStyle } from "@angular/platform-browser";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
@@ -48,6 +50,8 @@ import { FlyoverInfo } from "../model/flyover-info";
 import { Plot } from "../model/plot";
 import { PlotScaleInfo } from "../model/plot-scale-info";
 import { TooltipInfo } from "../model/tooltip-info";
+import { ChartConfigService } from "../services/chart-config.service";
+import { ChartInlineSvgDirective } from "./chart-inline-svg.directive";
 import { ChartService } from "../services/chart.service";
 import { ChartObjectAreaBase } from "./chart-object-area-base";
 import { Point } from "../../common/data/point";
@@ -113,6 +117,7 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
    @Output() onPanMap = new EventEmitter<Point>();
 
    @ViewChild("referenceLineCanvas") referenceLineCanvas: ElementRef;
+   @ViewChildren(ChartInlineSvgDirective) inlineSvgTiles: QueryList<ChartInlineSvgDirective>;
    isResize: boolean = false;
    selectionWidth: number;
    selectionHeight: number;
@@ -146,9 +151,14 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
                private http: HttpClient,
                private modal: NgbModal,
                scaleService: ScaleService,
-               private contextProvider: ContextProvider)
+               private contextProvider: ContextProvider,
+               private chartConfigService: ChartConfigService)
    {
       super(chartService, scaleService);
+   }
+
+   get inlineSvg(): boolean {
+      return this.chartConfigService.inlineSvg;
    }
 
    ngOnChanges(changes: SimpleChanges) {
@@ -290,6 +300,14 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
             if(region) {
                ChartTool.drawReferenceLine(context, region, this.canvasX, this.canvasY, this.viewsheetScale);
             }
+         }
+
+         if(this.inlineSvg) {
+            const barRegion = regions?.find(r => r && r.rowIdx >= 0 &&
+               ChartTool.colIdx(this.model, r) >= 0);
+            const rowIdx = barRegion != null ? barRegion.rowIdx : null;
+            const colIdx = barRegion != null ? ChartTool.colIdx(this.model, barRegion) : null;
+            this.inlineSvgTiles?.forEach(d => d.highlightBar(rowIdx, colIdx));
          }
       }
       else if(!this.dataTip) {
@@ -475,6 +493,10 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
 
       if(this.flyover && !this.flyOnClick) {
          this.clearSelection();
+      }
+
+      if(this.inlineSvg) {
+         this.inlineSvgTiles?.forEach(d => d.highlightBar(null, null));
       }
    }
 

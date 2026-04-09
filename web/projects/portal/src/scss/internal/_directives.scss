@@ -207,13 +207,12 @@ table.scrollable-table {
   color: #555;
   font-size: 12px;
   background-color: #fff;
-  border-radius: 1px;
+  padding: 8px;
+  border-radius: 4px;
   box-shadow: 1px 2px 1px rgba(0, 0, 0, 0.22);
   padding: 4px 6px;
   border: 1px solid #d4d4d4;
   margin: 3px;
-  //display: flex;
-  //flex-direction: column;
 }
 
 .hidden__annotation-tooltip {

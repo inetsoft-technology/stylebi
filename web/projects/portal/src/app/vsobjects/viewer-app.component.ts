@@ -90,6 +90,7 @@ import { ExpiredSheetCommand } from "../composer/gui/ws/socket/expired-sheet/exp
 import { TouchAssetEvent } from "../composer/gui/ws/socket/touch-asset-event";
 import { EmbedErrorCommand } from "../embed/embed-error-command";
 import { ChartTool } from "../graph/model/chart-tool";
+import { ChartConfigService } from "../graph/services/chart-config.service";
 import { ChartService } from "../graph/services/chart.service";
 import { PageTabService } from "../viewer/services/page-tab.service";
 import { ViewConstants } from "../viewer/view-constants";
@@ -547,7 +548,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                private miniToolbarService: MiniToolbarService,
                private assetLoadingService: AssetLoadingService,
                private viewContainerRef: ViewContainerRef,
-               private baseHrefService: BaseHrefService)
+               private baseHrefService: BaseHrefService,
+               private chartConfigService: ChartConfigService)
    {
       super(viewsheetClient, zone, true);
       tooltipConfig.tooltipClass = "top-tooltip";
@@ -2688,7 +2690,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.fitToWidth = command.info["fitToWidth"];
       this.balancePadding = command.info["balancePadding"];
       this.virtualScroll = command.info["virtualScroll"];
-
+      this.chartConfigService.inlineSvg = command.info["inlineSvg"] ?? false;
+      console.log("inlineSVG: " + this.chartConfigService.inlineSvg)
       if(command.info["hasWatermark"]) {
          const url = this.baseHrefService.getBaseHref() + "/assets/elastic_watermark.png";
          const imageUrl = `url('${url}')`;

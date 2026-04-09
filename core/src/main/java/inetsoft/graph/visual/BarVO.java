@@ -28,6 +28,7 @@ import inetsoft.graph.guide.VLabel;
 import inetsoft.graph.internal.*;
 import inetsoft.report.pdf.PDFDevice;
 import inetsoft.util.CoreTool;
+import inetsoft.util.graphics.SVGSupport;
 import net.jafama.FastMath;
 
 import java.awt.*;
@@ -273,7 +274,28 @@ public class BarVO extends ElementVO {
       Stroke ostroke = g.getStroke();
       Paint opaint = g.getPaint();
 
+      // Only annotate SVG contexts — avoid loading Batik classes during
+      // non-SVG rendering (gauges, raster images, PDF).
+      SVGSupport svg = SVGSupport.isSVGContext(g) ? SVGSupport.getInstance() : null;
+
+      if(svg != null) {
+         // GTool.isHorizontal returns true when shearX/Y==0 (no rotation = vertical chart).
+         // A horizontal bar chart has a 90° rotation → shear≠0 → isHorizontal=false.
+         // Bounding box aspect ratio is unreliable for stacked bars (thin segments are
+         // wider than tall even in a vertical chart).
+         boolean isHorizontalBar = !GTool.isHorizontal(getScreenTransform());
+         svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_BAR, Map.of(
+            SVGSupport.ATTR_COL,    String.valueOf(getColIndex()),
+            SVGSupport.ATTR_ROW,    String.valueOf(getRowIndex()),
+            SVGSupport.ATTR_ORIENT, isHorizontalBar ? "h" : "v"
+         ));
+      }
+
       paintBar(g, path, color, shape, fill, line, borderColor);
+
+      if(svg != null) {
+         svg.endAnnotationGroup(g);
+      }
 
       if(createG) {
          g.dispose();

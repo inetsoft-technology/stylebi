@@ -45,6 +45,16 @@
   }
 }
 
+.chart-plot-area__inline-svg {
+  position: absolute;
+  pointer-events: none;
+
+  ::ng-deep svg {
+    display: block;
+    overflow: visible;
+  }
+}
+
 .chart-plot-area__canvas,
 .chart-plot-area__reference-canvas {
   position: absolute;

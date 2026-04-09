@@ -25,8 +25,10 @@ import inetsoft.graph.geometry.*;
 import inetsoft.graph.internal.GDefaults;
 import inetsoft.graph.internal.GTool;
 import inetsoft.util.CoreTool;
+import inetsoft.util.graphics.SVGSupport;
 
 import java.awt.*;
+import java.util.Map;
 import java.awt.geom.*;
 
 /**
@@ -78,6 +80,18 @@ public class AreaVO extends LineVO {
       Point2D[] pts = getTransformedPoints();
       Point2D[] basepts = getTransformedBasePoints();
       Graphics2D g2 = (Graphics2D) g.create();
+      SVGSupport svg = SVGSupport.isSVGContext(g2) ? SVGSupport.getInstance() : null;
+
+      // Compute once; reused for both the area-fill annotation and the border-line annotation.
+      int[] tidxs0 = gobj.getTupleIndexes();
+      Color svgC0  = tidxs0.length > 0 ? gobj.getColor(tidxs0[0]) : Color.GRAY;
+
+      if(svg != null) {
+         svg.beginAnnotationGroup(g2, SVGSupport.ANNOTATION_AREA, Map.of(
+            SVGSupport.ATTR_SERIES, String.valueOf(getColIndex()),
+            SVGSupport.ATTR_COLOR, svgC0.getRed() + "," + svgC0.getGreen() + "," + svgC0.getBlue()
+         ));
+      }
       Color[] colors = new Color[pts.length];
       GTexture[] textures = new GTexture[pts.length];
       GLine[] lines = new GLine[pts.length];
@@ -170,10 +184,24 @@ public class AreaVO extends LineVO {
                   colors[0], colors[0], textures[0], textures[0], lines[0], borderColor);
       }
 
+      if(svg != null) {
+         svg.endAnnotationGroup(g2);
+      }
       g2.dispose();
 
       if(borderColor == null) {
+         if(svg != null) {
+            svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_LINE, Map.of(
+               SVGSupport.ATTR_SERIES, String.valueOf(getColIndex()),
+               SVGSupport.ATTR_COLOR, svgC0.getRed() + "," + svgC0.getGreen() + "," + svgC0.getBlue()
+            ));
+         }
+
          paintLine(g, Math.min(1, getAlphaHint() * 1.2));
+
+         if(svg != null) {
+            svg.endAnnotationGroup(g);
+         }
       }
    }
 

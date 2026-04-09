@@ -19,6 +19,7 @@ package inetsoft.util.graphics;
 
 import inetsoft.report.Size;
 import inetsoft.uql.viewsheet.internal.SVGImageTranscoder;
+import inetsoft.util.graphics.animation.SVGAnimationDOMInjector;
 import org.apache.batik.anim.dom.*;
 import org.apache.batik.bridge.*;
 import org.apache.batik.dom.svg.SVGContext;
@@ -45,7 +46,7 @@ import java.awt.print.Paper;
 import java.io.*;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.Objects;
+import java.util.*;
 
 public class BatikSVGSupport implements SVGSupport {
    @Override
@@ -165,9 +166,23 @@ public class BatikSVGSupport implements SVGSupport {
 
    @Override
    public void writeSVG(Graphics2D graphics, OutputStream output) throws IOException {
-      OutputStreamWriter writer = new OutputStreamWriter(output, StandardCharsets.UTF_8);
-      // using css is very expensive, set to false
-      ((SVGGraphics2D) graphics).stream(writer, false);
+      SVGGraphics2D svg = (SVGGraphics2D) graphics;
+      Object animHint = graphics.getRenderingHint(SVGSupport.ANIMATION_KEY);
+
+      if(animHint instanceof String) {
+         // Assemble the live DOM (appends topLevelGroup into the SVG element tree),
+         // inject animations using the DOM-based injector (annotation-aware, no regex),
+         // then stream the pre-assembled element directly.
+         Element root = svg.getRoot();
+         SVGAnimationDOMInjector.injectAnimation(root, (String) animHint);
+         OutputStreamWriter writer = new OutputStreamWriter(output, StandardCharsets.UTF_8);
+         svg.stream(root, writer);
+      }
+      else {
+         OutputStreamWriter writer = new OutputStreamWriter(output, StandardCharsets.UTF_8);
+         // using css is very expensive, set to false
+         svg.stream(writer, false);
+      }
    }
 
    @Override
@@ -347,7 +362,7 @@ public class BatikSVGSupport implements SVGSupport {
       // try to compute the aspect ratio using viewBox
       String viewBox = svgRoot.getAttribute("viewBox");
 
-      if(viewBox != null && !viewBox.isEmpty()) {
+      if(!viewBox.isEmpty()) {
          String[] parts = viewBox.trim().split("\\s+");
 
          if(parts.length == 4) {
@@ -423,6 +438,61 @@ public class BatikSVGSupport implements SVGSupport {
 
       return size;
    }
+
+   // -------------------------------------------------------------------------
+   // Annotation group API
+   // -------------------------------------------------------------------------
+
+   @Override
+   public void beginAnnotationGroup(Graphics2D g, String cssClass, Map<String, String> attrs) {
+      if(!(g instanceof SVGGraphics2D svg)) {
+         return;
+      }
+
+      Document doc    = svg.getDOMFactory();
+      Element  parent = svg.getTopLevelGroup(false);
+
+      Element annotG = doc.createElementNS(SVG_NS, "g");
+      annotG.setAttribute("class", cssClass);
+
+      if(attrs != null) {
+         attrs.forEach((k, v) -> annotG.setAttribute("data-" + k, v));
+      }
+
+      parent.appendChild(annotG);
+      GROUP_STACKS.computeIfAbsent(g, k -> new ArrayDeque<>()).push(parent);
+      svg.setTopLevelGroup(annotG);
+   }
+
+   @Override
+   public void endAnnotationGroup(Graphics2D g) {
+      if(!(g instanceof SVGGraphics2D svg)) {
+         return;
+      }
+
+      Deque<Element> stack = GROUP_STACKS.get(g);
+
+      if(stack != null && !stack.isEmpty()) {
+         svg.setTopLevelGroup(stack.pop());
+
+         if(stack.isEmpty()) {
+            GROUP_STACKS.remove(g);
+         }
+      }
+   }
+
+   private static final String SVG_NS = "http://www.w3.org/2000/svg";
+
+   /**
+    * Maps each active SVGGraphics2D to its annotation-group parent stack.
+    *
+    * <p>WeakHashMap keys mean the entry is automatically removed when the Graphics2D is
+    * garbage-collected, so a missed {@code endAnnotationGroup} call (e.g. due to an exception)
+    * cannot cause a memory leak even in thread-pool environments.  The map is wrapped with
+    * {@code synchronizedMap} so concurrent renders on different threads are safe.
+    */
+   private static final Map<Graphics2D, Deque<Element>> GROUP_STACKS =
+      Collections.synchronizedMap(new WeakHashMap<>());
 
    private static final Logger LOG = LoggerFactory.getLogger(BatikSVGSupport.class);
 
