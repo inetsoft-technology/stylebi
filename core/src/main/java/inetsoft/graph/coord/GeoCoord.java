@@ -594,7 +594,7 @@ public class GeoCoord extends Coordinate {
     * Check if the pair is empty.
     */
    private boolean isEmptyPair(double[] pair) {
-      return pair[0] == 0 && pair[1] == 0;
+      return Double.isNaN(pair[0]) || (pair[0] == 0 && pair[1] == 0);
    }
 
    /**
