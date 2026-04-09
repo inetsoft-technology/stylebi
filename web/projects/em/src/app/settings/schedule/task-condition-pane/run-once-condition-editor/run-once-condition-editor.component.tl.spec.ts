@@ -247,7 +247,7 @@ describe("RunOnceConditionEditorComponent — startTime.valueChanges: deduplicat
       const { comp } = await renderComponent();
 
       // Set an initial timeValue that differs from what we'll set next
-      (comp as any).timeValue = "07:00:00";
+      comp.timeValue = "07:00:00";
 
       const emitted: TaskConditionChanges[] = [];
       comp.modelChanged.subscribe(e => emitted.push(e));

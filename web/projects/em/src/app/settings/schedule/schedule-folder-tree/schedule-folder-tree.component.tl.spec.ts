@@ -49,7 +49,7 @@ import { HttpClientModule } from "@angular/common/http";
 import { FlatTreeControl } from "@angular/cdk/tree";
 import { MatTreeFlatDataSource, MatTreeFlattener } from "@angular/material/tree";
 import { MatDialog } from "@angular/material/dialog";
-import { render } from "@testing-library/angular";
+import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
 import { EMPTY, of, Subject } from "rxjs";
 
@@ -214,8 +214,7 @@ describe("ScheduleFolderTreeComponent — editTaskFolder: rename path computatio
       });
 
       comp.editTaskFolder(makeTreeNode("reports", "reports"));
-      await new Promise(r => setTimeout(r, 50));
-
+      await waitFor(() => expect(safeRefreshSpy).toHaveBeenCalled());
       const [, selectedPath] = safeRefreshSpy.mock.calls[0] as any[];
       expect(selectedPath).toBe("renamed");
    });
@@ -238,7 +237,7 @@ describe("ScheduleFolderTreeComponent — editTaskFolder: rename path computatio
       });
 
       comp.editTaskFolder(makeTreeNode("parent/child", "child"));
-      await new Promise(r => setTimeout(r, 50));
+      await waitFor(() => expect(safeRefreshSpy).toHaveBeenCalled());
 
       const [, selectedPath] = safeRefreshSpy.mock.calls[0] as any[];
       expect(selectedPath).toBe("parent/renamed");
@@ -271,7 +270,7 @@ describe("ScheduleFolderTreeComponent — editTaskFolder: rename path computatio
       });
 
       comp.editTaskFolder(makeTreeNode("a/b/c", "c"));
-      await new Promise(r => setTimeout(r, 50));
+      await waitFor(() => expect(safeRefreshSpy).toHaveBeenCalled());
 
       const [, selectedPath] = safeRefreshSpy.mock.calls[0] as any[];
       expect(renameCalled).toBe(true);
