@@ -2176,14 +2176,6 @@ public class VSObjectPropertyService {
    }
 
 
-   private final CoreLifecycleService coreLifecycleService;
-   private final VSInputService vsInputService;
-   private final VSObjectTreeService vsObjectTreeService;
-   private final VSAssemblyInfoHandler infoHander;
-   private final ViewsheetService viewsheetService;
-   private final VSWizardTemporaryInfoService temporaryInfoService;
-   private final VSCompositionService vsCompositionService;
-   private final SharedFilterService sharedFilterService;
    /**
     * Check if label properties that affect vertical height changed between old and new info.
     */
@@ -2213,6 +2205,14 @@ public class VSObjectPropertyService {
             newLabel.getLabelFormat() == null ? null : newLabel.getLabelFormat().getFont());
    }
 
+   private final CoreLifecycleService coreLifecycleService;
+   private final VSInputService vsInputService;
+   private final VSObjectTreeService vsObjectTreeService;
+   private final VSAssemblyInfoHandler infoHander;
+   private final ViewsheetService viewsheetService;
+   private final VSWizardTemporaryInfoService temporaryInfoService;
+   private final VSCompositionService vsCompositionService;
+   private final SharedFilterService sharedFilterService;
    private final static String VIEWSHEET_FLAG = Catalog.getCatalog().getString("Current viewsheet");
 
    private final Logger LOG = LoggerFactory.getLogger(VSObjectPropertyService.class);
