@@ -67,7 +67,7 @@ public class SliderVSAScriptable extends InputVSAScriptable {
                   boolean.class, info.getClass(), info);
       addProperty("currentVisible", "isCurrentVisible", "setCurrentVisible",
                   boolean.class, info.getClass(), info);
-      addProperty("labelVisible", "isLabelVisible", "setLabelVisible",
+      addProperty("tickLabelVisible", "isLabelVisible", "setLabelVisible",
                   boolean.class, info.getClass(), info);
       addProperty("snap", "isSnap", "setSnap",
                   boolean.class, info.getClass(), info);
