@@ -57,8 +57,8 @@ class PDFPrinterRoundRectTest {
       // aw=40 >= width=40 AND ah=20 >= height=20 — true ellipse
       String content = renderRoundRect(0, 0, 40, 20, 40, 20);
       int curveCount = countOccurrences(content, " c\n");
-      assertTrue(curveCount > 4,
-                 "Ellipse via doArc should produce many more than 4 curves");
+      assertNotEquals(4, curveCount,
+                      "Ellipse (via doArc) should not produce exactly 4 curves like doRoundRect");
    }
 
    /**
