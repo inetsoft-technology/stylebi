@@ -938,10 +938,12 @@ public class BarVO extends ElementVO {
       // ensure the cache is populated
       getPath();
       // use pre-rounding bounds so the region rectangle matches the original
-      // segment, allowing the frontend to reconstruct rounding from metadata
+      // segment, allowing the frontend to reconstruct rounding from metadata.
+      // for non-stacked rounded bars, pre-rounding bounds equals the path's
+      // bounding box (rounding only clips corners, doesn't change the bbox).
       CachedShape cached = this.cachedShape.get();
 
-      if(cached != null && cached.roundingApplied && cached.preRoundingBounds != null) {
+      if(cached != null && cached.roundingApplied) {
          return new Shape[] {cached.preRoundingBounds};
       }
 
@@ -1331,9 +1333,10 @@ public class BarVO extends ElementVO {
     * Used for region metadata so the frontend can reconstruct the correct rounded shape.
     */
    public Rectangle2D getPreRoundingBounds() {
+      getPath(); // ensure cache is populated
       CachedShape cached = this.cachedShape.get();
 
-      if(cached != null && cached.roundingApplied && cached.preRoundingBounds != null) {
+      if(cached != null && cached.roundingApplied) {
          return cached.preRoundingBounds;
       }
 
