@@ -105,17 +105,6 @@ describe("TaskActionPaneComponent — set action(null): default type", () => {
       expect(DROPDOWN_OPTIONS).toContain(comp.selectedActionType);
    });
 
-   // Documents the ACTUAL current behavior so a future fix is immediately visible.
-   it("should currently default selectedActionType to 'RepletAction' when action is null (current behavior)", async () => {
-      const { comp, fixture } = await renderComponent();
-
-      comp.action = null;
-      fixture.detectChanges();
-
-      // This passes now but should be removed / updated when Bug A is fixed.
-      expect(comp.selectedActionType).toBe("RepletAction");
-   });
-
    // Happy: existing action with a known type must preserve that type
    it("should set selectedActionType from the provided action's actionType", async () => {
       const { comp, fixture } = await renderComponent();

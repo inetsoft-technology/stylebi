@@ -67,7 +67,7 @@ import { ReactiveFormsModule } from "@angular/forms";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { ActivatedRoute, Router } from "@angular/router";
-import { render } from "@testing-library/angular";
+import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
 import { NEVER, of, throwError } from "rxjs";
 
@@ -146,12 +146,10 @@ async function renderComponent(opts: {
       ],
    });
 
-   await result.fixture.whenStable();
-   // Allow MSW HTTP response (async) to be processed by Angular
-   await new Promise(r => setTimeout(r, 50));
-   await result.fixture.whenStable();
+   const comp = result.fixture.componentInstance;
+   await waitFor(() => expect(comp.model).toBeDefined());
 
-   return { ...result, comp: result.fixture.componentInstance, dialogMock, snackBarMock, routerMock };
+   return { ...result, comp, dialogMock, snackBarMock, routerMock };
 }
 
 // ---------------------------------------------------------------------------
@@ -169,11 +167,8 @@ describe("ScheduleTaskEditorPageComponent — save(): taskChanged timing", () =>
          http.post("*/api/em/schedule/task/save", () => MswHttpResponse.json(makeDialogModel()))
       );
       comp.taskChanged = true;
-
       comp.save();
-      await new Promise(r => setTimeout(r, 50));
-
-      expect(comp.taskChanged).toBe(false);
+      await waitFor(() => expect(comp.taskChanged).toBe(false));
    });
 
    // 🔁 Regression-sensitive (Bug A — confirmed):
@@ -495,7 +490,7 @@ describe("ScheduleTaskEditorPageComponent — save(): orgId in request payload",
       const { comp } = await renderComponent();
       comp.taskChanged = true;
       comp.save();
-      await new Promise(r => setTimeout(r, 50));
+      await waitFor(() => expect(capturedBody).not.toBeNull());
 
       expect(capturedBody.orgId).toBe("org1");
    });
@@ -514,7 +509,7 @@ describe("ScheduleTaskEditorPageComponent — save(): orgId in request payload",
       const { comp } = await renderComponent({ orgId: null });
       comp.taskChanged = true;
       comp.save();
-      await new Promise(r => setTimeout(r, 50));
+      await waitFor(() => expect(capturedBody).not.toBeNull());
 
       expect(capturedBody.orgId).toBeNull();
    });
@@ -549,7 +544,8 @@ describe("ScheduleTaskEditorPageComponent — save(): selectedConditionIndex aft
 
       comp.taskChanged = true;
       comp.save();
-      await new Promise(r => setTimeout(r, 50));
+      // Wait for the server response to rebuild conditionItems (server returns 2 conditions)
+      await waitFor(() => expect(comp.conditionItems.length).toBe(2));
 
       expect(comp.selectedConditionIndex).toBe(1);
       expect(comp.conditionItems[comp.selectedConditionIndex]).toBeDefined();
@@ -574,7 +570,8 @@ describe("ScheduleTaskEditorPageComponent — save(): selectedConditionIndex aft
 
       comp.taskChanged = true;
       comp.save();
-      await new Promise(r => setTimeout(r, 50));
+      // Wait for the server response to rebuild conditionItems (server returns 1 condition)
+      await waitFor(() => expect(comp.conditionItems.length).toBe(1));
 
       // Bug: selectedConditionIndex stays at 2; conditionItems.length is now 1
       expect(comp.selectedConditionIndex).toBeLessThan(comp.conditionItems.length);

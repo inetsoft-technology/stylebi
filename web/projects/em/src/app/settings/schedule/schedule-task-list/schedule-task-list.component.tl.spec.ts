@@ -49,6 +49,7 @@ import { RouterTestingModule } from "@angular/router/testing";
 import { render } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
 import { MatDialog } from "@angular/material/dialog";
+import { MatPaginator } from "@angular/material/paginator";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { MatBottomSheet } from "@angular/material/bottom-sheet";
 import { MatMenuModule } from "@angular/material/menu";
@@ -315,7 +316,7 @@ describe("ScheduleTaskListComponent — mergeChange: real-time task lifecycle", 
    it("should push a new task onto the list for an ADDED change event", async () => {
       const { comp, fixture } = await renderComponent();
       // Enable showTasksAsList so ADDED tasks are accepted regardless of folder
-      (comp as any).showTasksAsList = true;
+      comp.showTasksAsList = true;
       (comp as any).setTasks([]);
 
       const newTask = makeTask("brandNew");
@@ -544,7 +545,7 @@ describe("ScheduleTaskListComponent — isAllSelected: page-scoped checkbox logi
       const tasks = [makeTask("t1"), makeTask("t2"), makeTask("t3")];
 
       // Mock paginator with pageIndex=0, pageSize=10 (all tasks fit on one page)
-      (comp as any).paginator = { pageIndex: 0, pageSize: 10 };
+      comp.paginator = { pageIndex: 0, pageSize: 10 } as unknown as MatPaginator;
       comp.dataSource.data = tasks;
 
       // Select all tasks
@@ -558,7 +559,7 @@ describe("ScheduleTaskListComponent — isAllSelected: page-scoped checkbox logi
       const { comp } = await renderComponent();
       const tasks = [makeTask("t1"), makeTask("t2"), makeTask("t3")];
 
-      (comp as any).paginator = { pageIndex: 0, pageSize: 10 };
+      comp.paginator = { pageIndex: 0, pageSize: 10 } as unknown as MatPaginator;
       comp.dataSource.data = tasks;
 
       // Select only two of three
@@ -572,7 +573,7 @@ describe("ScheduleTaskListComponent — isAllSelected: page-scoped checkbox logi
       const { comp } = await renderComponent();
       const tasks = [makeTask("t1")];
 
-      (comp as any).paginator = { pageIndex: 0, pageSize: 10 };
+      comp.paginator = { pageIndex: 0, pageSize: 10 } as unknown as MatPaginator;
       comp.dataSource.data = tasks;
       comp.selection.clear();
 
@@ -584,7 +585,7 @@ describe("ScheduleTaskListComponent — isAllSelected: page-scoped checkbox logi
       const { comp } = await renderComponent();
       const tasks = [makeTask("p0t1"), makeTask("p0t2"), makeTask("p1t1")];
 
-      (comp as any).paginator = { pageIndex: 0, pageSize: 2 };
+      comp.paginator = { pageIndex: 0, pageSize: 2 } as unknown as MatPaginator;
       comp.dataSource.data = tasks;
 
       // Select only the first-page tasks

@@ -209,7 +209,7 @@ describe("ScheduleFolderTreeComponent — editTaskFolder: rename path computatio
          ),
       );
       // Dialog returns new folder name "renamed"
-      (comp as any).dialog.open = jest.fn().mockReturnValue({
+      comp.dialog.open = jest.fn().mockReturnValue({
          afterClosed: () => of({ oldPath: "reports", folderName: "renamed" }),
       });
 
@@ -233,7 +233,7 @@ describe("ScheduleFolderTreeComponent — editTaskFolder: rename path computatio
             MswHttpResponse.json({})
          ),
       );
-      (comp as any).dialog.open = jest.fn().mockReturnValue({
+      comp.dialog.open = jest.fn().mockReturnValue({
          afterClosed: () => of({ oldPath: "parent/child", folderName: "renamed" }),
       });
 
@@ -266,7 +266,7 @@ describe("ScheduleFolderTreeComponent — editTaskFolder: rename path computatio
             return MswHttpResponse.json({});
          }),
       );
-      (comp as any).dialog.open = jest.fn().mockReturnValue({
+      comp.dialog.open = jest.fn().mockReturnValue({
          afterClosed: () => of({ oldPath: "a/b/c", folderName: "renamed" }),
       });
 
@@ -318,7 +318,7 @@ describe("ScheduleFolderTreeComponent — editFolderEnabled: selection guard", (
    // Bug #74506
    it.failing("should use folder-aware warning content instead of generic delete.confirm when deleting a folder with child folders", async () => {
       const { comp } = await renderComponent();
-      const dialogOpenSpy = jest.spyOn((comp as any).dialog, "open").mockReturnValue({
+      const dialogOpenSpy = jest.spyOn(comp.dialog, "open").mockReturnValue({
          afterClosed: () => of(false),
       } as any);
 

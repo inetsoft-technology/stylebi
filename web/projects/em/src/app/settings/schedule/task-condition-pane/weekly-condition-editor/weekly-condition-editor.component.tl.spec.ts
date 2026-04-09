@@ -66,6 +66,7 @@ class TimeZoneSelectStub implements ControlValueAccessor {
 }
 
 // mat-select uses formControlName="weekdays" — needs a CVA stub.
+/* eslint-disable @angular-eslint/component-selector */
 @Component({
    selector: "mat-select",
    template: "",
@@ -74,6 +75,7 @@ class TimeZoneSelectStub implements ControlValueAccessor {
 class MatSelectStub implements ControlValueAccessor {
    writeValue() {} registerOnChange() {} registerOnTouched() {}
 }
+/* eslint-enable @angular-eslint/component-selector */
 
 // ---------------------------------------------------------------------------
 // Fixtures

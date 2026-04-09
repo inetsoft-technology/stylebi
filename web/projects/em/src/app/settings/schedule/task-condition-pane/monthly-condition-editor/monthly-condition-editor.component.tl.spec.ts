@@ -66,6 +66,7 @@ class TimeZoneSelectStub implements ControlValueAccessor {
 }
 
 // mat-select is used for months (and possibly weekOfMonth/dayOfWeek) — needs CVA stub.
+/* eslint-disable @angular-eslint/component-selector */
 @Component({
    selector: "mat-select",
    template: "",
@@ -83,6 +84,7 @@ class MatSelectStub implements ControlValueAccessor {
 class MatRadioGroupStub implements ControlValueAccessor {
    writeValue() {} registerOnChange() {} registerOnTouched() {}
 }
+/* eslint-enable @angular-eslint/component-selector */
 
 // ---------------------------------------------------------------------------
 // Fixtures

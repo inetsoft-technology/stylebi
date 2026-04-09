@@ -68,6 +68,7 @@ class EmailPickerStub implements ControlValueAccessor {
    writeValue() {} registerOnChange() {} registerOnTouched() {}
 }
 
+/* eslint-disable @angular-eslint/component-selector */
 @Component({
    selector: "mat-select",
    template: "",
@@ -76,6 +77,7 @@ class EmailPickerStub implements ControlValueAccessor {
 class MatSelectStub implements ControlValueAccessor {
    writeValue() {} registerOnChange() {} registerOnTouched() {}
 }
+/* eslint-enable @angular-eslint/component-selector */
 
 @Component({
    selector: "em-mat-ckeditor",

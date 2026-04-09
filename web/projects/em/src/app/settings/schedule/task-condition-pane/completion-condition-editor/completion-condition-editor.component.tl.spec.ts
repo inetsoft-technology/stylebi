@@ -52,6 +52,7 @@ import { TaskConditionChanges } from "../task-condition-pane.component";
 // ---------------------------------------------------------------------------
 
 // mat-select used for formControlName="task" — needs CVA stub.
+/* eslint-disable @angular-eslint/component-selector */
 @Component({
    selector: "mat-select",
    template: "",
@@ -60,6 +61,7 @@ import { TaskConditionChanges } from "../task-condition-pane.component";
 class MatSelectStub implements ControlValueAccessor {
    writeValue() {} registerOnChange() {} registerOnTouched() {}
 }
+/* eslint-enable @angular-eslint/component-selector */
 
 // ---------------------------------------------------------------------------
 // Fixtures
