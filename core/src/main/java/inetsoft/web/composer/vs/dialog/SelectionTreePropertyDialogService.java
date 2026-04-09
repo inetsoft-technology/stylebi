@@ -271,20 +271,18 @@ public class SelectionTreePropertyDialogService {
          }
       }
 
-      if(oldShowType != newShowType) {
-         VSAssembly container = selectionTreeAssembly.getContainer();
+      VSAssembly container = selectionTreeAssembly.getContainer();
 
-         if(container instanceof TabVSAssembly) {
-            TabVSAssemblyInfo tabInfo =
-               (TabVSAssemblyInfo) container.getVSAssemblyInfo();
+      if(container instanceof TabVSAssembly) {
+         TabVSAssemblyInfo tabInfo =
+            (TabVSAssemblyInfo) container.getVSAssemblyInfo();
 
-            if(tabInfo.getBottomTabsValue() && tabInfo.getPixelOffset() != null
-               && streeInfo.getPixelOffset() != null)
-            {
-               int tabTop = tabInfo.getPixelOffset().y;
-               int x = streeInfo.getPixelOffset().x;
-               streeInfo.setPixelOffset(new Point(x, tabTop - size.height));
-            }
+         if(tabInfo.getBottomTabsValue() && tabInfo.getPixelOffset() != null
+            && streeInfo.getPixelOffset() != null)
+         {
+            int tabTop = tabInfo.getPixelOffset().y;
+            int x = streeInfo.getPixelOffset().x;
+            streeInfo.setPixelOffset(new Point(x, tabTop - size.height));
          }
       }
 

@@ -46,13 +46,12 @@ import static org.mockito.Mockito.when;
 
 @SreeHome()
 @ExtendWith(MockitoExtension.class)
-class CalendarPropertyDialogControllerTest {
+class CalendarPropertyDialogServiceTest {
    @BeforeEach
    void setup() {
-      controller = new CalendarPropertyDialogController(
+      service = new CalendarPropertyDialogService(
          vsObjectPropertyService,
          vsOutputService,
-         runtimeViewsheetRef,
          dialogService,
          engine,
          trapService,
@@ -92,9 +91,9 @@ class CalendarPropertyDialogControllerTest {
                .getShowType())
          .willReturn(CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
 
-      controller.setCalendarPropertyModel("Calendar1",
-                                          calendarPropertyDialogModel,
-                                          "", null, commandDispatcher);
+      service.setCalendarPropertyModel("Viewsheet1", "Calendar1",
+                                       calendarPropertyDialogModel,
+                                       "", null, commandDispatcher);
 
       ArgumentCaptor<CalendarVSAssemblyInfo> argument =
          ArgumentCaptor.forClass(CalendarVSAssemblyInfo.class);
@@ -127,5 +126,5 @@ class CalendarPropertyDialogControllerTest {
    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
    private CalendarPropertyDialogModel calendarPropertyDialogModel;
 
-   private CalendarPropertyDialogController controller;
+   private CalendarPropertyDialogService service;
 }

@@ -206,7 +206,7 @@ class SelectionListPropertyDialogServiceTest {
                .getSizePositionPaneModel().getCellHeight())
          .willReturn(20);
 
-      controller.setSelectionListPropertyModel("SelectionList1",
+      service.setSelectionListPropertyModel("Viewsheet1", "SelectionList1",
                                               selectionListPropertyDialogModel,
                                               "", null, commandDispatcher);
 

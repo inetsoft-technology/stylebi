@@ -236,21 +236,19 @@ public class SelectionListPropertyDialogService {
                selectionListAssemblyInfo.getCellHeight();
       }
 
-      if(oldShowType != showType) {
-         VSAssembly container = selectionListAssembly.getContainer();
+      VSAssembly container = selectionListAssembly.getContainer();
 
-         if(container instanceof TabVSAssembly) {
-            TabVSAssemblyInfo tabInfo =
-               (TabVSAssemblyInfo) container.getVSAssemblyInfo();
+      if(container instanceof TabVSAssembly) {
+         TabVSAssemblyInfo tabInfo =
+            (TabVSAssemblyInfo) container.getVSAssemblyInfo();
 
-            if(tabInfo.getBottomTabsValue() && tabInfo.getPixelOffset() != null
-               && selectionListAssemblyInfo.getPixelOffset() != null)
-            {
-               int tabTop = tabInfo.getPixelOffset().y;
-               int x = selectionListAssemblyInfo.getPixelOffset().x;
-               selectionListAssemblyInfo.setPixelOffset(
-                  new Point(x, tabTop - size.height));
-            }
+         if(tabInfo.getBottomTabsValue() && tabInfo.getPixelOffset() != null
+            && selectionListAssemblyInfo.getPixelOffset() != null)
+         {
+            int tabTop = tabInfo.getPixelOffset().y;
+            int x = selectionListAssemblyInfo.getPixelOffset().x;
+            selectionListAssemblyInfo.setPixelOffset(
+               new Point(x, tabTop - size.height));
          }
       }
 
