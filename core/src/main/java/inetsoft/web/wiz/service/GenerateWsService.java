@@ -18,10 +18,12 @@
 
 package inetsoft.web.wiz.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.web.wiz.model.DatasourceType;
 import inetsoft.web.wiz.model.GenerateWsResponse;
 import inetsoft.web.wiz.model.WorksheetConstructionModel;
+import inetsoft.web.wiz.model.osi.*;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -42,12 +44,14 @@ import java.util.*;
 public class GenerateWsService {
    public GenerateWsService(ViewsheetService viewsheetService, MetadataApiService metadataApiService,
                             InnerJoinService innerJoinService,
-                            LayoutGraphService layoutGraphService)
+                            LayoutGraphService layoutGraphService,
+                            ObjectMapper objectMapper)
    {
       this.viewsheetService = viewsheetService;
       this.metadataApiService = metadataApiService;
       this.innerJoinService = innerJoinService;
       this.layoutGraphService = layoutGraphService;
+      this.objectMapper = objectMapper;
    }
 
    private Worksheet getWorksheet(WorksheetConstructionModel model, Principal user) throws Exception {
@@ -407,7 +411,7 @@ public class GenerateWsService {
          request.setCatalog(tableInfo.getSource().getCatalog());
          request.setSchema(tableInfo.getSource().getSchema());
          request.setTableName(tableInfo.getName());
-         inetsoft.web.wiz.model.DatabaseTableMeta metaData = metadataApiService.getMetaData(request);
+         OsiDataset metaData = metadataApiService.getMetaData(request);
 
          table = new PhysicalBoundTableAssembly(worksheet, tableInfo.getName());
          applySourceInfo(table, tableInfo);
@@ -495,7 +499,7 @@ public class GenerateWsService {
 
    private void applyColumnSelection(AbstractTableAssembly table,
                                      List<WorksheetConstructionModel.QueryField> fields,
-                                     inetsoft.web.wiz.model.DatabaseTableMeta metaData)
+                                     OsiDataset metaData)
       throws Exception
    {
       WorksheetConstructionModel.TableInfo selectTable = null;
@@ -520,21 +524,20 @@ public class GenerateWsService {
       }
    }
 
-   private DataRef convertToDataRef(WorksheetConstructionModel.QueryField field, boolean boundTable, inetsoft.web.wiz.model.DatabaseTableMeta metaData) {
+   private DataRef convertToDataRef(WorksheetConstructionModel.QueryField field, boolean boundTable, OsiDataset metaData) {
       DataRef dataRef;
 
       if(Tool.isEmptyString(field.getExpression())) {
          String colType = null;
 
          if(boundTable) {
-
-            if(metaData != null) {
-               Optional<inetsoft.web.wiz.model.DatabaseTableMeta.ColumnMeta> metaCol = metaData.getColumns().stream()
-                  .filter(c -> Tool.equals(c.getName(), field.getFieldName()))
+            if(metaData != null && metaData.getFields() != null) {
+               Optional<OsiField> osiField = metaData.getFields().stream()
+                  .filter(f -> Tool.equals(f.getName(), field.getFieldName()))
                   .findFirst();
 
-               if(metaCol.isPresent()) {
-                  colType = metaCol.get().getType();
+               if(osiField.isPresent()) {
+                  colType = extractFieldType(osiField.get());
                }
             }
          }
@@ -694,8 +697,35 @@ public class GenerateWsService {
    }
 
 
+   /**
+    * Extracts the column type string from an OsiField's custom extension JSON.
+    * Returns null if the type cannot be determined.
+    */
+   private String extractFieldType(OsiField osiField) {
+      if(osiField.getCustomExtensions() == null) {
+         return null;
+      }
+
+      for(OsiCustomExtension ext : osiField.getCustomExtensions()) {
+         if("COMMON".equals(ext.getVendorName()) && ext.getData() != null) {
+            try {
+               @SuppressWarnings("unchecked")
+               Map<String, Object> data = objectMapper.readValue(ext.getData(), Map.class);
+               Object type = data.get("type");
+               return type != null ? type.toString() : null;
+            }
+            catch(Exception e) {
+               // ignore parse errors
+            }
+         }
+      }
+
+      return null;
+   }
+
    private final ViewsheetService viewsheetService;
    private final MetadataApiService metadataApiService;
    private final InnerJoinService innerJoinService;
    private final LayoutGraphService layoutGraphService;
+   private final ObjectMapper objectMapper;
 }

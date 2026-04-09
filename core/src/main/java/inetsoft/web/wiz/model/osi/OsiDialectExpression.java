@@ -18,9 +18,12 @@
 
 package inetsoft.web.wiz.model.osi;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 /**
  * Expression in a specific SQL dialect (DialectExpression in osi-schema.json).
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class OsiDialectExpression {
    public String getDialect() {
       return dialect;
