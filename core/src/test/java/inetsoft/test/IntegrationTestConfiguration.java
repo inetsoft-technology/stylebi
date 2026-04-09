@@ -68,6 +68,7 @@ import inetsoft.web.viewsheet.model.chart.VSChartModel;
 import inetsoft.web.viewsheet.model.table.*;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.*;
 import org.springframework.messaging.Message;
@@ -454,8 +455,11 @@ public class IntegrationTestConfiguration {
    }
 
    @Bean
-   public AssetDataCache assetDataCache(DataSourceRegistry dataSourceRegistry) {
-      return new AssetDataCache(dataSourceRegistry);
+   public AssetDataCache assetDataCache(
+      DataSourceRegistry dataSourceRegistry,
+      ObjectProvider<DistributedTableCacheStore> distributedTableCacheStoreProvider)
+   {
+      return new AssetDataCache(dataSourceRegistry, distributedTableCacheStoreProvider);
    }
 
    @Bean
