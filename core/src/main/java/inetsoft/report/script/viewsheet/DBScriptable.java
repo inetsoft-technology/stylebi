@@ -61,7 +61,7 @@ public class DBScriptable extends ScriptableObject {
       XDataSource xds = null;
 
       try {
-         XRepository rep = XFactory.getRepository();
+         XRepository rep = XRepository.getRepository();
          xds = ConnectionProcessor.getInstance().getDatasource(principal, rep.getDataSource(source, true));
       }
       catch(Throwable ex) {

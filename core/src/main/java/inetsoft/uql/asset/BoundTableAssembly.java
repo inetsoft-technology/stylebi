@@ -335,7 +335,7 @@ public class BoundTableAssembly extends AbstractTableAssembly {
       String src = getSource();
 
       try {
-         XRepository repository = XFactory.getRepository();
+         XRepository repository = XRepository.getRepository();
          XDataSource ds = repository.getDataSource(src);
          return ds == null ? null : SQLHelper.getSQLHelper(ds);
       }
@@ -458,7 +458,7 @@ public class BoundTableAssembly extends AbstractTableAssembly {
       // avoid spurious cache invalidation from non-connection events (status checks, renames, etc.).
       if(sinfo != null && sinfo.getPrefix() != null) {
          try {
-            XDataSource ds = XFactory.getRepository().getDataSource(sinfo.getPrefix());
+            XDataSource ds = XRepository.getRepository().getDataSource(sinfo.getPrefix());
 
             if(ds instanceof JDBCDataSource) {
                writer.print(",");

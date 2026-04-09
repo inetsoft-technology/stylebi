@@ -789,7 +789,7 @@ public class DataSourceService {
          .findFirst().orElse(null);
 
       if(meta == null) {
-         meta = new DefaultMetaDataProvider();
+         meta = new DefaultMetaDataProvider(repository);
          meta.setDataSource(ds);
          meta.setDataModel(dm);
          meta.setPortalData(true);

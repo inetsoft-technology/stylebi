@@ -62,7 +62,7 @@ public class PhysicalBoundQuery extends BoundQuery {
 
       nquery = new JDBCQuery();
       nquery.setUserQuery(true);
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       nquery.setDataSource(repository.getDataSource(sinfo.getPrefix()));
       nsql = new UniformSQL();
       nquery.setSQLDefinition(nsql);

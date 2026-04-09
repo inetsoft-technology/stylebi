@@ -121,8 +121,9 @@ public class EngineConfiguration {
 
    @Bean
    @Lazy
-   public ColumnCache columnCache(@Lazy DataSourceRegistry dataSourceRegistry) {
-      return new ColumnCache(dataSourceRegistry);
+   public ColumnCache columnCache(@Lazy DataSourceRegistry dataSourceRegistry,
+                                  @Lazy XRepository repository) {
+      return new ColumnCache(dataSourceRegistry, repository);
    }
 
    /**
@@ -292,8 +293,10 @@ public class EngineConfiguration {
     */
    @Bean
    @Lazy
-   public UpdateAssetDependenciesHandler updateAssetDependenciesHandler(@Lazy Cluster cluster, @Lazy DataSourceRegistry dataSourceRegistry) {
-      return new UpdateAssetDependenciesHandler(cluster, dataSourceRegistry);
+   public UpdateAssetDependenciesHandler updateAssetDependenciesHandler(@Lazy Cluster cluster,
+                                                                        @Lazy DataSourceRegistry dataSourceRegistry,
+                                                                        @Lazy XRepository repository) {
+      return new UpdateAssetDependenciesHandler(cluster, dataSourceRegistry, repository);
    }
 
    /**
@@ -411,8 +414,8 @@ public class EngineConfiguration {
     */
    @Bean
    @Lazy
-   public DependencyHandler dependencyHandler() {
-      return new LocalDependencyHandler();
+   public DependencyHandler dependencyHandler(@Lazy XRepository repository) {
+      return new LocalDependencyHandler(repository);
    }
 
    /**

@@ -127,7 +127,7 @@ public class AssetEventUtil {
          return cubeList;
       }
 
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       SecurityEngine security = SecurityEngine.getSecurity();
       String[] dxNames = repository.getDataSourceFullNames();
 
@@ -215,7 +215,7 @@ public class AssetEventUtil {
          return null;
       }
 
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       SecurityEngine security = SecurityEngine.getSecurity();
       XDomain domain = repository.getDomain(prefix);
 

@@ -294,7 +294,7 @@ public class SQLQueryDialogService {
          commandDispatcher.sendCommand(messageCommand);
       }
 
-      Object session = new DefaultMetaDataProvider().getSession();
+      Object session = new DefaultMetaDataProvider(xrepository).getSession();
       JDBCUtil.fixUniformSQLInfo(sql, xrepository, session,
                                  (JDBCDataSource) query.getDataSource());
 

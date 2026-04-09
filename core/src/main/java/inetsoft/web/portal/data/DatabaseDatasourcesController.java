@@ -19,7 +19,8 @@ package inetsoft.web.portal.data;
 
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
-import inetsoft.uql.*;
+import inetsoft.uql.XDataSource;
+import inetsoft.uql.XRepository;
 import inetsoft.uql.service.XEngine;
 import inetsoft.uql.util.XUtil;
 import inetsoft.web.admin.content.database.DatabaseDefinition;
@@ -133,7 +134,6 @@ public class DatabaseDatasourcesController {
             }
          }
 
-         XFactory.clear();
          return true;
       }
       catch(Exception ignored) {

@@ -1226,7 +1226,7 @@ public abstract class DependencyTransformer {
    }
 
    private static XRepository getXRepository() throws RemoteException {
-      return XFactory.getRepository();
+      return XRepository.getRepository();
    }
 
    public static void updateRenameInfos(Object rid, AssetObject assetEntry,
@@ -1359,7 +1359,7 @@ public abstract class DependencyTransformer {
     */
    protected XRepository getRepository() {
       try {
-         return XFactory.getRepository();
+         return XRepository.getRepository();
       }
       catch(Exception ex) {
          LOG.error(ex.getMessage(), ex);

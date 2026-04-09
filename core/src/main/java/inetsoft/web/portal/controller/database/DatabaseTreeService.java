@@ -19,7 +19,6 @@ package inetsoft.web.portal.controller.database;
 
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.XDataSource;
-import inetsoft.uql.XFactory;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
@@ -397,7 +396,7 @@ public class DatabaseTreeService {
          XDataSource jdx = datasourceService.getDataSource(dataModel.getDataSource());
          XAgent agent = XAgent.getAgent(jdx);
          XTypeNode[] cols = agent.getColumns(tableName, jdx,
-            new DefaultMetaDataProvider().getSession());
+            new DefaultMetaDataProvider(repository).getSession());
 
          if(cols != null) {
             for(XTypeNode column : cols) {

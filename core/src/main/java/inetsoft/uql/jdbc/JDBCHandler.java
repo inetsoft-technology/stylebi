@@ -1654,7 +1654,7 @@ public class JDBCHandler extends XHandler {
    public XNode getRootMetaData(JDBCDataSource dataSource, String queryType, String additional)
       throws Exception
    {
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       Object session = System.getProperty("user.name");
       XSessionManager.getSessionManager().bind(session);
 
@@ -2457,7 +2457,7 @@ public class JDBCHandler extends XHandler {
     * @return the table, view, and procedure list.
     */
    private XNode getTableViewProcedureList() throws Exception {
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       Object session = System.getProperty("user.name");
       XSessionManager.getSessionManager().bind(session);
 

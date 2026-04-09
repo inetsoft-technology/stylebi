@@ -1816,7 +1816,7 @@ public final class XUtil {
     * @return the logical models.
     */
    public static String[] getLogicalModels(String source) throws Exception {
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       XDataModel model = repository.getDataModel(source);
       List list = new ArrayList();
 
@@ -1845,7 +1845,7 @@ public final class XUtil {
    public static String[] getEntities(String source, String lname,
                                       Principal user, boolean hideAttributes)
                                       throws Exception {
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       XDataModel model = repository.getDataModel(source);
       XLogicalModel lmodel = model == null ?
          null : model.getLogicalModel(lname, user, hideAttributes);
@@ -1901,7 +1901,7 @@ public final class XUtil {
                                             boolean vpm, VariableTable vars)
       throws Exception
    {
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       XDataModel model = repository.getDataModel(source);
 
       if(model == null) {
@@ -4385,7 +4385,7 @@ public final class XUtil {
          return;
       }
 
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       XDataModel dataModel = repository.getDataModel(sinfo.getPrefix());
 
       if(dataModel != null) {
@@ -4535,7 +4535,7 @@ public final class XUtil {
    public static String getLogicalModelDescription(String source, String lname)
       throws Exception
    {
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       XDataModel model = repository.getDataModel(source);
 
       return model == null ? "" : model.getLogicalModel(lname).getDescription();

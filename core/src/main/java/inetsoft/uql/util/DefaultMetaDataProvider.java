@@ -45,8 +45,12 @@ public class DefaultMetaDataProvider implements MetaDataProvider {
     * Creates a new instance of <tt>DefaultMetaDataProvider</tt>.
     */
    public DefaultMetaDataProvider() {
+      this(null);
+   }
+
+   public DefaultMetaDataProvider(XRepository repository) {
       try {
-         this.session = XFactory.getRepository().bind(
+         this.session = (repository != null ? repository : XRepository.getRepository()).bind(
             System.getProperty("user.name"));
       }
       catch(RemoteException exc) {
@@ -155,7 +159,7 @@ public class DefaultMetaDataProvider implements MetaDataProvider {
       if(xds == null && getDataModel() != null) {
          try {
             String ds = getDataModel().getDataSource();
-            xds = XFactory.getRepository().getDataSource(ds);
+            xds = XRepository.getRepository().getDataSource(ds);
          }
          catch(RemoteException exc) {
             LOG.error(exc.getMessage(), exc);
@@ -642,7 +646,7 @@ public class DefaultMetaDataProvider implements MetaDataProvider {
     * Get the repository, connected to the current database.
     */
    protected XRepository getRepository(XNode query) throws Exception {
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       XDataSource xds = getDataSource();
 
       if(query != null && !StringUtils.isEmpty((String) query.getAttribute("additional"))) {

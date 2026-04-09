@@ -147,7 +147,7 @@ public class XDataSourceAsset extends AbstractXAsset implements FolderChangeable
       XDomain domain = null;
 
       try {
-         XRepository repository = XFactory.getRepository();
+         XRepository repository = XRepository.getRepository();
          domain = repository.getDomain(ds);
       }
       catch(Exception ex) {

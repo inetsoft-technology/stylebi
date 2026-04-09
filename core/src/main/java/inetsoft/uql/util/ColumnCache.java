@@ -167,7 +167,12 @@ public class ColumnCache {
     * Initialize column cache.
     */
    public ColumnCache(DataSourceRegistry dataSourceRegistry) {
+      this(dataSourceRegistry, null);
+   }
+
+   public ColumnCache(DataSourceRegistry dataSourceRegistry, XRepository repository) {
       this.dataSourceRegistry = dataSourceRegistry;
+      this.repository = repository;
       // delimited by ;, each item as model::entity::attribute or query::column
       String prop = SreeEnv.getProperty("replet.browseData.nocache");
 
@@ -434,8 +439,8 @@ public class ColumnCache {
     */
    private Object getSession() {
       try {
-         XDataService service = XFactory.getDataService();
-         return service.bind(System.getProperty("user.name"));
+         XRepository xRepository = repository != null ? repository : XRepository.getRepository();
+         return xRepository.bind(System.getProperty("user.name"));
       }
       catch(Exception e) {
          LOG.error("Failed to get data source", e);
@@ -558,7 +563,7 @@ public class ColumnCache {
                                         String aname, VariableTable vars, Principal user)
       throws Exception
    {
-      XRepository xrep = XFactory.getRepository();
+      XRepository xrep = repository != null ? repository : XRepository.getRepository();
       XDataModel model = xrep.getDataModel(dsname);
       Object session = getSession();
 
@@ -804,6 +809,7 @@ public class ColumnCache {
    };
 
    private final DataSourceRegistry dataSourceRegistry;
+   private final XRepository repository;
    private final DataCache<String, BrowseDataModel> dataTable;
    private final Set<String> excluded = new HashSet<>(); // excluded keys
    private boolean nocache = false; // no caching of data

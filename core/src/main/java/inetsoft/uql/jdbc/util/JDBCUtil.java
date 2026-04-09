@@ -666,7 +666,7 @@ public class JDBCUtil {
 
       if(table != null && table.length() > 0) {
          try {
-            XRepository repository = XFactory.getRepository();
+            XRepository repository = XRepository.getRepository();
             XNode mtype = new XNode(table);
 
             // get cols for schema.catalog.table or catalog.table
@@ -712,7 +712,7 @@ public class JDBCUtil {
 
          if(usql.getParseResult() == UniformSQL.PARSE_SUCCESS) {
             try {
-               XDataModel model = XFactory.getRepository().getDataModel(
+               XDataModel model = XRepository.getRepository().getDataModel(
                   query.getDataSource().getFullName());
 
                if(model != null) {
@@ -1602,7 +1602,7 @@ public class JDBCUtil {
          if(queryModel.getSqlEdited()) {
             String sqlString = queryModel.getSqlString();
             String dataSource = model.getDataSource();
-            XDataSource xds = XFactory.getRepository().getDataSource(dataSource);
+            XDataSource xds = XRepository.getRepository().getDataSource(dataSource);
             UniformSQL sql = new UniformSQL();
             sql.setDataSource((JDBCDataSource) xds);
 
@@ -1616,7 +1616,7 @@ public class JDBCUtil {
          }
          else {
             value = JDBCUtil.createSQL(
-               (JDBCDataSource) XFactory.getRepository().getDataSource(model.getDataSource()),
+               (JDBCDataSource) XRepository.getRepository().getDataSource(model.getDataSource()),
                queryModel.getTables(), queryModel.getSelectedColumns(),
                queryModel.toXJoins(), queryModel.getConditionList(),
                ThreadContext.getContextPrincipal());

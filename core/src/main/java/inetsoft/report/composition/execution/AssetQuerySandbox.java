@@ -1342,7 +1342,7 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
     * @return the session object.
     */
    private Object getSession() throws Exception {
-      XRepository rep = XFactory.getRepository();
+      XRepository rep = XRepository.getRepository();
       return rep.bind(System.getProperty("user.name"));
    }
 
@@ -1359,7 +1359,7 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
       String source = info.getPrefix();
 
       try {
-         XRepository rep = XFactory.getRepository();
+         XRepository rep = XRepository.getRepository();
          XDataSource xds0 = rep.getDataSource(source);
 
          if(!(xds0 instanceof JDBCDataSource)) {
@@ -1476,7 +1476,7 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
       ColumnSelection columns = new ColumnSelection();
 
       try {
-         XRepository repository = XFactory.getRepository();
+         XRepository repository = XRepository.getRepository();
          XDataModel model = repository.getDataModel(info.getPrefix());
          final Principal principal = getUser();
          XLogicalModel lmodel = model.getLogicalModel(info.getSource(), principal);

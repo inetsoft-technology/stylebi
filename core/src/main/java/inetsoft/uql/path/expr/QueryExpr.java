@@ -69,7 +69,7 @@ public class QueryExpr extends Expr {
 //      }
 //
 //      XNode root =
-//         XFactory.getDataService().execute(vars.getSession(), name, vars,
+//         XRepository.getRepository().execute(vars.getSession(), name, vars,
 //                                           ThreadContext.getContextPrincipal(),
 //                                           false, null);
 //
@@ -103,4 +103,3 @@ public class QueryExpr extends Expr {
    private String name;
    private Hashtable params = new Hashtable();
 }
-

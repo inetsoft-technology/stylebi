@@ -1113,15 +1113,6 @@ public class DataSourceRegistry implements MessageListener {
       }
    }
 
-   private XRepository getXRepository() {
-      try {
-         return XFactory.getRepository();
-      }
-      catch(Exception ex) {
-         throw new RuntimeException("Failed to get xrepository ", ex);
-      }
-   }
-
    /**
     * Add a data model object to the repository.
     * @param dx the specified data model object.

@@ -565,7 +565,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
     */
    @Override
    public Object getSession() throws Exception {
-      XRepository rep = XFactory.getRepository();
+      XRepository rep = XRepository.getRepository();
       return rep.bind(System.getProperty("user.name"));
    }
 
@@ -635,7 +635,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
       try {
          String source = entry.getProperty("prefix");
-         XRepository rep = XFactory.getRepository();
+         XRepository rep = XRepository.getRepository();
          XDataSource xds = rep.getDataSource(source);
 
          if(!(xds instanceof JDBCDataSource)) {
@@ -1247,7 +1247,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                                           Principal user)
       throws Exception
    {
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       AssetEntry[] entries;
       IdentityID userID = user == null ? null : IdentityID.getIdentityIDFromKey(user.getName());
 
@@ -3088,7 +3088,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
             dependencyHandler.updateDependencies(oentry, nentry);
          }
 
-         XFactory.getRepository().renameTransform(rinfo);
+         XRepository.getRepository().renameTransform(rinfo);
          RenameSheetEvent renameSheetEvent = new RenameSheetEvent(oentry);
          renameSheetEvent.setRenameInfo(rinfo);
          cluster.sendMessage(renameSheetEvent);

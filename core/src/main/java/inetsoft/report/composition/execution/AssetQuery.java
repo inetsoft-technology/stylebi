@@ -3456,7 +3456,7 @@ public abstract class AssetQuery extends PreAssetQuery {
 
       XDataSource dx = query.getDataSource();
       String dname = dx == null ? null : dx.getFullName();
-      XDataModel model = XFactory.getRepository().getDataModel(dname);
+      XDataModel model = XRepository.getRepository().getDataModel(dname);
 
       if(model == null) {
          return false;

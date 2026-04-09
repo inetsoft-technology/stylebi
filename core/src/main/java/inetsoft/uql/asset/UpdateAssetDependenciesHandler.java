@@ -48,8 +48,10 @@ import static inetsoft.util.dep.XAssetEnumeration.getXAssetEnumeration;
  * of file 'sree.properties' to provider asset updated flag.
  */
 public final class UpdateAssetDependenciesHandler implements AutoCloseable {
-   public UpdateAssetDependenciesHandler(Cluster cluster, DataSourceRegistry dataSourceRegistry) {
+   public UpdateAssetDependenciesHandler(Cluster cluster, DataSourceRegistry dataSourceRegistry,
+                                         XRepository repository) {
       this.dataSourceRegistry = dataSourceRegistry;
+      this.repository = repository;
       state = cluster.getLong(STATE_NAME);
       lock = cluster.getLock(LOCK_NAME);
    }
@@ -357,7 +359,7 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
          XDomain domain = null;
 
          try {
-            domain = XFactory.getRepository().getDomain(dsFullName);
+            domain = repository.getDomain(dsFullName);
          }
          catch(RemoteException ex) {
             LOG.error(ex.getMessage(), ex);
@@ -504,6 +506,7 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
    }
 
    private final DataSourceRegistry dataSourceRegistry;
+   private final XRepository repository;
 
    private Catalog catalog = Catalog.getCatalog();
    private GroupedThread thread;

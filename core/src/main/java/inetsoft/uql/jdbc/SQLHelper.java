@@ -307,7 +307,7 @@ public class SQLHelper implements KeywordProvider {
             XNode node = null;
 
             try {
-               XRepository repository = XFactory.getRepository();
+               XRepository repository = XRepository.getRepository();
                Object session = repository.bind(System.getProperty("user.name"));
                XNode mtype = new XNode();
                mtype.setAttribute("type", "scalar");
@@ -567,7 +567,7 @@ public class SQLHelper implements KeywordProvider {
                 "oracle".equals(sqlHelperType)) ||
                 "derby".equals(sqlHelperType))
             {
-               XRepository repository = XFactory.getRepository();
+               XRepository repository = XRepository.getRepository();
                Object session = repository.bind(System.getProperty("user.name"));
                XNode mtype = new XNode();
                mtype.setAttribute("type", "scalar");

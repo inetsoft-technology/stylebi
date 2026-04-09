@@ -61,6 +61,10 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public class LocalDependencyHandler implements DependencyHandler {
+   public LocalDependencyHandler(XRepository repository) {
+      this.repository = repository;
+   }
+
    /**
     * The function only fix the dependencies of report/vs, ws is fixed in another method.
     * for report/vs can only dependency by two ways:
@@ -195,7 +199,7 @@ public class LocalDependencyHandler implements DependencyHandler {
    }
 
    private XRepository getXRepository() throws RemoteException {
-      return XFactory.getRepository();
+      return repository;
    }
 
    /**
@@ -2168,5 +2172,6 @@ public class LocalDependencyHandler implements DependencyHandler {
 
    private static final Map<String, RenameTransformObject> depMap =
       Collections.synchronizedMap(new HashMap<>());
+   private final XRepository repository;
    private static final Logger LOG = LoggerFactory.getLogger(LocalDependencyHandler.class);
 }

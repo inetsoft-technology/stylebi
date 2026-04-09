@@ -931,7 +931,7 @@ public class TabularUtil {
       TabularQuery query = null;
 
       try {
-         XDataSource ds = XFactory.getRepository().getDataSource(dataSource);
+         XDataSource ds = XRepository.getRepository().getDataSource(dataSource);
 
          if(ds != null) {
             String queryClass = Config.getConfig().getQueryClass(ds.getType());
