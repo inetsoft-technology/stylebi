@@ -21,8 +21,7 @@ import org.junit.jupiter.api.Test;
 
 import java.awt.geom.RoundRectangle2D;
 import java.io.ByteArrayOutputStream;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -58,8 +57,8 @@ class PDFPrinterRoundRectTest {
       // aw=40 >= width=40 AND ah=20 >= height=20 — true ellipse
       String content = renderRoundRect(0, 0, 40, 20, 40, 20);
       int curveCount = countOccurrences(content, " c\n");
-      assertNotEquals(4, curveCount,
-                      "Ellipse (via doArc) should not produce exactly 4 curves like doRoundRect");
+      assertTrue(curveCount > 4,
+                 "Ellipse via doArc should produce many more than 4 curves");
    }
 
    /**
@@ -78,13 +77,14 @@ class PDFPrinterRoundRectTest {
    {
       ByteArrayOutputStream baos = new ByteArrayOutputStream();
       PDFPrinter printer = new PDFPrinter(baos);
+      // disable compression so PDF stream content is readable for assertions
       printer.setCompressText(false);
 
       RoundRectangle2D rect = new RoundRectangle2D.Double(x, y, w, h, arcW, arcH);
       printer.fill(rect);
       printer.dispose();
 
-      return baos.toString();
+      return baos.toString(StandardCharsets.UTF_8);
    }
 
    private int countOccurrences(String text, String sub) {
