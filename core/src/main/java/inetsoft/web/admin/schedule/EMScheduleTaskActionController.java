@@ -121,6 +121,13 @@ public class EMScheduleTaskActionController {
     *
     * @throws Exception if could not get task or action
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/task/action")
    public ScheduleActionModel getTaskAction(@RequestParam("name") String taskName,
                                             @RequestParam("index") int index,
@@ -139,6 +146,13 @@ public class EMScheduleTaskActionController {
     *
     * @throws Exception if could not get task or actions
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/task/action/delete")
    public void deleteTaskActions(@RequestParam("name") String taskName,
                                  @RequestParam("owner") String taskOwner,
@@ -158,6 +172,13 @@ public class EMScheduleTaskActionController {
     *
     * @throws Exception if could not get task or action
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/schedule/task/action")
    public TaskActionListModel saveTaskAction(@RequestParam("name") String taskName,
                                              @RequestParam("oldTaskName") String oldTaskName,
@@ -188,6 +209,13 @@ public class EMScheduleTaskActionController {
     *
     * @return the list of bookmarks.
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/task/action/bookmarks")
    public BookmarkListModel getBookmarks(@DecodeParam("id") String id, Principal principal) {
       return BookmarkListModel.builder()
@@ -203,6 +231,13 @@ public class EMScheduleTaskActionController {
     *
     * @return the list of bookmarks.
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/task/action/hasPrintLayout")
    public boolean hasPrintLayout(@DecodeParam("id") String id, Principal principal)
       throws Exception
@@ -225,6 +260,13 @@ public class EMScheduleTaskActionController {
     *
     * @throws Exception if could not get report or dashboard
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/task/action/viewsheet/highlights")
    public HighlightListModel getViewsheetHighlights(@DecodeParam("id") String identifier,
                                                     Principal principal)
@@ -250,6 +292,13 @@ public class EMScheduleTaskActionController {
     *
     * @throws Exception if could not get report or dashboard
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/task/action/viewsheet/parameters")
    public ViewsheetParametersModel getViewsheetParameters(@DecodeParam("id") String identifier,
                                                           Principal principal)
@@ -275,6 +324,13 @@ public class EMScheduleTaskActionController {
     *
     * @throws Exception if could not get report or dashboard
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/task/action/viewsheet/tableDataAssemblies")
    public List<String> getViewsheetTableDataAssemblies(
       @DecodeParam("id") String identifier,
@@ -283,11 +339,25 @@ public class EMScheduleTaskActionController {
       return emActionService.getViewsheetTableDataAssemblies(identifier, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/task/action/viewsheet/folders")
    public ViewsheetTreeListModel getViewsheetFolders(Principal principal) throws Exception {
       return actionService.getViewsheetTree(principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/task/action/viewsheets")
    public Map<String, String> getViewsheets(Principal principal) throws Exception {
       return actionService.getViewsheets(principal);

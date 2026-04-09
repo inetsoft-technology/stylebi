@@ -26,8 +26,6 @@ import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
-import inetsoft.util.audit.ActionRecord;
-import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.schedule.model.ScheduleTaskChange;
 import inetsoft.web.admin.schedule.model.ScheduleTaskModel;
 import jakarta.annotation.PostConstruct;
@@ -43,7 +41,8 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.socket.messaging.*;
+import org.springframework.web.socket.messaging.AbstractSubProtocolEvent;
+import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
 import java.rmi.RemoteException;
 import java.security.Principal;
@@ -57,13 +56,15 @@ public class ScheduleTaskChangeController {
                                        ScheduleService scheduleService,
                                        ScheduleManager scheduleManager,
                                        SimpMessagingTemplate messagingTemplate,
-                                       Cluster cluster)
+                                       Cluster cluster,
+                                       SecurityEngine securityEngine)
    {
       this.repository = repository;
       this.scheduleService = scheduleService;
       this.scheduleManager = scheduleManager;
       this.messagingTemplate = messagingTemplate;
       this.cluster = cluster;
+      this.securityEngine = securityEngine;
    }
 
    @PostConstruct
@@ -90,7 +91,13 @@ public class ScheduleTaskChangeController {
    }
 
    @SubscribeMapping(ADMIN_TOPIC)
-   public synchronized void subscribeAdmin(StompHeaderAccessor header, Principal principal) {
+   public synchronized void subscribeAdmin(StompHeaderAccessor header, Principal principal) throws SecurityException {
+      if(!securityEngine.getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "settings/schedule/tasks", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to schedule by user " + principal.getName());
+      }
+
       final MessageHeaders messageHeaders = header.getMessageHeaders();
       final String sessionId =
          (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
@@ -380,6 +387,7 @@ public class ScheduleTaskChangeController {
    private final ScheduleService scheduleService;
    private final ScheduleManager scheduleManager;
    private final SimpMessagingTemplate messagingTemplate;
+   private final SecurityEngine securityEngine;
 
    private static final String PORTAL_TOPIC = "/schedule-changed";
    private static final String ADMIN_TOPIC = "/em-schedule-changed";

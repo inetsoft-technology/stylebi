@@ -17,8 +17,10 @@
  */
 package inetsoft.web.admin.schedule;
 
-import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.*;
 import inetsoft.web.admin.schedule.model.ScheduleConditionModel;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -46,6 +48,13 @@ public class EMScheduleTaskConditionController {
     *
     * @throws Exception if could not get task or condition
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/schedule/task/condition")
    public ScheduleConditionModel[] saveTaskCondition(
       @RequestParam("name") String taskName,

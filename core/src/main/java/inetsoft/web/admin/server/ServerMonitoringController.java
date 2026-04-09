@@ -22,6 +22,8 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.schedule.ScheduleClient;
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.web.HttpServiceRequest;
 import inetsoft.storage.ExternalStorageService;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
@@ -37,7 +39,7 @@ import inetsoft.web.admin.viewsheet.ViewsheetHistory;
 import inetsoft.web.admin.viewsheet.ViewsheetService;
 import inetsoft.web.cluster.ServerClusterClient;
 import inetsoft.web.reportviewer.service.HttpServletRequestWrapper;
-import inetsoft.web.security.DeniedMultiTenancyOrgUser;
+import inetsoft.web.security.*;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -83,7 +85,7 @@ public class ServerMonitoringController {
                                      Cluster cluster, CustomThemesManager customThemesManager,
                                      ScheduleClient scheduleClient,
                                      ExternalStorageService externalStorageService,
-                                     FileSystemService fileSystemService)
+                                     FileSystemService fileSystemService, SecurityEngine securityEngine)
    {
       this.serverService = serverService;
       this.monitoringDataService = monitoringDataService;
@@ -101,10 +103,20 @@ public class ServerMonitoringController {
       this.scheduleCluster = "server_cluster".equals(SreeEnv.getProperty("server.type")) ||
          scheduleClient.isCluster();
       this.scheduleClient = scheduleClient;
+      this.securityEngine = securityEngine;
    }
 
    @SubscribeMapping("/monitoring/server/charts")
-   public ServerModel subscribeServerCharts(StompHeaderAccessor stompHeaderAccessor) {
+   public ServerModel subscribeServerCharts(StompHeaderAccessor stompHeaderAccessor,
+                                            Principal principal)
+      throws SecurityException
+   {
+      if(!securityEngine.getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "monitoring/summary", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to server monitoring by user " + principal.getName());
+      }
+
       return this.monitoringDataService.addSubscriber(stompHeaderAccessor, () -> {
          Map<String, String> serverUpTimeMap = new HashMap<>();
          Map<String, String> serverDateTimeMap = new HashMap<>();
@@ -173,7 +185,13 @@ public class ServerMonitoringController {
     * @param response  The response which will be returned to the browser, into
     *                  which the requested image data is to be returned.
     */
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/getSummaryImage/{id}/{width}/{height}")
    public void processSummaryImage(@PathVariable("id") String id,
                                    @PathVariable("width") double width,
@@ -213,7 +231,13 @@ public class ServerMonitoringController {
       }
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/scheduler/get-thread-dump")
    public void getSchedulerThreadDump(@RequestParam(value = "clusterNode", required = false) String clusterNode,
                                       HttpServletResponse response)
@@ -242,7 +266,13 @@ public class ServerMonitoringController {
       return false;
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/server/get-thread-dump")
    public void getThreadDump(@RequestParam(value = "clusterNode", required = false) String clusterNode,
                              HttpServletResponse response) throws Exception
@@ -284,7 +314,13 @@ public class ServerMonitoringController {
       }
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/monitoring/scheduler/get-heap-dump")
    public void getSchedulerHeapDump(@RequestBody HeapDumpRequest request) {
       ThreadPool.addOnDemand(new Runnable() {
@@ -317,7 +353,13 @@ public class ServerMonitoringController {
       return false;
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/monitoring/server/get-heap-dump")
    public void getHeapDump(@RequestBody HeapDumpRequest request) {
       String node = request.clusterNode() == null ? cluster.getLocalMember() :
@@ -423,7 +465,13 @@ public class ServerMonitoringController {
       return heapId;
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/server/get-usage-history")
    public void getUsageHistory(
       @RequestParam(value = "clusterNode", required = false) String clusterNode,
@@ -464,7 +512,13 @@ public class ServerMonitoringController {
       }
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/server/get-cluster-cache-usage")
    public void getClusterCacheUsage(
       @RequestParam(value = "clusterNode", required = false) String clusterNode,
@@ -566,7 +620,13 @@ public class ServerMonitoringController {
       return s.replaceAll("[\\r\\n]", "").replace(File.pathSeparator, "<br>");
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/server/get-monitoring-summary-chart-legends")
    public SummaryChartLegends getMonitoringChartLegends(
       @RequestParam(value = "clusterNode", required = false) String clusterNode)
@@ -700,7 +760,13 @@ public class ServerMonitoringController {
       return legends.build();
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/server/threads/{id}")
    public ThreadStackTrace getThreadInfo(@PathVariable("id") long id) {
       String stackTrace = serverService.getStackTrace(id);
@@ -1218,6 +1284,7 @@ public class ServerMonitoringController {
    private final Cluster cluster;
    private final ScheduleClient scheduleClient;
    private final CustomThemesManager customThemesManager;
+   private final SecurityEngine securityEngine;
    private final boolean scheduleCluster;
    private static final String[] COLOR_PALETTE = {
       "#5a9bd4", "#f15a60", "#7ac36a",

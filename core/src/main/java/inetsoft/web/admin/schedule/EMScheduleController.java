@@ -83,7 +83,7 @@ public class EMScheduleController {
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/schedule",
+         resource = "settings/schedule/tasks",
          actions = ResourceAction.ACCESS
       )
    )
@@ -97,6 +97,13 @@ public class EMScheduleController {
                                                  filter.orElse(""), principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/schedule/scheduled-tasks")
    public ScheduleTaskList getScheduledTasksByFolder(
            @RequestParam("selectString") Optional<String> selectStr,
@@ -126,6 +133,13 @@ public class EMScheduleController {
     *
     * @throws Exception if could not get task
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
    @PostMapping("/api/em/schedule/remove")
    public ScheduleTaskList removeScheduledTasks(
@@ -146,6 +160,13 @@ public class EMScheduleController {
     *
     * @throws Exception if could not get task
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
    @PostMapping("/api/em/schedule/check-dependency")
    public TaskListModel checkScheduledTaskDependency(
@@ -160,7 +181,7 @@ public class EMScheduleController {
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/schedule",
+         resource = "settings/schedule/tasks",
          actions = ResourceAction.ACCESS
       )
    )
@@ -179,7 +200,7 @@ public class EMScheduleController {
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/schedule",
+         resource = "settings/schedule/tasks",
          actions = ResourceAction.ACCESS
       )
    )
@@ -200,12 +221,26 @@ public class EMScheduleController {
       this.usersChangeService.addSubscriber(stompHeaderAccessor);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/users-model")
    public UsersModel getUsersModel(@PermissionUser Principal principal) throws Exception
    {
       return scheduleService.getUsersModel(principal, true);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/task-names")
    public ScheduleTaskNamesModel getScheduleTaskNamesModel(@PermissionUser Principal principal) throws Exception
    {
@@ -312,6 +347,13 @@ public class EMScheduleController {
       return taskService.getHourDistribution(weekday, hour, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/schedule/distribution/redistribute")
    public ScheduleTaskList redistributeTasks(@RequestBody RedistributeTasksRequest request,
                                              Principal principal) throws Exception

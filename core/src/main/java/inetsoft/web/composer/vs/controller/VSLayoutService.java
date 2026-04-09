@@ -35,9 +35,7 @@ import inetsoft.web.composer.vs.command.ChangeCurrentLayoutCommand;
 import inetsoft.web.composer.vs.event.AddVSLayoutObjectEvent;
 import inetsoft.web.viewsheet.command.UpdateLayoutUndoStateCommand;
 import inetsoft.web.viewsheet.command.UpdateUndoStateCommand;
-import inetsoft.web.viewsheet.model.VSFormatModel;
-import inetsoft.web.viewsheet.model.VSObjectModel;
-import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
+import inetsoft.web.viewsheet.model.*;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -179,6 +177,16 @@ public class VSLayoutService {
 
       if(info instanceof TabVSAssemblyInfo) {
          size = getVSTabSize(viewsheet, assembly);
+
+         // for bottom tabs, the stored position represents the tab bar (at the
+         // bottom of the content area). The drop position is the visual top, so
+         // shift it down by maxChildHeight to match the convention used by
+         // createObjectModel and the frontend move/resize handler.
+         if(((TabVSAssemblyInfo) info).getBottomTabsValue()) {
+            int tabBarHeight = viewsheet.getPixelSize(info).height;
+            int maxChildHeight = size.height - tabBarHeight;
+            position.y += Math.max(0, maxChildHeight);
+         }
       }
       else if(assembly instanceof Viewsheet) {
          Viewsheet cloneAssembly = ((Viewsheet) assembly).clone();

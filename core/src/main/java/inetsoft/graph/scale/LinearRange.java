@@ -52,11 +52,11 @@ public class LinearRange extends AbstractScaleRange {
          }
       }
 
-      // when no data, set min and max to be zero is more reasonable than
-      // Double.MAX_VALUE, for it's hard for LinearScale to handle
-      // Double.MAX_VALUE, so here we ignore it
+      // when no data, return NaN as a sentinel so callers can distinguish
+      // "no data found for this column" from "all data values are zero".
+      // LinearScale.init() uses this to avoid contaminating shared scale ranges.
       if(!processed) {
-         return new double[] {0, 0};
+         return new double[] {Double.NaN, Double.NaN};
       }
 
       minValue = Math.min(minValue, maxValue);

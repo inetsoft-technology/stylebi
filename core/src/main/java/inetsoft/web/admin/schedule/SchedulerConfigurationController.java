@@ -19,14 +19,12 @@ package inetsoft.web.admin.schedule;
 
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.schedule.RestartSchedulerMessage;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.util.config.InetsoftConfig;
-import inetsoft.web.admin.schedule.model.CheckMailInfo;
-import inetsoft.web.admin.schedule.model.ScheduleConfigurationModel;
-import inetsoft.web.admin.schedule.model.ScheduleStatusModel;
-import inetsoft.web.security.DeniedMultiTenancyOrgUser;
-
-import java.security.Principal;
-
+import inetsoft.web.admin.schedule.model.*;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -34,6 +32,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.web.bind.annotation.*;
+
+import java.security.Principal;
 
 @RestController
 @EnableAspectJAutoProxy(proxyTargetClass = true)
@@ -46,13 +46,25 @@ public class SchedulerConfigurationController implements MessageListener {
       this.cluster = cluster;
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/settings",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/settings/schedule/configuration")
    public ScheduleConfigurationModel getConfiguration(Principal principal) throws Exception {
       return this.configService.getConfiguration(principal);
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/settings",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PutMapping("/api/em/settings/schedule/configuration")
    public void setConfiguration(@RequestBody ScheduleConfigurationModel model, Principal principal)
       throws Exception
@@ -60,18 +72,38 @@ public class SchedulerConfigurationController implements MessageListener {
       this.configService.setConfiguration(model, principal);
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/settings",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/settings/schedule/status")
    public ScheduleStatusModel getStatus() {
       return this.configService.getStatus();
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/settings",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PutMapping("/api/em/settings/schedule/status")
    public void setStatus(@RequestBody ScheduleStatusModel status) throws Exception {
       this.configService.setStatus(status);
    }
 
+   @Secured(
+      value = {
+         @RequiredPermission(resourceType = ResourceType.EM_COMPONENT, resource = "settings/general", actions = ResourceAction.ACCESS),
+         @RequiredPermission(resourceType = ResourceType.EM_COMPONENT, resource = "settings/schedule/tasks", actions = ResourceAction.ACCESS),
+         @RequiredPermission(resourceType = ResourceType.EM_COMPONENT, resource = "settings/security/users", actions = ResourceAction.ACCESS)
+      },
+      operator = "OR"
+   )
    @PostMapping("/api/em/settings/schedule/check-mail")
    public CheckMailInfo checkMail(@RequestBody CheckMailInfo mailParams, Principal principal) {
       return this.configService.checkMail(mailParams, principal);

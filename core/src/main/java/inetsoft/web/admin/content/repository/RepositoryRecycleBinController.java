@@ -47,7 +47,8 @@ public class RepositoryRecycleBinController {
                                          SecurityProvider securityProvider,
                                          RepletRegistryService registryManager,
                                          IndexedStorage indexedStorage,
-                                         RecycleBin recycleBin)
+                                         RecycleBin recycleBin,
+                                         SecurityEngine securityEngine)
    {
       this.repositoryObjectService = repositoryObjectService;
       this.contentRepositoryTreeService = contentRepositoryTreeService;
@@ -55,8 +56,16 @@ public class RepositoryRecycleBinController {
       this.registryManager = registryManager;
       this.indexedStorage = indexedStorage;
       this.recycleBin = recycleBin;
+      this.securityEngine = securityEngine;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/folder/recycleBin")
    public RepositoryFolderRecycleBinSettingsModel getRecycleBinFolderSettings(
       Principal principal,
@@ -87,6 +96,13 @@ public class RepositoryRecycleBinController {
    operator = "OR")
    @DeleteMapping("/api/em/repository/recycle-bin/entries")
    public void clearRecycleBin(Principal principal) throws Exception {
+      if(!securityEngine.getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "settings/content/repository", ResourceAction.ACCESS))
+      {
+         throw new inetsoft.sree.security.SecurityException(
+            "Unauthorized access to recycle bin by user " + principal.getName());
+      }
+
       // clear asset repository
       AssetRepository repository = AssetUtil.getAssetRepository(false);
       final List<AssetEntry> assetsInTrash = getAssetsInTrash();
@@ -217,6 +233,13 @@ public class RepositoryRecycleBinController {
       }
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/recycle/node")
    public RepositoryRecycleBinEntryModel getRepositoryRecycleBinEntryModel(
       @RequestParam("path") String path,
@@ -236,6 +259,13 @@ public class RepositoryRecycleBinController {
          .build();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/folder/recycleBin/delete")
    public String deleteRecycleBinFolder(
       @RequestBody() RepositoryFolderRecycleBinSettingsModel model, Principal principal) {
@@ -263,6 +293,13 @@ public class RepositoryRecycleBinController {
       return null;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/folder/recycleBin/restore")
    public String restoreRecycleBinFolder(
       @RequestBody() RepositoryFolderRecycleBinSettingsModel model, Principal principal)
@@ -280,6 +317,13 @@ public class RepositoryRecycleBinController {
       return null;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("api/em/content/repository/tree/recycleNode/restore")
    public String restoreRecycleBinEntry(@RequestBody Map<String, String> entryPath,
                                       Principal principal)
@@ -323,5 +367,6 @@ public class RepositoryRecycleBinController {
    private final RepletRegistryService registryManager;
    private final IndexedStorage indexedStorage;
    private final RecycleBin recycleBin;
+   private final SecurityEngine securityEngine;
    private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 }

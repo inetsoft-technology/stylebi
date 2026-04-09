@@ -17,14 +17,13 @@
  */
 package inetsoft.web.admin.query;
 
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.web.admin.monitoring.AbstractMonitoringController;
 import inetsoft.web.admin.monitoring.MonitoringDataService;
 import inetsoft.web.factory.RemainingPath;
-
-import java.security.Principal;
-import java.util.List;
-import java.util.Optional;
-
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,14 +32,21 @@ import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
+import java.util.List;
+import java.util.Optional;
+
 @RestController
 public class QueryMonitoringController extends AbstractMonitoringController {
 
    @Autowired
    QueryMonitoringController(QueryService queryService,
-                             MonitoringDataService monitoringDataService) {
+                             MonitoringDataService monitoringDataService,
+                             SecurityEngine securityEngine)
+   {
       this.queryService = queryService;
       this.monitoringDataService = monitoringDataService;
+      this.securityEngine = securityEngine;
    }
 
    @SubscribeMapping(value = {"/monitoring/queries/executing",
@@ -48,7 +54,14 @@ public class QueryMonitoringController extends AbstractMonitoringController {
    public List<QueryMonitoringTableModel> subscribe(StompHeaderAccessor stompHeaderAccessor,
                                                     @DestinationVariable("server") Optional<String> server,
                                                     Principal principal)
+      throws SecurityException
    {
+      if(!securityEngine.getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "monitoring/queries/executing", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to query monitoring by user " + principal.getName());
+      }
+
       return this.monitoringDataService.addSubscriber(stompHeaderAccessor, () -> {
          try {
             return queryService.getQueries(server.orElse(null), principal);
@@ -59,6 +72,13 @@ public class QueryMonitoringController extends AbstractMonitoringController {
       });
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/queries/executing",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/monitoring/queries/remove/**")
    public void remove(@RequestBody String[] ids, @RemainingPath String server) {
       try {
@@ -71,5 +91,6 @@ public class QueryMonitoringController extends AbstractMonitoringController {
 
    private final QueryService queryService;
    private final MonitoringDataService monitoringDataService;
+   private final SecurityEngine securityEngine;
    private static final Logger LOG = LoggerFactory.getLogger(QueryMonitoringController.class);
 }

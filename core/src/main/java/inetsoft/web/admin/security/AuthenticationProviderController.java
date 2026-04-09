@@ -18,26 +18,26 @@
 package inetsoft.web.admin.security;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import inetsoft.report.internal.Util;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.db.DatabaseAuthenticationProvider;
 import inetsoft.util.Tool;
 import inetsoft.util.data.MapModel;
-import inetsoft.report.internal.Util;
 import inetsoft.web.admin.general.DatabaseSettingsService;
 import inetsoft.web.admin.general.model.DatabaseSettingsModel;
 import inetsoft.web.factory.DecodePathVariable;
 import inetsoft.web.factory.RemainingPath;
-import inetsoft.web.security.DeniedMultiTenancyOrgUser;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.annotation.SubscribeMapping;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
+import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.messaging.simp.annotation.SubscribeMapping;
-import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
-import org.springframework.web.bind.annotation.*;
 
 @RestController
 public class AuthenticationProviderController {
@@ -49,19 +49,38 @@ public class AuthenticationProviderController {
       this.databaseSettingsService = databaseSettingsService;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/security/configured-authentication-providers")
    public SecurityProviderStatusList getConfiguredAuthenticationProviders() {
       return authenticationProviderService.getProviderListModel();
    }
 
    @GetMapping("/api/em/security/get-authentication-provider/{providerName}")
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    public AuthenticationProviderModel getAuthenticationProvider(@DecodePathVariable("providerName") String providerName) {
       return authenticationProviderService.getAuthenticationProvider(providerName);
    }
 
    @PostMapping("/api/em/security/add-authentication-provider")
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    public void addAuthenticationProvider(@RequestBody AuthenticationProviderModel model, Principal principal)
       throws Exception
    {
@@ -69,7 +88,13 @@ public class AuthenticationProviderController {
    }
 
    @PostMapping("/api/em/security/edit-authentication-provider/{providerName}")
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    public void editAuthenticationProvider(@PathVariable("providerName") String providerName,
                                           @RequestBody AuthenticationProviderModel model,
                                           Principal principal)
@@ -79,7 +104,13 @@ public class AuthenticationProviderController {
    }
 
    @DeleteMapping("/api/em/security/remove-authentication-provider/{index}")
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    public void removeAuthenticationProvider(@PathVariable("index") int index, Principal principal)
       throws Exception
    {
@@ -97,7 +128,13 @@ public class AuthenticationProviderController {
    }
 
    @PostMapping("/api/em/security/reorder-authentication-providers")
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    public void reorderAuthenticationProviders(@RequestBody ProviderListReorderModel reorderModel)
       throws Exception
    {
@@ -105,7 +142,13 @@ public class AuthenticationProviderController {
    }
 
    @GetMapping("/api/em/security/clear-authentication-provider/{index}")
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    public SecurityProviderStatus clearAuthenticationProviderCache(@PathVariable("index") int index)
       throws Exception
    {
@@ -113,7 +156,13 @@ public class AuthenticationProviderController {
    }
 
    @GetMapping("/api/em/security/copy-authentication-provider/{providerName}")
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    public SecurityProviderStatus copyAuthenticationProvider(@PathVariable("providerName") String providerName,
                                                             Principal principal)
       throws Exception
@@ -143,7 +192,13 @@ public class AuthenticationProviderController {
    }
 
    @PostMapping("/api/em/security/get-connection-status")
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    public ConnectionStatus getConnectionStatus(@RequestBody AuthenticationProviderModel model)
       throws Exception
    {
@@ -152,7 +207,13 @@ public class AuthenticationProviderController {
    }
 
    @PostMapping("/api/em/security/get-database-connection-status")
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    public ConnectionStatus getDatabaseConnectionStatus(@RequestBody AuthenticationProviderModel model,
                                                        Principal principal)
    {
@@ -202,7 +263,13 @@ public class AuthenticationProviderController {
    }
 
    @PostMapping("/api/em/security/get-users")
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    public IdentityListModel getUsers(@RequestBody AuthenticationProviderModel model)
       throws Exception
    {
@@ -210,7 +277,13 @@ public class AuthenticationProviderController {
    }
 
    @PostMapping("/api/em/security/get-user/**")
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    public MapModel<String, Object> getUser(@RemainingPath String userKey,
                                            @RequestBody AuthenticationProviderModel model)
       throws Exception
@@ -219,7 +292,13 @@ public class AuthenticationProviderController {
    }
 
    @PostMapping("/api/em/security/get-user-emails/**")
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    public IdentityListModel getUserEmails(@RemainingPath String userName,
                                           @RequestBody AuthenticationProviderModel model)
       throws Exception
@@ -229,7 +308,13 @@ public class AuthenticationProviderController {
    }
 
    @PostMapping("/api/em/security/get-groups")
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    public IdentityListModel getGroups(@RequestBody AuthenticationProviderModel model)
       throws Exception
    {
@@ -237,7 +322,13 @@ public class AuthenticationProviderController {
    }
 
    @PostMapping("/api/em/security/get-organizations")
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    public IdentityListModel getOrganizations(@RequestBody AuthenticationProviderModel model)
       throws Exception
    {
@@ -245,7 +336,13 @@ public class AuthenticationProviderController {
    }
 
    @PostMapping("/api/em/security/get-organizationName/**")
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    public String getOrganizationName(@RemainingPath String id,
                                      @RequestBody AuthenticationProviderModel model)
       throws Exception
@@ -254,7 +351,13 @@ public class AuthenticationProviderController {
    }
 
    @PostMapping("/api/em/security/group/users/**")
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    public IdentityListModel getGroupUsers(@RemainingPath String group,
                                           @RequestBody AuthenticationProviderModel model)
       throws Exception
@@ -264,7 +367,13 @@ public class AuthenticationProviderController {
    }
 
    @PostMapping("/api/em/security/organization-members/**")
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    public IdentityListModel getOrganizationMembers(@RemainingPath String org,
                                                    @RequestBody AuthenticationProviderModel model)
       throws Exception
@@ -273,7 +382,13 @@ public class AuthenticationProviderController {
    }
 
    @PostMapping("/api/em/security/get-roles")
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    public IdentityListModel getRolesForNewProvider(@RequestBody AuthenticationProviderModel model)
       throws Exception
    {
@@ -281,7 +396,13 @@ public class AuthenticationProviderController {
    }
 
    @PostMapping("/api/em/security/get-roles/**")
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    public IdentityListModel getUserRoles(@RemainingPath String userKey,
                                          @RequestBody AuthenticationProviderModel model)
       throws Exception
@@ -291,7 +412,13 @@ public class AuthenticationProviderController {
    }
 
    @PostMapping("/api/em/security/get-user-roles")
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    public UserRoleListModel getAllUserRoles(@RequestBody AuthenticationProviderModel model)
       throws Exception
    {

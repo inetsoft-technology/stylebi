@@ -18,20 +18,21 @@
 package inetsoft.web.admin.schedule;
 
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.asset.*;
-import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.Debouncer;
 import inetsoft.util.DefaultDebouncer;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
@@ -43,10 +44,12 @@ import java.util.concurrent.TimeUnit;
 public class ScheduleTaskFolderChangeController {
    @Autowired
    public ScheduleTaskFolderChangeController(AssetRepository assetRepository,
-                                             SimpMessagingTemplate messagingTemplate)
+                                             SimpMessagingTemplate messagingTemplate,
+                                             SecurityEngine securityEngine)
    {
       this.assetRepository = assetRepository;
       this.messagingTemplate = messagingTemplate;
+      this.securityEngine = securityEngine;
       this.debouncer = new DefaultDebouncer<>();
    }
 
@@ -74,7 +77,13 @@ public class ScheduleTaskFolderChangeController {
    }
 
    @SubscribeMapping(EM_FOLDER_TOPIC)
-   public synchronized void subscribeEmFolderChange(StompHeaderAccessor header, Principal principal) {
+   public synchronized void subscribeEmFolderChange(StompHeaderAccessor header, Principal principal) throws SecurityException {
+      if(!securityEngine.getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "settings/schedule/tasks", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to schedule by user " + principal.getName());
+      }
+
       final MessageHeaders messageHeaders = header.getMessageHeaders();
       final String sessionId =
          (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
@@ -118,6 +127,7 @@ public class ScheduleTaskFolderChangeController {
    private final AssetChangeListener assetListener = this::folderChanged;
    private final AssetRepository assetRepository;
    private final SimpMessagingTemplate messagingTemplate;
+   private final SecurityEngine securityEngine;
    private final Debouncer<String> debouncer;
 
    private static final String EM_FOLDER_TOPIC = "/em-schedule-folder-changed";

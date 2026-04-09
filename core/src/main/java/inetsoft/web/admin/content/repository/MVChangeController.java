@@ -18,15 +18,17 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.mv.MVManager;
-import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
-import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.util.Debouncer;
 import inetsoft.util.DefaultDebouncer;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.Message;
@@ -35,10 +37,9 @@ import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.socket.messaging.*;
+import org.springframework.web.socket.messaging.AbstractSubProtocolEvent;
+import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
@@ -52,11 +53,12 @@ import java.util.concurrent.TimeUnit;
 public class MVChangeController implements MessageListener {
    @Autowired
    public MVChangeController(SimpMessagingTemplate messagingTemplate, MVManager mvManager,
-                             Cluster cluster)
+                             Cluster cluster, SecurityEngine securityEngine)
    {
       this.messagingTemplate = messagingTemplate;
       this.mvManager = mvManager;
       this.cluster = cluster;
+      this.securityEngine = securityEngine;
       this.debouncer = new DefaultDebouncer<>();
    }
 
@@ -80,6 +82,12 @@ public class MVChangeController implements MessageListener {
 
    @SubscribeMapping(CHANGE_TOPIC)
    public void subscribeToTopic(StompHeaderAccessor header, Principal principal) throws Exception {
+      if(!securityEngine.getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "settings/content/materialized-views", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to MV changes by user " + principal.getName());
+      }
+
       final MessageHeaders messageHeaders = header.getMessageHeaders();
       final String sessionId =
          (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
@@ -136,6 +144,7 @@ public class MVChangeController implements MessageListener {
    private final SimpMessagingTemplate messagingTemplate;
    private final MVManager mvManager;
    private final Cluster cluster;
+   private final SecurityEngine securityEngine;
    private final Debouncer<String> debouncer;
    private final PropertyChangeListener mvListener = this::mvPropertyChanged;
 

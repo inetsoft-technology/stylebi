@@ -267,7 +267,7 @@ public class CalendarPropertyDialogService {
       info.setShowTypeValue(type);
       info.setViewModeValue(mode);
 
-      // adjust position for bottom-tabs container when show type changes
+      // adjust position for bottom-tabs container when show type or height changes
       if(oldType != type) {
          Viewsheet vs = viewsheet.getViewsheet();
          CalendarVSAssembly calAssembly =
@@ -290,13 +290,18 @@ public class CalendarPropertyDialogService {
                else {
                   // set runtime value so fixCalendarSize() reads the correct show type
                   info.setShowType(CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE);
-                  info.fixCalendarSize();
-                  Dimension size = info.getPixelSize();
-                  // fall back if no prior pixel size assigned
-                  int calendarHeight = size != null ? size.height :
-                     CalendarVSAssemblyInfo.DEFAULT_CALENDAR_HEIGHT;
-                  info.setPixelOffset(new Point(x, tabTop - calendarHeight));
-                  info.setShowType(type);
+
+                  try {
+                     info.fixCalendarSize();
+                     Dimension size = info.getPixelSize();
+                     // fall back if no prior pixel size assigned
+                     int calendarHeight = size != null ? size.height :
+                        CalendarVSAssemblyInfo.DEFAULT_CALENDAR_HEIGHT;
+                     info.setPixelOffset(new Point(x, tabTop - calendarHeight));
+                  }
+                  finally {
+                     info.setShowType(type);
+                  }
                }
             }
          }

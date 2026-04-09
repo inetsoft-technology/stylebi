@@ -33,11 +33,25 @@ public class ParetoRange extends StackRange {
    public double[] calculate(DataSet data, String[] cols, GraphtDataSelector selector) {
       setStackNegative(false);
       double[] range = super.calculate(data, cols, selector);
+      double[] range2 = new LinearRange().calculate(data, cols, selector);
 
-      LinearRange r2 = new LinearRange();
-      double[] range2 = r2.calculate(data, cols, selector);
+      double min = Double.MAX_VALUE;
+      double max = 0;
 
-      return new double[] {Math.min(range[0], range2[0]),
-                           Math.max(range[1], range2[1])};
+      if(!Double.isNaN(range[0])) {
+         min = Math.min(min, range[0]);
+         max = Math.max(max, range[1]);
+      }
+
+      if(!Double.isNaN(range2[0])) {
+         min = Math.min(min, range2[0]);
+         max = Math.max(max, range2[1]);
+      }
+
+      if(min == Double.MAX_VALUE) {
+         return new double[] {Double.NaN, Double.NaN};
+      }
+
+      return new double[] {min, max};
    }
 }

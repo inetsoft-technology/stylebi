@@ -19,20 +19,20 @@ package inetsoft.web.admin.schedule;
 
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
-import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeNode;
 import inetsoft.web.admin.schedule.model.*;
-import inetsoft.web.security.*;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import inetsoft.web.viewsheet.service.LinkUri;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.net.URLDecoder;
 import java.security.Principal;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -68,13 +68,18 @@ public class EMScheduleTaskController {
     *
     * @throws Exception if could not get task
     */
-   @Secured(
+   @Secured({
       @RequiredPermission(
          resourceType = ResourceType.SCHEDULER,
          resource = "*",
          actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
       )
-   )
+   })
    @PostMapping("/api/em/schedule/new")
    public ScheduleTaskDialogModel getNewTaskDialogModel(
       @RequestParam("timeZone") String timeZone,
@@ -160,13 +165,18 @@ public class EMScheduleTaskController {
       return scheduleTaskService.getDialogModel(taskName, principal, true);
    }
 
-   @Secured(
+   @Secured({
       @RequiredPermission(
          resourceType = ResourceType.SCHEDULER,
          resource = "*",
          actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
       )
-   )
+   })
    @PostMapping("/api/em/schedule/task/save")
    public ScheduleTaskDialogModel saveTask(@RequestBody ScheduleTaskEditorModel model,
                                            @LinkUri String linkURI,
@@ -175,13 +185,18 @@ public class EMScheduleTaskController {
       return scheduleTaskService.saveTask(model, linkURI, principal, true);
    }
 
-   @Secured(
+   @Secured({
       @RequiredPermission(
          resourceType = ResourceType.SCHEDULER,
          resource = "*",
          actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
       )
-   )
+   })
    @PostMapping("/api/em/schedule/enable/task")
    public ToggleTaskResponse toggleTaskEnabled(@RequestBody TaskListModel list, Principal principal)
       throws Exception
@@ -204,13 +219,18 @@ public class EMScheduleTaskController {
       return builder.build();
    }
 
-   @Secured(
+   @Secured({
       @RequiredPermission(
          resourceType = ResourceType.SCHEDULER,
          resource = "*",
          actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
       )
-   )
+   })
    @GetMapping("/api/em/schedule/executeAs/identities")
    public ExecuteAsIdentitiesModel getExecuteAsUsers(@RequestParam("owner") String owner,
                                                      Principal principal)

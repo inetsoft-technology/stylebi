@@ -29,10 +29,8 @@ import inetsoft.web.composer.vs.objects.event.ResizeVSObjectEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.*;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.Tag;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.annotation.DirtiesContext;
@@ -84,7 +82,7 @@ class ComposerObjectServiceTest {
       TabVSAssembly tab = new TabVSAssembly();
       TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getVSAssemblyInfo();
       tabInfo.setName("Tab1");
-      tabInfo.setBottomTabs(true);
+      tabInfo.setBottomTabsValue(true);
       tabInfo.setPixelOffset(new Point(0, 100)); // tab bar initially at y=100
       tabInfo.setPixelSize(new Dimension(200, 30));
       vs.addAssembly(tab);

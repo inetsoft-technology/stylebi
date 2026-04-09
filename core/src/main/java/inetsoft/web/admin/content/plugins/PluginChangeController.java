@@ -19,6 +19,8 @@
 package inetsoft.web.admin.content.plugins;
 
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.util.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -31,7 +33,8 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.socket.messaging.*;
+import org.springframework.web.socket.messaging.AbstractSubProtocolEvent;
+import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -43,7 +46,11 @@ import java.util.concurrent.TimeUnit;
 @Controller
 public class PluginChangeController {
    @Autowired
-   public PluginChangeController(SimpMessagingTemplate messagingTemplate, Plugins plugins) {
+   public PluginChangeController(SimpMessagingTemplate messagingTemplate,
+                                 Plugins plugins,
+                                 SecurityEngine securityEngine)
+   {
+      this.securityEngine = securityEngine;
       this.debouncer = new DefaultDebouncer<>();
       this.messagingTemplate = messagingTemplate;
       this.plugins = plugins;
@@ -60,7 +67,13 @@ public class PluginChangeController {
    }
 
    @SubscribeMapping(CHANGE_TOPIC)
-   public void subscribeToTopic(StompHeaderAccessor header, Principal principal) {
+   public void subscribeToTopic(StompHeaderAccessor header, Principal principal) throws SecurityException {
+      if(!securityEngine.getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "settings/content/drivers-and-plugins", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to plugin changes by user " + principal.getName());
+      }
+
       final MessageHeaders messageHeaders = header.getMessageHeaders();
       final String sessionId =
          (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
@@ -98,6 +111,7 @@ public class PluginChangeController {
    private final Debouncer<String> debouncer;
    private final SimpMessagingTemplate messagingTemplate;
    private final Plugins plugins;
+   private final SecurityEngine securityEngine;
    private static final String CHANGE_TOPIC = "/em-plugin-changed";
    private final ActionListener pluginListener = this::pluginChanged;
 }

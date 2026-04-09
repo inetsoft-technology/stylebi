@@ -19,7 +19,6 @@ package inetsoft.web.admin.content.repository;
 
 import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
-import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
@@ -28,6 +27,8 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.repository.model.ScriptSettingsModel;
 import inetsoft.web.admin.security.ResourcePermissionModel;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -46,6 +47,13 @@ public class RepositoryScriptController {
       this.libManagerProvider = libManagerProvider;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/settings/content/repository/script")
    public ScriptSettingsModel getScriptModel(@RequestParam("path") String path,
                                              @RequestParam("type") int type,
@@ -65,6 +73,13 @@ public class RepositoryScriptController {
          .build();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/settings/content/repository/script")
    public void setScriptModel(@RequestParam("path") String path,
                               @RequestParam("type") int type,

@@ -23,6 +23,8 @@ import inetsoft.web.admin.general.model.*;
 import inetsoft.web.admin.general.model.model.OAuthParams;
 import inetsoft.web.admin.general.model.model.OAuthParamsRequest;
 import inetsoft.web.admin.security.ConnectionStatus;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,6 +56,13 @@ public class GeneralSettingsPageController {
       this.securityEngine = securityEngine;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/general",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/general/settings/model")
    public GeneralSettingsPageModel getPageModel(Principal principal) throws Exception {
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
@@ -76,6 +85,13 @@ public class GeneralSettingsPageController {
          .build();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/general",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/general/settings/model")
    public GeneralSettingsPageModel setPageModel(@RequestBody GeneralSettingsPageModel model,
                                                 Principal principal,  HttpServletRequest request)
@@ -117,21 +133,49 @@ public class GeneralSettingsPageController {
       return getPageModel(principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/general",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/general/settings/data-space/backup")
    public ConnectionStatus backup(@RequestBody BackupDataModel model, Principal principal) {
       return new ConnectionStatus(dataSpaceSettingsService.doBackup(model));
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/general",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/general/settings/license-key/single-server-key")
    public LicenseKeyModel getSingleServerLicenseKey(@RequestParam("key") String key) {
       return this.licenseKeySettingsService.getSingleServerLicenseKey(key);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/general",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/general/settings/localization/locale")
    public void reloadLocales() throws Exception {
       this.localizationSettingsService.reloadLocales();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/general",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/general/settings/localization/generateBundle")
    public void generateBundle(Principal principal, HttpServletResponse response) throws Exception {
       response.setHeader("Content-disposition",
@@ -148,11 +192,25 @@ public class GeneralSettingsPageController {
       }
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/general",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/general/settings/cache/cleanup")
    public void cleanUpCache() {
       cacheSettingsService.cleanUpCache();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/general",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/general/settings/email/oauth-params")
    public OAuthParams getOAuthParams(@RequestBody OAuthParamsRequest request) throws Exception {
       return emailSettingsService.getOAuthParams(request);

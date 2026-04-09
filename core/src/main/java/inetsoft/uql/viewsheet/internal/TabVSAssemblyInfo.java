@@ -393,7 +393,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
          }
 
          Point childPos = child.getPixelOffset();
-         int childHeight = child.getPixelSize() != null ? child.getPixelSize().height : 0;
+         int childHeight = getBottomTabChildHeight(child.getVSAssemblyInfo(), child.getPixelSize());
 
          if(childPos == null || childHeight == 0) {
             continue;
@@ -430,7 +430,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
 
          VSAssemblyInfo childInfo = child.getVSAssemblyInfo();
          Point childPos = child.getPixelOffset();
-         int childHeight = child.getPixelSize() != null ? child.getPixelSize().height : 0;
+         int childHeight = getBottomTabChildHeight(child.getVSAssemblyInfo(), child.getPixelSize());
 
          if(childPos == null || childHeight == 0) {
             continue;
@@ -449,6 +449,29 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
             }
          }
       }
+   }
+
+   /**
+    * Get the effective height for positioning a child in bottom tabs.
+    * Dropdown components only show the title bar, so use title height
+    * instead of the collapsed pixel height.
+    *
+    * <p>Note: uses design-time show type ({@code getShowTypeValue()}).
+    * Runtime show-type overrides are not consulted.</p>
+    */
+   public static int getBottomTabChildHeight(VSAssemblyInfo info, Dimension objectSize) {
+      if(info instanceof CalendarVSAssemblyInfo calInfo) {
+         if(calInfo.getShowTypeValue() == CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
+            return calInfo.getTitleHeight();
+         }
+      }
+      else if(info instanceof SelectionBaseVSAssemblyInfo selInfo) {
+         if(selInfo.getShowTypeValue() == SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
+            return selInfo.getTitleHeight();
+         }
+      }
+
+      return objectSize != null ? objectSize.height : 0;
    }
 
    /**
@@ -494,11 +517,13 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
 
    /**
     * Returns the effective bottomTabs value, reflecting the runtime value if set,
-    * otherwise the design-time value.
+    * otherwise the design-time value. Callers in the Composer (design-time) context
+    * should prefer {@link #getBottomTabsValue()} to avoid reading a stale runtime
+    * override.
     */
    public boolean isBottomTabs() {
       Object rval = bottomTabs.getRValue();
-      return Boolean.parseBoolean(rval != null ? rval.toString() : "false");
+      return rval != null ? Boolean.parseBoolean(rval.toString()) : getBottomTabsValue();
    }
 
    public void setBottomTabs(boolean bottomTabs) {

@@ -255,6 +255,8 @@ public class SelectionTreePropertyDialogService {
       Dimension size = viewsheet.getViewsheet().getPixelSize(streeInfo);
 
       if(newShowType == SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
+         // uses titleHeight directly rather than getBottomTabChildHeight() because
+         // the else branch handles showType transitions specific to property-apply
          size.height = streeInfo.getTitleHeight();
       }
       else if(oldShowType != newShowType) {

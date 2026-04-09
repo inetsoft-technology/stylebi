@@ -22,17 +22,19 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.ImageShapes;
-import inetsoft.util.*;
+import inetsoft.util.Catalog;
+import inetsoft.util.InvalidOrgException;
 import inetsoft.web.admin.content.dataspace.DataSpaceContentSettingsService;
 import inetsoft.web.admin.general.WebMapSettingsService;
-import inetsoft.web.admin.presentation.model.*;
+import inetsoft.web.admin.presentation.model.PresentationSettingsModel;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.List;
 import java.util.concurrent.locks.Lock;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
 
 @RestController
 public class PresentationSettingsController {
@@ -79,6 +81,21 @@ public class PresentationSettingsController {
       this.cluster = cluster;
    }
 
+   @Secured(
+      value = {
+         @RequiredPermission(
+            resourceType = ResourceType.EM_COMPONENT,
+            resource = "settings/presentation/settings",
+            actions = ResourceAction.ACCESS
+         ),
+         @RequiredPermission(
+            resourceType = ResourceType.EM_COMPONENT,
+            resource = "settings/presentation/org-settings",
+            actions = ResourceAction.ACCESS
+         )
+      },
+      operator = "OR"
+   )
    @GetMapping("/api/em/settings/presentation/model")
    public PresentationSettingsModel getSettings(Principal principal,
       @RequestParam(name = "orgSettings", defaultValue = "false") boolean orgSettings)
@@ -115,6 +132,21 @@ public class PresentationSettingsController {
          .build();
    }
 
+   @Secured(
+      value = {
+         @RequiredPermission(
+            resourceType = ResourceType.EM_COMPONENT,
+            resource = "settings/presentation/settings",
+            actions = ResourceAction.ACCESS
+         ),
+         @RequiredPermission(
+            resourceType = ResourceType.EM_COMPONENT,
+            resource = "settings/presentation/org-settings",
+            actions = ResourceAction.ACCESS
+         )
+      },
+      operator = "OR"
+   )
    @GetMapping("/api/em/presentation/settings/mapstyles/{mapboxUser}/{mapboxToken}")
    public List<MapboxStyle> getMapStyles(Principal principal,
                                          @PathVariable("mapboxUser") String mapboxUser,
@@ -123,6 +155,21 @@ public class PresentationSettingsController {
       return webMapSettingsService.getMapStyles(mapboxUser, mapboxToken);
    }
 
+   @Secured(
+      value = {
+         @RequiredPermission(
+            resourceType = ResourceType.EM_COMPONENT,
+            resource = "settings/presentation/settings",
+            actions = ResourceAction.ACCESS
+         ),
+         @RequiredPermission(
+            resourceType = ResourceType.EM_COMPONENT,
+            resource = "settings/presentation/org-settings",
+            actions = ResourceAction.ACCESS
+         )
+      },
+      operator = "OR"
+   )
    @PostMapping("/api/em/settings/presentation/model")
    public PresentationSettingsModel applySettings(@RequestBody() PresentationSettingsModel model,
                                                   Principal principal) throws Exception
@@ -213,6 +260,21 @@ public class PresentationSettingsController {
       return getSettings(principal, !globalSettings);
    }
 
+   @Secured(
+      value = {
+         @RequiredPermission(
+            resourceType = ResourceType.EM_COMPONENT,
+            resource = "settings/presentation/settings",
+            actions = ResourceAction.ACCESS
+         ),
+         @RequiredPermission(
+            resourceType = ResourceType.EM_COMPONENT,
+            resource = "settings/presentation/org-settings",
+            actions = ResourceAction.ACCESS
+         )
+      },
+      operator = "OR"
+   )
    @PostMapping("/api/em/settings/presentation/model/reset")
    public PresentationSettingsModel resetSettings(@RequestBody() PresentationSettingsModel model,
                                                   Principal principal) throws Exception

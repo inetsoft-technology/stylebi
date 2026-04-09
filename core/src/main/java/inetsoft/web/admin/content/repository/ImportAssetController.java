@@ -18,9 +18,13 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.web.admin.content.repository.model.ExportedAssetsModel;
 import inetsoft.web.admin.content.repository.model.ImportAssetResponse;
 import inetsoft.web.admin.model.FileData;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -45,6 +49,13 @@ public class ImportAssetController {
       cluster.getCache(ImportAssetService.CACHE_NAME);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/set-jar-file")
    public ExportedAssetsModel setJarFile(@RequestBody FileData file, Principal principal)
       throws Exception
@@ -53,6 +64,13 @@ public class ImportAssetController {
       return importService.setJarFile(importId, file, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/update-import-info/{importId}")
    public ExportedAssetsModel updateImportInfo(
       @PathVariable("importId") String importId,
@@ -65,6 +83,13 @@ public class ImportAssetController {
          importId, targetLocation, locationType, locationUser, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/get-jar-file-info/{importId}")
    public ExportedAssetsModel getJarFileInfo(@PathVariable("importId") String importId,
                                              Principal principal)  throws Exception
@@ -72,6 +97,13 @@ public class ImportAssetController {
       return importService.getJarFileInfo(importId, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/import/{importId}")
    public ImportAssetResponse importAsset(
       @PathVariable("importId") String importId,
@@ -88,6 +120,13 @@ public class ImportAssetController {
          overwriting, background, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @DeleteMapping("/api/em/content/repository/import/{importId}")
    public void finishImport(@PathVariable("importId") String importId) {
       importService.finishImport(importId);

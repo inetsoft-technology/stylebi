@@ -23,11 +23,14 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
-import inetsoft.util.*;
+import inetsoft.util.Catalog;
+import inetsoft.util.InvalidOrgException;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeModel;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeNode;
 import inetsoft.web.admin.schedule.model.*;
 import inetsoft.web.portal.data.CheckDuplicateResponse;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,6 +57,13 @@ public class EMScheduleTaskFolderController {
       this.scheduleManager = scheduleManager;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/schedule/add/checkDuplicate")
    public boolean checkAddFolderDuplicate(@RequestBody NewTaskFolderRequest req,
                                           Principal principal)
@@ -71,6 +81,13 @@ public class EMScheduleTaskFolderController {
          AssetRepository.GLOBAL_SCOPE, principal).isDuplicate();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/schedule/folder/add")
    public void addFolder(@RequestBody NewTaskFolderRequest req, Principal principal)
            throws Exception
@@ -87,6 +104,13 @@ public class EMScheduleTaskFolderController {
          parentEntry, folderName, path, AssetRepository.GLOBAL_SCOPE, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/folder/checkRootPermission")
    public boolean checkRootPermission(Principal principal)
       throws Exception
@@ -98,6 +122,13 @@ public class EMScheduleTaskFolderController {
    }
 
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/folder/get")
    public ContentRepositoryTreeModel getFolder(Principal principal)
            throws Exception
@@ -172,6 +203,13 @@ public class EMScheduleTaskFolderController {
          );
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/schedule/check-folder")
    public boolean checkDuplicateFolderPath(@RequestBody MoveTaskFolderRequest request) throws Exception {
       String[] folders = request.getFolders();
@@ -182,6 +220,13 @@ public class EMScheduleTaskFolderController {
       return scheduleTaskFolderService.checkDuplicateFolderPath(folders,assetEntry);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/schedule/move-folder")
    public void moveFolder(@RequestBody MoveTaskFolderRequest request, Principal principal)
            throws Exception
@@ -208,6 +253,13 @@ public class EMScheduleTaskFolderController {
       scheduleTaskFolderService.moveScheduleItems(taskModels, folders, targetEntry, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("api/em/schedule/rename/checkDuplicate")
    public CheckDuplicateResponse checkRenameItemDuplicate(
       @RequestBody EditTaskFolderDialogModel model)
@@ -216,6 +268,13 @@ public class EMScheduleTaskFolderController {
       return scheduleTaskFolderService.checkRenameDuplicate(model);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/schedule/rename-folder")
    public void renameFolder(@RequestBody EditTaskFolderDialogModel model,
                             Principal principal)
@@ -224,6 +283,13 @@ public class EMScheduleTaskFolderController {
       scheduleTaskFolderService.renameFolder(model, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/schedule/folder/editModel")
    public EditTaskFolderDialogModel getFolderEditModel(@RequestParam("folderPath") String folderPath,
                                                        Principal principal)
@@ -232,6 +298,13 @@ public class EMScheduleTaskFolderController {
       return scheduleTaskFolderService.getFolderEditModel(folderPath, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/schedule/folder/check-dependency")
    public TaskListModel checkScheduledTaskDependency(
       @RequestBody TaskListModel model, Principal principal) throws Exception
@@ -239,6 +312,13 @@ public class EMScheduleTaskFolderController {
       return this.scheduleService.checkScheduleFolderDependency(model, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/schedule/folder/remove")
    public void removeScheduledTasks(
       @RequestBody TaskListModel model,
