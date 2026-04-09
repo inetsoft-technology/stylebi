@@ -459,13 +459,12 @@ public class PPTVSExporter extends AbstractVSExporter {
       Rectangle2D widgetPixelBounds = split[1];
       Rectangle2D widgetBounds = scaleBounds(widgetPixelBounds, scale);
 
-      writeText(labelInfo.getLabelText(), labelBounds, getLabelFormat(labelInfo));
-
-      Dimension widgetSize = new Dimension((int) widgetPixelBounds.getWidth(),
-                                           (int) widgetPixelBounds.getHeight());
-      BufferedImage img = getInputImage(assembly, widgetSize);
-
       try {
+         writeText(labelInfo.getLabelText(), labelBounds, getLabelFormat(labelInfo));
+
+         Dimension widgetSize = new Dimension((int) widgetPixelBounds.getWidth(),
+                                              (int) widgetPixelBounds.getHeight());
+         BufferedImage img = getInputImage(assembly, widgetSize);
          writePicture(img != null ? img : getImage(assembly), widgetBounds);
       }
       catch(Exception e) {

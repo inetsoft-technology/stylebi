@@ -3940,19 +3940,12 @@ public abstract class AbstractVSExporter implements VSExporter {
     * The returned bounds are in the viewsheet pixel coordinate space.
     */
    protected static Rectangle2D[] splitInputPixelBounds(VSAssemblyInfo info, Viewsheet vs) {
-      if(!(info instanceof InputVSAssemblyInfo)) {
+      if(!hasVisibleLabel(info)) {
          return null;
       }
 
       InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
       LabelInfo labelInfo = inputInfo.getLabelInfo();
-
-      if(labelInfo == null || !labelInfo.isLabelVisible() ||
-         labelInfo.getLabelText() == null || labelInfo.getLabelText().isEmpty())
-      {
-         return null;
-      }
-
       Dimension size = info.getLayoutSize() != null ? info.getLayoutSize() : vs.getPixelSize(info);
       Point pos = info.getLayoutPosition() != null ? info.getLayoutPosition() : vs.getPixelPosition(info);
       Rectangle2D pixelBounds = new Rectangle2D.Double(pos.x, pos.y, size.width, size.height);
