@@ -27,12 +27,13 @@
      (onStartMove)="startMoveOrResize($event, legendContainer, true)"
      (onStartResize)="startMoveOrResize($event, legendContainer, false)"
      (onEndResizeOrMove)="endMoveOrResize($event)"
-     [style.top.px]="legend.bounds.y"
-     [style.left.px]="legend.bounds.x"
-     [style.width.px]="legend.bounds.width"
-     [style.height.px]="legend.bounds.height"
+     [style.top.px]="legend.bounds.y + 4"
+     [style.left.px]="legend.bounds.x + 4"
+     [style.width.px]="legend.bounds.width - 8"
+     [style.height.px]="legend.bounds.height - 8"
      [style.background]="background"
-     [style.border]="legend.border">
+     [style.border]="legend.border"
+     [style.border-radius]="legend.roundCorners ? '10px' : null">
   <ng-content></ng-content>
   <div *ngIf="isMoving && !isResizing"
        (window:mousemove)="onMove($event)">

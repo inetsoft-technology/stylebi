@@ -195,7 +195,7 @@ public abstract class LegendItem extends BoundedContainer {
       // the padding left logic has moved to VLegend
       paintSymbol(g, getPosition().getX(),
                   getPosition().getY() + (height - symbolSize) / 2);
-      vlabel.paint(g);
+      vlabel.paint(g, false);
    }
 
    /**

@@ -92,6 +92,14 @@ public class LegendFormatGeneralPaneModel {
       this.symbolSize = symbolSize;
    }
 
+   public boolean isRoundCorners() {
+      return roundCorners;
+   }
+
+   public void setRoundCorners(boolean roundCorners) {
+      this.roundCorners = roundCorners;
+   }
+
    // title dvalue
    private String title;
    // title rvalue
@@ -103,4 +111,5 @@ public class LegendFormatGeneralPaneModel {
    private boolean notShowNull;
    private boolean notShowNullVisible;
    private int symbolSize = LegendItem.DEFAULT_SYMBOL_SIZE;
+   private boolean roundCorners;
 }

@@ -100,6 +100,14 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
       deffmt.setAlpha(50);
    }
 
+   public boolean isRoundCorners() {
+      return roundCorners;
+   }
+
+   public void setRoundCorners(boolean roundCorners) {
+      this.roundCorners = roundCorners;
+   }
+
    /**
     * Get the color used by the legends border.
     */
@@ -397,6 +405,7 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
          && Tool.equalsContent(shapeDesc, desc.shapeDesc)
          && Tool.equals(borderColor, desc.borderColor)
          && Tool.equals(border, desc.border)
+         && roundCorners == desc.roundCorners
          && option == desc.option
          && Tool.equals(preferredSize, desc.preferredSize)
          && Tool.equals(gap, desc.gap)
@@ -422,6 +431,7 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
    protected void writeAttributes(PrintWriter writer) {
       writer.print(" borderColor=\"" + borderColor + "\"");
       writer.print(" border=\"" + border + "\"");
+      writer.print(" roundCorners=\"" + roundCorners + "\"");
       writer.print(" option=\"" + option + "\"");
 
       if(preferredSize != null) {
@@ -481,6 +491,10 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
 
       if((val = Tool.getAttribute(tag, "border")) != null) {
          border.parse(val);
+      }
+
+      if((val = Tool.getAttribute(tag, "roundCorners")) != null) {
+         roundCorners = "true".equals(val);
       }
 
       if((val = Tool.getAttribute(tag, "option")) != null) {
@@ -566,6 +580,7 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
                                                                     GDefaults.DEFAULT_LINE_COLOR);
    private CompositeValue<Integer> border = new CompositeValue<>(Integer.class,
                                                                  StyleConstants.THIN_LINE);
+   private boolean roundCorners = true;
    private LegendDescriptor colorDesc;
    private LegendDescriptor shapeDesc;
    private LegendDescriptor sizeDesc;

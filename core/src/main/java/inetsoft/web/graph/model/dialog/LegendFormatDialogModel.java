@@ -49,6 +49,7 @@ public class LegendFormatDialogModel {
       generalPaneModel.setNotShowNull(legendDesc.isNotShowNull());
       generalPaneModel.setNotShowNullVisible(dimension && field != null);
       generalPaneModel.setSymbolSize(legendDesc.getSymbolSize());
+      generalPaneModel.setRoundCorners(legendsDesc.isRoundCorners());
 
       if(legendsDesc.getBorderColor() != null) {
          generalPaneModel.setFillColor(
@@ -115,6 +116,7 @@ public class LegendFormatDialogModel {
       legendsDesc.setLayout(getIndexByName(LEGEND_POSITIONS, generalPaneModel.getPosition()) + 1);
       legendDesc.setNotShowNull(generalPaneModel.isNotShowNull());
       legendDesc.setSymbolSize(generalPaneModel.getSymbolSize());
+      legendsDesc.setRoundCorners(generalPaneModel.isRoundCorners());
 
       legendDesc.setReversed(scalePaneModel.isReverse());
       legendDesc.setLogarithmicScale(scalePaneModel.isLogarithmic());

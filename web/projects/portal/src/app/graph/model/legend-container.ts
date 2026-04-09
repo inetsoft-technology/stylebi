@@ -29,4 +29,5 @@ export interface LegendContainer {
    legendObjects: Legend[];
    aestheticType: string;
    nodeAesthetic?: boolean;
+   roundCorners?: boolean;
 }

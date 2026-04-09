@@ -58,6 +58,16 @@
       <div class="col-auto">
         <color-editor [(color)]="model.fillColor" data-test="legend-border-color"></color-editor>
       </div>
+      <div class="checkbox col-auto">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="roundCorners"
+                 [ngModelOptions]="{standalone: true}"
+                 [(ngModel)]="model.roundCorners">
+          <label class="form-check-label" for="roundCorners">
+            _#(Round Corner)
+          </label>
+        </div>
+      </div>
     </div>
   </fieldset>
   <fieldset>

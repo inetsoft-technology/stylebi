@@ -196,6 +196,14 @@ public class LegendSpec implements Cloneable, Serializable {
       this.borderColor = borderColor;
    }
 
+   public boolean isRoundCorners() {
+      return roundCorners;
+   }
+
+   public void setRoundCorners(boolean roundCorners) {
+      this.roundCorners = roundCorners;
+   }
+
    /**
     * Get the legend title text attributes.
     */
@@ -412,6 +420,7 @@ public class LegendSpec implements Cloneable, Serializable {
    private Insets padding;
    private Set hiddenItems = new HashSet();
    private int symbolSize = LegendItem.DEFAULT_SYMBOL_SIZE;
+   private boolean roundCorners = false;
 
    private static final long serialVersionUID = 1L;
    private static final Logger LOG = LoggerFactory.getLogger(LegendSpec.class);

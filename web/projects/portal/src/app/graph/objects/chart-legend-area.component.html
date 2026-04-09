@@ -23,7 +23,7 @@
      [style.width.px]="chartObject.layoutBounds.width"
      [style.height.px]="chartObject.layoutBounds.height"
      [style.max-height.px]="chartObject.areaName == 'legend_content' ? maxHeight : null"
-     [style.background]="chartObject.background"
+     [style.background]="chartObject.areaName == 'legend_content' ? null : chartObject.background"
      outOfZone
      (onMousemove)="onMove($event)"
      (mousedown)="onDown($event)"
