@@ -212,6 +212,10 @@ public class BarVO extends ElementVO {
 
          path0 = transformShape(path0, getScreenTransform());
 
+         // cache pre-rounding bounds for region/metadata computation
+         Rectangle2D preRounding = path0.getBounds2D();
+         boolean roundingApplied = false;
+
          IntervalElement ielem = (IntervalElement) ((ElementGeometry) getGeometry()).getElement();
          double r = ielem.getCornerRadius();
 
@@ -219,6 +223,7 @@ public class BarVO extends ElementVO {
             IntervalGeometry geom = (IntervalGeometry) getGeometry();
             boolean stdOrientation = GTool.isHorizontal(getScreenTransform());
             int openDir = stdOrientation ? (negative ? 0 : 1) : (negative ? 3 : 2);
+            roundingApplied = true;
 
             if(!ielem.isStack()) {
                boolean roundAll = ielem.isRoundAllCorners();
@@ -230,7 +235,8 @@ public class BarVO extends ElementVO {
             }
          }
 
-         this.cachedShape = new SoftReference<>(new CachedShape(trans0, path0));
+         this.cachedShape = new SoftReference<>(
+            new CachedShape(trans0, path0, preRounding, roundingApplied));
       }
 
       return path0;
@@ -929,6 +935,16 @@ public class BarVO extends ElementVO {
     */
    @Override
    public Shape[] getShapes() {
+      // ensure the cache is populated
+      getPath();
+      // use pre-rounding bounds so the region rectangle matches the original
+      // segment, allowing the frontend to reconstruct rounding from metadata
+      CachedShape cached = this.cachedShape.get();
+
+      if(cached != null && cached.roundingApplied && cached.preRoundingBounds != null) {
+         return new Shape[] {cached.preRoundingBounds};
+      }
+
       return new Shape[] {getPath()};
    }
 
@@ -1288,13 +1304,19 @@ public class BarVO extends ElementVO {
    }
 
    private static class CachedShape {
-      public CachedShape(AffineTransform trans, Shape shape) {
+      public CachedShape(AffineTransform trans, Shape shape,
+                         Rectangle2D preRoundingBounds, boolean roundingApplied)
+      {
          this.trans = trans;
          this.path = shape;
+         this.preRoundingBounds = preRoundingBounds;
+         this.roundingApplied = roundingApplied;
       }
 
       AffineTransform trans; // transform as of last path0
       Shape path; // transformed shape ready for drawing
+      Rectangle2D preRoundingBounds; // bounds before rounding was applied
+      boolean roundingApplied; // true if corner rounding changed the shape
    }
 
    /**
@@ -1302,6 +1324,20 @@ public class BarVO extends ElementVO {
     */
    public boolean isNegative() {
       return negative;
+   }
+
+   /**
+    * Get the screen-space bounds of the bar before corner rounding was applied.
+    * Used for region metadata so the frontend can reconstruct the correct rounded shape.
+    */
+   public Rectangle2D getPreRoundingBounds() {
+      CachedShape cached = this.cachedShape.get();
+
+      if(cached != null && cached.roundingApplied && cached.preRoundingBounds != null) {
+         return cached.preRoundingBounds;
+      }
+
+      return getBounds();
    }
 
    /**
