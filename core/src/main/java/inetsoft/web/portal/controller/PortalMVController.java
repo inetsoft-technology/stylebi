@@ -18,8 +18,7 @@
 package inetsoft.web.portal.controller;
 
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.Organization;
-import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.content.repository.MVService;
@@ -28,6 +27,8 @@ import inetsoft.web.admin.content.repository.model.MVManagementModel;
 import inetsoft.web.factory.DecodePathVariable;
 import inetsoft.web.portal.model.AnalyzeMVPortalRequest;
 import inetsoft.web.portal.model.MVTreeModel;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +46,13 @@ public class PortalMVController {
       this.mvService = mvService;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/portal/content/repository/mv/analyze")
    public void analyze(@RequestBody AnalyzeMVPortalRequest analyzeMVPortalRequest,
                        HttpServletRequest req, Principal principal)
@@ -56,6 +64,13 @@ public class PortalMVController {
       session.setAttribute("mv_jobs", jobs);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/portal/content/materialized-view/info")
    public MVManagementModel getMVInfo(@RequestBody(required = false) AnalyzeMVPortalRequest request,
                                       Principal principal)

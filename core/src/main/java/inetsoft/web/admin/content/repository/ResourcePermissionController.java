@@ -19,6 +19,8 @@ package inetsoft.web.admin.content.repository;
 
 import inetsoft.report.internal.Util;
 import inetsoft.sree.RepositoryEntry;
+import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.*;
 import inetsoft.util.*;
 import inetsoft.web.admin.security.ResourcePermissionModel;
@@ -47,6 +49,7 @@ public class ResourcePermissionController {
    public ResourcePermissionModel getRepositoryEntryPermissions(@RequestParam("path") String path,
                                                                 @RequestParam("type") int type,
                                                                 Principal principal)
+      throws Exception
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
@@ -55,6 +58,7 @@ public class ResourcePermissionController {
       }
 
       Resource resource = resourcePermissionService.getRepositoryResourceType(type, path);
+      checkPermission(resource, path, principal);
       boolean tableStyleFolder = type == (RepositoryEntry.FOLDER | RepositoryEntry.TABLE_STYLE);
       return this.resourcePermissionService.getTableModel(
          resource.getPath(), resource.getType(),
@@ -76,10 +80,32 @@ public class ResourcePermissionController {
       throws Exception
    {
       Resource resource = resourcePermissionService.getRepositoryResourceType(type, path);
+      checkPermission(resource, path, principal);
       String fullPath = Util.getObjectFullPath(type, path, principal);
       boolean tableStyleFolder = (type & (RepositoryEntry.FOLDER | RepositoryEntry.TABLE_STYLE)) != 0;
       this.resourcePermissionService.setResourcePermissions(
          resource.getPath(), resource.getType(), fullPath, permissionModel, principal, tableStyleFolder);
+   }
+
+   private void checkPermission(Resource resource, String path, Principal principal)
+      throws Exception
+   {
+      boolean allowed;
+
+      if(resource.getType() == ResourceType.SCHEDULE_TASK) {
+         ScheduleTask task = ScheduleManager.getScheduleManager().getScheduleTask(path);
+         allowed = task != null &&
+            ScheduleManager.hasTaskPermission(task.getOwner(), principal, ResourceAction.READ);
+      }
+      else {
+         allowed = SecurityEngine.getSecurity().checkPermission(
+            principal, resource.getType(), resource.getPath(), ResourceAction.ADMIN);
+      }
+
+      if(!allowed) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", path));
+      }
    }
 
    private final ResourcePermissionService resourcePermissionService;

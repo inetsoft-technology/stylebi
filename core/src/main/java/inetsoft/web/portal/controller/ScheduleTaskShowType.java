@@ -18,15 +18,35 @@
 package inetsoft.web.portal.controller;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 public class ScheduleTaskShowType {
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @GetMapping("/api/portal/schedule/change-show-type")
    public boolean getScheduleTaskShowType() {
       return SreeEnv.getBooleanProperty("schedule.show.tasks.as.list", "true");
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PutMapping("/api/portal/schedule/change-show-type")
    public void setConfiguration(@RequestParam("showTasksAsList") String showTasksAsList) {
       SreeEnv.setProperty("schedule.show.tasks.as.list", showTasksAsList);

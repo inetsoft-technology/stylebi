@@ -45,6 +45,8 @@ import inetsoft.web.admin.schedule.model.UsersModel;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.portal.model.CSVConfigModel;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.dialog.EmailAddrDialogModel;
@@ -92,6 +94,18 @@ public class ScheduleDialogController {
     * @return  the schedule dialog model
     * @throws Exception if could not create the schedule dialog model
     */
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.VIEWSHEET_TOOLBAR_ACTION,
+         resource = "Schedule",
+         actions = ResourceAction.READ
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @RequestMapping(value = "/api/vs/schedule-dialog-model", method = RequestMethod.GET)
    @ResponseBody
    public ScheduleDialogModel getScheduleDialogModel(Principal principal)
@@ -148,6 +162,18 @@ public class ScheduleDialogController {
     * @return  the schedule dialog model
     * @throws Exception if could not create the schedule dialog model
     */
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.VIEWSHEET_TOOLBAR_ACTION,
+         resource = "Schedule",
+         actions = ResourceAction.READ
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @RequestMapping(value = "/api/vs/simple-schedule-dialog-model/**", method = RequestMethod.GET)
    @ResponseBody
    public SimpleScheduleDialogModel getSimpleScheduleDialogModel(@RemainingPath String runtimeId,
@@ -349,6 +375,18 @@ public class ScheduleDialogController {
     * @return  the schedule dialog model
     * @throws Exception if could not create the schedule dialog model
     */
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.VIEWSHEET_TOOLBAR_ACTION,
+         resource = "Schedule",
+         actions = ResourceAction.READ
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @RequestMapping(value = "/api/vs/check-schedule-dialog/**", method = RequestMethod.GET)
    @ResponseBody
    public MessageCommand checkScheduleDialogl(@RemainingPath String runtimeId,
