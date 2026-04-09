@@ -16,7 +16,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient } from "@angular/common/http";
-import { Directive, ElementRef, EventEmitter, Input, Output } from "@angular/core";
+import { Directive, ElementRef, EventEmitter, Input, OnDestroy, Output } from "@angular/core";
+import { Subject } from "rxjs";
+import { takeUntil } from "rxjs/operators";
 
 /**
  * Fetches an SVG URL as text and injects it as inline SVG into the host element's innerHTML.
@@ -30,7 +32,7 @@ import { Directive, ElementRef, EventEmitter, Input, Output } from "@angular/cor
 @Directive({
    selector: "[chartInlineSvg]"
 })
-export class ChartInlineSvgDirective {
+export class ChartInlineSvgDirective implements OnDestroy {
    private static idCounter = 0;
 
    @Input()
@@ -59,8 +61,19 @@ export class ChartInlineSvgDirective {
    /** Timer handle for debounced deactivation, so fast inter-bar moves don't flash. */
    private clearHandle: ReturnType<typeof setTimeout> | null = null;
    private static readonly CLEAR_DELAY_MS = 120;
+   private readonly destroy$ = new Subject<void>();
 
    constructor(private element: ElementRef, private http: HttpClient) {
+   }
+
+   ngOnDestroy(): void {
+      this.destroy$.next();
+      this.destroy$.complete();
+
+      if(this.clearHandle !== null) {
+         clearTimeout(this.clearHandle);
+         this.clearHandle = null;
+      }
    }
 
    private loadSvg(reloading = false): void {
@@ -71,13 +84,19 @@ export class ChartInlineSvgDirective {
 
          const requestedUrl = this._url;
 
-         this.http.get(this._url, { observe: "response", responseType: "text" }).subscribe(
+         this.http.get(this._url, { observe: "response", responseType: "text" })
+            .pipe(takeUntil(this.destroy$))
+            .subscribe(
             response => {
                if(response.headers?.has("Retry-After")) {
                   const interval = parseInt(response.headers.get("Retry-After"), 10) * 1000;
                   setTimeout(() => this.loadSvg(true), interval);
                }
                else if(requestedUrl === this._url) {
+                  // SVG content comes from our own server (same origin, server-controlled).
+                  // Direct innerHTML assignment is intentional — Angular's DomSanitizer only
+                  // intercepts [innerHTML] template bindings, not programmatic ElementRef access.
+                  // This must NOT be used with user-supplied or externally sourced SVG content.
                   this.element.nativeElement.innerHTML = this.uniquifyIds(response.body);
                   this.afterSvgInjected();
                   this.onLoaded.emit();

@@ -2365,6 +2365,11 @@ public class VGraphPair {
       graph.paintGraph(g, ctx);
 
       if(animate) {
+         // applyAnimationHint inspects the painted VGraph to choose the right hint type,
+         // so it must run after paintGraph. It is called before dispose() so the hint is
+         // stored in the Graphics2D context before Batik finalises the SVG DOM.
+         // With Batik's SVGGraphics2D, rendering hints are metadata on the graphics object
+         // and survive dispose() — they remain readable when writeSVG is called by the caller.
          applyAnimationHint(g, graph);
       }
 
@@ -2387,6 +2392,9 @@ public class VGraphPair {
       }
       else if(hasBarVO(graph)) {
          String hint = SVGSupport.ANIMATION_GROW;
+         // Append sub-type flags for future differentiated animation behaviour.
+         // SVGAnimationDOMInjector currently handles stacked and 3D bars via the same
+         // annotation-group path, so these flags are not yet acted upon by the injector.
          if(has3DBarVO(graph))           hint += ":" + SVGSupport.ANIMATION_FLAG_3D;
          else if(hasStackedBarVO(graph)) hint += ":" + SVGSupport.ANIMATION_FLAG_STACKED;
          g.setRenderingHint(SVGSupport.ANIMATION_KEY, hint);

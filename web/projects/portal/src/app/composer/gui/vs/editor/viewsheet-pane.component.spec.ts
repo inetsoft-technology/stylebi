@@ -196,7 +196,7 @@ describe("Viewsheet Pane Test", () => {
          treeService, changeDetectorRef, modelService, modalService,
          downloadService, dragService, scaleService, renderer, actionFactory,
          dialogService, dataTipService, debounceService, uiContextService, zone, domService, null,
-         resizeHandlerService, composerVsSearchService, appInfoService, fontService);
+         resizeHandlerService, composerVsSearchService, appInfoService, fontService, null);
    });
 
    // Bug #10442 make sure to update send to back/front enabled after adding vs object to vs

@@ -137,6 +137,11 @@ public final class SVGAnimationInjector {
       double y0 = Double.parseDouble(mFirst.group(2));
       String rest = d.substring(mFirst.end()).trim();
 
+      // Scan all numbers to find the second-to-last, used as the closing X coordinate.
+      // Assumes the path consists of M/L commands only (straight-line segments from Batik).
+      // For bezier paths (C/Q), the last two numbers would be control-point coordinates,
+      // not the endpoint, producing an incorrect polygon. Batik emits straight-line paths
+      // for line chart series, so this is safe for the current use case.
       Pattern numPat = Pattern.compile("-?[0-9]+(?:\\.[0-9]+)?(?:[eE][-+]?[0-9]+)?");
       Matcher nm = numPat.matcher(d);
       List<Double> nums = new ArrayList<>();
@@ -183,24 +188,6 @@ public final class SVGAnimationInjector {
       return (double) bestKey;
    }
 
-   static boolean isChromatic(String rgb) {
-      String[] parts = rgb.split(",");
-
-      if(parts.length != 3) {
-         return false;
-      }
-
-      try {
-         int r = Integer.parseInt(parts[0].trim());
-         int g = Integer.parseInt(parts[1].trim());
-         int b = Integer.parseInt(parts[2].trim());
-         return Math.max(r, Math.max(g, b)) - Math.min(r, Math.min(g, b)) > 20;
-      }
-      catch(NumberFormatException e) {
-         return false;
-      }
-   }
-
    static String buildAnimStyle(String origin, String growAnim, double delay) {
       return String.format(Locale.US,
          "transform-box:fill-box;transform-origin:%s;" +
@@ -224,6 +211,11 @@ public final class SVGAnimationInjector {
       Matcher m = Pattern.compile("-?[0-9]+(?:\\.[0-9]+)?").matcher(d);
       int idx = 0;
 
+      // Treats every even-indexed number as X and every odd-indexed as Y. This is correct
+      // for simple M/L rectangle paths (where numbers strictly alternate x,y). It would
+      // produce wrong bounds for paths with arc commands (A rx ry ...) whose first five
+      // numbers are arc parameters, not coordinates. Batik emits simple M/L paths for bar
+      // shapes, so arc paths are not expected here.
       while(m.find()) {
          double v = Double.parseDouble(m.group());
 

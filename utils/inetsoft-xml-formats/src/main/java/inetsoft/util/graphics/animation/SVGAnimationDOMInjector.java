@@ -835,7 +835,7 @@ public class SVGAnimationDOMInjector {
                continue;
             }
 
-            if(classifyLineGroup(sibling, true) == LineGroupType.DOTS) {
+            if(classifyLineGroup(sibling) == LineGroupType.DOTS) {
                for(Element circle : childCircles(sibling)) {
                   mergeStyle(circle, String.format(
                      "opacity:0;animation:inetsoft-line-fade 0.35s ease-out %.2fs both", dotDelay));
@@ -894,6 +894,9 @@ public class SVGAnimationDOMInjector {
             // are never treated as pie slices.
             textGroups.add(c);
          }
+         // Pie slices from Batik are rendered with stroke="none" by default.
+         // If a chart is configured with a visible slice border/stroke, getAttribute("stroke")
+         // won't return "none" and those slices will be silently skipped (no animation).
          else if("path".equals(c.getLocalName()) && "none".equals(c.getAttribute("stroke"))) {
             slices.add(c);
          }
@@ -906,7 +909,7 @@ public class SVGAnimationDOMInjector {
    private enum LineGroupType { LINE, DOTS, AREA_FILL, OTHER }
 
    /** Classify a {@code <g>} element as a line series, dot group, area fill, or other. */
-   private static LineGroupType classifyLineGroup(Element g, boolean hintIsLine) {
+   private static LineGroupType classifyLineGroup(Element g) {
       // Area fill: group-level url(#gradient...) fill (Batik style)
       String groupFill = g.getAttribute("fill");
 
@@ -922,9 +925,7 @@ public class SVGAnimationDOMInjector {
          String pathFill = p.getAttribute("fill");
 
          if("none".equals(pathFill)) {
-            // Candidate line path: check stroke. When hintIsLine is true (metadata confirms this
-            // is a line chart), accept any non-none stroke — white/gray/black lines are valid.
-            // Otherwise require a chromatic stroke to avoid misclassifying structural elements.
+            // Candidate line path: any non-none stroke is a valid line series element.
             // Note: empty pathFill (unset) is NOT equivalent to fill="none" — glyph paths in
             // data-label groups inherit fill from the <g>, so they would be misclassified.
             String stroke = g.getAttribute("stroke");
@@ -934,16 +935,7 @@ public class SVGAnimationDOMInjector {
             }
 
             if(!stroke.isEmpty() && !"none".equals(stroke)) {
-               if(hintIsLine) {
-                  return LineGroupType.LINE;
-               }
-
-               String inner = stroke.startsWith("rgb(")
-                  ? stroke.substring(4, stroke.length() - 1) : stroke;
-
-               if(SVGAnimationInjector.isChromatic(inner)) {
-                  return LineGroupType.LINE;
-               }
+               return LineGroupType.LINE;
             }
          }
          else if(pathFill.startsWith("url(")) {
@@ -1087,6 +1079,8 @@ public class SVGAnimationDOMInjector {
       }
 
       int mIdx = d.indexOf('M');
+      // Searches for uppercase 'A' (absolute arc command) only. Batik always emits uppercase
+      // path commands, so lowercase 'a' (relative arc) is not expected here.
       int aIdx = d.indexOf('A', mIdx < 0 ? 0 : mIdx + 1);
       if(mIdx < 0 || aIdx < 0) return null;
 
@@ -1250,6 +1244,10 @@ public class SVGAnimationDOMInjector {
     * Inject CSS that dims non-hovered bars/labels when any bar carries the
     * {@code inetsoft-active} class.  JS only needs to toggle that one class;
     * the CSS handles opacity and transitions for the whole chart.
+    *
+    * <p>The {@code :has()} relational pseudo-class requires Chrome 105+, Firefox 121+,
+    * Safari 15.4+.  On older browsers the dimming rule is silently ignored (no error);
+    * hover highlighting simply has no visual effect.  StyleBI targets modern browsers only.
     */
    private static void appendHoverCSS(Element svgRoot, Document doc) {
       appendStyle(svgRoot, doc,

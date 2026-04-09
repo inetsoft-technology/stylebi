@@ -2691,7 +2691,6 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.balancePadding = command.info["balancePadding"];
       this.virtualScroll = command.info["virtualScroll"];
       this.chartConfigService.inlineSvg = command.info["inlineSvg"] ?? false;
-      console.log("inlineSVG: " + this.chartConfigService.inlineSvg)
       if(command.info["hasWatermark"]) {
          const url = this.baseHrefService.getBaseHref() + "/assets/elastic_watermark.png";
          const imageUrl = `url('${url}')`;
