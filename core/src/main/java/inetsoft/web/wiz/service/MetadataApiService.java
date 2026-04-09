@@ -103,15 +103,10 @@ public class MetadataApiService {
          throw new Exception(Tool.buildString("Table ", data.getTableName(), " not found in data source ", dsName));
       }
 
-      XNode tableMetaData = getTableMetaData(jdbcDataSource, data.getCatalog(), data.getSchema(), data.getTableName());
-
-      if(tableMetaData == null) {
-         throw new Exception(Tool.buildString("Table ", data.getTableName(), " not found in data source ", dsName));
-      }
-
-      String tableName = tableMetaData.getName();
-      String catalog = (String) tableMetaData.getAttribute("catalog");
-      String schema = (String) tableMetaData.getAttribute("schema");
+      // Derive table name/catalog/schema from the request directly to avoid a second DB round-trip.
+      String tableName = data.getTableName();
+      String catalog = Tool.isEmptyString(data.getCatalog()) ? null : data.getCatalog();
+      String schema = Tool.isEmptyString(data.getSchema()) ? null : data.getSchema();
       String source = buildSource(catalog, schema, tableName);
 
       OsiDataset dataset = new OsiDataset();
@@ -176,6 +171,9 @@ public class MetadataApiService {
 
    private OsiExpression buildExpression(String tableName, String columnName) {
       OsiDialectExpression dialectExpr = new OsiDialectExpression();
+      // NOTE: ANSI_SQL double-quote quoting is used for all databases. Databases such as MySQL
+      // (backtick) and SQL Server (square brackets) use different identifier quoting and will
+      // require dialect-specific handling if multi-database support is added in the future.
       dialectExpr.setDialect("ANSI_SQL");
       // Escape embedded double-quotes by doubling them before wrapping in double-quotes.
       String quotedTable = "\"" + tableName.replace("\"", "\"\"") + "\"";
@@ -220,8 +218,14 @@ public class MetadataApiService {
    {
       try {
          Map<String, Object> extData = new LinkedHashMap<>();
-         extData.put("type", type);
-         extData.put("length", length);
+
+         if(type != null) {
+            extData.put("type", type);
+         }
+
+         if(length != null) {
+            extData.put("length", length);
+         }
 
          if(!foreignKeys.isEmpty()) {
             extData.put("foreignKeys", foreignKeys);
