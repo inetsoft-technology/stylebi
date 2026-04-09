@@ -457,8 +457,9 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
     * instead of the collapsed pixel height.
     *
     * <p>Note: uses design-time show type ({@code getShowTypeValue()}).
-    * Label visibility and position use runtime-aware accessors since this
-    * method is also called from script contexts.</p>
+    * Label visibility and position use runtime-aware accessors since
+    * {@code repositionForBottomTabs} is also called from script contexts
+    * ({@link inetsoft.report.script.viewsheet.TabVSAScriptable}).</p>
     */
    public static int getBottomTabChildHeight(VSAssemblyInfo info, Dimension objectSize) {
       if(info instanceof CalendarVSAssemblyInfo calInfo) {

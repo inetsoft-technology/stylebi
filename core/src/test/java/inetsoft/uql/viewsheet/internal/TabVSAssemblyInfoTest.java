@@ -143,8 +143,8 @@ class TabVSAssemblyInfoTest {
       Dimension size = new Dimension(200, 20);
 
       int height = TabVSAssemblyInfo.getBottomTabChildHeight(info, size);
-      // should be pixel height + label font height + gap
-      assertTrue(height > 20, "height should include label + gap, was: " + height);
+      int labelHeight = labelInfo.getRenderedHeight();
+      assertEquals(20 + labelHeight + 5, height);
    }
 
    @Test
@@ -157,7 +157,8 @@ class TabVSAssemblyInfoTest {
       Dimension size = new Dimension(200, 20);
 
       int height = TabVSAssemblyInfo.getBottomTabChildHeight(info, size);
-      assertTrue(height > 20, "height should include label + gap, was: " + height);
+      int labelHeight = labelInfo.getRenderedHeight();
+      assertEquals(20 + labelHeight + 8, height);
    }
 
    @Test
