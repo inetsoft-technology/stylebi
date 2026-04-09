@@ -94,6 +94,14 @@ export class AiAssistantService {
          return this.webComponentScriptPromise;
       }
 
+      // The UMD is bundled into Angular's scripts output via angular.json, so the custom
+      // element is already defined when StyleBI loads. Skip dynamic loading in that case —
+      // this avoids a redundant cross-origin fetch that fails in direct mode when the
+      // chat-app server port is not reachable from the browser.
+      if(customElements.get("ai-assistant")) {
+         return Promise.resolve();
+      }
+
       const base = this.chatAppServerUrl ? this.chatAppServerUrl.replace(/\/$/, "") : "";
 
       if(!base) {
