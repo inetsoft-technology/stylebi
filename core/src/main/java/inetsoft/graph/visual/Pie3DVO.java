@@ -388,6 +388,7 @@ public class Pie3DVO extends ElementVO {
                SVGSupport.ATTR_FACE,  "top"
             ));
          }
+         try {
          Color color = gobj.getColor(rows[i]);
          GTexture texture = gobj.getTexture(rows[i]);
          GLine line = gobj.getLine(rows[i]);
@@ -433,9 +434,11 @@ public class Pie3DVO extends ElementVO {
 
             g.setStroke(ostroke);
          }
-
-         if(svg != null) {
-            svg.endAnnotationGroup(g);
+         }
+         finally {
+            if(svg != null) {
+               svg.endAnnotationGroup(g);
+            }
          }
       }
    }

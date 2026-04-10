@@ -86,107 +86,113 @@ public class AreaVO extends LineVO {
       int[] tidxs0 = gobj.getTupleIndexes();
       Color svgC0  = tidxs0.length > 0 ? gobj.getColor(tidxs0[0]) : Color.GRAY;
 
+      // since area also draw lines with line binding, we only apply border color in the
+      // simplest case where no color/line information is available.
+      Color borderColor = elem.getColorFrame() instanceof StaticColorFrame &&
+         elem.getLineFrame() instanceof StaticLineFrame ? elem.getBorderColor() : null;
+
       if(svg != null) {
          svg.beginAnnotationGroup(g2, SVGSupport.ANNOTATION_AREA, Map.of(
             SVGSupport.ATTR_SERIES, String.valueOf(getColIndex()),
             SVGSupport.ATTR_COLOR, svgC0.getRed() + "," + svgC0.getGreen() + "," + svgC0.getBlue()
          ));
       }
-      Color[] colors = new Color[pts.length];
-      GTexture[] textures = new GTexture[pts.length];
-      GLine[] lines = new GLine[pts.length];
-      int[] idxs = gobj.getTupleIndexes();
-      // @by larryl, true to draw areas as a single shape to avoid white
-      // borders around each area caused by anti-aliasing
-      boolean singleColor = true;
-      boolean singleTexture = true;
-      Object c0 = null, t0 = null;
-      // since area also draw lines with line binding, we only apply border color in the
-      // simplest case where no color/line information is available.
-      Color borderColor = elem.getColorFrame() instanceof StaticColorFrame &&
-         elem.getLineFrame() instanceof StaticLineFrame ? elem.getBorderColor() : null;
 
-      for(int i = 0; i < pts.length; i++) {
-         colors[i] = gobj.getColor(idxs[i % idxs.length]);
-         textures[i] = gobj.getTexture(idxs[i % idxs.length]);
-         lines[i] = gobj.getLine(idxs[i % idxs.length]);
+      try {
+         Color[] colors = new Color[pts.length];
+         GTexture[] textures = new GTexture[pts.length];
+         GLine[] lines = new GLine[pts.length];
+         int[] idxs = gobj.getTupleIndexes();
+         // @by larryl, true to draw areas as a single shape to avoid white
+         // borders around each area caused by anti-aliasing
+         boolean singleColor = true;
+         boolean singleTexture = true;
+         Object c0 = null, t0 = null;
 
-         if(i == 0) {
-            c0 = colors[i];
-            t0 = textures[i];
-            continue;
-         }
+         for(int i = 0; i < pts.length; i++) {
+            colors[i] = gobj.getColor(idxs[i % idxs.length]);
+            textures[i] = gobj.getTexture(idxs[i % idxs.length]);
+            lines[i] = gobj.getLine(idxs[i % idxs.length]);
 
-         if(!CoreTool.equals(c0, colors[i])) {
-            singleColor = false;
-         }
-
-         if(!CoreTool.equals(t0, textures[i])) {
-            singleTexture = false;
-         }
-      }
-
-      boolean singleShape = singleColor && singleTexture;
-
-      // anti-alias may cause a slight border between areas
-      if(elem.getType() == LineElement.Type.STEP) {
-         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
-      }
-      // anti-alias on causing a thin white line between areas when there is gradient. (59544)
-      else if(singleShape || GTool.isVectorGraphics(g2) && singleColor) {
-         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-      }
-      else {
-         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
-      }
-
-      Area shapeArea = new Area();
-      boolean horizontal = GTool.isHorizontal(getScreenTransform());
-
-      for(int i = 0; i < pts.length; i++) {
-         int next = i + 1;
-
-         if(next == pts.length) {
-            if(!isClosed()) {
-               break;
+            if(i == 0) {
+               c0 = colors[i];
+               t0 = textures[i];
+               continue;
             }
 
-            next = 0;
+            if(!CoreTool.equals(c0, colors[i])) {
+               singleColor = false;
+            }
+
+            if(!CoreTool.equals(t0, textures[i])) {
+               singleTexture = false;
+            }
          }
 
-         if(LineVO.isNaN(pts[i]) || LineVO.isNaN(pts[next]) ||
-            LineVO.isNaN(basepts[i]) || LineVO.isNaN(basepts[next]))
-         {
-            continue;
-         }
+         boolean singleShape = singleColor && singleTexture;
 
-         Shape shape = getAreaShape(pts[i], pts[next], basepts[i], basepts[next], horizontal);
-
-         if(shape == null) {
-            // ignore
+         // anti-alias may cause a slight border between areas
+         if(elem.getType() == LineElement.Type.STEP) {
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
          }
-         else if(singleShape) {
-            shapeArea.add(new Area(shape));
+         // anti-alias on causing a thin white line between areas when there is gradient. (59544)
+         else if(singleShape || GTool.isVectorGraphics(g2) && singleColor) {
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
          }
          else {
-            Color startColor = colors[i];
-            Color endColor = colors[next];
-            GTexture startTexture = textures[i];
-            GTexture endTexture = textures[next];
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+         }
 
-            fillArea(g2, pts[i], pts[next], shape, startColor, endColor,
-                     startTexture, endTexture, lines[i], borderColor);
+         Area shapeArea = new Area();
+         boolean horizontal = GTool.isHorizontal(getScreenTransform());
+
+         for(int i = 0; i < pts.length; i++) {
+            int next = i + 1;
+
+            if(next == pts.length) {
+               if(!isClosed()) {
+                  break;
+               }
+
+               next = 0;
+            }
+
+            if(LineVO.isNaN(pts[i]) || LineVO.isNaN(pts[next]) ||
+               LineVO.isNaN(basepts[i]) || LineVO.isNaN(basepts[next]))
+            {
+               continue;
+            }
+
+            Shape shape = getAreaShape(pts[i], pts[next], basepts[i], basepts[next], horizontal);
+
+            if(shape == null) {
+               // ignore
+            }
+            else if(singleShape) {
+               shapeArea.add(new Area(shape));
+            }
+            else {
+               Color startColor = colors[i];
+               Color endColor = colors[next];
+               GTexture startTexture = textures[i];
+               GTexture endTexture = textures[next];
+
+               fillArea(g2, pts[i], pts[next], shape, startColor, endColor,
+                        startTexture, endTexture, lines[i], borderColor);
+            }
+         }
+
+         if(singleShape && pts.length > 0) {
+            fillArea(g2, getLowestXPoint(pts), getHighestXPoint(pts), shapeArea,
+                     colors[0], colors[0], textures[0], textures[0], lines[0], borderColor);
+         }
+      }
+      finally {
+         if(svg != null) {
+            svg.endAnnotationGroup(g2);
          }
       }
 
-      if(singleShape && pts.length > 0) {
-         fillArea(g2, getLowestXPoint(pts), getHighestXPoint(pts), shapeArea,
-                  colors[0], colors[0], textures[0], textures[0], lines[0], borderColor);
-      }
-
-      if(svg != null) {
-         svg.endAnnotationGroup(g2);
-      }
       g2.dispose();
 
       if(borderColor == null) {
@@ -197,10 +203,13 @@ public class AreaVO extends LineVO {
             ));
          }
 
-         paintLine(g, Math.min(1, getAlphaHint() * 1.2));
-
-         if(svg != null) {
-            svg.endAnnotationGroup(g);
+         try {
+            paintLine(g, Math.min(1, getAlphaHint() * 1.2));
+         }
+         finally {
+            if(svg != null) {
+               svg.endAnnotationGroup(g);
+            }
          }
       }
    }

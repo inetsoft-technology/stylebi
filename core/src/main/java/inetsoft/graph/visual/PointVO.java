@@ -156,11 +156,14 @@ public class PointVO extends ElementVO {
          ));
       }
 
-      paint(g, gobj, loc, radius, shp, getScreenTransform(), getAlphaHint(),
-            elem.getOutlineColor());
-
-      if(svg != null) {
-         svg.endAnnotationGroup(g);
+      try {
+         paint(g, gobj, loc, radius, shp, getScreenTransform(), getAlphaHint(),
+               elem.getOutlineColor());
+      }
+      finally {
+         if(svg != null) {
+            svg.endAnnotationGroup(g);
+         }
       }
    }
 

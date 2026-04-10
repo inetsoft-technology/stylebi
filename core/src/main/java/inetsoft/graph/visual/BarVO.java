@@ -291,10 +291,13 @@ public class BarVO extends ElementVO {
          ));
       }
 
-      paintBar(g, path, color, shape, fill, line, borderColor);
-
-      if(svg != null) {
-         svg.endAnnotationGroup(g);
+      try {
+         paintBar(g, path, color, shape, fill, line, borderColor);
+      }
+      finally {
+         if(svg != null) {
+            svg.endAnnotationGroup(g);
+         }
       }
 
       if(createG) {

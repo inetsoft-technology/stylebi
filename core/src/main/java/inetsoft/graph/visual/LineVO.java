@@ -160,14 +160,17 @@ public class LineVO extends ElementVO {
          svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_LINE, annotAttrs);
       }
 
-      if(elem.getOutlineColor() != null) {
-         paintLine(g, alpha, new BorderLineInfo(elem.getOutlineColor()));
+      try {
+         if(elem.getOutlineColor() != null) {
+            paintLine(g, alpha, new BorderLineInfo(elem.getOutlineColor()));
+         }
+
+         paintLine(g, alpha, lineInfo);
       }
-
-      paintLine(g, alpha, lineInfo);
-
-      if(svg != null) {
-         svg.endAnnotationGroup(g);
+      finally {
+         if(svg != null) {
+            svg.endAnnotationGroup(g);
+         }
       }
    }
 

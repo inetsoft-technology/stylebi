@@ -303,6 +303,9 @@ public class SVGAnimationDOMInjector {
     */
    private static double[] parseSVGTransform(String s) {
       double[] result = IDENTITY_MATRIX.clone();
+      // Only matrix() and translate() are parsed; scale(), rotate(), skewX(), skewY() are treated
+      // as identity. Batik emits matrix() and translate() for all bar-group transforms in practice,
+      // so this is safe. If a future renderer uses other transform functions, extend this parser.
       java.util.regex.Matcher m =
          java.util.regex.Pattern.compile("(matrix|translate)\\s*\\(([^)]+)\\)")
             .matcher(s);

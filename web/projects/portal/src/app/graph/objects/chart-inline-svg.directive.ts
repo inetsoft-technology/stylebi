@@ -64,6 +64,8 @@ export class ChartInlineSvgDirective implements OnDestroy {
    private _activeKey: string | null = null;
    /** Timer handle for debounced deactivation, so fast inter-bar moves don't flash. */
    private clearHandle: ReturnType<typeof setTimeout> | null = null;
+   /** Timer handle for Retry-After retry, stored so it can be cancelled on destroy. */
+   private retryHandle: ReturnType<typeof setTimeout> | null = null;
    private static readonly CLEAR_DELAY_MS = 120;
    private readonly destroy$ = new Subject<void>();
 
@@ -77,6 +79,11 @@ export class ChartInlineSvgDirective implements OnDestroy {
       if(this.clearHandle !== null) {
          clearTimeout(this.clearHandle);
          this.clearHandle = null;
+      }
+
+      if(this.retryHandle !== null) {
+         clearTimeout(this.retryHandle);
+         this.retryHandle = null;
       }
    }
 
@@ -94,7 +101,10 @@ export class ChartInlineSvgDirective implements OnDestroy {
             response => {
                if(response.headers?.has("Retry-After")) {
                   const interval = parseInt(response.headers.get("Retry-After"), 10) * 1000;
-                  setTimeout(() => this.loadSvg(true), interval);
+                  this.retryHandle = setTimeout(() => {
+                     this.retryHandle = null;
+                     this.loadSvg(true);
+                  }, interval);
                }
                else if(requestedUrl === this._url) {
                   // SVG content comes from our own server (same origin, server-controlled).
@@ -218,6 +228,9 @@ export class ChartInlineSvgDirective implements OnDestroy {
       return svg
          .replace(/\bid="([^"]+)"/g, `id="${uid}-$1"`)
          .replace(/\burl\(#([^)]+)\)/g, `url(#${uid}-$1)`)
-         .replace(/\bhref="#([^"]+)"/g, `href="#${uid}-$1"`);
+         .replace(/\bhref="#([^"]+)"/g, `href="#${uid}-$1"`)
+         // Batik 1.17 emits xlink:href="#id" for <use> elements (marker/symbol references).
+         // The colon prevents \bhref= from matching, so this must be a separate replace.
+         .replace(/\bxlink:href="#([^"]+)"/g, `xlink:href="#${uid}-$1"`);
    }
 }
