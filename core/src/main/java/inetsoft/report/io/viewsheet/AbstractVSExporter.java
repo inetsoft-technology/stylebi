@@ -3723,7 +3723,9 @@ public abstract class AbstractVSExporter implements VSExporter {
 
       VSFormat udf = fmt.getUserDefinedFormat();
       Color savedBg = udf.getBackground();
+      boolean savedBgDefined = udf.isBackgroundDefined();
       Insets savedBorders = udf.getBorders();
+      boolean savedBordersDefined = udf.isBordersDefined();
       udf.setBackground(null);
       udf.setBorders(null);
 
@@ -3731,8 +3733,8 @@ public abstract class AbstractVSExporter implements VSExporter {
          return getInputImage(assembly, widgetSize);
       }
       finally {
-         udf.setBackground(savedBg);
-         udf.setBorders(savedBorders);
+         udf.setBackground(savedBg, savedBgDefined);
+         udf.setBorders(savedBorders, savedBordersDefined);
       }
    }
 
