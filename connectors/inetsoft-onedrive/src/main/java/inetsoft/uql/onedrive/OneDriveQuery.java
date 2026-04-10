@@ -90,7 +90,7 @@ public class OneDriveQuery extends SelectableTabularQuery  {
       try {
          this.loadColumns();
       }
-      catch(Exception e) {
+      catch(Throwable e) {
       }
    }
 
