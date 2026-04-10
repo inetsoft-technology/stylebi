@@ -31,6 +31,7 @@ import java.util.Map;
  *    <li>{@link #afterPluginsInstalled(Context)}</li>
  *    <li>{@link #afterSecurityConfigured(Context)}</li>
  *    <li>{@link #afterFilesImported(Context)}</li>
+ *    <li>{@link #installAssets(Context)}</li>
  *    <li>{@link #afterAssetsInstalled(Context)}</li>
  * </ol>
  */
@@ -132,5 +133,65 @@ public interface SetupExtension {
                   File filesDirectory, File assetsDirectory, File scriptsDirectory,
                   Map<String, Object> attributes)
    {
+   }
+
+   /**
+    * Enumeration of the different setup phases.
+    */
+   enum Phase {
+      /**
+       * Phase at the start of setup before any other actions have been performed.
+       */
+      START("start", false),
+      /**
+       * Phase after the initial application properties have been applied.
+       */
+      AFTER_PROPERTIES_SET("afterPropertiesSet", false),
+      /**
+       * Phase after the plugins have been installed into storage.
+       */
+      AFTER_PLUGINS_INSTALLED("afterPluginsInstalled", false),
+      /**
+       * Phase after the initial security settings have been applied.
+       */
+      AFTER_SECURITY_CONFIGURED("afterSecurityConfigured", false),
+      /**
+       * Phase after the files have been imported into the data space.
+       */
+      AFTER_FILES_IMPORTED("afterFilesImported", false),
+      /**
+       * Phase to import assets into storage.
+       */
+      INSTALL_ASSETS("installAssets", true),
+      /**
+       * Phase after the assets have been imported into storage.
+       */
+      AFTER_ASSETS_INSTALLED("afterAssetsInstalled", true);
+
+      private final String phase;
+      private final boolean clientApiAvailable;
+
+      Phase(String phase, boolean clientApiAvailable) {
+         this.phase = phase;
+         this.clientApiAvailable = clientApiAvailable;
+      }
+
+      /**
+       * Gets the name of the phase as used in setup scripts.
+       *
+       * @return the name of the phase.
+       */
+      public String getPhase() {
+         return phase;
+      }
+
+      /**
+       * Determines if the client API is available during this phase.
+       *
+       * @return {@code true} if the client API is available, {@code false} otherwise.
+       */
+      public boolean isClientApiAvailable() {
+         return clientApiAvailable;
+      }
    }
 }

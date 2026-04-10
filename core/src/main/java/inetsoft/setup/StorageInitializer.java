@@ -40,6 +40,8 @@ import picocli.CommandLine;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.function.BiFunction;
@@ -89,8 +91,11 @@ public class StorageInitializer implements Callable<Integer> {
     * @param args the command line arguments.
     */
    public static void main(String[] args) {
+      Instant startTime = Instant.now();
       System.setProperty("inetsoftStorageInitializing", "true");
       int exitCode = new CommandLine(new StorageInitializer()).execute(args);
+      Instant endTime = Instant.now();
+      System.out.println("Initialization completed in " + Duration.between(startTime, endTime));
       System.exit(exitCode);
    }
 
@@ -110,9 +115,7 @@ public class StorageInitializer implements Callable<Integer> {
       try {
          List<SetupExtension> extensions = new ArrayList<>();
          ServiceLoader.load(SetupExtension.class).forEach(extensions::add);
-         System.err.println("LOADED EXTENSIONS: " + extensions);
-         context = applyExtensions(context, extensions, "start", (c, e) -> e.start(c));
-         System.err.println("UPDATED CONTEXT: " + context);
+         context = applyExtensions(context, extensions, SetupExtension.Phase.START, (c, e) -> e.start(c));
 
          context = setProperties(context, extensions);
          context = installPlugins(context, extensions);
@@ -179,7 +182,7 @@ public class StorageInitializer implements Callable<Integer> {
          }
       }
 
-      return applyExtensions(context, extensions, "afterPropertiesSet", (c, e) -> e.afterPropertiesSet(c));
+      return applyExtensions(context, extensions, SetupExtension.Phase.AFTER_PROPERTIES_SET, (c, e) -> e.afterPropertiesSet(c));
    }
 
    private SetupExtension.Context installPlugins(SetupExtension.Context context,
@@ -192,7 +195,7 @@ public class StorageInitializer implements Callable<Integer> {
          installPlugins(context.pluginsDirectory(), context);
       }
 
-      return applyExtensions(context, extensions, "afterPluginsInstalled", (c, e) -> e.afterPluginsInstalled(c));
+      return applyExtensions(context, extensions, SetupExtension.Phase.AFTER_PLUGINS_INSTALLED, (c, e) -> e.afterPluginsInstalled(c));
    }
 
    private void installPlugins(File directory, SetupExtension.Context context) throws Exception {
@@ -254,7 +257,7 @@ public class StorageInitializer implements Callable<Integer> {
          }
       }
 
-      return applyExtensions(context, extensions, "afterSecurityConfigured", (c, e) -> e.afterSecurityConfigured(c));
+      return applyExtensions(context, extensions, SetupExtension.Phase.AFTER_SECURITY_CONFIGURED, (c, e) -> e.afterSecurityConfigured(c));
    }
 
    private PasswordEncryption getPasswordEncryption() {
@@ -290,7 +293,7 @@ public class StorageInitializer implements Callable<Integer> {
          }
       }
 
-      return applyExtensions(context, extensions, "afterFilesImported", (c, e) -> e.afterFilesImported(c));
+      return applyExtensions(context, extensions, SetupExtension.Phase.AFTER_FILES_IMPORTED, (c, e) -> e.afterFilesImported(c));
    }
 
    private void importFiles(StorageService service, File root, File file) throws IOException {
@@ -313,18 +316,18 @@ public class StorageInitializer implements Callable<Integer> {
                                                List<SetupExtension> extensions)
    {
       if(!context.initialized()) {
-         context = applyExtensions(context, extensions, "installAssets", (c, e) -> e.installAssets(c));
+         context = applyExtensions(context, extensions, SetupExtension.Phase.INSTALL_ASSETS, (c, e) -> e.installAssets(c));
       }
 
-      return applyExtensions(context, extensions, "afterAssetsInstalled", (c, e) -> e.afterAssetsInstalled(c));
+      return applyExtensions(context, extensions, SetupExtension.Phase.AFTER_ASSETS_INSTALLED, (c, e) -> e.afterAssetsInstalled(c));
    }
 
    private SetupExtension.Context applyExtensions(
-      SetupExtension.Context context, List<SetupExtension> extensions, String phase,
+      SetupExtension.Context context, List<SetupExtension> extensions, SetupExtension.Phase phase,
       BiFunction<SetupExtension.Context, SetupExtension, SetupExtension.Context> fn)
    {
       return extensions.stream()
-         .peek(e -> System.out.println("Applying extension " + phase + ": " + e.getClass().getName()))
+         .peek(e -> System.out.println("Applying extension " + phase.getPhase() + ": " + e.getClass().getName()))
          .reduce(context, fn, (c1, c2) -> c2);
    }
 

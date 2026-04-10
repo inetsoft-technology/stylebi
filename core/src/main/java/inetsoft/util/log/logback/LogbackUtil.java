@@ -85,7 +85,10 @@ public class LogbackUtil {
 
       Class forwardServiceClass = Class.forName("inetsoft.enterprise.log.fluentd.ForwardService");
       Object forwardService = forwardServiceClass.getMethod("getInstance").invoke(null);
-      Method reset = forwardServiceClass.getMethod("reset");
-      reset.invoke(forwardService);
+
+      if(forwardService != null) {
+         Method reset = forwardServiceClass.getMethod("reset");
+         reset.invoke(forwardService);
+      }
    }
 }
