@@ -388,52 +388,53 @@ public class Pie3DVO extends ElementVO {
                SVGSupport.ATTR_FACE,  "top"
             ));
          }
+
          try {
-         Color color = gobj.getColor(rows[i]);
-         GTexture texture = gobj.getTexture(rows[i]);
-         GLine line = gobj.getLine(rows[i]);
-         Color borderColor = elem.getBorderColor();
-         Shape shape = (Shape) transformedShapes.get(i);
-         Arc2D path = BarVO.getOuterArc(getPath(shape));
-         color = applyAlpha(color);
+            Color color = gobj.getColor(rows[i]);
+            GTexture texture = gobj.getTexture(rows[i]);
+            GLine line = gobj.getLine(rows[i]);
+            Color borderColor = elem.getBorderColor();
+            Shape shape = (Shape) transformedShapes.get(i);
+            Arc2D path = BarVO.getOuterArc(getPath(shape));
+            color = applyAlpha(color);
 
-         g.setColor(color);
+            g.setColor(color);
 
-         if(texture == null) {
-            g.fill(path);
-            applyEffect(g, path, color);
-         }
-         else {
-            texture.paint(g, path);
-
-            // always draw border around texture
-            if(line == null) {
-               line = new GLine(1);
-            }
-         }
-
-         if(line != null || borderColor != null) {
-            Stroke ostroke = g.getStroke();
-            g.setColor(borderColor != null ? borderColor : color.darker());
-
-            if(line != null) {
-               g.setStroke(line.getStroke(0.5));
-            }
-
-            double start = Math.abs(path.getAngleStart());
-            double extent = Math.abs(path.getAngleExtent());
-
-            // avoid drawing edge at the arc angles if it's a complete pie
-            if(start == 0 && extent == 360) {
-               g.draw(new Ellipse2D.Double(path.getX(), path.getY(),
-                                           path.getWidth(), path.getHeight()));
+            if(texture == null) {
+               g.fill(path);
+               applyEffect(g, path, color);
             }
             else {
-               g.draw(path);
+               texture.paint(g, path);
+
+               // always draw border around texture
+               if(line == null) {
+                  line = new GLine(1);
+               }
             }
 
-            g.setStroke(ostroke);
-         }
+            if(line != null || borderColor != null) {
+               Stroke ostroke = g.getStroke();
+               g.setColor(borderColor != null ? borderColor : color.darker());
+
+               if(line != null) {
+                  g.setStroke(line.getStroke(0.5));
+               }
+
+               double start = Math.abs(path.getAngleStart());
+               double extent = Math.abs(path.getAngleExtent());
+
+               // avoid drawing edge at the arc angles if it's a complete pie
+               if(start == 0 && extent == 360) {
+                  g.draw(new Ellipse2D.Double(path.getX(), path.getY(),
+                                              path.getWidth(), path.getHeight()));
+               }
+               else {
+                  g.draw(path);
+               }
+
+               g.setStroke(ostroke);
+            }
          }
          finally {
             if(svg != null) {
