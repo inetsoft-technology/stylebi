@@ -457,7 +457,9 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
     * instead of the collapsed pixel height.
     *
     * <p>Note: uses design-time show type ({@code getShowTypeValue()}).
-    * Runtime show-type overrides are not consulted.</p>
+    * Label visibility and position use runtime-aware accessors since
+    * {@code repositionForBottomTabs} is also called from script contexts
+    * ({@link inetsoft.report.script.viewsheet.TabVSAScriptable}).</p>
     */
    public static int getBottomTabChildHeight(VSAssemblyInfo info, Dimension objectSize) {
       if(info instanceof CalendarVSAssemblyInfo calInfo) {
@@ -471,7 +473,22 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
          }
       }
 
-      return objectSize != null ? objectSize.height : 0;
+      int height = objectSize != null ? objectSize.height : 0;
+
+      // top/bottom labels render outside the declared pixel size
+      if(info instanceof InputVSAssemblyInfo inputInfo) {
+         LabelInfo labelInfo = inputInfo.getLabelInfo();
+
+         if(labelInfo != null && labelInfo.isLabelVisible()) {
+            String position = labelInfo.getLabelPosition();
+
+            if(LabelInfo.TOP.equals(position) || LabelInfo.BOTTOM.equals(position)) {
+               height += labelInfo.getRenderedHeight() + labelInfo.getLabelGap();
+            }
+         }
+      }
+
+      return height;
    }
 
    /**
