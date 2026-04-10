@@ -1219,6 +1219,10 @@ public class DefaultMetaDataProvider implements MetaDataProvider {
       String[] names = pname.split(":");
       XPartition partition = getDataModel().getPartition(names[0]);
 
+      if(partition == null) {
+         return;
+      }
+
       if(names.length > 1) {
          partition = partition.getPartition(names[1]);
       }

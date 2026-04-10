@@ -2118,7 +2118,13 @@ public abstract class GraphGenerator {
                      .filter(f -> f.startsWith(BrushDataSet.ALL_HEADER_PREFIX))
                      .toArray(String[]::new);
                   range.removeAllStackFields();
-                  range.addStackFields(allFields);
+                  // Only add the first alldata field (e.g., __all__Sum(Total)) as the stacked
+                  // group. Adding both __all__Sum(Total) and __all__Sum(Total@Total) would
+                  // double-count since they hold equal per-state values, making scale_max 2x
+                  // the correct total and causing a half-circle chart. (74234)
+                  if(allFields.length > 0) {
+                     range.addStackFields(allFields[0]);
+                  }
                }
             }
 

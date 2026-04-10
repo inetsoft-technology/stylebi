@@ -71,7 +71,11 @@ public class PluginChangeController {
       if(!securityEngine.getSecurityProvider().checkPermission(
          principal, ResourceType.EM_COMPONENT, "settings/content/drivers-and-plugins", ResourceAction.ACCESS))
       {
-         throw new SecurityException("Unauthorized access to plugin changes by user " + principal.getName());
+         // User lacks plugin management access (e.g. Organization Administrator). Silently
+         // ignore the subscription rather than throwing — the portal subscribes to this topic
+         // to refresh driver availability when editing datasources, and an unauthorized user
+         // simply won't receive plugin-change notifications.
+         return;
       }
 
       final MessageHeaders messageHeaders = header.getMessageHeaders();

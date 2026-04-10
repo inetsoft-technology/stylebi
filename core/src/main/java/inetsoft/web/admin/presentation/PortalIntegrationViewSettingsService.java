@@ -196,7 +196,7 @@ public class PortalIntegrationViewSettingsService {
                case "Dashboard":
                   index = 0;
                   break;
-               case "Repository":
+               case "Report":
                   index = 1;
                   break;
                case "Schedule":
@@ -207,6 +207,7 @@ public class PortalIntegrationViewSettingsService {
                   break;
                }
 
+               tab.setVisible(true);
                index = newPortalTabs.size() > index ? index : newPortalTabs.size();
                newPortalTabs.add(index, tab);
             }

@@ -1829,9 +1829,8 @@ public class PDFPrinter extends Graphics2D implements PDFDevice {
                             double aw, double ah, boolean fill) {
       startPage();
 
-      // if the corner all more than 1/2 of w/h, it mean that the round
-      // rectangle is a circle shape
-      if(aw >= width / 2 && ah >= height / 2) {
+      // only treat as ellipse when arcs fully cover both dimensions (no straight edges)
+      if(aw >= width && ah >= height) {
          doArc(x, y, width, height, 0, 360, fill);
 
          return;
