@@ -19,6 +19,7 @@
 package inetsoft.web.wiz.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.sree.security.ResourceAction;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.osi.*;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
@@ -498,12 +499,21 @@ public class MetadataApiService {
    /**
     * Gets all tables and their FK relationships for the specified datasource.
     *
-    * @param dsName the datasource name/path.
+    * @param dsName    the datasource name/path.
+    * @param principal the current user.
     * @return tables with catalog/schema/type, plus foreign key relationships.
     */
-   public DatasourceTablesResponse getDatabaseTables(String dsName) throws Exception {
-      DefaultMetaDataProvider metaDataProvider = getMetaDataProvider(dsName);
+   public DatasourceTablesResponse getDatabaseTables(String dsName, Principal principal)
+      throws Exception
+   {
+      if(!dataSourceService.checkPermission(dsName, ResourceAction.READ, principal)) {
+         throw new SecurityException("Access denied to data source: " + dsName);
+      }
+
+      // getJDBCDatasource throws clearly if the source doesn't exist or isn't JDBC; call it
+      // first so we fail fast before the more expensive metadata connection is opened.
       JDBCDataSource jdbcDataSource = getJDBCDatasource(dsName);
+      DefaultMetaDataProvider metaDataProvider = getMetaDataProvider(dsName);
 
       if(metaDataProvider == null) {
          throw new Exception("No meta data provider found for data source " + dsName);
@@ -519,6 +529,8 @@ public class MetadataApiService {
       schemaQuery.setAttribute("type", "SCHEMAS");
       XNode schemaList = metaDataProvider.getMetaData(schemaQuery, true);
 
+      // If the database has no schema hierarchy, schemaList itself becomes the single leaf node
+      // (with no schema attributes), which causes the table query to run without a schema filter.
       List<XNode> schemaNodes = new ArrayList<>();
       collectLeafNodes(schemaList, schemaNodes);
 
@@ -529,7 +541,7 @@ public class MetadataApiService {
             XNode typeNode = tableTypeList.getChild(i);
             String tableType = typeNode.getName();
 
-            if("PROCEDURE".equals(tableType)) {
+            if(!SUPPORTED_TABLE_TYPES.contains(tableType)) {
                continue;
             }
 
@@ -550,6 +562,7 @@ public class MetadataApiService {
                String schema = (String) tableNode.getAttribute("schema");
 
                DatabaseTableInfo info = new DatabaseTableInfo();
+               info.setType(tableType);
                info.setDatabase(dsName);
                info.setCatalog(catalog);
                info.setSchema(schema);
@@ -627,8 +640,10 @@ public class MetadataApiService {
    private List<OsiRelationship> buildRelationships(DefaultMetaDataProvider metaDataProvider,
                                                      List<DatabaseTableInfo> tables)
    {
-      // LinkedHashMap preserves insertion order; key uniquely identifies one FK relationship
-      Map<String, OsiRelationship> relMap = new LinkedHashMap<>();
+      // LinkedHashMap preserves insertion order.
+      // Key is a List<String> of [fkTable, pkTable, pkCatalog, pkSchema] — avoids delimiter
+      // collision that would occur with string concatenation when table names contain separators.
+      Map<List<String>, OsiRelationship> relMap = new LinkedHashMap<>();
 
       for(DatabaseTableInfo table : tables) {
          XNode query = new XNode(table.getTable());
@@ -663,10 +678,12 @@ public class MetadataApiService {
                continue;
             }
 
-            // Group rows by (fkTable, pkTable) to handle composite FK constraints
-            String relKey = fkTableName + "__" + pkTableName + "__"
-               + Tool.defaultIfNull((String) keyNode.getAttribute("pkTableCat"), "")
-               + "." + Tool.defaultIfNull((String) keyNode.getAttribute("pkTableSchem"), "");
+            // Group rows by (fkTable, pkTable, pkCatalog, pkSchema) to handle composite FK constraints
+            List<String> relKey = List.of(
+               fkTableName,
+               pkTableName,
+               Tool.defaultIfNull((String) keyNode.getAttribute("pkTableCat"), ""),
+               Tool.defaultIfNull((String) keyNode.getAttribute("pkTableSchem"), ""));
 
             OsiRelationship rel = relMap.computeIfAbsent(relKey, k -> {
                OsiRelationship r = new OsiRelationship();
@@ -737,5 +754,8 @@ public class MetadataApiService {
    private final AssetRepository assetRepository;
    private final AssetTreeService assetTreeService;
    private final ObjectMapper objectMapper;
+   // Only TABLE and VIEW are meaningful for data modelling; other types (PROCEDURE, SYNONYM,
+   // ALIAS, GLOBAL TEMPORARY, etc.) are excluded.
+   private static final Set<String> SUPPORTED_TABLE_TYPES = Set.of("TABLE", "VIEW");
    private static final Logger log = LoggerFactory.getLogger(MetadataApiService.class);
 }

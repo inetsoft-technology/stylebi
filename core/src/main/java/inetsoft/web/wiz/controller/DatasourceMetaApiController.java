@@ -62,10 +62,11 @@ public class DatasourceMetaApiController {
     */
    @GetMapping("/datasource/tables")
    public DatasourceTablesResponse getDatabaseTables(
-      @RequestParam("dsPath") String dsPath)
+      @RequestParam("dsPath") String dsPath,
+      XPrincipal principal)
       throws Exception
    {
-      return metadataService.getDatabaseTables(dsPath);
+      return metadataService.getDatabaseTables(dsPath, principal);
    }
 
    /**
