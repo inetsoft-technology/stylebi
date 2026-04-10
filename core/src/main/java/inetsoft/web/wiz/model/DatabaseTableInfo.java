@@ -22,7 +22,11 @@ import inetsoft.uql.asset.AssetEntry;
 
 public class DatabaseTableInfo {
    public String getType() {
-      return "table";
+      return type;
+   }
+
+   public void setType(String type) {
+      this.type = type;
    }
 
    public String getDatabase() {
@@ -65,6 +69,7 @@ public class DatabaseTableInfo {
       this.assetData = assetData;
    }
 
+   private String type;
    private String database;
    private String catalog;
    private String schema;
