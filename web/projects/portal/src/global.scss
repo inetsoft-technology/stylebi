@@ -21,6 +21,13 @@
 @import './assets/ineticons/style.scss';
 @import './scss/_imports';
 
+// SVG injected programmatically via ChartInlineSvgDirective does not receive Angular's
+// view-encapsulation attribute, so this cannot use ::ng-deep in the component stylesheet.
+.chart-plot-area__inline-svg svg {
+  display: block;
+  overflow: visible;
+}
+
 body.modal-open.javafx, body.dropdown-open.javafx {
   .ws-assembly-graph-pane.jsplumb-container,
   .ws-details-pane-container .ws-table-container ws-details-table-data,

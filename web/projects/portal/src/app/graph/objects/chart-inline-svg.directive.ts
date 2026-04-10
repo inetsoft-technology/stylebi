@@ -126,7 +126,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
     * Pass null to clear the highlight. Clearing is debounced so rapid inter-bar moves
     * don't cause a flash.
     */
-   highlightBar(rowIdx: number | null, colIdx: number | null): void {
+   highlightElement(rowIdx: number | null, colIdx: number | null): void {
       const key = rowIdx != null ? `${rowIdx}-${colIdx}` : null;
 
       if(key !== null) {

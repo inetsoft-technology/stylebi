@@ -308,7 +308,7 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
                ChartTool.colIdx(this.model, r) >= 0);
             const rowIdx = voRegion != null ? voRegion.rowIdx : null;
             const colIdx = voRegion != null ? ChartTool.colIdx(this.model, voRegion) : null;
-            this.inlineSvgTiles?.forEach(d => d.highlightBar(rowIdx, colIdx));
+            this.inlineSvgTiles?.forEach(d => d.highlightElement(rowIdx, colIdx));
          }
       }
       else if(!this.dataTip) {
@@ -497,7 +497,7 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
       }
 
       if(this.inlineSvg) {
-         this.inlineSvgTiles?.forEach(d => d.highlightBar(null, null));
+         this.inlineSvgTiles?.forEach(d => d.highlightElement(null, null));
       }
    }
 

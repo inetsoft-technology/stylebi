@@ -1308,6 +1308,11 @@ public class SVGAnimationDOMInjector {
     *
     * <p>The SVG structure is: annotation {@code <g>} → content {@code <g>} → {@code <circle>}.
     * This method looks one level deeper than the annotation group's direct children.
+    *
+    * <p>Non-circle point shapes (polygons, stars, images, etc.) have no {@code cx} attribute
+    * and always return {@code 0.0}, so same-size markers with non-default shapes animate in
+    * their original DOM order rather than strictly left-to-right.  This is a cosmetic
+    * limitation of the tiebreaker only — sort order and animation are otherwise unaffected.
     */
    private static double firstChildCx(Element g) {
       // Annotation group's first child is the content wrapper <g> drawn by GShape.
