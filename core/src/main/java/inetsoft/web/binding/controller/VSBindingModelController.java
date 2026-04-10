@@ -22,6 +22,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.BoundTableNotFoundException;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Catalog;
 import inetsoft.web.binding.command.SetVSBindingModelCommand;
@@ -117,6 +118,12 @@ public class VSBindingModelController {
                ((ChartVSAssembly) assembly).getChartDescriptor().getPlotDescriptor().setInPlot(true);
             }
          }
+
+         // 3D chart types are removed from the UI. Downgrade the assembly's chart type
+         // when the binding editor opens so that all subsequent field changes (applied via
+         // field-specific controllers) preserve the 2D type. The SetVSBindingModelCommand
+         // constructor separately ensures the UI also reflects the downgraded type. (74475)
+         downgrade3DChartTypeInAssembly(assembly);
 
          BindingModel binding = bfactory.createModel(assembly);
          SetVSBindingModelCommand bcommand = new SetVSBindingModelCommand(binding);
@@ -219,6 +226,24 @@ public class VSBindingModelController {
 
       if(event.isCheckTrap()) {
          assemblyInfoHandler.checkTrap(oinfo, ninfo, obinding, dispatcher, rvs);
+      }
+   }
+
+   private static void downgrade3DChartTypeInAssembly(VSAssembly assembly) {
+      if(!(assembly instanceof ChartVSAssembly chartAssembly)) {
+         return;
+      }
+
+      VSChartInfo chartInfo = chartAssembly.getVSChartInfo();
+      chartInfo.setChartType(GraphTypes.downgrade3DChartType(chartInfo.getChartType()));
+
+      if(chartInfo.isMultiStyles()) {
+         for(ChartRef ref : chartInfo.getYFields()) {
+            if(ref instanceof VSChartAggregateRef aggr) {
+               aggr.setChartType(GraphTypes.downgrade3DChartType(aggr.getChartType()));
+               aggr.setRTChartType(GraphTypes.downgrade3DChartType(aggr.getRTChartType()));
+            }
+         }
       }
    }
 

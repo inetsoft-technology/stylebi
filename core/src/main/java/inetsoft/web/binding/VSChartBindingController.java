@@ -95,38 +95,19 @@ public class VSChartBindingController {
       // (74475)
       if(model instanceof ChartBindingModel) {
          ChartBindingModel cmodel = (ChartBindingModel) model;
-         cmodel.setChartType(downgrade3DChartType(cmodel.getChartType()));
+         cmodel.setChartType(GraphTypes.downgrade3DChartType(cmodel.getChartType()));
 
          // Also downgrade per-aggregate types for multi-style charts. (74475)
          if(cmodel.isMultiStyles() && cmodel.getYFields() != null) {
             for(ChartRefModel ref : cmodel.getYFields()) {
                if(ref instanceof ChartAggregateRefModel aggr) {
-                  aggr.setChartType(downgrade3DChartType(aggr.getChartType()));
+                  aggr.setChartType(GraphTypes.downgrade3DChartType(aggr.getChartType()));
                }
             }
          }
       }
 
       return model;
-   }
-
-   /**
-    * Convert a 3D chart type to its non-3D equivalent for the binding editor. (74475)
-    */
-   private static int downgrade3DChartType(int type) {
-      if(type == GraphTypes.CHART_3D_BAR) {
-         return GraphTypes.CHART_BAR;
-      }
-
-      if(type == GraphTypes.CHART_3D_BAR_STACK) {
-         return GraphTypes.CHART_BAR_STACK;
-      }
-
-      if(type == GraphTypes.CHART_3D_PIE) {
-         return GraphTypes.CHART_PIE;
-      }
-
-      return type;
    }
 
    @RequestMapping(value = "/api/composer/binding", method = RequestMethod.PUT)

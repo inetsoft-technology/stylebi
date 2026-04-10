@@ -18,7 +18,12 @@
 package inetsoft.web.binding.command;
 
 import inetsoft.web.binding.model.BindingModel;
+import inetsoft.web.binding.model.ChartBindingModel;
+import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
+import inetsoft.web.binding.model.graph.ChartRefModel;
 import inetsoft.web.viewsheet.command.ViewsheetCommand;
+
+import static inetsoft.uql.viewsheet.graph.GraphTypes.downgrade3DChartType;
 
 /**
  * Command that instructs the client to refresh an assembly object.
@@ -27,9 +32,24 @@ import inetsoft.web.viewsheet.command.ViewsheetCommand;
  */
 public class SetVSBindingModelCommand implements ViewsheetCommand {
    /**
-    * Construstor.
+    * Constructor.
     */
    public SetVSBindingModelCommand(BindingModel binding) {
+      // 3D chart types are removed from the UI. Downgrade any 3D chart type to its 2D
+      // equivalent before sending to the frontend so the binding editor shows a valid type.
+      // The runtime assembly is unaffected until the user applies a change. (74475)
+      if(binding instanceof ChartBindingModel cmodel) {
+         cmodel.setChartType(downgrade3DChartType(cmodel.getChartType()));
+
+         if(cmodel.isMultiStyles() && cmodel.getYFields() != null) {
+            for(ChartRefModel ref : cmodel.getYFields()) {
+               if(ref instanceof ChartAggregateRefModel aggr) {
+                  aggr.setChartType(downgrade3DChartType(aggr.getChartType()));
+               }
+            }
+         }
+      }
+
       this.binding = binding;
    }
 
