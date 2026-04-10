@@ -279,11 +279,9 @@ export class LayoutObject implements OnInit, OnDestroy {
    }
 
    private updateDimensions0(): void {
-      // for bottom tabs, model.top is the visual top (shifted up by backend);
-      // add back the child height to send the stored tab bar position
       let event: MoveResizeLayoutObjectsEvent = new MoveResizeLayoutObjectsEvent(
          this.layout.name, [this.model.name], [this.model.left],
-         [this.model.top + this.bottomTabsChildHeight],
+         [this.model.top],
          [this.model.width], [this.model.height]);
       event.region = this.layout.currentPrintSection;
 
