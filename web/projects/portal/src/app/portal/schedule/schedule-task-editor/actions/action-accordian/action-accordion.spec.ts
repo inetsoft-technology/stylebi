@@ -50,24 +50,6 @@ import { ActionAccordion } from "./action-accordion.component";
 import { ValueTypes } from "../../../../../vsobjects/model/dynamic-value-model";
 
 describe("Action Accordion Unit Test", () => {
-   const createRepletActionModel: () => GeneralActionModel = () => {
-      return {
-         label: "test action",
-         actionClass: "GeneralActionModel",
-         actionType: "RepletAction",
-         bundledAsZip: false,
-         deliverEmailsEnabled: false,
-         folderPermission: true,
-         format: "PDF",
-         fromEmail: "reportserver@inetsoft.com",
-         notificationEnabled: false,
-         printOnServerEnabled: false,
-         saveToServerEnabled: false,
-         ccAddress: "",
-         bccAddress: ""
-      };
-   };
-
    const createVSActionModel: () => GeneralActionModel = () => {
       return {
          label: "test action",
@@ -118,7 +100,7 @@ describe("Action Accordion Unit Test", () => {
          emailDeliveryEnabled: true,
          expandEnabled: true,
          cvsEnabled: false,
-         action: createRepletActionModel(),
+         action: createVSActionModel(),
          actions: [],
          userDefinedClasses: [],
          userDefinedClassLabels: [],
@@ -176,7 +158,7 @@ describe("Action Accordion Unit Test", () => {
       actionAccordion = <ActionAccordion>fixture.componentInstance;
       actionAccordion.parentForm = new FormGroup({});
       actionAccordion.model = createModel();
-      actionAccordion.action = createRepletActionModel();
+      actionAccordion.action = createVSActionModel();
       fixture.detectChanges();
    }));
 
