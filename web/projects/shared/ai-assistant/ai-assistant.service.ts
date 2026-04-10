@@ -101,7 +101,7 @@ export class AiAssistantService {
     * them as a JSON string suitable for passing to the ai-assistant web component's
     * theme attribute so the component can apply them inside its shadow DOM.
     */
-   getThemeConfig(): string {
+   getThemeConfig(): string | null {
       const style = getComputedStyle(document.documentElement);
       const vars = [
          "--inet-primary-color",
@@ -120,7 +120,7 @@ export class AiAssistantService {
          }
       }
 
-      return JSON.stringify(theme);
+      return Object.keys(theme).length > 0 ? JSON.stringify(theme) : null;
    }
 
    /**
