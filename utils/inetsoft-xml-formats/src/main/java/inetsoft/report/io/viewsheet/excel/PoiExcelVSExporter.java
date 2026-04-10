@@ -657,23 +657,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
     */
    @Override
    protected void writeRadioButton(RadioButtonVSAssembly assembly) {
-      try {
-         RadioButtonVSAssemblyInfo info =
-            (RadioButtonVSAssemblyInfo) assembly.getInfo();
-
-         if(info == null) {
-            return;
-         }
-
-         writePicture(getImage(assembly), getAnchorPosition(info));
-      }
-      catch(SheetMaxRowsException e) {
-         throw e;
-      }
-      catch(Exception e) {
-         LOG.error("Failed to write radio button: " +
-            assembly.getAbsoluteName(), e);
-      }
+      writePictureWithLabel(assembly);
    }
 
    /**
@@ -682,23 +666,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
     */
    @Override
    protected void writeCheckBox(CheckBoxVSAssembly assembly) {
-      try {
-         CheckBoxVSAssemblyInfo info =
-            (CheckBoxVSAssemblyInfo) assembly.getInfo();
-
-         if(info == null) {
-            return;
-         }
-
-         writePicture(getImage(assembly), getAnchorPosition(info));
-      }
-      catch(SheetMaxRowsException e) {
-         throw e;
-      }
-      catch(Exception e) {
-         LOG.error("Failed to write checkbox: " +
-            assembly.getAbsoluteName(), e);
-      }
+      writePictureWithLabel(assembly);
    }
 
    /**
@@ -707,23 +675,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
     */
    @Override
    protected void writeSlider(SliderVSAssembly assembly) {
-      SliderVSAssemblyInfo info = (SliderVSAssemblyInfo)
-         assembly.getVSAssemblyInfo();
-
-      if(info == null) {
-         return;
-      }
-
-      try {
-         writePicture(getImage(assembly), getAnchorPosition(info));
-      }
-      catch(SheetMaxRowsException e) {
-         throw e;
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to write slider: " +
-            assembly.getAbsoluteName(), ex);
-      }
+      writePictureWithLabel(assembly);
    }
 
    /**
@@ -732,23 +684,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
     */
    @Override
    protected void writeSpinner(SpinnerVSAssembly assembly) {
-      try {
-         SpinnerVSAssemblyInfo info = (SpinnerVSAssemblyInfo)
-            assembly.getVSAssemblyInfo();
-
-         if(info == null) {
-            return;
-         }
-
-         writePicture(getImage(assembly), getAnchorPosition(info));
-      }
-      catch(SheetMaxRowsException e) {
-         throw e;
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to write spinner: " +
-            assembly.getAbsoluteName(), ex);
-      }
+      writePictureWithLabel(assembly);
    }
 
    /**
@@ -757,23 +693,83 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
     */
    @Override
    protected void writeComboBox(ComboBoxVSAssembly assembly) {
-      try {
-         ComboBoxVSAssemblyInfo info =
-            (ComboBoxVSAssemblyInfo) assembly.getInfo();
+      writePictureWithLabel(assembly);
+   }
 
-         if(info == null) {
+   /**
+    * Write an input assembly as a picture, rendering the label as a text box
+    * when the assembly has a visible label.
+    */
+   private void writePictureWithLabel(VSAssembly assembly) {
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+
+      if(info == null) {
+         return;
+      }
+
+      try {
+         Rectangle2D[] split = splitInputPixelBounds(info, viewsheet);
+
+         if(split == null) {
+            writePicture(getImage(assembly), getAnchorPosition(info));
             return;
          }
 
-         writePicture(getImage(assembly), getAnchorPosition(info));
+         InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
+         LabelInfo labelInfo = inputInfo.getLabelInfo();
+
+         writeLabelTextBox(labelInfo, split[0]);
+
+         Rectangle2D widgetPixelBounds = split[1];
+         Dimension widgetSize = new Dimension((int) widgetPixelBounds.getWidth(),
+                                              (int) widgetPixelBounds.getHeight());
+         BufferedImage img = getInputImage(assembly, widgetSize);
+         ClientAnchor widgetAnchor = getAnchorFromPixelRect(widgetPixelBounds);
+         writePicture(img != null ? img : getImage(assembly), widgetAnchor);
       }
       catch(SheetMaxRowsException e) {
          throw e;
       }
       catch(Exception e) {
-         LOG.error("Failed to write combo box: " +
-            assembly.getAbsoluteName(), e);
+         LOG.error("Failed to write input: " + assembly.getAbsoluteName(), e);
       }
+   }
+
+   /**
+    * Write label text as an Excel text box at the given pixel bounds.
+    */
+   private void writeLabelTextBox(LabelInfo labelInfo, Rectangle2D pixelBounds) {
+      // Add extra width so Excel's font metrics (Calibri) don't cause the text to wrap.
+      // getLabelDimensions uses Java AWT string width which is narrower than Excel's rendering.
+      Rectangle2D padded = new Rectangle2D.Double(
+         pixelBounds.getX(), pixelBounds.getY(),
+         pixelBounds.getWidth() + 30, pixelBounds.getHeight());
+      XSSFClientAnchor anchor = (XSSFClientAnchor) getAnchorFromPixelRect(padded);
+      XSSFTextBox tb = patriarch.createTextbox(anchor);
+      // Default to vertical center to match browser flex-layout; applyFormat overrides if set.
+      tb.setVerticalAlignment(VerticalAlignment.CENTER);
+      XSSFRichTextString rts = (XSSFRichTextString)
+         PoiExcelVSUtil.createRichTextString(book, labelInfo.getLabelText());
+      tb.setText(rts);
+      applyFormat(tb, rts, getLabelFormat(labelInfo), false);
+   }
+
+   /**
+    * Convert pixel-space bounds to an Excel client anchor.
+    */
+   private ClientAnchor getAnchorFromPixelRect(Rectangle2D pixelBounds) {
+      int x = Math.max(0, (int) pixelBounds.getX());
+      int y = Math.max(0, (int) pixelBounds.getY());
+      int w = Math.max(1, (int) pixelBounds.getWidth());
+      int h = Math.max(1, (int) pixelBounds.getHeight());
+      Point top = new Point();
+      Point bottom = new Point();
+      Point p1 = getRowCol(x, y, top);
+      Point p2 = getRowCol(x + w, y + h, bottom);
+      ClientAnchor anchor = PoiExcelVSUtil.createClientAnchor(
+         book, top.x, top.y, bottom.x, bottom.y, p1.x, p1.y, p2.x, p2.y);
+      anchor.setAnchorType(ClientAnchor.AnchorType.MOVE_DONT_RESIZE);
+      return anchor;
    }
 
    /**
@@ -822,8 +818,31 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
     */
    @Override
    protected void writeTextInput(TextInputVSAssembly assembly) {
+      TextInputVSAssemblyInfo info = (TextInputVSAssemblyInfo) assembly.getVSAssemblyInfo();
       Object value = assembly.getSelectedObject();
-      writeText(assembly, value == null ? "" : Tool.getDataString(value, assembly.getDataType()));
+      String txt = value == null ? "" : Tool.getDataString(value, assembly.getDataType());
+      Rectangle2D[] split = splitInputPixelBounds(info, viewsheet);
+
+      if(split == null) {
+         writeText(assembly, txt);
+         return;
+      }
+
+      try {
+         writeLabelTextBox(((InputVSAssemblyInfo) info).getLabelInfo(), split[0]);
+         XSSFClientAnchor anchor = (XSSFClientAnchor) getAnchorFromPixelRect(split[1]);
+         XSSFTextBox tb = patriarch.createTextbox(anchor);
+         XSSFRichTextString rts = (XSSFRichTextString)
+            PoiExcelVSUtil.createRichTextString(book, txt);
+         tb.setText(rts);
+         applyFormat(tb, rts, getTextFormat(info), false);
+      }
+      catch(SheetMaxRowsException e) {
+         throw e;
+      }
+      catch(Exception e) {
+         LOG.error("Failed to write text input: " + assembly.getAbsoluteName(), e);
+      }
    }
 
    /**
