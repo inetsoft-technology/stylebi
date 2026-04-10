@@ -138,7 +138,7 @@ class TabVSAssemblyInfoTest {
       LabelInfo labelInfo = info.getLabelInfo();
       labelInfo.setLabelVisibleValue("true");
       labelInfo.setLabelPositionValue(LabelInfo.TOP);
-      labelInfo.setLabelGap(5);
+      labelInfo.setLabelGapValue(5);
       Dimension size = new Dimension(200, 20);
 
       int height = TabVSAssemblyInfo.getBottomTabChildHeight(info, size);
@@ -152,7 +152,7 @@ class TabVSAssemblyInfoTest {
       LabelInfo labelInfo = info.getLabelInfo();
       labelInfo.setLabelVisibleValue("true");
       labelInfo.setLabelPositionValue(LabelInfo.BOTTOM);
-      labelInfo.setLabelGap(8);
+      labelInfo.setLabelGapValue(8);
       Dimension size = new Dimension(200, 20);
 
       int height = TabVSAssemblyInfo.getBottomTabChildHeight(info, size);
