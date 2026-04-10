@@ -58,7 +58,7 @@ public class ResourcePermissionController {
       }
 
       Resource resource = resourcePermissionService.getRepositoryResourceType(type, path);
-      checkPermission(resource, path, principal);
+      checkPermission(resource, path, principal, ResourceAction.READ);
       boolean tableStyleFolder = type == (RepositoryEntry.FOLDER | RepositoryEntry.TABLE_STYLE);
       return this.resourcePermissionService.getTableModel(
          resource.getPath(), resource.getType(),
@@ -80,14 +80,15 @@ public class ResourcePermissionController {
       throws Exception
    {
       Resource resource = resourcePermissionService.getRepositoryResourceType(type, path);
-      checkPermission(resource, path, principal);
+      checkPermission(resource, path, principal, ResourceAction.WRITE);
       String fullPath = Util.getObjectFullPath(type, path, principal);
       boolean tableStyleFolder = (type & (RepositoryEntry.FOLDER | RepositoryEntry.TABLE_STYLE)) != 0;
       this.resourcePermissionService.setResourcePermissions(
          resource.getPath(), resource.getType(), fullPath, permissionModel, principal, tableStyleFolder);
    }
 
-   private void checkPermission(Resource resource, String path, Principal principal)
+   private void checkPermission(Resource resource, String path, Principal principal,
+                                ResourceAction scheduleTaskAction)
       throws Exception
    {
       boolean allowed;
@@ -95,7 +96,7 @@ public class ResourcePermissionController {
       if(resource.getType() == ResourceType.SCHEDULE_TASK) {
          ScheduleTask task = ScheduleManager.getScheduleManager().getScheduleTask(path);
          allowed = task != null &&
-            ScheduleManager.hasTaskPermission(task.getOwner(), principal, ResourceAction.READ);
+            ScheduleManager.hasTaskPermission(task.getOwner(), principal, scheduleTaskAction);
       }
       else {
          allowed = SecurityEngine.getSecurity().checkPermission(

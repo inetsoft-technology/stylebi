@@ -515,7 +515,7 @@ public class ScheduleTaskService {
 
       if(internalTask && !canDeleteInternalTask(task, principal)) {
          throw new inetsoft.sree.security.SecurityException(String.format(
-            "Unauthorized access to resource \"%s\" by %s", task, principal));
+            "Unauthorized access to resource \"%s\" by %s", task.getName(), principal));
       }
 
       Set<TimeRange> ranges = new HashSet<>();

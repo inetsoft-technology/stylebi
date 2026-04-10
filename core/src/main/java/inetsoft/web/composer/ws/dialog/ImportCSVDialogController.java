@@ -141,10 +141,8 @@ public class ImportCSVDialogController extends WorksheetController {
    {
       runtimeId = Tool.byteDecode(runtimeId);
 
-      if(getWorksheetEngine().getWorksheet(runtimeId, principal) == null) {
-         return null;
-      }
-
+      // Verify the user has access to this runtime worksheet; throws if not found or unauthorized.
+      getWorksheetEngine().getWorksheet(runtimeId, principal);
       processUploadCSV(mpf, runtimeId);
       HashMap<String, Object> res = process(runtimeId);
       CSVInfo csvinfo = (CSVInfo) res.get("model");
@@ -193,10 +191,8 @@ public class ImportCSVDialogController extends WorksheetController {
    {
       runtimeId = Tool.byteDecode(runtimeId);
 
-      if(getWorksheetEngine().getWorksheet(runtimeId, principal) == null) {
-         return null;
-      }
-
+      // Verify the user has access to this runtime worksheet; throws if not found or unauthorized.
+      getWorksheetEngine().getWorksheet(runtimeId, principal);
       String rid = Tool.normalizeFileName(runtimeId);
       File csvTemp = FileSystemService.getInstance().getCacheFile(rid + "_csv");
       CSVInfo csvInfo = null;
@@ -266,10 +262,8 @@ public class ImportCSVDialogController extends WorksheetController {
    {
       runtimeId = Tool.byteDecode(runtimeId);
 
-      if(getWorksheetEngine().getWorksheet(runtimeId, principal) == null) {
-         return;
-      }
-
+      // Verify the user has access to this runtime worksheet; throws if not found or unauthorized.
+      getWorksheetEngine().getWorksheet(runtimeId, principal);
       String cdir = FileSystemService.getInstance().getCacheDirectory();
       runtimeId = Tool.normalizeFileName(runtimeId);
       fileCache.get(cdir + runtimeId + "_csv");
