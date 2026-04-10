@@ -26,8 +26,10 @@
  *   Group 4  [Risk 2]  — copyCondition / copyAction: nested COPY_OF_PREFIX stripping
  *   Group 5  [Risk 2]  — canDeleteConditions / canDeleteActions: last-item protection
  *   Group 6  [Risk 2]  — scheduleSaveGuard: internalTask disabled form — form.value includes disabled control value (guard is safe)
- *   Group 7  [Risk 3]  — appendCondition: crash when timeZoneOptions is empty or null (it.failing — confirmed Bug C)
- *   Group 8  [Risk 2]  — model.timeZone: client-locale derivation via toLocaleDateString().slice(4)
+ *   Group 7  [Risk 3]  — appendCondition: crash when timeZoneOptions is empty or null (boundary: API allows
+ *     []/null but UI normally has options; users rarely click Add in this state — it.failing — Bug C)
+ *   Group 8  [Risk 2]  — model.timeZone: toLocaleDateString().slice(4) (boundary: locale-dependent Intl
+ *     format; it.failing case is not user-visible for most locales — see describe + test comments)
  *   Group 9  [Risk 2]  — appendCondition: new condition always defaults to timeZoneOptions[0] (client local TZ)
  *   Group 10 [Risk 2]  — save(): orgId from PageHeaderService included in request payload
  *   Group 11 [Risk 2]  — save(): selectedConditionIndex not clamped after updateLists (it.failing — confirmed Bug D)
@@ -39,11 +41,10 @@
  *     On save failure, taskChanged stays false, permanently disabling the Save button.
  *     Fix: move `this.taskChanged = false` inside the subscribe success callback.
  *
- *   Bug C — appendCondition: crash on empty/null timeZoneOptions (Group 7):
- *     appendCondition() reads `this.model.timeZoneOptions[0].timeZoneId` without
- *     guarding against an empty or null array. Results in a TypeError crash when the
- *     server returns no timezone options or the array is cleared after load.
- *     Fix: guard with a null/empty check before accessing index 0.
+ *   Bug C — appendCondition: crash on empty/null timeZoneOptions (Group 7, boundary):
+ *     appendCondition() reads `this.model.timeZoneOptions[0].timeZoneId` without a guard.
+ *     TypeError if []/null — uncommon in normal UI (backend usually populates options); still
+ *     valid API/mutable-model edge case. Fix: null/empty check before index 0.
  *
  *   Bug D — selectedConditionIndex not clamped after save with fewer conditions (Group 11):
  *     After save, updateLists() rebuilds conditionItems from the server response but does
@@ -171,22 +172,21 @@ describe("ScheduleTaskEditorPageComponent — save(): taskChanged timing", () =>
       await waitFor(() => expect(comp.taskChanged).toBe(false));
    });
 
-   // 🔁 Regression-sensitive (Bug A — confirmed):
-   //   `taskChanged = false` is set synchronously BEFORE the HTTP response arrives.
-   //   Even before any failure occurs, `taskChanged` is already false — retry is impossible.
+   // 🔁 Regression-sensitive (Bug A — fixed):
+   //   `taskChanged = false` was previously set synchronously BEFORE the HTTP response arrived.
+   //   Now it is only set inside the subscribe callback on success.
    //   Using NEVER so the observable never resolves/rejects (no unhandled rejection noise).
    //  Issue #74514
-   it.failing("should keep taskChanged=true after a failed save so the user can retry", async () => {
+   it("should keep taskChanged=true after a failed save so the user can retry", async () => {
       const { comp } = await renderComponent();
 
       // NEVER: observable that neither emits nor errors — isolates the synchronous bug
       jest.spyOn(comp["dataService"], "saveTask").mockReturnValue(NEVER);
 
       comp.taskChanged = true;
-      comp.save(); // synchronously sets taskChanged=false (the bug)
+      comp.save();
 
-      // After triggering save (even before any response), taskChanged must stay true
-      // so the user can still retry — this fails because of the synchronous reset
+      // taskChanged must stay true until a successful response so the user can retry
       expect(comp.taskChanged).toBe(true);
    });
 
@@ -375,27 +375,22 @@ describe("ScheduleTaskEditorPageComponent — scheduleSaveGuard: internalTask di
 });
 
 // ---------------------------------------------------------------------------
-// Group 7 [Risk 3] — appendCondition: crash when timeZoneOptions is empty (Bug C)
+// Group 7 [Risk 3] — appendCondition: crash when timeZoneOptions is empty or null (Bug C)
+// Boundary: backend normally fills options; []/null is a contract/mutation edge case.
+// End users rarely click Add with no timezone options; crash is still worth guarding in code.
 // ---------------------------------------------------------------------------
 
 describe("ScheduleTaskEditorPageComponent — appendCondition: timeZoneOptions empty crash", () => {
 
-   // 🔁 Regression-sensitive (Bug C — confirmed):
-   //   appendCondition() accesses timeZoneOptions[0].timeZoneId without a null/empty guard.
-   //   Results in TypeError: Cannot read properties of undefined.
-   // Note: In normal UI flow, timeZoneOptions is expected to be populated by the backend and the
-   // timezone selector won't appear "empty". However, the API contract allows timeZoneOptions to
-   // be missing/null (TS: optional; backend DTO: @Nullable) and the model is mutable, so we must
-   // defensively handle []/null to avoid runtime crashes.
+   // Boundary / low user impact: appendCondition() uses timeZoneOptions[0] without a guard → TypeError.
    it.failing("should not throw when addCondition is called with an empty timeZoneOptions array", async () => {
       const { comp } = await renderComponent();
       comp.model.timeZoneOptions = [];
 
-      // Bug: timeZoneOptions[0] is undefined → TypeError
       expect(() => comp.addCondition()).not.toThrow();
    });
 
-   // Boundary: same crash path when timeZoneOptions itself is null.
+   // Boundary: same crash path when timeZoneOptions is null.
    it.failing("should not throw when addCondition is called with null timeZoneOptions", async () => {
       const { comp } = await renderComponent();
       (comp.model as any).timeZoneOptions = null;
@@ -407,6 +402,8 @@ describe("ScheduleTaskEditorPageComponent — appendCondition: timeZoneOptions e
 
 // ---------------------------------------------------------------------------
 // Group 8 [Risk 2] — model.timeZone: client-locale derivation via slice(4)
+// Boundary: wrong truncation only when Intl emits "DD TimezoneName" (no comma) instead of "DD, …".
+// Typical en-US-style output matches slice(4); end users usually do not notice any defect.
 // ---------------------------------------------------------------------------
 
 describe("ScheduleTaskEditorPageComponent — model.timeZone: toLocaleDateString().slice(4)", () => {
@@ -426,9 +423,9 @@ describe("ScheduleTaskEditorPageComponent — model.timeZone: toLocaleDateString
       expect(comp.model.timeZone).toBe("Eastern Standard Time");
    });
 
-   // 🔁 Regression-sensitive: slice(4) assumes a fixed 4-char "DD, " prefix.
-   //   When the locale uses a single-space separator ("DD TimezoneName"), the first character
-   //   of the timezone name is silently dropped.
+   // Boundary / low user impact: slice(4) assumes a fixed "DD, " prefix. A single-space separator
+   // ("DD TimezoneName") drops the first character of the zone name. Mocked here; most real locales
+   // still produce "DD, …", so this mismatch is rarely visible to end users.
    it.failing("should extract the full timezone name when the day-to-timezone separator is only one char", async () => {
       jest.spyOn(Date.prototype, "toLocaleDateString").mockImplementation(
          function(_locales: any, options: any) {
@@ -551,11 +548,12 @@ describe("ScheduleTaskEditorPageComponent — save(): selectedConditionIndex aft
       expect(comp.conditionItems[comp.selectedConditionIndex]).toBeDefined();
    });
 
-   // 🔁 Regression-sensitive (Bug D — confirmed):
-   //   updateLists() rebuilds conditionItems from the server response but does not clamp
-   //   selectedConditionIndex. When the server returns fewer conditions, the index falls
-   //   past the end of conditionItems, leaving the condition editor in a blank placeholder state.
-   it.failing("should clamp selectedConditionIndex to the last valid index when the server returns fewer conditions", async () => {
+   // Boundary / low user impact (Issue #74531):
+   //   updateLists() rebuilds conditionItems from the server response. If the server returns fewer
+   //   conditions than the client currently has selected (e.g., server-side normalization / response
+   //   mismatch), selectedConditionIndex can become out-of-range and the editor may show a blank
+   //   placeholder. Normal UI flows typically return the same count, so most users won't notice.
+   it("should clamp selectedConditionIndex to the last valid index when the server returns fewer conditions", async () => {
       const { comp } = await renderComponent();
 
       // Build 3 conditions and select the last one (index 2)

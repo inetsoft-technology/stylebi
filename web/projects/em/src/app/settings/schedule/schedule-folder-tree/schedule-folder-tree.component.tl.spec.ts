@@ -145,11 +145,10 @@ async function renderComponent() {
 
 describe("ScheduleFolderTreeComponent — isDescendant: startsWith false positive", () => {
 
-   // 🔁 Regression-sensitive: isDescendant must distinguish "folder1" from "folder10".
-   // startsWith("folder1") returns true for "folder10/sub", which is NOT a descendant.
-   // This causes moveTaskFolder to incorrectly skip a valid move operation.
-   // Note: In current UI flows, users may mostly move tasks (not folders), so this may not
-   // be consistently user-visible right now. Keep this case as an implementation-level guard.
+   // Boundary / defensive only: isDescendant must distinguish "folder1" from "folder10".
+   // A naive startsWith("folder1") returns true for "folder10/sub", which is NOT a real descendant.
+   // This can cause moveTaskFolder to incorrectly skip a valid move operation. Not always
+   // user-visible in normal UI flows; keep as an implementation-level guard.
    it.failing("should return false when searchNode path shares only a string prefix, not a real ancestor relationship", async () => {
       const { comp } = await renderComponent();
 
@@ -244,14 +243,13 @@ describe("ScheduleFolderTreeComponent — editTaskFolder: rename path computatio
    });
 
    // 🔁 Regression-sensitive (implementation risk):
-   //   For oldPath "a/b/c", indexOf("/") = 1 → intermediate newPath becomes "a/renamed"
-   //   instead of "a/b/renamed". The robust implementation should use lastIndexOf("/")
-   //   to derive the immediate parent directory.
+   //   For oldPath "a/b/c", lastIndexOf("/") correctly finds the immediate parent
+   //   so newPath becomes "a/b/renamed" instead of "a/renamed" (indexOf bug — fixed).
    //   Note: this may not be consistently user-visible in manual testing because the
    //   backend rename result and full tree refresh can still end up showing the correct
    //   final path. Keep this case as a safety net for path-computation regressions.
-   //   Issue #74505 
-   it.failing("should navigate to a/b/renamed when renaming a folder three levels deep", async () => {
+   //   Issue #74505
+   it("should navigate to a/b/renamed when renaming a folder three levels deep", async () => {
       const { comp } = await renderComponent();
       const safeRefreshSpy = jest.spyOn(comp as any, "safeRefreshTree").mockImplementation(() => {});
       let renameCalled = false;

@@ -22,13 +22,6 @@
  * Risk-first coverage (from scenario analysis):
  *   Group 1 — fetchParameters: API state binding + error recovery
  *   Group 2 — fetchData: HTTP param construction
- *
- * Known design gap in the error fallback (test 2):
- *   The catchError fallback object does NOT include systemAdministrator, so after
- *   an API error, this.systemAdministrator is set to undefined (not false).
- *   The component field initialises to false but tap() overwrites it with
- *   params.systemAdministrator which is absent from the fallback shape.
- *   Documented with it.failing so the test suite stays green while the gap is visible.
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ReactiveFormsModule } from "@angular/forms";
@@ -105,12 +98,9 @@ describe("AuditLogonErrorComponent — fetchParameters", () => {
       expect(comp.hosts).toEqual(MOCK_PARAMS.hosts);
    });
 
-   // P0 / Error — xit documents the design gap
-   // The catchError fallback does NOT include systemAdministrator, so
-   // tap() assigns params.systemAdministrator = undefined, overwriting the
-   // initialised false value. The component should preserve false on error,
-   // but currently it does not.
-   it.failing("should keep systemAdministrator as false after an error (currently becomes undefined due to missing field in fallback)", async () => {
+   // P0 / Error — catchError fallback must include systemAdministrator: false so tap() does not set undefined.
+   // Issue #74530
+   it("should call errorService.showSnackBar, reset users and hosts, and keep systemAdministrator false on error", async () => {
       const errorService = makeErrorServiceMock();
       const { fixture } = await renderComponent(errorService);
 
@@ -127,29 +117,7 @@ describe("AuditLogonErrorComponent — fetchParameters", () => {
       expect(errorService.showSnackBar).toHaveBeenCalledTimes(1);
       expect(comp.users).toEqual([]);
       expect(comp.hosts).toEqual([]);
-      // This assertion fails because systemAdministrator ends up as undefined:
       expect(comp.systemAdministrator).toBe(false);
-   });
-
-   // P0 / Error (non-failing)
-   // Confirms showSnackBar is called and the list fields are set to empty arrays.
-   it("should call errorService.showSnackBar and reset users and hosts to empty arrays on error", async () => {
-      const errorService = makeErrorServiceMock();
-      const { fixture } = await renderComponent(errorService);
-
-      server.use(
-         http.get("*/api/em/monitoring/audit/logonErrorParameters", () =>
-            new MswHttpResponse(null, { status: 500 })
-         )
-      );
-
-      const comp = fixture.componentInstance;
-
-      await firstValueFrom(comp.fetchParameters());
-
-      expect(errorService.showSnackBar).toHaveBeenCalledTimes(1);
-      expect(comp.users).toEqual([]);
-      expect(comp.hosts).toEqual([]);
    });
 });
 

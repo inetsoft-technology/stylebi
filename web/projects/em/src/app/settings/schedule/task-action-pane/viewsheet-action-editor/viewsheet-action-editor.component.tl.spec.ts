@@ -311,9 +311,10 @@ describe("ViewsheetActionEditorComponent — selectedViewsheet: highlight state"
 
 describe("ViewsheetActionEditorComponent — selectedViewsheet: same-value re-selection", () => {
 
-   // 🔁 Regression-sensitive: Clearing bookmarksDB on same-value re-selection erases the
-   // bookmark table from the UI even though selectedBookmarks is still populated.
-   // Risk Point: bookmarksDB.next([]) is called before the early return in the setter.
+   // Boundary / defensive only: normal UI flows typically do not emit a same-value re-selection
+   // change event, so end users are unlikely to reproduce this directly from the screen.
+   // Guard anyway: if the setter is invoked with the same viewsheet id, bookmarksDB is cleared
+   // before the early return and the bookmark table disappears while selectedBookmarks stays set.
    it.failing("should NOT clear bookmarksDB when the same viewsheet is re-selected", async () => {
       setupViewsheetEndpoints(VS_ID_A);
       const action = makeActionModel({ sheet: VS_ID_A });
@@ -342,18 +343,9 @@ describe("ViewsheetActionEditorComponent — selectedViewsheet: same-value re-se
 
 describe("ViewsheetActionEditorComponent — addBookmark", () => {
 
-   // 🔁 Regression-sensitive: addBookmark finds the home bookmark by name but then
-   // ignores it and pushes bookmarks.value[0] instead.
-   // Risk Point: when "(Home)" is not at index 0, the wrong bookmark is appended.
-   // Server behavior note:
-   // - The backend currently forces "(Home)" to be inserted at index 0 (pinned to top)
-   //   when building the bookmark list. See:
-   //   community/core/src/main/java/inetsoft/uql/viewsheet/internal/VSUtil.java
-   //   (look for bookmarks.add(0, ...)) in the getBookmarks flow.
-   // Rationale for keeping this case:
-   // - This test acts as a safety net. If the server-side ordering changes (i.e. Home
-   //   is no longer forced to index 0), this test will immediately catch the front-end
-   //   addBookmark logic that incorrectly relies on index 0.
+   // Boundary / defensive only: current backend behavior pins "(Home)" to index 0, so
+   // normal UI flows should not hit this. Keep the test as a contract guard in case
+   // server-side ordering changes and the front end can no longer assume index 0 === Home.
    it.failing("should add the home bookmark reference when home is not at index 0", async () => {
       const { comp } = await renderEditor();
 
