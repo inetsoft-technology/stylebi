@@ -133,4 +133,62 @@ public interface SetupExtension {
                   Map<String, Object> attributes)
    {
    }
+
+   /**
+    * Enumeration of the different setup phases.
+    */
+   enum Phase {
+      /**
+       * Phase at the start of setup before any other actions have been performed.
+       */
+      START("start"),
+      /**
+       * Phase after the initial application properties have been applied.
+       */
+      AFTER_PROPERTIES_SET("afterPropertiesSet"),
+      /**
+       * Phase after the plugins have been installed into storage.
+       */
+      AFTER_PLUGINS_INSTALLED("afterPluginsInstalled"),
+      /**
+       * Phase after the initial security settings have been applied.
+       */
+      AFTER_SECURITY_CONFIGURED("afterSecurityConfigured"),
+      /**
+       * Phase after the files have been imported into the data space.
+       */
+      AFTER_FILES_IMPORTED("afterFilesImported"),
+      /**
+       * Phase to import assets into storage.
+       */
+      INSTALL_ASSETS("installAssets"),
+      /**
+       * Phase after the assets have been imported into storage.
+       */
+      AFTER_ASSETS_INSTALLED("afterAssetsInstalled");
+
+      private final String phase;
+
+      Phase(String phase) {
+         this.phase = phase;
+      }
+
+      /**
+       * Gets the name of the phase as used in setup scripts.
+       *
+       * @return the name of the phase.
+       */
+      public String getPhase() {
+         return phase;
+      }
+
+      /**
+       * Determines if the client API is available during this phase.
+       *
+       * @return {@code true} if the client API is available, {@code false} otherwise.
+       */
+      public boolean isClientApiAvailable() {
+         return this.ordinal() >= INSTALL_ASSETS.ordinal();
+      }
+   }
 }

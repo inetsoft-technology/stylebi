@@ -721,6 +721,9 @@ public final class XSwapper {
                setPriority(NORM_PRIORITY);
             }
          }
+         catch(ShutdownException ignore) {
+            // server is shutting down, ignore
+         }
          finally {
             ThreadContext.setContextPrincipal(oldPrincipal);
          }
