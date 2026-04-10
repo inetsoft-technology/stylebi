@@ -151,6 +151,14 @@ public class SQLQueryDialogController extends WorksheetController {
                                          Principal principal)
       throws Exception
    {
+      boolean sqlEnabled = SecurityEngine.getSecurity().checkPermission(
+         principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS);
+
+      if(!sqlEnabled) {
+         throw new MessageException(
+            Catalog.getCatalog().getString("composer.nopermission.physicalTable"));
+      }
+
       return queryManagerService.clearQuery(runtimeId, dataSource, tableName, advancedEdit, principal);
    }
 

@@ -38,6 +38,11 @@ public class XmlaDataSourceController {
       this.xmlaDatasourceService = xmlaDatasourceService;
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("api/portal/data/datasource/xmla/new")
    public void saveNewDatasource(@RequestBody DataSourceXmlaDefinition model, Principal principal)
       throws Exception
@@ -45,6 +50,11 @@ public class XmlaDataSourceController {
       xmlaDatasourceService.createNewDataSource(model, true, principal);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("api/portal/data/datasource/xmla/new")
    public DataSourceXmlaDefinition createModel(@RequestParam("parentPath") String parentPath)
       throws Exception
@@ -65,6 +75,11 @@ public class XmlaDataSourceController {
       return xmlaDatasourceService.getDataSourceModel(path, principal);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("api/portal/data/datasource/xmla/update")
    public void setModel(@RequestParam("path") String path,
                         @RequestBody DataSourceXmlaDefinition model,
@@ -74,16 +89,31 @@ public class XmlaDataSourceController {
       xmlaDatasourceService.updateDataSource(path, model, principal);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("api/portal/data/datasource/xmla/catalogs")
    public List<String> getCatalogs(@RequestBody DataSourceXmlaDefinition model) throws Exception {
       return xmlaDatasourceService.getCatalogs(model);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("api/portal/data/datasource/xmla/metadataTree/**")
    public TreeNodeModel getCubes(@RemainingPath String name) throws Exception {
       return xmlaDatasourceService.getCubeMetaTree(name);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("api/portal/data/datasource/xmla/metadata/refresh")
    public CubeMetaModel refreshMeta(@RequestBody DataSourceXmlaDefinition model,
                                     Principal principal)
@@ -91,6 +121,11 @@ public class XmlaDataSourceController {
       return xmlaDatasourceService.refreshCubes(model, principal);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("api/portal/data/datasource/xmla/viewSampleData")
    public SampleDataModel viewSampleData(@RequestBody ViewSampleDataRequest model) {
       return SampleDataModel.builder()
@@ -98,6 +133,11 @@ public class XmlaDataSourceController {
          .build();
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("api/portal/data/datasource/xmla/test")
    public ConnectionStatus testConnect(@RequestBody DataSourceXmlaDefinition model) {
       return xmlaDatasourceService.testConnect(model);
