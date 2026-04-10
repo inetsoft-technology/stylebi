@@ -408,7 +408,7 @@ export class ScheduleFolderTreeComponent implements OnInit, OnDestroy {
                if(res) {
                   this.http.post(TASKS_FOLDER_NAME_URI, res).subscribe(() => {
                      let newPath = res.oldPath;
-                     const index = newPath.indexOf("/");
+                     const index = newPath.lastIndexOf("/");
 
                      if(index != -1) {
                         newPath = newPath.substr(0, index + 1) + res.folderName;

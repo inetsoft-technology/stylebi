@@ -796,7 +796,7 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    private mergeChange(change: ScheduleTaskChange): void {
       const list = this.tasks.slice();
       const index = list.findIndex(t => t.name === change.name || change.type == "REMOVED" &&
-         change.name === convertToKey(t.owner) + ":" + t.name);
+         change.name === ScheduleTaskListComponent.getTaskName(t));
 
       if(index >= 0) {
          if(change.type === "REMOVED") {

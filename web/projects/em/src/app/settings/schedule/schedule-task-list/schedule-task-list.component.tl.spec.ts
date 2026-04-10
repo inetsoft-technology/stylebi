@@ -360,13 +360,12 @@ describe("ScheduleTaskListComponent — mergeChange: real-time task lifecycle", 
       expect(comp.tasks.find(t => t.name === "taskA")).toBeUndefined();
    });
 
-   // 🔁 Regression-sensitive (Bug A — confirmed):
-   //   getTaskName() produces "INETSOFT_SYSTEM~;~org1__taskA" (double-underscore).
-   //   mergeChange REMOVED lookup builds "INETSOFT_SYSTEM~;~org1:taskA" (colon).
-   //   These never match → SYSTEM_USER tasks are silently NOT removed from the list.
-   //   Remove it.failing once the separator inconsistency is fixed. 
+   // 🔁 Regression-sensitive (Bug A — fixed):
+   //   mergeChange now uses getTaskName(t) for the REMOVED lookup, so SYSTEM_USER tasks
+   //   correctly match "INETSOFT_SYSTEM~;~org1__taskA" (double-underscore) instead of
+   //   the old hardcoded colon separator "INETSOFT_SYSTEM~;~org1:taskA".
    //   Issue #74503
-   it.failing("should remove a SYSTEM_USER task from the list for a REMOVED change event (Bug A)", async () => {
+   it("should remove a SYSTEM_USER task from the list for a REMOVED change event (Bug A)", async () => {
       const { comp, fixture } = await renderComponent();
       const task = makeTask("taskA", { owner: SYSTEM_OWNER });
       (comp as any).setTasks([task]);

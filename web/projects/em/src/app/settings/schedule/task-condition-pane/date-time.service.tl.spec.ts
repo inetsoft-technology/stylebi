@@ -260,11 +260,10 @@ describe("DateTimeService — applyTimeZoneOffsetDifference: real timezone shift
 
 describe("DateTimeService — Bug: applyTimeZoneOffsetDifference crashes when oldTZ='' and newTZ is valid", () => {
 
-   // Note: In the normal "create new condition" flow, the UI initializes TimeCondition.timeZone
-   // from timeZoneOptions[0] (so it is non-empty). The empty-string oldTZ primarily comes from
-   // legacy/upgrade data where timeZone was persisted as "" before TZ support was added.
-   // This suite keeps a regression test for that legacy path.
-   // 🔁 Confirmed bug: the early-return guard is `Tool.isEmpty(oldTZ) && Tool.isEmpty(newTZ)`.
+   // Boundary / defensive only (legacy data): normal "create new condition" UI initializes
+   // TimeCondition.timeZone from timeZoneOptions[0] (non-empty). oldTZ=="" mainly comes from
+   // upgrade/legacy tasks persisted before TZ support was added.
+   // Known bug: the early-return guard is `Tool.isEmpty(oldTZ) && Tool.isEmpty(newTZ)`.
    // When only ONE side is empty (oldTZ="" from a legacy condition, newTZ="America/New_York"),
    // the guard is false and execution falls through to:
    //   new Date(date.toLocaleString([], { timeZone: "" }))
@@ -284,8 +283,8 @@ describe("DateTimeService — Bug: applyTimeZoneOffsetDifference crashes when ol
          .not.toThrow();
    });
 
-   // 🔁 Analogous bug in applyDateTimeZoneOffsetDifference: its guard is `oldTZ==null && newTZ==null`
-   // (null check, not isEmpty), so the empty-string case also falls through and crashes.
+   // Boundary / defensive only: analogous behavior in applyDateTimeZoneOffsetDifference — its guard
+   // is `oldTZ==null && newTZ==null` (null-only), so oldTZ=="" also falls through and crashes.
    it.failing("applyDateTimeZoneOffsetDifference: should not throw when oldTZ='' and newTZ is valid (bug: RangeError)", () => {
       const dateValue = new Date(2026, 3, 8, 10, 0, 0);
       expect(() => service.applyDateTimeZoneOffsetDifference("10:00:00", "", "America/New_York", dateValue))
