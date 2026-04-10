@@ -704,6 +704,7 @@ public final class XSwapper {
                }
                catch(ShutdownException ignore) {
                   // server is shutting down, ignore
+                  break;
                }
                catch(Throwable ex) {
                   LOG.error("Failed to swap objects out of memory", ex);

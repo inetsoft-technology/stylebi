@@ -91,14 +91,16 @@ public class StorageInitializer implements Callable<Integer> {
     * @param args the command line arguments.
     */
    public static void main(String[] args) {
+      Instant startTime = Instant.now();
       System.setProperty("inetsoftStorageInitializing", "true");
       int exitCode = new CommandLine(new StorageInitializer()).execute(args);
+      Instant endTime = Instant.now();
+      System.out.println("Initialization completed in " + Duration.between(startTime, endTime));
       System.exit(exitCode);
    }
 
    @Override
    public Integer call() throws Exception {
-      Instant startTime = Instant.now();
       initLogging();
       boolean initialized = isInitialized();
 
@@ -142,8 +144,6 @@ public class StorageInitializer implements Callable<Integer> {
          System.out.println("Storage initialized successfully");
       }
 
-      Instant endTime = Instant.now();
-      System.out.println("Initialization completed in " + Duration.between(startTime, endTime));
       return 0;
    }
 
