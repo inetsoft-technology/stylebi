@@ -1364,7 +1364,7 @@ public class GraphBuilder {
                   double totalStackInterval = geom.getTotalStackInterval();
 
                   if(totalStackInterval > 0 && geom.getInterval() != 0) {
-                     Rectangle2D barBounds = barVO.getBounds();
+                     Rectangle2D barBounds = barVO.getPreRoundingBounds();
                      double segDim = stdOrientation
                         ? barBounds.getHeight() : barBounds.getWidth();
                      double barWidth = stdOrientation

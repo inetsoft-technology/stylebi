@@ -222,4 +222,22 @@ public class GroupContainerVSAssembly extends AbstractContainerVSAssembly {
       return new Point[] {upperLeft, bottomRight};
    }
 
+   /**
+    * Estimate the rendered pixel height of a label, using the label's font if available,
+    * falling back to the default viewsheet font.
+    */
+   static int getLabelHeight(LabelInfo labelInfo) {
+      VSCompositeFormat format = labelInfo.getLabelFormat();
+      Font font = null;
+
+      if(format != null) {
+         font = format.getFont();
+      }
+
+      if(font == null) {
+         font = VSAssemblyInfo.getDefaultFont(Font.PLAIN, 11);
+      }
+
+      return (int) Math.ceil(Common.getHeight(font));
+   }
 }

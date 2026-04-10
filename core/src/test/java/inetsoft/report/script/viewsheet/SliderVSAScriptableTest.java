@@ -21,6 +21,7 @@ package inetsoft.report.script.viewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.SliderVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.LabelInfo;
 import inetsoft.uql.viewsheet.internal.SliderVSAssemblyInfo;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -73,7 +74,7 @@ public class SliderVSAScriptableTest {
                    sliderVSAScriptable.get("increment", sliderVSAScriptable));
 
       String[] keys = {"minVisible", "maxVisible", "tickVisible",
-                       "currentVisible", "labelVisible", "snap"};
+                       "currentVisible", "labelVisible", "tickLabelVisible", "snap"};
 
       for (String key : keys) {
          assert sliderVSAScriptable.get(key, null) instanceof Boolean;
@@ -97,6 +98,22 @@ public class SliderVSAScriptableTest {
    void testGetSetMaxValue(){
       sliderVSAScriptable.setMaxValue("200");
       assertEquals("200.0", sliderVSAScriptable.getMax());
+   }
+
+   @Test
+   void testLabelVisibleTargetsComponentLabel() {
+      sliderVSAScriptable.addProperties();
+      LabelInfo labelInfo = sliderVSAssemblyInfo.getLabelInfo();
+
+      // labelVisible should control the component label (LabelInfo), not tick labels
+      assertFalse(labelInfo.isLabelVisible());
+      sliderVSAScriptable.put("labelVisible", sliderVSAScriptable, true);
+      assertTrue(labelInfo.isLabelVisible());
+
+      // tickLabelVisible should control the tick labels (SliderVSAssemblyInfo)
+      assertTrue(sliderVSAssemblyInfo.isLabelVisible());
+      sliderVSAScriptable.put("tickLabelVisible", sliderVSAScriptable, false);
+      assertFalse(sliderVSAssemblyInfo.isLabelVisible());
    }
 
    @Test

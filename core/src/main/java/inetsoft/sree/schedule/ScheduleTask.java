@@ -1463,6 +1463,11 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
    private void updateConditionTaskPath(CompletionCondition condition) {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
       String path = condition.getTaskName();
+
+      if(path == null || path.indexOf(":") < 0) {
+         return;
+      }
+
       String pathUserID = path.substring(0, path.indexOf(":"));
       String remaining = path.substring(path.indexOf(":"));
       IdentityID userID = IdentityID.getIdentityIDFromKey(pathUserID);

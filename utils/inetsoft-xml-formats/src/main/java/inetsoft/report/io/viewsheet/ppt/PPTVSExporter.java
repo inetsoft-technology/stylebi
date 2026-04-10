@@ -389,20 +389,7 @@ public class PPTVSExporter extends AbstractVSExporter {
     */
    @Override
    protected void writeRadioButton(RadioButtonVSAssembly assembly) {
-      try {
-         RadioButtonVSAssemblyInfo info = (RadioButtonVSAssemblyInfo) assembly.getVSAssemblyInfo();
-
-         if(info == null) {
-            return;
-         }
-
-         Rectangle2D bounds = coordinator.getBounds(info);
-         writePicture(getImage(assembly), bounds);
-      }
-      catch(Exception e) {
-         LOG.error("Failed to write radio button: " +
-            assembly.getAbsoluteName(), e);
-      }
+      writePictureWithLabel(assembly);
    }
 
    /**
@@ -411,20 +398,7 @@ public class PPTVSExporter extends AbstractVSExporter {
     */
    @Override
    protected void writeCheckBox(CheckBoxVSAssembly assembly) {
-      try {
-         CheckBoxVSAssemblyInfo info = (CheckBoxVSAssemblyInfo) assembly.getVSAssemblyInfo();
-
-         if(info == null) {
-            return;
-         }
-
-         Rectangle2D bounds = coordinator.getBounds(info);
-         writePicture(getImage(assembly), bounds);
-      }
-      catch(Exception e) {
-         LOG.error("Failed to write checkbox: " +
-            assembly.getAbsoluteName(), e);
-      }
+      writePictureWithLabel(assembly);
    }
 
    /**
@@ -433,21 +407,7 @@ public class PPTVSExporter extends AbstractVSExporter {
     */
    @Override
    protected void writeSlider(SliderVSAssembly assembly) {
-      SliderVSAssemblyInfo info = (SliderVSAssemblyInfo) assembly.getVSAssemblyInfo();
-
-      if(info == null) {
-         return;
-      }
-
-      Rectangle2D bounds = coordinator.getBounds(info);
-
-      try {
-         writePicture(getImage(assembly), bounds);
-      }
-      catch(Exception e) {
-         LOG.error("Failed to write slider: " +
-            assembly.getAbsoluteName(), e);
-      }
+      writePictureWithLabel(assembly);
    }
 
    /**
@@ -456,21 +416,7 @@ public class PPTVSExporter extends AbstractVSExporter {
     */
    @Override
    protected void writeSpinner(SpinnerVSAssembly assembly) {
-      SpinnerVSAssemblyInfo info = (SpinnerVSAssemblyInfo) assembly.getVSAssemblyInfo();
-
-      if(info == null) {
-         return;
-      }
-
-      Rectangle2D bounds = coordinator.getBounds(info);
-
-      try {
-         writePicture(getImage(assembly), bounds);
-      }
-      catch(Exception e) {
-         LOG.error("Failed to write spinner: " +
-            assembly.getAbsoluteName(), e);
-      }
+      writePictureWithLabel(assembly);
    }
 
    /**
@@ -479,21 +425,87 @@ public class PPTVSExporter extends AbstractVSExporter {
     */
    @Override
    protected void writeComboBox(ComboBoxVSAssembly assembly) {
-      ComboBoxVSAssemblyInfo info = (ComboBoxVSAssemblyInfo) assembly.getVSAssemblyInfo();
+      writePictureWithLabel(assembly);
+   }
+
+   /**
+    * Write an input assembly as a picture, rendering the label text separately
+    * when the assembly has a visible label.
+    */
+   private void writePictureWithLabel(VSAssembly assembly) {
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
 
       if(info == null) {
          return;
       }
 
-      Rectangle2D bounds = coordinator.getBounds(info);
+      Rectangle2D[] split = splitInputPixelBounds(info, viewsheet);
+
+      if(split == null) {
+         try {
+            writePicture(getImage(assembly), coordinator.getBounds(info));
+         }
+         catch(Exception e) {
+            LOG.error("Failed to write input: " + assembly.getAbsoluteName(), e);
+         }
+
+         return;
+      }
+
+      InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
+      LabelInfo labelInfo = inputInfo.getLabelInfo();
+      double scale = coordinator.getScale();
+      Rectangle2D labelBounds = getPPTLabelBounds(split[0], scale, labelInfo);
+      Rectangle2D widgetPixelBounds = split[1];
+      Rectangle2D widgetBounds = scaleBounds(widgetPixelBounds, scale);
 
       try {
-         writePicture(getImage(assembly), bounds);
+         writeText(labelInfo.getLabelText(), labelBounds, getLabelFormat(labelInfo));
+
+         Dimension widgetSize = new Dimension((int) widgetPixelBounds.getWidth(),
+                                              (int) widgetPixelBounds.getHeight());
+         BufferedImage img = getInputImage(assembly, widgetSize);
+         writePicture(img != null ? img : getImage(assembly), widgetBounds);
       }
       catch(Exception e) {
-         LOG.error("Failed to write combo box: " +
-            assembly.getAbsoluteName(), e);
+         LOG.error("Failed to write input: " + assembly.getAbsoluteName(), e);
       }
+   }
+
+   private static Rectangle2D scaleBounds(Rectangle2D bounds, double scale) {
+      return new Rectangle2D.Double(
+         bounds.getX() * scale, bounds.getY() * scale,
+         bounds.getWidth() * scale, bounds.getHeight() * scale);
+   }
+
+   /**
+    * Scale label pixel bounds to PPT points, ensuring the width is large enough
+    * to hold the label text after PPT's font-size adjustment (VSFontHelper rate).
+    * PPTValueHelper truncates text to bounds.width-1 using the adjusted font, so
+    * we must guarantee: stringWidth(text, adjustedFont) + padding <= pptWidth.
+    */
+   private static Rectangle2D getPPTLabelBounds(Rectangle2D pixelBounds,
+                                                 double scale, LabelInfo labelInfo)
+   {
+      Rectangle2D scaled = scaleBounds(pixelBounds, scale);
+      String text = labelInfo.getLabelText();
+
+      if(text == null || text.isEmpty()) {
+         return scaled;
+      }
+
+      Font baseFont = getLabelFont(labelInfo);
+      // VSFontHelper.getFontSize adjusts the font size for export (typically *0.85)
+      Font pptFont = baseFont.deriveFont((float) VSFontHelper.getFontSize(baseFont));
+      // PPTValueHelper clips at bounds.width-1; require at least textWidth+8pt
+      double minWidth = Common.stringWidth(text, pptFont) + 8;
+
+      if(scaled.getWidth() >= minWidth) {
+         return scaled;
+      }
+
+      return new Rectangle2D.Double(scaled.getX(), scaled.getY(),
+                                    minWidth, scaled.getHeight());
    }
 
    /**
@@ -535,9 +547,22 @@ public class PPTVSExporter extends AbstractVSExporter {
     */
    @Override
    protected void writeTextInput(TextInputVSAssembly assembly) {
-      Object value = assembly.getSelectedObject() != null ?
-         assembly.getSelectedObject() : null;
-      writeText(assembly, value == null ? "" : Tool.getDataString(value, assembly.getDataType()));
+      TextInputVSAssemblyInfo info = (TextInputVSAssemblyInfo) assembly.getVSAssemblyInfo();
+      Object value = assembly.getSelectedObject();
+      String txt = value == null ? "" : Tool.getDataString(value, assembly.getDataType());
+      Rectangle2D[] split = splitInputPixelBounds(info, viewsheet);
+
+      if(split == null) {
+         writeText(assembly, txt);
+         return;
+      }
+
+      double scale = coordinator.getScale();
+      LabelInfo labelInfo = ((InputVSAssemblyInfo) info).getLabelInfo();
+      writeText(labelInfo.getLabelText(),
+                getPPTLabelBounds(split[0], scale, labelInfo),
+                getLabelFormat(labelInfo));
+      writeText(txt, scaleBounds(split[1], scale), getTextFormat(info));
    }
 
    /**
