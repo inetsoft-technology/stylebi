@@ -124,20 +124,22 @@ public class SessionConnectionService implements MapSessionRepository.SessionExp
             // don't redirect if already coming from the logout filter
             boolean fromLogout = Boolean.TRUE.equals(
                httpSession.getAttribute(AbstractLogoutFilter.LOGGED_OUT));
+            // don't redirect to login if security is not enabled - allow to reconnect
+            boolean securityEnabled = SecurityEngine.getSecurity().isSecurityEnabled();
 
             // redirect to login page if not anonymous, otherwise, allow to reconnect
             CloseStatus status;
 
-            if(!fromLogout && authenticated) {
+            if(!fromLogout && authenticated && securityEnabled) {
                // redirect to the login page with session timeout message
                status = new CloseStatus(4002, "Session timeout");
             }
-            else if(authenticated) {
+            else if(fromLogout && authenticated) {
                // redirect to the login page without the session timeout message
                status = new CloseStatus(4001, "Logged out");
             }
             else {
-               // allow to reconnect if anonymous
+               // allow to reconnect if anonymous or if security is not enabled
                status = CloseStatus.NORMAL;
             }
 
