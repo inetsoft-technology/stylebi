@@ -2026,7 +2026,13 @@ public abstract class GraphGenerator {
             range.addStackFields(scale.getFields());
          }
 
-         scale.setScaleRange(range);
+         // For multi-style pie (donut), all Y measures share the same scale.
+         // Only set the scale range for the first measure; subsequent measures
+         // would overwrite the correctly brush-adjusted range set by the first
+         // measure's nflds processing. (74234)
+         if(!info.isMultiStyles() || ymeasures.indexOf(measure) == 0) {
+            scale.setScaleRange(range);
+         }
       }
       // fix scale for waterfall
       else if(GraphTypes.isWaterfall(type) && scale0 instanceof LinearScale) {
