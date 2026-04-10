@@ -34,6 +34,7 @@ import { AttributeRef } from "../../../../../../common/data/attribute-ref";
 import { DataRef } from "../../../../../../common/data/data-ref";
 import { DatabaseTreeNodeType } from "../../../../model/datasources/database/database-tree-node-type";
 import { Tool } from "../../../../../../../../../shared/util/tool";
+import { CurrentUserService } from "../../../../../../../../../shared/util/current-user.service";
 import { ComponentTool } from "../../../../../../common/util/component-tool";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { DataItem } from "../../../../model/datasources/database/vpm/test-data-model";
@@ -69,13 +70,13 @@ export class VPMHiddenColumnsComponent implements OnInit {
    filterStr: string = "";
    currOrg: string = "";
 
-   constructor(private httpClient: HttpClient, private modalService: NgbModal) {
+   constructor(private httpClient: HttpClient, private modalService: NgbModal,
+               private currentUserService: CurrentUserService) {
    }
 
    ngOnInit(): void {
       this.initDataSourceTree();
-      this.httpClient.get<string>("../api/em/navbar/organization")
-         .subscribe((org) => this.currOrg = org);
+      this.currentUserService.getPortalCurrentUser().subscribe(user => this.currOrg = user?.name?.orgID ?? "");
    }
 
    get selectedColumns(): TreeNodeModel[] {

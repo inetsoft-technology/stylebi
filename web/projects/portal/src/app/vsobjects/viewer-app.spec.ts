@@ -39,6 +39,7 @@ import {
 import { of as observableOf } from "rxjs";
 import { DownloadService } from "../../../../shared/download/download.service";
 import { AppInfoService } from "../../../../shared/util/app-info.service";
+import { CurrentUserService } from "../../../../shared/util/current-user.service";
 import { AssetLoadingService } from "../common/services/asset-loading.service";
 import { BaseHrefService } from "../common/services/base-href.service";
 import { FirstDayOfWeekService } from "../common/services/first-day-of-week.service";
@@ -378,7 +379,8 @@ describe("ViewerApp Unit Tests", () => {
          firstDayOfWeekService, new NgbTooltipConfig(new NgbConfig()), shareService, null,
          richTextService, viewerToolbarMessageService, mobileToolbarService, mockDocument, composerRecentService,
          pageTabService, pagingControlService, selectionMobileService,
-         assetLoadingService, viewContainerRef, baseHrefService);
+         assetLoadingService, viewContainerRef, baseHrefService,
+         TestBed.inject(CurrentUserService));
       const mockChart = TestUtils.createMockVSChartModel("Mock Chart");
       const mockTable = TestUtils.createMockVSTableModel("Mock Table");
       const mockCrosstab = TestUtils.createMockVSCrosstabModel("Mock Crosstab");

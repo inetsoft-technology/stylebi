@@ -30,6 +30,7 @@ import { Subject } from "rxjs";
 import { GuiTool } from "../../common/util/gui-tool";
 import { ModelService } from "../services/model.service";
 import { HttpParams } from "@angular/common/http";
+import { CurrentUserService } from "../../../../../shared/util/current-user.service";
 import { equalsIdentity, IdentityId } from "../../../../../em/src/app/settings/security/users/identity-id";
 
 const EXPAND_IDENTITY_NODE_URI = "../api/vs/expand-identity-node";
@@ -85,12 +86,13 @@ export class EmbeddedEmailPane implements OnInit, OnDestroy {
       return this._addresses;
    }
 
-   constructor(private modelService: ModelService) {
+   constructor(private modelService: ModelService,
+               private currentUserService: CurrentUserService) {
       let params = new HttpParams()
          .set("name", "Users")
          .set("type", String(IdentityType.USERS));
 
-      this.modelService.getCurrentOrganization().subscribe((org)=>{this.currOrg=org;});
+      this.currentUserService.getPortalCurrentUser().subscribe(user => this.currOrg = user?.name?.orgID ?? null);
 
       this.modelService.getModel(EXPAND_IDENTITY_NODE_URI, params)
          .subscribe(

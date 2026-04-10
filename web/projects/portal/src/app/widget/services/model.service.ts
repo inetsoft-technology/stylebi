@@ -58,11 +58,6 @@ export class ModelService {
       this._errorHandler = handler;
    }
 
-   getCurrentOrganization(): Observable<string> {
-      return this.http.get<string>("../api/em/navbar/organization");
-
-   }
-
    getOrgMVGlobalResource(org: string): Observable<boolean> {
       return this.http.get<boolean>("../api/portal/content/materialized-view/isOrgAccessGlobalMV/"+org);
    }
