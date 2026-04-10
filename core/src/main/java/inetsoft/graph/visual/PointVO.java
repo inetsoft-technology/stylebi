@@ -28,6 +28,7 @@ import inetsoft.graph.guide.VLabel;
 import inetsoft.graph.internal.*;
 import inetsoft.report.pdf.PDFDevice;
 import inetsoft.util.CoreTool;
+import inetsoft.util.graphics.SVGSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -140,9 +141,27 @@ public class PointVO extends ElementVO {
    public void paint(Graphics2D g) {
       ElementGeometry gobj = (ElementGeometry) getGeometry();
       PointElement elem = (PointElement) gobj.getElement();
+      GShape shp = getShape();
 
-      paint(g, gobj, loc, radius, getShape(), getScreenTransform(), getAlphaHint(),
+      // Only annotate visible shapes. NIL shape is used for word clouds where only text
+      // is rendered (no point marker), so annotating it would wrap glyph paths incorrectly.
+      SVGSupport svg = shp != GShape.NIL && SVGSupport.isSVGContext(g)
+         ? SVGSupport.getInstance() : null;
+
+      if(svg != null) {
+         svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_POINT, Map.of(
+            SVGSupport.ATTR_COL,  String.valueOf(getColIndex()),
+            SVGSupport.ATTR_ROW,  String.valueOf(getRowIndex()),
+            SVGSupport.ATTR_SIZE, String.valueOf(radius)
+         ));
+      }
+
+      paint(g, gobj, loc, radius, shp, getScreenTransform(), getAlphaHint(),
             elem.getOutlineColor());
+
+      if(svg != null) {
+         svg.endAnnotationGroup(g);
+      }
    }
 
    static void paint(Graphics2D g, ElementGeometry gobj, Point2D loc, double radius,

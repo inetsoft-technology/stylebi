@@ -62,6 +62,9 @@ public class SVGAnimationDOMInjector {
       else if(SVGSupport.ANIMATION_LINE.equals(base)) {
          injectLineAnimation(svgRoot, doc);
       }
+      else if(SVGSupport.ANIMATION_POINT.equals(base)) {
+         injectPointAnimation(svgRoot, doc);
+      }
       else {
          boolean fadeOnly = SVGSupport.ANIMATION_FADE.equals(base);
          List<Element> annotBars = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_BAR);
@@ -1237,6 +1240,108 @@ public class SVGAnimationDOMInjector {
    }
 
    // -------------------------------------------------------------------------
+   // Point / scatter chart animation
+   // -------------------------------------------------------------------------
+
+   /**
+    * Fade in point markers staggered largest-first (primary sort), left-to-right (tiebreaker).
+    * Each {@code inetsoft-point} annotation group receives an {@code animation} inline style;
+    * a single {@code @keyframes inetsoft-point-fade} block is appended to a {@code <style>}.
+    *
+    * <p>Delays are distributed uniformly across 0–0.6 s regardless of marker count so that
+    * large scatter plots do not produce a slow trailing tail.
+    */
+   private static void injectPointAnimation(Element svgRoot, Document doc) {
+      appendStyle(svgRoot, doc,
+         "@keyframes inetsoft-point-fade{from{opacity:0}to{opacity:1}}");
+
+      List<Element> points = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_POINT);
+
+      if(points.isEmpty()) {
+         return;
+      }
+
+      // Primary: largest radius first (most prominent data points appear first).
+      // Tiebreaker: left-to-right by the cx of the first circle descendant so that
+      // same-size points in a standard scatter plot animate in reading order.
+      points.sort(Comparator
+         .comparingDouble((Element g) -> {
+            String s = g.getAttribute("data-size");
+
+            try {
+               return s.isEmpty() ? 0.0 : -Double.parseDouble(s); // negative = descending
+            }
+            catch(NumberFormatException e) {
+               return 0.0;
+            }
+         })
+         .thenComparingDouble(SVGAnimationDOMInjector::firstChildCx));
+
+      int n = points.size();
+      // Spread delays evenly across 0–1.2 s so large charts still feel snappy.
+      // Each marker fades over 0.9 s, giving a total experience of ~2.1 s for the last point.
+      double maxDelay = 1.2;
+      double step = n > 1 ? maxDelay / (n - 1) : 0;
+
+      for(int i = 0; i < n; i++) {
+         double delay = i * step;
+         String animStyle = String.format(java.util.Locale.US,
+            "animation:inetsoft-point-fade 0.9s ease-out %.2fs both", delay);
+         // Apply the animation to the inner content group(s), not the outer annotation group.
+         // The outer .inetsoft-point group must have no animation on its own opacity so that
+         // the hover CSS rule (opacity:.2!important) can take effect without a cascade conflict
+         // between !important-level and animation-level declarations.
+         Node child = points.get(i).getFirstChild();
+         while(child != null) {
+            if(child instanceof Element e) {
+               e.setAttribute("style", animStyle);
+            }
+            child = child.getNextSibling();
+         }
+      }
+   }
+
+   /**
+    * Returns the {@code cx} attribute of the first circle descendant of the annotation group's
+    * inner content {@code <g>}, or {@code 0} if none is found.  Used as a tiebreaker sort key
+    * for same-size points so that equal-radius markers animate left-to-right.
+    *
+    * <p>The SVG structure is: annotation {@code <g>} → content {@code <g>} → {@code <circle>}.
+    * This method looks one level deeper than the annotation group's direct children.
+    */
+   private static double firstChildCx(Element g) {
+      // Annotation group's first child is the content wrapper <g> drawn by GShape.
+      Node child = g.getFirstChild();
+
+      while(child != null) {
+         if(child instanceof Element inner) {
+            // Look for cx on the grandchildren (e.g., <circle cx="...">) of the annotation group.
+            Node grandchild = inner.getFirstChild();
+
+            while(grandchild != null) {
+               if(grandchild instanceof Element e) {
+                  String cx = e.getAttribute("cx");
+
+                  if(!cx.isEmpty()) {
+                     try {
+                        return Double.parseDouble(cx);
+                     }
+                     catch(NumberFormatException ignored) {
+                     }
+                  }
+               }
+
+               grandchild = grandchild.getNextSibling();
+            }
+         }
+
+         child = child.getNextSibling();
+      }
+
+      return 0.0;
+   }
+
+   // -------------------------------------------------------------------------
    // Hover CSS (server-injected; JS toggles inetsoft-active)
    // -------------------------------------------------------------------------
 
@@ -1251,9 +1356,11 @@ public class SVGAnimationDOMInjector {
     */
    private static void appendHoverCSS(Element svgRoot, Document doc) {
       appendStyle(svgRoot, doc,
-         ".inetsoft-bar,.inetsoft-bar-label{transition:opacity .15s}" +
+         ".inetsoft-bar,.inetsoft-bar-label,.inetsoft-point{transition:opacity .15s}" +
          "svg:has(.inetsoft-bar.inetsoft-active) .inetsoft-bar:not(.inetsoft-active)," +
          "svg:has(.inetsoft-bar.inetsoft-active) .inetsoft-bar-label:not(.inetsoft-active)" +
+         "{opacity:.2!important}" +
+         "svg:has(.inetsoft-point.inetsoft-active) .inetsoft-point:not(.inetsoft-active)" +
          "{opacity:.2!important}");
    }
 

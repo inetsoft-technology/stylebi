@@ -303,10 +303,11 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
          }
 
          if(this.inlineSvg) {
-            const barRegion = regions?.find(r => r && r.rowIdx >= 0 &&
+            // Find the hovered VO region (bar, point, etc.) by row/col presence.
+            const voRegion = regions?.find(r => r && r.rowIdx >= 0 &&
                ChartTool.colIdx(this.model, r) >= 0);
-            const rowIdx = barRegion != null ? barRegion.rowIdx : null;
-            const colIdx = barRegion != null ? ChartTool.colIdx(this.model, barRegion) : null;
+            const rowIdx = voRegion != null ? voRegion.rowIdx : null;
+            const colIdx = voRegion != null ? ChartTool.colIdx(this.model, voRegion) : null;
             this.inlineSvgTiles?.forEach(d => d.highlightBar(rowIdx, colIdx));
          }
       }

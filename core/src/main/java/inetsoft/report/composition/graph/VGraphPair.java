@@ -2402,6 +2402,9 @@ public class VGraphPair {
       else if(hasLineVO(graph)) {
          g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_LINE);
       }
+      else if(hasPointVO(graph)) {
+         g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_POINT);
+      }
    }
 
    private static boolean hasPieVO(VGraph graph) {
@@ -2466,6 +2469,15 @@ public class VGraphPair {
          }
       }
 
+      return false;
+   }
+
+   private static boolean hasPointVO(VGraph graph) {
+      for(int i = 0; i < graph.getVisualCount(); i++) {
+         Visualizable v = graph.getVisual(i);
+         if(v instanceof PointVO) return true;
+         if(v instanceof GraphVO && hasPointVO(((GraphVO) v).getVGraph())) return true;
+      }
       return false;
    }
 

@@ -49,6 +49,9 @@ public interface SVGSupport {
    /** Line/area series draw on from left using stroke-dasharray, dots pop with spring easing. */
    String ANIMATION_LINE = "line";
 
+   /** Point/scatter chart markers fade in, staggered largest-first. */
+   String ANIMATION_POINT = "point";
+
    // Sub-type flags appended to the base hint with ":" separators.
    // The injector parses these to handle each chart variant correctly.
 
@@ -74,6 +77,8 @@ public interface SVGSupport {
    String ANNOTATION_DONUT_HOLE = "inetsoft-bar-hole";
    /** CSS class for value-label annotation groups, paired with their bar/slice by data-row/col. */
    String ANNOTATION_LABEL      = "inetsoft-bar-label";
+   /** CSS class for point/scatter annotation groups ({@code <g class="inetsoft-point" ...>}). */
+   String ANNOTATION_POINT      = "inetsoft-point";
 
    /** {@code data-col} — bar stagger column index (same value for all segments in one column). */
    String ATTR_COL    = "col";
@@ -91,6 +96,8 @@ public interface SVGSupport {
    String ATTR_ORIENT = "orient";
    /** {@code data-row} — dataset row index for a bar (matches {@code rowIdx} in ChartRegion). */
    String ATTR_ROW    = "row";
+   /** {@code data-size} — visual radius in pixels, used by the animation injector to sort points. */
+   String ATTR_SIZE   = "size";
 
    /**
     * Redirect all subsequent SVG drawing into a new {@code <g class="cssClass" data-*="...">}

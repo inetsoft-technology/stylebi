@@ -52,11 +52,15 @@ export class ChartInlineSvgDirective implements OnDestroy {
    @Output() onError = new EventEmitter<void>();
    private _url: string = null;
 
-   /** Maps "rowIdx-colIdx" to the corresponding {@code <g class="inetsoft-bar">} element. */
-   private barGroupMap = new Map<string, Element>();
+   /**
+    * Unified map from "rowIdx-colIdx" to the annotated SVG group for that data point,
+    * regardless of chart type (bar, point, etc.). The CSS class on the stored element
+    * determines which server-injected hover rule fires when inetsoft-active is toggled.
+    */
+   private elementGroupMap = new Map<string, Element>();
    /** Maps "rowIdx-colIdx" to the value label group paired with that bar. */
    private barLabelMap = new Map<string, Element>();
-   /** Key of the currently active bar, or null. */
+   /** Key of the currently active element, or null. */
    private _activeKey: string | null = null;
    /** Timer handle for debounced deactivation, so fast inter-bar moves don't flash. */
    private clearHandle: ReturnType<typeof setTimeout> | null = null;
@@ -110,7 +114,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
       }
       else {
          this.element.nativeElement.innerHTML = "";
-         this.barGroupMap.clear();
+         this.elementGroupMap.clear();
          this.barLabelMap.clear();
          this._activeKey = null;
       }
@@ -149,40 +153,45 @@ export class ChartInlineSvgDirective implements OnDestroy {
    }
 
    private activateKey(key: string): void {
-      const bar = this.barGroupMap.get(key);
-      if(bar) bar.classList.add("inetsoft-active");
+      const el = this.elementGroupMap.get(key);
+      if(el) el.classList.add("inetsoft-active");
       const label = this.barLabelMap.get(key);
       if(label) label.classList.add("inetsoft-active");
    }
 
    private deactivateCurrent(): void {
       if(this._activeKey === null) return;
-      const bar = this.barGroupMap.get(this._activeKey);
-      if(bar) bar.classList.remove("inetsoft-active");
+      const el = this.elementGroupMap.get(this._activeKey);
+      if(el) el.classList.remove("inetsoft-active");
       const label = this.barLabelMap.get(this._activeKey);
       if(label) label.classList.remove("inetsoft-active");
    }
 
-   /** Called after new SVG content is injected. Builds bar/label lookup maps. */
+   /** Called after new SVG content is injected. Builds element and label lookup maps. */
    private afterSvgInjected(): void {
       if(this.clearHandle !== null) {
          clearTimeout(this.clearHandle);
          this.clearHandle = null;
       }
 
-      this.barGroupMap.clear();
+      this.elementGroupMap.clear();
       this.barLabelMap.clear();
       this._activeKey = null;
 
-      // Build bar map from server-annotated inetsoft-bar elements.
-      const bars = Array.from(
-         this.element.nativeElement.querySelectorAll(".inetsoft-bar") as NodeListOf<Element>);
+      // Populate the unified element map from all annotated VO groups.
+      // Each CSS class corresponds to a different chart type; the CSS class on the stored
+      // element determines which server-injected hover rule fires on inetsoft-active toggle.
+      for(const cssClass of [".inetsoft-bar", ".inetsoft-point"]) {
+         const elements = Array.from(
+            this.element.nativeElement.querySelectorAll(cssClass) as NodeListOf<Element>);
 
-      for(const bar of bars) {
-         const row = bar.getAttribute("data-row");
-         const col = bar.getAttribute("data-col");
-         if(row != null && col != null) {
-            this.barGroupMap.set(`${row}-${col}`, bar);
+         for(const el of elements) {
+            const row = el.getAttribute("data-row");
+            const col = el.getAttribute("data-col");
+
+            if(row != null && col != null) {
+               this.elementGroupMap.set(`${row}-${col}`, el);
+            }
          }
       }
 
