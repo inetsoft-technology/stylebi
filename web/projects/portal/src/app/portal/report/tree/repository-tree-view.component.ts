@@ -103,7 +103,7 @@ export class RepositoryTreeViewComponent implements OnInit, AfterViewInit, OnDes
                private changeDetectorRef: ChangeDetectorRef,
                private currentUserService: CurrentUserService)
    {
-      this.currentUserService.getPortalCurrentUser().subscribe(user => this.currOrgID = user?.name?.orgID ?? null);
+      this.subscriptions.add(this.currentUserService.getPortalCurrentUser().subscribe(user => this.currOrgID = user?.name?.orgID ?? null));
 
       this.subscriptions.add(this.pageTabService.onRefreshPage.subscribe((tab: TabInfoModel) => {
          let entry = createAssetEntry(tab.id);

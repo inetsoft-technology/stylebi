@@ -39,7 +39,6 @@ import {
 import { of as observableOf } from "rxjs";
 import { DownloadService } from "../../../../shared/download/download.service";
 import { AppInfoService } from "../../../../shared/util/app-info.service";
-import { CurrentUserService } from "../../../../shared/util/current-user.service";
 import { AssetLoadingService } from "../common/services/asset-loading.service";
 import { BaseHrefService } from "../common/services/base-href.service";
 import { FirstDayOfWeekService } from "../common/services/first-day-of-week.service";
@@ -371,6 +370,7 @@ describe("ViewerApp Unit Tests", () => {
    it("should remove the vsobject's actions when removing the vsobject", () => {
       const httpClient = TestBed.inject(HttpClient);
       const baseHrefService = TestBed.inject(BaseHrefService);
+      const currentUserService = { getPortalCurrentUser: jest.fn().mockReturnValue(observableOf(null)) };
       const viewerApp = new ViewerAppComponent(
          viewsheetClientService, null, null, null, null, null, null, null,
          new NgbDatepickerConfig(), null, actionFactory, httpClient, null, formDataService,
@@ -380,7 +380,7 @@ describe("ViewerApp Unit Tests", () => {
          richTextService, viewerToolbarMessageService, mobileToolbarService, mockDocument, composerRecentService,
          pageTabService, pagingControlService, selectionMobileService,
          assetLoadingService, viewContainerRef, baseHrefService,
-         TestBed.inject(CurrentUserService));
+         currentUserService as any);
       const mockChart = TestUtils.createMockVSChartModel("Mock Chart");
       const mockTable = TestUtils.createMockVSTableModel("Mock Table");
       const mockCrosstab = TestUtils.createMockVSCrosstabModel("Mock Crosstab");

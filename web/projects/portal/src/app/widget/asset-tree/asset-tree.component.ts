@@ -31,7 +31,7 @@ import {
    ViewChild
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { merge as observableMerge, Observable, throwError } from "rxjs";
+import { merge as observableMerge, Observable, Subscription, throwError } from "rxjs";
 import { catchError, finalize, map } from "rxjs/operators";
 import { AssetEntry } from "../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../shared/data/asset-type";
@@ -124,6 +124,7 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    };
    private loadDataSourcesAfterLoadRoot;
    private currOrgID: string = "";
+   private subscriptions = new Subscription();
 
    get searchMode(): boolean {
       return this.root != this.activeRoot;
@@ -142,10 +143,10 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    ngOnInit() {
       this.setupAssetClientService();
 
-      this.currentUserService.getPortalCurrentUser().subscribe((user) => {
+      this.subscriptions.add(this.currentUserService.getPortalCurrentUser().subscribe((user) => {
          this.currOrgID = user?.name?.orgID ?? "";
          this.loadAssetTree();
-      });
+      }));
    }
 
    loadAssetTree() {
@@ -217,6 +218,7 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
 
    ngOnDestroy() {
       this.assetClientService.disconnect();
+      this.subscriptions.unsubscribe();
    }
 
    ngOnChanges(changes: SimpleChanges): void {

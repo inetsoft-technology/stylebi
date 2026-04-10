@@ -26,7 +26,7 @@ import { debounceTime, distinctUntilChanged } from "rxjs/operators";
 import { IdentityModel } from "../../../../../em/src/app/settings/security/security-table-view/identity-model";
 import { SearchComparator } from "../tree/search-comparator";
 import { FormValidators } from "../../../../../shared/util/form-validators";
-import { Subject } from "rxjs";
+import { Subject, Subscription } from "rxjs";
 import { GuiTool } from "../../common/util/gui-tool";
 import { ModelService } from "../services/model.service";
 import { HttpParams } from "@angular/common/http";
@@ -71,6 +71,7 @@ export class EmbeddedEmailPane implements OnInit, OnDestroy {
    usersNode: TreeNodeModel[] = [];
    private searchTextchanges$ = new Subject<string>();
    private searchIdentitychanges$ = new Subject<string>();
+   private subscriptions = new Subscription();
    mobile: boolean;
    currOrg: string;
 
@@ -92,7 +93,7 @@ export class EmbeddedEmailPane implements OnInit, OnDestroy {
          .set("name", "Users")
          .set("type", String(IdentityType.USERS));
 
-      this.currentUserService.getPortalCurrentUser().subscribe(user => this.currOrg = user?.name?.orgID ?? null);
+      this.subscriptions.add(this.currentUserService.getPortalCurrentUser().subscribe(user => this.currOrg = user?.name?.orgID ?? null));
 
       this.modelService.getModel(EXPAND_IDENTITY_NODE_URI, params)
          .subscribe(
@@ -143,6 +144,7 @@ export class EmbeddedEmailPane implements OnInit, OnDestroy {
    ngOnDestroy(): void {
       this.searchTextchanges$.unsubscribe();
       this.searchIdentitychanges$.unsubscribe();
+      this.subscriptions.unsubscribe();
    }
 
    updateSearchText(str: string) {

@@ -569,7 +569,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       ngbDatepickerConfig.maxDate = {year: 2099, month: 12, day: 31};
       this.embed = this.contextProvider.embed;
 
-      this.currentUserService.getPortalCurrentUser().subscribe(user => this.currOrgID = user?.name?.orgID ?? null);
+      this.subscriptions.add(this.currentUserService.getPortalCurrentUser().subscribe(user => this.currOrgID = user?.name?.orgID ?? null));
    }
 
    getAssemblyName(): string {

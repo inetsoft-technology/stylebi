@@ -22,10 +22,11 @@ import {
    EventEmitter,
    ViewEncapsulation,
    OnInit,
+   OnDestroy,
    ViewChild
 } from "@angular/core";
 import { TreeNodeModel } from "../../../../../../widget/tree/tree-node-model";
-import { Observable, of } from "rxjs";
+import { Observable, of, Subscription } from "rxjs";
 import { DatabaseTreeNodeModel } from "../../../../model/datasources/database/physical-model/database-tree-node-model";
 import { HttpClient } from "@angular/common/http";
 import { HiddenColumnsModel } from "../../../../model/datasources/database/vpm/hidden-columns-model";
@@ -51,7 +52,7 @@ const MAX_HIDDEN_COLUMN = 500;
    styleUrls: ["vpm-hidden-columns.component.scss"],
    encapsulation: ViewEncapsulation.None
 })
-export class VPMHiddenColumnsComponent implements OnInit {
+export class VPMHiddenColumnsComponent implements OnInit, OnDestroy {
    @Input() hidden: HiddenColumnsModel;
    @Input() databaseName: string;
    @Input() availableRoles: DataItem[];
@@ -69,6 +70,7 @@ export class VPMHiddenColumnsComponent implements OnInit {
    loadingTree: boolean = false;
    filterStr: string = "";
    currOrg: string = "";
+   private subscriptions = new Subscription();
 
    constructor(private httpClient: HttpClient, private modalService: NgbModal,
                private currentUserService: CurrentUserService) {
@@ -76,7 +78,11 @@ export class VPMHiddenColumnsComponent implements OnInit {
 
    ngOnInit(): void {
       this.initDataSourceTree();
-      this.currentUserService.getPortalCurrentUser().subscribe(user => this.currOrg = user?.name?.orgID ?? "");
+      this.subscriptions.add(this.currentUserService.getPortalCurrentUser().subscribe(user => this.currOrg = user?.name?.orgID ?? ""));
+   }
+
+   ngOnDestroy(): void {
+      this.subscriptions.unsubscribe();
    }
 
    get selectedColumns(): TreeNodeModel[] {
