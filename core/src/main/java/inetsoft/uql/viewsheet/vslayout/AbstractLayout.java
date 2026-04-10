@@ -434,6 +434,10 @@ public abstract class AbstractLayout implements AssetObject {
       }
 
       tabSize.width = (int) (tabSize.width * scaleRadio.x);
+
+      // for bottom tabs, store the tab bar position (visual top + contentHeight)
+      // in tabInfo via applyBaseAssembly; VSEventUtil.applyTabScale reads this
+      // to position children above the tab bar
       Point tabPos = bottomTabs ?
          new Point(npos.x, npos.y + contentHeight) : npos;
       applyBaseAssembly(vsassembly, tabPos, tabSize);

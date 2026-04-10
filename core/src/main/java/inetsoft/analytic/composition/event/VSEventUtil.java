@@ -1270,6 +1270,9 @@ public final class VSEventUtil {
    {
       VSAssemblyInfo tabInfo = (VSAssemblyInfo) assembly.getInfo();
       boolean bottomTabs = ((TabVSAssemblyInfo) tabInfo).getBottomTabsValue();
+
+      // for bottom tabs, getLayoutPosition() returns the tab bar position
+      // (set by AbstractLayout.applyTab as npos.y + contentHeight)
       Point tabPos = tabInfo.getLayoutPosition();
       Dimension tabSize = tabInfo.getLayoutSize();
       String[] assemblies = assembly.getAssemblies();

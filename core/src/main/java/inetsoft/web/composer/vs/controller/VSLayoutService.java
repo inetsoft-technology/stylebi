@@ -421,7 +421,7 @@ public class VSLayoutService {
 
       VSObjectModel objectModel = null;
       boolean isBottomTabs = assembly instanceof TabVSAssembly &&
-         ((TabVSAssemblyInfo) assembly.getInfo()).isBottomTabs();
+         ((TabVSAssemblyInfo) assembly.getInfo()).getBottomTabsValue();
 
       if(assembly != null) {
          assembly.getInfo().setVisible(true);
