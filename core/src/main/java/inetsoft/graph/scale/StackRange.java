@@ -214,6 +214,20 @@ public class StackRange extends AbstractScaleRange {
    private double[] calculate0(DataSet data, String[] cols, GraphtDataSelector selector) {
       data = sortDataSet(data, cols);
 
+      // __all__ columns (e.g., __all__Sum(Total)) in a brushed dataset are only non-null
+      // in alldata rows. The brush element's selector filters out those rows, causing
+      // __all__ groups to compute a max of 0 instead of the full dataset total.
+      // For the scale to correctly span the entire data range, ignore the selector when
+      // computing groups that contain alldata (__all__) columns. (74234)
+      boolean hasAllCols = false;
+      for(String col : cols) {
+         if(col.startsWith(ElementVO.ALL_PREFIX)) {
+            hasAllCols = true;
+            selector = null;
+            break;
+         }
+      }
+
       double minValue = Double.MAX_VALUE;
       double maxValue = 0;
       Object groupValue = null;
@@ -221,6 +235,13 @@ public class StackRange extends AbstractScaleRange {
       double groupNegSum = 0;
       boolean processed = false;
       int start = getStartRow(data, cols), end = getEndRow(data, cols);
+
+      // For __all__ groups, the measure range covers only the brush rows (where __all__
+      // values are null). Override to span all rows so the alldata rows are included. (74234)
+      if(hasAllCols) {
+         start = 0;
+         end = data.getRowCount();
+      }
 
       for(int i = start; i < end; i++) {
          if(selector != null && !selector.accept(data, i, cols)) {
