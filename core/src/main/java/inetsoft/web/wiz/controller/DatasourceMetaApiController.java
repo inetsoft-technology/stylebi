@@ -22,6 +22,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.web.composer.model.*;
 import inetsoft.web.wiz.WizUtil;
+import inetsoft.web.wiz.model.DatasourceTablesResponse;
 import inetsoft.web.wiz.model.WorksheetMeta;
 import inetsoft.web.wiz.model.osi.OsiDataset;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
@@ -51,6 +52,20 @@ public class DatasourceMetaApiController {
       Principal principal)  throws Exception
    {
       return metadataService.getWorksheetMetaData(WizUtil.decodeId(worksheetId), (XPrincipal) principal);
+   }
+
+   /**
+    * Gets all tables and FK relationships for the specified datasource.
+    *
+    * @param dsPath the datasource name or path.
+    * @return tables (with catalog/schema/type) and OSI relationships.
+    */
+   @GetMapping("/datasource/tables")
+   public DatasourceTablesResponse getDatabaseTables(
+      @RequestParam("dsPath") String dsPath)
+      throws Exception
+   {
+      return metadataService.getDatabaseTables(dsPath);
    }
 
    /**
