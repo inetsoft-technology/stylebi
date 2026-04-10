@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet;
 
+import inetsoft.report.internal.Common;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.internal.*;
