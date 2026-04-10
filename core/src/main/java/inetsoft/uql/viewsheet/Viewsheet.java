@@ -1634,7 +1634,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
                if(labelInfo != null && labelInfo.isLabelVisible()) {
                   String position = labelInfo.getLabelPosition();
-                  int adjustment = GroupContainerVSAssembly.getLabelHeight(labelInfo) +
+                  int adjustment = labelInfo.getRenderedHeight() +
                      labelInfo.getLabelGap();
 
                   if(LabelInfo.BOTTOM.equals(position)) {

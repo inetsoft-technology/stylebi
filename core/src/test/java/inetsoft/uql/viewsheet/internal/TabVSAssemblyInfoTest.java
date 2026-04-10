@@ -136,8 +136,8 @@ class TabVSAssemblyInfoTest {
    void getBottomTabChildHeightIncludesTopLabelHeight() {
       TextInputVSAssemblyInfo info = new TextInputVSAssemblyInfo();
       LabelInfo labelInfo = info.getLabelInfo();
-      labelInfo.setLabelVisible(true);
-      labelInfo.setLabelPosition(LabelInfo.TOP);
+      labelInfo.setLabelVisibleValue("true");
+      labelInfo.setLabelPositionValue(LabelInfo.TOP);
       labelInfo.setLabelGap(5);
       Dimension size = new Dimension(200, 20);
 
@@ -150,8 +150,8 @@ class TabVSAssemblyInfoTest {
    void getBottomTabChildHeightIncludesBottomLabelHeight() {
       TextInputVSAssemblyInfo info = new TextInputVSAssemblyInfo();
       LabelInfo labelInfo = info.getLabelInfo();
-      labelInfo.setLabelVisible(true);
-      labelInfo.setLabelPosition(LabelInfo.BOTTOM);
+      labelInfo.setLabelVisibleValue("true");
+      labelInfo.setLabelPositionValue(LabelInfo.BOTTOM);
       labelInfo.setLabelGap(8);
       Dimension size = new Dimension(200, 20);
 
@@ -164,13 +164,13 @@ class TabVSAssemblyInfoTest {
    void getBottomTabChildHeightIgnoresLeftRightLabel() {
       TextInputVSAssemblyInfo info = new TextInputVSAssemblyInfo();
       LabelInfo labelInfo = info.getLabelInfo();
-      labelInfo.setLabelVisible(true);
-      labelInfo.setLabelPosition(LabelInfo.LEFT);
+      labelInfo.setLabelVisibleValue("true");
+      labelInfo.setLabelPositionValue(LabelInfo.LEFT);
       Dimension size = new Dimension(200, 20);
 
       assertEquals(20, TabVSAssemblyInfo.getBottomTabChildHeight(info, size));
 
-      labelInfo.setLabelPosition(LabelInfo.RIGHT);
+      labelInfo.setLabelPositionValue(LabelInfo.RIGHT);
       assertEquals(20, TabVSAssemblyInfo.getBottomTabChildHeight(info, size));
    }
 
@@ -178,8 +178,8 @@ class TabVSAssemblyInfoTest {
    void getBottomTabChildHeightIgnoresHiddenLabel() {
       TextInputVSAssemblyInfo info = new TextInputVSAssemblyInfo();
       LabelInfo labelInfo = info.getLabelInfo();
-      labelInfo.setLabelVisible(false);
-      labelInfo.setLabelPosition(LabelInfo.TOP);
+      labelInfo.setLabelVisibleValue("false");
+      labelInfo.setLabelPositionValue(LabelInfo.TOP);
       Dimension size = new Dimension(200, 20);
 
       assertEquals(20, TabVSAssemblyInfo.getBottomTabChildHeight(info, size));

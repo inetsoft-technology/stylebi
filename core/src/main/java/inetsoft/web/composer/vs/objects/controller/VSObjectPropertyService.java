@@ -2015,6 +2015,37 @@ public class VSObjectPropertyService {
       }
    }
 
+   /**
+    * Check if label properties that affect vertical height changed between old and new info.
+    * Compares design-time values only, since this is called from the composer property dialog
+    * where only design-time values are modified. Runtime script changes are handled separately.
+    */
+   private boolean inputLabelHeightChanged(VSAssemblyInfo oldInfo, VSAssemblyInfo newInfo) {
+      if(!(oldInfo instanceof InputVSAssemblyInfo oldInput) ||
+         !(newInfo instanceof InputVSAssemblyInfo newInput))
+      {
+         return false;
+      }
+
+      LabelInfo oldLabel = oldInput.getLabelInfo();
+      LabelInfo newLabel = newInput.getLabelInfo();
+
+      if(oldLabel == null && newLabel == null) {
+         return false;
+      }
+
+      if(oldLabel == null || newLabel == null) {
+         return true;
+      }
+
+      return oldLabel.getLabelVisibleValue() != newLabel.getLabelVisibleValue() ||
+         !Objects.equals(oldLabel.getLabelPositionValue(), newLabel.getLabelPositionValue()) ||
+         oldLabel.getLabelGapValue() != newLabel.getLabelGapValue() ||
+         !Objects.equals(
+            oldLabel.getLabelFormat() == null ? null : oldLabel.getLabelFormat().getFont(),
+            newLabel.getLabelFormat() == null ? null : newLabel.getLabelFormat().getFont());
+   }
+
    private void setAssemblyPrimary(RuntimeViewsheet rvs, String name, boolean primary,
                                   CommandDispatcher commandDispatcher) throws Exception
    {
@@ -2173,36 +2204,6 @@ public class VSObjectPropertyService {
             }
          }
       }
-   }
-
-
-   /**
-    * Check if label properties that affect vertical height changed between old and new info.
-    */
-   private boolean inputLabelHeightChanged(VSAssemblyInfo oldInfo, VSAssemblyInfo newInfo) {
-      if(!(oldInfo instanceof InputVSAssemblyInfo oldInput) ||
-         !(newInfo instanceof InputVSAssemblyInfo newInput))
-      {
-         return false;
-      }
-
-      LabelInfo oldLabel = oldInput.getLabelInfo();
-      LabelInfo newLabel = newInput.getLabelInfo();
-
-      if(oldLabel == null && newLabel == null) {
-         return false;
-      }
-
-      if(oldLabel == null || newLabel == null) {
-         return true;
-      }
-
-      return oldLabel.getLabelVisibleValue() != newLabel.getLabelVisibleValue() ||
-         !Objects.equals(oldLabel.getLabelPositionValue(), newLabel.getLabelPositionValue()) ||
-         oldLabel.getLabelGapValue() != newLabel.getLabelGapValue() ||
-         !Objects.equals(
-            oldLabel.getLabelFormat() == null ? null : oldLabel.getLabelFormat().getFont(),
-            newLabel.getLabelFormat() == null ? null : newLabel.getLabelFormat().getFont());
    }
 
    private final CoreLifecycleService coreLifecycleService;
