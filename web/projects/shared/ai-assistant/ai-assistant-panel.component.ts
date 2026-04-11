@@ -105,7 +105,6 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
             this.bottomHeight = savedHeight;
          }
 
-         this.collapsed = localStorage.getItem(LS_COLLAPSED_KEY) === "true";
       }
       catch {
          // localStorage unavailable (e.g. private browsing with strict settings) — use defaults.
