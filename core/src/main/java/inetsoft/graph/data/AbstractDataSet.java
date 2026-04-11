@@ -810,15 +810,6 @@ public abstract class AbstractDataSet implements DataSet {
       idxmap = null;
    }
 
-   /**
-    * Invalidate the cached column count so the next call to getColCount() recomputes it.
-    * Subclasses should call this whenever their getColCount0() result may have changed
-    * without going through addCalcColumn/removeCalcColumns/removeCalcValues.
-    */
-   protected void invalidateCachedColCount() {
-      cachedColCount = -1;
-   }
-
    @Override
    public Object clone() {
       return clone(false);
