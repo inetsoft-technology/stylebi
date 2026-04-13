@@ -236,6 +236,7 @@ public class VSBindingModelController {
 
       VSChartInfo chartInfo = chartAssembly.getVSChartInfo();
       chartInfo.setChartType(GraphTypes.downgrade3DChartType(chartInfo.getChartType()));
+      chartInfo.setRTChartType(GraphTypes.downgrade3DChartType(chartInfo.getRTChartType()));
 
       if(chartInfo.isMultiStyles()) {
          for(ChartRef ref : chartInfo.getYFields()) {

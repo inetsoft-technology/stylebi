@@ -96,12 +96,14 @@ public class VSChartBindingController {
       if(model instanceof ChartBindingModel) {
          ChartBindingModel cmodel = (ChartBindingModel) model;
          cmodel.setChartType(GraphTypes.downgrade3DChartType(cmodel.getChartType()));
+         cmodel.setRTChartType(GraphTypes.downgrade3DChartType(cmodel.getRTChartType()));
 
          // Also downgrade per-aggregate types for multi-style charts. (74475)
          if(cmodel.isMultiStyles() && cmodel.getYFields() != null) {
             for(ChartRefModel ref : cmodel.getYFields()) {
                if(ref instanceof ChartAggregateRefModel aggr) {
                   aggr.setChartType(GraphTypes.downgrade3DChartType(aggr.getChartType()));
+                  aggr.setRTChartType(GraphTypes.downgrade3DChartType(aggr.getRTChartType()));
                }
             }
          }

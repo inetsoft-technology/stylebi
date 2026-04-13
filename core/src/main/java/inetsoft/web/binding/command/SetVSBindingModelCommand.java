@@ -37,14 +37,16 @@ public class SetVSBindingModelCommand implements ViewsheetCommand {
    public SetVSBindingModelCommand(BindingModel binding) {
       // 3D chart types are removed from the UI. Downgrade any 3D chart type to its 2D
       // equivalent before sending to the frontend so the binding editor shows a valid type.
-      // The runtime assembly is unaffected until the user applies a change. (74475)
+      // NOTE: this mutates the binding model in-place. (74475)
       if(binding instanceof ChartBindingModel cmodel) {
          cmodel.setChartType(downgrade3DChartType(cmodel.getChartType()));
+         cmodel.setRTChartType(downgrade3DChartType(cmodel.getRTChartType()));
 
          if(cmodel.isMultiStyles() && cmodel.getYFields() != null) {
             for(ChartRefModel ref : cmodel.getYFields()) {
                if(ref instanceof ChartAggregateRefModel aggr) {
                   aggr.setChartType(downgrade3DChartType(aggr.getChartType()));
+                  aggr.setRTChartType(downgrade3DChartType(aggr.getRTChartType()));
                }
             }
          }
