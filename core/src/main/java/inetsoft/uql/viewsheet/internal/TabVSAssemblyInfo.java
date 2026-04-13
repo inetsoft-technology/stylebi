@@ -459,7 +459,8 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
     * alters a child's effective height and only that child needs to be
     * adjusted without recalculating the entire tab layout.</p>
     *
-    * @param tabInfo  the bottom-tab info (must have a non-null pixel offset)
+    * @param tabInfo  the bottom-tab info; caller must verify
+    *                 {@code getBottomTabsValue()} is true
     * @param childInfo the child assembly's info to reposition
     * @param childSize the child assembly's pixel size
     */

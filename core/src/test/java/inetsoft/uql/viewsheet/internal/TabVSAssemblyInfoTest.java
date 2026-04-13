@@ -24,6 +24,7 @@ import org.mockito.Mockito;
 import java.awt.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.when;
 
 class TabVSAssemblyInfoTest {
@@ -247,6 +248,47 @@ class TabVSAssemblyInfoTest {
       TabVSAssemblyInfo.repositionChildForBottomTabs(tabInfo, childInfo, childSize);
       assertEquals(expectedY, childInfo.getPixelOffset().y);
       assertEquals(expectedY, childInfo.getLayoutPosition().y);
+   }
+
+   @Test
+   void repositionChildForBottomTabsNullTabOffset() {
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setPixelOffset(null);
+
+      TextInputVSAssemblyInfo childInfo = new TextInputVSAssemblyInfo();
+      childInfo.setPixelOffset(new Point(50, 170));
+      Dimension childSize = new Dimension(200, 30);
+
+      TabVSAssemblyInfo.repositionChildForBottomTabs(tabInfo, childInfo, childSize);
+      // child unchanged when tab offset is null
+      assertEquals(170, childInfo.getPixelOffset().y);
+   }
+
+   @Test
+   void repositionChildForBottomTabsNullChildOffset() {
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setPixelOffset(new Point(50, 200));
+
+      TextInputVSAssemblyInfo childInfo = new TextInputVSAssemblyInfo();
+      childInfo.setPixelOffset(null);
+      Dimension childSize = new Dimension(200, 30);
+
+      // no NPE, silently skipped
+      TabVSAssemblyInfo.repositionChildForBottomTabs(tabInfo, childInfo, childSize);
+      assertNull(childInfo.getPixelOffset());
+   }
+
+   @Test
+   void repositionChildForBottomTabsZeroHeight() {
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setPixelOffset(new Point(50, 200));
+
+      TextInputVSAssemblyInfo childInfo = new TextInputVSAssemblyInfo();
+      childInfo.setPixelOffset(new Point(50, 170));
+
+      // null size results in zero height, early return
+      TabVSAssemblyInfo.repositionChildForBottomTabs(tabInfo, childInfo, null);
+      assertEquals(170, childInfo.getPixelOffset().y);
    }
 
    private VSAssembly mockChild(String name, SelectionBaseVSAssemblyInfo info,
