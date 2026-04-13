@@ -591,7 +591,9 @@ export namespace VSUtil {
       return !!getBottomTabContainer(obj, vsObjects);
    }
 
-   export function getBottomTabContainer(obj: VSObjectModel, vsObjects: VSObjectModel[]): VSTabModel | null {
+   export function getBottomTabContainer(obj: VSObjectModel,
+                                          vsObjects: VSObjectModel[] | undefined): VSTabModel | null
+   {
       if(obj.containerType !== "VSTab" || !obj.container) {
          return null;
       }
@@ -606,7 +608,9 @@ export namespace VSUtil {
     * objectFormat.top, which may be stale when bottomTabs is toggled via script
     * (child pixelOffset refreshes aren't guaranteed to reach the client).
     *
-    * - collapsed (expanded=false): title sits directly above the tab bar.
+    * - collapsed (expanded=false): title sits directly above the tab bar; this
+    *   branch also covers the script-stale case, anchoring the title correctly
+    *   regardless of the selection's own (possibly stale) objectFormat.top.
     * - expanded: wrapper shifts further up by bodyHeight (+ searchBarHeight) so the
     *   body pops above the title.
     */
@@ -614,6 +618,7 @@ export namespace VSUtil {
                                                 expanded: boolean, bodyHeight: number,
                                                 searchDisplayed: boolean): number {
       const body = expanded ? bodyHeight : 0;
+      // selection's search bar height matches the title bar height
       const searchBar = expanded && searchDisplayed ? titleHeight : 0;
       return tabTop - titleHeight - body - searchBar;
    }

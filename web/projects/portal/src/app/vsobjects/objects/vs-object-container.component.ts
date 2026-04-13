@@ -523,6 +523,9 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
                   return popDown ? obj?.objectFormat?.top : obj?.objectFormat?.top - bodyHeight;
                }
                else if(selModel.dropdown && inBottomTab) {
+                  // applies whether the dropdown is collapsed or expanded; the collapsed
+                  // case is critical because it's where objectFormat.top would be stale
+                  // when bottomTabs is toggled via script.
                   const expanded = !SelectionBaseController.isHidden(selModel);
                   return VSUtil.computeBottomTabSelectionTop(
                      bottomTab.objectFormat.top, selModel.titleFormat.height,

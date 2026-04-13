@@ -223,6 +223,9 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
             return popDown ? this.model.objectFormat.top : this.model.objectFormat.top - bodyHeight;
          }
          else if(this.model.dropdown && inBottomTab) {
+            // applies whether the dropdown is collapsed or expanded; the collapsed
+            // case is critical because it's where objectFormat.top would be stale
+            // when bottomTabs is toggled via script.
             const expanded = !SelectionBaseController.isHidden(this.model);
             return VSUtil.computeBottomTabSelectionTop(
                bottomTab.objectFormat.top, this.model.titleFormat.height,

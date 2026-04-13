@@ -311,4 +311,59 @@ describe("VSSelection Test", () => {
       // non-dropdown: objectFormat.top already accounts for full component height
       expect(fixture.componentInstance.topPosition).toBe(300);
    });
+
+   // Bug #74494 — dropdown selection in a bottom-tabs tab must derive its Y
+   // from the parent tab's objectFormat.top, not its own (possibly stale)
+   // objectFormat.top. Stale values occur when Tab.bottomTabs is toggled via
+   // script and the child pixelOffset update doesn't reach the client.
+   it("should anchor collapsed dropdown selection to parent tab top, ignoring stale objectFormat.top", () => {
+      let listModel = createListModel();
+      listModel.dropdown = true;
+      listModel.hidden = true;                 // dropdown panel collapsed
+      listModel.searchDisplayed = false;
+      listModel.objectFormat.top = 9999;       // stale; must be ignored
+      listModel.titleFormat.height = 20;
+      listModel.containerType = "VSTab";
+      listModel.container = "Tab1";
+
+      let tabModel = Object.assign(
+         { bottomTabs: true },
+         TestUtils.createMockVSObjectModel("VSTab", "Tab1")
+      );
+      tabModel.objectFormat.top = 544;
+
+      contextService.viewer = true;
+      fixture.componentInstance.model = listModel;
+      fixture.componentInstance.vsInfo = { vsObjects: [tabModel] } as any;
+
+      // title flush with tab bar: 544 - titleHeight(20) = 524
+      expect(fixture.componentInstance.topPosition).toBe(524);
+   });
+
+   it("should shift expanded dropdown selection above parent tab by body height", () => {
+      let listModel = createListModel();
+      listModel.dropdown = true;
+      listModel.searchDisplayed = false;
+      listModel.objectFormat.top = 9999;       // stale; must be ignored
+      listModel.titleFormat.height = 20;
+      listModel.cellHeight = 18;
+      listModel.listHeight = 5;                // getBodyHeight → 18 * 5 = 90
+      listModel.containerType = "VSTab";
+      listModel.container = "Tab1";
+
+      let tabModel = Object.assign(
+         { bottomTabs: true },
+         TestUtils.createMockVSObjectModel("VSTab", "Tab1")
+      );
+      tabModel.objectFormat.top = 544;
+
+      contextService.viewer = true;
+      fixture.componentInstance.model = listModel;
+      // model setter forces hidden=true for new dropdown models; flip after assignment
+      fixture.componentInstance.model.hidden = false;
+      fixture.componentInstance.vsInfo = { vsObjects: [tabModel] } as any;
+
+      // tabTop(544) - titleHeight(20) - bodyHeight(90) = 434
+      expect(fixture.componentInstance.topPosition).toBe(434);
+   });
 });
