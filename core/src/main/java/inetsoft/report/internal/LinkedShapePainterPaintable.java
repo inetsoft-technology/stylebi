@@ -75,7 +75,7 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
     */
    public Hyperlink.Ref getHyperlink(Shape shape) {
       if(map == null) {
-         map = Collections.synchronizedMap(new LinkedHashMap<>());
+         map = new LinkedHashMap<>();
       }
 
       return map.get(shape);
@@ -86,7 +86,7 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
     */
    public void setHyperlink(Shape shape, Hyperlink.Ref link) {
       if(map == null) {
-         map = Collections.synchronizedMap(new LinkedHashMap<>());
+         map = new LinkedHashMap<>();
       }
 
       if(link == null) {
@@ -102,7 +102,7 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
     */
    protected Hyperlink.Ref[] getDrillHyperlinks(Shape shape) {
       if(dmap == null) {
-         dmap = Collections.synchronizedMap(new LinkedHashMap<>());
+         dmap = new LinkedHashMap<>();
       }
 
       Hyperlink.Ref[] refs = dmap.get(shape) == null ?
@@ -120,7 +120,7 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
       }
 
       if(dmap == null) {
-         dmap = Collections.synchronizedMap(new LinkedHashMap<>());
+         dmap = new LinkedHashMap<>();
       }
 
       if(links == null) {
@@ -137,7 +137,7 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
     */
    public Hyperlink.Ref[] getHyperlinks(Shape shape) {
       if(dmap == null) {
-         dmap = Collections.synchronizedMap(new LinkedHashMap<>());
+         dmap = new LinkedHashMap<>();
       }
 
       Hyperlink.Ref href = getHyperlink(shape);
@@ -244,7 +244,7 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
       Object obj = s.readObject();
 
       if(obj instanceof Integer) {
-         map = Collections.synchronizedMap(new LinkedHashMap<>());
+         map = new LinkedHashMap<>();
          int linkcnt = ((Integer) obj).intValue();
 
          for(int i = 0; i < linkcnt; i++) {
@@ -269,7 +269,7 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
     */
    private void writeObject(ObjectOutputStream stream) throws IOException {
       if(map == null) {
-         map = Collections.synchronizedMap(new LinkedHashMap<>());
+         map = new LinkedHashMap<>();
       }
 
       // @by jasons, if the background is transparent (null), we need to store
@@ -325,7 +325,8 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
       }
    }
 
-   // synchronized LinkedHashMap preserves insertion order for deterministic PDF link emission
+   // LinkedHashMap preserves insertion order for deterministic PDF link emission.
+   // not synchronized: paintables are accessed single-threadedly during report rendering.
    protected transient Map<Shape, Hyperlink.Ref> map;
    protected transient Map<Shape, Hyperlink.Ref[]> dmap;
 
