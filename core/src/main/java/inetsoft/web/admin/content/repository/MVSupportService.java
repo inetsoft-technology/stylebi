@@ -1420,8 +1420,8 @@ public class MVSupportService {
       Executors.newFixedThreadPool(2, new GroupedThreadFactory());
    private final ExecutorService remoteCreatePool =
       Executors.newCachedThreadPool(new GroupedThreadFactory());
-   public static final String MV_TASK_PREFIX = "MV Task: ";
-   public static final String MV_TASK_STAGE_PREFIX = "MV Task Stage 2: ";
+   public static final String MV_TASK_PREFIX = Util.MV_TASK_PREFIX;
+   public static final String MV_TASK_STAGE_PREFIX = Util.MV_TASK_STAGE_PREFIX;
 
    private static final Logger LOG = LoggerFactory.getLogger(MVSupportService.class);
 
