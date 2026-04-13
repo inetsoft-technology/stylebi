@@ -678,16 +678,20 @@ public class MetadataApiService {
                continue;
             }
 
-            // Group rows by (fkTable, pkTable, pkCatalog, pkSchema) to handle composite FK constraints
+            String fkName = Tool.defaultIfNull((String) keyNode.getAttribute("fkName"), "");
+
+            // Group rows by (fkTable, pkTable, pkCatalog, pkSchema, fkName) to handle composite FK
+            // constraints while keeping separate constraints between the same table pair distinct.
             List<String> relKey = List.of(
                fkTableName,
                pkTableName,
                Tool.defaultIfNull((String) keyNode.getAttribute("pkTableCat"), ""),
-               Tool.defaultIfNull((String) keyNode.getAttribute("pkTableSchem"), ""));
+               Tool.defaultIfNull((String) keyNode.getAttribute("pkTableSchem"), ""),
+               fkName);
 
             OsiRelationship rel = relMap.computeIfAbsent(relKey, k -> {
                OsiRelationship r = new OsiRelationship();
-               r.setName(fkTableName + "_" + pkTableName + "_fk");
+               r.setName(!fkName.isEmpty() ? fkName : fkTableName + "_" + pkTableName + "_fk");
                r.setFrom(fkTableName);
                r.setTo(pkTableName);
                r.setFromColumns(new ArrayList<>());
