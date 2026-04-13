@@ -424,7 +424,8 @@ public class ValueOfColumn extends AbstractColumn {
          List<XDimensionRef> ignoreList = dcTempGroups;
          boolean ndimIsPartDate = false;
 
-         if(ctype < ValueOfCalc.PREVIOUS_YEAR && ndim.equals(innerDim) && getDimensions() != null) {
+         if((ctype == ValueOfCalc.PREVIOUS || ctype == ValueOfCalc.NEXT)
+               && ndim.equals(innerDim) && getDimensions() != null) {
             String ndimBase = getDateColumnBase(ndim);
 
             if(ndimBase != null) {
