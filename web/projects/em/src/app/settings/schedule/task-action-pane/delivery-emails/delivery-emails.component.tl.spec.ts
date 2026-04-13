@@ -130,7 +130,7 @@ async function renderComponent(props: Partial<DeliveryEmailsComponent> = {}) {
 
 describe("DeliveryEmailsComponent — isValid: !enabled guard vs CSV check order", () => {
 
-   // 🔁 Regression-sensitive: enabled=false must ALWAYS produce valid=true.
+   // enabled=false must ALWAYS produce valid=true.
    // The disabled state means "skip this action" — no configuration is required.
    it("should emit valid=true when enabled=false with a non-CSV format", async () => {
       const { comp } = await renderComponent({ enabled: false });

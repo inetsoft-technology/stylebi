@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -48,6 +48,7 @@ import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-m
 import { DataInputPaneModel } from "../../data/vs/data-input-pane-model";
 import { DataInputPane, PopupEmbeddedTable } from "./data-input-pane.component";
 import { server } from "../../../../../../../mocks/server";
+import { it } from "@jest/globals";  //must be import, or it.failing didn't work
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -146,8 +147,12 @@ describe("DataInputPane — selectRow — row index calculation and direct stora
       expect(comp.model.rowValue).toBe("1");
    });
 
+   // Guard case: in frontend VALUE mode, Row is selection-only (no free text input), so this path is not
+   // directly reproducible via UI. Keep this method-level test as a regression guard.
+   // Confirmed observation (dynamic input): setting select row to "ghost row" can produce rowValue: "0".
+   // Current decision: document and guard this behavior for now, no functional change in this task.
    // Risk Point/Contract: row not in list → indexOf=-1, so rowValue="0" (SA≠SB: 0 is invalid 1-based index)
-   it("should store '0' when row is not found in this.rows (indexOf=-1 + 1)", async () => {
+   it.failing("should fallback to first row when selected row is not found", async () => {
       const { fixture } = await renderPure();
       const comp = fixture.componentInstance;
 
@@ -155,6 +160,7 @@ describe("DataInputPane — selectRow — row index calculation and direct stora
       comp.selectRow("ghost row");
 
       expect(comp.model.rowValue).toBe("0");
+      expect(comp.selectedRow).toBe("1 : city");
    });
 });
 

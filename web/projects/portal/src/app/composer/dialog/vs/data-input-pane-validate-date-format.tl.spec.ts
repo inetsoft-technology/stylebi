@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -110,12 +110,13 @@ describe("DataInputPane — validateDateFormat — char/token rules [Group 1, Ri
       transformSpy.mockRestore();
 
       // DatePipe throwing should be caught and mapped to invalid=true.
-      jest.spyOn((comp as any).datePipe, "transform").mockImplementation(() => {
+      const throwSpy = jest.spyOn((comp as any).datePipe, "transform").mockImplementation(() => {
          throw new Error("boom");
       });
       comp.validateDateFormat("yyyy-MM-dd");
       expect(comp.dateFormatInvalid).toBe(true);
       expect(emitted).toEqual([false, true, true]);
+      throwSpy.mockRestore();
    });
 
    // 🔁 Regression-sensitive: relaxing the allowed regex to include H/m/s would silently change query semantics

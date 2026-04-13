@@ -470,7 +470,7 @@ export class DeliveryEmailsComponent implements OnInit, OnChanges {
          return true;
       }
 
-      if(this.format == "CSV" && this.type === "viewsheet" &&
+      if(this.format === "CSV" && this.type === "viewsheet" &&
          this.csvExportModel?.selectedAssemblies?.length == 0)
       {
          return false;
