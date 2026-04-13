@@ -634,14 +634,18 @@ public class MetadataApiService {
 
    /**
     * Queries KEYRELATION for each table and builds OSI Relationship objects from foreign key info.
-    * Rows belonging to the same FK constraint (same FK table + PK table) are grouped together
-    * so that composite keys are represented as multi-column relationships.
+    * Rows belonging to the same FK constraint (FK table, PK table, and FK constraint name) are
+    * grouped together so that composite keys are represented as multi-column relationships.
+    * When the driver does not populate FK_NAME (fkName is empty), rows are grouped by table pair
+    * only — multiple unnamed constraints between the same pair will be merged as a known limitation.
+    * System-generated constraint names (e.g. SYS_C007890, FK__orders__cust__3A81B327) are used
+    * as-is since they faithfully reflect what the database reports.
     */
    private List<OsiRelationship> buildRelationships(DefaultMetaDataProvider metaDataProvider,
                                                      List<DatabaseTableInfo> tables)
    {
       // LinkedHashMap preserves insertion order.
-      // Key is a List<String> of [fkTable, pkTable, pkCatalog, pkSchema] — avoids delimiter
+      // Key is a List<String> of [fkTable, pkTable, pkCatalog, pkSchema, fkName] — avoids delimiter
       // collision that would occur with string concatenation when table names contain separators.
       Map<List<String>, OsiRelationship> relMap = new LinkedHashMap<>();
 
