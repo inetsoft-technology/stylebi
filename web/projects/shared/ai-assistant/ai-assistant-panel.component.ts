@@ -25,7 +25,6 @@ type PanelMode = "side" | "bottom";
 const LS_MODE_KEY = "ai-assistant-panel-mode";
 const LS_SIDE_WIDTH_KEY = "ai-assistant-panel-side-width";
 const LS_BOTTOM_HEIGHT_KEY = "ai-assistant-panel-bottom-height";
-const LS_COLLAPSED_KEY = "ai-assistant-panel-collapsed";
 const DEFAULT_SIDE_WIDTH = 760;
 const DEFAULT_BOTTOM_HEIGHT = 520;
 const MIN_SIZE = 300;
@@ -65,7 +64,6 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
             // Reset collapsed state each time the panel is opened so users are never
             // greeted by a header-only strip with no explanation.
             this.collapsed = false;
-            try { localStorage.removeItem(LS_COLLAPSED_KEY); } catch { /* ignore */ }
             this.serverState = "checking";
             this.healthSub?.unsubscribe();
             this.healthSub = this.aiAssistantService.checkHealth().subscribe(online => {
@@ -123,7 +121,6 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
 
    toggleCollapsed(): void {
       this.collapsed = !this.collapsed;
-      try { localStorage.setItem(LS_COLLAPSED_KEY, String(this.collapsed)); } catch { /* ignore */ }
    }
 
    toggleMode(): void {

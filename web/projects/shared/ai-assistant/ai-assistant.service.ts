@@ -165,7 +165,6 @@ export class AiAssistantService {
             script.onload = () => resolve();
             script.onerror = () => {
                document.head.removeChild(script); // remove so a retry appends a fresh element
-               this.webComponentScriptPromise = null; // allow retry next time
                reject(new Error("Failed to load AI assistant web component"));
             };
             document.head.appendChild(script);
