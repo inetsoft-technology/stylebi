@@ -418,13 +418,13 @@ public class ValueOfColumn extends AbstractColumn {
          // is a PART_DATE_GROUP, exclude any sibling PART_DATE_GROUP dimensions that share the
          // same base date column. This prevents zero rows when a part-level lookup crosses a
          // period boundary (e.g. April→March crosses Q2→Q1, so QuarterOfYear must be excluded).
-         // Do NOT exclude siblings when ndim is a full date group (e.g. Year): in that case the
-         // siblings (e.g. QuarterOfYear) must stay in the condition to find the correct period
-         // in the previous year (e.g. Q3 2019 when looking up previous year of Q3 2020).
+         // Only apply for PREVIOUS/NEXT: for PREVIOUS_YEAR and similar ctypes, the PART_DATE_GROUP
+         // sibling (e.g. QuarterOfYear) is the correct position discriminator and must remain in
+         // the condition to find the same quarter in the previous year.
          List<XDimensionRef> ignoreList = dcTempGroups;
          boolean ndimIsPartDate = false;
 
-         if(ndim.equals(innerDim) && getDimensions() != null) {
+         if(ctype < ValueOfCalc.PREVIOUS_YEAR && ndim.equals(innerDim) && getDimensions() != null) {
             String ndimBase = getDateColumnBase(ndim);
 
             if(ndimBase != null) {
