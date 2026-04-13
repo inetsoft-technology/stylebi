@@ -588,11 +588,33 @@ export namespace VSUtil {
    export const CALENDAR_BODY_HEIGHT = CALENDAR_ROW_HEIGHT * CALENDAR_BODY_ROWS;
 
    export function isInBottomTabContainer(obj: VSObjectModel, vsObjects: VSObjectModel[]): boolean {
+      return !!getBottomTabContainer(obj, vsObjects);
+   }
+
+   export function getBottomTabContainer(obj: VSObjectModel, vsObjects: VSObjectModel[]): VSTabModel | null {
       if(obj.containerType !== "VSTab" || !obj.container) {
-         return false;
+         return null;
       }
 
-      const parentTab = vsObjects?.find(o => o.absoluteName === obj.container);
-      return !!parentTab && (parentTab as VSTabModel).bottomTabs === true;
+      const parentTab = vsObjects?.find(o => o.absoluteName === obj.container) as VSTabModel;
+      return parentTab && parentTab.bottomTabs === true ? parentTab : null;
+   }
+
+   /**
+    * Compute Y for a dropdown selection flush with the top of a bottom-tabs tab bar.
+    * Derives position from the parent tab's top rather than the selection's own
+    * objectFormat.top, which may be stale when bottomTabs is toggled via script
+    * (child pixelOffset refreshes aren't guaranteed to reach the client).
+    *
+    * - collapsed (expanded=false): title sits directly above the tab bar.
+    * - expanded: wrapper shifts further up by bodyHeight (+ searchBarHeight) so the
+    *   body pops above the title.
+    */
+   export function computeBottomTabSelectionTop(tabTop: number, titleHeight: number,
+                                                expanded: boolean, bodyHeight: number,
+                                                searchDisplayed: boolean): number {
+      const body = expanded ? bodyHeight : 0;
+      const searchBar = expanded && searchDisplayed ? titleHeight : 0;
+      return tabTop - titleHeight - body - searchBar;
    }
 }

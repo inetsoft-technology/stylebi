@@ -209,7 +209,8 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    private _columnShiftCleanup: (() => void) | null = null;
 
    get topPosition(): number {
-      const inBottomTab = VSUtil.isInBottomTabContainer(this.model, this.vsInfo?.vsObjects);
+      const bottomTab = VSUtil.getBottomTabContainer(this.model, this.vsInfo?.vsObjects);
+      const inBottomTab = !!bottomTab;
 
       if((this.viewer || this.embeddedVS) && !this.model.maxMode && !this.inContainer) {
          if(this.atBottom && this.model.dropdown &&
@@ -221,11 +222,11 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
 
             return popDown ? this.model.objectFormat.top : this.model.objectFormat.top - bodyHeight;
          }
-         else if(this.model.dropdown && !SelectionBaseController.isHidden(this.model)
-            && inBottomTab)
-         {
-            let searchBarHeight = this.model.searchDisplayed ? this.model.titleFormat.height : 0;
-            return this.model.objectFormat.top - this.getBodyHeight() - searchBarHeight;
+         else if(this.model.dropdown && inBottomTab) {
+            const expanded = !SelectionBaseController.isHidden(this.model);
+            return VSUtil.computeBottomTabSelectionTop(
+               bottomTab.objectFormat.top, this.model.titleFormat.height,
+               expanded, this.getBodyHeight(), this.model.searchDisplayed);
          }
          else {
             return this.model.objectFormat.top;
