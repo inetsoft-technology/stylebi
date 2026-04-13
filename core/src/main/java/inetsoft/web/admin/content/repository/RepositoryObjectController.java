@@ -22,7 +22,7 @@ import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.util.MessageException;
+import inetsoft.util.*;
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.security.ConnectionStatus;
@@ -79,6 +79,14 @@ public class RepositoryObjectController {
       int resourceType = Integer.parseInt(type);
       Resource resource = permissionService.getRepositoryResourceType(resourceType, path);
       String fullPath = Util.getObjectFullPath(resourceType, path, principal);
+
+      if(!SecurityEngine.getSecurity().checkPermission(
+         principal, resource.getType(), resource.getPath(), ResourceAction.ADMIN))
+      {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", path));
+      }
+
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       AssetEntry entry = new AssetEntry(
          AssetRepository.COMPONENT_SCOPE, Integer.parseInt(type), path, pId);

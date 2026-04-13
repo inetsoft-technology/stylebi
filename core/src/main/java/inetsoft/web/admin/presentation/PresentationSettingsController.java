@@ -225,7 +225,7 @@ public class PresentationSettingsController {
             exportMenuSettingsService.setExportMenuSettings(model.exportMenuSettingsModel(), globalSettings);
          }
 
-         if(model.fontMappingSettingsModel() != null) {
+         if(globalSettings && model.fontMappingSettingsModel() != null) {
             fontMappingSettingsService.setModel(model.fontMappingSettingsModel());
          }
 

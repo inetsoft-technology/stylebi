@@ -378,6 +378,7 @@ describe("ViewerApp Unit Tests", () => {
    it("should remove the vsobject's actions when removing the vsobject", () => {
       const httpClient = TestBed.inject(HttpClient);
       const tooltipConfig = TestBed.inject(NgbTooltipConfig);
+      const currentUserService = { getPortalCurrentUser: jest.fn().mockReturnValue(observableOf(null)) };
       const viewerApp = new ViewerAppComponent(
          viewsheetClientService, null, null, null, null, null, null, null,
          new NgbDatepickerConfig(), null, actionFactory, httpClient, null, formDataService,
@@ -386,7 +387,8 @@ describe("ViewerApp Unit Tests", () => {
          firstDayOfWeekService, TestBed.inject(NgbTooltipConfig), shareService, null,
          richTextService, viewerToolbarMessageService, mobileToolbarService, mockDocument, composerRecentService,
          pageTabService, pagingControlService, selectionMobileService,
-         assetLoadingService, viewContainerRef, baseHrefService);
+         assetLoadingService, viewContainerRef, baseHrefService,
+         currentUserService as any);
       const mockChart = TestUtils.createMockVSChartModel("Mock Chart");
       const mockTable = TestUtils.createMockVSTableModel("Mock Table");
       const mockCrosstab = TestUtils.createMockVSCrosstabModel("Mock Crosstab");

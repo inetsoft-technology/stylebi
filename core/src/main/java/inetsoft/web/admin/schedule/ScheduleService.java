@@ -1776,6 +1776,15 @@ public class ScheduleService {
       throws Exception
    {
       Catalog catalog = Catalog.getCatalog(principal);
+      ScheduleTask taskToDelete = scheduleManager.getScheduleTask(taskName);
+
+      if(taskToDelete != null &&
+         !ScheduleManager.hasTaskPermission(taskToDelete.getOwner(), principal, ResourceAction.DELETE))
+      {
+         throw new SecurityException(String.format(
+            "Unauthorized access to resource \"%s\" by %s", taskName, principal));
+      }
+
       boolean dependence = scheduleManager.hasDependency(allTasks, taskName);
 
       // log delete task action
@@ -1817,6 +1826,11 @@ public class ScheduleService {
       String errorMsg = null;
       boolean dumpException = true;
       ScheduleTask task = scheduleManager.getScheduleTask(taskName, currentOrgID);
+
+      if(task != null && !ScheduleManager.hasTaskPermission(task.getOwner(), principal, ResourceAction.READ)) {
+         throw new SecurityException(String.format(
+            "Unauthorized access to resource \"%s\" by %s", taskName, principal));
+      }
 
       if(!scheduleClient.isReady()) {
          errorMsg = catalog.getString("em.scheduler.notStarted");
@@ -1901,6 +1915,11 @@ public class ScheduleService {
       }
       else {
          ScheduleTask task = scheduleManager.getScheduleTask(taskName);
+
+         if(task != null && !ScheduleManager.hasTaskPermission(task.getOwner(), principal, ResourceAction.READ)) {
+            throw new SecurityException(String.format(
+               "Unauthorized access to resource \"%s\" by %s", taskName, principal));
+         }
 
          if(task != null && !task.isEnabled()) {
             errorMsg = catalog.getString("em.scheduler.stopDisabledTask",

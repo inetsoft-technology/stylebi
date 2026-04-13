@@ -125,6 +125,11 @@ public class RepositoryDashboardService {
          return null;
       }
 
+      if(!securityProvider.checkPermission(principal, ResourceType.DASHBOARD, model.oname(), ResourceAction.ADMIN)) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", model.oname()));
+      }
+
       ActionRecord actionRecord = null;
 
       try {
@@ -302,6 +307,11 @@ public class RepositoryDashboardService {
                                                  Principal principal)
       throws Exception
    {
+      if(!securityProvider.checkPermission(principal, ResourceType.DASHBOARD, "/", ResourceAction.ADMIN)) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", "/"));
+      }
+
       ActionRecord actionRecord = null;
 
       try {
@@ -415,6 +425,11 @@ public class RepositoryDashboardService {
    public RepositoryFolderDashboardSettingsModel setDashboardFolderSettings(
       RepositoryFolderDashboardSettingsModel model, Principal principal) throws Exception
    {
+      if(!securityProvider.checkPermission(principal, ResourceType.DASHBOARD, "/", ResourceAction.ADMIN)) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", "/"));
+      }
+
       Identity identity = getDashboardFolderIdentity(principal);
       List<String> all = Arrays.asList(dashboardManager.getDashboards(identity));
       all.sort(Comparator.comparingInt(model.dashboards()::indexOf));

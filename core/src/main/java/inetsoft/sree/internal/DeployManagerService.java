@@ -741,7 +741,7 @@ public class DeployManagerService {
 
                changeAssetMap.put(supportEntry, getAssetObjectByAsset(newAsset));
 
-               if(OrganizationManager.getInstance().isSiteAdmin(principal) && supportEntry instanceof AssetEntry) {
+               if(supportEntry instanceof AssetEntry) {
                   AssetObject currOrgEntry = ((AssetEntry) supportEntry).cloneAssetEntry(
                                              new Organization(OrganizationManager.getInstance().getCurrentOrgID()));
                   changeAssetMap.put(currOrgEntry, getAssetObjectByAsset(newAsset));

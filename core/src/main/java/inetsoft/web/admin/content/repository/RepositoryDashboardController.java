@@ -18,8 +18,7 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.sree.security.*;
-import inetsoft.util.Catalog;
-import inetsoft.util.InvalidOrgException;
+import inetsoft.util.*;
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.schedule.ScheduleTaskActionService;
@@ -66,6 +65,14 @@ public class RepositoryDashboardController {
 
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
       path = treeService.getUnscopedPath(path);
+
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.DASHBOARD, path,
+                                                       ResourceAction.ADMIN))
+      {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", path));
+      }
+
       return repositoryDashboardService.getSettings(path, ownerID, principal);
    }
 

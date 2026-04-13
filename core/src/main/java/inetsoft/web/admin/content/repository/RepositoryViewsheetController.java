@@ -19,8 +19,7 @@ package inetsoft.web.admin.content.repository;
 
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
-import inetsoft.util.Catalog;
-import inetsoft.util.InvalidOrgException;
+import inetsoft.util.*;
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
@@ -66,6 +65,14 @@ public class RepositoryViewsheetController {
 
       int scope = treeService.getAssetScope(path);
       path = treeService.getUnscopedPath(path);
+
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.REPORT, path,
+                                                       ResourceAction.ADMIN))
+      {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", path));
+      }
+
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
       final AssetEntry entry = new AssetEntry(scope, AssetEntry.Type.VIEWSHEET, path, ownerID);
       return sheetService.getSheetSettings(entry, ResourceType.REPORT, timeZone, owner, principal);
@@ -88,6 +95,14 @@ public class RepositoryViewsheetController {
       int scope = treeService.getAssetScope(path);
       path = treeService.getUnscopedPath(path);
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
+
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.REPORT, path,
+                                                       ResourceAction.ADMIN))
+      {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", path));
+      }
+
       final AssetEntry oldEntry = new AssetEntry(scope, AssetEntry.Type.VIEWSHEET, path, ownerID);
       final AssetEntry newEntry =
          sheetService.setSheetSettings(oldEntry.toIdentifier(), principal, model);

@@ -18,12 +18,16 @@
 package inetsoft.web.binding;
 
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.uql.viewsheet.graph.aesthetic.ImageShapes;
 import inetsoft.util.DataSpace;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.dataspace.DataSpaceContentSettingsService;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,6 +52,13 @@ public class ChartAddShapeController {
       this.dataSpace = dataSpace;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.VIEWSHEET,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/chart/shape/upload")
    public boolean uploadShape(@RequestParam("file") MultipartFile[] files, Principal principal) throws Exception {
       String folder = ImageShapes.getShapesDirectory();

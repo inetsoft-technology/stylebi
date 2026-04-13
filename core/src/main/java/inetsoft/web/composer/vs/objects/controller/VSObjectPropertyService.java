@@ -334,6 +334,18 @@ public class VSObjectPropertyService {
       // if script contains binding change, re-process data
       hint = assembly instanceof SelectionVSAssembly ? (hint | hintScript) : hint;
 
+      // reposition bottom tabs when an input child's label affects its visual height
+      if(assembly instanceof InputVSAssembly &&
+         assembly.getContainer() instanceof TabVSAssembly tabContainer)
+      {
+         TabVSAssemblyInfo tabInfo =
+            (TabVSAssemblyInfo) tabContainer.getVSAssemblyInfo();
+
+         if(tabInfo.getBottomTabsValue() && inputLabelHeightChanged(oinfo, info)) {
+            TabVSAssemblyInfo.repositionForBottomTabs(tabInfo, vs, true);
+         }
+      }
+
       /* TODO some logic relevant to hyperlink dialog  charts, decide if need to keep when implementing chart property change
       boolean viewOnly = "true".equals(get("viewOnly"));
 
@@ -2012,6 +2024,37 @@ public class VSObjectPropertyService {
       }
    }
 
+   /**
+    * Check if label properties that affect vertical height changed between old and new info.
+    * Compares design-time values only, since this is called from the composer property dialog
+    * where only design-time values are modified. Runtime script changes are handled separately.
+    */
+   private boolean inputLabelHeightChanged(VSAssemblyInfo oldInfo, VSAssemblyInfo newInfo) {
+      if(!(oldInfo instanceof InputVSAssemblyInfo oldInput) ||
+         !(newInfo instanceof InputVSAssemblyInfo newInput))
+      {
+         return false;
+      }
+
+      LabelInfo oldLabel = oldInput.getLabelInfo();
+      LabelInfo newLabel = newInput.getLabelInfo();
+
+      if(oldLabel == null && newLabel == null) {
+         return false;
+      }
+
+      if(oldLabel == null || newLabel == null) {
+         return true;
+      }
+
+      return oldLabel.getLabelVisibleValue() != newLabel.getLabelVisibleValue() ||
+         !Objects.equals(oldLabel.getLabelPositionValue(), newLabel.getLabelPositionValue()) ||
+         oldLabel.getLabelGapValue() != newLabel.getLabelGapValue() ||
+         !Objects.equals(
+            oldLabel.getLabelFormat() == null ? null : oldLabel.getLabelFormat().getFont(),
+            newLabel.getLabelFormat() == null ? null : newLabel.getLabelFormat().getFont());
+   }
+
    private void setAssemblyPrimary(RuntimeViewsheet rvs, String name, boolean primary,
                                   CommandDispatcher commandDispatcher) throws Exception
    {
@@ -2171,7 +2214,6 @@ public class VSObjectPropertyService {
          }
       }
    }
-
 
    private final CoreLifecycleService coreLifecycleService;
    private final VSColumnHandler vsColumnHandler;

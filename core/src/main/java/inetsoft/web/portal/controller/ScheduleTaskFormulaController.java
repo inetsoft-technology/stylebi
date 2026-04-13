@@ -18,9 +18,13 @@
 package inetsoft.web.portal.controller;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.web.admin.schedule.ScheduleTaskFormulaService;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.portal.model.database.StringWrapper;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -29,11 +33,27 @@ public class ScheduleTaskFormulaController {
       this.scheduleTaskFormulaService = scheduleTaskFormulaService;
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @GetMapping("/api/portal/schedule/parameters/formula/scriptDefinition")
    public ObjectNode getScriptDefinition() throws Exception {
       return scheduleTaskFormulaService.getScriptDefinition();
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping(
       value = "/api/portal/schedule/parameters/formula/test-script")
    public StringWrapper testScheduleParameterExpression(@RequestBody StringWrapper script) {
@@ -44,11 +64,27 @@ public class ScheduleTaskFormulaController {
       return result;
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @RequestMapping(value = "/api/portal/schedule/parameters/formula/function", method=RequestMethod.GET)
    public TreeNodeModel getFunctions() {
       return scheduleTaskFormulaService.getFunctions();
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @GetMapping("/api/portal/schedule/parameters/formula/operationTree")
    public TreeNodeModel getOperationTree() {
       return this.scheduleTaskFormulaService.getOperationTree();

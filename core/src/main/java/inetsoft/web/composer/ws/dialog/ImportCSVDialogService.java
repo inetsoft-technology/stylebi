@@ -79,9 +79,13 @@ public class ImportCSVDialogService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public Void touchFile(@ClusterProxyKey String runtimeId) throws IOException {
+   public Void touchFile(@ClusterProxyKey String runtimeId, Principal principal) throws Exception {
+      runtimeId = Tool.byteDecode(runtimeId);
+
+      // Verify the user has access to this runtime worksheet; throws if not found or unauthorized.
+      wsEngine.getWorksheet(runtimeId, principal);
       String cdir = fileSystemService.getCacheDirectory();
-      runtimeId = Tool.normalizeFileName(Tool.byteDecode(runtimeId));
+      runtimeId = Tool.normalizeFileName(runtimeId);
       fileCache.get(cdir + runtimeId + "_csv");
       return null;
    }
@@ -120,7 +124,11 @@ public class ImportCSVDialogService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public HashMap<String, Object> getUploadFile(@ClusterProxyKey String runtimeId, BinaryTransfer data) throws Exception {
+   public HashMap<String, Object> getUploadFile(@ClusterProxyKey String runtimeId, BinaryTransfer data,
+                                                Principal principal) throws Exception
+   {
+      // Verify the user has access to this runtime worksheet; throws if not found or unauthorized.
+      wsEngine.getWorksheet(runtimeId, principal);
       processUploadCSV(data, runtimeId);
       HashMap<String, Object> res = process(runtimeId);
       CSVInfo csvinfo = (CSVInfo) res.get("model");
@@ -157,8 +165,11 @@ public class ImportCSVDialogService {
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public HashMap<String, Object> getPreviewTable(@ClusterProxyKey String runtimeId,
-                                                  ImportCSVDialogModel model) throws Exception
+                                                  ImportCSVDialogModel model,
+                                                  Principal principal) throws Exception
    {
+      // Verify the user has access to this runtime worksheet; throws if not found or unauthorized.
+      wsEngine.getWorksheet(runtimeId, principal);
       String rid = Tool.normalizeFileName(runtimeId);
       File csvTemp = fileSystemService.getCacheFile(rid + "_csv");
       CSVInfo csvInfo = null;

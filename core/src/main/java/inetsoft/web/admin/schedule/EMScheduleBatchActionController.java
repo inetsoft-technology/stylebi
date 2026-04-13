@@ -155,6 +155,11 @@ public class EMScheduleBatchActionController {
          throw new RuntimeException("Selected Schedule Task does not exist: " + taskName);
       }
 
+      if(!ScheduleManager.hasTaskPermission(task.getOwner(), principal, ResourceAction.READ)) {
+         throw new inetsoft.sree.security.SecurityException(String.format(
+            "Unauthorized access to resource \"%s\" by %s", taskName, principal));
+      }
+
       Set<String> parameterNames = new LinkedHashSet<>();
 
       for(int i = 0; i < task.getActionCount(); i++) {

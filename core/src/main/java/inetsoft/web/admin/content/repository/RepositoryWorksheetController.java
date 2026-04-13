@@ -76,6 +76,13 @@ public class RepositoryWorksheetController {
          }
       }
 
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.ASSET, path,
+                                                       ResourceAction.ADMIN))
+      {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", path));
+      }
+
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
       final AssetEntry entry = new AssetEntry(scope, AssetEntry.Type.WORKSHEET, path, ownerID);
       return sheetService.getSheetSettings(entry, ResourceType.ASSET, timeZone, owner, principal);
@@ -101,6 +108,11 @@ public class RepositoryWorksheetController {
       final int scope = treeService.getAssetScope(path);
       path = treeService.getUnscopedPath(path);
       final AssetEntry entry = new AssetEntry(scope, AssetEntry.Type.WORKSHEET, path, ownerID);
+
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.ASSET, path, ResourceAction.ADMIN)) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", path));
+      }
 
       if(model.permissionTableModel() != null && model.permissionTableModel().changed()) {
          String fullPath = Util.getObjectFullPath(

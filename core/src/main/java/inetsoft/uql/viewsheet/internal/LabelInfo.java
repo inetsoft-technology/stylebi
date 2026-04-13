@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.report.internal.Common;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
@@ -25,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 
+import java.awt.*;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
@@ -251,6 +253,20 @@ public class LabelInfo implements AssetObject {
     */
    public void setLabelFormat(VSCompositeFormat format) {
       this.labelFormat = format;
+   }
+
+   /**
+    * Estimate the rendered pixel height of this label, using the label's font
+    * if available, falling back to the default viewsheet font.
+    */
+   public int getRenderedHeight() {
+      Font font = labelFormat != null ? labelFormat.getFont() : null;
+
+      if(font == null) {
+         font = VSAssemblyInfo.getDefaultFont(Font.PLAIN, 11);
+      }
+
+      return (int) Math.ceil(Common.getHeight(font));
    }
 
    /**

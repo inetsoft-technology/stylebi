@@ -271,9 +271,9 @@ public class SecuredAspect {
       ViewComponent component = componentAuthorizationService.getComponent(resource);
 
       if(component == null) {
-         LOG.warn("EM component '{}' not found in view-components.json; defaulting to allow. " +
+         LOG.warn("EM component '{}' not found in view-components.json; defaulting to deny. " +
                   "Check for a misspelled or unregistered @Secured resource path.", resource);
-         return true;
+         return false;
       }
 
       return !component.hiddenForMultiTenancy() ||

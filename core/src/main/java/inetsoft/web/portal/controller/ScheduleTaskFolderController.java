@@ -18,6 +18,7 @@
 package inetsoft.web.portal.controller;
 
 import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
@@ -29,6 +30,8 @@ import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.portal.data.*;
 import inetsoft.web.portal.model.NewTaskFolderEvent;
 import inetsoft.web.portal.model.PortalMoveTaskFolderRequest;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,6 +50,14 @@ public class ScheduleTaskFolderController {
       this.scheduleService = scheduleService;
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping("api/portal/schedule/add/checkDuplicate")
    public CheckDuplicateResponse checkAddItemDuplicate(@RequestBody NewTaskFolderEvent req,
                                                        Principal principal)
@@ -61,6 +72,14 @@ public class ScheduleTaskFolderController {
          AssetRepository.GLOBAL_SCOPE, principal);
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping("/api/portal/schedule/folder/add")
    public void addFolder(@RequestBody NewTaskFolderEvent req, Principal principal)
       throws Exception
@@ -74,6 +93,14 @@ public class ScheduleTaskFolderController {
          req.getParent(), folderName, path, AssetRepository.GLOBAL_SCOPE, principal);
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @GetMapping("/api/portal/schedule/folder/checkRootPermission")
    public boolean checkRootPermission(Principal principal)
       throws Exception
@@ -84,6 +111,14 @@ public class ScheduleTaskFolderController {
          rootEntry.getPath(), principal, ResourceAction.READ);
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @GetMapping("/api/portal/schedule/tree")
    public TreeNodeModel getNewTaskDialogModel(Principal principal)
       throws Exception
@@ -157,6 +192,14 @@ public class ScheduleTaskFolderController {
          );
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @GetMapping("api/portal/schedule/task-folder-browser")
    public TaskFolderBrowserModel getDatasourcesBrowser(
       @RequestParam(value="path", required = false) String path,
@@ -167,6 +210,14 @@ public class ScheduleTaskFolderController {
       return scheduleTaskFolderService.getBrowserFolder(path, home, principal);
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping("api/portal/schedule/move/checkDuplicate")
    public CheckDuplicateResponse checkItemsDuplicate(
       @RequestBody CheckTaskDuplicateRequest request)
@@ -177,6 +228,14 @@ public class ScheduleTaskFolderController {
       return scheduleTaskFolderService.checkItemsDuplicate(request.folders(), parent);
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping("api/portal/schedule/rename/checkDuplicate")
    public CheckDuplicateResponse checkRenameItemDuplicate(
       @RequestBody EditTaskFolderDialogModel model)
@@ -185,6 +244,14 @@ public class ScheduleTaskFolderController {
       return scheduleTaskFolderService.checkRenameDuplicate(model);
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping("api/portal/schedule/move-items")
    public void moveFolder(@RequestBody PortalMoveTaskFolderRequest request, Principal principal)
       throws Exception
@@ -196,6 +263,14 @@ public class ScheduleTaskFolderController {
       scheduleTaskFolderService.moveScheduleItems(taskModels, folders, targetEntry, principal);
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping("/api/portal/schedule/rename-folder")
    public String renameFolder(@RequestBody EditTaskFolderDialogModel model,
                               Principal principal)
@@ -206,6 +281,14 @@ public class ScheduleTaskFolderController {
       return assetEntry != null ? assetEntry.getPath() : null;
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping("/api/portal/schedule/folder/editModel")
    public EditTaskFolderDialogModel getFolderEditModel(
       @RequestParam("folderPath") String folderPath, Principal principal)

@@ -109,7 +109,13 @@ export enum DistributionType {
 
 @Secured({
    route: "/settings/schedule/tasks",
-   label: "Tasks"
+   label: "Tasks",
+   children: [
+      {
+         route: "/settings/schedule/distribution",
+         label: "Distribution"
+      }
+   ]
 })
 @Searchable({
    route: "/settings/schedule/tasks",

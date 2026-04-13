@@ -202,6 +202,7 @@ import { VSUtil } from "./util/vs-util";
 import { VsToolbarButtonDirective } from "./vs-toolbar-button.directive";
 import { BaseHrefService } from "../common/services/base-href.service";
 import { DashboardTabModel } from "../portal/dashboard/dashboard-tab-model";
+import { CurrentUserService } from "../../../../shared/util/current-user.service";
 
 declare const window: any;
 declare var globalPostParams: { [name: string]: string[] } | null;
@@ -548,7 +549,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                private miniToolbarService: MiniToolbarService,
                private assetLoadingService: AssetLoadingService,
                private viewContainerRef: ViewContainerRef,
-               private baseHrefService: BaseHrefService)
+               private baseHrefService: BaseHrefService,
+               private currentUserService: CurrentUserService)
    {
       super(viewsheetClient, zone, true);
       tooltipConfig.tooltipClass = "top-tooltip";
@@ -568,7 +570,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       ngbDatepickerConfig.maxDate = {year: 2099, month: 12, day: 31};
       this.embed = this.contextProvider.embed;
 
-      this.http.get<string>("../api/em/navbar/organization").subscribe((org)=>{this.currOrgID = org;});
+      this.subscriptions.add(this.currentUserService.getPortalCurrentUser().subscribe(user => this.currOrgID = user?.name?.orgID ?? null));
    }
 
    getAssemblyName(): string {
