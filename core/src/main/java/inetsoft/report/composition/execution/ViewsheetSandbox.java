@@ -4874,6 +4874,20 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
          executeScript(assembly);
 
+         // reposition input child in bottom-tab container after script may
+         // have changed label properties (visible, position, gap, font)
+         if(assembly instanceof InputVSAssembly &&
+            assembly.getContainer() instanceof TabVSAssembly tabContainer)
+         {
+            TabVSAssemblyInfo tabInfo =
+               (TabVSAssemblyInfo) tabContainer.getVSAssemblyInfo();
+
+            if(tabInfo.isBottomTabs()) {
+               TabVSAssemblyInfo.repositionChildForBottomTabs(
+                  tabInfo, assembly.getVSAssemblyInfo(), assembly.getPixelSize());
+            }
+         }
+
          // by yanie: bug1412619712845
          // updateHighlight after script execution to make sure the value set
          // via script can be used in highlight in time.
