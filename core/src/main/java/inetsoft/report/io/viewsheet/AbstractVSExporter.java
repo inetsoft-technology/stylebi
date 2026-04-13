@@ -1379,37 +1379,39 @@ public abstract class AbstractVSExporter implements VSExporter {
                   boolean imgOnly = exportChartAsImage(chart);
                   data = data == null && pair != null ? pair.getData() : data;
 
+                  VGraph graph = null;
+
                   if(data != null && !(data.getRowCount() <= 0 && data.getColCount() <= 0)) {
-                     VGraph graph = !isMatchLayout() && supportChartSlices() ?
+                     graph = !isMatchLayout() && supportChartSlices() ?
                         pair.getExpandedVGraph() : pair.getRealSizeVGraph();
+                  }
 
-                     if(graph != null) {
-                        Rectangle2D bounds = graph.getBounds();
-                        // chart not included in onlyDataComponents. (59989)
-                        boolean needSlice = !isMatchLayout() && !isOnlyDataComponents() &&
-                           bounds.getWidth() * bounds.getHeight() > EXPORT_SIZE * EXPORT_SIZE;
+                  Hyperlink emptyPlotLink = info.getEmptyPlotLinkValue();
 
-                        Hyperlink emptyPlotLink = info.getEmptyPlotLinkValue();
+                  // emit before writeChart so per-region links overlay on top
+                  if(emptyPlotLink != null) {
+                     int titleHeight = info.isTitleVisible() ? info.getTitleHeight() : 0;
+                     Insets padding = info.getPadding();
+                     Insets2D border = getBorderOffset(info.getFormat());
+                     Rectangle2D chartBounds = new Rectangle2D.Double(
+                        pos.x + padding.left + border.left,
+                        pos.y + padding.top + border.top + titleHeight,
+                        size.width - padding.left - padding.right - border.left - border.right,
+                        size.height - padding.top - padding.bottom - border.top - border.bottom - titleHeight);
+                     writeEmptyPlotHyperlink(new Hyperlink.Ref(emptyPlotLink), graph, chartBounds);
+                  }
 
-                        // emit before writeChart so per-region links overlay on top
-                        if(emptyPlotLink != null) {
-                           int titleHeight = info.isTitleVisible() ? info.getTitleHeight() : 0;
-                           Insets padding = info.getPadding();
-                           Insets2D border = getBorderOffset(info.getFormat());
-                           Rectangle2D chartBounds = new Rectangle2D.Double(
-                              pos.x + padding.left + border.left,
-                              pos.y + padding.top + border.top + titleHeight,
-                              size.width - padding.left - padding.right - border.left - border.right,
-                              size.height - padding.top - padding.bottom - border.top - border.bottom - titleHeight);
-                           writeEmptyPlotHyperlink(new Hyperlink.Ref(emptyPlotLink), graph, chartBounds);
-                        }
+                  if(graph != null) {
+                     Rectangle2D bounds = graph.getBounds();
+                     // chart not included in onlyDataComponents. (59989)
+                     boolean needSlice = !isMatchLayout() && !isOnlyDataComponents() &&
+                        bounds.getWidth() * bounds.getHeight() > EXPORT_SIZE * EXPORT_SIZE;
 
-                        if(!needSlice) {
-                           writeChart(chart, graph, data, imgOnly);
-                        }
-                        else {
-                           writeSliceChart(chart, data, pair, isMatchLayout(), imgOnly);
-                        }
+                     if(!needSlice) {
+                        writeChart(chart, graph, data, imgOnly);
+                     }
+                     else {
+                        writeSliceChart(chart, data, pair, isMatchLayout(), imgOnly);
                      }
                   }
 

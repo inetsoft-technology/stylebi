@@ -75,10 +75,10 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
     */
    public Hyperlink.Ref getHyperlink(Shape shape) {
       if(map == null) {
-         map = new LinkedHashMap();
+         map = Collections.synchronizedMap(new LinkedHashMap<>());
       }
 
-      return (Hyperlink.Ref) map.get(shape);
+      return map.get(shape);
    }
 
    /**
@@ -86,7 +86,7 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
     */
    public void setHyperlink(Shape shape, Hyperlink.Ref link) {
       if(map == null) {
-         map = new LinkedHashMap();
+         map = Collections.synchronizedMap(new LinkedHashMap<>());
       }
 
       if(link == null) {
@@ -102,11 +102,11 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
     */
    protected Hyperlink.Ref[] getDrillHyperlinks(Shape shape) {
       if(dmap == null) {
-         dmap = new LinkedHashMap();
+         dmap = Collections.synchronizedMap(new LinkedHashMap<>());
       }
 
       Hyperlink.Ref[] refs = dmap.get(shape) == null ?
-         new Hyperlink.Ref[0] : (Hyperlink.Ref[]) dmap.get(shape);
+         new Hyperlink.Ref[0] : dmap.get(shape);
 
       return refs;
    }
@@ -120,7 +120,7 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
       }
 
       if(dmap == null) {
-         dmap = new LinkedHashMap();
+         dmap = Collections.synchronizedMap(new LinkedHashMap<>());
       }
 
       if(links == null) {
@@ -137,26 +137,26 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
     */
    public Hyperlink.Ref[] getHyperlinks(Shape shape) {
       if(dmap == null) {
-         dmap = new LinkedHashMap();
+         dmap = Collections.synchronizedMap(new LinkedHashMap<>());
       }
 
       Hyperlink.Ref href = getHyperlink(shape);
       Hyperlink.Ref[] drefs = getDrillHyperlinks(shape);
 
-      Map map = new OrderedMap();
+      Map<String, Hyperlink.Ref> linkMap = new OrderedMap<>();
 
       if(href != null) {
-         map.put(href.getName(), href);
+         linkMap.put(href.getName(), href);
       }
 
       for(int i = 0; i < drefs.length; i++) {
-         if(!map.containsKey(drefs[i].getName())) {
-            map.put(drefs[i].getName(), drefs[i]);
+         if(!linkMap.containsKey(drefs[i].getName())) {
+            linkMap.put(drefs[i].getName(), drefs[i]);
          }
       }
 
-      Hyperlink.Ref[] links = new Hyperlink.Ref[map.size()];
-      map.values().toArray(links);
+      Hyperlink.Ref[] links = new Hyperlink.Ref[linkMap.size()];
+      linkMap.values().toArray(links);
 
       return links;
    }
@@ -244,7 +244,7 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
       Object obj = s.readObject();
 
       if(obj instanceof Integer) {
-         map = new LinkedHashMap();
+         map = Collections.synchronizedMap(new LinkedHashMap<>());
          int linkcnt = ((Integer) obj).intValue();
 
          for(int i = 0; i < linkcnt; i++) {
@@ -259,7 +259,7 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
                obj2 = new Ellipse2D.Double(x, y, w, h);
             }
 
-           map.put(obj2, s.readObject());
+           map.put((Shape) obj2, (Hyperlink.Ref) s.readObject());
          }
       }
    }
@@ -269,7 +269,7 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
     */
    private void writeObject(ObjectOutputStream stream) throws IOException {
       if(map == null) {
-         map = new LinkedHashMap();
+         map = Collections.synchronizedMap(new LinkedHashMap<>());
       }
 
       // @by jasons, if the background is transparent (null), we need to store
@@ -286,10 +286,10 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
       stream.writeObject(elem);
 
       stream.writeObject(Integer.valueOf(map.size()));
-      Iterator keys = map.keySet().iterator();
+      Iterator<Shape> keys = map.keySet().iterator();
 
       while(keys.hasNext()) {
-         Object obj = keys.next();
+         Shape obj = keys.next();
 
          if(obj instanceof Ellipse2D) {
             double x = 0, y = 0, w = 0, h = 0;
@@ -325,11 +325,11 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
       }
    }
 
-   // LinkedHashMap preserves insertion order for deterministic PDF link emission
-   protected transient LinkedHashMap map;
-   protected transient LinkedHashMap dmap;
+   // synchronized LinkedHashMap preserves insertion order for deterministic PDF link emission
+   protected transient Map<Shape, Hyperlink.Ref> map;
+   protected transient Map<Shape, Hyperlink.Ref[]> dmap;
 
-   private class AreaEnumeration implements Enumeration {
+   private class AreaEnumeration implements Enumeration<Shape> {
       private AreaEnumeration() {
          if(map != null) {
             shapes.addAll(map.keySet());
@@ -346,11 +346,11 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
       }
 
       @Override
-      public Object nextElement() {
+      public Shape nextElement() {
          return shapes.get(idx++);
       }
 
       private int idx = 0;
-      ArrayList shapes = new ArrayList();
+      ArrayList<Shape> shapes = new ArrayList<>();
    }
 }

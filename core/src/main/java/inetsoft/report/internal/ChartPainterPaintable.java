@@ -82,7 +82,7 @@ public class ChartPainterPaintable extends LinkedShapePainterPaintable {
          }
          else {
             // no VGraph, fall back to whole-paintable bounds
-            LOG.debug("Empty-plot link on whole paintable, VGraph unavailable");
+            LOG.debug("Falling back to whole-paintable bounds for empty-plot link (no VGraph)");
             setHyperlink(new Hyperlink.Ref(elementLink));
          }
       }
