@@ -342,6 +342,9 @@ public class VSObjectPropertyService {
          TabVSAssemblyInfo tabInfo =
             (TabVSAssemblyInfo) tabContainer.getVSAssemblyInfo();
 
+         // post-setVSAssemblyInfo the assembly info has no rValues, so
+         // runtime-aware accessors in getBottomTabChildHeight are equivalent
+         // to design-time ones here
          if(tabInfo.getBottomTabsValue() && inputLabelHeightChanged(oinfo, info)) {
             TabVSAssemblyInfo.repositionChildForBottomTabs(
                tabInfo, assembly.getVSAssemblyInfo(), assembly.getPixelSize());
