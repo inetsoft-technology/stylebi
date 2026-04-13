@@ -996,6 +996,12 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
    }
 
    public boolean isCompareAll() {
+      // For custom periods, only granularity applies; the interval level concept
+      // (YEAR_TO_DATE, etc.) is not applicable to manually-defined date ranges.
+      if(!isStdPeriod()) {
+         return true;
+      }
+
       int level = dcInterval.getLevel();
       return level == ALL;
    }
