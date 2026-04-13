@@ -75,7 +75,7 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
     */
    public Hyperlink.Ref getHyperlink(Shape shape) {
       if(map == null) {
-         map = new Hashtable();
+         map = new LinkedHashMap();
       }
 
       return (Hyperlink.Ref) map.get(shape);
@@ -86,7 +86,7 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
     */
    public void setHyperlink(Shape shape, Hyperlink.Ref link) {
       if(map == null) {
-         map = new Hashtable();
+         map = new LinkedHashMap();
       }
 
       if(link == null) {
@@ -102,7 +102,7 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
     */
    protected Hyperlink.Ref[] getDrillHyperlinks(Shape shape) {
       if(dmap == null) {
-         dmap = new Hashtable();
+         dmap = new LinkedHashMap();
       }
 
       Hyperlink.Ref[] refs = dmap.get(shape) == null ?
@@ -120,7 +120,7 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
       }
 
       if(dmap == null) {
-         dmap = new Hashtable();
+         dmap = new LinkedHashMap();
       }
 
       if(links == null) {
@@ -137,7 +137,7 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
     */
    public Hyperlink.Ref[] getHyperlinks(Shape shape) {
       if(dmap == null) {
-         dmap = new Hashtable();
+         dmap = new LinkedHashMap();
       }
 
       Hyperlink.Ref href = getHyperlink(shape);
@@ -244,7 +244,7 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
       Object obj = s.readObject();
 
       if(obj instanceof Integer) {
-         map = new Hashtable();
+         map = new LinkedHashMap();
          int linkcnt = ((Integer) obj).intValue();
 
          for(int i = 0; i < linkcnt; i++) {
@@ -269,7 +269,7 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
     */
    private void writeObject(ObjectOutputStream stream) throws IOException {
       if(map == null) {
-         map = new Hashtable();
+         map = new LinkedHashMap();
       }
 
       // @by jasons, if the background is transparent (null), we need to store
@@ -286,10 +286,10 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
       stream.writeObject(elem);
 
       stream.writeObject(Integer.valueOf(map.size()));
-      Enumeration keys = map.keys();
+      Iterator keys = map.keySet().iterator();
 
-      while(keys.hasMoreElements()) {
-         Object obj = keys.nextElement();
+      while(keys.hasNext()) {
+         Object obj = keys.next();
 
          if(obj instanceof Ellipse2D) {
             double x = 0, y = 0, w = 0, h = 0;
@@ -325,8 +325,9 @@ public abstract class LinkedShapePainterPaintable extends PainterPaintable {
       }
    }
 
-   protected transient Hashtable map;
-   protected transient Hashtable dmap;
+   // LinkedHashMap preserves insertion order for deterministic PDF link emission
+   protected transient LinkedHashMap map;
+   protected transient LinkedHashMap dmap;
 
    private class AreaEnumeration implements Enumeration {
       private AreaEnumeration() {

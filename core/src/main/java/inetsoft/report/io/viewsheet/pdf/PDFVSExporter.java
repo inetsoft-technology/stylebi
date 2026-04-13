@@ -259,10 +259,21 @@ public class PDFVSExporter extends AbstractVSExporter {
    }
 
    @Override
-   protected void writeEmptyPlotHyperlink(Hyperlink.Ref ref, Rectangle2D bounds) {
-      if(genLink && ref != null && ref.getLinkType() == Hyperlink.WEB_LINK) {
-         helper.setLinks(bounds, ref);
+   protected void writeEmptyPlotHyperlink(Hyperlink.Ref ref, VGraph vgraph,
+                                          Rectangle2D chartBounds)
+   {
+      if(!genLink || ref == null || ref.getLinkType() != Hyperlink.WEB_LINK ||
+         vgraph == null)
+      {
+         return;
       }
+
+      // map plot bounds to PDF page coords same as per-region chart links
+      Rectangle2D plot = vgraph.getPlotBounds();
+      float pH = helper.getPrinter().getPageSize().height * 72;
+      LinkArea area = new LinkArea(plot, GTool.getFlipYTransform(vgraph),
+                                   chartBounds.getX(), chartBounds.getY(), pH);
+      helper.setLinks(area, ref);
    }
 
    /**
