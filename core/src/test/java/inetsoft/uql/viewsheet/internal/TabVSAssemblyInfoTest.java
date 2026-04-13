@@ -185,6 +185,70 @@ class TabVSAssemblyInfoTest {
       assertEquals(20, TabVSAssemblyInfo.getBottomTabChildHeight(info, size));
    }
 
+   @Test
+   void repositionChildForBottomTabsMovesChildUp() {
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setPixelOffset(new Point(50, 200));
+
+      TextInputVSAssemblyInfo childInfo = new TextInputVSAssemblyInfo();
+      childInfo.setPixelOffset(new Point(50, 170));
+      Dimension childSize = new Dimension(200, 30);
+
+      // no label, child height = 30, tab at 200 → child should be at 170
+      TabVSAssemblyInfo.repositionChildForBottomTabs(tabInfo, childInfo, childSize);
+      assertEquals(170, childInfo.getPixelOffset().y);
+
+      // add top label: child height increases, child should move up
+      LabelInfo labelInfo = childInfo.getLabelInfo();
+      labelInfo.setLabelVisibleValue("true");
+      labelInfo.setLabelPositionValue(LabelInfo.TOP);
+      labelInfo.setLabelGapValue(5);
+      int labelHeight = labelInfo.getRenderedHeight();
+
+      TabVSAssemblyInfo.repositionChildForBottomTabs(tabInfo, childInfo, childSize);
+      assertEquals(200 - (30 + labelHeight + 5), childInfo.getPixelOffset().y);
+
+      // tab bar position unchanged
+      assertEquals(200, tabInfo.getPixelOffset().y);
+   }
+
+   @Test
+   void repositionChildForBottomTabsNoopWhenAligned() {
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setPixelOffset(new Point(50, 150));
+
+      TextInputVSAssemblyInfo childInfo = new TextInputVSAssemblyInfo();
+      childInfo.setPixelOffset(new Point(50, 120));
+      Dimension childSize = new Dimension(200, 30);
+
+      // already aligned: 120 + 30 = 150 = tab y
+      TabVSAssemblyInfo.repositionChildForBottomTabs(tabInfo, childInfo, childSize);
+      assertEquals(120, childInfo.getPixelOffset().y);
+   }
+
+   @Test
+   void repositionChildForBottomTabsUpdatesLayoutPosition() {
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setPixelOffset(new Point(50, 200));
+
+      TextInputVSAssemblyInfo childInfo = new TextInputVSAssemblyInfo();
+      childInfo.setPixelOffset(new Point(50, 180));
+      childInfo.setLayoutPosition(new Point(50, 180));
+      Dimension childSize = new Dimension(200, 30);
+
+      // add label to create height mismatch
+      LabelInfo labelInfo = childInfo.getLabelInfo();
+      labelInfo.setLabelVisibleValue("true");
+      labelInfo.setLabelPositionValue(LabelInfo.BOTTOM);
+      labelInfo.setLabelGapValue(3);
+      int labelHeight = labelInfo.getRenderedHeight();
+      int expectedY = 200 - (30 + labelHeight + 3);
+
+      TabVSAssemblyInfo.repositionChildForBottomTabs(tabInfo, childInfo, childSize);
+      assertEquals(expectedY, childInfo.getPixelOffset().y);
+      assertEquals(expectedY, childInfo.getLayoutPosition().y);
+   }
+
    private VSAssembly mockChild(String name, SelectionBaseVSAssemblyInfo info,
                                 Point offset, Dimension size, int showType)
    {

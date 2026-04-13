@@ -333,7 +333,9 @@ public class VSObjectPropertyService {
       // if script contains binding change, re-process data
       hint = assembly instanceof SelectionVSAssembly ? (hint | hintScript) : hint;
 
-      // reposition bottom tabs when an input child's label affects its visual height
+      // reposition this child in the bottom-tab container when a label
+      // property change alters its effective height. setVSAssemblyInfo uses
+      // copyInfo (not reference storage), so we modify the assembly's own info.
       if(assembly instanceof InputVSAssembly &&
          assembly.getContainer() instanceof TabVSAssembly tabContainer)
       {
@@ -341,7 +343,8 @@ public class VSObjectPropertyService {
             (TabVSAssemblyInfo) tabContainer.getVSAssemblyInfo();
 
          if(tabInfo.getBottomTabsValue() && inputLabelHeightChanged(oinfo, info)) {
-            TabVSAssemblyInfo.repositionForBottomTabs(tabInfo, vs, true);
+            TabVSAssemblyInfo.repositionChildForBottomTabs(
+               tabInfo, assembly.getVSAssemblyInfo(), assembly.getPixelSize());
          }
       }
 
