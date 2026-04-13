@@ -414,31 +414,40 @@ public class ValueOfColumn extends AbstractColumn {
             return INVALID;
          }
 
-         // When ndim is the innermost dimension (no outer-dimension sub-grouping), exclude any
-         // PART_DATE_GROUP sibling dimensions (e.g. QuarterOfYear when looking up previous
-         // MonthOfYear) that share the same base date column. Including them in the lookup
-         // condition causes zero rows when the target value crosses a period boundary (e.g.
-         // April→March crosses Q2→Q1).
+         // When ndim is the innermost dimension (no outer-dimension sub-grouping) AND ndim itself
+         // is a PART_DATE_GROUP, exclude any sibling PART_DATE_GROUP dimensions that share the
+         // same base date column. This prevents zero rows when a part-level lookup crosses a
+         // period boundary (e.g. April→March crosses Q2→Q1, so QuarterOfYear must be excluded).
+         // Do NOT exclude siblings when ndim is a full date group (e.g. Year): in that case the
+         // siblings (e.g. QuarterOfYear) must stay in the condition to find the correct period
+         // in the previous year (e.g. Q3 2019 when looking up previous year of Q3 2020).
          List<XDimensionRef> ignoreList = dcTempGroups;
+         boolean ndimIsPartDate = false;
 
          if(ndim.equals(innerDim) && getDimensions() != null) {
             String ndimBase = getDateColumnBase(ndim);
 
             if(ndimBase != null) {
-               List<XDimensionRef> partSiblings = getDimensions().stream()
-                  .filter(d -> (d.getDateLevel() & XConstants.PART_DATE_GROUP) != 0)
-                  .filter(d -> !ndim.equals(d.getFullName()))
-                  .filter(d -> ndimBase.equals(getDateColumnBase(d.getFullName())))
-                  .collect(Collectors.toList());
+               ndimIsPartDate = getDimensions().stream()
+                  .filter(d -> ndim.equals(d.getFullName()))
+                  .anyMatch(d -> (d.getDateLevel() & XConstants.PART_DATE_GROUP) != 0);
 
-               if(!partSiblings.isEmpty()) {
-                  ignoreList = new ArrayList<>();
+               if(ndimIsPartDate) {
+                  List<XDimensionRef> partSiblings = getDimensions().stream()
+                     .filter(d -> (d.getDateLevel() & XConstants.PART_DATE_GROUP) != 0)
+                     .filter(d -> !ndim.equals(d.getFullName()))
+                     .filter(d -> ndimBase.equals(getDateColumnBase(d.getFullName())))
+                     .collect(Collectors.toList());
 
-                  if(dcTempGroups != null) {
-                     ignoreList.addAll(dcTempGroups);
+                  if(!partSiblings.isEmpty()) {
+                     ignoreList = new ArrayList<>();
+
+                     if(dcTempGroups != null) {
+                        ignoreList.addAll(dcTempGroups);
+                     }
+
+                     ignoreList.addAll(partSiblings);
                   }
-
-                  ignoreList.addAll(partSiblings);
                }
             }
          }
@@ -446,11 +455,15 @@ public class ValueOfColumn extends AbstractColumn {
          Map<String, Object> cond = createCond(data, ndim, row, ignoreList, tval);
          cond.put(ndim, tval);
 
-         // Switch to root dataset for the sub-dataset lookup so that cross-facet rows can be
-         // found (e.g. looking up March when the current data is a Q2 sub-dataset).
-         // This covers both the ndim != innerDim case (original behavior) and the
-         // ndim == innerDim case where the target value may be in a different facet.
-         if(data instanceof DataSetFilter) {
+         // Switch to root dataset for the sub-dataset lookup so cross-facet rows can be found.
+         // For PART_DATE_GROUP inner dimensions (e.g. MonthOfYear): always switch, because a
+         // per-facet sub-dataset (e.g. Q2 = months 4-6) cannot reach March which is in Q1.
+         // For full date group inner dimensions (e.g. Year in a DC chart): keep the sorted
+         // dataset, because the condition already includes the sibling PART_DATE_GROUP dim
+         // (e.g. QuarterOfYear=3) and switching to root causes the sub-dataset index to be
+         // rebuilt unnecessarily and can return wrong rows.
+         // When ndim != innerDim: always switch (original pre-bug behavior).
+         if(data instanceof DataSetFilter && (ndimIsPartDate || !ndim.equals(innerDim))) {
             data = ((DataSetFilter) data).getRootDataSet();
          }
 
