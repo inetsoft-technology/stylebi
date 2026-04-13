@@ -178,6 +178,23 @@ public class MVSupportService {
          }
       }
 
+      // check for asset permissions
+      for(MVCandidate candidate : candidateSet) {
+         AssetEntry candidateEntry = getEntry(candidate.id);
+
+         if(candidateEntry != null) {
+            ResourceType resourceType = candidateEntry.isWorksheet() ?
+               ResourceType.ASSET : ResourceType.REPORT;
+
+            if(!SecurityEngine.getSecurity().checkPermission(
+               principal, resourceType, candidateEntry.getPath(), ResourceAction.ADMIN))
+            {
+               throw new MessageException(Catalog.getCatalog().getString(
+                  "em.common.security.no.permission", candidateEntry.getPath()));
+            }
+         }
+      }
+
       List<MVCandidate> candidates = new ArrayList<>(candidateSet);
 
       AnalysisTask task = new AnalysisTask(

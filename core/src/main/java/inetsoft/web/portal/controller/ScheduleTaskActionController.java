@@ -18,12 +18,16 @@
 package inetsoft.web.portal.controller;
 
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.util.Tool;
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.admin.schedule.ScheduleTaskActionService;
 import inetsoft.web.admin.schedule.model.ScheduleActionModel;
 import inetsoft.web.admin.schedule.model.ScheduleAlertModel;
 import inetsoft.web.portal.model.database.StringWrapper;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import inetsoft.web.viewsheet.model.VSBookmarkInfoModel;
 import inetsoft.web.viewsheet.service.LinkUri;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,74 +53,6 @@ public class ScheduleTaskActionController {
    }
 
    /**
-    * Gets a table of scheduled tasks.
-    *
-    * @param taskName  the name of the task
-    * @param index     the index of the action
-    * @param principal the user
-    *
-    * @return the action model
-    *
-    * @throws Exception if could not get task or action
-    */
-   @GetMapping("/api/portal/schedule/task/action")
-   public ScheduleActionModel getTaskAction(@RequestParam("name") String taskName,
-                                            @RequestParam("index") int index,
-                                            Principal principal)
-      throws Exception
-   {
-      return scheduleTaskActionService.getTaskAction(taskName, index, principal, false);
-   }
-
-   /**
-    * Removes an action from the task.
-    *
-    * @param taskName  the name of the task
-    * @param items     the indexes of the actions to remove (in reverse sort)
-    * @param principal the user
-    *
-    * @throws Exception if could not get task or actions
-    */
-   @PostMapping("/api/portal/schedule/task/action/delete")
-   public void deleteTaskActions(@RequestParam("name") String taskName,
-                                 @RequestParam("owner") String taskOwner,
-                                 @RequestBody int[] items,
-                                 Principal principal)
-      throws Exception
-   {
-      try{
-         scheduleTaskActionService.deleteTaskActions(taskName, taskOwner, items, principal);
-      }
-      catch(ArrayIndexOutOfBoundsException e) {
-         //delete action that is unsaved, ignore.
-      }
-   }
-
-   /**
-    * Saves the specified schedule task action
-    *
-    * @param taskName  the name of the task
-    * @param index     the index of the action
-    * @param principal the user
-    *
-    * @throws Exception if could not get task or action
-    */
-   @PostMapping("/api/portal/schedule/task/action")
-   public ScheduleActionModel[] saveTaskAction(@RequestParam("name") String taskName,
-                                  @RequestParam("oldTaskName") String oldTaskName,
-                                  @RequestParam("index") int index,
-                                  @RequestParam("owner") String owner,
-                                  @RequestBody ScheduleActionModel model,
-                                  @LinkUri String linkURI,
-                                  Principal principal)
-      throws Exception
-   {
-      IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
-      return scheduleTaskActionService.saveTaskAction(taskName, oldTaskName, ownerID, index, model,
-                                                      Tool.replaceLocalhost(linkURI), principal, false);
-   }
-
-   /**
     * Get the bookmarks of a specific sheet.
     *
     * @param id        the id of the viewsheet.
@@ -124,6 +60,14 @@ public class ScheduleTaskActionController {
     *
     * @return the list of bookmarks.
     */
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @RequestMapping(
       value = "/api/portal/schedule/task/action/bookmarks",
       method = RequestMethod.GET
@@ -144,6 +88,14 @@ public class ScheduleTaskActionController {
     *
     * @return the alias of replet.
     */
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @RequestMapping(
       value = "/api/portal/schedule/task/action/sheetAlias",
       method = RequestMethod.GET
@@ -156,6 +108,14 @@ public class ScheduleTaskActionController {
       return result;
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @RequestMapping(
       value = "/api/portal/schedule/task/action/hasPrintLayout",
       method = RequestMethod.GET
@@ -177,6 +137,14 @@ public class ScheduleTaskActionController {
     *
     * @throws Exception if could not get report or dashboard
     */
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @RequestMapping(
       value = "/api/portal/schedule/task/action/viewsheet/highlights",
       method = RequestMethod.GET
@@ -198,6 +166,14 @@ public class ScheduleTaskActionController {
     *
     * @throws Exception if could not get report or dashboard
     */
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @RequestMapping(
       value = "/api/portal/schedule/task/action/viewsheet/parameters",
       method = RequestMethod.GET
@@ -220,6 +196,14 @@ public class ScheduleTaskActionController {
     *
     * @throws Exception if could not get report or dashboard
     */
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @GetMapping("/api/portal/schedule/task/action/viewsheet/tableDataAssemblies")
    public List<String> getViewsheetTableDataAssemblies(
       @DecodeParam("id") String identifier,

@@ -22,7 +22,11 @@ import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.web.factory.RemainingPath;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
@@ -37,6 +41,11 @@ import java.util.stream.Collectors;
 
 @RestController
 public class DataSourceSelectionController {
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("api/portal/data/datasource-selection-view")
    public DatasourceSelectionViewModel getDataSourceSelectionViewModel(Principal principal) {
       final Catalog catalog = Catalog.getCatalog(principal);
@@ -66,6 +75,11 @@ public class DataSourceSelectionController {
          .build();
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("api/portal/data/datasource-listing/is-tabular/**")
    public boolean isTabularDataSource(@RemainingPath String listingName) throws Exception {
       DataSourceListing listing = DataSourceListingService
@@ -78,6 +92,11 @@ public class DataSourceSelectionController {
       return listing != null && listing.createDataSource() instanceof TabularDataSource;
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("api/portal/data/datasource-listing/sourceType/**")
    public String getDataSourceType(@RemainingPath String listingName) throws Exception {
       DataSourceListing listing = DataSourceListingService
@@ -106,6 +125,11 @@ public class DataSourceSelectionController {
       return type;
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("images/portal/data/datasource-listing/icon/**")
    public ResponseEntity<Resource> getDatasourceListingIcon(@RemainingPath String listingName) {
       return DataSourceListingService.getAllDataSourceListings(true)

@@ -27,6 +27,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
+import inetsoft.sree.security.*;
 
 import java.awt.*;
 import java.util.List;
@@ -50,6 +53,11 @@ public class PhysicalGraphModelController {
       this.physicalModelManager = physicalModelManager;
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PutMapping("/api/data/physicalmodel/graph/size/{runtimeId}")
    public void updateGraphPaneSize(@PathVariable("runtimeId") String runtimeId,
                                    @RequestBody Rectangle bounds)
@@ -57,6 +65,11 @@ public class PhysicalGraphModelController {
       graphService.updateGraphPaneSize(runtimeId, bounds.width, bounds.height);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PutMapping("/api/data/physicalmodel/graph/node/width/{runtimeId}")
    public boolean updateGraphNodeWidth(@PathVariable("runtimeId") String runtimeId,
                                        @RequestParam("table") String table,
@@ -83,6 +96,11 @@ public class PhysicalGraphModelController {
       return graphService.updateGraphNodeWidth(runtimeId, table, width) || changed;
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/data/physicalmodel/graph")
    public JoinGraphModel physicalGraphModel(@RequestBody GetGraphModelEvent event)
       throws Exception
@@ -99,6 +117,11 @@ public class PhysicalGraphModelController {
       return JoinGraphModel.convertModel(pmModel, event, partition);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PutMapping("/api/data/physicalmodel/graph/layout/{col}/**")
    public void autoLayout(@PathVariable("col") boolean col,
                           @RemainingPath String runtimeId,
@@ -108,6 +131,11 @@ public class PhysicalGraphModelController {
          runtimeId, event.getDatasource(), event.getPhysicalName(), col);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("/api/data/physicalmodel/join-edit/open/{oldRuntimeId}")
    public String openJoinEditPane(@PathVariable("oldRuntimeId") String oldRuntimeId)
       throws Exception
@@ -115,6 +143,11 @@ public class PhysicalGraphModelController {
       return this.runtimePartitionService.openNewRuntimePartition(oldRuntimeId);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("/api/data/physicalmodel/join-edit/close")
    public void closeJoinEditPane(@RequestParam("originRuntimeId") String originRuntimeId,
                                  @RequestParam("newRuntimeId") String newRuntimeId,
@@ -127,6 +160,11 @@ public class PhysicalGraphModelController {
     * Move table. need fix scale
     * {@see PhysicalGraphModel#fixBounds}
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PutMapping("/api/data/physicalmodel/graph/move")
    public void moveTable(@RequestBody MoveGraphEvent event) {
       Rectangle rectangle = event.getBounds();
@@ -167,6 +205,11 @@ public class PhysicalGraphModelController {
       }
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/data/physicalmodel/join")
    public void createJoin(@RequestBody TableDetailJoinInfo joinInfo) throws Exception {
       XPartition partition = this.runtimePartitionService.getPartition(joinInfo.getRuntimeId());
@@ -180,6 +223,11 @@ public class PhysicalGraphModelController {
       partition.addRelationship(join);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @DeleteMapping("/api/data/physicalmodel/table/{runtimeId}")
    public void clearTable(@PathVariable("runtimeId") String runtimeId) {
       XPartition partition = this.runtimePartitionService.getPartition(runtimeId);
@@ -187,6 +235,11 @@ public class PhysicalGraphModelController {
       partition.clearRelationship();
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @DeleteMapping("/api/data/physicalmodel/join/{runtimeId}")
    public void clearJoin(@PathVariable("runtimeId") String runtimeId) {
       XPartition partition = this.runtimePartitionService.getPartition(runtimeId);
@@ -194,11 +247,21 @@ public class PhysicalGraphModelController {
       partition.removeAllAutoAliases();
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/data/physicalmodel/join/delete")
    public void deleteJoin(@RequestBody TableDetailJoinInfo joinInfo) {
       deleteJoins(joinInfo);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/data/physicalmodel/joins/delete")
    public void deleteJoins(@RequestBody TableJoinInfo joinInfo)
    {
@@ -216,6 +279,11 @@ public class PhysicalGraphModelController {
       joins.forEach(join -> physicalModelManager.deleteJoin(partition, join));
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("/api/data/physicalmodel/graph/node/refresh")
    public void refreshTable(String runtimeId, String table) {
       XPartition partition = this.runtimePartitionService.getPartition(runtimeId);
@@ -226,6 +294,11 @@ public class PhysicalGraphModelController {
       }
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PutMapping("/api/data/physicalmodel/join")
    public void editJoin(@RequestBody EditJoinEvent event) {
       List<XRelationship> joins = findJoin(event.getDetailJoinInfo());
@@ -239,11 +312,21 @@ public class PhysicalGraphModelController {
       event.getJoinModel().store(join.getDependentTable(), join);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PutMapping("/api/data/physicalmodel/graph/alias/status")
    public boolean hasDuplicateCheck(@RequestBody CheckTableAliasEvent event) {
       return physicalModelManager.hasDuplicateCheck(event);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/data/physicalmodel/graph/alias")
    public StringWrapper createAlias(@RequestParam("runtimeId") String runtimeId,
                                     @RequestParam("table") String table,

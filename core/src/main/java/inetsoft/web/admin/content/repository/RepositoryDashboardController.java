@@ -63,6 +63,14 @@ public class RepositoryDashboardController {
 
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
       path = treeService.getUnscopedPath(path);
+
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.DASHBOARD, path,
+                                                       ResourceAction.ADMIN))
+      {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", path));
+      }
+
       return repositoryDashboardService.getSettings(path, ownerID, principal);
    }
 
