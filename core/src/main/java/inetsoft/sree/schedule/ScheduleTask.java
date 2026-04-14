@@ -17,6 +17,7 @@
  */
 package inetsoft.sree.schedule;
 
+import inetsoft.report.internal.Util;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.RepletRequest;
 import inetsoft.sree.SreeEnv;
@@ -1320,10 +1321,11 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
    public void parseXML(Element elem, boolean isSiteAdminImport) throws Exception {
       name = elem.getAttribute("name");
 
-      //older versions are userName:taskName, breaks unless IdentityID:taskname
+      // older versions are userName:taskName, breaks unless IdentityID:taskname
+      // should not fix mv tasks like "MV Task: UUID"
       if(name.indexOf(":") > -1 && name.indexOf(IdentityID.KEY_DELIMITER) == -1 &&
-         !name.startsWith(MVSupportService.MV_TASK_PREFIX) &&
-         !name.startsWith(MVSupportService.MV_TASK_STAGE_PREFIX))
+         !name.startsWith(Util.MV_TASK_PREFIX) &&
+         !name.startsWith(Util.MV_TASK_STAGE_PREFIX))
       {
          IdentityID nameUser = new IdentityID(name.substring(0,name.indexOf(":")), OrganizationManager.getInstance().getCurrentOrgID());
          name = nameUser.convertToKey() + name.substring(name.indexOf(":"));

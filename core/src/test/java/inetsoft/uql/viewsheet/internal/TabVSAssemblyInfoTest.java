@@ -25,6 +25,7 @@ import org.mockito.Mockito;
 import java.awt.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.when;
 
 class TabVSAssemblyInfoTest {
@@ -184,6 +185,111 @@ class TabVSAssemblyInfoTest {
       Dimension size = new Dimension(200, 20);
 
       assertEquals(20, TabVSAssemblyInfo.getBottomTabChildHeight(info, size));
+   }
+
+   @Test
+   void repositionChildForBottomTabsMovesChildUp() {
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setPixelOffset(new Point(50, 200));
+
+      TextInputVSAssemblyInfo childInfo = new TextInputVSAssemblyInfo();
+      childInfo.setPixelOffset(new Point(50, 170));
+      Dimension childSize = new Dimension(200, 30);
+
+      // no label, child height = 30, tab at 200 → child should be at 170
+      TabVSAssemblyInfo.repositionChildForBottomTabs(tabInfo, childInfo, childSize);
+      assertEquals(170, childInfo.getPixelOffset().y);
+
+      // add top label: child height increases, child should move up
+      LabelInfo labelInfo = childInfo.getLabelInfo();
+      labelInfo.setLabelVisibleValue("true");
+      labelInfo.setLabelPositionValue(LabelInfo.TOP);
+      labelInfo.setLabelGapValue(5);
+      int labelHeight = labelInfo.getRenderedHeight();
+
+      TabVSAssemblyInfo.repositionChildForBottomTabs(tabInfo, childInfo, childSize);
+      assertEquals(200 - (30 + labelHeight + 5), childInfo.getPixelOffset().y);
+
+      // tab bar position unchanged
+      assertEquals(200, tabInfo.getPixelOffset().y);
+   }
+
+   @Test
+   void repositionChildForBottomTabsNoopWhenAligned() {
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setPixelOffset(new Point(50, 150));
+
+      TextInputVSAssemblyInfo childInfo = new TextInputVSAssemblyInfo();
+      childInfo.setPixelOffset(new Point(50, 120));
+      Dimension childSize = new Dimension(200, 30);
+
+      // already aligned: 120 + 30 = 150 = tab y
+      TabVSAssemblyInfo.repositionChildForBottomTabs(tabInfo, childInfo, childSize);
+      assertEquals(120, childInfo.getPixelOffset().y);
+   }
+
+   @Test
+   void repositionChildForBottomTabsUpdatesLayoutPosition() {
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setPixelOffset(new Point(50, 200));
+
+      TextInputVSAssemblyInfo childInfo = new TextInputVSAssemblyInfo();
+      childInfo.setPixelOffset(new Point(50, 180));
+      childInfo.setLayoutPosition(new Point(50, 180));
+      Dimension childSize = new Dimension(200, 30);
+
+      // add label to create height mismatch
+      LabelInfo labelInfo = childInfo.getLabelInfo();
+      labelInfo.setLabelVisibleValue("true");
+      labelInfo.setLabelPositionValue(LabelInfo.BOTTOM);
+      labelInfo.setLabelGapValue(3);
+      int labelHeight = labelInfo.getRenderedHeight();
+      int expectedY = 200 - (30 + labelHeight + 3);
+
+      TabVSAssemblyInfo.repositionChildForBottomTabs(tabInfo, childInfo, childSize);
+      assertEquals(expectedY, childInfo.getPixelOffset().y);
+      assertEquals(expectedY, childInfo.getLayoutPosition().y);
+   }
+
+   @Test
+   void repositionChildForBottomTabsNullTabOffset() {
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setPixelOffset(null);
+
+      TextInputVSAssemblyInfo childInfo = new TextInputVSAssemblyInfo();
+      childInfo.setPixelOffset(new Point(50, 170));
+      Dimension childSize = new Dimension(200, 30);
+
+      TabVSAssemblyInfo.repositionChildForBottomTabs(tabInfo, childInfo, childSize);
+      // child unchanged when tab offset is null
+      assertEquals(170, childInfo.getPixelOffset().y);
+   }
+
+   @Test
+   void repositionChildForBottomTabsNullChildOffset() {
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setPixelOffset(new Point(50, 200));
+
+      TextInputVSAssemblyInfo childInfo = new TextInputVSAssemblyInfo();
+      childInfo.setPixelOffset(null);
+      Dimension childSize = new Dimension(200, 30);
+
+      // no NPE, silently skipped
+      TabVSAssemblyInfo.repositionChildForBottomTabs(tabInfo, childInfo, childSize);
+      assertNull(childInfo.getPixelOffset());
+   }
+
+   @Test
+   void repositionChildForBottomTabsZeroHeight() {
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setPixelOffset(new Point(50, 200));
+
+      TextInputVSAssemblyInfo childInfo = new TextInputVSAssemblyInfo();
+      childInfo.setPixelOffset(new Point(50, 170));
+
+      // null size results in zero height, early return
+      TabVSAssemblyInfo.repositionChildForBottomTabs(tabInfo, childInfo, null);
+      assertEquals(170, childInfo.getPixelOffset().y);
    }
 
    private VSAssembly mockChild(String name, SelectionBaseVSAssemblyInfo info,

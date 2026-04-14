@@ -21,6 +21,8 @@ import inetsoft.mv.*;
 import inetsoft.mv.fs.internal.ClusterUtil;
 import inetsoft.mv.trans.UserInfo;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.internal.Util;
+import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.*;
@@ -1538,8 +1540,8 @@ public class MVSupportService {
       Executors.newFixedThreadPool(4, new GroupedThreadFactory());
    private final ExecutorService remoteCreatePool =
       Executors.newCachedThreadPool(new GroupedThreadFactory());
-   public static final String MV_TASK_PREFIX = "MV Task: ";
-   public static final String MV_TASK_STAGE_PREFIX = "MV Task Stage 2: ";
+   public static final String MV_TASK_PREFIX = Util.MV_TASK_PREFIX;
+   public static final String MV_TASK_STAGE_PREFIX = Util.MV_TASK_STAGE_PREFIX;
    private static final String ANALYSIS_STATUS_MAP =
       MVSupportService.class.getName() + ".analysisStatusMap";
    private static final long ANALYSIS_STATUS_MAP_CLEANUP_INTERVAL = 1200000L; // 20 min

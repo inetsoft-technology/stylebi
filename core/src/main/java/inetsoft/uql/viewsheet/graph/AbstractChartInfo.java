@@ -2652,36 +2652,17 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
    }
 
    /**
-    * Convert a 3D chart type to its non-3D equivalent when loading saved content. (74483)
-    */
-   private static int migrate3DChartType(int type) {
-      if(type == GraphTypes.CHART_3D_BAR) {
-         return GraphTypes.CHART_BAR;
-      }
-
-      if(type == GraphTypes.CHART_3D_BAR_STACK) {
-         return GraphTypes.CHART_BAR_STACK;
-      }
-
-      if(type == GraphTypes.CHART_3D_PIE) {
-         return GraphTypes.CHART_PIE;
-      }
-
-      return type;
-   }
-
-   /**
     * Parse attributes.
     */
    protected void parseAttributes(Element elem) {
       String val;
 
       if((val = Tool.getAttribute(elem, "chartType")) != null) {
-         setChartType(migrate3DChartType(Integer.parseInt(val)));
+         setChartType(Integer.parseInt(val));
       }
 
       if((val = Tool.getAttribute(elem, "rtype")) != null) {
-         setRTChartType(migrate3DChartType(Integer.parseInt(val)));
+         setRTChartType(Integer.parseInt(val));
       }
 
       if((val = Tool.getAttribute(elem, "separated")) != null) {

@@ -264,16 +264,16 @@ public class SecuredAspect {
    }
 
    private boolean isComponentAccessible(String resource, Principal user) {
-      if(!SUtil.isMultiTenant()) {
-         return true;
-      }
-
       ViewComponent component = componentAuthorizationService.getComponent(resource);
 
       if(component == null) {
          LOG.warn("EM component '{}' not found in view-components.json; defaulting to deny. " +
                   "Check for a misspelled or unregistered @Secured resource path.", resource);
          return false;
+      }
+
+      if(!SUtil.isMultiTenant()) {
+         return !component.requiresMultiTenancy();
       }
 
       return !component.hiddenForMultiTenancy() ||

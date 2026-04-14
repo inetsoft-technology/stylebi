@@ -31,14 +31,21 @@ export const MonitorLevel = {
 @Injectable()
 export class MonitorLevelService {
    private _monitorLevel = new BehaviorSubject<number>(MonitorLevel.OFF);
+   private _levelInitialized = false;
 
    constructor(private monitoringDataService: MonitoringDataService, private http: HttpClient) {
       this.monitoringDataService.connect("/monitor-level")
          .subscribe((level: number) => {
+            this._levelInitialized = true;
+
             if(this._monitorLevel.value !== level) {
                this._monitorLevel.next(level);
             }
          });
+   }
+
+   public isLevelInitialized(): boolean {
+      return this._levelInitialized;
    }
 
    public getMonitorLevel(): number {

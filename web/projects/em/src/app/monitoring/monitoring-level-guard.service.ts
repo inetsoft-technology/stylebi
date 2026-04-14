@@ -29,15 +29,28 @@ import { MonitorLevel, MonitorLevelService } from "./monitor-level.service";
 export const monitoringLevelGuard: CanActivateFn = (next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> => {
    const monitorLevelService = inject(MonitorLevelService);
    const router = inject(Router);
-   let isException = state.url == "/monitoring/exceptions";
+   const isException = state.url == "/monitoring/exceptions";
 
-   return monitorLevelService.monitorLevelForGuard().pipe(
-      map((level: number) => {
-         if(level <= MonitorLevel.OFF || isException && level <= MonitorLevel.MEDIUM) {
-            router.navigate(["monitoring/monitoringoff"]);
-         }
 
-         return true;
-      })
-   );
+   if(!monitorLevelService.isLevelInitialized()) {
+      return monitorLevelService.monitorLevelForGuard().pipe(
+         map((level: number) => {
+            if(level <= MonitorLevel.OFF || isException && level <= MonitorLevel.MEDIUM) {
+               router.navigate(["monitoring/monitoringoff"]);
+               return false;
+            }
+
+            return true;
+         })
+      );
+   }
+
+   const level = monitorLevelService.getMonitorLevel();
+
+   if(level <= MonitorLevel.OFF || isException && level <= MonitorLevel.MEDIUM) {
+      router.navigate(["monitoring/monitoringoff"]);
+      return false;
+   }
+
+   return true;
 };

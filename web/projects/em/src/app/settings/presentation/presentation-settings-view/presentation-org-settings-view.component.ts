@@ -22,7 +22,8 @@ import { PresentationSettingsViewComponent } from "./presentation-settings-view.
 
 @Secured({
    route: "/settings/presentation/org-settings",
-   label: "Presentation Org Settings"
+   label: "Presentation Org Settings",
+   requiresMultiTenancy: true
 })
 @ContextHelp({
    route: "/settings/presentation/org-settings",

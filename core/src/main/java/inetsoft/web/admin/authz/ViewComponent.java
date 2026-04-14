@@ -42,6 +42,11 @@ public interface ViewComponent {
       return false;
    }
 
+   @Value.Default
+   default boolean requiresMultiTenancy() {
+      return false;
+   }
+
    @Value.Lazy
    @JsonIgnore
    default boolean available() {

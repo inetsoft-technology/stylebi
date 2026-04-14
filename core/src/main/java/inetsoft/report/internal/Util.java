@@ -76,6 +76,9 @@ public class Util implements inetsoft.report.StyleConstants {
     */
    public static final int V_SPACING = 0x200;
 
+   public static final String MV_TASK_PREFIX = "MV Task: ";
+   public static final String MV_TASK_STAGE_PREFIX = "MV Task Stage 2: ";
+
    /**
     * Break a line.
     * @param line line text.

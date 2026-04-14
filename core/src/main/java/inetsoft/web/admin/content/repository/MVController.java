@@ -87,18 +87,13 @@ public class MVController {
       return mvService.checkAnalyzeStatus(analysisId, principal);
    }
 
-   @Secured({
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/content/repository",
-         actions = ResourceAction.ACCESS
-      ),
+   @Secured(
       @RequiredPermission(
          resourceType = ResourceType.MATERIALIZATION,
          resource = "*",
          actions = ResourceAction.ACCESS
       )
-   })
+   )
    @GetMapping("/api/em/content/repository/mv/get-model/{analysisId}")
    @SuppressWarnings("unchecked")
    public AnalyzeMVResponse getModel(@RequestParam("hideData") boolean hideData,
@@ -121,18 +116,13 @@ public class MVController {
          .build();
    }
 
-   @Secured({
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/content/repository",
-         actions = ResourceAction.ACCESS
-      ),
+   @Secured(
       @RequiredPermission(
          resourceType = ResourceType.MATERIALIZATION,
          resource = "*",
          actions = ResourceAction.ACCESS
       )
-   })
+   )
    @PostMapping("/api/em/content/repository/mv/show-plan/{analysisId}")
    public String showPlan(@PathVariable("analysisId") String analysisId,
                           @RequestBody CreateUpdateMVRequest createUpdateMVRequest)
@@ -144,18 +134,13 @@ public class MVController {
       return info.toString();
    }
 
-   @Secured({
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/content/repository",
-         actions = ResourceAction.ACCESS
-      ),
+   @Secured(
       @RequiredPermission(
          resourceType = ResourceType.MATERIALIZATION,
          resource = "*",
          actions = ResourceAction.ACCESS
       )
-   })
+   )
    @SuppressWarnings("unchecked")
    @PostMapping("/api/em/content/repository/mv/create")
    public CreateMVResponse create(@RequestParam(name = "createId") String createId,
@@ -167,18 +152,13 @@ public class MVController {
       return mvService.create(createId, analysisId, createUpdateMVRequest, principal);
    }
 
-   @Secured({
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/content/repository",
-         actions = ResourceAction.ACCESS
-      ),
+   @Secured(
       @RequiredPermission(
          resourceType = ResourceType.MATERIALIZATION,
          resource = "*",
          actions = ResourceAction.ACCESS
       )
-   })
+   )
    @SuppressWarnings("unchecked")
    @PostMapping("/api/em/content/repository/mv/set-cycle/{analysisId}")
    public void setCycle(@PathVariable("analysisId") String analysisId,

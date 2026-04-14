@@ -82,6 +82,10 @@ public class ComponentAuthorizationController {
       boolean authorized = component.available() && checkPermission(resource, principal);
       boolean multiTenancyHidden = false;
 
+      if(component.requiresMultiTenancy() && !SUtil.isMultiTenant()) {
+         return false;
+      }
+
       if(component.hiddenForMultiTenancy() && SUtil.isMultiTenant()) {
          multiTenancyHidden = !OrganizationManager.getInstance().isSiteAdmin(principal);
       }
