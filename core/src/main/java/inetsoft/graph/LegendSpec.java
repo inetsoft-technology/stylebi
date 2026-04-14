@@ -196,6 +196,14 @@ public class LegendSpec implements Cloneable, Serializable {
       this.borderColor = borderColor;
    }
 
+   public boolean isRoundCorners() {
+      return roundCorners;
+   }
+
+   public void setRoundCorners(boolean roundCorners) {
+      this.roundCorners = roundCorners;
+   }
+
    /**
     * Get the legend title text attributes.
     */
@@ -380,7 +388,8 @@ public class LegendSpec implements Cloneable, Serializable {
       LegendSpec that = (LegendSpec) o;
       return visible == that.visible && border == that.border &&
          titleVisible == that.titleVisible && partial == that.partial && topY == that.topY &&
-         gap == that.gap && symbolSize == that.symbolSize && Objects.equals(borderColor, that.borderColor) &&
+         gap == that.gap && symbolSize == that.symbolSize && roundCorners == that.roundCorners &&
+         Objects.equals(borderColor, that.borderColor) &&
          Objects.equals(bg, that.bg) && Objects.equals(title, that.title) &&
          Objects.equals(titleSpec, that.titleSpec) && Objects.equals(textFrame, that.textFrame) &&
          Objects.equals(textSpec, that.textSpec) && Objects.equals(position, that.position) &&
@@ -392,7 +401,7 @@ public class LegendSpec implements Cloneable, Serializable {
    public int hashCode() {
       return Objects.hash(visible, border, borderColor, bg, title, titleVisible, titleSpec,
                           textFrame, textSpec, partial, position, epos, preferredSize, topY, gap,
-                          padding, hiddenItems, symbolSize);
+                          padding, hiddenItems, symbolSize, roundCorners);
    }
 
    private int border = GraphConstants.THIN_LINE;
@@ -412,6 +421,7 @@ public class LegendSpec implements Cloneable, Serializable {
    private Insets padding;
    private Set hiddenItems = new HashSet();
    private int symbolSize = LegendItem.DEFAULT_SYMBOL_SIZE;
+   private boolean roundCorners = false;
 
    private static final long serialVersionUID = 1L;
    private static final Logger LOG = LoggerFactory.getLogger(LegendSpec.class);

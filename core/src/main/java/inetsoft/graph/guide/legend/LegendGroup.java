@@ -174,10 +174,10 @@ public class LegendGroup extends BoundedContainer {
          Legend legend = (Legend) getVisual(i);
          double width = w * ratios[i];
 
-         // if multiple legends, fill the whole width looks better
-         if(getVisualCount() == 1) {
-            width = Math.min(width, legend.getPreferredWidth(h, w));
-         }
+         // Always fill the full allocated width (previously capped at preferredWidth for
+         // single-legend groups). Filling the width lets items flow into more columns
+         // before wrapping to additional rows, which makes better use of the available
+         // space especially now that BORDER_PADDING reserves room inside each legend.
 
          legend.setBounds(x, y + yOffset, width, h);
          x += width;

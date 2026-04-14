@@ -195,7 +195,10 @@ public abstract class LegendItem extends BoundedContainer {
       // the padding left logic has moved to VLegend
       paintSymbol(g, getPosition().getX(),
                   getPosition().getY() + (height - symbolSize) / 2);
-      vlabel.paint(g);
+      // Pass false to suppress the VLabel's own background fill. The legend-level
+      // background is already painted by Legend.paintBg() before items are drawn,
+      // so re-painting it per-label would overdraw with potentially mismatched alpha.
+      vlabel.paint(g, false);
    }
 
    /**

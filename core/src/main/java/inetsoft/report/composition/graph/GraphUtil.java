@@ -578,6 +578,7 @@ public class GraphUtil {
       CompositeTextFormat format = legends.getTitleTextFormat();
       spec.setBorder(legends.getBorder());
       spec.setBorderColor(legends.getBorderColor());
+      spec.setRoundCorners(legends.isRoundCorners());
       spec.setTitleTextSpec(GraphUtil.getTextSpec(format, null, null));
       spec.setPartial(true);
    }
