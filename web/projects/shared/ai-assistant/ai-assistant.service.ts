@@ -19,7 +19,7 @@
 import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
 import { BehaviorSubject, Observable, of, Subject } from "rxjs";
-import { catchError, map, timeout } from "rxjs/operators";
+import { catchError, map, take, timeout } from "rxjs/operators";
 import { convertToKey } from "../../em/src/app/settings/security/users/identity-id";
 import { BindingModel } from "../../portal/src/app/binding/data/binding-model";
 import { ChartBindingModel } from "../../portal/src/app/binding/data/chart/chart-binding-model";
@@ -75,12 +75,23 @@ export class AiAssistantService {
    private _lastBindingObject: string = "";
    private _newChatFromBinding: boolean = false;
 
+   // Caches the server-URL fetch so loadWebComponentScript() can await it even when
+   // the Angular app has not yet processed the HTTP response before the component
+   // tree is ready.
+   private readonly _serverUrlLoaded: Promise<void>;
+
    constructor(private http: HttpClient, private currentUserService: CurrentUserService) {
-      this.http.get("../api/assistant/get-chat-app-server-url").subscribe((url: string) => {
+      // TODO: replace .toPromise() with firstValueFrom() when upgrading to RxJS 7+
+      this._serverUrlLoaded = this.http.get<string>("../api/assistant/get-chat-app-server-url").pipe(
+         catchError(() => of("")),
+         take(1)
+      ).toPromise().then((url: string) => {
          this.chatAppServerUrl = url || "";
       });
 
-      this.http.get("../api/assistant/get-stylebi-url").subscribe((url: string) => {
+      this.http.get("../api/assistant/get-stylebi-url").pipe(
+         catchError(() => of(""))
+      ).subscribe((url: string) => {
          this.styleBIUrl = url || "";
       });
 
@@ -130,34 +141,37 @@ export class AiAssistantService {
     * a retry on the next panel open.
     */
    loadWebComponentScript(): Promise<void> {
-      if(this.webComponentScriptPromise) {
-         return this.webComponentScriptPromise;
-      }
-
-      // The UMD is bundled into Angular's scripts output via angular.json, so the custom
-      // element is already defined when StyleBI loads. Skip dynamic loading in that case —
-      // this avoids a redundant cross-origin fetch that fails in direct mode when the
-      // chat-app server port is not reachable from the browser.
+      // If the element was already registered (e.g. by the @inetsoft-technology/ai-assistant
+      // npm package imported elsewhere in the app), skip loading the external UMD bundle to
+      // avoid a double-registration NotSupportedError.
       if(customElements.get("ai-assistant")) {
          return Promise.resolve();
       }
 
-      const base = this.chatAppServerUrl ? this.chatAppServerUrl.replace(/\/$/, "") : "";
-
-      if(!base) {
-         return Promise.reject(new Error("AI assistant URL not configured"));
+      if(this.webComponentScriptPromise) {
+         return this.webComponentScriptPromise;
       }
 
-      this.webComponentScriptPromise = new Promise<void>((resolve, reject) => {
-         const script = document.createElement("script");
-         script.src = base + "/web-component/ai-assistant.umd.js";
-         script.onload = () => resolve();
-         script.onerror = () => {
-            document.head.removeChild(script); // remove so a retry appends a fresh element
-            this.webComponentScriptPromise = null; // allow retry next time
-            reject(new Error("Failed to load AI assistant web component"));
-         };
-         document.head.appendChild(script);
+      this.webComponentScriptPromise = this._serverUrlLoaded.then(() => {
+         const base = this.chatAppServerUrl ? this.chatAppServerUrl.replace(/\/$/, "") : "";
+
+         if(!base) {
+            return Promise.reject(new Error("AI assistant URL not configured"));
+         }
+
+         return new Promise<void>((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = base + "/web-component/ai-assistant.umd.js";
+            script.onload = () => resolve();
+            script.onerror = () => {
+               document.head.removeChild(script); // remove so a retry appends a fresh element
+               reject(new Error("Failed to load AI assistant web component"));
+            };
+            document.head.appendChild(script);
+         });
+      }).catch(err => {
+         this.webComponentScriptPromise = null;
+         return Promise.reject(err);
       });
 
       return this.webComponentScriptPromise;
