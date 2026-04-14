@@ -317,12 +317,23 @@ public class DataSpaceFolderSettingsController {
          return false;
       }
 
-      if(ImageShapes.getGlobalShapesDirectory().equals(path)) {
-         if(global) {
+      String globalShapesDir = ImageShapes.getGlobalShapesDirectory();
+      String orgShapesDir = ImageShapes.getShapesDirectory();
+
+      if(path.equals(globalShapesDir) || path.startsWith(globalShapesDir + "/")) {
+         // global=false means the actual destination is the org shapes dir
+         if(!global) {
             return securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
-               "settings/presentation/settings", ResourceAction.ACCESS);
+                  "settings/presentation/settings", ResourceAction.ACCESS) ||
+               securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
+                  "settings/presentation/org-settings", ResourceAction.ACCESS);
          }
 
+         return securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
+            "settings/presentation/settings", ResourceAction.ACCESS);
+      }
+
+      if(path.equals(orgShapesDir) || path.startsWith(orgShapesDir + "/")) {
          return securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
                "settings/presentation/settings", ResourceAction.ACCESS) ||
             securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
