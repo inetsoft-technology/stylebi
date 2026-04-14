@@ -378,7 +378,7 @@ describe("ViewerApp Unit Tests", () => {
          firstDayOfWeekService, new NgbTooltipConfig(new NgbConfig()), shareService, null,
          richTextService, viewerToolbarMessageService, mobileToolbarService, mockDocument, composerRecentService,
          pageTabService, pagingControlService, selectionMobileService,
-         assetLoadingService, viewContainerRef, baseHrefService);
+         assetLoadingService, viewContainerRef, baseHrefService, null);
       const mockChart = TestUtils.createMockVSChartModel("Mock Chart");
       const mockTable = TestUtils.createMockVSTableModel("Mock Table");
       const mockCrosstab = TestUtils.createMockVSCrosstabModel("Mock Crosstab");

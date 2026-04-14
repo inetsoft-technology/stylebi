@@ -28,6 +28,7 @@ import inetsoft.graph.geometry.*;
 import inetsoft.graph.guide.VLabel;
 import inetsoft.graph.internal.*;
 import inetsoft.util.CoreTool;
+import inetsoft.util.graphics.SVGSupport;
 
 import java.awt.*;
 import java.awt.geom.*;
@@ -378,52 +379,67 @@ public class Pie3DVO extends ElementVO {
       GraphElement elem = gobj.getElement();
       vlabels = new VLabel[transformedShapes.size()];
       int[] rows = getSubRowIndexes();
+      SVGSupport svg = SVGSupport.isSVGContext(g) ? SVGSupport.getInstance() : null;
 
       for(int i = 0; i < transformedShapes.size(); i++) {
-         Color color = gobj.getColor(rows[i]);
-         GTexture texture = gobj.getTexture(rows[i]);
-         GLine line = gobj.getLine(rows[i]);
-         Color borderColor = elem.getBorderColor();
-         Shape shape = (Shape) transformedShapes.get(i);
-         Arc2D path = BarVO.getOuterArc(getPath(shape));
-         color = applyAlpha(color);
-
-         g.setColor(color);
-
-         if(texture == null) {
-            g.fill(path);
-            applyEffect(g, path, color);
-         }
-         else {
-            texture.paint(g, path);
-
-            // always draw border around texture
-            if(line == null) {
-               line = new GLine(1);
-            }
+         if(svg != null) {
+            svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_PIE, Map.of(
+               SVGSupport.ATTR_SLICE, String.valueOf(i),
+               SVGSupport.ATTR_FACE,  "top"
+            ));
          }
 
-         if(line != null || borderColor != null) {
-            Stroke ostroke = g.getStroke();
-            g.setColor(borderColor != null ? borderColor : color.darker());
+         try {
+            Color color = gobj.getColor(rows[i]);
+            GTexture texture = gobj.getTexture(rows[i]);
+            GLine line = gobj.getLine(rows[i]);
+            Color borderColor = elem.getBorderColor();
+            Shape shape = (Shape) transformedShapes.get(i);
+            Arc2D path = BarVO.getOuterArc(getPath(shape));
+            color = applyAlpha(color);
 
-            if(line != null) {
-               g.setStroke(line.getStroke(0.5));
-            }
+            g.setColor(color);
 
-            double start = Math.abs(path.getAngleStart());
-            double extent = Math.abs(path.getAngleExtent());
-
-            // avoid drawing edge at the arc angles if it's a complete pie
-            if(start == 0 && extent == 360) {
-               g.draw(new Ellipse2D.Double(path.getX(), path.getY(),
-                                           path.getWidth(), path.getHeight()));
+            if(texture == null) {
+               g.fill(path);
+               applyEffect(g, path, color);
             }
             else {
-               g.draw(path);
+               texture.paint(g, path);
+
+               // always draw border around texture
+               if(line == null) {
+                  line = new GLine(1);
+               }
             }
 
-            g.setStroke(ostroke);
+            if(line != null || borderColor != null) {
+               Stroke ostroke = g.getStroke();
+               g.setColor(borderColor != null ? borderColor : color.darker());
+
+               if(line != null) {
+                  g.setStroke(line.getStroke(0.5));
+               }
+
+               double start = Math.abs(path.getAngleStart());
+               double extent = Math.abs(path.getAngleExtent());
+
+               // avoid drawing edge at the arc angles if it's a complete pie
+               if(start == 0 && extent == 360) {
+                  g.draw(new Ellipse2D.Double(path.getX(), path.getY(),
+                                              path.getWidth(), path.getHeight()));
+               }
+               else {
+                  g.draw(path);
+               }
+
+               g.setStroke(ostroke);
+            }
+         }
+         finally {
+            if(svg != null) {
+               svg.endAnnotationGroup(g);
+            }
          }
       }
    }

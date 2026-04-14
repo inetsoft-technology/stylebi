@@ -40,6 +40,7 @@ import { AddVSObjectCommand } from "../../vsobjects/command/add-vs-object-comman
 import { RefreshVSObjectCommand } from "../../vsobjects/command/refresh-vs-object-command";
 import { SetRuntimeIdCommand } from "../../vsobjects/command/set-runtime-id-command";
 import { SetViewsheetInfoCommand } from "../../vsobjects/command/set-viewsheet-info-command";
+import { ChartConfigService } from "../../graph/services/chart-config.service";
 import { ViewsheetInfo } from "../../vsobjects/data/viewsheet-info";
 import { OpenViewsheetEvent } from "../../vsobjects/event/open-viewsheet-event";
 import { VSObjectModel } from "../../vsobjects/model/vs-object-model";
@@ -137,7 +138,8 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
                private shadowDomService: ShadowDomService,
                private showHyperlinkService: ShowHyperlinkService,
                private debounceService: DebounceService,
-               private cdRef: ChangeDetectorRef)
+               private cdRef: ChangeDetectorRef,
+               private chartConfigService: ChartConfigService)
    {
       super(viewsheetClient, zone, true);
       shadowDomService.addShadowRootHost(injector, viewContainerRef.element?.nativeElement);
@@ -258,6 +260,8 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       if(!this.vsInfo || this.vsInfo.linkUri != command.linkUri) {
          this.updateVSInfo(command.linkUri);
       }
+
+      this.chartConfigService.inlineSvg = command.info["inlineSvg"] ?? false;
 
       // reset server update interval if any values are changed
       if(this.updateEnabled != command.info["updateEnabled"] ||

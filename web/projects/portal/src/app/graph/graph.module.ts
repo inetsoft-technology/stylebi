@@ -47,6 +47,7 @@ import { ChartArea } from "./objects/chart-area.component";
 import { ChartAxisArea } from "./objects/chart-axis-area.component";
 import { ChartFacetArea } from "./objects/chart-facet.component";
 import { ChartImageDirective } from "./objects/chart-image.directive";
+import { ChartInlineSvgDirective } from "./objects/chart-inline-svg.directive";
 import { ChartLegendArea } from "./objects/chart-legend-area.component";
 import { ChartLegendContainer } from "./objects/chart-legend-container.component";
 import { ChartNavBar } from "./objects/chart-nav-bar.component";
@@ -81,6 +82,7 @@ import { ChartTitleArea } from "./objects/chart-title-area.component";
       ChartAxisArea,
       ChartFacetArea,
       ChartImageDirective,
+      ChartInlineSvgDirective,
       ChartLegendArea,
       ChartLegendContainer,
       ChartLinePane,
@@ -105,6 +107,7 @@ import { ChartTitleArea } from "./objects/chart-title-area.component";
       ChartAxisArea,
       ChartFacetArea,
       ChartImageDirective,
+      ChartInlineSvgDirective,
       ChartLegendArea,
       ChartLegendContainer,
       ChartLinePane,

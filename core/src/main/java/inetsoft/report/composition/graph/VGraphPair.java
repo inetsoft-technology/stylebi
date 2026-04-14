@@ -19,8 +19,7 @@ package inetsoft.report.composition.graph;
 
 import inetsoft.graph.*;
 import inetsoft.graph.aesthetic.*;
-import inetsoft.graph.coord.Coordinate;
-import inetsoft.graph.coord.FacetCoord;
+import inetsoft.graph.coord.*;
 import inetsoft.graph.data.*;
 import inetsoft.graph.element.*;
 import inetsoft.graph.geometry.ElementGeometry;
@@ -31,8 +30,7 @@ import inetsoft.graph.guide.legend.LegendGroup;
 import inetsoft.graph.internal.DimensionD;
 import inetsoft.graph.internal.GDefaults;
 import inetsoft.graph.scale.Scale;
-import inetsoft.graph.visual.PointVO;
-import inetsoft.graph.visual.PolygonVO;
+import inetsoft.graph.visual.*;
 import inetsoft.report.*;
 import inetsoft.report.composition.execution.DataMap;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
@@ -65,8 +63,8 @@ import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -2016,7 +2014,7 @@ public class VGraphPair {
    public Graphics2D getPlotGraphic(int row, int col) {
       final VGraph vgraph = getExpandedVGraph();
       final GraphBounds gbounds = new GraphBounds(vgraph, getRealSizeVGraph(), cinfo);
-      return getFlipYSubGraphic(vgraph, gbounds.getPlotBounds(), row, col, true, getEVGraphContext(true));
+      return getFlipYSubGraphic(vgraph, gbounds.getPlotBounds(), row, col, true, getEVGraphContext(true), true);
    }
 
    /**
@@ -2329,7 +2327,14 @@ public class VGraphPair {
    private Graphics2D getFlipYSubGraphic(VGraph graph, Rectangle2D bounds,
                                          int row, int col, boolean restrict, GraphPaintContext ctx)
    {
-      return getSubGraphic(graph, getFlipYBounds(graph, bounds), row, col, restrict, ctx);
+      return getFlipYSubGraphic(graph, bounds, row, col, restrict, ctx, false);
+   }
+
+   private Graphics2D getFlipYSubGraphic(VGraph graph, Rectangle2D bounds,
+                                         int row, int col, boolean restrict, GraphPaintContext ctx,
+                                         boolean animate)
+   {
+      return getSubGraphic(graph, getFlipYBounds(graph, bounds), row, col, restrict, ctx, animate);
    }
 
    /**
@@ -2337,7 +2342,8 @@ public class VGraphPair {
     * @param bounds the sub image bounds.
     */
    private Graphics2D getSubGraphic(VGraph graph, Rectangle2D bounds,
-                                    int row, int col, boolean restrict, GraphPaintContext ctx)
+                                    int row, int col, boolean restrict, GraphPaintContext ctx,
+                                    boolean animate)
    {
       Rectangle subox = getSubBounds(graph, bounds, row, col, restrict);
 
@@ -2357,9 +2363,141 @@ public class VGraphPair {
       // shift by 0.5 to avoid clipping half of line. see above.
       g.translate(-subox.getX() + 0.5, -subox.getY() + 0.5);
       graph.paintGraph(g, ctx);
+
+      if(animate) {
+         // applyAnimationHint inspects the painted VGraph to choose the right hint type,
+         // so it must run after paintGraph. It is called before dispose() so the hint is
+         // stored in the Graphics2D context before Batik finalises the SVG DOM.
+         // With Batik's SVGGraphics2D, rendering hints are metadata on the graphics object
+         // and survive dispose() — they remain readable when writeSVG is called by the caller.
+         applyAnimationHint(g, graph);
+      }
+
       g.dispose();
 
       return g;
+   }
+
+   private void applyAnimationHint(Graphics2D g, VGraph graph) {
+      SVGSupport svgSupport = SVGSupport.getInstance();
+
+      if(!svgSupport.isSVGGraphics(g)) {
+         return;
+      }
+
+      // Pie/donut charts use BarVO on a PolarCoord; 3D pie uses Pie3DVO.
+      // Check for pie first — polar BarVO must not receive bar grow/fade animation.
+      if(hasPieVO(graph)) {
+         g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_PIE);
+      }
+      else if(hasBarVO(graph)) {
+         String hint = SVGSupport.ANIMATION_GROW;
+         // Append sub-type flags for future differentiated animation behaviour.
+         // SVGAnimationDOMInjector currently handles stacked and 3D bars via the same
+         // annotation-group path, so these flags are not yet acted upon by the injector.
+         if(has3DBarVO(graph))           hint += ":" + SVGSupport.ANIMATION_FLAG_3D;
+         else if(hasStackedBarVO(graph)) hint += ":" + SVGSupport.ANIMATION_FLAG_STACKED;
+         g.setRenderingHint(SVGSupport.ANIMATION_KEY, hint);
+      }
+      else if(hasLineVO(graph)) {
+         g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_LINE);
+      }
+      else if(hasPointVO(graph)) {
+         g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_POINT);
+      }
+   }
+
+   private static boolean hasPieVO(VGraph graph) {
+      // Regular pie/donut: BarVO on a PolarCoord.
+      if(graph.getCoordinate() instanceof PolarCoord && hasBarVO(graph)) {
+         return true;
+      }
+
+      for(int i = 0; i < graph.getVisualCount(); i++) {
+         Visualizable v = graph.getVisual(i);
+
+         if(v instanceof Pie3DVO) {
+            return true;
+         }
+
+         // Facet charts: recurse into nested VGraphs.
+         if(v instanceof GraphVO) {
+            if(hasPieVO(((GraphVO) v).getVGraph())) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   private static boolean has3DBarVO(VGraph graph) {
+      for(int i = 0; i < graph.getVisualCount(); i++) {
+         Visualizable v = graph.getVisual(i);
+         if(v instanceof Bar3DVO) return true;
+         if(v instanceof GraphVO && has3DBarVO(((GraphVO) v).getVGraph())) return true;
+      }
+      return false;
+   }
+
+   private static boolean hasStackedBarVO(VGraph graph) {
+      for(int i = 0; i < graph.getVisualCount(); i++) {
+         Visualizable v = graph.getVisual(i);
+
+         if(v instanceof BarVO && !(v instanceof Bar3DVO)) {
+            ElementGeometry geom = (ElementGeometry) ((BarVO) v).getGeometry();
+            if(geom != null && geom.getElement().isStack()) return true;
+         }
+
+         if(v instanceof GraphVO && hasStackedBarVO(((GraphVO) v).getVGraph())) return true;
+      }
+      return false;
+   }
+
+   private static boolean hasLineVO(VGraph graph) {
+      for(int i = 0; i < graph.getVisualCount(); i++) {
+         Visualizable v = graph.getVisual(i);
+
+         if(v instanceof LineVO || v instanceof AreaVO) {
+            return true;
+         }
+
+         if(v instanceof GraphVO) {
+            if(hasLineVO(((GraphVO) v).getVGraph())) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   private static boolean hasPointVO(VGraph graph) {
+      for(int i = 0; i < graph.getVisualCount(); i++) {
+         Visualizable v = graph.getVisual(i);
+         if(v instanceof PointVO) return true;
+         if(v instanceof GraphVO && hasPointVO(((GraphVO) v).getVGraph())) return true;
+      }
+      return false;
+   }
+
+   private static boolean hasBarVO(VGraph graph) {
+      for(int i = 0; i < graph.getVisualCount(); i++) {
+         Visualizable v = graph.getVisual(i);
+
+         if(v instanceof BarVO) {
+            return true;
+         }
+
+         // Facet charts: top-level visuals are GraphVO containers wrapping nested VGraphs.
+         if(v instanceof GraphVO) {
+            if(hasBarVO(((GraphVO) v).getVGraph())) {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    /**
