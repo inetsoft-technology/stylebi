@@ -1802,8 +1802,24 @@ public class VsToReportConverter {
       if(contentBounds.height <= 0) {
          switch(position) {
             case LabelInfo.TOP:
-               // Cannot grow the section upward; overlap label at the widget's top edge
-               // instead of trying to place it above the allocated band.
+               // For a TOP label, try to place the label in the section that covers the space
+               // immediately above the widget (bounds.y - labelH .. bounds.y). This is typically
+               // the filler section created to preserve vertical spacing before the first assembly.
+               // Returning early skips the addElement0 call below so the label is not double-added.
+               if(bounds.y >= labelH) {
+                  String aboveSection = findSectionContaining(bounds.y - 1);
+
+                  if(aboveSection != null) {
+                     Rectangle topLabelBounds =
+                        new Rectangle(bounds.x, bounds.y - labelH, bounds.width, labelH);
+                     addElement0(topLabelBounds, textbox, aboveSection);
+                     return new Rectangle(bounds.x, bounds.y, bounds.width, bounds.height);
+                  }
+               }
+
+               // No section above to absorb the label; fall back to overlapping the label
+               // with the widget at its top edge (label will be visible if the widget image
+               // is transparent or the report renderer respects element order).
                labelBounds = new Rectangle(bounds.x, bounds.y, bounds.width, labelH);
                break;
             case LabelInfo.BOTTOM:
@@ -2878,6 +2894,23 @@ public class VsToReportConverter {
       for(LayoutSection layout : contentSections) {
          if(name.equals(layout.section.getID())) {
             return layout.bounds;
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Find the ID of the content section whose absolute-pixel bounds contain the given
+    * y-coordinate. Returns {@code null} if no section covers that position.
+    */
+   private String findSectionContaining(int absoluteY) {
+      for(LayoutSection layout : contentSections) {
+         int sectionTop = layout.bounds.y;
+         int sectionBottom = layout.bounds.y + layout.bounds.height;
+
+         if(absoluteY >= sectionTop && absoluteY < sectionBottom) {
+            return layout.section.getID();
          }
       }
 
