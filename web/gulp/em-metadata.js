@@ -69,6 +69,7 @@ const generateMetadata = function() {
                   child.label = entry.label;
                   child.requiredLicenses = entry.requiredLicenses;
                   child.hiddenForMultiTenancy = entry.hiddenForMultiTenancy;
+                  child.requiresMultiTenancy = entry.requiresMultiTenancy;
                } else {
                   parent = child;
                }
@@ -85,8 +86,8 @@ const generateMetadata = function() {
 
       if(match != null) {
          const addEntries = (md => {
-            const {route, label, requiredLicenses, children, hiddenForMultiTenancy} = md;
-            securityEntries.push({route, label, requiredLicenses, hiddenForMultiTenancy});
+            const {route, label, requiredLicenses, children, hiddenForMultiTenancy, requiresMultiTenancy} = md;
+            securityEntries.push({route, label, requiredLicenses, hiddenForMultiTenancy, requiresMultiTenancy});
 
             if(children) {
                children.forEach(c => addEntries(c));
