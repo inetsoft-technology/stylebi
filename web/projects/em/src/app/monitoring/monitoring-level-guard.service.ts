@@ -22,7 +22,7 @@ import {
    Router,
    RouterStateSnapshot
 } from "@angular/router";
-import { Observable } from "rxjs";
+import { Observable, of } from "rxjs";
 import { map } from "rxjs/operators";
 import { MonitorLevel, MonitorLevelService } from "./monitor-level.service";
 
@@ -49,8 +49,8 @@ export const monitoringLevelGuard: CanActivateFn = (next: ActivatedRouteSnapshot
 
    if(level <= MonitorLevel.OFF || isException && level <= MonitorLevel.MEDIUM) {
       router.navigate(["monitoring/monitoringoff"]);
-      return false;
+      return of(false);
    }
 
-   return true;
+   return of(true);
 };
