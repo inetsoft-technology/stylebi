@@ -3884,7 +3884,7 @@ public abstract class AbstractVSExporter implements VSExporter {
          // Center the label text vertically relative to the widget height,
          // matching the Angular preview which uses flexbox vertical centering.
          labelBounds = new Rectangle2D.Double(x + fullW - labelW,
-            y + (fullH - labelH) / 2.0, labelW, labelH);
+            y + Math.max(0, (fullH - labelH) / 2.0), labelW, labelH);
          widgetBounds = new Rectangle2D.Double(x, y,
             Math.max(0, fullW - labelW - gap), fullH);
          break;
@@ -3892,7 +3892,7 @@ public abstract class AbstractVSExporter implements VSExporter {
       default:
          // Center the label text vertically relative to the widget height,
          // matching the Angular preview which uses flexbox vertical centering.
-         labelBounds = new Rectangle2D.Double(x, y + (fullH - labelH) / 2.0,
+         labelBounds = new Rectangle2D.Double(x, y + Math.max(0, (fullH - labelH) / 2.0),
             labelW, labelH);
          widgetBounds = new Rectangle2D.Double(x + labelW + gap, y,
             Math.max(0, fullW - labelW - gap), fullH);
