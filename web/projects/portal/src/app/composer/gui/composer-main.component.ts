@@ -134,8 +134,6 @@ import { ComposerToolbarComponent } from "./toolbar/composer-toolbar.component";
 import { ComposerObjectService } from "./vs/composer-object.service";
 import { CloseSheetEvent } from "./vs/event/close-sheet-event";
 import { SaveSheetEvent } from "./ws/socket/save-sheet-event";
-import { DashboardTabModel } from "../../portal/dashboard/dashboard-tab-model";
-import { DashboardTabService } from "../../portal/services/dashboard-tab.service";
 
 export enum SidebarTab {
    ASSET_TREE,
@@ -307,7 +305,6 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    openedTabs: ComposerTabModel[] = [];
    private _focusedTab: ComposerTabModel;
    private propertyDialogModal: NgbModalRef;
-   dashboardTabModel: DashboardTabModel | null = null;
 
    constructor(private composerObjectService: ComposerObjectService,
       private resizeHandlerService: ResizeHandlerService,
@@ -328,8 +325,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       private scriptService: ScriptService,
       private fontService: FontService,
       private aiAssistantService: AiAssistantService,
-      private aiAssistantDialogService: AiAssistantDialogService,
-      private dashboardTabService: DashboardTabService)
+      private aiAssistantDialogService: AiAssistantDialogService)
    {
       this.aiAssistantService.loadCurrentUser();
       GuiTool.isTouchDevice().then((value: boolean) => {
@@ -447,11 +443,6 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          }
       });
 
-      this.subscriptions.add(this.dashboardTabService.getDashboardTabModel()
-         .subscribe({
-            next: data => { this.dashboardTabModel = data; },
-            error: err => console.error("Failed to load dashboard tab model", err)
-         }));
    }
 
    // open wizard if requested from portal

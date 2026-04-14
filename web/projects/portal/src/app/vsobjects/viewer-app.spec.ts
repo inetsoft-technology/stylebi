@@ -242,6 +242,7 @@ describe("ViewerApp Unit Tests", () => {
 
       pageTabService = {
          updateTabLabel: jest.fn(),
+         getDrillTabsTop: jest.fn().mockReturnValue(observableOf(false)),
       };
 
       pagingControlService = {};
