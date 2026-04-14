@@ -795,11 +795,11 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
          return false;
       }
 
-      return (range.getStart().before(another.getStart()) ||
-         range.getStart().equals(another.getStart())) && (range.getEnd().after(another.getStart()) ||
-         range.getEnd().equals(another.getStart())) || (range.getStart().before(another.getEnd()) ||
-         range.getStart().equals(another.getEnd())) && (range.getEnd().after(another.getEnd()) ||
-         range.getEnd().equals(another.getEnd()));
+      // Two intervals [A,B] and [C,D] intersect iff A <= D && C <= B.
+      // The previous expression missed the case where 'another' completely contains 'range'.
+      boolean startBeforeOrAtEnd = !range.getStart().after(another.getEnd());
+      boolean anotherStartBeforeOrAtEnd = !another.getStart().after(range.getEnd());
+      return startBeforeOrAtEnd && anotherStartBeforeOrAtEnd;
    }
 
    /**
