@@ -744,7 +744,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       // For LEFT-positioned labels the widget starts immediately to the right, so cap the
       // extra by the gap to prevent the text box from overlapping the widget when gap is small.
       double extra = LabelInfo.LEFT.equals(labelInfo.getLabelPosition())
-         ? Math.min(30, Math.max(0, labelInfo.getLabelGap()))
+         ? Math.min(30, labelInfo.getLabelGap())
          : 30;
       Rectangle2D padded = new Rectangle2D.Double(
          pixelBounds.getX(), pixelBounds.getY(),
