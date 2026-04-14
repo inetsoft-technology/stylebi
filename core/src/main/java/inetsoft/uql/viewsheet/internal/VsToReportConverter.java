@@ -1455,7 +1455,7 @@ public class VsToReportConverter {
       Hyperlink emptyPlotLink = cinfo.getEmptyPlotLinkValue();
 
       if(emptyPlotLink != null) {
-         chartelem.setPlotAreaHyperlink(emptyPlotLink);
+         chartelem.setEmptyPlotHyperlink(emptyPlotLink);
       }
    }
 

@@ -1374,41 +1374,44 @@ public abstract class AbstractVSExporter implements VSExporter {
                      }
                   }
 
-                  Hyperlink emptyPlotLink = info.getEmptyPlotLinkValue();
-
-                  if(emptyPlotLink != null) {
-                     int titleHeight = info.isTitleVisible() ? info.getTitleHeight() : 0;
-                     Insets padding = info.getPadding();
-                     Insets2D border = getBorderOffset(info.getFormat());
-                     Rectangle2D plotBounds = new Rectangle2D.Double(
-                        pos.x + padding.left + border.left,
-                        pos.y + padding.top + border.top + titleHeight,
-                        size.width - padding.left - padding.right - border.left - border.right,
-                        size.height - padding.top - padding.bottom - border.top - border.bottom - titleHeight);
-                     writeEmptyPlotHyperlink(new Hyperlink.Ref(emptyPlotLink), plotBounds);
-                  }
-
                   VGraphPair pair = box.getVGraphPair(name, true, null, true, 1);
                   DataSet data = (DataSet) box.getData(name);
                   boolean imgOnly = exportChartAsImage(chart);
                   data = data == null && pair != null ? pair.getData() : data;
 
+                  VGraph graph = null;
+
                   if(data != null && !(data.getRowCount() <= 0 && data.getColCount() <= 0)) {
-                     VGraph graph = !isMatchLayout() && supportChartSlices() ?
+                     graph = !isMatchLayout() && supportChartSlices() ?
                         pair.getExpandedVGraph() : pair.getRealSizeVGraph();
+                  }
 
-                     if(graph != null) {
-                        Rectangle2D bounds = graph.getBounds();
-                        // chart not included in onlyDataComponents. (59989)
-                        boolean needSlice = !isMatchLayout() && !isOnlyDataComponents() &&
-                           bounds.getWidth() * bounds.getHeight() > EXPORT_SIZE * EXPORT_SIZE;
+                  Hyperlink emptyPlotLink = info.getEmptyPlotLinkValue();
 
-                        if(!needSlice) {
-                           writeChart(chart, graph, data, imgOnly);
-                        }
-                        else {
-                           writeSliceChart(chart, data, pair, isMatchLayout(), imgOnly);
-                        }
+                  // emit before writeChart so per-region links overlay on top
+                  if(emptyPlotLink != null) {
+                     int titleHeight = info.isTitleVisible() ? info.getTitleHeight() : 0;
+                     Insets padding = info.getPadding();
+                     Insets2D border = getBorderOffset(info.getFormat());
+                     Rectangle2D chartBounds = new Rectangle2D.Double(
+                        pos.x + padding.left + border.left,
+                        pos.y + padding.top + border.top + titleHeight,
+                        size.width - padding.left - padding.right - border.left - border.right,
+                        size.height - padding.top - padding.bottom - border.top - border.bottom - titleHeight);
+                     writeEmptyPlotHyperlink(new Hyperlink.Ref(emptyPlotLink), graph, chartBounds);
+                  }
+
+                  if(graph != null) {
+                     Rectangle2D bounds = graph.getBounds();
+                     // chart not included in onlyDataComponents. (59989)
+                     boolean needSlice = !isMatchLayout() && !isOnlyDataComponents() &&
+                        bounds.getWidth() * bounds.getHeight() > EXPORT_SIZE * EXPORT_SIZE;
+
+                     if(!needSlice) {
+                        writeChart(chart, graph, data, imgOnly);
+                     }
+                     else {
+                        writeSliceChart(chart, data, pair, isMatchLayout(), imgOnly);
                      }
                   }
 
@@ -3444,7 +3447,19 @@ public abstract class AbstractVSExporter implements VSExporter {
       }
    }
 
-   protected void writeEmptyPlotHyperlink(Hyperlink.Ref ref, Rectangle2D bounds) {
+   /**
+    * Emit the empty-plot hyperlink. The link should be registered on the plot
+    * rectangle only (not the axes or legends). Default is a no-op; subclasses
+    * override.
+    *
+    * @param ref          the hyperlink reference
+    * @param vgraph       the rendered VGraph; use {@code vgraph.getPlotBounds()}
+    *                     (graph-local coords) to derive the actual plot rectangle
+    * @param chartBounds  on-page chart rectangle excluding title, padding and border
+    */
+   protected void writeEmptyPlotHyperlink(Hyperlink.Ref ref, VGraph vgraph,
+                                          Rectangle2D chartBounds)
+   {
       // subclasses override to emit the link
    }
 
