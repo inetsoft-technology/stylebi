@@ -19,6 +19,7 @@
 package inetsoft.web.wiz.controller;
 
 import inetsoft.web.wiz.model.CreateVisualizationModel;
+import inetsoft.web.wiz.model.CreateViewsheetResult;
 import inetsoft.web.wiz.service.CreateVsService;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -33,10 +34,10 @@ public class CreateViewsheetController {
    }
 
    @PostMapping(value = "/viewsheet/create", produces = MediaType.APPLICATION_JSON_VALUE)
-   public void createViewsheet(@RequestBody CreateVisualizationModel model, Principal user)
-      throws Exception
+   public CreateViewsheetResult createViewsheet(@RequestBody CreateVisualizationModel model,
+                                                Principal user) throws Exception
    {
-      createVsService.createViewsheet(model, user);
+      return createVsService.createViewsheet(model, user);
    }
 
    private final CreateVsService createVsService;
