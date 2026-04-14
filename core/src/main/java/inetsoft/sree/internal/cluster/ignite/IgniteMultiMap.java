@@ -226,7 +226,7 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
       // properly, leaving the waiting thread blocked indefinitely.
       while(!lock.tryLock()) {
          if(System.nanoTime() >= deadlineNs) {
-            throw new RuntimeException(
+            throw new IllegalStateException(
                "Lock acquisition timed out after " + leaseTime + " " + timeUnit +
                " for key: " + key);
          }
