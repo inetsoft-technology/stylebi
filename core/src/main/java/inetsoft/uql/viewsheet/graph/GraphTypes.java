@@ -362,6 +362,26 @@ public class GraphTypes {
    }
 
    /**
+    * Convert a 3D chart type to its non-3D equivalent for the binding editor. (74475)
+    * Returns the type unchanged if it is not a 3D type.
+    */
+   public static int downgrade3DChartType(int type) {
+      if(type == CHART_3D_BAR) {
+         return CHART_BAR;
+      }
+
+      if(type == CHART_3D_BAR_STACK) {
+         return CHART_BAR_STACK;
+      }
+
+      if(type == CHART_3D_PIE) {
+         return CHART_PIE;
+      }
+
+      return type;
+   }
+
+   /**
     * Check if is waterfall graph.
     */
    public static final boolean isWaterfall(int type) {
