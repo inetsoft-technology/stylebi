@@ -20,7 +20,12 @@ package inetsoft.web.wiz.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.graph.data.*;
+import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.composition.graph.VGraphPair;
+import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.internal.graph.MapData;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
@@ -31,9 +36,12 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.util.Tool;
 import inetsoft.web.wiz.model.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.*;
 
 @Service
 public class CreateVsService {
@@ -42,7 +50,7 @@ public class CreateVsService {
       this.engine = engine;
    }
 
-   public void createViewsheet(CreateVisualizationModel model, Principal user) throws Exception {
+   public CreateViewsheetResult createViewsheet(CreateVisualizationModel model, Principal user) throws Exception {
       if(Tool.isEmptyString(model.getRuntimeId())) {
          throw new IllegalArgumentException("Runtime Viewsheet is empty");
       }
@@ -108,7 +116,192 @@ public class CreateVsService {
       newVs.addAssembly(assembly);
       assembly.setPrimary(true);
       rvs.setViewsheet(newVs);
+
+      if(assembly instanceof ChartVSAssembly) {
+         return extractChartData(rvs, assembly.getName());
+      }
+      else if(assembly instanceof TableVSAssembly || assembly instanceof CrosstabVSAssembly) {
+         return extractTableLensData(rvs, assembly.getName());
+      }
+      else if(assembly instanceof OutputVSAssembly) {
+         return extractOutputAssemblyData(rvs, assembly.getName());
+      }
+
+      return new CreateViewsheetResult();
    }
+
+   /**
+    * Extracts aggregated chart data from the viewsheet sandbox after the assembly is created.
+    * Returns a result with null headers/rows if data is unavailable (best-effort).
+    */
+   private CreateViewsheetResult extractChartData(RuntimeViewsheet rvs, String assemblyName) {
+      try {
+         Optional<ViewsheetSandbox> boxOpt = rvs.getViewsheetSandbox();
+
+         if(boxOpt.isEmpty()) {
+            return new CreateViewsheetResult();
+         }
+
+         ViewsheetSandbox box = boxOpt.get();
+         VGraphPair pair = box.getVGraphPair(assemblyName, true);
+
+         if(pair == null) {
+            return new CreateViewsheetResult();
+         }
+
+         DataSet dset = pair.getData();
+
+         if(dset == null) {
+            return new CreateViewsheetResult();
+         }
+
+         // Unwrap dataset wrappers to reach the aggregated data
+         while(true) {
+            if(dset instanceof VSDataSet) {
+               break;
+            }
+            else if(dset instanceof PairsDataSet) {
+               dset = ((PairsDataSet) dset).getDataSet();
+            }
+            else if(dset instanceof DataSetFilter) {
+               dset = ((DataSetFilter) dset).getDataSet();
+            }
+            else {
+               break;
+            }
+         }
+
+         int colCount = dset.getColCount();
+         int rowCount = dset.getRowCount();
+
+         List<String> headers = new ArrayList<>(colCount);
+
+         for(int c = 0; c < colCount; c++) {
+            headers.add(dset.getHeader(c));
+         }
+
+         List<Map<String, Object>> rows = new ArrayList<>(rowCount);
+
+         for(int r = 0; r < rowCount; r++) {
+            Map<String, Object> row = new LinkedHashMap<>(colCount);
+
+            for(int c = 0; c < colCount; c++) {
+               row.put(headers.get(c), dset.getData(c, r));
+            }
+
+            rows.add(row);
+         }
+
+         CreateViewsheetResult result = new CreateViewsheetResult();
+         result.setHeaders(headers);
+         result.setRows(rows);
+         return result;
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to extract chart data after viewsheet creation for assembly '{}': {}",
+                  assemblyName, e.getMessage());
+         return new CreateViewsheetResult();
+      }
+   }
+
+   /**
+    * Extracts tabular data from a Table or Crosstab assembly via its TableLens.
+    * Row 0 through headerRowCount-1 are header rows; data begins at headerRowCount.
+    * Returns a result with null headers/rows if data is unavailable (best-effort).
+    */
+   private CreateViewsheetResult extractTableLensData(RuntimeViewsheet rvs, String assemblyName) {
+      try {
+         Optional<ViewsheetSandbox> boxOpt = rvs.getViewsheetSandbox();
+
+         if(boxOpt.isEmpty()) {
+            return new CreateViewsheetResult();
+         }
+
+         ViewsheetSandbox box = boxOpt.get();
+         TableLens table = box.getTableData(assemblyName);
+
+         if(table == null) {
+            return new CreateViewsheetResult();
+         }
+
+         int colCount = table.getColCount();
+         int headerRows = table.getHeaderRowCount();
+
+         List<String> headers = new ArrayList<>(colCount);
+
+         for(int c = 0; c < colCount; c++) {
+            Object h = table.getObject(0, c);
+            headers.add(h != null ? h.toString() : "col" + c);
+         }
+
+         List<Map<String, Object>> rows = new ArrayList<>();
+         int r = headerRows;
+
+         while(table.moreRows(r)) {
+            Map<String, Object> row = new LinkedHashMap<>(colCount);
+
+            for(int c = 0; c < colCount; c++) {
+               row.put(headers.get(c), table.getObject(r, c));
+            }
+
+            rows.add(row);
+            r++;
+         }
+
+         CreateViewsheetResult result = new CreateViewsheetResult();
+         result.setHeaders(headers);
+         result.setRows(rows);
+         return result;
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to extract table data after viewsheet creation for assembly '{}': {}",
+                  assemblyName, e.getMessage());
+         return new CreateViewsheetResult();
+      }
+   }
+
+   /**
+    * Extracts the computed scalar value from a Gauge or Text output assembly.
+    * Triggers sandbox execution via getData(), then reads the value set on the assembly.
+    * Returns a single-row, single-column result, or a result with null data if unavailable.
+    */
+   private CreateViewsheetResult extractOutputAssemblyData(RuntimeViewsheet rvs, String assemblyName) {
+      try {
+         Optional<ViewsheetSandbox> boxOpt = rvs.getViewsheetSandbox();
+
+         if(boxOpt.isEmpty()) {
+            return new CreateViewsheetResult();
+         }
+
+         ViewsheetSandbox box = boxOpt.get();
+         // Trigger execution so the assembly value is populated
+         box.getData(assemblyName);
+
+         VSAssembly vsAssembly = rvs.getViewsheet().getAssembly(assemblyName);
+
+         if(!(vsAssembly instanceof OutputVSAssembly outputAssembly)) {
+            return new CreateViewsheetResult();
+         }
+
+         Object value = outputAssembly.getValue();
+
+         if(value == null) {
+            return new CreateViewsheetResult();
+         }
+
+         CreateViewsheetResult result = new CreateViewsheetResult();
+         result.setHeaders(List.of("value"));
+         result.setRows(List.of(Map.of("value", value)));
+         return result;
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to extract output assembly data after viewsheet creation for assembly '{}': {}",
+                  assemblyName, e.getMessage());
+         return new CreateViewsheetResult();
+      }
+   }
+
+   private static final Logger LOG = LoggerFactory.getLogger(CreateVsService.class);
 
    private VSAssembly createAssembly(Viewsheet vs, String type, String name,
                                      VisualizationConfig config, String tname)
