@@ -19,9 +19,6 @@ package inetsoft.web.admin.content.dataspace;
 
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
-import inetsoft.uql.XPrincipal;
-import inetsoft.uql.asset.ConfirmException;
-import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.viewsheet.graph.aesthetic.ImageShapes;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
@@ -321,8 +318,9 @@ public class DataSpaceFolderSettingsController {
       String orgShapesDir = ImageShapes.getShapesDirectory();
 
       if(path.equals(globalShapesDir) || path.startsWith(globalShapesDir + "/")) {
-         // global=false means the actual destination is the org shapes dir
-         if(!global) {
+         // Only the exact sentinel path "portal/shapes" with global=false is redirected
+         // to the org shapes dir; sub-paths always write to the global dir
+         if(path.equals(globalShapesDir) && !global) {
             return securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
                   "settings/presentation/settings", ResourceAction.ACCESS) ||
                securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
