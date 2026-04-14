@@ -108,8 +108,8 @@ public class ComponentAuthorizationController {
          else if(authorized && ("settings/schedule/tasks".equals(resource) ||
             "settings/schedule/cycles".equals(resource) ||
             "settings/schedule/distribution".equals(resource))) {
-            // Don't allow access to the tasks tab if they don't have the general scheduler
-            // permission. Not a real-world use case, but the testers check it.
+            // Don't allow access to schedule sub-tabs (tasks, cycles, distribution) if they
+            // don't have the general scheduler permission. Not a real-world use case, but the testers check it.
             authorized = securityEngine.checkPermission(
                principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS);
 

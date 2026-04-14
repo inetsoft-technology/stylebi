@@ -280,9 +280,6 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    }
 
    ngAfterViewInit(): void {
-      if(this.distributionVisible) {
-         this.loadDistributionChart();
-      }
    }
 
    ngOnDestroy(): void {
@@ -893,6 +890,10 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    }
 
    private loadDistributionChart(): void {
+      if(!this.distributionVisible || !this.chartDiv) {
+         return;
+      }
+
       this.loadingChart = true;
       switch(this.distributionType) {
       case DistributionType.WEEK:

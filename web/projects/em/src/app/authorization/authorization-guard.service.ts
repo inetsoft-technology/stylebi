@@ -44,6 +44,7 @@ export class AuthorizationGuard implements CanActivate {
 
             if(!allowed) {
                // find first permitted child and redirect to that
+               // "notification" and "distribution" are API-only permission keys with no Angular route; skip them
                const redirect = Object.keys(p).find(
                   name => p[name] === true && name != "notification" && name != "distribution");
 
