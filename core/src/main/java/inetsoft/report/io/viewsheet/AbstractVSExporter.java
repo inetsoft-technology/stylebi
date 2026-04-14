@@ -3881,13 +3881,19 @@ public abstract class AbstractVSExporter implements VSExporter {
             Math.max(0, fullH - labelH - gap));
          break;
       case LabelInfo.RIGHT:
-         labelBounds = new Rectangle2D.Double(x + fullW - labelW, y, labelW, fullH);
+         // Center the label text vertically relative to the widget height,
+         // matching the Angular preview which uses flexbox vertical centering.
+         labelBounds = new Rectangle2D.Double(x + fullW - labelW,
+            y + Math.max(0, (fullH - labelH) / 2.0), labelW, labelH);
          widgetBounds = new Rectangle2D.Double(x, y,
             Math.max(0, fullW - labelW - gap), fullH);
          break;
       case LabelInfo.LEFT:
       default:
-         labelBounds = new Rectangle2D.Double(x, y, labelW, fullH);
+         // Center the label text vertically relative to the widget height,
+         // matching the Angular preview which uses flexbox vertical centering.
+         labelBounds = new Rectangle2D.Double(x, y + Math.max(0, (fullH - labelH) / 2.0),
+            labelW, labelH);
          widgetBounds = new Rectangle2D.Double(x + labelW + gap, y,
             Math.max(0, fullW - labelW - gap), fullH);
          break;
