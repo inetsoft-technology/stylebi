@@ -741,9 +741,14 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
    private void writeLabelTextBox(LabelInfo labelInfo, Rectangle2D pixelBounds) {
       // Add extra width so Excel's font metrics (Calibri) don't cause the text to wrap.
       // getLabelDimensions uses Java AWT string width which is narrower than Excel's rendering.
+      // For LEFT-positioned labels the widget starts immediately to the right, so cap the
+      // extra by the gap to prevent the text box from overlapping the widget when gap is small.
+      double extra = LabelInfo.LEFT.equals(labelInfo.getLabelPosition())
+         ? Math.min(30, labelInfo.getLabelGap())
+         : 30;
       Rectangle2D padded = new Rectangle2D.Double(
          pixelBounds.getX(), pixelBounds.getY(),
-         pixelBounds.getWidth() + 30, pixelBounds.getHeight());
+         pixelBounds.getWidth() + extra, pixelBounds.getHeight());
       XSSFClientAnchor anchor = (XSSFClientAnchor) getAnchorFromPixelRect(padded);
       XSSFTextBox tb = patriarch.createTextbox(anchor);
       // Default to vertical center to match browser flex-layout; applyFormat overrides if set.
