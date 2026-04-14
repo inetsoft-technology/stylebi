@@ -318,9 +318,9 @@ public class DataSpaceFolderSettingsController {
       String orgShapesDir = ImageShapes.getShapesDirectory();
 
       if(path.equals(globalShapesDir) || path.startsWith(globalShapesDir + "/")) {
-         // Only the exact sentinel path "portal/shapes" with global=false is redirected
-         // to the org shapes dir; sub-paths always write to the global dir
-         if(path.equals(globalShapesDir) && !global) {
+         // When the frontend sends the sentinel path with global=false, the user is
+         // uploading org-scoped shapes, so org-settings permission is sufficient.
+         if(path.equals(globalShapesDir) && !global && SUtil.isMultiTenant()) {
             return securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
                   "settings/presentation/settings", ResourceAction.ACCESS) ||
                securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
