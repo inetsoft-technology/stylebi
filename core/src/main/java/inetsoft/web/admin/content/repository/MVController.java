@@ -108,18 +108,13 @@ public class MVController {
       return response;
    }
 
-   @Secured({
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/content/repository",
-         actions = ResourceAction.ACCESS
-      ),
+   @Secured(
       @RequiredPermission(
          resourceType = ResourceType.MATERIALIZATION,
          resource = "*",
          actions = ResourceAction.ACCESS
       )
-   })
+   )
    @GetMapping("/api/em/content/repository/mv/get-model")
    @SuppressWarnings("unchecked")
    public AnalyzeMVResponse getModel(HttpServletRequest req,
@@ -148,18 +143,13 @@ public class MVController {
          .build();
    }
 
-   @Secured({
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/content/repository",
-         actions = ResourceAction.ACCESS
-      ),
+   @Secured(
       @RequiredPermission(
          resourceType = ResourceType.MATERIALIZATION,
          resource = "*",
          actions = ResourceAction.ACCESS
       )
-   })
+   )
    @PostMapping("/api/em/content/repository/mv/show-plan")
    public String showPlan(HttpServletRequest req,
                           @RequestBody CreateUpdateMVRequest createUpdateMVRequest)
@@ -174,18 +164,13 @@ public class MVController {
       return info.toString();
    }
 
-   @Secured({
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/content/repository",
-         actions = ResourceAction.ACCESS
-      ),
+   @Secured(
       @RequiredPermission(
          resourceType = ResourceType.MATERIALIZATION,
          resource = "*",
          actions = ResourceAction.ACCESS
       )
-   })
+   )
    @PostMapping("/api/em/content/repository/mv/create")
    public CreateMVResponse create(HttpServletRequest req,
                       @RequestParam(name = "createId", required = false) String createId,
@@ -286,18 +271,13 @@ public class MVController {
       }
    }
 
-   @Secured({
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/content/repository",
-         actions = ResourceAction.ACCESS
-      ),
+   @Secured(
       @RequiredPermission(
          resourceType = ResourceType.MATERIALIZATION,
          resource = "*",
          actions = ResourceAction.ACCESS
       )
-   })
+   )
    @PostMapping("/api/em/content/repository/mv/set-cycle")
    public void setCycle(HttpServletRequest req,
                         @RequestBody CreateUpdateMVRequest createUpdateMVRequest)
