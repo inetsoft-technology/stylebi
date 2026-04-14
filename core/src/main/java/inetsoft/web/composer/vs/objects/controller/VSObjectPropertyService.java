@@ -819,6 +819,8 @@ public class VSObjectPropertyService {
 
       if(vs.renameAssembly(oldName, newName)) {
          rvs.getViewsheetSandbox().resetRuntime();
+         // prevent applyParameterToInput() from overwriting input values after rename
+         rvs.getViewsheetSandbox().markParametersApplied();
          commandDispatcher.sendCommand(containerName, new RenameVSObjectCommand(oldName, newName));
          renameChildAssemblies(oldNames, newName, vs);
          ViewsheetSandbox box = rvs.getViewsheetSandbox();
