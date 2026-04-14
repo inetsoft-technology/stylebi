@@ -452,6 +452,43 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    }
 
    /**
+    * Reposition a single child assembly so its visual bottom edge is flush
+    * with the tab bar's top edge. The tab bar itself is not moved.
+    *
+    * <p>This is useful when a property change (label, show type, size, etc.)
+    * alters a child's effective height and only that child needs to be
+    * adjusted without recalculating the entire tab layout.</p>
+    *
+    * @param tabInfo  the tab info; caller must verify the tab is in
+    *                 bottom-tab mode before calling
+    * @param childInfo the child assembly's info to reposition
+    * @param childSize the child assembly's pixel size
+    */
+   public static void repositionChildForBottomTabs(TabVSAssemblyInfo tabInfo,
+                                                   VSAssemblyInfo childInfo,
+                                                   Dimension childSize)
+   {
+      Point tabPos = tabInfo.getPixelOffset();
+      int childHeight = getBottomTabChildHeight(childInfo, childSize);
+
+      if(tabPos == null || childHeight <= 0) {
+         return;
+      }
+
+      int newChildY = tabPos.y - childHeight;
+      Point childPos = childInfo.getPixelOffset();
+
+      if(childPos != null && newChildY != childPos.y) {
+         int dy = newChildY - childPos.y;
+         childInfo.setPixelOffset(new Point(childPos.x, newChildY));
+
+         if(childInfo.getLayoutPosition() != null) {
+            childInfo.getLayoutPosition().translate(0, dy);
+         }
+      }
+   }
+
+   /**
     * Get the effective height for positioning a child in bottom tabs.
     * Dropdown components only show the title bar, so use title height
     * instead of the collapsed pixel height.
