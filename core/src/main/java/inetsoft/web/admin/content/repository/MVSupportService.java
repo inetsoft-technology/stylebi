@@ -188,7 +188,7 @@ public class MVSupportService {
                ResourceType.ASSET : ResourceType.REPORT;
 
             if(!SecurityEngine.getSecurity().checkPermission(
-               principal, resourceType, candidateEntry.getPath(), ResourceAction.ADMIN))
+               principal, resourceType, candidateEntry.getPath(), ResourceAction.WRITE))
             {
                throw new MessageException(Catalog.getCatalog().getString(
                   "em.common.security.no.permission", candidateEntry.getPath()));
