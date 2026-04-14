@@ -47,7 +47,7 @@ class VSLayoutServiceTest {
    }
 
    @Test
-   void bottomTabsChildrenPositionedAboveTabBar() {
+   void bottomTabsChildrenPositionedAtVisualTop() {
       Viewsheet vs = new Viewsheet();
 
       // tab assembly with bottomTabs enabled
@@ -84,20 +84,20 @@ class VSLayoutServiceTest {
 
       VSLayoutObjectModel result = service.createObjectModel(rvs, layout, objectModelService);
 
-      // top should be shifted up by the max child height
-      assertEquals(layoutY - childHeight, result.top(),
-         "model top should be shifted up by max child height");
+      // top is the visual top of the tab area (no shift for bottom tabs)
+      assertEquals(layoutY, result.top(),
+         "model top should be the visual top (layout position)");
       assertEquals(layoutX, result.left());
 
-      // child format repositioned above tab bar, clamped to canvas origin
+      // child positioned at the visual top of the layout area
       assertEquals(layoutX, (int) childFmt.getLeft(),
          "child left should match layout position");
-      assertEquals(Math.max(0, layoutY - childHeight), (int) childFmt.getTop(),
-         "child top should be positioned above tab bar, clamped to 0");
+      assertEquals(layoutY, (int) childFmt.getTop(),
+         "child top should be at the visual top of the layout area");
    }
 
    @Test
-   void bottomTabsTopShiftUsesMaxChildHeight() {
+   void bottomTabsMultipleChildrenAllAtVisualTop() {
       Viewsheet vs = new Viewsheet();
 
       TabVSAssembly tab = new TabVSAssembly(vs, "Tab1");
@@ -132,17 +132,17 @@ class VSLayoutServiceTest {
 
       VSLayoutObjectModel result = service.createObjectModel(rvs, layout, objectModelService);
 
-      // top offset should use the max of the two child heights
-      assertEquals(layoutY - child2Height, result.top(),
-         "model top should be shifted by the tallest child height");
+      // top is the visual top (no shift), same for all tab types
+      assertEquals(layoutY, result.top(),
+         "model top should be the visual top (layout position)");
 
-      // each child positioned at its own height above tab bar, clamped to 0
-      assertEquals(Math.max(0, layoutY - child1Height),
+      // both children positioned at the visual top of the layout area
+      assertEquals(layoutY,
          (int) childModel1.getObjectFormat().getTop(),
-         "child1 top should be its own height above tab bar, clamped to 0");
-      assertEquals(Math.max(0, layoutY - child2Height),
+         "child1 top should be at the visual top of the layout area");
+      assertEquals(layoutY,
          (int) childModel2.getObjectFormat().getTop(),
-         "child2 top should be its own height above tab bar, clamped to 0");
+         "child2 top should be at the visual top of the layout area");
    }
 
    @Test

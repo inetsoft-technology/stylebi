@@ -1269,6 +1269,10 @@ public final class VSEventUtil {
          throws Exception
    {
       VSAssemblyInfo tabInfo = (VSAssemblyInfo) assembly.getInfo();
+      boolean bottomTabs = ((TabVSAssemblyInfo) tabInfo).getBottomTabsValue();
+
+      // for bottom tabs, getLayoutPosition() returns the tab bar position
+      // (set by AbstractLayout.applyTab as npos.y + contentHeight)
       Point tabPos = tabInfo.getLayoutPosition();
       Dimension tabSize = tabInfo.getLayoutSize();
       String[] assemblies = assembly.getAssemblies();
@@ -1291,8 +1295,10 @@ public final class VSEventUtil {
                (int) Math.floor(size.height * sizeScale.y + repairH);
             scaleSize.height = Math.max(0, scaleSize.height);
 
-            info.setScaledPosition(
-               new Point(tabPos.x, tabPos.y + tabSize.height));
+            // top tabs: children below tab bar; bottom tabs: children above tab bar
+            int childY = bottomTabs ?
+               tabPos.y - scaleSize.height : tabPos.y + tabSize.height;
+            info.setScaledPosition(new Point(tabPos.x, childY));
             info.setScaledSize(scaleSize);
 
             if(child instanceof CurrentSelectionVSAssembly) {
@@ -1310,19 +1316,22 @@ public final class VSEventUtil {
                   sheet, viewSize, scaleSize.width, scaleSize.height, mobile
                );
 
-               // temporarily set the origin of the viewsheet so that the scaled
-               // viewsheet contents are positioned relative to the tab bar
+               // temporarily offset the viewsheet origin so scaled contents
+               // are positioned relative to the tab content area
                int vsOffsetX = (int) Math.round(-1 * viewBounds.x * vsScaleRatio.x);
                int vsOffsetY = (int) Math.round(-1 * viewBounds.y * vsScaleRatio.y);
+               int vsChildY = bottomTabs ?
+                  tabPos.y - scaleSize.height + vsOffsetY :
+                  tabPos.y + tabSize.height + vsOffsetY;
                info.setScaledPosition(
-                  new Point(tabPos.x + vsOffsetX, tabPos.y + tabSize.height + vsOffsetY));
+                  new Point(tabPos.x + vsOffsetX, vsChildY));
 
-               // scale the viewsheet contents
                applyScale(sheet, vsScaleRatio, mobile, userAgent, scaleSize.width, box);
 
-               // set the viewsheet position to the tab bar's position so that
-               // the edit button is positioned correctly.
-               info.setScaledPosition(new Point(tabPos.x, tabPos.y + tabSize.height));
+               // reset to final position so the edit button is placed correctly
+               int finalChildY = bottomTabs ?
+                  tabPos.y - scaleSize.height : tabPos.y + tabSize.height;
+               info.setScaledPosition(new Point(tabPos.x, finalChildY));
             }
          }
       }
