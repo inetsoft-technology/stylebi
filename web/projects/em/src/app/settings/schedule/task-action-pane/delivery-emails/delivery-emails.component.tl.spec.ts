@@ -130,7 +130,7 @@ async function renderComponent(props: Partial<DeliveryEmailsComponent> = {}) {
 
 describe("DeliveryEmailsComponent — isValid: !enabled guard vs CSV check order", () => {
 
-   // 🔁 Regression-sensitive: enabled=false must ALWAYS produce valid=true.
+   // enabled=false must ALWAYS produce valid=true.
    // The disabled state means "skip this action" — no configuration is required.
    it("should emit valid=true when enabled=false with a non-CSV format", async () => {
       const { comp } = await renderComponent({ enabled: false });
@@ -144,11 +144,10 @@ describe("DeliveryEmailsComponent — isValid: !enabled guard vs CSV check order
       expect(comp.enabled).toBe(false); // cause: delivery is disabled
    });
 
-   // 🔁 Regression-sensitive (Bug A — confirmed):
-   //   The CSV empty-assemblies check runs before the `!this.enabled` guard.
-   //   When disabled, the user expects valid=true, but the method returns false.
+   // Bug A (Issue #74513): CSV empty-assemblies check must not override the disabled short-circuit.
+   // When delivery is disabled, the user expects valid=true regardless of CSV configuration.
    // Issue #74513
-   it.failing("should emit valid=true when enabled=false even if CSV format has empty assemblies", async () => {
+   it("should emit valid=true when enabled=false even if CSV format has empty assemblies", async () => {
       const { comp } = await renderComponent({
          enabled: false,
          type: "viewsheet",

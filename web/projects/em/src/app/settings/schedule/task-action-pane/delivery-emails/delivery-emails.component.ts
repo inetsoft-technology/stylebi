@@ -466,13 +466,17 @@ export class DeliveryEmailsComponent implements OnInit, OnChanges {
    }
 
    private isValid(): boolean {
-      if(this.format == "CSV" && this.type === "viewsheet" &&
+      if(!this.enabled) {
+         return true;
+      }
+
+      if(this.format === "CSV" && this.type === "viewsheet" &&
          this.csvExportModel?.selectedAssemblies?.length == 0)
       {
          return false;
       }
 
-      return !this.enabled || this.form.valid;
+      return this.form.valid;
    }
 
    private initVerifyZipPassword() {
