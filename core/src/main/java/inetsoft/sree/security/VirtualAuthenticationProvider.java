@@ -91,6 +91,8 @@ public class VirtualAuthenticationProvider
       String algorithm =
          admin.getPasswordAlgorithm() == null ? "MD5" : admin.getPasswordAlgorithm();
       return Objects.equals(userIdentity.name, admin.getName()) &&
+         (userIdentity.orgID == null ||
+          Organization.getDefaultOrganizationID().equals(userIdentity.orgID)) &&
          Objects.equals(userid.name, admin.getName()) &&
          Tool.checkHashedPassword(
             admin.getPassword(), passwd, algorithm, admin.getPasswordSalt(),
@@ -137,7 +139,10 @@ public class VirtualAuthenticationProvider
     */
    @Override
    public User getUser(IdentityID userIdentity) {
-      if("admin".equals(userIdentity.name)) {
+      if("admin".equals(userIdentity.name) &&
+         (userIdentity.orgID == null ||
+          Organization.getDefaultOrganizationID().equals(userIdentity.orgID)))
+      {
          return admin;
       }
 
@@ -254,6 +259,22 @@ public class VirtualAuthenticationProvider
       catch(Exception ex) {
          LOG.error("Failed to load virtual security file: " + fileName, ex);
       }
+
+      // If INETSOFT_ADMIN_PASSWORD is set, sync the stored password to match the env var.
+      // This allows the env var to serve as a recovery mechanism when the stored password
+      // has become corrupted or is otherwise unknown.
+      String envPassword = System.getenv("INETSOFT_ADMIN_PASSWORD");
+
+      if(envPassword != null && !envPassword.isBlank()) {
+         try {
+            SUtil.setPassword(admin, AdminCredentialUtil.getRequiredAdminPassword());
+            save();
+            LOG.info("INETSOFT_ADMIN_PASSWORD is set; admin password synced from environment variable.");
+         }
+         catch(Exception e) {
+            LOG.warn("INETSOFT_ADMIN_PASSWORD is set but could not be applied: {}", e.getMessage());
+         }
+      }
    }
 
    /**
@@ -263,7 +284,9 @@ public class VirtualAuthenticationProvider
     */
    @Override
    public void addUser(User user) {
-      if(user.getName().equals("admin")) {
+      if(user.getName().equals("admin") &&
+         Organization.getDefaultOrganizationID().equals(user.getIdentityID().orgID))
+      {
          admin = (FSUser) user;
          save();
       }

@@ -107,6 +107,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
 
          if(!authcChain.getProviders().isEmpty() && !authzChain.getProviders().isEmpty()) {
             provider = CompositeSecurityProvider.create(authcChain, authzChain);
+            migrateSiteAdminToChain(authcChain);
          }
          else {
             authcChain.tearDown();
@@ -201,6 +202,39 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       return result;
    }
 
+   /**
+    * Ensures the virtual site admin ({@code admin^<defaultOrg>}) exists in the primary
+    * authentication provider of the given chain. This is a no-op after the first run because
+    * {@code getUser} returns non-null once the user has been stored. It handles legacy
+    * installations and chains created before this migration was added.
+    */
+   private void migrateSiteAdminToChain(AuthenticationChain authcChain) {
+      if(vprovider == null || authcChain.getProviders().isEmpty()) {
+         return;
+      }
+
+      AuthenticationProvider primary = authcChain.getProviders().get(0);
+
+      if(!(primary instanceof EditableAuthenticationProvider editablePrimary)) {
+         return;
+      }
+
+      IdentityID siteAdminId = new IdentityID("admin", Organization.getDefaultOrganizationID());
+      boolean alreadyPresent = primary.getUser(siteAdminId) != null;
+      boolean envVarSet = System.getenv("INETSOFT_ADMIN_PASSWORD") != null;
+
+      // When the env var is set it acts as a recovery mechanism: always update the File
+      // provider so a corrupted or unknown password can be reset without wiping data.
+      // When not set, only add the admin if it is missing (first-time migration).
+      if(!alreadyPresent || envVarSet) {
+         User virtualAdmin = vprovider.getAuthenticationProvider().getUser(siteAdminId);
+
+         if(virtualAdmin != null) {
+            editablePrimary.addUser(virtualAdmin);
+         }
+      }
+   }
+
    public void newChain() {
       AuthenticationChain authcChain = new AuthenticationChain();
       List<AuthenticationProvider> authcProviders = authcChain.getProviderList();
@@ -208,6 +242,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       authcProvider.setProviderName("Primary");
       authcProviders.add(authcProvider);
       authcChain.setProviders(authcProviders);
+      migrateSiteAdminToChain(authcChain);
 
       AuthorizationChain authzChain = new AuthorizationChain();
       List<AuthorizationProvider> authzProviders = authzChain.getProviderList();
