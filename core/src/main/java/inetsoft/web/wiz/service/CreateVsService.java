@@ -20,7 +20,12 @@ package inetsoft.web.wiz.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.graph.data.*;
+import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.composition.graph.VGraphPair;
+import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.internal.graph.MapData;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
@@ -31,9 +36,12 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.util.Tool;
 import inetsoft.web.wiz.model.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.*;
 
 @Service
 public class CreateVsService {
@@ -42,7 +50,7 @@ public class CreateVsService {
       this.engine = engine;
    }
 
-   public void createViewsheet(CreateVisualizationModel model, Principal user) throws Exception {
+   public CreateViewsheetResult createViewsheet(CreateVisualizationModel model, Principal user) throws Exception {
       if(Tool.isEmptyString(model.getRuntimeId())) {
          throw new IllegalArgumentException("Runtime Viewsheet is empty");
       }
@@ -107,7 +115,470 @@ public class CreateVsService {
 
       newVs.addAssembly(assembly);
       assembly.setPrimary(true);
+
+      Viewsheet previousVs = rvs.getViewsheet();
       rvs.setViewsheet(newVs);
+
+      try {
+         // Execute the assembly view after the viewsheet is set so that dynamic values are
+         // resolved, chart state is initialized, and output assembly values are computed.
+         Optional<ViewsheetSandbox> viewsheetSandbox = rvs.getViewsheetSandbox();
+
+         if(viewsheetSandbox.isEmpty()) {
+            throw new Exception("ViewsheetSandbox is empty");
+         }
+
+         viewsheetSandbox.get().executeView(assembly.getName(), true);
+         CreateViewsheetResult result;
+
+         if(assembly instanceof ChartVSAssembly) {
+            result = extractChartData(rvs, assembly.getName());
+         }
+         else if(assembly instanceof TableVSAssembly || assembly instanceof CrosstabVSAssembly) {
+            result = extractTableLensData(rvs, assembly.getName());
+         }
+         else if(assembly instanceof OutputVSAssembly) {
+            result = extractOutputAssemblyData(rvs, assembly.getName());
+         }
+         else {
+            result = new CreateViewsheetResult();
+         }
+
+         result.setBinding(collectFlatBinding(assembly));
+
+         return result;
+      }
+      catch(Exception e) {
+         rvs.setViewsheet(previousVs);
+         throw e;
+      }
+   }
+
+   /**
+    * Extracts aggregated chart data from the viewsheet sandbox after the assembly is created.
+    * Returns a result with null headers/rows if data is unavailable (best-effort).
+    */
+   private CreateViewsheetResult extractChartData(RuntimeViewsheet rvs, String assemblyName) {
+      try {
+         Optional<ViewsheetSandbox> boxOpt = rvs.getViewsheetSandbox();
+
+         if(boxOpt.isEmpty()) {
+            return new CreateViewsheetResult();
+         }
+
+         ViewsheetSandbox box = boxOpt.get();
+         VGraphPair pair = box.getVGraphPair(assemblyName, true);
+
+         if(pair == null) {
+            return new CreateViewsheetResult();
+         }
+
+         DataSet dset = pair.getData();
+
+         if(dset == null) {
+            return new CreateViewsheetResult();
+         }
+
+         // Unwrap dataset wrappers to reach the aggregated data
+         while(true) {
+            if(dset instanceof VSDataSet) {
+               break;
+            }
+            else if(dset instanceof PairsDataSet) {
+               dset = ((PairsDataSet) dset).getDataSet();
+            }
+            else if(dset instanceof DataSetFilter) {
+               dset = ((DataSetFilter) dset).getDataSet();
+            }
+            else {
+               break;
+            }
+         }
+
+         int colCount = dset.getColCount();
+         int rowCount = dset.getRowCount();
+         int limit = Math.min(rowCount, MAX_ROWS);
+
+         List<String> headers = new ArrayList<>(colCount);
+
+         for(int c = 0; c < colCount; c++) {
+            headers.add(dset.getHeader(c));
+         }
+
+         List<Map<String, Object>> rows = new ArrayList<>(limit);
+
+         for(int r = 0; r < limit; r++) {
+            Map<String, Object> row = new LinkedHashMap<>(colCount);
+
+            for(int c = 0; c < colCount; c++) {
+               row.put(headers.get(c), dset.getData(c, r));
+            }
+
+            rows.add(row);
+         }
+
+         CreateViewsheetResult result = new CreateViewsheetResult();
+         result.setHeaders(headers);
+         result.setRows(rows);
+
+         if(rowCount > MAX_ROWS) {
+            result.setTruncated(true);
+         }
+
+         return result;
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to extract chart data after viewsheet creation for assembly '{}': {}",
+                  assemblyName, e.getMessage());
+         return new CreateViewsheetResult();
+      }
+   }
+
+   /**
+    * Extracts tabular data from a Table or Crosstab assembly via its TableLens.
+    * Row 0 through headerRowCount-1 are header rows; data begins at headerRowCount.
+    * <p>
+    * For Crosstab: all column-dimension headers are temporarily moved to row headers so the
+    * result is a flat table (no pivoted columns).  The original binding is restored in a
+    * finally block regardless of success or failure.
+    * <p>
+    * Returns a result with null headers/rows if data is unavailable (best-effort).
+    */
+   private CreateViewsheetResult extractTableLensData(RuntimeViewsheet rvs, String assemblyName) {
+      Optional<ViewsheetSandbox> boxOpt = rvs.getViewsheetSandbox();
+
+      if(boxOpt.isEmpty()) {
+         return new CreateViewsheetResult();
+      }
+
+      ViewsheetSandbox box = boxOpt.get();
+
+      // Snapshot the original crosstab binding so it can be restored after data extraction.
+      VSCrosstabInfo crosstabInfo = null;
+      DataRef[] originalRowHeaders = null;
+      DataRef[] originalColHeaders = null;
+
+      try {
+         VSAssembly vsAssembly = rvs.getViewsheet().getAssembly(assemblyName);
+
+         if(vsAssembly instanceof CrosstabVSAssembly crosstab) {
+            crosstabInfo = crosstab.getVSCrosstabInfo();
+            originalRowHeaders = crosstabInfo.getDesignRowHeaders();
+            originalColHeaders = crosstabInfo.getDesignColHeaders();
+
+            if(originalColHeaders != null && originalColHeaders.length > 0) {
+               // Merge col-dimensions into row-dimensions so the tablelens is fully flat.
+               DataRef[] safeRowHeaders = originalRowHeaders != null ? originalRowHeaders : new DataRef[0];
+               DataRef[] flatRows = new DataRef[safeRowHeaders.length + originalColHeaders.length];
+               System.arraycopy(safeRowHeaders, 0, flatRows, 0, safeRowHeaders.length);
+               System.arraycopy(originalColHeaders, 0, flatRows, safeRowHeaders.length, originalColHeaders.length);
+               crosstabInfo.setDesignRowHeaders(flatRows);
+               crosstabInfo.setDesignColHeaders(new DataRef[0]);
+               // Invalidate cached data so the next getTableData() uses the flattened layout.
+               box.resetDataMap(assemblyName);
+            }
+            else {
+               // No col headers to flatten; no need to restore later.
+               crosstabInfo = null;
+            }
+         }
+
+         TableLens table = box.getTableData(assemblyName);
+
+         if(table == null) {
+            return new CreateViewsheetResult();
+         }
+
+         int colCount = table.getColCount();
+         int headerRows = table.getHeaderRowCount();
+
+         List<String> headers = new ArrayList<>(colCount);
+
+         for(int c = 0; c < colCount; c++) {
+            Object h = table.getObject(0, c);
+            headers.add(h != null ? h.toString() : "col" + c);
+         }
+
+         List<Map<String, Object>> rows = new ArrayList<>();
+         int r = headerRows;
+
+         while(table.moreRows(r) && rows.size() < MAX_ROWS) {
+            Map<String, Object> row = new LinkedHashMap<>(colCount);
+
+            for(int c = 0; c < colCount; c++) {
+               row.put(headers.get(c), table.getObject(r, c));
+            }
+
+            rows.add(row);
+            r++;
+         }
+
+         CreateViewsheetResult result = new CreateViewsheetResult();
+         result.setHeaders(headers);
+         result.setRows(rows);
+
+         if(table.moreRows(r)) {
+            result.setTruncated(true);
+         }
+
+         return result;
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to extract table data after viewsheet creation for assembly '{}': {}",
+                  assemblyName, e.getMessage());
+         return new CreateViewsheetResult();
+      }
+      finally {
+         // Restore the original crosstab binding so the assembly remains consistent with the
+         // VisualizationConfig that was used to create it.
+         if(crosstabInfo != null) {
+            crosstabInfo.setDesignRowHeaders(originalRowHeaders);
+            crosstabInfo.setDesignColHeaders(originalColHeaders);
+            box.resetDataMap(assemblyName);
+         }
+      }
+   }
+
+   /**
+    * Extracts the computed scalar value from a Gauge or Text output assembly.
+    * Triggers sandbox execution via getData(), then reads the value set on the assembly.
+    * Returns a single-row, single-column result, or a result with null data if unavailable.
+    */
+   private CreateViewsheetResult extractOutputAssemblyData(RuntimeViewsheet rvs, String assemblyName) {
+      try {
+         Optional<ViewsheetSandbox> boxOpt = rvs.getViewsheetSandbox();
+
+         if(boxOpt.isEmpty()) {
+            return new CreateViewsheetResult();
+         }
+
+         ViewsheetSandbox box = boxOpt.get();
+
+         VSAssembly vsAssembly = rvs.getViewsheet().getAssembly(assemblyName);
+
+         if(!(vsAssembly instanceof OutputVSAssembly outputAssembly)) {
+            return new CreateViewsheetResult();
+         }
+
+         // executeOutput runs the scalar query via getData() and then calls assembly.setValue(),
+         // which is required before getValue() returns the computed result.
+         box.executeOutput(outputAssembly.getAssemblyEntry());
+
+         Object value = outputAssembly.getValue();
+
+         if(value == null) {
+            return new CreateViewsheetResult();
+         }
+
+         CreateViewsheetResult result = new CreateViewsheetResult();
+         result.setHeaders(List.of("value"));
+         result.setRows(List.of(Map.of("value", value)));
+         return result;
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to extract output assembly data after viewsheet creation for assembly '{}': {}",
+                  assemblyName, e.getMessage());
+         return new CreateViewsheetResult();
+      }
+   }
+
+   /**
+    * Builds a {@link CreateViewsheetResult.FlatBinding} from the assembly's current binding.
+    * Returns null for assembly types that carry no aggregate binding (e.g. Table, Image).
+    */
+   private CreateViewsheetResult.FlatBinding collectFlatBinding(VSAssembly assembly) {
+      if(assembly instanceof ChartVSAssembly chart) {
+         return collectChartFlatBinding(chart.getVSChartInfo());
+      }
+      else if(assembly instanceof CrosstabVSAssembly crosstab) {
+         return collectCrosstabFlatBinding(crosstab.getVSCrosstabInfo());
+      }
+      else if(assembly instanceof OutputVSAssembly output) {
+         return collectOutputFlatBinding(output);
+      }
+
+      return null;
+   }
+
+   /**
+    * Collects dimensions and measures from all binding slots of a chart:
+    * x/y/group fields, aesthetic refs (color, shape, size, text, path), and
+    * chart-type-specific fields (high/low/close/open, start/end/milestone,
+    * source/target, node aesthetics).
+    */
+   private CreateViewsheetResult.FlatBinding collectChartFlatBinding(VSChartInfo info) {
+      List<DimensionFieldInfo> dimensions = new ArrayList<>();
+      List<MeasureFieldInfo> measures = new ArrayList<>();
+      Set<String> seen = new HashSet<>();
+
+      // Main binding: x, y, group
+      for(ChartRef ref : info.getBindingRefs(false)) {
+         classifyChartRef(ref, dimensions, measures, seen);
+      }
+
+      // Aesthetic refs: color, shape, size, text
+      for(AestheticRef aref : new AestheticRef[]{
+         info.getColorField(), info.getShapeField(),
+         info.getSizeField(), info.getTextField()
+      }) {
+         if(aref != null) {
+            classifyChartRef(aref.getDataRef(), dimensions, measures, seen);
+         }
+      }
+
+      // Path field
+      ChartRef pathField = info.getPathField();
+      if(pathField != null) {
+         classifyChartRef(pathField, dimensions, measures, seen);
+      }
+
+      // Candle / Stock: high, low, close, open (all measures)
+      if(info instanceof CandleVSChartInfo cinfo) {
+         for(ChartRef ref : new ChartRef[]{
+            cinfo.getHighField(), cinfo.getLowField(),
+            cinfo.getCloseField(), cinfo.getOpenField()
+         }) {
+            classifyChartRef(ref, dimensions, measures, seen);
+         }
+      }
+
+      // Gantt: start, end, milestone (dimensions acting as date ranges)
+      if(info instanceof GanttVSChartInfo ginfo) {
+         for(ChartRef ref : new ChartRef[]{
+            ginfo.getStartField(), ginfo.getEndField(), ginfo.getMilestoneField()
+         }) {
+            classifyChartRef(ref, dimensions, measures, seen);
+         }
+      }
+
+      // Relation (Tree / Network / Circular): source, target + node aesthetics
+      if(info instanceof RelationVSChartInfo rinfo) {
+         classifyChartRef(rinfo.getSourceField(), dimensions, measures, seen);
+         classifyChartRef(rinfo.getTargetField(), dimensions, measures, seen);
+
+         for(AestheticRef aref : new AestheticRef[]{
+            rinfo.getNodeColorField(), rinfo.getNodeSizeField()
+         }) {
+            if(aref != null) {
+               classifyChartRef(aref.getDataRef(), dimensions, measures, seen);
+            }
+         }
+      }
+
+      if(dimensions.isEmpty() && measures.isEmpty()) {
+         return null;
+      }
+
+      return new CreateViewsheetResult.FlatBinding(dimensions, measures);
+   }
+
+   /**
+    * Classifies a single chart DataRef into either the dimensions or measures list.
+    * VSDimensionRef (and subclasses) → DimensionFieldInfo with title from getFullName().
+    * VSAggregateRef (and subclasses) → MeasureFieldInfo with title from getFullName().
+    * Fields already present in {@code seen} (keyed by fullName) are skipped to avoid
+    * duplicates when a field appears in multiple binding slots (e.g. axis and color aesthetic).
+    */
+   private void classifyChartRef(DataRef ref,
+                                 List<DimensionFieldInfo> dimensions,
+                                 List<MeasureFieldInfo> measures,
+                                 Set<String> seen)
+   {
+      if(ref == null) {
+         return;
+      }
+
+      if(ref instanceof VSDimensionRef dim) {
+         if(seen.add(dim.getFullName())) {
+            DimensionFieldInfo info = new DimensionFieldInfo();
+            info.setField(dim.getGroupColumnValue());
+            info.setFullName(dim.getFullName());
+            dimensions.add(info);
+         }
+      }
+      else if(ref instanceof VSAggregateRef agg) {
+         if(seen.add(agg.getFullName())) {
+            MeasureFieldInfo info = new MeasureFieldInfo();
+            info.setField(agg.getColumnValue());
+            info.setFullName(agg.getFullName());
+            info.setAggregateFormula(agg.getFormulaValue());
+            measures.add(info);
+         }
+      }
+   }
+
+   /**
+    * Collects dimensions from row/col headers and measures from aggregates of a crosstab.
+    */
+   private CreateViewsheetResult.FlatBinding collectCrosstabFlatBinding(VSCrosstabInfo cinfo) {
+      List<DimensionFieldInfo> dimensions = new ArrayList<>();
+      List<MeasureFieldInfo> measures = new ArrayList<>();
+
+      if(cinfo.getDesignRowHeaders() != null) {
+         for(DataRef ref : cinfo.getDesignRowHeaders()) {
+            if(ref instanceof VSDimensionRef dim) {
+               DimensionFieldInfo info = new DimensionFieldInfo();
+               info.setField(dim.getGroupColumnValue());
+               info.setFullName(dim.getFullName());
+               dimensions.add(info);
+            }
+         }
+      }
+
+      if(cinfo.getDesignColHeaders() != null) {
+         for(DataRef ref : cinfo.getDesignColHeaders()) {
+            if(ref instanceof VSDimensionRef dim) {
+               DimensionFieldInfo info = new DimensionFieldInfo();
+               info.setField(dim.getGroupColumnValue());
+               info.setFullName(dim.getFullName());
+               dimensions.add(info);
+            }
+         }
+      }
+
+      if(cinfo.getDesignAggregates() != null) {
+         for(DataRef ref : cinfo.getDesignAggregates()) {
+            if(ref instanceof VSAggregateRef agg) {
+               MeasureFieldInfo info = new MeasureFieldInfo();
+               info.setField(agg.getColumnValue());
+               info.setFullName(agg.getFullName());
+               info.setAggregateFormula(agg.getFormulaValue());
+               measures.add(info);
+            }
+         }
+      }
+
+      if(dimensions.isEmpty() && measures.isEmpty()) {
+         return null;
+      }
+
+      return new CreateViewsheetResult.FlatBinding(dimensions, measures);
+   }
+
+   /**
+    * Extracts the scalar measure from a Gauge or Text output assembly's binding.
+    * Returns a FlatBinding with an empty dimensions list and a single measure.
+    */
+   private CreateViewsheetResult.FlatBinding collectOutputFlatBinding(OutputVSAssembly assembly) {
+      ScalarBindingInfo sbinfo = assembly.getScalarBindingInfo();
+
+      if(sbinfo == null || sbinfo.getColumnValue() == null || sbinfo.getColumnValue().isEmpty()) {
+         return null;
+      }
+
+      VSAggregateRef ref = new VSAggregateRef();
+      ref.setColumnValue(sbinfo.getColumnValue());
+
+      if(sbinfo.getAggregateValue() != null) {
+         ref.setFormulaValue(sbinfo.getAggregateValue());
+      }
+
+      MeasureFieldInfo info = new MeasureFieldInfo();
+      info.setField(sbinfo.getColumnValue());
+      info.setFullName(ref.getFullName());
+      info.setAggregateFormula(sbinfo.getAggregateValue());
+
+      return new CreateViewsheetResult.FlatBinding(List.of(), List.of(info));
    }
 
    private VSAssembly createAssembly(Viewsheet vs, String type, String name,
@@ -752,4 +1223,7 @@ public class CreateVsService {
 
    private final ViewsheetService viewsheetService;
    private final AssetRepository engine;
+
+   private static final Logger LOG = LoggerFactory.getLogger(CreateVsService.class);
+   static final int MAX_ROWS = 10_000;
 }
