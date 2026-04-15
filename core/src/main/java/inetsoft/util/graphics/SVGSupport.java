@@ -95,9 +95,13 @@ public interface SVGSupport {
    /** CSS class for radar/spider chart annotation groups ({@code <g class="inetsoft-radar" ...>}). */
    String ANNOTATION_RADAR      = "inetsoft-radar";
    /** CSS class for treemap/sunburst/icicle annotation groups ({@code <g class="inetsoft-treemap" ...>}). */
-   String ANNOTATION_TREEMAP    = "inetsoft-treemap";
+   String ANNOTATION_TREEMAP       = "inetsoft-treemap";
+   /** CSS class for external text labels matched to treemap/sunburst/icicle cells. */
+   String ANNOTATION_TREEMAP_LABEL = "inetsoft-treemap-label";
    /** CSS class for marimekko chart annotation groups ({@code <g class="inetsoft-mekko" ...>}). */
-   String ANNOTATION_MEKKO      = "inetsoft-mekko";
+   String ANNOTATION_MEKKO         = "inetsoft-mekko";
+   /** CSS class for external text labels matched to marimekko cells. */
+   String ANNOTATION_MEKKO_LABEL   = "inetsoft-mekko-label";
 
    /** Animation hint for rectangular treemap charts. */
    String ANIMATION_TREEMAP  = "treemap";

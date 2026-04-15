@@ -58,8 +58,8 @@ export class ChartInlineSvgDirective implements OnDestroy {
     * determines which server-injected hover rule fires when inetsoft-active is toggled.
     */
    private elementGroupMap = new Map<string, Element>();
-   /** Maps "rowIdx-colIdx" to the value label group paired with that bar. */
-   private barLabelMap = new Map<string, Element>();
+   /** Maps "rowIdx-colIdx" to the external text label group paired with that data element. */
+   private labelGroupMap = new Map<string, Element>();
    /** Key of the currently active element, or null. */
    private _activeKey: string | null = null;
    /** Timer handle for debounced deactivation, so fast inter-bar moves don't flash. */
@@ -125,7 +125,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
       else {
          this.element.nativeElement.innerHTML = "";
          this.elementGroupMap.clear();
-         this.barLabelMap.clear();
+         this.labelGroupMap.clear();
          this._activeKey = null;
       }
    }
@@ -165,7 +165,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
    private activateKey(key: string): void {
       const el = this.elementGroupMap.get(key);
       if(el) el.classList.add("inetsoft-active");
-      const label = this.barLabelMap.get(key);
+      const label = this.labelGroupMap.get(key);
       if(label) label.classList.add("inetsoft-active");
    }
 
@@ -173,7 +173,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
       if(this._activeKey === null) return;
       const el = this.elementGroupMap.get(this._activeKey);
       if(el) el.classList.remove("inetsoft-active");
-      const label = this.barLabelMap.get(this._activeKey);
+      const label = this.labelGroupMap.get(this._activeKey);
       if(label) label.classList.remove("inetsoft-active");
    }
 
@@ -185,7 +185,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
       }
 
       this.elementGroupMap.clear();
-      this.barLabelMap.clear();
+      this.labelGroupMap.clear();
       this._activeKey = null;
 
       // Populate the unified element map from all annotated VO groups.
@@ -226,7 +226,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
       }
 
       // Build label map from server-annotated label elements for all chart types that have
-      // external text groups matched to cells (bar, treemap/sunburst/icicle, mekko).
+      // external text groups matched to data elements (bar, treemap/sunburst/icicle, mekko).
       for(const labelClass of [".inetsoft-bar-label", ".inetsoft-treemap-label", ".inetsoft-mekko-label"]) {
          const labels = Array.from(
             this.element.nativeElement.querySelectorAll(labelClass) as NodeListOf<Element>);
@@ -236,7 +236,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
             const col = label.getAttribute("data-col");
 
             if(row != null && col != null) {
-               this.barLabelMap.set(`${row}-${col}`, label);
+               this.labelGroupMap.set(`${row}-${col}`, label);
             }
          }
       }

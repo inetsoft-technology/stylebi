@@ -2440,60 +2440,32 @@ public class VGraphPair {
    }
 
    private static boolean hasTreemapVO(VGraph graph) {
-      for(int i = 0; i < graph.getVisualCount(); i++) {
-         Visualizable v = graph.getVisual(i);
-
-         if(v instanceof TreemapVO) {
-            ElementGeometry geom = (ElementGeometry) ((TreemapVO) v).getGeometry();
-
-            if(geom.getElement() instanceof TreemapElement te &&
-               te.getMapType() == TreemapElement.Type.TREEMAP)
-            {
-               return true;
-            }
-         }
-
-         if(v instanceof GraphVO && hasTreemapVO(((GraphVO) v).getVGraph())) return true;
-      }
-
-      return false;
+      return hasTreemapVOOfType(graph, TreemapElement.Type.TREEMAP);
    }
 
    private static boolean hasSunburstVO(VGraph graph) {
-      for(int i = 0; i < graph.getVisualCount(); i++) {
-         Visualizable v = graph.getVisual(i);
-
-         if(v instanceof TreemapVO) {
-            ElementGeometry geom = (ElementGeometry) ((TreemapVO) v).getGeometry();
-
-            if(geom.getElement() instanceof TreemapElement te &&
-               te.getMapType() == TreemapElement.Type.SUNBURST)
-            {
-               return true;
-            }
-         }
-
-         if(v instanceof GraphVO && hasSunburstVO(((GraphVO) v).getVGraph())) return true;
-      }
-
-      return false;
+      return hasTreemapVOOfType(graph, TreemapElement.Type.SUNBURST);
    }
 
    private static boolean hasIcicleVO(VGraph graph) {
+      return hasTreemapVOOfType(graph, TreemapElement.Type.ICICLE);
+   }
+
+   private static boolean hasTreemapVOOfType(VGraph graph, TreemapElement.Type type) {
       for(int i = 0; i < graph.getVisualCount(); i++) {
          Visualizable v = graph.getVisual(i);
 
          if(v instanceof TreemapVO) {
             ElementGeometry geom = (ElementGeometry) ((TreemapVO) v).getGeometry();
 
-            if(geom.getElement() instanceof TreemapElement te &&
-               te.getMapType() == TreemapElement.Type.ICICLE)
-            {
+            if(geom.getElement() instanceof TreemapElement te && te.getMapType() == type) {
                return true;
             }
          }
 
-         if(v instanceof GraphVO && hasIcicleVO(((GraphVO) v).getVGraph())) return true;
+         if(v instanceof GraphVO && hasTreemapVOOfType(((GraphVO) v).getVGraph(), type)) {
+            return true;
+         }
       }
 
       return false;
@@ -2609,19 +2581,18 @@ public class VGraphPair {
    }
 
    private static boolean hasCandleSchemaVO(VGraph graph) {
-      for(int i = 0; i < graph.getVisualCount(); i++) {
-         Visualizable v = graph.getVisual(i);
-         if(v instanceof SchemaVO && !((SchemaVO) v).isBoxPlot()) return true;
-         if(v instanceof GraphVO && hasCandleSchemaVO(((GraphVO) v).getVGraph())) return true;
-      }
-      return false;
+      return hasSchemaVO(graph, false);
    }
 
    private static boolean hasBoxSchemaVO(VGraph graph) {
+      return hasSchemaVO(graph, true);
+   }
+
+   private static boolean hasSchemaVO(VGraph graph, boolean boxPlot) {
       for(int i = 0; i < graph.getVisualCount(); i++) {
          Visualizable v = graph.getVisual(i);
-         if(v instanceof SchemaVO && ((SchemaVO) v).isBoxPlot()) return true;
-         if(v instanceof GraphVO && hasBoxSchemaVO(((GraphVO) v).getVGraph())) return true;
+         if(v instanceof SchemaVO && ((SchemaVO) v).isBoxPlot() == boxPlot) return true;
+         if(v instanceof GraphVO && hasSchemaVO(((GraphVO) v).getVGraph(), boxPlot)) return true;
       }
       return false;
    }

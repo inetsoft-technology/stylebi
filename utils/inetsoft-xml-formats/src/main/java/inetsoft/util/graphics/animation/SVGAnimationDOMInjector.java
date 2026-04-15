@@ -1453,7 +1453,7 @@ public class SVGAnimationDOMInjector {
 
          if(idx >= 0) {
             mergeStyle(textG, cellStyles.get(idx));
-            tagLabelForHover(textG, cells.get(idx), SVGSupport.ANNOTATION_TREEMAP + "-label");
+            tagLabelForHover(textG, cells.get(idx), SVGSupport.ANNOTATION_TREEMAP_LABEL);
          }
       }
    }
@@ -1552,7 +1552,7 @@ public class SVGAnimationDOMInjector {
 
          if(bestIdx >= 0) {
             mergeStyle(textG, arcStyles.get(bestIdx));
-            tagLabelForHover(textG, arcs.get(bestIdx), SVGSupport.ANNOTATION_TREEMAP + "-label");
+            tagLabelForHover(textG, arcs.get(bestIdx), SVGSupport.ANNOTATION_TREEMAP_LABEL);
          }
       }
    }
@@ -1620,62 +1620,17 @@ public class SVGAnimationDOMInjector {
          }
       }
 
-      // Match label text groups to their cell by bounding-box containment, falling back to
-      // nearest centre distance, and apply the same animation style so labels fade in together.
+      // Match label text groups to their cell and apply the same animation style so labels
+      // fade in together with their section, and tag for hover dimming.
       List<Element> textGroups = new ArrayList<>();
       collectTextGroups(svgRoot, textGroups);
 
       for(Element textG : textGroups) {
-         // Glyph paths use bezier commands (Q/C) whose parameter numbers confuse parseBarBounds,
-         // producing garbage bounds. Instead, read the SVG position directly from the text group's
-         // transform CTM: m[4] and m[5] are the translation components (origin → SVG space).
-         String tfStr = textG.getAttribute("transform");
-         double tx, ty;
-
-         if(!tfStr.isEmpty()) {
-            double[] ctm = parseSVGTransform(tfStr);
-            tx = ctm[4];
-            ty = ctm[5];
-         }
-         else {
-            continue; // no transform — cannot determine position, skip
-         }
-
-         int bestIdx = -1;
-         double bestDist = Double.MAX_VALUE;
-
-         // Prefer the cell whose bounding box contains the text reference point.
-         for(int i = 0; i < cells.size(); i++) {
-            double[] b = bounds.get(i);
-            double cx = (b[0] + b[2]) / 2.0;
-            double cy = (b[1] + b[3]) / 2.0;
-            double dist = (tx - cx) * (tx - cx) + (ty - cy) * (ty - cy);
-
-            boolean contained = tx >= b[0] && tx <= b[2] && ty >= b[1] && ty <= b[3];
-            if(contained && dist < bestDist) {
-               bestDist = dist;
-               bestIdx = i;
-            }
-         }
-
-         // Fallback: nearest centre when text sits outside all cell bounds (e.g. truncated label).
-         if(bestIdx < 0) {
-            bestDist = Double.MAX_VALUE;
-            for(int i = 0; i < cells.size(); i++) {
-               double[] b = bounds.get(i);
-               double cx = (b[0] + b[2]) / 2.0;
-               double cy = (b[1] + b[3]) / 2.0;
-               double dist = (tx - cx) * (tx - cx) + (ty - cy) * (ty - cy);
-               if(dist < bestDist) {
-                  bestDist = dist;
-                  bestIdx = i;
-               }
-            }
-         }
+         int bestIdx = nearestCellByCtm(textG, bounds);
 
          if(bestIdx >= 0) {
             mergeStyle(textG, cellStyles.get(bestIdx));
-            tagLabelForHover(textG, cells.get(bestIdx), SVGSupport.ANNOTATION_TREEMAP + "-label");
+            tagLabelForHover(textG, cells.get(bestIdx), SVGSupport.ANNOTATION_TREEMAP_LABEL);
          }
       }
    }
@@ -1687,9 +1642,15 @@ public class SVGAnimationDOMInjector {
    /**
     * Inject staggered fade-in for marimekko charts.
     *
-    * <p>Cells are staggered by the x-center of their bounding box so that column groups
-    * animate left-to-right.  All cells in the same column group share the same delay bucket
-    * (same x-center).
+    * <p>Cells use a diagonal stagger: {@code delay = colIdx * 0.08 + rowIdx * 0.05}, where
+    * {@code colIdx} is the left-to-right column index by x-center and {@code rowIdx} is the
+    * top-to-bottom position within the column.  This produces a wave that sweeps down and to
+    * the right across the chart.
+    *
+    * <p>The animation style is set directly on the {@code inetsoft-mekko} annotation group
+    * (not on inner children as in treemap/sunburst/icicle) because MekkoVO places all fill and
+    * stroke paths as direct children with no wrapping inner {@code <g>}.  CSS {@code !important}
+    * hover rules correctly override CSS animations, so hover dimming still works.
     */
    private static void injectMekkoAnimation(Element svgRoot, Document doc) {
       appendStyle(svgRoot, doc,
@@ -1719,6 +1680,12 @@ public class SVGAnimationDOMInjector {
          .distinct().sorted()
          .collect(Collectors.toList());
 
+      // Build O(1) lookup map: x-center → column index.
+      Map<Double, Integer> colIndexMap = new HashMap<>();
+      for(int k = 0; k < sortedCols.size(); k++) {
+         colIndexMap.put(sortedCols.get(k), k);
+      }
+
       // Within each column, rank cells top-to-bottom by y-top (rounded to nearest pixel).
       // Build a map from colX → sorted list of y-top values so rowIdx is stable.
       Map<Double, List<Long>> colYMap = new java.util.LinkedHashMap<>();
@@ -1727,11 +1694,17 @@ public class SVGAnimationDOMInjector {
          long yTop = Math.round(bounds.get(i)[1]);
          colYMap.computeIfAbsent(cx, k -> new ArrayList<>()).add(yTop);
       }
-      Map<Double, List<Long>> colYSorted = new java.util.LinkedHashMap<>();
+
+      // Build O(1) lookup map: (x-center, y-top) → row index within that column.
+      Map<Double, Map<Long, Integer>> rowIndexMap = new HashMap<>();
       for(Map.Entry<Double, List<Long>> e : colYMap.entrySet()) {
          List<Long> ys = new ArrayList<>(e.getValue());
          java.util.Collections.sort(ys);
-         colYSorted.put(e.getKey(), ys);
+         Map<Long, Integer> rowMap = new HashMap<>();
+         for(int k = 0; k < ys.size(); k++) {
+            rowMap.put(ys.get(k), k);
+         }
+         rowIndexMap.put(e.getKey(), rowMap);
       }
 
       // cell index → animation style, reused when matching labels.
@@ -1739,9 +1712,9 @@ public class SVGAnimationDOMInjector {
 
       for(int i = 0; i < cells.size(); i++) {
          double cx = xCenters.get(i);
-         int colIdx = sortedCols.indexOf(cx);
+         int colIdx = colIndexMap.get(cx);
          long yTop = Math.round(bounds.get(i)[1]);
-         int rowIdx = colYSorted.get(cx).indexOf(yTop);
+         int rowIdx = rowIndexMap.get(cx).get(yTop);
          double delay = colIdx * COL_STEP + rowIdx * ROW_STEP;
          String animStyle = String.format(java.util.Locale.US,
             "animation:inetsoft-mekko-fade 0.8s ease-out %.2fs both", delay);
@@ -1759,7 +1732,7 @@ public class SVGAnimationDOMInjector {
 
          if(idx >= 0) {
             mergeStyle(textG, cellStyles.get(idx));
-            tagLabelForHover(textG, cells.get(idx), SVGSupport.ANNOTATION_MEKKO + "-label");
+            tagLabelForHover(textG, cells.get(idx), SVGSupport.ANNOTATION_MEKKO_LABEL);
          }
       }
    }
@@ -1864,43 +1837,12 @@ public class SVGAnimationDOMInjector {
     * Inject staggered fade-in animation for candlestick charts.
     *
     * <p>Each {@code inetsoft-candle} annotation group (one per candle) fades in over 0.6 s.
-    * Candles are sorted by {@code data-col} ascending so they animate in left-to-right
-    * (chronological) order.  Delays are spread evenly across 0–1.2 s regardless of candle
-    * count so that large charts still feel snappy.
+    * Items are sorted by screen X position ({@code data-x}) so they animate left-to-right
+    * in visual order.  Delays are spread evenly across 0–1.2 s regardless of item count.
     */
    private static void injectCandleAnimation(Element svgRoot, Document doc) {
-      appendStyle(svgRoot, doc,
-         "@keyframes inetsoft-candle-fade{from{opacity:0}to{opacity:1}}");
-
-      List<Element> candles = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_CANDLE);
-
-      if(candles.isEmpty()) {
-         return;
-      }
-
-      // Sort left-to-right by screen X center so candles animate in visual order regardless
-      // of how the underlying data rows are ordered in the dataset.
-      candles.sort(Comparator.comparingDouble(g -> {
-         String s = ((Element) g).getAttribute("data-" + SVGSupport.ATTR_X);
-
-         try {
-            return s.isEmpty() ? 0.0 : Double.parseDouble(s);
-         }
-         catch(NumberFormatException e) {
-            return 0.0;
-         }
-      }));
-
-      int n = candles.size();
-      double maxDelay = 1.2;
-      double step = n > 1 ? maxDelay / (n - 1) : 0;
-
-      for(int i = 0; i < n; i++) {
-         double delay = i * step;
-         String animStyle = String.format(java.util.Locale.US,
-            "animation:inetsoft-candle-fade 0.6s ease-out %.2fs both", delay);
-         candles.get(i).setAttribute("style", animStyle);
-      }
+      injectXPositionFadeAnimation(svgRoot, doc,
+         SVGSupport.ANNOTATION_CANDLE, "inetsoft-candle-fade");
    }
 
    // -------------------------------------------------------------------------
@@ -1911,21 +1853,36 @@ public class SVGAnimationDOMInjector {
     * Inject staggered fade-in animation for box-plot charts.
     *
     * <p>Each {@code inetsoft-box} annotation group (one per box) fades in over 0.6 s.
-    * Boxes are sorted by {@code data-row} ascending so they animate left-to-right.
+    * Items are sorted by screen X position ({@code data-x}) so they animate left-to-right
+    * in visual order.  Delays are spread evenly across 0–1.2 s regardless of item count.
     */
    private static void injectBoxAnimation(Element svgRoot, Document doc) {
+      injectXPositionFadeAnimation(svgRoot, doc,
+         SVGSupport.ANNOTATION_BOX, "inetsoft-box-fade");
+   }
+
+   /**
+    * Shared fade-in implementation for chart types whose items are staggered left-to-right
+    * by screen X position.  Used by both candlestick and box-plot animations.
+    *
+    * <p>Groups are sorted by the {@code data-x} attribute (screen X center in pixels), then
+    * assigned delays spread evenly across 0–1.2 s.  Each item fades in over 0.6 s.
+    */
+   private static void injectXPositionFadeAnimation(Element svgRoot, Document doc,
+                                                     String annotClass, String keyframeName)
+   {
       appendStyle(svgRoot, doc,
-         "@keyframes inetsoft-box-fade{from{opacity:0}to{opacity:1}}");
+         "@keyframes " + keyframeName + "{from{opacity:0}to{opacity:1}}");
 
-      List<Element> boxes = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_BOX);
+      List<Element> items = collectAnnotationGroups(svgRoot, annotClass);
 
-      if(boxes.isEmpty()) {
+      if(items.isEmpty()) {
          return;
       }
 
-      // Sort left-to-right by screen X center so boxes animate in visual order regardless
+      // Sort left-to-right by screen X center so items animate in visual order regardless
       // of how the underlying data rows are ordered in the dataset.
-      boxes.sort(Comparator.comparingDouble(g -> {
+      items.sort(Comparator.comparingDouble(g -> {
          String s = ((Element) g).getAttribute("data-" + SVGSupport.ATTR_X);
 
          try {
@@ -1936,15 +1893,15 @@ public class SVGAnimationDOMInjector {
          }
       }));
 
-      int n = boxes.size();
+      int n = items.size();
       double maxDelay = 1.2;
       double step = n > 1 ? maxDelay / (n - 1) : 0;
 
       for(int i = 0; i < n; i++) {
          double delay = i * step;
          String animStyle = String.format(java.util.Locale.US,
-            "animation:inetsoft-box-fade 0.6s ease-out %.2fs both", delay);
-         boxes.get(i).setAttribute("style", animStyle);
+            "animation:%s 0.6s ease-out %.2fs both", keyframeName, delay);
+         items.get(i).setAttribute("style", animStyle);
       }
    }
 
@@ -2173,6 +2130,29 @@ public class SVGAnimationDOMInjector {
 
          if(count > 0) {
             return new double[]{ sumX / count, sumY / count };
+         }
+      }
+
+      // Fallback: use the SVG viewBox midpoint so the animation scales from a reasonable
+      // center rather than the top-left corner (0, 0), which would look obviously wrong.
+      if(!groups.isEmpty()) {
+         Element svgRoot = (Element) groups.get(0).getOwnerDocument().getDocumentElement();
+         String viewBox = svgRoot.getAttribute("viewBox");
+
+         if(!viewBox.isEmpty()) {
+            String[] parts = viewBox.trim().split("[\\s,]+");
+
+            if(parts.length >= 4) {
+               try {
+                  double vbX = Double.parseDouble(parts[0]);
+                  double vbY = Double.parseDouble(parts[1]);
+                  double vbW = Double.parseDouble(parts[2]);
+                  double vbH = Double.parseDouble(parts[3]);
+                  return new double[]{ vbX + vbW / 2.0, vbY + vbH / 2.0 };
+               }
+               catch(NumberFormatException ignored) {
+               }
+            }
          }
       }
 

@@ -181,6 +181,10 @@ public class BoxPainter extends SchemaPainter {
             Shape box = new RoundRectangle2D.Double(b.getX(), b.getY(),
                                                     b.getWidth(), b.getHeight(), arc, arc);
 
+            // Intentional visual change: fill the box with the series color rather than white.
+            // This gives box plots a modern filled appearance consistent with the series palette.
+            // The median is rendered as a white pill (see shape index 4 above) to remain visible
+            // against the colored fill.
             if(texture == null) {
                g.fill(box);
             }

@@ -88,13 +88,12 @@ public class SchemaVO extends ElementVO {
       final Graphics2D g0 = g;
       SVGSupport svg = SVGSupport.isSVGContext(g0) ? SVGSupport.getInstance() : null;
 
-      if(svg != null) {
-         // Compute screen X center for left-to-right stagger ordering in the animation injector.
-         // this.painter holds plot-coordinate positions; applying the screen transform yields pixels.
-         SchemaPainter tmp = (SchemaPainter) this.painter.clone();
-         tmp.transformScreen(getScreenTransform());
-         double screenCx = tmp.getShape(0).getBounds2D().getCenterX();
+      // Clone painter once; use it for both the screen-X measurement and the actual paint call.
+      SchemaPainter painter = (SchemaPainter) this.painter.clone();
+      painter.transformScreen(getScreenTransform());
 
+      if(svg != null) {
+         double screenCx = painter.getShape(0).getBounds2D().getCenterX();
          String annotClass = isBoxPlot() ? SVGSupport.ANNOTATION_BOX : SVGSupport.ANNOTATION_CANDLE;
          svg.beginAnnotationGroup(g0, annotClass, Map.of(
             SVGSupport.ATTR_COL, String.valueOf(getColIndex()),
@@ -104,10 +103,8 @@ public class SchemaVO extends ElementVO {
       }
 
       try {
-         SchemaPainter painter = (SchemaPainter) this.painter.clone();
          Graphics2D g2 = (Graphics2D) g0.create();
          g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
-         painter.transformScreen(getScreenTransform());
          painter.paint(g2);
          g2.dispose();
       }
