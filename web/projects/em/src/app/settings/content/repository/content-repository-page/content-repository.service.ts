@@ -494,6 +494,9 @@ export class ContentRepositoryService implements OnDestroy {
                   return of(null);
                }),
                map(folderModel => {
+                  if(!folderModel) {
+                     return null;
+                  }
 
                   folderModel.folderMeta = this.getEditNodeMetaMap(data);
 
