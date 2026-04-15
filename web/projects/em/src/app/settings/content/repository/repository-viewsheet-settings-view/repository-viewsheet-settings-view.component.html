@@ -38,7 +38,9 @@
       </ng-template>
     </mat-tab>
     <mat-tab #mvTab [disabled]="!hasMVPermission" label="_#(MV)">
-      <em-analyze-mv-page #mvPage [nodesToAnalyze]="[editingNode]" (mvChanged)="mvChanged.emit($event)"></em-analyze-mv-page>
+      <ng-template matTabContent>
+        <em-analyze-mv-page #mvPage [nodesToAnalyze]="[editingNode]" (mvChanged)="mvChanged.emit($event)"></em-analyze-mv-page>
+      </ng-template>
     </mat-tab>
   </mat-tab-group>
   <ng-container em-editor-panel-actions>
