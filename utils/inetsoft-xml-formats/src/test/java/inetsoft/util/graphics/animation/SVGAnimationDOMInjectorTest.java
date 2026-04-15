@@ -240,6 +240,14 @@ class SVGAnimationDOMInjectorTest {
          css.contains(".inetsoft-mekko.inetsoft-active") &&
          css.contains(".inetsoft-mekko:not(.inetsoft-active)"),
          "hover CSS must contain mekko :has() dim rule");
+      assertTrue(
+         css.contains(".inetsoft-candle.inetsoft-active") &&
+         css.contains(".inetsoft-candle:not(.inetsoft-active)"),
+         "hover CSS must contain candle :has() dim rule");
+      assertTrue(
+         css.contains(".inetsoft-box.inetsoft-active") &&
+         css.contains(".inetsoft-box:not(.inetsoft-active)"),
+         "hover CSS must contain box :has() dim rule");
       assertTrue(css.contains("opacity:.2!important"),
                  "dim rules must use opacity:.2!important");
    }
@@ -486,6 +494,7 @@ class SVGAnimationDOMInjectorTest {
    /**
     * Verifies that {@code inetsoft-line} annotation groups are reclassified to
     * {@code inetsoft-radar} and receive the spring-scale animation style.
+    * Also verifies that ghost-fill and hit-path elements are injected for fill="none" paths.
     */
    @Test
    void radar_lineGroupsReclassifiedAndAnimated() throws Exception {
@@ -496,7 +505,7 @@ class SVGAnimationDOMInjectorTest {
       Element g = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
       g.setAttribute("class", SVGSupport.ANNOTATION_LINE);
       g.setAttribute("data-row", "0");
-      g.setAttribute("data-color", "60,105,138");
+      g.setAttribute("data-" + SVGSupport.ATTR_COLOR, "60,105,138");
       Element path = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
       path.setAttribute("d", "M 100 50 L 150 150 L 50 150 Z");
       path.setAttribute("fill", "none");
@@ -510,6 +519,26 @@ class SVGAnimationDOMInjectorTest {
                    "inetsoft-line group must be reclassified to inetsoft-radar");
       assertTrue(g.getAttribute("style").contains("inetsoft-radar-grow"),
                  "radar group must receive the spring-scale animation");
+
+      // fill="none" path triggers ghost-fill (prepended) + hit-path (appended) injection.
+      // Child count: ghost-fill path + original path + hit path = 3.
+      int childCount = 0;
+      Node child = g.getFirstChild();
+      while(child != null) {
+         if(child instanceof Element) childCount++;
+         child = child.getNextSibling();
+      }
+      assertEquals(3, childCount,
+                   "ghost-fill path and hit path must be injected for fill=none radar polygon");
+
+      // Hit path is the last Element child.
+      Node last = g.getLastChild();
+      while(last != null && !(last instanceof Element)) last = last.getPreviousSibling();
+      assertNotNull(last, "group must have at least one child element");
+      assertEquals("rgba(0,0,0,0)", ((Element) last).getAttribute("fill"),
+                   "last child must be the transparent hit path");
+      assertEquals("all", ((Element) last).getAttribute("pointer-events"),
+                   "hit path must capture pointer events");
    }
 
    /**
@@ -524,7 +553,7 @@ class SVGAnimationDOMInjectorTest {
          Element g = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
          g.setAttribute("class", SVGSupport.ANNOTATION_LINE);
          g.setAttribute("data-row", String.valueOf(i));
-         g.setAttribute("data-color", "60,105,138");
+         g.setAttribute("data-" + SVGSupport.ATTR_COLOR, "60,105,138");
          Element path = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
          path.setAttribute("d", "M 100 50 L 150 150 L 50 150 Z");
          path.setAttribute("fill", "none");
@@ -590,6 +619,94 @@ class SVGAnimationDOMInjectorTest {
       assertNotNull(childStyle, "inner child should have an animation style");
       assertTrue(childStyle.contains("inetsoft-sunburst-fade"),
                  "style must reference the sunburst keyframe");
+   }
+
+   /**
+    * Two arcs at the same level (same ring) should receive staggered delays within the ring.
+    * With two arcs in one ring, {@code step = min(0.15, 0.8/2) = 0.15 s}, so the second arc
+    * should be delayed by 0.15 s relative to the first.
+    */
+   @Test
+   void sunburst_sameRingArcsAreStaggered() throws Exception {
+      Document doc = newDocument();
+      // Both arcs at level=0 (same ring), positioned on opposite sides of a virtual center.
+      Element arc0 = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                   Map.of("row", "0", "col", "0", "level", "0"),
+                                   50, 0, 80, 80);   // centre (90, 40)
+      Element arc1 = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                   Map.of("row", "1", "col", "0", "level", "0"),
+                                   250, 0, 80, 80);  // centre (290, 40)
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_SUNBURST);
+
+      double delay0 = parseDelay(firstChildStyle(arc0));
+      double delay1 = parseDelay(firstChildStyle(arc1));
+      // The two arcs are in the same ring, so their delays must differ (stagger within ring).
+      assertNotEquals(delay0, delay1, 0.001,
+                      "two arcs in the same ring must have different animation delays");
+      assertEquals(0.15, Math.abs(delay1 - delay0), 0.01,
+                   "within-ring step for 2 arcs must be min(0.15, 0.8/2) = 0.15 s");
+   }
+
+   // -------------------------------------------------------------------------
+   // Candle / box animation tests (injectXPositionFadeAnimation)
+   // -------------------------------------------------------------------------
+
+   /**
+    * Candlestick groups sorted by {@code data-x} (screen X center) must animate left-to-right:
+    * the leftmost group gets delay 0, the rightmost gets the largest delay.
+    */
+   @Test
+   void candle_leftToRightDelayOrdering() throws Exception {
+      Document doc = newDocument();
+      // Three candle groups with explicitly ordered data-x values.
+      // data-x controls the sort; bounds are irrelevant for this test.
+      Element left   = addAnnotGroup(doc, SVGSupport.ANNOTATION_CANDLE,
+                                     Map.of("row", "0", "col", "0", "x", "100"),
+                                     0, 0, 10, 50);
+      Element middle = addAnnotGroup(doc, SVGSupport.ANNOTATION_CANDLE,
+                                     Map.of("row", "1", "col", "0", "x", "200"),
+                                     100, 0, 10, 50);
+      Element right  = addAnnotGroup(doc, SVGSupport.ANNOTATION_CANDLE,
+                                     Map.of("row", "2", "col", "0", "x", "300"),
+                                     200, 0, 10, 50);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_CANDLE);
+
+      // Candle/box animation is applied to the group itself (not inner children).
+      double delayLeft   = parseDelay(left.getAttribute("style"));
+      double delayMiddle = parseDelay(middle.getAttribute("style"));
+      double delayRight  = parseDelay(right.getAttribute("style"));
+
+      assertTrue(delayLeft < delayMiddle,
+                 "left candle (x=100) must animate before middle (x=200)");
+      assertTrue(delayMiddle < delayRight,
+                 "middle candle (x=200) must animate before right (x=300)");
+      assertEquals(0.0, delayLeft, 0.01,
+                   "leftmost candle must start with delay 0");
+   }
+
+   /**
+    * Box-plot groups follow the same left-to-right delay ordering as candle groups —
+    * both use {@link SVGAnimationDOMInjector#injectXPositionFadeAnimation}.
+    */
+   @Test
+   void box_leftToRightDelayOrdering() throws Exception {
+      Document doc = newDocument();
+      Element left  = addAnnotGroup(doc, SVGSupport.ANNOTATION_BOX,
+                                    Map.of("row", "0", "col", "0", "x", "50"),
+                                    0, 0, 10, 50);
+      Element right = addAnnotGroup(doc, SVGSupport.ANNOTATION_BOX,
+                                    Map.of("row", "1", "col", "0", "x", "150"),
+                                    100, 0, 10, 50);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_BOX);
+
+      double delayLeft  = parseDelay(left.getAttribute("style"));
+      double delayRight = parseDelay(right.getAttribute("style"));
+
+      assertEquals(0.0, delayLeft,  0.01, "leftmost box must start with delay 0");
+      assertTrue(delayRight > delayLeft, "right box (x=150) must animate after left (x=50)");
    }
 
    // -------------------------------------------------------------------------
