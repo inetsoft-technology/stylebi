@@ -29,9 +29,6 @@ public class MeasureFieldInfo extends SimpleFieldInfo {
       this.aggregateFormula = aggregateFormula;
    }
 
-   private String aggregateFormula;
-   private String fullName;
-
    public String getFullName() {
       return fullName;
    }
@@ -39,4 +36,7 @@ public class MeasureFieldInfo extends SimpleFieldInfo {
    public void setFullName(String fullName) {
       this.fullName = fullName;
    }
+
+   private String aggregateFormula;
+   private String fullName;
 }

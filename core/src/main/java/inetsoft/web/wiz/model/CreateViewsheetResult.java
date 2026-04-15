@@ -29,6 +29,8 @@ import java.util.Map;
  * <p>{@code headers} and {@code rows} carry the raw data produced by the assembly
  * (tabular for Table/Crosstab/Chart, single-value row for Gauge/Text).  Both are
  * null when the assembly type produces no extractable data or when data is unavailable.
+ * Row data is capped at {@code CreateVsService.MAX_ROWS} rows; when the underlying
+ * dataset exceeds that limit {@code truncated} is set to {@code true}.
  *
  * <p>{@code binding} is a flattened view of the assembly's data binding: all dimensions
  * in one list and all measures in another.  It is null for assembly types that carry no
@@ -37,6 +39,12 @@ import java.util.Map;
  * / {@link MeasureFieldInfo} model classes; the optional {@code fullName} field on each
  * entry is populated with the human-readable label from {@code VSDimensionRef.getFullName()}
  * or {@code VSAggregateRef.getFullName()}.
+ *
+ * <p>{@code truncated} is {@code true} when the row list was cut at the server-side row cap;
+ * absent from the response when all rows are included.
+ *
+ * <p>{@code warning} carries a human-readable message when data extraction succeeded only
+ * partially (e.g. view execution failed before data was ready); absent when there are no issues.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class CreateViewsheetResult {
@@ -64,9 +72,18 @@ public class CreateViewsheetResult {
       this.binding = binding;
    }
 
+   public Boolean getTruncated() {
+      return truncated;
+   }
+
+   public void setTruncated(Boolean truncated) {
+      this.truncated = truncated;
+   }
+
    private List<String> headers;
    private List<Map<String, Object>> rows;
    private FlatBinding binding;
+   private Boolean truncated;
 
    // -------------------------------------------------------------------------
    // Nested model
