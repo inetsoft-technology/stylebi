@@ -33,7 +33,6 @@ import java.security.Principal;
 
 @Service
 public class WizBrowseDataService {
-
    public WizBrowseDataService(ViewsheetService viewsheetService) {
       this.viewsheetService = viewsheetService;
    }
