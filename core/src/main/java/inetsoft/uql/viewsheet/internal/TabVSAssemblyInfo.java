@@ -573,7 +573,9 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
     * Returns the effective bottomTabs value, reflecting the runtime value if set,
     * otherwise the design-time value. Callers in the Composer (design-time) context
     * should prefer {@link #getBottomTabsValue()} to avoid reading a stale runtime
-    * override.
+    * override, except for layout/export paths (e.g. {@code VSLayoutService},
+    * {@code AbstractLayout}, {@code VSEventUtil}) which need the runtime-effective
+    * value even in the composer.
     */
    public boolean isBottomTabs() {
       Object rval = bottomTabs.getRValue();

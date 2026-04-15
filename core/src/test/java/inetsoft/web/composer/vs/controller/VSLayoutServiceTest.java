@@ -186,6 +186,42 @@ class VSLayoutServiceTest {
    }
 
    @Test
+   void scriptOverrideToNonBottomTabsPositionedCorrectly() {
+      Viewsheet vs = new Viewsheet();
+
+      // dValue=true (UI), rValue=false (script override)
+      TabVSAssembly tab = new TabVSAssembly(vs, "Tab1");
+      TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getInfo();
+      tabInfo.setBottomTabsValue(true);
+      tabInfo.setBottomTabs(false);
+
+      TextVSAssembly child = new TextVSAssembly(vs, "Text1");
+      vs.addAssembly(child);
+      vs.addAssembly(tab);
+      tab.setAssemblies(new String[]{"Text1"});
+
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      VSObjectModel tabModel = mockObjectModel();
+      VSObjectModel childModel = mockObjectModel();
+      childModel.getObjectFormat().setPositions(0, 0, 200, 80);
+
+      when(objectModelService.createModel(any(TabVSAssembly.class), eq(rvs))).thenReturn(tabModel);
+      when(objectModelService.createModel(any(TextVSAssembly.class), eq(rvs)))
+         .thenReturn(childModel);
+
+      int layoutY = 300;
+      VSAssemblyLayout layout = new VSAssemblyLayout(
+         "Tab1", new Point(50, layoutY), new Dimension(400, 30));
+
+      VSLayoutObjectModel result = service.createObjectModel(rvs, layout, objectModelService);
+
+      // rValue=false overrides dValue=true, so top tabs behavior
+      assertEquals(layoutY, result.top(),
+         "model top should not be shifted for script-overridden non-bottom tabs");
+   }
+
+   @Test
    void nonBottomTabsTopNotShifted() {
       Viewsheet vs = new Viewsheet();
 
