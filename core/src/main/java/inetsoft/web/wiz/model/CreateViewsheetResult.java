@@ -42,9 +42,6 @@ import java.util.Map;
  *
  * <p>{@code truncated} is {@code true} when the row list was cut at the server-side row cap;
  * absent from the response when all rows are included.
- *
- * <p>{@code warning} carries a human-readable message when data extraction succeeded only
- * partially (e.g. view execution failed before data was ready); absent when there are no issues.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class CreateViewsheetResult {
