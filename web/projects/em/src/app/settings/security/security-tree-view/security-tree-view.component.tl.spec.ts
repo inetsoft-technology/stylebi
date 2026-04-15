@@ -345,18 +345,19 @@ describe("SecurityTreeViewComponent — dragStart(): isIdentityFolder must cover
 
       for(const folderName of ["Users", "Groups", "Roles"]) {
          const folderFlat = flatTree(comp).find(n => n.getData().identityID.name === folderName);
+         expect(folderFlat).toBeTruthy();
          comp.selectedNodes = [];
          (comp as any).selectedIdentity = null;
 
          const event = makeDragEvent();
-         comp.dragStart(event as any, folderFlat);
+         const result = comp.dragStart(event as any, folderFlat);
 
-         // When setData is called, models must be empty (folder excluded from dragModels).
-         // When setData is NOT called (dragNodes.length === 0 after readOnly filter) — also correct.
-         if(event.dataTransfer.setData.mock.calls.length > 0) {
-            const models = JSON.parse(event.dataTransfer.setData.mock.calls[0][1]);
-            expect(models).toHaveLength(0);
-         }
+         // For these non-readOnly folder nodes, dragStart should proceed and write an empty payload:
+         // folder nodes are excluded from dragModels by isIdentityFolder().
+         expect(result).toBe(true);
+         expect(event.dataTransfer.setData).toHaveBeenCalledTimes(1);
+         const models = JSON.parse(event.dataTransfer.setData.mock.calls[0][1]);
+         expect(models).toHaveLength(0);
       }
    });
 

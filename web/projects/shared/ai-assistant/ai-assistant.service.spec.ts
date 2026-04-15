@@ -41,14 +41,16 @@ describe("AiAssistantService", () => {
 
    // ── Constructor HTTP calls ──────────────────────────────────────────────────
 
-   it("should populate chatAppServerUrl from HTTP response on construction", () => {
+   it("should populate chatAppServerUrl from HTTP response on construction", async () => {
       const s = new AiAssistantService(makeHttp("https://chat.example.com") as any, makeCurrentUserService());
+      await (s as any)._serverUrlLoaded;
       expect(s.chatAppServerUrl).toBe("https://chat.example.com");
    });
 
-   it("should default chatAppServerUrl to empty string when response is falsy", () => {
+   it("should default chatAppServerUrl to empty string when response is falsy", async () => {
       const http = { get: jest.fn().mockReturnValue(of(null)) };
       const s = new AiAssistantService(http as any, makeCurrentUserService());
+      await (s as any)._serverUrlLoaded;
       expect(s.chatAppServerUrl).toBe("");
    });
 

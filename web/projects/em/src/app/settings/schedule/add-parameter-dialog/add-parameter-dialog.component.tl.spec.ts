@@ -421,8 +421,9 @@ describe("AddParameterDialogComponent — array toggle: value split and click ti
 
       // Toggle array OFF — triggers the split logic in valueChanges with a setTimeout
       comp.form.controls["array"].setValue(false);
-      // waitFor polls until the setTimeout fires and updates model.value.value
-      await waitFor(() => expect(comp.model.value.value).toBe("1"), { timeout: 2000 });
+      // Wait for the component's internal setTimeout(0) callback to flush.
+      // Use a short timeout so hangs fail fast while still allowing CI scheduling jitter.
+      await waitFor(() => expect(comp.model.value.value).toBe("1"), { timeout: 500 });
    });
 
    // Risk Point/Contract: For STRING type the split is skipped entirely (dataType === STRING).
@@ -435,7 +436,8 @@ describe("AddParameterDialogComponent — array toggle: value split and click ti
       comp.form.controls["value"]?.setValue("a,b,c"); // VALID (required only)
 
       comp.form.controls["array"].setValue(false);
-      await waitFor(() => expect(comp.model.value.value).toBe("a,b,c"), { timeout: 2000 });
+      // Same reason as above: this assertion depends on async setTimeout(0) inside valueChanges.
+      await waitFor(() => expect(comp.model.value.value).toBe("a,b,c"), { timeout: 500 });
    });
 
    // guard case: convertToArray() uses (click) which fires BEFORE
@@ -470,44 +472,56 @@ describe("AddParameterDialogComponent — array toggle: value split and click ti
 
 describe("AddParameterDialogComponent — getValueValidator(): type-based validators", () => {
 
-   // Risk Point/Contract: INTEGER must yield 3 validators (required + integerInRange + isInteger).
-   // Missing these allows out-of-range or non-integer strings to reach the server.
-   it("should return 3 validators (required + integerInRange + isInteger) for non-array INTEGER", async () => {
+   // Risk Point/Contract: INTEGER must reject non-integer and out-of-range values.
+   // Behavior assertions are more robust than validator-count assertions.
+   it("should enforce integer validators for non-array INTEGER", async () => {
       const { comp } = await renderComp({ index: -1, parameters: [] });
       comp.model.type = XSchema.INTEGER;
       comp.model.array = false;
       comp.model.value.type = ValueTypes.VALUE;
 
-      const validators = (comp as any).getValueValidator();
+      const valueCtrl = comp.form.controls["value"];
+      valueCtrl.setValidators((comp as any).getValueValidator());
 
-      expect(validators.length).toBe(3);
+      valueCtrl.setValue("abc");
+      valueCtrl.updateValueAndValidity();
+      expect(valueCtrl.hasError("isInteger")).toBe(true);
+      expect(valueCtrl.hasError("integerInRange")).toBe(true);
    });
 
-   // Risk Point/Contract: DOUBLE always includes isFloatNumber regardless of isArray.
-   // Missing this lets non-numeric strings or out-of-range floats through without a warning.
-   it("should return 2 validators (required + isFloatNumber) for non-array DOUBLE", async () => {
+   // Risk Point/Contract: DOUBLE must reject non-numeric strings.
+   it("should enforce float validator for non-array DOUBLE", async () => {
       const { comp } = await renderComp({ index: -1, parameters: [] });
       comp.model.type = XSchema.DOUBLE;
       comp.model.array = false;
       comp.model.value.type = ValueTypes.VALUE;
 
-      const validators = (comp as any).getValueValidator();
+      const valueCtrl = comp.form.controls["value"];
+      valueCtrl.setValidators((comp as any).getValueValidator());
 
-      expect(validators.length).toBe(2);
+      valueCtrl.setValue("abc");
+      valueCtrl.updateValueAndValidity();
+      expect(valueCtrl.hasError("isFloatNumber")).toBe(true);
    });
 
-   // Boundary: non-array DATE gets only Validators.required — the date-time-editor child
-   // component handles format validation. Adding a date format validator here would conflict.
-   // Why High Value: Mistakenly adding a date validator in non-array mode breaks the date picker.
-   it("should return only 1 validator (required) for non-array DATE type", async () => {
+   // Boundary: non-array DATE gets required only; date format is handled by child control.
+   it("should only require value for non-array DATE type", async () => {
       const { comp } = await renderComp({ index: -1, parameters: [] });
       comp.model.type = XSchema.DATE;
       comp.model.array = false;
       comp.model.value.type = ValueTypes.VALUE;
 
-      const validators = (comp as any).getValueValidator();
+      const valueCtrl = comp.form.controls["value"];
+      valueCtrl.setValidators((comp as any).getValueValidator());
 
-      expect(validators.length).toBe(1);
+      valueCtrl.setValue("");
+      valueCtrl.updateValueAndValidity();
+      expect(valueCtrl.hasError("required")).toBe(true);
+
+      valueCtrl.setValue("not-a-date");
+      valueCtrl.updateValueAndValidity();
+      expect(valueCtrl.hasError("required")).toBe(false);
+      expect(valueCtrl.hasError("isDate")).toBe(false);
    });
 
 });
