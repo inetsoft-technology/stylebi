@@ -30,7 +30,15 @@ import { ThemePropertiesModel } from "./theme-properties-model";
    styleUrls: ["./theme-properties-view.component.scss"]
 })
 export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
-   @Input() isMultiTenant = false;
+   @Input() get isMultiTenant(): boolean {
+      return this._isMultiTenant;
+   }
+
+   set isMultiTenant(value: boolean) {
+      this._isMultiTenant = value;
+      this.updateFormState();
+   }
+
    @Input() orgId: string;
 
    @Input() get theme() {
@@ -88,26 +96,7 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
 
    set isSiteAdmin(isSiteAdmin: boolean) {
       this._isSiteAdmin = isSiteAdmin;
-
-      if(!!this.form) {
-         if(this.theme.global && !isSiteAdmin && this.isMultiTenant) {
-            this.form.disable();
-         }
-         else {
-            this.form.enable();
-         }
-
-         if(!this.isMultiTenant || isSiteAdmin) {
-            this.form.get("globalTheme").enable();
-            this.form.get("defaultThemeGlobal").enable();
-         }
-         else {
-            this.form.get("globalTheme").disable();
-            this.form.get("defaultThemeGlobal").disable();
-         }
-
-         this.form.get("defaultThemeOrg").enable();
-      }
+      this.updateFormState();
    }
 
    @Output() themePropertiesChanged = new EventEmitter<ThemePropertiesModel>();
@@ -116,6 +105,7 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
    private _themeNames: string[] = [];
    private _theme: CustomThemeModel;
    private _isSiteAdmin = false;
+   private _isMultiTenant = false;
    private destroy$ = new Subject<void>();
 
    constructor(fb: UntypedFormBuilder) {
@@ -156,6 +146,30 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
 
    get hostOrg() {
       return this.orgId == "host-org";
+   }
+
+   private updateFormState(): void {
+      if(!this.form || !this.theme) {
+         return;
+      }
+
+      if(this._isMultiTenant && !this._isSiteAdmin && this.theme.global) {
+         this.form.disable();
+      }
+      else {
+         this.form.enable();
+      }
+
+      if(!this._isMultiTenant || this._isSiteAdmin) {
+         this.form.get("globalTheme").enable();
+         this.form.get("defaultThemeGlobal").enable();
+      }
+      else {
+         this.form.get("globalTheme").disable();
+         this.form.get("defaultThemeGlobal").disable();
+      }
+
+      this.form.get("defaultThemeOrg").enable();
    }
 
    private fireThemePropertiesChanged(): void {

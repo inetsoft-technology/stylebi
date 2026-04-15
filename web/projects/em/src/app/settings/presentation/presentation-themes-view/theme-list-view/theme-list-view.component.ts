@@ -99,8 +99,8 @@ export class ThemeListViewComponent implements OnInit, OnDestroy {
    }
 
    cannotDelete(): boolean {
-      return !this.selectedTheme?.id || this.selectedTheme.global && !this.isSiteAdmin &&
-         this.isMultiTenant;
+      return !this.selectedTheme?.id ||
+         (this.selectedTheme.global && !this.isSiteAdmin && this.isMultiTenant);
    }
 
    isDefaultTheme(theme: CustomThemeModel): boolean {
