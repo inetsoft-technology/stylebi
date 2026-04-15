@@ -441,6 +441,10 @@ export class ContentRepositoryService implements OnDestroy {
                   return of(null);
                }),
                map(model => {
+                  if(!model) {
+                     return null;
+                  }
+
                   model.folderMeta = this.getEditNodeMetaMap(data);
 
                   return <ScheduleTaskFolderEditorModel>{
@@ -465,6 +469,10 @@ export class ContentRepositoryService implements OnDestroy {
                   return of(null);
                }),
                map(model => {
+                  if(!model) {
+                     return null;
+                  }
+
                   model.folderMeta = this.getEditNodeMetaMap(data);
 
                   return <DataSourceFolderEditorModel>{
