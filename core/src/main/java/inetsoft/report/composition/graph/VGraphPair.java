@@ -2411,6 +2411,9 @@ public class VGraphPair {
          g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_ICICLE);
       }
       else if(hasTreemapVO(graph)) {
+         // Note: TreemapElement.Type.CIRCLE (circle-packing charts) is also rendered by
+         // TreemapVO with the inetsoft-treemap annotation class, but has no dedicated
+         // animation hint check here — it receives no entry animation (out of scope).
          g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_TREEMAP);
       }
       else if(hasMekkoVO(graph)) {

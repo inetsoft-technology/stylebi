@@ -439,19 +439,25 @@ class SVGAnimationDOMInjectorTest {
 
    /**
     * Two cells in the same column whose y-tops round to the same pixel value must not cause an
-    * exception.  {@code putIfAbsent} prevents a second cell from overwriting the first entry,
-    * but both cells still receive a valid animation style.
+    * exception.  {@code putIfAbsent} keeps the first occurrence's row index; both cells share
+    * the same animation delay but neither is skipped.
     */
    @Test
    void mekko_duplicateYtopDoesNotThrow() throws Exception {
       Document doc = newDocument();
       // y=10.0 and y=10.4 both round to 10 — same rowMap key after Math.round().
-      addMekkoCell(doc, "0", "0", 0, 10.0, 100, 90);
-      addMekkoCell(doc, "1", "0", 0, 10.4, 100, 90);
+      Element cell1 = addMekkoCell(doc, "0", "0", 0, 10.0, 100, 90);
+      Element cell2 = addMekkoCell(doc, "1", "0", 0, 10.4, 100, 90);
 
       assertDoesNotThrow(
          () -> SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(),
                                                        SVGSupport.ANIMATION_MEKKO));
+      // Both cells must receive an animation style; the putIfAbsent collision means they
+      // share the same row index (and therefore the same delay), but neither is skipped.
+      assertFalse(cell1.getAttribute("style").isEmpty(),
+                  "collision cell 1 must still receive animation style");
+      assertFalse(cell2.getAttribute("style").isEmpty(),
+                  "collision cell 2 must still receive animation style");
    }
 
    /** A text group whose translate CTM falls inside a mekko cell should be tagged for hover. */
@@ -471,5 +477,148 @@ class SVGAnimationDOMInjectorTest {
                    "label data-row must match the cell's data-row");
       assertEquals("3", label.getAttribute("data-col"),
                    "label data-col must match the cell's data-col");
+   }
+
+   // -------------------------------------------------------------------------
+   // Radar animation tests
+   // -------------------------------------------------------------------------
+
+   /**
+    * Verifies that {@code inetsoft-line} annotation groups are reclassified to
+    * {@code inetsoft-radar} and receive the spring-scale animation style.
+    */
+   @Test
+   void radar_lineGroupsReclassifiedAndAnimated() throws Exception {
+      Document doc = newDocument();
+      // Build an inetsoft-line annotation group containing a polygon path (fill="none").
+      // computeRadarCenter reads polygon vertices from the path's "d" attribute to find
+      // the radar center; the path must have M/L commands so vertex parsing succeeds.
+      Element g = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      g.setAttribute("class", SVGSupport.ANNOTATION_LINE);
+      g.setAttribute("data-row", "0");
+      g.setAttribute("data-color", "60,105,138");
+      Element path = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+      path.setAttribute("d", "M 100 50 L 150 150 L 50 150 Z");
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", "blue");
+      g.appendChild(path);
+      doc.getDocumentElement().appendChild(g);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_RADAR);
+
+      assertEquals(SVGSupport.ANNOTATION_RADAR, g.getAttribute("class"),
+                   "inetsoft-line group must be reclassified to inetsoft-radar");
+      assertTrue(g.getAttribute("style").contains("inetsoft-radar-grow"),
+                 "radar group must receive the spring-scale animation");
+   }
+
+   /**
+    * Two radar series groups should animate with the second series delayed by
+    * {@code stagger = 0.25 s} relative to the first.
+    */
+   @Test
+   void radar_secondSeriesIsDelayed() throws Exception {
+      Document doc = newDocument();
+
+      for(int i = 0; i < 2; i++) {
+         Element g = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+         g.setAttribute("class", SVGSupport.ANNOTATION_LINE);
+         g.setAttribute("data-row", String.valueOf(i));
+         g.setAttribute("data-color", "60,105,138");
+         Element path = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+         path.setAttribute("d", "M 100 50 L 150 150 L 50 150 Z");
+         path.setAttribute("fill", "none");
+         g.appendChild(path);
+         doc.getDocumentElement().appendChild(g);
+      }
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_RADAR);
+
+      List<Element> radar = new ArrayList<>();
+      NodeList all = doc.getDocumentElement().getChildNodes();
+      for(int i = 0; i < all.getLength(); i++) {
+         if(all.item(i) instanceof Element e &&
+            SVGSupport.ANNOTATION_RADAR.equals(e.getAttribute("class")))
+         {
+            radar.add(e);
+         }
+      }
+
+      assertEquals(2, radar.size(), "both line groups must be reclassified");
+      double delay0 = parseDelay(radar.get(0).getAttribute("style"));
+      double delay1 = parseDelay(radar.get(1).getAttribute("style"));
+      assertEquals(0.25, delay1 - delay0, 0.01,
+                   "second series must be delayed by stagger=0.25 s relative to first");
+   }
+
+   // -------------------------------------------------------------------------
+   // Sunburst animation tests
+   // -------------------------------------------------------------------------
+
+   /** Root level arcs (highest data-level) should animate before leaf arcs (level=0). */
+   @Test
+   void sunburst_rootLevelAnimatesBeforeLeaf() throws Exception {
+      Document doc = newDocument();
+      // Two arcs at different levels; root (level=1) should animate first (lower delay).
+      Element root = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                   Map.of("row", "0", "col", "0", "level", "1"),
+                                   50, 50, 100, 100);
+      Element leaf = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                   Map.of("row", "1", "col", "0", "level", "0"),
+                                   300, 50, 80, 80);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_SUNBURST);
+
+      double rootDelay = parseDelay(firstChildStyle(root));
+      double leafDelay = parseDelay(firstChildStyle(leaf));
+      assertTrue(rootDelay < leafDelay,
+                 "root arc (level=1) must animate before leaf arc (level=0): " +
+                 "root=" + rootDelay + ", leaf=" + leafDelay);
+   }
+
+   /** Inner child of a sunburst arc group must reference the sunburst keyframe. */
+   @Test
+   void sunburst_arcsReceiveFadeAnimation() throws Exception {
+      Document doc = newDocument();
+      Element arc = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                  Map.of("row", "0", "col", "0", "level", "0"),
+                                  100, 100, 100, 100);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_SUNBURST);
+
+      String childStyle = firstChildStyle(arc);
+      assertNotNull(childStyle, "inner child should have an animation style");
+      assertTrue(childStyle.contains("inetsoft-sunburst-fade"),
+                 "style must reference the sunburst keyframe");
+   }
+
+   // -------------------------------------------------------------------------
+   // nearestCellByCtm fallback path test
+   // -------------------------------------------------------------------------
+
+   /**
+    * When a label's translate-origin sits just outside all cell bounding boxes, the fallback
+    * nearest-centre path should still match it to the closest cell.
+    */
+   @Test
+   void nearestCell_fallbackMatchesClosestCellWhenOutsideAllBounds() throws Exception {
+      Document doc = newDocument();
+      // Cell A: (0,0)–(100,100), centre (50,50).
+      Element cellA = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                    Map.of("row", "0", "col", "0", "level", "0"),
+                                    0, 0, 100, 100);
+      // Cell B: (200,0)–(300,100), centre (250,50).
+      Element cellB = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                    Map.of("row", "1", "col", "0", "level", "0"),
+                                    200, 0, 100, 100);
+      // Label at (110,50) — outside both cells, but closer to cell A (distance 60) than B (distance 140).
+      Element label = addTextGroup(doc, 110, 50);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_TREEMAP);
+
+      assertEquals(SVGSupport.ANNOTATION_TREEMAP_LABEL, label.getAttribute("class"),
+                   "fallback label must still be tagged with the label class");
+      assertEquals("0", label.getAttribute("data-row"),
+                   "fallback must match cell A (row=0), the nearest centre");
    }
 }
