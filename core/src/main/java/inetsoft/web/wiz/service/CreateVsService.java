@@ -42,6 +42,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 public class CreateVsService {
@@ -115,36 +116,43 @@ public class CreateVsService {
 
       newVs.addAssembly(assembly);
       assembly.setPrimary(true);
+
+      Viewsheet previousVs = rvs.getViewsheet();
       rvs.setViewsheet(newVs);
 
-      // Execute the assembly view after the viewsheet is set so that dynamic values are
-      // resolved, chart state is initialized, and output assembly values are computed.
-      rvs.getViewsheetSandbox().ifPresent(box -> {
-         try {
-            box.executeView(assembly.getName(), true);
+      try {
+         // Execute the assembly view after the viewsheet is set so that dynamic values are
+         // resolved, chart state is initialized, and output assembly values are computed.
+         Optional<ViewsheetSandbox> viewsheetSandbox = rvs.getViewsheetSandbox();
+
+         if(viewsheetSandbox.isEmpty()) {
+            throw new Exception("ViewsheetSandbox is empty");
          }
-         catch(Exception e) {
-            LOG.warn("Failed to execute view for assembly '{}': {}", assembly.getName(), e.getMessage());
+
+         viewsheetSandbox.get().executeView(assembly.getName(), true);
+         CreateViewsheetResult result;
+
+         if(assembly instanceof ChartVSAssembly) {
+            result = extractChartData(rvs, assembly.getName());
          }
-      });
+         else if(assembly instanceof TableVSAssembly || assembly instanceof CrosstabVSAssembly) {
+            result = extractTableLensData(rvs, assembly.getName());
+         }
+         else if(assembly instanceof OutputVSAssembly) {
+            result = extractOutputAssemblyData(rvs, assembly.getName());
+         }
+         else {
+            result = new CreateViewsheetResult();
+         }
 
-      CreateViewsheetResult result;
+         result.setBinding(collectFlatBinding(assembly));
 
-      if(assembly instanceof ChartVSAssembly) {
-         result = extractChartData(rvs, assembly.getName());
+         return result;
       }
-      else if(assembly instanceof TableVSAssembly || assembly instanceof CrosstabVSAssembly) {
-         result = extractTableLensData(rvs, assembly.getName());
+      catch(Exception e) {
+         rvs.setViewsheet(previousVs);
+         throw e;
       }
-      else if(assembly instanceof OutputVSAssembly) {
-         result = extractOutputAssemblyData(rvs, assembly.getName());
-      }
-      else {
-         result = new CreateViewsheetResult();
-      }
-
-      result.setBinding(collectFlatBinding(assembly));
-      return result;
    }
 
    /**
@@ -190,6 +198,7 @@ public class CreateVsService {
 
          int colCount = dset.getColCount();
          int rowCount = dset.getRowCount();
+         int limit = Math.min(rowCount, MAX_ROWS);
 
          List<String> headers = new ArrayList<>(colCount);
 
@@ -197,9 +206,9 @@ public class CreateVsService {
             headers.add(dset.getHeader(c));
          }
 
-         List<Map<String, Object>> rows = new ArrayList<>(rowCount);
+         List<Map<String, Object>> rows = new ArrayList<>(limit);
 
-         for(int r = 0; r < rowCount; r++) {
+         for(int r = 0; r < limit; r++) {
             Map<String, Object> row = new LinkedHashMap<>(colCount);
 
             for(int c = 0; c < colCount; c++) {
@@ -212,6 +221,11 @@ public class CreateVsService {
          CreateViewsheetResult result = new CreateViewsheetResult();
          result.setHeaders(headers);
          result.setRows(rows);
+
+         if(rowCount > MAX_ROWS) {
+            result.setTruncated(true);
+         }
+
          return result;
       }
       catch(Exception e) {
@@ -224,11 +238,11 @@ public class CreateVsService {
    /**
     * Extracts tabular data from a Table or Crosstab assembly via its TableLens.
     * Row 0 through headerRowCount-1 are header rows; data begins at headerRowCount.
-    *
+    * <p>
     * For Crosstab: all column-dimension headers are temporarily moved to row headers so the
     * result is a flat table (no pivoted columns).  The original binding is restored in a
     * finally block regardless of success or failure.
-    *
+    * <p>
     * Returns a result with null headers/rows if data is unavailable (best-effort).
     */
    private CreateViewsheetResult extractTableLensData(RuntimeViewsheet rvs, String assemblyName) {
@@ -245,30 +259,31 @@ public class CreateVsService {
       DataRef[] originalRowHeaders = null;
       DataRef[] originalColHeaders = null;
 
-      VSAssembly vsAssembly = rvs.getViewsheet().getAssembly(assemblyName);
-
-      if(vsAssembly instanceof CrosstabVSAssembly crosstab) {
-         crosstabInfo = crosstab.getVSCrosstabInfo();
-         originalRowHeaders = crosstabInfo.getDesignRowHeaders();
-         originalColHeaders = crosstabInfo.getDesignColHeaders();
-
-         if(originalColHeaders != null && originalColHeaders.length > 0) {
-            // Merge col-dimensions into row-dimensions so the tablelens is fully flat.
-            DataRef[] flatRows = new DataRef[originalRowHeaders.length + originalColHeaders.length];
-            System.arraycopy(originalRowHeaders, 0, flatRows, 0, originalRowHeaders.length);
-            System.arraycopy(originalColHeaders, 0, flatRows, originalRowHeaders.length, originalColHeaders.length);
-            crosstabInfo.setDesignRowHeaders(flatRows);
-            crosstabInfo.setDesignColHeaders(new DataRef[0]);
-            // Invalidate cached data so the next getTableData() uses the flattened layout.
-            box.resetDataMap(assemblyName);
-         }
-         else {
-            // No col headers to flatten; no need to restore later.
-            crosstabInfo = null;
-         }
-      }
-
       try {
+         VSAssembly vsAssembly = rvs.getViewsheet().getAssembly(assemblyName);
+
+         if(vsAssembly instanceof CrosstabVSAssembly crosstab) {
+            crosstabInfo = crosstab.getVSCrosstabInfo();
+            originalRowHeaders = crosstabInfo.getDesignRowHeaders();
+            originalColHeaders = crosstabInfo.getDesignColHeaders();
+
+            if(originalColHeaders != null && originalColHeaders.length > 0) {
+               // Merge col-dimensions into row-dimensions so the tablelens is fully flat.
+               DataRef[] safeRowHeaders = originalRowHeaders != null ? originalRowHeaders : new DataRef[0];
+               DataRef[] flatRows = new DataRef[safeRowHeaders.length + originalColHeaders.length];
+               System.arraycopy(safeRowHeaders, 0, flatRows, 0, safeRowHeaders.length);
+               System.arraycopy(originalColHeaders, 0, flatRows, safeRowHeaders.length, originalColHeaders.length);
+               crosstabInfo.setDesignRowHeaders(flatRows);
+               crosstabInfo.setDesignColHeaders(new DataRef[0]);
+               // Invalidate cached data so the next getTableData() uses the flattened layout.
+               box.resetDataMap(assemblyName);
+            }
+            else {
+               // No col headers to flatten; no need to restore later.
+               crosstabInfo = null;
+            }
+         }
+
          TableLens table = box.getTableData(assemblyName);
 
          if(table == null) {
@@ -288,7 +303,7 @@ public class CreateVsService {
          List<Map<String, Object>> rows = new ArrayList<>();
          int r = headerRows;
 
-         while(table.moreRows(r)) {
+         while(table.moreRows(r) && rows.size() < MAX_ROWS) {
             Map<String, Object> row = new LinkedHashMap<>(colCount);
 
             for(int c = 0; c < colCount; c++) {
@@ -302,6 +317,11 @@ public class CreateVsService {
          CreateViewsheetResult result = new CreateViewsheetResult();
          result.setHeaders(headers);
          result.setRows(rows);
+
+         if(table.moreRows(r)) {
+            result.setTruncated(true);
+         }
+
          return result;
       }
       catch(Exception e) {
@@ -390,57 +410,58 @@ public class CreateVsService {
    private CreateViewsheetResult.FlatBinding collectChartFlatBinding(VSChartInfo info) {
       List<DimensionFieldInfo> dimensions = new ArrayList<>();
       List<MeasureFieldInfo> measures = new ArrayList<>();
+      Set<String> seen = new HashSet<>();
 
       // Main binding: x, y, group
       for(ChartRef ref : info.getBindingRefs(false)) {
-         classifyChartRef(ref, dimensions, measures);
+         classifyChartRef(ref, dimensions, measures, seen);
       }
 
       // Aesthetic refs: color, shape, size, text
-      for(AestheticRef aref : new AestheticRef[] {
+      for(AestheticRef aref : new AestheticRef[]{
          info.getColorField(), info.getShapeField(),
          info.getSizeField(), info.getTextField()
       }) {
          if(aref != null) {
-            classifyChartRef(aref.getDataRef(), dimensions, measures);
+            classifyChartRef(aref.getDataRef(), dimensions, measures, seen);
          }
       }
 
       // Path field
       ChartRef pathField = info.getPathField();
       if(pathField != null) {
-         classifyChartRef(pathField, dimensions, measures);
+         classifyChartRef(pathField, dimensions, measures, seen);
       }
 
       // Candle / Stock: high, low, close, open (all measures)
       if(info instanceof CandleVSChartInfo cinfo) {
-         for(ChartRef ref : new ChartRef[] {
+         for(ChartRef ref : new ChartRef[]{
             cinfo.getHighField(), cinfo.getLowField(),
             cinfo.getCloseField(), cinfo.getOpenField()
          }) {
-            classifyChartRef(ref, dimensions, measures);
+            classifyChartRef(ref, dimensions, measures, seen);
          }
       }
 
       // Gantt: start, end, milestone (dimensions acting as date ranges)
       if(info instanceof GanttVSChartInfo ginfo) {
-         for(ChartRef ref : new ChartRef[] {
+         for(ChartRef ref : new ChartRef[]{
             ginfo.getStartField(), ginfo.getEndField(), ginfo.getMilestoneField()
          }) {
-            classifyChartRef(ref, dimensions, measures);
+            classifyChartRef(ref, dimensions, measures, seen);
          }
       }
 
       // Relation (Tree / Network / Circular): source, target + node aesthetics
       if(info instanceof RelationVSChartInfo rinfo) {
-         classifyChartRef(rinfo.getSourceField(), dimensions, measures);
-         classifyChartRef(rinfo.getTargetField(), dimensions, measures);
+         classifyChartRef(rinfo.getSourceField(), dimensions, measures, seen);
+         classifyChartRef(rinfo.getTargetField(), dimensions, measures, seen);
 
-         for(AestheticRef aref : new AestheticRef[] {
+         for(AestheticRef aref : new AestheticRef[]{
             rinfo.getNodeColorField(), rinfo.getNodeSizeField()
          }) {
             if(aref != null) {
-               classifyChartRef(aref.getDataRef(), dimensions, measures);
+               classifyChartRef(aref.getDataRef(), dimensions, measures, seen);
             }
          }
       }
@@ -456,27 +477,34 @@ public class CreateVsService {
     * Classifies a single chart DataRef into either the dimensions or measures list.
     * VSDimensionRef (and subclasses) → DimensionFieldInfo with title from getFullName().
     * VSAggregateRef (and subclasses) → MeasureFieldInfo with title from getFullName().
+    * Fields already present in {@code seen} (keyed by fullName) are skipped to avoid
+    * duplicates when a field appears in multiple binding slots (e.g. axis and color aesthetic).
     */
    private void classifyChartRef(DataRef ref,
-                                  List<DimensionFieldInfo> dimensions,
-                                  List<MeasureFieldInfo> measures)
+                                 List<DimensionFieldInfo> dimensions,
+                                 List<MeasureFieldInfo> measures,
+                                 Set<String> seen)
    {
       if(ref == null) {
          return;
       }
 
       if(ref instanceof VSDimensionRef dim) {
-         DimensionFieldInfo info = new DimensionFieldInfo();
-         info.setField(dim.getGroupColumnValue());
-         info.setFullName(dim.getFullName());
-         dimensions.add(info);
+         if(seen.add(dim.getFullName())) {
+            DimensionFieldInfo info = new DimensionFieldInfo();
+            info.setField(dim.getGroupColumnValue());
+            info.setFullName(dim.getFullName());
+            dimensions.add(info);
+         }
       }
       else if(ref instanceof VSAggregateRef agg) {
-         MeasureFieldInfo info = new MeasureFieldInfo();
-         info.setField(agg.getColumnValue());
-         info.setFullName(agg.getFullName());
-         info.setAggregateFormula(agg.getFormulaValue());
-         measures.add(info);
+         if(seen.add(agg.getFullName())) {
+            MeasureFieldInfo info = new MeasureFieldInfo();
+            info.setField(agg.getColumnValue());
+            info.setFullName(agg.getFullName());
+            info.setAggregateFormula(agg.getFormulaValue());
+            measures.add(info);
+         }
       }
    }
 
@@ -487,31 +515,37 @@ public class CreateVsService {
       List<DimensionFieldInfo> dimensions = new ArrayList<>();
       List<MeasureFieldInfo> measures = new ArrayList<>();
 
-      for(DataRef ref : cinfo.getDesignRowHeaders()) {
-         if(ref instanceof VSDimensionRef dim) {
-            DimensionFieldInfo info = new DimensionFieldInfo();
-            info.setField(dim.getGroupColumnValue());
-            info.setFullName(dim.getFullName());
-            dimensions.add(info);
+      if(cinfo.getDesignRowHeaders() != null) {
+         for(DataRef ref : cinfo.getDesignRowHeaders()) {
+            if(ref instanceof VSDimensionRef dim) {
+               DimensionFieldInfo info = new DimensionFieldInfo();
+               info.setField(dim.getGroupColumnValue());
+               info.setFullName(dim.getFullName());
+               dimensions.add(info);
+            }
          }
       }
 
-      for(DataRef ref : cinfo.getDesignColHeaders()) {
-         if(ref instanceof VSDimensionRef dim) {
-            DimensionFieldInfo info = new DimensionFieldInfo();
-            info.setField(dim.getGroupColumnValue());
-            info.setFullName(dim.getFullName());
-            dimensions.add(info);
+      if(cinfo.getDesignColHeaders() != null) {
+         for(DataRef ref : cinfo.getDesignColHeaders()) {
+            if(ref instanceof VSDimensionRef dim) {
+               DimensionFieldInfo info = new DimensionFieldInfo();
+               info.setField(dim.getGroupColumnValue());
+               info.setFullName(dim.getFullName());
+               dimensions.add(info);
+            }
          }
       }
 
-      for(DataRef ref : cinfo.getDesignAggregates()) {
-         if(ref instanceof VSAggregateRef agg) {
-            MeasureFieldInfo info = new MeasureFieldInfo();
-            info.setField(agg.getColumnValue());
-            info.setFullName(agg.getFullName());
-            info.setAggregateFormula(agg.getFormulaValue());
-            measures.add(info);
+      if(cinfo.getDesignAggregates() != null) {
+         for(DataRef ref : cinfo.getDesignAggregates()) {
+            if(ref instanceof VSAggregateRef agg) {
+               MeasureFieldInfo info = new MeasureFieldInfo();
+               info.setField(agg.getColumnValue());
+               info.setFullName(agg.getFullName());
+               info.setAggregateFormula(agg.getFormulaValue());
+               measures.add(info);
+            }
          }
       }
 
@@ -547,8 +581,6 @@ public class CreateVsService {
 
       return new CreateViewsheetResult.FlatBinding(List.of(), List.of(info));
    }
-
-   private static final Logger LOG = LoggerFactory.getLogger(CreateVsService.class);
 
    private VSAssembly createAssembly(Viewsheet vs, String type, String name,
                                      VisualizationConfig config, String tname)
@@ -1192,4 +1224,7 @@ public class CreateVsService {
 
    private final ViewsheetService viewsheetService;
    private final AssetRepository engine;
+
+   private static final Logger LOG = LoggerFactory.getLogger(CreateVsService.class);
+   static final int MAX_ROWS = 10_000;
 }
