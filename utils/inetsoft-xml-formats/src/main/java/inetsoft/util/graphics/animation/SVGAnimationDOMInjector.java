@@ -1688,7 +1688,7 @@ public class SVGAnimationDOMInjector {
 
       // Within each column, rank cells top-to-bottom by y-top (rounded to nearest pixel).
       // Build a map from colX → sorted list of y-top values so rowIdx is stable.
-      Map<Double, List<Long>> colYMap = new java.util.LinkedHashMap<>();
+      Map<Double, List<Long>> colYMap = new HashMap<>();
       for(int i = 0; i < cells.size(); i++) {
          double cx = xCenters.get(i);
          long yTop = Math.round(bounds.get(i)[1]);
@@ -1867,6 +1867,12 @@ public class SVGAnimationDOMInjector {
     *
     * <p>Groups are sorted by the {@code data-x} attribute (screen X center in pixels), then
     * assigned delays spread evenly across 0–1.2 s.  Each item fades in over 0.6 s.
+    *
+    * <p>The animation style is applied directly to the annotation group element (not via
+    * {@link #applyAnimStyleToChildren}) because {@code CandlePainter} and {@code BoxPainter}
+    * emit all shape paths as direct children of the annotation group with no intermediate
+    * wrapper {@code <g>} — there is no inner child to target.  CSS {@code !important} hover
+    * rules correctly override CSS animations, so hover dimming still works.
     */
    private static void injectXPositionFadeAnimation(Element svgRoot, Document doc,
                                                      String annotClass, String keyframeName)
@@ -1947,6 +1953,12 @@ public class SVGAnimationDOMInjector {
       // Assign sequential data-row to each group so the directive can map canvas hover events
       // (row = series index, col = axis index) to the correct polygon.  PointVO emits
       // data-row = series index in the same back-to-front order, so group[i] → data-row=i.
+      //
+      // Known limitation: for facet radar charts (multiple panels in one SVG), groups from all
+      // panels are collected and numbered globally (0, 1, …, n-1 across panels).  The per-series
+      // CSS hover rules keyed on these data-row values therefore span panels, so hovering a series
+      // in one panel also dims the same-numbered series in sibling panels.  Single-panel radar
+      // charts (the common case) are unaffected.
       for(int i = 0; i < groups.size(); i++) {
          groups.get(i).setAttribute("data-row", String.valueOf(i));
       }
@@ -2171,6 +2183,10 @@ public class SVGAnimationDOMInjector {
     * <p>The {@code :has()} relational pseudo-class requires Chrome 105+, Firefox 121+,
     * Safari 15.4+.  On older browsers the dimming rule is silently ignored (no error);
     * hover highlighting simply has no visual effect.  StyleBI targets modern browsers only.
+    *
+    * <p>All chart types share a uniform {@code transition: opacity .2s ease} — intentionally
+    * updated from the original {@code .15s} for bar and point charts when new types were added,
+    * to give every chart a consistent hover fade feel.
     */
    private static void appendHoverCSS(Element svgRoot, Document doc) {
       appendStyle(svgRoot, doc,

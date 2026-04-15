@@ -2428,14 +2428,17 @@ public class VGraphPair {
       else if(hasLineVO(graph)) {
          g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_LINE);
       }
-      else if(hasPointVO(graph)) {
-         g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_POINT);
-      }
+      // Candle and box are checked before point: a candlestick/stock chart with a separate
+      // point-marker overlay series contains both SchemaVO and PointVO.  Checking schema first
+      // ensures the correct animation type is selected; point-only charts reach hasPointVO.
       else if(hasCandleSchemaVO(graph)) {
          g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_CANDLE);
       }
       else if(hasBoxSchemaVO(graph)) {
          g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_BOX);
+      }
+      else if(hasPointVO(graph)) {
+         g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_POINT);
       }
    }
 
