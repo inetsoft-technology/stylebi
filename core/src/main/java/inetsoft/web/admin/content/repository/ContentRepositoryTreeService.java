@@ -2005,7 +2005,7 @@ public class ContentRepositoryTreeService {
       };
    }
 
-   private boolean checkUserPermission(IdentityID user, Principal principal) {
+   public boolean checkUserPermission(IdentityID user, Principal principal) {
       if(principal == null) {
          return false;
       }
