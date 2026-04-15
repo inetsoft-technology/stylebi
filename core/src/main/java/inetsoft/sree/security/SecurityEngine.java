@@ -107,7 +107,6 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
 
          if(!authcChain.getProviders().isEmpty() && !authzChain.getProviders().isEmpty()) {
             provider = CompositeSecurityProvider.create(authcChain, authzChain);
-            migrateSiteAdminToChain(authcChain);
          }
          else {
             authcChain.tearDown();
@@ -204,9 +203,8 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
 
    /**
     * Ensures the virtual site admin ({@code admin^<defaultOrg>}) exists in the primary
-    * authentication provider of the given chain. This is a no-op after the first run because
-    * {@code getUser} returns non-null once the user has been stored. It handles legacy
-    * installations and chains created before this migration was added.
+    * authentication provider of the given chain so that admin login works when a custom
+    * security provider chain is active.
     */
    private void migrateSiteAdminToChain(AuthenticationChain authcChain) {
       if(vprovider == null || authcChain.getProviders().isEmpty()) {
