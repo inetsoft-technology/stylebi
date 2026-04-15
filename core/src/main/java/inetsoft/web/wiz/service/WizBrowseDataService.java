@@ -52,18 +52,21 @@ public class WizBrowseDataService {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
 
       if(rvs == null) {
-         return null;
+         throw new IllegalArgumentException("No viewsheet found for runtimeId=" + runtimeId);
       }
 
       RuntimeWorksheet rws = rvs.getRuntimeWorksheet();
 
       if(rws == null) {
-         LOG.warn("No RuntimeWorksheet found for VS runtimeId={}", runtimeId);
-         return null;
+         throw new IllegalStateException("No RuntimeWorksheet found for VS runtimeId=" + runtimeId);
       }
 
       BrowseDataController browseDataController = new BrowseDataController();
       DataRef dataRef = dataRefModel.createDataRef();
+
+      if(dataRef == null) {
+         throw new IllegalArgumentException("DataRefModel produced a null DataRef");
+      }
 
       if(!(dataRef instanceof ColumnRef)) {
          dataRef = new ColumnRef(dataRef);
