@@ -408,7 +408,7 @@ public abstract class AbstractLayout implements AssetObject {
     */
    private void applyTab(TabVSAssembly vsassembly, Point npos, Dimension nsize) {
       TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) vsassembly.getVSAssemblyInfo();
-      boolean bottomTabs = tabInfo.getBottomTabsValue();
+      boolean bottomTabs = tabInfo.isBottomTabs();
       Dimension tabSize = getSize(vsassembly);
       Dimension osize = getComponentSize(vsassembly);
       int contentHeight = nsize.height - tabSize.height;

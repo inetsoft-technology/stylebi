@@ -146,6 +146,46 @@ class VSLayoutServiceTest {
    }
 
    @Test
+   void scriptSetBottomTabsPositionedCorrectly() {
+      Viewsheet vs = new Viewsheet();
+
+      // tab assembly with bottomTabs set via script (rValue only, dValue=false)
+      TabVSAssembly tab = new TabVSAssembly(vs, "Tab1");
+      TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getInfo();
+      tabInfo.setBottomTabs(true);
+
+      TextVSAssembly child = new TextVSAssembly(vs, "Text1");
+      vs.addAssembly(child);
+      vs.addAssembly(tab);
+      tab.setAssemblies(new String[]{"Text1"});
+
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      int childHeight = 80;
+      VSObjectModel tabModel = mockObjectModel();
+      VSObjectModel childModel = mockObjectModel();
+      childModel.getObjectFormat().setPositions(0, 0, 200, childHeight);
+
+      when(objectModelService.createModel(any(TabVSAssembly.class), eq(rvs))).thenReturn(tabModel);
+      when(objectModelService.createModel(any(TextVSAssembly.class), eq(rvs)))
+         .thenReturn(childModel);
+
+      int layoutX = 100;
+      int layoutY = 300;
+      VSAssemblyLayout layout = new VSAssemblyLayout(
+         "Tab1", new Point(layoutX, layoutY), new Dimension(400, 30));
+
+      VSLayoutObjectModel result = service.createObjectModel(rvs, layout, objectModelService);
+
+      assertEquals(layoutY, result.top());
+      assertEquals(layoutX, result.left());
+
+      // child positioned at the visual top, same as dValue-set bottom tabs
+      assertEquals(layoutX, (int) childModel.getObjectFormat().getLeft());
+      assertEquals(layoutY, (int) childModel.getObjectFormat().getTop());
+   }
+
+   @Test
    void nonBottomTabsTopNotShifted() {
       Viewsheet vs = new Viewsheet();
 

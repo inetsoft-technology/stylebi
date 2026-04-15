@@ -421,11 +421,19 @@ public class VSLayoutService {
 
       VSObjectModel objectModel = null;
       boolean isBottomTabs = assembly instanceof TabVSAssembly &&
-         ((TabVSAssemblyInfo) assembly.getInfo()).getBottomTabsValue();
+
+         ((TabVSAssemblyInfo) assembly.getInfo()).isBottomTabs();
 
       if(assembly != null) {
          assembly.getInfo().setVisible(true);
          rvs.getViewsheet().getLayoutInfo().getPrintLayout();
+
+         // sync dValue on the clone so VSTabModel (which reads dValue in
+         // composer mode) is consistent with the positioning logic
+         if(isBottomTabs) {
+            ((TabVSAssemblyInfo) assembly.getInfo()).setBottomTabsValue(true);
+         }
+
          objectModel = objectModelService.createModel(assembly, rvs);
 
          if(assembly instanceof TabVSAssembly ||
