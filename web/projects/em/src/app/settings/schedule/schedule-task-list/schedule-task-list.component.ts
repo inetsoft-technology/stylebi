@@ -49,6 +49,7 @@ import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
 import { ActivatedRoute, ParamMap, Router } from "@angular/router";
 import { Observable, of as observableOf, Subject, throwError, timer } from "rxjs";
 import { catchError, finalize, map, takeUntil, tap } from "rxjs/operators";
+import { AuthorizationService } from "../../../authorization/authorization.service";
 import { GuiTool } from "../../../../../../portal/src/app/common/util/gui-tool";
 import { DownloadService } from "../../../../../../shared/download/download.service";
 import { ScheduleTaskChange } from "../../../../../../shared/schedule/model/schedule-task-change";
@@ -143,13 +144,14 @@ export enum DistributionType {
    ]
 })
 export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestroy {
-   @ViewChild("chartDiv", { static: true }) chartDiv: ElementRef;
+   @ViewChild("chartDiv", { static: false }) chartDiv: ElementRef;
    @ViewChild("redistributeParams") redistributeParams: TemplateRef<any>;
    @ViewChild(MatPaginator, { static: true }) paginator: MatPaginator;
    @ViewChild(MatSort, { static: true }) sort: MatSort;
    @ViewChild("folderTree") folderTree: ScheduleFolderTreeComponent;
 
    loading: boolean = true;
+   distributionVisible = false;
    tasks: ScheduleTaskModel[] = [];
    expandedElement: ScheduleTaskModel | null;
    selectedNodes: RepositoryFlatNode[] = [];
@@ -210,7 +212,8 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
                private bottomSheet: MatBottomSheet, fb: UntypedFormBuilder,
                defaultErrorMatcher: ErrorStateMatcher,
                private downloadService: DownloadService,
-               private dragService: ScheduleTaskDragService)
+               private dragService: ScheduleTaskDragService,
+               private authzService: AuthorizationService)
    {
       this.redistributeForm = fb.group(
          {
@@ -239,6 +242,14 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
 
    ngOnInit() {
       this.pageTitle.title = "_#(js:Schedule Tasks)";
+
+      this.authzService.getPermissions("settings/schedule").subscribe(p => {
+         this.distributionVisible = !!p.permissions["distribution"];
+
+         if(this.distributionVisible) {
+            setTimeout(() => this.loadDistributionChart());
+         }
+      });
 
       this.http.get(CHANGE_SHOW_TYPE_URI).subscribe(
          (showTasksAsList) => {
@@ -269,7 +280,6 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    }
 
    ngAfterViewInit(): void {
-      this.loadDistributionChart();
    }
 
    ngOnDestroy(): void {
@@ -880,6 +890,10 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    }
 
    private loadDistributionChart(): void {
+      if(!this.distributionVisible || !this.chartDiv) {
+         return;
+      }
+
       this.loadingChart = true;
       switch(this.distributionType) {
       case DistributionType.WEEK:
