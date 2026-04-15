@@ -73,14 +73,7 @@ public class WizBrowseDataService {
       browseDataController.setColumn((ColumnRef) dataRef);
       browseDataController.setName(assemblyName);
 
-      try {
-         return browseDataController.process(rws.getAssetQuerySandbox());
-      }
-      catch(Exception ex) {
-         LOG.warn("Failed to browse data for assembly={}, column={}", assemblyName,
-                  dataRefModel.getName(), ex);
-         return null;
-      }
+      return browseDataController.process(rws.getAssetQuerySandbox());
    }
 
    private final ViewsheetService viewsheetService;
