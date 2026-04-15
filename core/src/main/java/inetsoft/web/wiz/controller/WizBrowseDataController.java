@@ -28,7 +28,6 @@ import java.security.Principal;
 @RestController
 @RequestMapping("/api/wiz")
 public class WizBrowseDataController {
-
    public WizBrowseDataController(WizBrowseDataService wizBrowseDataService) {
       this.wizBrowseDataService = wizBrowseDataService;
    }
