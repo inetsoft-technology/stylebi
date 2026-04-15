@@ -91,8 +91,8 @@ describe("TaskActionPaneComponent — set action(null): default type", () => {
 
    // 🔁 Regression-sensitive: The dropdown only offers ViewsheetAction / BackupAction / BatchAction.
    // Defaulting to "RepletAction" leaves the select showing nothing, making the form appear broken.
-   // Issue #74498 
-   it.failing("should default selectedActionType to a type offered in the dropdown when action is null", async () => {
+   // Issue #74498(fixed)
+   it("should default selectedActionType to a type offered in the dropdown when action is null", async () => {
       const { comp, fixture } = await renderComponent();
 
       // Assign null via the public setter

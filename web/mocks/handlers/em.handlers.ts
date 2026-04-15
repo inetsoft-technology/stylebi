@@ -50,8 +50,28 @@ export const emHandlers = [
       return HttpResponse.json({ users: [] });
    }),
 
+   // Identity theme list — returned on every EditIdentityView init (ngOnInit)
+   http.get("*/api/em/security/themes", () => {
+      return HttpResponse.json({ themes: [] });
+   }),
+
+   // Identity names for the add-member dropdown — returned on every EditIdentityView init()
+   http.get("*/api/em/security/providers/:provider/identities/:index", () => {
+      return HttpResponse.json({ identityNames: [] });
+   }),
+
    // Schedule task list
    http.get("*/api/em/schedule/tasks", () => {
       return HttpResponse.json({ tasks: [] });
+   }),
+
+   // Navbar admin-role flags — used by ResourcePermissionComponent.ngOnInit()
+   // Defaults mirror the class-field defaults (both true) so tests that don't
+   // override these handlers see behaviour consistent with the component's own defaults.
+   http.get("*/api/em/navbar/isOrgAdminOnly", () => {
+      return HttpResponse.json(true);
+   }),
+   http.get("*/api/em/navbar/isSiteAdmin", () => {
+      return HttpResponse.json(true);
    }),
 ];
