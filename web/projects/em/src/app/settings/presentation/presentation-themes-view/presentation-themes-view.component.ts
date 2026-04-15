@@ -63,6 +63,7 @@ export class PresentationThemesViewComponent implements OnInit {
    //For small device use only
    editing = false;
    isSiteAdmin = false;
+   isMultiTenant = false;
    orgId: string = null;
    ids: string[] = [];
 
@@ -100,6 +101,11 @@ export class PresentationThemesViewComponent implements OnInit {
          .subscribe((model: CommonKVModel<string, boolean>) => {
             this.isSiteAdmin = model.value;
             this.orgId = model.key;
+         });
+
+      this.http.get<boolean>("../api/em/navbar/isMultiTenant")
+         .subscribe(isMultiTenant => {
+            this.isMultiTenant = isMultiTenant;
          });
    }
 

@@ -50,6 +50,7 @@ export class ThemeListViewComponent implements OnInit, OnDestroy {
 
    @Input() selectedTheme: CustomThemeModel;
    @Input() isSiteAdmin = false;
+   @Input() isMultiTenant = false;
    @Input() orgId: string;
    @Output() themeSelected = new EventEmitter<string>();
    @Output() themeDeleted = new EventEmitter<string>();
@@ -98,7 +99,8 @@ export class ThemeListViewComponent implements OnInit, OnDestroy {
    }
 
    cannotDelete(): boolean {
-      return !this.selectedTheme?.id || this.selectedTheme.global && !this.isSiteAdmin;
+      return !this.selectedTheme?.id || this.selectedTheme.global && !this.isSiteAdmin &&
+         this.isMultiTenant;
    }
 
    isDefaultTheme(theme: CustomThemeModel): boolean {

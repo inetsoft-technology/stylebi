@@ -90,7 +90,7 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
       this._isSiteAdmin = isSiteAdmin;
 
       if(!!this.form) {
-         if(this.theme.global && !isSiteAdmin) {
+         if(this.theme.global && !isSiteAdmin && this.isMultiTenant) {
             this.form.disable();
          }
          else {
@@ -127,7 +127,7 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
          jar: [[]]
       });
 
-      if(!this.isSiteAdmin && this.theme?.global) {
+      if(!this.isSiteAdmin && this.theme?.global && this.isMultiTenant) {
          this.form.disable();
       }
       else {

@@ -62,7 +62,7 @@ export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
       this.portalCss = value?.portalCss;
       this.emCss = value?.emCss;
 
-      if(!this.isSiteAdmin && this.theme.global) {
+      if(!this.isSiteAdmin && this.theme.global && this.isMultiTenant) {
          this.portalForm.disable({ emitEvent: false });
          this.emForm.disable({ emitEvent: false });
          this.disabled = true;
@@ -75,6 +75,7 @@ export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
    }
 
    @Input() isSiteAdmin = false;
+   @Input() isMultiTenant = false;
    @Output() themeCssChanged = new EventEmitter<ThemeCssEditorModel>();
    @ViewChild("portalSearch", {static: false}) portalSearchInput: ElementRef;
    @ViewChild("emSearch", {static: false}) emSearchInput: ElementRef;
@@ -325,7 +326,7 @@ export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
             .subscribe(() => this.emFormValueChanged());
       }, 200);
 
-      if(!this.isSiteAdmin && this.theme.global) {
+      if(!this.isSiteAdmin && this.theme.global && this.isMultiTenant) {
          this.portalForm.disable();
          this.emForm.disable();
          this.disabled = true;
