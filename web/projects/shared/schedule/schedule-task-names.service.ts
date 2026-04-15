@@ -17,12 +17,11 @@
  */
 
 import { HttpClient } from "@angular/common/http";
-import { Inject, Injectable, InjectionToken, OnDestroy, Optional } from "@angular/core";
+import { Inject, Injectable, OnDestroy, Optional } from "@angular/core";
 import { BehaviorSubject, Observable } from "rxjs";
 import { NameLabelTuple } from "../util/name-label-tuple";
 import { ScheduleTaskNamesModel } from "./model/schedule-task-names-model";
-
-export const PORTAL = new InjectionToken<boolean>("PORTAL");
+import { PORTAL } from "./schedule-users.service";
 
 @Injectable()
 export class ScheduleTaskNamesService implements OnDestroy {
