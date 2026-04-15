@@ -795,10 +795,11 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
          return false;
       }
 
-      long startMax = Math.max(range.getStart().getTime(), another.getStart().getTime());
-      long endMin = Math.min(range.getEnd().getTime(), another.getEnd().getTime());
-
-      return startMax <= endMin;
+      return (range.getStart().before(another.getStart()) ||
+         range.getStart().equals(another.getStart())) && (range.getEnd().after(another.getStart()) ||
+         range.getEnd().equals(another.getStart())) || (range.getStart().before(another.getEnd()) ||
+         range.getStart().equals(another.getEnd())) && (range.getEnd().after(another.getEnd()) ||
+         range.getEnd().equals(another.getEnd()));
    }
 
    /**
