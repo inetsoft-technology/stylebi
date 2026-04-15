@@ -2385,10 +2385,36 @@ public class VGraphPair {
          return;
       }
 
+      // Map charts (GeoCoord) do not support animation — the geographic lines and polygons
+      // are not chart series in the usual sense and the line-draw animation produces
+      // unwanted artefacts on map overlays.
+      if(graph.getCoordinate() instanceof GeoCoord) {
+         return;
+      }
+
       // Pie/donut charts use BarVO on a PolarCoord; 3D pie uses Pie3DVO.
       // Check for pie first — polar BarVO must not receive bar grow/fade animation.
+      // Radar is checked immediately after pie: both use PolarCoord, but radar wraps
+      // ParallelCoord while pie wraps RectCoord, so the hasPieVO guard above is sufficient
+      // to distinguish them. Radar must be checked before hasLineVO because radar LineVOs
+      // would otherwise trigger the line animation.
       if(hasPieVO(graph)) {
          g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_PIE);
+      }
+      else if(hasRadarCoord(graph)) {
+         g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_RADAR);
+      }
+      else if(hasSunburstVO(graph)) {
+         g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_SUNBURST);
+      }
+      else if(hasIcicleVO(graph)) {
+         g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_ICICLE);
+      }
+      else if(hasTreemapVO(graph)) {
+         g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_TREEMAP);
+      }
+      else if(hasMekkoVO(graph)) {
+         g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_MEKKO);
       }
       else if(hasBarVO(graph)) {
          String hint = SVGSupport.ANIMATION_GROW;
@@ -2405,6 +2431,82 @@ public class VGraphPair {
       else if(hasPointVO(graph)) {
          g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_POINT);
       }
+      else if(hasCandleSchemaVO(graph)) {
+         g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_CANDLE);
+      }
+      else if(hasBoxSchemaVO(graph)) {
+         g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_BOX);
+      }
+   }
+
+   private static boolean hasTreemapVO(VGraph graph) {
+      for(int i = 0; i < graph.getVisualCount(); i++) {
+         Visualizable v = graph.getVisual(i);
+
+         if(v instanceof TreemapVO) {
+            ElementGeometry geom = (ElementGeometry) ((TreemapVO) v).getGeometry();
+
+            if(geom.getElement() instanceof TreemapElement te &&
+               te.getMapType() == TreemapElement.Type.TREEMAP)
+            {
+               return true;
+            }
+         }
+
+         if(v instanceof GraphVO && hasTreemapVO(((GraphVO) v).getVGraph())) return true;
+      }
+
+      return false;
+   }
+
+   private static boolean hasSunburstVO(VGraph graph) {
+      for(int i = 0; i < graph.getVisualCount(); i++) {
+         Visualizable v = graph.getVisual(i);
+
+         if(v instanceof TreemapVO) {
+            ElementGeometry geom = (ElementGeometry) ((TreemapVO) v).getGeometry();
+
+            if(geom.getElement() instanceof TreemapElement te &&
+               te.getMapType() == TreemapElement.Type.SUNBURST)
+            {
+               return true;
+            }
+         }
+
+         if(v instanceof GraphVO && hasSunburstVO(((GraphVO) v).getVGraph())) return true;
+      }
+
+      return false;
+   }
+
+   private static boolean hasIcicleVO(VGraph graph) {
+      for(int i = 0; i < graph.getVisualCount(); i++) {
+         Visualizable v = graph.getVisual(i);
+
+         if(v instanceof TreemapVO) {
+            ElementGeometry geom = (ElementGeometry) ((TreemapVO) v).getGeometry();
+
+            if(geom.getElement() instanceof TreemapElement te &&
+               te.getMapType() == TreemapElement.Type.ICICLE)
+            {
+               return true;
+            }
+         }
+
+         if(v instanceof GraphVO && hasIcicleVO(((GraphVO) v).getVGraph())) return true;
+      }
+
+      return false;
+   }
+
+   private static boolean hasMekkoVO(VGraph graph) {
+      for(int i = 0; i < graph.getVisualCount(); i++) {
+         Visualizable v = graph.getVisual(i);
+         if(v instanceof MekkoVO) return true;
+         if(v instanceof GraphVO && hasMekkoVO(((GraphVO) v).getVGraph())) return true;
+      }
+
+      return false;
    }
 
    private static boolean hasPieVO(VGraph graph) {
@@ -2425,6 +2527,31 @@ public class VGraphPair {
             if(hasPieVO(((GraphVO) v).getVGraph())) {
                return true;
             }
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Returns {@code true} if the graph uses a radar (spider) coordinate system.
+    * Radar charts use a {@link PolarCoord} wrapping a {@link ParallelCoord} or
+    * {@link OneVarParallelCoord}, which distinguishes them from pie charts
+    * (PolarCoord wrapping RectCoord).
+    */
+   private static boolean hasRadarCoord(VGraph graph) {
+      Coordinate coord = graph.getCoordinate();
+
+      if(coord instanceof PolarCoord) {
+         Coordinate inner = ((PolarCoord) coord).getCoordinate();
+         return inner instanceof ParallelCoord || inner instanceof OneVarParallelCoord;
+      }
+
+      // Facet radar: recurse into nested VGraphs.
+      for(int i = 0; i < graph.getVisualCount(); i++) {
+         Visualizable v = graph.getVisual(i);
+         if(v instanceof GraphVO && hasRadarCoord(((GraphVO) v).getVGraph())) {
+            return true;
          }
       }
 
@@ -2477,6 +2604,24 @@ public class VGraphPair {
          Visualizable v = graph.getVisual(i);
          if(v instanceof PointVO) return true;
          if(v instanceof GraphVO && hasPointVO(((GraphVO) v).getVGraph())) return true;
+      }
+      return false;
+   }
+
+   private static boolean hasCandleSchemaVO(VGraph graph) {
+      for(int i = 0; i < graph.getVisualCount(); i++) {
+         Visualizable v = graph.getVisual(i);
+         if(v instanceof SchemaVO && !((SchemaVO) v).isBoxPlot()) return true;
+         if(v instanceof GraphVO && hasCandleSchemaVO(((GraphVO) v).getVGraph())) return true;
+      }
+      return false;
+   }
+
+   private static boolean hasBoxSchemaVO(VGraph graph) {
+      for(int i = 0; i < graph.getVisualCount(); i++) {
+         Visualizable v = graph.getVisual(i);
+         if(v instanceof SchemaVO && ((SchemaVO) v).isBoxPlot()) return true;
+         if(v instanceof GraphVO && hasBoxSchemaVO(((GraphVO) v).getVGraph())) return true;
       }
       return false;
    }

@@ -52,6 +52,15 @@ public interface SVGSupport {
    /** Point/scatter chart markers fade in, staggered largest-first. */
    String ANIMATION_POINT = "point";
 
+   /** Candlestick chart candles fade in, staggered left-to-right (chronological order). */
+   String ANIMATION_CANDLE = "candle";
+
+   /** Box-plot boxes fade in, staggered left-to-right. */
+   String ANIMATION_BOX = "box";
+
+   /** Radar/spider chart polygons spring out from the chart center, staggered by series. */
+   String ANIMATION_RADAR = "radar";
+
    // Sub-type flags appended to the base hint with ":" separators.
    // The injector parses these to handle each chart variant correctly.
 
@@ -79,6 +88,25 @@ public interface SVGSupport {
    String ANNOTATION_LABEL      = "inetsoft-bar-label";
    /** CSS class for point/scatter annotation groups ({@code <g class="inetsoft-point" ...>}). */
    String ANNOTATION_POINT      = "inetsoft-point";
+   /** CSS class for candlestick annotation groups ({@code <g class="inetsoft-candle" ...>}). */
+   String ANNOTATION_CANDLE     = "inetsoft-candle";
+   /** CSS class for box-plot annotation groups ({@code <g class="inetsoft-box" ...>}). */
+   String ANNOTATION_BOX        = "inetsoft-box";
+   /** CSS class for radar/spider chart annotation groups ({@code <g class="inetsoft-radar" ...>}). */
+   String ANNOTATION_RADAR      = "inetsoft-radar";
+   /** CSS class for treemap/sunburst/icicle annotation groups ({@code <g class="inetsoft-treemap" ...>}). */
+   String ANNOTATION_TREEMAP    = "inetsoft-treemap";
+   /** CSS class for marimekko chart annotation groups ({@code <g class="inetsoft-mekko" ...>}). */
+   String ANNOTATION_MEKKO      = "inetsoft-mekko";
+
+   /** Animation hint for rectangular treemap charts. */
+   String ANIMATION_TREEMAP  = "treemap";
+   /** Animation hint for sunburst charts. */
+   String ANIMATION_SUNBURST = "sunburst";
+   /** Animation hint for icicle charts. */
+   String ANIMATION_ICICLE   = "icicle";
+   /** Animation hint for marimekko charts. */
+   String ANIMATION_MEKKO    = "mekko";
 
    /** {@code data-col} — bar stagger column index (same value for all segments in one column). */
    String ATTR_COL    = "col";
@@ -98,6 +126,10 @@ public interface SVGSupport {
    String ATTR_ROW    = "row";
    /** {@code data-size} — visual radius in pixels, used by the animation injector to sort points. */
    String ATTR_SIZE   = "size";
+   /** {@code data-x} — screen X center in pixels, used to sort schema VOs left-to-right. */
+   String ATTR_X      = "x";
+   /** {@code data-level} — nesting depth from {@code TreemapGeometry.getLevel()}; leaf=0, root=highest. */
+   String ATTR_LEVEL  = "level";
 
    /**
     * Redirect all subsequent SVG drawing into a new {@code <g class="cssClass" data-*="...">}
