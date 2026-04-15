@@ -1702,7 +1702,9 @@ public class SVGAnimationDOMInjector {
          java.util.Collections.sort(ys);
          Map<Long, Integer> rowMap = new HashMap<>();
          for(int k = 0; k < ys.size(); k++) {
-            rowMap.put(ys.get(k), k);
+            // putIfAbsent: when two cells in the same column share a sub-pixel-rounded y-top,
+            // keep the first (lowest) row index rather than overwriting with a higher one.
+            rowMap.putIfAbsent(ys.get(k), k);
          }
          rowIndexMap.put(e.getKey(), rowMap);
       }
@@ -1743,6 +1745,11 @@ public class SVGAnimationDOMInjector {
     *
     * <p>Containment is preferred over bare nearest-centre so that labels sitting inside a cell
     * area are matched to that cell even when another cell's centre is slightly closer.
+    *
+    * <p>Text groups without a {@code transform} attribute return {@code -1} and are skipped.
+    * In practice Batik always emits a {@code transform} on label groups (it encodes the full
+    * SVG-coordinate position there, not in child element attributes), so a missing transform
+    * indicates a non-label group that should be ignored.
     *
     * @return the matched index, or {@code -1} if the text group has no {@code transform} attribute
     */
@@ -2398,6 +2405,11 @@ public class SVGAnimationDOMInjector {
    /**
     * Recursively collect {@code <g>} elements with {@code text-rendering="geometricPrecision"},
     * which are the label groups produced by the chart renderer.  Skips {@code <defs>}.
+    *
+    * <p><b>Batik-specific heuristic:</b> {@code text-rendering="geometricPrecision"} is a
+    * Batik-emitted attribute on every label group; no other SVG element in the output carries
+    * this attribute. If a future SVG renderer change stops emitting this attribute, or starts
+    * emitting it on non-label elements, label animation and hover matching will silently break.
     */
    private static void collectTextGroups(Element el, List<Element> result) {
       if("defs".equals(el.getLocalName())) {
