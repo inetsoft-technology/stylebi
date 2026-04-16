@@ -219,6 +219,10 @@ class VSLayoutServiceTest {
       // rValue=false overrides dValue=true, so top tabs behavior
       assertEquals(layoutY, result.top(),
          "model top should not be shifted for script-overridden non-bottom tabs");
+
+      // children should not be repositioned for non-bottom-tabs
+      assertEquals(0, (int) childModel.getObjectFormat().getTop(),
+         "child top should not be changed for non-bottom-tabs");
    }
 
    @Test
