@@ -261,11 +261,7 @@ class EmailInfo implements Cloneable, Serializable, HttpXMLSerializable {
          }
       }
 
-      String message = getMessage();
-
-      if(message != null) {
-         message = isEncoding() ? message : Tool.escape(message);
-         writer.print(" message=\"" + byteEncode(message) + "\"");
+      if(messageHtml || getMessage() != null) {
          writer.print(" messageHtml=\"" + Boolean.toString(messageHtml) + "\"");
       }
 
@@ -295,6 +291,12 @@ class EmailInfo implements Cloneable, Serializable, HttpXMLSerializable {
       }
 
       writer.println(">");
+
+      String message = getMessage();
+
+      if(message != null) {
+         writer.println("<message><![CDATA[" + message.replace("]]>", "]]]]><![CDATA[>") + "]]></message>");
+      }
 
       if(query != null) {
          query.writeXML(writer);
@@ -342,8 +344,16 @@ class EmailInfo implements Cloneable, Serializable, HttpXMLSerializable {
          password = byteDecode(Tool.decryptPassword(password));
       }
 
-      message = tag.getAttribute("message");
-      message = byteDecode(message);
+      Element messageNode = Tool.getChildNodeByTagName(tag, "message");
+
+      if(messageNode != null) {
+         message = Tool.getValue(messageNode);
+      }
+      else {
+         // legacy: message was stored as an XML attribute before being moved to a child element
+         message = tag.getAttribute("message");
+         message = byteDecode(message);
+      }
 
       messageHtml = "true".equals(tag.getAttribute("messageHtml"));
 
