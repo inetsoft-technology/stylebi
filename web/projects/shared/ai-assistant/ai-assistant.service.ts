@@ -95,14 +95,15 @@ export class AiAssistantService {
          this.styleBIUrl = url || "";
       });
 
-      this.refreshBranding();
    }
 
-   refreshBranding(): void {
-      this.http.get<{title: string, vendorName: string, logoUrl: string}>(
+   refreshBranding(): Promise<void> {
+      // TODO: replace .toPromise() with firstValueFrom() when upgrading to RxJS 7+
+      return this.http.get<{title: string, vendorName: string, logoUrl: string}>(
          "../api/assistant/get-branding").pipe(
-         catchError(() => of(null))
-      ).subscribe(branding => {
+         catchError(() => of(null)),
+         take(1)
+      ).toPromise().then(branding => {
          if(branding) {
             this.chatAppTitle = branding.title || null;
             this.chatAppVendorName = branding.vendorName || null;
