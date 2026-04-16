@@ -124,7 +124,7 @@ public abstract class Legend extends BoundedContainer {
     */
    @Override
    protected double getMinHeight0() {
-      double minh = GAP + BORDER_PADDING * 2;
+      double minh = GAP;
 
       if(title != null) {
          minh += title.getMinHeight() + getBorderWidth();
@@ -173,7 +173,7 @@ public abstract class Legend extends BoundedContainer {
          minw = Math.max(titlew, itemw);
       }
 
-      return minw + BORDER_PADDING * 2;
+      return minw;
    }
 
    /**
@@ -182,7 +182,7 @@ public abstract class Legend extends BoundedContainer {
     */
    @Override
    protected double getPreferredHeight0() {
-      double pheight = GAP + BORDER_PADDING * 2;
+      double pheight = GAP;
 
       if(title != null) {
          pheight += title.getPreferredHeight();
@@ -209,10 +209,10 @@ public abstract class Legend extends BoundedContainer {
     */
    @Override
    protected double getPreferredWidth0() {
-      double pwidth = BORDER_PADDING * 2;
+      double pwidth = 0;
 
       if(title != null) {
-         pwidth = Math.max(pwidth, title.getWidth(PREFERRED_CHAR_COUNT) + BORDER_PADDING * 2);
+         pwidth = title.getWidth(PREFERRED_CHAR_COUNT);
       }
 
       if(isScalar) {
@@ -220,12 +220,12 @@ public abstract class Legend extends BoundedContainer {
          double maxw = (maxLabel == null) ? 0 : maxLabel.getWidth(PREFERRED_CHAR_COUNT);
          double bandw = band.getPreferredWidth() + Math.max(minw, maxw) / 2;
 
-         pwidth = Math.max(pwidth, Math.max(bandw, minw + maxw) + 2 * GAP + BORDER_PADDING * 2);
+         pwidth = Math.max(pwidth, Math.max(bandw, minw + maxw) + 2 * GAP);
       }
       else {
          for(LegendItem item : items) {
             double iwidth = item.getPreferredWidth();
-            pwidth = Math.max(pwidth, iwidth + BORDER_PADDING * 2);
+            pwidth = Math.max(pwidth, iwidth);
          }
       }
 
@@ -326,13 +326,13 @@ public abstract class Legend extends BoundedContainer {
       Rectangle2D bounds = getBounds();
       Rectangle2D tbounds = getTitleBounds();
       double lw = getBorderWidth();
-      double x = bounds.getX() + lw + BORDER_PADDING;
-      double w = bounds.getWidth() - lw * 2 - BORDER_PADDING * 2;
-      double y = bounds.getY() + lw + BORDER_PADDING;
-      double h = bounds.getHeight() - lw * 2 - BORDER_PADDING * 2;
+      double x = bounds.getX() + lw;
+      double w = bounds.getWidth() - lw * 2;
+      double y = bounds.getY() + lw;
+      double h = bounds.getHeight() - lw * 2;
 
       if(title != null) {
-         h = tbounds.getY() - bounds.getY() - lw - BORDER_PADDING;
+         h = tbounds.getY() - bounds.getY() - lw;
       }
 
       return new Rectangle2D.Double(x, y, w, h);
@@ -344,10 +344,10 @@ public abstract class Legend extends BoundedContainer {
    public Rectangle2D getContentPreferredBounds() {
       Rectangle2D bounds = getBounds();
       double lw = getBorderWidth();
-      double x = bounds.getX() + lw + BORDER_PADDING;
-      double y = bounds.getY() + lw + BORDER_PADDING;
-      double w = bounds.getWidth() - lw * 2 - BORDER_PADDING * 2;
-      double h = bounds.getHeight() - lw * 2 - BORDER_PADDING * 2;
+      double x = bounds.getX() + lw;
+      double y = bounds.getY() + lw;
+      double w = bounds.getWidth() - lw * 2;
+      double h = bounds.getHeight() - lw * 2;
 
       double contentW;
       double contentH;
@@ -404,10 +404,10 @@ public abstract class Legend extends BoundedContainer {
 
       Rectangle2D bounds = getBounds();
       double lw = getBorderWidth();
-      double titlew = bounds.getWidth() - lw * 2 - BORDER_PADDING * 2;
+      double titlew = bounds.getWidth() - lw * 2;
       double titleh = title.getPreferredHeight();
-      double titlex = bounds.getX() + BORDER_PADDING;
-      double titley = bounds.getY() + bounds.getHeight() - titleh - BORDER_PADDING;
+      double titlex = bounds.getX();
+      double titley = bounds.getY() + bounds.getHeight() - titleh;
 
       title.setBounds(titlex, titley, titlew, titleh);
    }
@@ -417,10 +417,10 @@ public abstract class Legend extends BoundedContainer {
     */
    private void layoutBand() {
       Rectangle2D bounds = getBounds();
-      double x = bounds.getX() + BORDER_PADDING;
-      double y = bounds.getY() + BORDER_PADDING;
-      double w = bounds.getWidth() - BORDER_PADDING * 2;
-      double h = bounds.getHeight() - BORDER_PADDING * 2;
+      double x = bounds.getX();
+      double y = bounds.getY();
+      double w = bounds.getWidth();
+      double h = bounds.getHeight();
 
       double bandW = w - BAND_GAP * 2;
       double preferredLabelH = Math.max(
@@ -491,10 +491,10 @@ public abstract class Legend extends BoundedContainer {
       // logic is in VLegendItem, then the bounds set for the item is wrong, and
       // the ncol will also be error
       Rectangle2D bounds = getBounds();
-      double x = bounds.getX() + BORDER_PADDING;
-      double y = bounds.getY() - getBorderWidth() / 2 + BORDER_PADDING;
-      double w = bounds.getWidth() - BORDER_PADDING * 2;
-      double h = bounds.getHeight() - BORDER_PADDING * 2;
+      double x = bounds.getX();
+      double y = bounds.getY() - getBorderWidth() / 2;
+      double w = bounds.getWidth();
+      double h = bounds.getHeight();
       double lw = getBorderWidth();
 
       // when no item, layout is meaningless
@@ -885,12 +885,7 @@ public abstract class Legend extends BoundedContainer {
       g = (Graphics2D) g.create();
       Shape clip = g.getClip();
 
-      Rectangle2D bounds = getBounds();
-      Rectangle2D.Double paintBounds = new Rectangle2D.Double(
-         bounds.getX() + OUTER_GAP, bounds.getY() + OUTER_GAP,
-         bounds.getWidth() - OUTER_GAP * 2, bounds.getHeight() - OUTER_GAP * 2);
-
-      g.setClip(paintBounds);
+      g.setClip(getBounds());
 
       // intersect the clip shape to avoid legend be painted out of the bounds
       if(clip != null) {
@@ -899,23 +894,17 @@ public abstract class Legend extends BoundedContainer {
 
       LegendSpec spec = frame.getLegendSpec();
 
-      paintBg(g, paintBounds, spec.getBackground(), true);
+      paintBg(g, getBounds(), spec.getBackground(), true);
       paintTitle(g);
       // make sure content not paint to title, fix bug1244448217295
       Graphics2D g2 = (Graphics2D) g.create();
       g2.clip(getContentBounds());
 
-      // textSpec background covers only the content (items) area, not the title row.
-      // Paint it here on g2 after clipping to contentBounds to preserve the original scope.
       paintBg(g2, getContentBounds(), spec.getTextSpec().getBackground(), false);
 
-      // Belt-and-suspenders: also intersect with the rounded paint region when round corners
-      // are enabled. In practice, getContentBounds() already insets by BORDER_PADDING (8px)
-      // which is larger than OUTER_GAP (4px), so content items cannot reach the arc pixels —
-      // but this guard keeps the invariant correct if either constant changes in the future.
       if(spec.isRoundCorners()) {
-         g2.clip(new RoundRectangle2D.Double(paintBounds.x, paintBounds.y,
-                                             paintBounds.width, paintBounds.height, 20, 20));
+         Rectangle2D b = getBounds();
+         g2.clip(new RoundRectangle2D.Double(b.getX(), b.getY(), b.getWidth(), b.getHeight(), 20, 20));
       }
 
       if(isScalar) {
@@ -930,20 +919,21 @@ public abstract class Legend extends BoundedContainer {
       if(spec.getBorder() != GraphConstants.NONE) {
          g.setClip(clip);
          g.setColor(spec.getBorderColor());
+         Rectangle2D.Double bounds = (Rectangle2D.Double) getBounds();
          float lw = getBorderWidth();
 
          if(spec.isRoundCorners()) {
             // arcWidth/arcHeight of 20 means a 20px-diameter corner ellipse, i.e. 10px radius.
             // This matches the CSS border-radius: 10px applied by the Angular overlay.
             g.setStroke(new BasicStroke(lw));
-            g.draw(new RoundRectangle2D.Double(paintBounds.x - lw + 1, paintBounds.y,
-                                               paintBounds.width, paintBounds.height, 20, 20));
+            g.draw(new RoundRectangle2D.Double(bounds.x - lw + 1, bounds.y,
+                                               bounds.width, bounds.height, 20, 20));
          }
          else {
             // support double line. (53529)
             // don't draw border outside of bounds. (56446)
-            Common.drawRect(g, (float) paintBounds.x - lw + 1, (float) paintBounds.y,
-                            (float) paintBounds.width, (float) paintBounds.height, spec.getBorder());
+            Common.drawRect(g, (float) bounds.x - lw + 1, (float) bounds.y,
+                            (float) bounds.width, (float) bounds.height, spec.getBorder());
          }
       }
 
@@ -999,7 +989,11 @@ public abstract class Legend extends BoundedContainer {
          title.setTextSpec(spec.getTitleTextSpec());
       }
 
-      paintBg(g2, getTitleBounds(), spec.getTitleTextSpec().getBackground(), false);
+      Color bgColor = spec.getTitleTextSpec().getBackground();
+      // if the title color is not set, use the content legend spec color.
+      bgColor = bgColor == null ? spec.getTextSpec().getBackground() : bgColor;
+
+      paintBg(g2, getTitleBounds(), bgColor, false);
       title.paint(g2, paintBackground);
 
       if(spec.getBorder() != 0) {
@@ -1090,7 +1084,7 @@ public abstract class Legend extends BoundedContainer {
             colCount--;
          }
 
-         pwidth = Math.max(titlew, itemsw) + BORDER_PADDING * 2;
+         pwidth = Math.max(titlew, itemsw);
       }
 
       lheight = height;
@@ -1128,7 +1122,7 @@ public abstract class Legend extends BoundedContainer {
          double itemh = items.size() == 0 ? 20 :
             items.get(0).getPreferredHeight();
          double itemsh = itemh * Math.min(rowCount, (int) (maxh / itemh));
-         pheight = titleh + itemsh + GAP + getBorderWidth() + BORDER_PADDING * 2;
+         pheight = titleh + itemsh + GAP + getBorderWidth();
       }
 
       lwidth = width;
@@ -1191,19 +1185,11 @@ public abstract class Legend extends BoundedContainer {
    }
 
    private static final int GAP = 4;
-   // Spacing inset from each edge of the allocated bounds before painting background/border.
-   // Creates a visible gap between adjacent legends. This value is propagated to the
-   // LegendContainer web model so the Angular overlay wrapper offsets by the same amount.
-   // INVARIANT: BORDER_PADDING must be >= OUTER_GAP. Item layout starts at bounds + BORDER_PADDING
-   // while the painted background starts at bounds + OUTER_GAP. If OUTER_GAP ever exceeds
-   // BORDER_PADDING, items would render outside the visible painted background area.
-   public static final int OUTER_GAP = 4;
    private static final int BAND_GAP = 10; // horizontal margin on each side of gradient band
-   private static final int BORDER_PADDING = 8; // must remain >= OUTER_GAP (see invariant above)
-   private static final int TITLE_LEFT_PADDING = 2;
-   private static final int TITLE_RIGHT_PADDING = 1;
+   private static final int TITLE_LEFT_PADDING = 4;
+   private static final int TITLE_RIGHT_PADDING = 4;
    private static final int ITEM_LEFT_PADDING = TITLE_LEFT_PADDING;
-   private static final int ITEM_RIGHT_PADDING = 0;
+   private static final int ITEM_RIGHT_PADDING = 4;
    private static final int TITLE_LINE_GAP = 1;
    private static final int MIN_CHAR_COUNT = 4;
    private static final int PREFERRED_CHAR_COUNT = 30;
