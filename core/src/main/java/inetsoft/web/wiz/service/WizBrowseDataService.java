@@ -18,8 +18,8 @@
 package inetsoft.web.wiz.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.cluster.*;
+import inetsoft.report.composition.*;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.web.binding.drm.DataRefModel;
@@ -32,6 +32,7 @@ import org.springframework.stereotype.Service;
 import java.security.Principal;
 
 @Service
+@ClusterProxy
 public class WizBrowseDataService {
    public WizBrowseDataService(ViewsheetService viewsheetService) {
       this.viewsheetService = viewsheetService;
@@ -45,7 +46,8 @@ public class WizBrowseDataService {
     * @param dataRefModel the column ref describing which column to browse
     * @param principal    the current user
     */
-   public BrowseDataModel browseData(String runtimeId, String assemblyName,
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public BrowseDataModel browseData(@ClusterProxyKey String runtimeId, String assemblyName,
                                      DataRefModel dataRefModel, Principal principal)
       throws Exception
    {
