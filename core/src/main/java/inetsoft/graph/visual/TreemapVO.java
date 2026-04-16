@@ -29,8 +29,11 @@ import inetsoft.graph.treeviz.tree.circlemap.Circle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import inetsoft.util.graphics.SVGSupport;
+
 import java.awt.*;
 import java.awt.geom.*;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.IntStream;
 
@@ -180,69 +183,86 @@ public class TreemapVO extends ElementVO {
          return;
       }
 
-      Shape shape = getScreenTransform().createTransformedShape(this.shape);
-      Color color = gobj.getColor(0);
-      GLine line = gobj.getLine(0);
-      GTexture texture = gobj.getTexture(0);
-      Graphics2D g2 = (Graphics2D) g.create();
       int level = gobj.getLevel();
-      int nestingLevel = elem.getTreeDimCount() - level;
-      Color borderColor = elem.getBorderColor(nestingLevel);
-      boolean colorBound = elem.getColorFrame() instanceof CategoricalColorFrame;
+      SVGSupport svg = SVGSupport.isSVGContext(g) ? SVGSupport.getInstance() : null;
 
-      if(borderColor == null) {
-         borderColor = elem.getBorderColor();
+      if(svg != null) {
+         svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_TREEMAP, Map.of(
+            SVGSupport.ATTR_ROW,   String.valueOf(getRowIndex()),
+            SVGSupport.ATTR_COL,   String.valueOf(getColIndex()),
+            SVGSupport.ATTR_LEVEL, String.valueOf(level)
+         ));
       }
 
-      if(elem.getMapType() == TreemapElement.Type.SUNBURST ||
-         elem.getMapType() == TreemapElement.Type.CIRCLE)
-      {
-         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-         g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
-      }
+      try {
+         Shape shape = getScreenTransform().createTransformedShape(this.shape);
+         Color color = gobj.getColor(0);
+         GLine line = gobj.getLine(0);
+         GTexture texture = gobj.getTexture(0);
+         Graphics2D g2 = (Graphics2D) g.create();
+         int nestingLevel = elem.getTreeDimCount() - level;
+         Color borderColor = elem.getBorderColor(nestingLevel);
+         boolean colorBound = elem.getColorFrame() instanceof CategoricalColorFrame;
 
-      color = applyAlpha(color);
-
-      // background only filled for leaf (circle packing, treemap) if leaf is not drawn inside
-      // of a container.
-      if(gobj.isLeaf() || !elem.getMapType().isContainment()) {
-         g2.setColor(color);
-
-         if(texture != null) {
-            texture.paint(g2, shape);
+         if(borderColor == null) {
+            borderColor = elem.getBorderColor();
          }
-         else {
+
+         if(elem.getMapType() == TreemapElement.Type.SUNBURST ||
+            elem.getMapType() == TreemapElement.Type.CIRCLE)
+         {
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+         }
+
+         color = applyAlpha(color);
+
+         // background only filled for leaf (circle packing, treemap) if leaf is not drawn inside
+         // of a container.
+         if(gobj.isLeaf() || !elem.getMapType().isContainment()) {
+            g2.setColor(color);
+
+            if(texture != null) {
+               texture.paint(g2, shape);
+            }
+            else {
+               g2.fill(shape);
+            }
+         }
+         else if(elem.getBackground(nestingLevel) != null) {
+            g2.setColor(elem.getBackground(nestingLevel));
             g2.fill(shape);
          }
+
+         // default to draw line if color map not assigend (all areas drawn in same color)
+         if(line != null || borderColor != null || !colorBound || level >= 0) {
+            if(borderColor != null) {
+               g2.setColor(borderColor);
+            }
+            else if(elem.getMapType() == TreemapElement.Type.CIRCLE) {
+               g2.setColor(Color.LIGHT_GRAY);
+            }
+            else {
+               g2.setColor(GDefaults.DEFAULT_LINE_COLOR.brighter());
+            }
+
+            if(line != null) {
+               g2.setStroke(line.getStroke());
+            }
+            else if(elem.getMapType() == TreemapElement.Type.TREEMAP) {
+               g2.setStroke(new BasicStroke(getBorderWidth(level)));
+            }
+
+            g2.draw(shape);
+         }
+
+         g2.dispose();
       }
-      else if(elem.getBackground(nestingLevel) != null) {
-         g2.setColor(elem.getBackground(nestingLevel));
-         g2.fill(shape);
+      finally {
+         if(svg != null) {
+            svg.endAnnotationGroup(g);
+         }
       }
-
-      // default to draw line if color map not assigend (all areas drawn in same color)
-      if(line != null || borderColor != null || !colorBound || level >= 0) {
-         if(borderColor != null) {
-            g2.setColor(borderColor);
-         }
-         else if(elem.getMapType() == TreemapElement.Type.CIRCLE) {
-            g2.setColor(Color.LIGHT_GRAY);
-         }
-         else {
-            g2.setColor(GDefaults.DEFAULT_LINE_COLOR.brighter());
-         }
-
-         if(line != null) {
-            g2.setStroke(line.getStroke());
-         }
-         else if(elem.getMapType() == TreemapElement.Type.TREEMAP) {
-            g2.setStroke(new BasicStroke(getBorderWidth(level)));
-         }
-
-         g2.draw(shape);
-      }
-
-      g2.dispose();
    }
 
    // get the treemap area border width

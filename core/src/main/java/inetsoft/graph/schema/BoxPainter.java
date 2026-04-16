@@ -133,24 +133,66 @@ public class BoxPainter extends SchemaPainter {
          g.setStroke(line.getStroke());
       }
 
+      Stroke baseStroke = g.getStroke();
+      float baseWidth = baseStroke instanceof BasicStroke ? ((BasicStroke) baseStroke).getLineWidth() : 1f;
+      Stroke thickStroke = new BasicStroke(baseWidth * 2.0f,
+                                           BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER);
+
       for(int i = 0; i < getShapeCount(); i++) {
          if(getShape(i) instanceof Line2D) {
-            // @see CandlePainter
-            g.draw(new GeneralPath(getShape(i)));
+            if(i == 1 || i == 2) {
+               // @see CandlePainter
+               g.setStroke(thickStroke);
+               g.draw(new GeneralPath(getShape(i)));
+               g.setStroke(baseStroke);
+            }
+            else if(i == 4) {
+               // Median — white pill, double stroke width, inset from box edges, rounded ends.
+               Line2D med = (Line2D) getShape(i);
+               float strokeWidth = g.getStroke() instanceof BasicStroke
+                  ? ((BasicStroke) g.getStroke()).getLineWidth() : 1f;
+               float medH = Math.max(strokeWidth * 2, 3f);
+               float inset = medH * 2;
+               float x = (float) Math.min(med.getX1(), med.getX2()) + inset;
+               float y = (float) med.getY1() - medH / 2;
+               float w = (float) Math.abs(med.getX2() - med.getX1()) - inset * 2;
+
+               if(w > 0) {
+                  g.setColor(Color.WHITE);
+                  g.fill(new RoundRectangle2D.Float(x, y, w, medH, medH, medH));
+                  g.setColor(color);
+               }
+            }
+            else {
+               // Center whisker line (shape 0).
+               g.setStroke(thickStroke);
+               g.draw(new GeneralPath(getShape(i)));
+               g.setStroke(baseStroke);
+            }
          }
          else {
+            // Box — build a RoundRectangle2D from the screen-space bounds so the arc radius
+            // is in pixels, not chart units. Computing the arc in init() (chart coords) causes
+            // the transform to distort it: a uniform arc becomes a tall narrow ellipse when the
+            // Y axis has a larger pixel-per-unit scale than X, rounding top/bottom but not sides.
+            Rectangle2D b = getShape(i).getBounds2D();
+            double shortDim = Math.min(b.getWidth(), b.getHeight());
+            double arc = shortDim / 3.0;
+            Shape box = new RoundRectangle2D.Double(b.getX(), b.getY(),
+                                                    b.getWidth(), b.getHeight(), arc, arc);
+
+            // Intentional visual change: fill the box with the series color rather than white.
+            // This gives box plots a modern filled appearance consistent with the series palette.
+            // The median is rendered as a white pill (see shape index 4 above) to remain visible
+            // against the colored fill.
             if(texture == null) {
-               g.setColor(Color.WHITE);
-               g.fill(getShape(i));
+               g.fill(box);
+            }
+            else {
+               texture.paint(g, box);
             }
 
-            g.setColor(color);
-
-            if(texture != null) {
-               texture.paint(g, getShape(i));
-            }
-
-            g.draw(getShape(i));
+            g.draw(box);
          }
       }
 

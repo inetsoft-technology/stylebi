@@ -1,0 +1,741 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.util.graphics.animation;
+
+import inetsoft.util.graphics.SVGSupport;
+import org.junit.jupiter.api.Test;
+import org.w3c.dom.*;
+
+import javax.xml.parsers.*;
+import java.util.*;
+import java.util.regex.*;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Unit tests for {@link SVGAnimationDOMInjector}.
+ *
+ * <p>Tests focus on:
+ * <ul>
+ *   <li>Hover CSS correctness — all annotation classes covered, dim rules present,
+ *       uniform {@code .2s ease} transition.</li>
+ *   <li>Treemap fade-in stagger — larger cells animate before smaller ones.</li>
+ *   <li>Icicle cascade stagger — root depth animates before leaf depth at 0.25 s/level.</li>
+ *   <li>Mekko diagonal stagger — {@code delay = colIdx * 0.08 + rowIdx * 0.05}.</li>
+ *   <li>Label matching — text groups are tagged with hover CSS class and data-row/col.</li>
+ * </ul>
+ *
+ * <p>Documents are constructed programmatically using JAXP {@link DocumentBuilder} so no
+ * file-system fixtures are required.  Each helper produces minimal SVG structure sufficient
+ * to exercise the production code path under test.
+ */
+class SVGAnimationDOMInjectorTest {
+
+   // -------------------------------------------------------------------------
+   // Document / element construction helpers
+   // -------------------------------------------------------------------------
+
+   /** Creates a minimal SVG document with a {@code viewBox} attribute. */
+   private static Document newDocument() throws Exception {
+      DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+      dbf.setNamespaceAware(true);
+      DocumentBuilder db = dbf.newDocumentBuilder();
+      Document doc = db.newDocument();
+      Element svg = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "svg");
+      svg.setAttribute("viewBox", "0 0 800 600");
+      doc.appendChild(svg);
+      return doc;
+   }
+
+   /**
+    * Adds an annotation group to the SVG root containing an inner {@code <g>} that wraps a
+    * {@code <rect>} representing the given bounds.  This inner-wrapper structure matches the
+    * VO rendering pattern that {@link SVGAnimationDOMInjector#applyAnimStyleToChildren} targets.
+    *
+    * @return the outer annotation group element
+    */
+   private static Element addAnnotGroup(Document doc, String cssClass, Map<String, String> dataAttrs,
+                                         double x, double y, double w, double h)
+   {
+      Element svg = doc.getDocumentElement();
+      Element g = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      g.setAttribute("class", cssClass);
+
+      for(Map.Entry<String, String> e : dataAttrs.entrySet()) {
+         g.setAttribute("data-" + e.getKey(), e.getValue());
+      }
+
+      // Inner rendering <g> — this is the direct child that applyAnimStyleToChildren targets.
+      Element inner = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      Element rect = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "rect");
+      rect.setAttribute("x", String.valueOf(x));
+      rect.setAttribute("y", String.valueOf(y));
+      rect.setAttribute("width", String.valueOf(w));
+      rect.setAttribute("height", String.valueOf(h));
+      inner.appendChild(rect);
+      g.appendChild(inner);
+      svg.appendChild(g);
+      return g;
+   }
+
+   /**
+    * Adds a Batik-style text label group ({@code text-rendering="geometricPrecision"}) at the
+    * given SVG-coordinate position.  Batik encodes the full label position in the
+    * {@code transform} attribute chain; {@code nearestCellByCtm} reads {@code m[4]/m[5]}
+    * from the parsed transform to locate the label.
+    *
+    * @return the text group element
+    */
+   private static Element addTextGroup(Document doc, double tx, double ty) {
+      Element svg = doc.getDocumentElement();
+      Element g = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      g.setAttribute("text-rendering", "geometricPrecision");
+      g.setAttribute("transform",
+                      String.format(Locale.US, "translate(%.1f,%.1f)", tx, ty));
+      Element text = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "text");
+      text.setTextContent("Label");
+      g.appendChild(text);
+      svg.appendChild(g);
+      return g;
+   }
+
+   /**
+    * Adds a mekko annotation group with a {@code <rect>} as a DIRECT child (no inner wrapper),
+    * matching MekkoVO's painting structure — which is why mekko animation is applied to the
+    * group element itself rather than via {@code applyAnimStyleToChildren}.
+    *
+    * @return the annotation group element
+    */
+   private static Element addMekkoCell(Document doc, String row, String col,
+                                        double x, double y, double w, double h)
+   {
+      Element svg = doc.getDocumentElement();
+      Element g = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      g.setAttribute("class", SVGSupport.ANNOTATION_MEKKO);
+      g.setAttribute("data-row", row);
+      g.setAttribute("data-col", col);
+      Element rect = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "rect");
+      rect.setAttribute("x", String.valueOf(x));
+      rect.setAttribute("y", String.valueOf(y));
+      rect.setAttribute("width", String.valueOf(w));
+      rect.setAttribute("height", String.valueOf(h));
+      g.appendChild(rect);
+      svg.appendChild(g);
+      return g;
+   }
+
+   // -------------------------------------------------------------------------
+   // Assertion helpers
+   // -------------------------------------------------------------------------
+
+   /** Concatenates the text content of all {@code <style>} elements under {@code svgRoot}. */
+   private static String allStyleContent(Element svgRoot) {
+      StringBuilder sb = new StringBuilder();
+      NodeList nodes = svgRoot.getElementsByTagNameNS("*", "style");
+
+      for(int i = 0; i < nodes.getLength(); i++) {
+         sb.append(nodes.item(i).getTextContent());
+      }
+
+      return sb.toString();
+   }
+
+   /**
+    * Returns the {@code style} attribute of the first {@link Element} child of
+    * {@code annotGroup}, or {@code null} when no Element child exists.
+    *
+    * <p>For treemap / icicle / sunburst annotation groups, animation is applied to the
+    * inner rendering {@code <g>} (first child), not the annotation group itself.
+    */
+   private static String firstChildStyle(Element annotGroup) {
+      Node child = annotGroup.getFirstChild();
+
+      while(child != null) {
+         if(child instanceof Element e) {
+            return e.getAttribute("style");
+         }
+
+         child = child.getNextSibling();
+      }
+
+      return null;
+   }
+
+   /**
+    * Parses the animation delay (in seconds) from a CSS animation shorthand string such as
+    * {@code "animation:inetsoft-treemap-fade 0.8s ease-out 0.25s both"}.
+    *
+    * <p>The pattern matches the second time value in the shorthand (the delay), skipping the
+    * first time value (the duration).
+    */
+   private static double parseDelay(String style) {
+      Matcher m = Pattern.compile("[\\s,](\\d+\\.?\\d*)s").matcher(style);
+      double first = -1;
+      double second = -1;
+
+      while(m.find()) {
+         double v = Double.parseDouble(m.group(1));
+
+         if(first < 0) {
+            first = v;
+         }
+         else {
+            second = v;
+            break;
+         }
+      }
+
+      return second >= 0 ? second : 0;
+   }
+
+   // -------------------------------------------------------------------------
+   // Hover CSS tests
+   // -------------------------------------------------------------------------
+
+   @Test
+   void hoverCssCoversAllAnnotationClasses() throws Exception {
+      Document doc = newDocument();
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_TREEMAP);
+      String css = allStyleContent(doc.getDocumentElement());
+
+      // All chart-type annotation classes must appear in the transition rule so hover
+      // fades uniformly regardless of chart type.
+      assertTrue(css.contains("inetsoft-bar"),           "hover CSS must include inetsoft-bar");
+      assertTrue(css.contains("inetsoft-point"),         "hover CSS must include inetsoft-point");
+      assertTrue(css.contains("inetsoft-candle"),        "hover CSS must include inetsoft-candle");
+      assertTrue(css.contains("inetsoft-box"),           "hover CSS must include inetsoft-box");
+      assertTrue(css.contains("inetsoft-radar"),         "hover CSS must include inetsoft-radar");
+      assertTrue(css.contains("inetsoft-treemap"),       "hover CSS must include inetsoft-treemap");
+      assertTrue(css.contains("inetsoft-mekko"),         "hover CSS must include inetsoft-mekko");
+      assertTrue(css.contains("inetsoft-treemap-label"), "hover CSS must include inetsoft-treemap-label");
+      assertTrue(css.contains("inetsoft-mekko-label"),   "hover CSS must include inetsoft-mekko-label");
+   }
+
+   @Test
+   void hoverCssDimRulesPresent() throws Exception {
+      Document doc = newDocument();
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_TREEMAP);
+      String css = allStyleContent(doc.getDocumentElement());
+
+      assertTrue(
+         css.contains(".inetsoft-treemap.inetsoft-active") &&
+         css.contains(".inetsoft-treemap:not(.inetsoft-active)"),
+         "hover CSS must contain treemap :has() dim rule");
+      assertTrue(
+         css.contains(".inetsoft-mekko.inetsoft-active") &&
+         css.contains(".inetsoft-mekko:not(.inetsoft-active)"),
+         "hover CSS must contain mekko :has() dim rule");
+      assertTrue(
+         css.contains(".inetsoft-candle.inetsoft-active") &&
+         css.contains(".inetsoft-candle:not(.inetsoft-active)"),
+         "hover CSS must contain candle :has() dim rule");
+      assertTrue(
+         css.contains(".inetsoft-box.inetsoft-active") &&
+         css.contains(".inetsoft-box:not(.inetsoft-active)"),
+         "hover CSS must contain box :has() dim rule");
+      assertTrue(css.contains("opacity:.2!important"),
+                 "dim rules must use opacity:.2!important");
+   }
+
+   @Test
+   void hoverCssTransitionIsUniform() throws Exception {
+      Document doc = newDocument();
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_TREEMAP);
+      String css = allStyleContent(doc.getDocumentElement());
+
+      assertTrue(css.contains("transition:opacity .2s ease"),
+                 "all chart types must share the uniform transition:opacity .2s ease");
+   }
+
+   // -------------------------------------------------------------------------
+   // Treemap animation tests
+   // -------------------------------------------------------------------------
+
+   @Test
+   void treemap_cellsReceiveAnimation() throws Exception {
+      Document doc = newDocument();
+      Element cell = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                   Map.of("row", "0", "col", "0", "level", "0"),
+                                   0, 0, 200, 200);
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_TREEMAP);
+
+      String childStyle = firstChildStyle(cell);
+      assertNotNull(childStyle, "inner child should have an animation style");
+      assertTrue(childStyle.contains("inetsoft-treemap-fade"),
+                 "style must reference the treemap keyframe");
+   }
+
+   /**
+    * Larger cells (by bounding-box area) should animate first (smaller delay) so the most
+    * prominent regions of the treemap appear immediately.
+    */
+   @Test
+   void treemap_largerCellGetsEarlierDelay() throws Exception {
+      Document doc = newDocument();
+      // Small cell (50×50 = 2500) added first in DOM order.
+      Element small = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                    Map.of("row", "0", "col", "0", "level", "0"),
+                                    0, 0, 50, 50);
+      // Large cell (200×200 = 40000) added second in DOM order.
+      Element large = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                    Map.of("row", "1", "col", "0", "level", "0"),
+                                    100, 0, 200, 200);
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_TREEMAP);
+
+      double smallDelay = parseDelay(firstChildStyle(small));
+      double largeDelay = parseDelay(firstChildStyle(large));
+      assertTrue(largeDelay < smallDelay,
+                 "large cell (200×200) must animate before small cell (50×50): " +
+                 "large delay=" + largeDelay + ", small delay=" + smallDelay);
+   }
+
+   /** A text group whose translate CTM falls inside a cell's bounds should be matched to it. */
+   @Test
+   void treemap_labelMatchedToCellByContainment() throws Exception {
+      Document doc = newDocument();
+      // Cell occupies (0,0)–(200,200).
+      Element cell = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                   Map.of("row", "3", "col", "1", "level", "0"),
+                                   0, 0, 200, 200);
+      // Label translate at (100,100) — inside the cell.
+      Element label = addTextGroup(doc, 100, 100);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_TREEMAP);
+
+      assertEquals(SVGSupport.ANNOTATION_TREEMAP_LABEL, label.getAttribute("class"),
+                   "contained label must be tagged with the treemap-label class");
+      assertEquals("3", label.getAttribute("data-row"),
+                   "label data-row must match the cell's data-row");
+      assertEquals("1", label.getAttribute("data-col"),
+                   "label data-col must match the cell's data-col");
+      assertFalse(label.getAttribute("style").isEmpty(),
+                  "matched label must receive an animation style");
+   }
+
+   /**
+    * A text group without a {@code transform} attribute is skipped by {@code nearestCellByCtm}.
+    * The injector must not throw and must leave the group unmodified.
+    */
+   @Test
+   void treemap_labelWithoutTransformIsSkipped() throws Exception {
+      Document doc = newDocument();
+      addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                    Map.of("row", "0", "col", "0", "level", "0"),
+                    0, 0, 200, 200);
+
+      // Text group with no transform attribute — should be silently skipped.
+      Element svg = doc.getDocumentElement();
+      Element noTransformLabel = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      noTransformLabel.setAttribute("text-rendering", "geometricPrecision");
+      svg.appendChild(noTransformLabel);
+
+      assertDoesNotThrow(
+         () -> SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(),
+                                                       SVGSupport.ANIMATION_TREEMAP));
+      assertTrue(noTransformLabel.getAttribute("class").isEmpty(),
+                 "label without transform must not be tagged with any class");
+   }
+
+   // -------------------------------------------------------------------------
+   // Icicle animation tests
+   // -------------------------------------------------------------------------
+
+   /** Root depth (highest level number) must animate before leaf depth (level=0). */
+   @Test
+   void icicle_rootLevelAnimatesBeforeLeaf() throws Exception {
+      Document doc = newDocument();
+      Element root = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                   Map.of("row", "0", "col", "0", "level", "2"),
+                                   0, 0, 200, 50);
+      Element leaf = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                   Map.of("row", "1", "col", "0", "level", "0"),
+                                   0, 100, 100, 50);
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_ICICLE);
+
+      double rootDelay = parseDelay(firstChildStyle(root));
+      double leafDelay = parseDelay(firstChildStyle(leaf));
+      assertTrue(rootDelay < leafDelay,
+                 "root (level=2) must animate before leaf (level=0): " +
+                 "root=" + rootDelay + ", leaf=" + leafDelay);
+   }
+
+   /**
+    * Each depth column adds {@code DEPTH_STEP = 0.25 s} of base delay.  With three levels
+    * (2, 1, 0) and one cell per level, delays should be 0.0, 0.25, and 0.50 respectively.
+    */
+   @Test
+   void icicle_depthStepIs025PerLevel() throws Exception {
+      Document doc = newDocument();
+      // level=2 is the root (maxLevel); level=0 is the leaf.
+      Element lvl2 = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                   Map.of("row", "0", "col", "0", "level", "2"),
+                                   0,   0, 200, 50);
+      Element lvl1 = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                   Map.of("row", "1", "col", "0", "level", "1"),
+                                   0,  60, 200, 50);
+      Element lvl0 = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                   Map.of("row", "2", "col", "0", "level", "0"),
+                                   0, 120, 200, 50);
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_ICICLE);
+
+      assertEquals(0.00, parseDelay(firstChildStyle(lvl2)), 0.01, "root  (level=2) → 0.00 s");
+      assertEquals(0.25, parseDelay(firstChildStyle(lvl1)), 0.01, "mid   (level=1) → 0.25 s");
+      assertEquals(0.50, parseDelay(firstChildStyle(lvl0)), 0.01, "leaf  (level=0) → 0.50 s");
+   }
+
+   /** A label contained in an icicle cell should be tagged with the treemap-label class. */
+   @Test
+   void icicle_labelMatchedToCellByContainment() throws Exception {
+      Document doc = newDocument();
+      // Cell occupies (100,100)–(300,180).
+      Element cell = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                   Map.of("row", "5", "col", "2", "level", "1"),
+                                   100, 100, 200, 80);
+      // Label at (200,140) — inside the cell.
+      Element label = addTextGroup(doc, 200, 140);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_ICICLE);
+
+      assertEquals(SVGSupport.ANNOTATION_TREEMAP_LABEL, label.getAttribute("class"));
+      assertEquals("5", label.getAttribute("data-row"));
+      assertEquals("2", label.getAttribute("data-col"));
+   }
+
+   // -------------------------------------------------------------------------
+   // Mekko animation tests
+   // -------------------------------------------------------------------------
+
+   /**
+    * Verifies the diagonal stagger formula: {@code delay = colIdx * 0.08 + rowIdx * 0.05}.
+    * <ul>
+    *   <li>Column 0, row 0: 0.00 s</li>
+    *   <li>Column 0, row 1: 0.05 s</li>
+    *   <li>Column 1, row 0: 0.08 s</li>
+    * </ul>
+    */
+   @Test
+   void mekko_diagonalStagger_delaysFollowFormula() throws Exception {
+      Document doc = newDocument();
+      // Column 0 (x-center = 50): two cells stacked vertically.
+      Element col0row0 = addMekkoCell(doc, "0", "0",   0,   0, 100, 90);
+      Element col0row1 = addMekkoCell(doc, "1", "0",   0, 100, 100, 90);
+      // Column 1 (x-center = 200): one cell.
+      Element col1row0 = addMekkoCell(doc, "0", "1", 150,   0, 100, 90);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_MEKKO);
+
+      // Mekko sets the animation style directly on the annotation group element.
+      assertEquals(0.00, parseDelay(col0row0.getAttribute("style")), 0.01, "col0 row0 → 0.00 s");
+      assertEquals(0.05, parseDelay(col0row1.getAttribute("style")), 0.01, "col0 row1 → 0.05 s");
+      assertEquals(0.08, parseDelay(col1row0.getAttribute("style")), 0.01, "col1 row0 → 0.08 s");
+   }
+
+   /**
+    * Two cells in the same column whose y-tops round to the same pixel value must not cause an
+    * exception.  {@code putIfAbsent} keeps the first occurrence's row index; both cells share
+    * the same animation delay but neither is skipped.
+    */
+   @Test
+   void mekko_duplicateYtopDoesNotThrow() throws Exception {
+      Document doc = newDocument();
+      // y=10.0 and y=10.4 both round to 10 — same rowMap key after Math.round().
+      Element cell1 = addMekkoCell(doc, "0", "0", 0, 10.0, 100, 90);
+      Element cell2 = addMekkoCell(doc, "1", "0", 0, 10.4, 100, 90);
+
+      assertDoesNotThrow(
+         () -> SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(),
+                                                       SVGSupport.ANIMATION_MEKKO));
+      // Both cells must receive an animation style; the putIfAbsent collision means they
+      // share the same row index (and therefore the same delay), but neither is skipped.
+      assertFalse(cell1.getAttribute("style").isEmpty(),
+                  "collision cell 1 must still receive animation style");
+      assertFalse(cell2.getAttribute("style").isEmpty(),
+                  "collision cell 2 must still receive animation style");
+   }
+
+   /** A text group whose translate CTM falls inside a mekko cell should be tagged for hover. */
+   @Test
+   void mekko_labelTaggedForHover() throws Exception {
+      Document doc = newDocument();
+      // Cell occupies (50,50)–(150,150).
+      addMekkoCell(doc, "7", "3", 50, 50, 100, 100);
+      // Label at (100,100) — inside the cell.
+      Element label = addTextGroup(doc, 100, 100);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_MEKKO);
+
+      assertEquals(SVGSupport.ANNOTATION_MEKKO_LABEL, label.getAttribute("class"),
+                   "label inside mekko cell must be tagged with the mekko-label class");
+      assertEquals("7", label.getAttribute("data-row"),
+                   "label data-row must match the cell's data-row");
+      assertEquals("3", label.getAttribute("data-col"),
+                   "label data-col must match the cell's data-col");
+   }
+
+   // -------------------------------------------------------------------------
+   // Radar animation tests
+   // -------------------------------------------------------------------------
+
+   /**
+    * Verifies that {@code inetsoft-line} annotation groups are reclassified to
+    * {@code inetsoft-radar} and receive the spring-scale animation style.
+    * Also verifies that ghost-fill and hit-path elements are injected for fill="none" paths.
+    */
+   @Test
+   void radar_lineGroupsReclassifiedAndAnimated() throws Exception {
+      Document doc = newDocument();
+      // Build an inetsoft-line annotation group containing a polygon path (fill="none").
+      // computeRadarCenter reads polygon vertices from the path's "d" attribute to find
+      // the radar center; the path must have M/L commands so vertex parsing succeeds.
+      Element g = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      g.setAttribute("class", SVGSupport.ANNOTATION_LINE);
+      g.setAttribute("data-row", "0");
+      g.setAttribute("data-" + SVGSupport.ATTR_COLOR, "60,105,138");
+      Element path = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+      path.setAttribute("d", "M 100 50 L 150 150 L 50 150 Z");
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", "blue");
+      g.appendChild(path);
+      doc.getDocumentElement().appendChild(g);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_RADAR);
+
+      assertEquals(SVGSupport.ANNOTATION_RADAR, g.getAttribute("class"),
+                   "inetsoft-line group must be reclassified to inetsoft-radar");
+      assertTrue(g.getAttribute("style").contains("inetsoft-radar-grow"),
+                 "radar group must receive the spring-scale animation");
+
+      // fill="none" path triggers ghost-fill (prepended) + hit-path (appended) injection.
+      // Child count: ghost-fill path + original path + hit path = 3.
+      int childCount = 0;
+      Node child = g.getFirstChild();
+      while(child != null) {
+         if(child instanceof Element) childCount++;
+         child = child.getNextSibling();
+      }
+      assertEquals(3, childCount,
+                   "ghost-fill path and hit path must be injected for fill=none radar polygon");
+
+      // Hit path is the last Element child.
+      Node last = g.getLastChild();
+      while(last != null && !(last instanceof Element)) last = last.getPreviousSibling();
+      assertNotNull(last, "group must have at least one child element");
+      assertEquals("rgba(0,0,0,0)", ((Element) last).getAttribute("fill"),
+                   "last child must be the transparent hit path");
+      assertEquals("all", ((Element) last).getAttribute("pointer-events"),
+                   "hit path must capture pointer events");
+   }
+
+   /**
+    * Two radar series groups should animate with the second series delayed by
+    * {@code stagger = 0.25 s} relative to the first.
+    */
+   @Test
+   void radar_secondSeriesIsDelayed() throws Exception {
+      Document doc = newDocument();
+
+      for(int i = 0; i < 2; i++) {
+         Element g = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+         g.setAttribute("class", SVGSupport.ANNOTATION_LINE);
+         g.setAttribute("data-row", String.valueOf(i));
+         g.setAttribute("data-" + SVGSupport.ATTR_COLOR, "60,105,138");
+         Element path = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+         path.setAttribute("d", "M 100 50 L 150 150 L 50 150 Z");
+         path.setAttribute("fill", "none");
+         g.appendChild(path);
+         doc.getDocumentElement().appendChild(g);
+      }
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_RADAR);
+
+      List<Element> radar = new ArrayList<>();
+      NodeList all = doc.getDocumentElement().getChildNodes();
+      for(int i = 0; i < all.getLength(); i++) {
+         if(all.item(i) instanceof Element e &&
+            SVGSupport.ANNOTATION_RADAR.equals(e.getAttribute("class")))
+         {
+            radar.add(e);
+         }
+      }
+
+      assertEquals(2, radar.size(), "both line groups must be reclassified");
+      double delay0 = parseDelay(radar.get(0).getAttribute("style"));
+      double delay1 = parseDelay(radar.get(1).getAttribute("style"));
+      assertEquals(0.25, delay1 - delay0, 0.01,
+                   "second series must be delayed by stagger=0.25 s relative to first");
+   }
+
+   // -------------------------------------------------------------------------
+   // Sunburst animation tests
+   // -------------------------------------------------------------------------
+
+   /** Root level arcs (highest data-level) should animate before leaf arcs (level=0). */
+   @Test
+   void sunburst_rootLevelAnimatesBeforeLeaf() throws Exception {
+      Document doc = newDocument();
+      // Two arcs at different levels; root (level=1) should animate first (lower delay).
+      Element root = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                   Map.of("row", "0", "col", "0", "level", "1"),
+                                   50, 50, 100, 100);
+      Element leaf = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                   Map.of("row", "1", "col", "0", "level", "0"),
+                                   300, 50, 80, 80);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_SUNBURST);
+
+      double rootDelay = parseDelay(firstChildStyle(root));
+      double leafDelay = parseDelay(firstChildStyle(leaf));
+      assertTrue(rootDelay < leafDelay,
+                 "root arc (level=1) must animate before leaf arc (level=0): " +
+                 "root=" + rootDelay + ", leaf=" + leafDelay);
+   }
+
+   /** Inner child of a sunburst arc group must reference the sunburst keyframe. */
+   @Test
+   void sunburst_arcsReceiveFadeAnimation() throws Exception {
+      Document doc = newDocument();
+      Element arc = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                  Map.of("row", "0", "col", "0", "level", "0"),
+                                  100, 100, 100, 100);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_SUNBURST);
+
+      String childStyle = firstChildStyle(arc);
+      assertNotNull(childStyle, "inner child should have an animation style");
+      assertTrue(childStyle.contains("inetsoft-sunburst-fade"),
+                 "style must reference the sunburst keyframe");
+   }
+
+   /**
+    * Two arcs at the same level (same ring) should receive staggered delays within the ring.
+    * With two arcs in one ring, {@code step = min(0.15, 0.8/2) = 0.15 s}, so the second arc
+    * should be delayed by 0.15 s relative to the first.
+    */
+   @Test
+   void sunburst_sameRingArcsAreStaggered() throws Exception {
+      Document doc = newDocument();
+      // Both arcs at level=0 (same ring), positioned on opposite sides of a virtual center.
+      Element arc0 = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                   Map.of("row", "0", "col", "0", "level", "0"),
+                                   50, 0, 80, 80);   // centre (90, 40)
+      Element arc1 = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                   Map.of("row", "1", "col", "0", "level", "0"),
+                                   250, 0, 80, 80);  // centre (290, 40)
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_SUNBURST);
+
+      double delay0 = parseDelay(firstChildStyle(arc0));
+      double delay1 = parseDelay(firstChildStyle(arc1));
+      // The two arcs are in the same ring, so their delays must differ (stagger within ring).
+      assertNotEquals(delay0, delay1, 0.001,
+                      "two arcs in the same ring must have different animation delays");
+      assertEquals(0.15, Math.abs(delay1 - delay0), 0.01,
+                   "within-ring step for 2 arcs must be min(0.15, 0.8/2) = 0.15 s");
+   }
+
+   // -------------------------------------------------------------------------
+   // Candle / box animation tests (injectXPositionFadeAnimation)
+   // -------------------------------------------------------------------------
+
+   /**
+    * Candlestick groups sorted by {@code data-x} (screen X center) must animate left-to-right:
+    * the leftmost group gets delay 0, the rightmost gets the largest delay.
+    */
+   @Test
+   void candle_leftToRightDelayOrdering() throws Exception {
+      Document doc = newDocument();
+      // Three candle groups with explicitly ordered data-x values.
+      // data-x controls the sort; bounds are irrelevant for this test.
+      Element left   = addAnnotGroup(doc, SVGSupport.ANNOTATION_CANDLE,
+                                     Map.of("row", "0", "col", "0", "x", "100"),
+                                     0, 0, 10, 50);
+      Element middle = addAnnotGroup(doc, SVGSupport.ANNOTATION_CANDLE,
+                                     Map.of("row", "1", "col", "0", "x", "200"),
+                                     100, 0, 10, 50);
+      Element right  = addAnnotGroup(doc, SVGSupport.ANNOTATION_CANDLE,
+                                     Map.of("row", "2", "col", "0", "x", "300"),
+                                     200, 0, 10, 50);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_CANDLE);
+
+      // Candle/box animation is applied to the group itself (not inner children).
+      double delayLeft   = parseDelay(left.getAttribute("style"));
+      double delayMiddle = parseDelay(middle.getAttribute("style"));
+      double delayRight  = parseDelay(right.getAttribute("style"));
+
+      assertTrue(delayLeft < delayMiddle,
+                 "left candle (x=100) must animate before middle (x=200)");
+      assertTrue(delayMiddle < delayRight,
+                 "middle candle (x=200) must animate before right (x=300)");
+      assertEquals(0.0, delayLeft, 0.01,
+                   "leftmost candle must start with delay 0");
+   }
+
+   /**
+    * Box-plot groups follow the same left-to-right delay ordering as candle groups —
+    * both use {@link SVGAnimationDOMInjector#injectXPositionFadeAnimation}.
+    */
+   @Test
+   void box_leftToRightDelayOrdering() throws Exception {
+      Document doc = newDocument();
+      Element left  = addAnnotGroup(doc, SVGSupport.ANNOTATION_BOX,
+                                    Map.of("row", "0", "col", "0", "x", "50"),
+                                    0, 0, 10, 50);
+      Element right = addAnnotGroup(doc, SVGSupport.ANNOTATION_BOX,
+                                    Map.of("row", "1", "col", "0", "x", "150"),
+                                    100, 0, 10, 50);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_BOX);
+
+      double delayLeft  = parseDelay(left.getAttribute("style"));
+      double delayRight = parseDelay(right.getAttribute("style"));
+
+      assertEquals(0.0, delayLeft,  0.01, "leftmost box must start with delay 0");
+      assertTrue(delayRight > delayLeft, "right box (x=150) must animate after left (x=50)");
+   }
+
+   // -------------------------------------------------------------------------
+   // nearestCellByCtm fallback path test
+   // -------------------------------------------------------------------------
+
+   /**
+    * When a label's translate-origin sits just outside all cell bounding boxes, the fallback
+    * nearest-centre path should still match it to the closest cell.
+    */
+   @Test
+   void nearestCell_fallbackMatchesClosestCellWhenOutsideAllBounds() throws Exception {
+      Document doc = newDocument();
+      // Cell A: (0,0)–(100,100), centre (50,50).
+      Element cellA = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                    Map.of("row", "0", "col", "0", "level", "0"),
+                                    0, 0, 100, 100);
+      // Cell B: (200,0)–(300,100), centre (250,50).
+      Element cellB = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                                    Map.of("row", "1", "col", "0", "level", "0"),
+                                    200, 0, 100, 100);
+      // Label at (110,50) — outside both cells, but closer to cell A (distance 60) than B (distance 140).
+      Element label = addTextGroup(doc, 110, 50);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_TREEMAP);
+
+      assertEquals(SVGSupport.ANNOTATION_TREEMAP_LABEL, label.getAttribute("class"),
+                   "fallback label must still be tagged with the label class");
+      assertEquals("0", label.getAttribute("data-row"),
+                   "fallback must match cell A (row=0), the nearest centre");
+   }
+}

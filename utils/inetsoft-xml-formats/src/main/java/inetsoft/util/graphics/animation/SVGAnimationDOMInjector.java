@@ -65,6 +65,27 @@ public class SVGAnimationDOMInjector {
       else if(SVGSupport.ANIMATION_POINT.equals(base)) {
          injectPointAnimation(svgRoot, doc);
       }
+      else if(SVGSupport.ANIMATION_CANDLE.equals(base)) {
+         injectCandleAnimation(svgRoot, doc);
+      }
+      else if(SVGSupport.ANIMATION_BOX.equals(base)) {
+         injectBoxAnimation(svgRoot, doc);
+      }
+      else if(SVGSupport.ANIMATION_RADAR.equals(base)) {
+         injectRadarAnimation(svgRoot, doc);
+      }
+      else if(SVGSupport.ANIMATION_TREEMAP.equals(base)) {
+         injectTreemapAnimation(svgRoot, doc);
+      }
+      else if(SVGSupport.ANIMATION_SUNBURST.equals(base)) {
+         injectSunburstAnimation(svgRoot, doc);
+      }
+      else if(SVGSupport.ANIMATION_ICICLE.equals(base)) {
+         injectIcicleAnimation(svgRoot, doc);
+      }
+      else if(SVGSupport.ANIMATION_MEKKO.equals(base)) {
+         injectMekkoAnimation(svgRoot, doc);
+      }
       else {
          boolean fadeOnly = SVGSupport.ANIMATION_FADE.equals(base);
          List<Element> annotBars = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_BAR);
@@ -836,8 +857,19 @@ public class SVGAnimationDOMInjector {
                continue;
             }
 
-            // Skip annotated groups (they have an inetsoft-* class) and non-<g> elements.
-            if(!"g".equals(sibling.getLocalName()) || !sibling.getAttribute("class").isEmpty()) {
+            String sibClass = sibling.getAttribute("class");
+
+            // inetsoft-point annotation groups on a line chart (PointVO paints markers that
+            // sit on top of the line). Fade them in after all series have started drawing so
+            // the dot appears after, not before, its line.
+            if(SVGSupport.ANNOTATION_POINT.equals(sibClass)) {
+               mergeStyle(sibling, String.format(
+                  "opacity:0;animation:inetsoft-line-fade 0.35s ease-out %.2fs both", dotDelay));
+               continue;
+            }
+
+            // Skip all other annotated groups (they have an inetsoft-* class) and non-<g> elements.
+            if(!"g".equals(sibling.getLocalName()) || !sibClass.isEmpty()) {
                continue;
             }
 
@@ -1349,6 +1381,803 @@ public class SVGAnimationDOMInjector {
       return 0.0;
    }
 
+   /**
+    * Apply an animation style string to all direct {@link Element} children of an annotation group.
+    * Following the {@link #injectPointAnimation} pattern, the animation is placed on the inner
+    * content elements so the outer annotation {@code <g>} remains free of opacity animation.
+    * This allows hover CSS ({@code opacity:.2!important}) to override without cascade conflicts.
+    */
+   private static void applyAnimStyleToChildren(Element annotGroup, String animStyle) {
+      Node child = annotGroup.getFirstChild();
+
+      while(child != null) {
+         if(child instanceof Element e) {
+            e.setAttribute("style", animStyle);
+         }
+
+         child = child.getNextSibling();
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // Treemap animation
+   // -------------------------------------------------------------------------
+
+   /**
+    * Inject staggered fade-in for rectangular treemap charts.
+    *
+    * <p>Cells are sorted by bounding-box area (largest first) so the most prominent cells
+    * appear first, with smaller cells trailing behind.  Maximum stagger is capped at 1.2 s
+    * regardless of cell count so dense treemaps still feel snappy.
+    */
+   private static void injectTreemapAnimation(Element svgRoot, Document doc) {
+      appendStyle(svgRoot, doc,
+         "@keyframes inetsoft-treemap-fade{from{opacity:0}to{opacity:1}}");
+
+      List<Element> cells = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_TREEMAP);
+
+      if(cells.isEmpty()) {
+         return;
+      }
+
+      cells.sort(Comparator.comparingDouble((Element g) -> {
+         double[] b = annotGroupBounds(g);
+         return -((b[2] - b[0]) * (b[3] - b[1])); // negative = descending (largest first)
+      }));
+
+      int n = cells.size();
+      double step = n > 1 ? Math.min(0.25, 1.0 / n) : 0;
+
+      // Compute bounds after sorting (order has changed but elements are the same).
+      List<double[]> cellBounds = cells.stream()
+         .map(SVGAnimationDOMInjector::annotGroupBounds)
+         .collect(Collectors.toList());
+
+      // cell index → animation style, reused when matching labels.
+      Map<Integer, String> cellStyles = new HashMap<>();
+
+      for(int i = 0; i < n; i++) {
+         String animStyle = String.format(java.util.Locale.US,
+            "animation:inetsoft-treemap-fade 0.8s ease-out %.2fs both", i * step);
+         applyAnimStyleToChildren(cells.get(i), animStyle);
+         cellStyles.put(i, animStyle);
+      }
+
+      // Match external text labels to cells: apply matching animation style so labels fade in
+      // with their section, and tag with the label class + data-row/col for hover dimming.
+      List<Element> textGroups = new ArrayList<>();
+      collectTextGroups(svgRoot, textGroups);
+
+      for(Element textG : textGroups) {
+         int idx = nearestCellByCtm(textG, cellBounds);
+
+         if(idx >= 0) {
+            mergeStyle(textG, cellStyles.get(idx));
+            tagLabelForHover(textG, cells.get(idx), SVGSupport.ANNOTATION_TREEMAP_LABEL);
+         }
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // Sunburst animation
+   // -------------------------------------------------------------------------
+
+   /**
+    * Inject a ring-depth-first spiral fade-in for sunburst charts.
+    *
+    * <p>Rings are animated in order from the innermost (root) outward.  Within each ring,
+    * arcs are sorted clockwise from 12 o'clock using the bounding-box centre angle relative
+    * to the approximate sunburst origin, producing a spiral sweep within each ring.  A short
+    * gap between rings lets each spiral complete before the next one begins.
+    *
+    * <p>Text label groups are matched to their nearest arc by Euclidean distance and receive
+    * the same {@code animation-delay} so they fade in together with their arc.
+    */
+   private static void injectSunburstAnimation(Element svgRoot, Document doc) {
+      appendStyle(svgRoot, doc,
+         "@keyframes inetsoft-sunburst-fade{from{opacity:0}to{opacity:1}}");
+
+      List<Element> arcs = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_TREEMAP);
+
+      if(arcs.isEmpty()) {
+         return;
+      }
+
+      int n = arcs.size();
+      List<double[]> bounds = arcs.stream()
+         .map(SVGAnimationDOMInjector::annotGroupBounds)
+         .collect(Collectors.toList());
+
+      // Centroid of all arc bounding-box centres approximates the sunburst origin.
+      double sumX = 0, sumY = 0;
+      for(double[] b : bounds) {
+         sumX += (b[0] + b[2]) / 2.0;
+         sumY += (b[1] + b[3]) / 2.0;
+      }
+      double originX = sumX / n;
+      double originY = sumY / n;
+
+      // Group arc indices by level; TreeMap with reverseOrder puts root (highest) first.
+      Map<Integer, List<Integer>> byLevel = new TreeMap<>(Comparator.reverseOrder());
+      for(int i = 0; i < n; i++) {
+         int level = parseIntAttr(arcs.get(i), SVGSupport.ATTR_LEVEL);
+         byLevel.computeIfAbsent(level, k -> new ArrayList<>()).add(i);
+      }
+
+      // Per-arc stagger within a ring; min(0.15, 0.8/ringSize) keeps dense rings snappy.
+      final double ANIM_DURATION   = 0.45; // fade duration of a single arc
+      final double RING_GAP        = 0.05; // gap after inner ring finishes before outer ring starts
+
+      // arc index → animation style string, used later to match labels.
+      Map<Integer, String> arcStyles = new HashMap<>();
+      double baseDelay = 0;
+
+      for(List<Integer> indices : byLevel.values()) {
+         int m = indices.size();
+         double step = m > 1 ? Math.min(0.15, 0.8 / m) : 0;
+
+         // Sort clockwise from 12 o'clock within this ring.
+         indices.sort(Comparator.comparingDouble(i -> {
+            double[] b = bounds.get(i);
+            double dx = (b[0] + b[2]) / 2.0 - originX;
+            double dy = (b[1] + b[3]) / 2.0 - originY;
+            double angle = Math.atan2(dy, dx) + Math.PI / 2.0;
+            if(angle < 0) angle += 2 * Math.PI;
+            if(angle >= 2 * Math.PI) angle -= 2 * Math.PI;
+            return angle;
+         }));
+
+         for(int rank = 0; rank < m; rank++) {
+            int origIdx = indices.get(rank);
+            double delay = baseDelay + rank * step;
+            String style = String.format(java.util.Locale.US,
+               "animation:inetsoft-sunburst-fade %.2fs ease-out %.2fs both",
+               ANIM_DURATION, delay);
+            arcStyles.put(origIdx, style);
+            applyAnimStyleToChildren(arcs.get(origIdx), style);
+         }
+
+         // Next ring begins after this ring's last arc has fully faded in, plus a small gap.
+         baseDelay += (m - 1) * step + ANIM_DURATION + RING_GAP;
+      }
+
+      // Match each label text group to its nearest arc via CTM-based positioning (avoids
+      // bezier glyph path parsing artifacts from annotGroupBounds on text glyphs).
+      // Apply the same animation timing and tag for hover dimming.
+      List<Element> textGroups = new ArrayList<>();
+      collectTextGroups(svgRoot, textGroups);
+
+      for(Element textG : textGroups) {
+         int bestIdx = nearestCellByCtm(textG, bounds);
+
+         if(bestIdx >= 0) {
+            mergeStyle(textG, arcStyles.get(bestIdx));
+            tagLabelForHover(textG, arcs.get(bestIdx), SVGSupport.ANNOTATION_TREEMAP_LABEL);
+         }
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // Icicle animation
+   // -------------------------------------------------------------------------
+
+   /**
+    * Inject staggered fade-in for icicle charts.
+    *
+    * <p>Depth columns are staggered left-to-right with a fixed 0.25s base offset per level.
+    * Within each depth column, cells cascade top-to-bottom using {@code min(0.25, 1.0/count)}.
+    * Formula: {@code delay = (maxLevel - level) * 0.25 + idxWithinDepth * min(0.25, 1.0/count)}.
+    */
+   private static void injectIcicleAnimation(Element svgRoot, Document doc) {
+      appendStyle(svgRoot, doc,
+         "@keyframes inetsoft-icicle-fade{from{opacity:0}to{opacity:1}}");
+
+      List<Element> cells = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_TREEMAP);
+
+      if(cells.isEmpty()) {
+         return;
+      }
+
+      List<double[]> bounds = cells.stream()
+         .map(SVGAnimationDOMInjector::annotGroupBounds)
+         .collect(Collectors.toList());
+
+      int maxLevel = cells.stream()
+         .mapToInt(g -> parseIntAttr(g, SVGSupport.ATTR_LEVEL))
+         .max().orElse(0);
+
+      // Group cell indices by level; count cells per level for within-depth stagger.
+      Map<Integer, List<Integer>> byLevel = new HashMap<>();
+      for(int i = 0; i < cells.size(); i++) {
+         int level = parseIntAttr(cells.get(i), SVGSupport.ATTR_LEVEL);
+         byLevel.computeIfAbsent(level, k -> new ArrayList<>()).add(i);
+      }
+
+      // Within each depth column sort top-to-bottom by Y position.
+      for(List<Integer> indices : byLevel.values()) {
+         indices.sort(Comparator.comparingDouble(i -> bounds.get(i)[1]));
+      }
+
+      final double DEPTH_STEP = 0.25; // base delay per depth column (left → right)
+
+      // cell index → animation style, used to match labels after cell pass.
+      Map<Integer, String> cellStyles = new HashMap<>();
+
+      for(Map.Entry<Integer, List<Integer>> entry : byLevel.entrySet()) {
+         int level = entry.getKey();
+         List<Integer> indices = entry.getValue();
+         int count = indices.size();
+         double depthBase = (maxLevel - level) * DEPTH_STEP;
+         double withinStep = count > 1 ? Math.min(0.25, 1.0 / count) : 0;
+
+         for(int rank = 0; rank < count; rank++) {
+            int idx = indices.get(rank);
+            double delay = depthBase + rank * withinStep;
+            String animStyle = String.format(java.util.Locale.US,
+               "animation:inetsoft-icicle-fade 0.8s ease-out %.2fs both", delay);
+            applyAnimStyleToChildren(cells.get(idx), animStyle);
+            cellStyles.put(idx, animStyle);
+         }
+      }
+
+      // Match label text groups to their cell and apply the same animation style so labels
+      // fade in together with their section, and tag for hover dimming.
+      List<Element> textGroups = new ArrayList<>();
+      collectTextGroups(svgRoot, textGroups);
+
+      for(Element textG : textGroups) {
+         int bestIdx = nearestCellByCtm(textG, bounds);
+
+         if(bestIdx >= 0) {
+            mergeStyle(textG, cellStyles.get(bestIdx));
+            tagLabelForHover(textG, cells.get(bestIdx), SVGSupport.ANNOTATION_TREEMAP_LABEL);
+         }
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // Marimekko animation
+   // -------------------------------------------------------------------------
+
+   /**
+    * Inject staggered fade-in for marimekko charts.
+    *
+    * <p>Cells use a diagonal stagger: {@code delay = colIdx * 0.08 + rowIdx * 0.05}, where
+    * {@code colIdx} is the left-to-right column index by x-center and {@code rowIdx} is the
+    * top-to-bottom position within the column.  This produces a wave that sweeps down and to
+    * the right across the chart.
+    *
+    * <p>The animation style is set directly on the {@code inetsoft-mekko} annotation group
+    * (not on inner children as in treemap/sunburst/icicle) because MekkoVO places all fill and
+    * stroke paths as direct children with no wrapping inner {@code <g>}.  CSS {@code !important}
+    * hover rules correctly override CSS animations, so hover dimming still works.
+    */
+   private static void injectMekkoAnimation(Element svgRoot, Document doc) {
+      appendStyle(svgRoot, doc,
+         "@keyframes inetsoft-mekko-fade{from{opacity:0}to{opacity:1}}");
+
+      List<Element> cells = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_MEKKO);
+
+      if(cells.isEmpty()) {
+         return;
+      }
+
+      // Diagonal stagger: delay = colIdx * COL_STEP + rowIdx * ROW_STEP.
+      // colIdx = left-to-right column order by x-center.
+      // rowIdx = top-to-bottom position within that column by y-top (rounded to nearest pixel).
+      final double COL_STEP = 0.08;
+      final double ROW_STEP = 0.05;
+
+      List<double[]> bounds = cells.stream()
+         .map(SVGAnimationDOMInjector::annotGroupBounds)
+         .collect(Collectors.toList());
+
+      // Distinct sorted x-centers → column indices.
+      List<Double> xCenters = bounds.stream()
+         .map(b -> (b[0] + b[2]) / 2.0)
+         .collect(Collectors.toList());
+      List<Double> sortedCols = xCenters.stream()
+         .distinct().sorted()
+         .collect(Collectors.toList());
+
+      // Build O(1) lookup map: x-center → column index.
+      Map<Double, Integer> colIndexMap = new HashMap<>();
+      for(int k = 0; k < sortedCols.size(); k++) {
+         colIndexMap.put(sortedCols.get(k), k);
+      }
+
+      // Within each column, rank cells top-to-bottom by y-top (rounded to nearest pixel).
+      // Build a map from colX → sorted list of y-top values so rowIdx is stable.
+      Map<Double, List<Long>> colYMap = new HashMap<>();
+      for(int i = 0; i < cells.size(); i++) {
+         double cx = xCenters.get(i);
+         long yTop = Math.round(bounds.get(i)[1]);
+         colYMap.computeIfAbsent(cx, k -> new ArrayList<>()).add(yTop);
+      }
+
+      // Build O(1) lookup map: (x-center, y-top) → row index within that column.
+      Map<Double, Map<Long, Integer>> rowIndexMap = new HashMap<>();
+      for(Map.Entry<Double, List<Long>> e : colYMap.entrySet()) {
+         List<Long> ys = new ArrayList<>(e.getValue());
+         java.util.Collections.sort(ys);
+         Map<Long, Integer> rowMap = new HashMap<>();
+         for(int k = 0; k < ys.size(); k++) {
+            // putIfAbsent: when two cells in the same column share a sub-pixel-rounded y-top,
+            // keep the first (lowest) row index rather than overwriting with a higher one.
+            rowMap.putIfAbsent(ys.get(k), k);
+         }
+         rowIndexMap.put(e.getKey(), rowMap);
+      }
+
+      // cell index → animation style, reused when matching labels.
+      Map<Integer, String> cellStyles = new HashMap<>();
+
+      for(int i = 0; i < cells.size(); i++) {
+         double cx = xCenters.get(i);
+         int colIdx = colIndexMap.get(cx);
+         long yTop = Math.round(bounds.get(i)[1]);
+         int rowIdx = rowIndexMap.get(cx).get(yTop);
+         double delay = colIdx * COL_STEP + rowIdx * ROW_STEP;
+         String animStyle = String.format(java.util.Locale.US,
+            "animation:inetsoft-mekko-fade 0.8s ease-out %.2fs both", delay);
+         cells.get(i).setAttribute("style", animStyle);
+         cellStyles.put(i, animStyle);
+      }
+
+      // Match external text labels to cells: apply matching animation style so labels fade in
+      // with their section, and tag with the label class + data-row/col for hover dimming.
+      List<Element> textGroups = new ArrayList<>();
+      collectTextGroups(svgRoot, textGroups);
+
+      for(Element textG : textGroups) {
+         int idx = nearestCellByCtm(textG, bounds);
+
+         if(idx >= 0) {
+            mergeStyle(textG, cellStyles.get(idx));
+            tagLabelForHover(textG, cells.get(idx), SVGSupport.ANNOTATION_MEKKO_LABEL);
+         }
+      }
+   }
+
+   /**
+    * Return the index into {@code cellBounds} of the cell that best matches the given text
+    * group's SVG position, determined via its transform CTM.
+    *
+    * <p>Containment is preferred over bare nearest-centre so that labels sitting inside a cell
+    * area are matched to that cell even when another cell's centre is slightly closer.
+    *
+    * <p>Text groups without a {@code transform} attribute return {@code -1} and are skipped.
+    * In practice Batik always emits a {@code transform} on label groups (it encodes the full
+    * SVG-coordinate position there, not in child element attributes), so a missing transform
+    * indicates a non-label group that should be ignored.
+    *
+    * @return the matched index, or {@code -1} if the text group has no {@code transform} attribute
+    */
+   private static int nearestCellByCtm(Element textG, List<double[]> cellBounds) {
+      String tfStr = textG.getAttribute("transform");
+
+      if(tfStr.isEmpty()) {
+         return -1;
+      }
+
+      double[] ctm = parseSVGTransform(tfStr);
+      double tx = ctm[4];
+      double ty = ctm[5];
+
+      int bestIdx = -1;
+      double bestDist = Double.MAX_VALUE;
+
+      // Prefer cells whose bounding box contains the text reference point.
+      for(int i = 0; i < cellBounds.size(); i++) {
+         double[] b = cellBounds.get(i);
+         boolean contained = tx >= b[0] && tx <= b[2] && ty >= b[1] && ty <= b[3];
+
+         if(contained) {
+            double cx = (b[0] + b[2]) / 2.0;
+            double cy = (b[1] + b[3]) / 2.0;
+            double dist = (tx - cx) * (tx - cx) + (ty - cy) * (ty - cy);
+
+            if(dist < bestDist) {
+               bestDist = dist;
+               bestIdx = i;
+            }
+         }
+      }
+
+      // Fallback: nearest centre when the label sits outside all cell bounding boxes.
+      if(bestIdx < 0) {
+         bestDist = Double.MAX_VALUE;
+
+         for(int i = 0; i < cellBounds.size(); i++) {
+            double[] b = cellBounds.get(i);
+            double cx = (b[0] + b[2]) / 2.0;
+            double cy = (b[1] + b[3]) / 2.0;
+            double dist = (tx - cx) * (tx - cx) + (ty - cy) * (ty - cy);
+
+            if(dist < bestDist) {
+               bestDist = dist;
+               bestIdx = i;
+            }
+         }
+      }
+
+      return bestIdx;
+   }
+
+   /**
+    * Stamp a text label group with a hover-dimming CSS class and copy the {@code data-row} /
+    * {@code data-col} attributes from the matched annotation group so the Angular directive can
+    * pair the label with the cell and toggle {@code inetsoft-active} on both simultaneously.
+    */
+   private static void tagLabelForHover(Element textG, Element matchedCell, String labelClass) {
+      textG.setAttribute("class", labelClass);
+      String row = matchedCell.getAttribute("data-row");
+      String col = matchedCell.getAttribute("data-col");
+
+      if(!row.isEmpty()) {
+         textG.setAttribute("data-row", row);
+      }
+
+      if(!col.isEmpty()) {
+         textG.setAttribute("data-col", col);
+      }
+   }
+
+   /**
+    * Parse the {@code data-<attr>} integer attribute of an element, returning {@code 0} on
+    * missing or malformed values.
+    */
+   private static int parseIntAttr(Element el, String attr) {
+      try {
+         return Integer.parseInt(el.getAttribute("data-" + attr));
+      }
+      catch(NumberFormatException e) {
+         return 0;
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // Candlestick animation
+   // -------------------------------------------------------------------------
+
+   /**
+    * Inject staggered fade-in animation for candlestick charts.
+    *
+    * <p>Each {@code inetsoft-candle} annotation group (one per candle) fades in over 0.6 s.
+    * Items are sorted by screen X position ({@code data-x}) so they animate left-to-right
+    * in visual order.  Delays are spread evenly across 0–1.2 s regardless of item count.
+    */
+   private static void injectCandleAnimation(Element svgRoot, Document doc) {
+      injectXPositionFadeAnimation(svgRoot, doc,
+         SVGSupport.ANNOTATION_CANDLE, "inetsoft-candle-fade");
+   }
+
+   // -------------------------------------------------------------------------
+   // Box-plot animation
+   // -------------------------------------------------------------------------
+
+   /**
+    * Inject staggered fade-in animation for box-plot charts.
+    *
+    * <p>Each {@code inetsoft-box} annotation group (one per box) fades in over 0.6 s.
+    * Items are sorted by screen X position ({@code data-x}) so they animate left-to-right
+    * in visual order.  Delays are spread evenly across 0–1.2 s regardless of item count.
+    */
+   private static void injectBoxAnimation(Element svgRoot, Document doc) {
+      injectXPositionFadeAnimation(svgRoot, doc,
+         SVGSupport.ANNOTATION_BOX, "inetsoft-box-fade");
+   }
+
+   /**
+    * Shared fade-in implementation for chart types whose items are staggered left-to-right
+    * by screen X position.  Used by both candlestick and box-plot animations.
+    *
+    * <p>Groups are sorted by the {@code data-x} attribute (screen X center in pixels), then
+    * assigned delays spread evenly across 0–1.2 s.  Each item fades in over 0.6 s.
+    *
+    * <p>The animation style is applied directly to the annotation group element (not via
+    * {@link #applyAnimStyleToChildren}) because {@code CandlePainter} and {@code BoxPainter}
+    * emit all shape paths as direct children of the annotation group with no intermediate
+    * wrapper {@code <g>} — there is no inner child to target.  CSS {@code !important} hover
+    * rules correctly override CSS animations, so hover dimming still works.
+    */
+   private static void injectXPositionFadeAnimation(Element svgRoot, Document doc,
+                                                     String annotClass, String keyframeName)
+   {
+      appendStyle(svgRoot, doc,
+         "@keyframes " + keyframeName + "{from{opacity:0}to{opacity:1}}");
+
+      List<Element> items = collectAnnotationGroups(svgRoot, annotClass);
+
+      if(items.isEmpty()) {
+         return;
+      }
+
+      // Sort left-to-right by screen X center so items animate in visual order regardless
+      // of how the underlying data rows are ordered in the dataset.
+      items.sort(Comparator.comparingDouble(g -> {
+         String s = ((Element) g).getAttribute("data-" + SVGSupport.ATTR_X);
+
+         try {
+            return s.isEmpty() ? 0.0 : Double.parseDouble(s);
+         }
+         catch(NumberFormatException e) {
+            return 0.0;
+         }
+      }));
+
+      int n = items.size();
+      double maxDelay = 1.2;
+      double step = n > 1 ? maxDelay / (n - 1) : 0;
+
+      for(int i = 0; i < n; i++) {
+         double delay = i * step;
+         String animStyle = String.format(java.util.Locale.US,
+            "animation:%s 0.6s ease-out %.2fs both", keyframeName, delay);
+         items.get(i).setAttribute("style", animStyle);
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // Radar/spider chart animation
+   // -------------------------------------------------------------------------
+
+   /**
+    * Inject spring-scale animation for radar (spider) charts.
+    *
+    * <p>Each series polygon springs out from the radar center with a gentle overshoot,
+    * staggered by series index (back series first).  LineVO emits {@code inetsoft-line}
+    * groups and AreaVO emits {@code inetsoft-area} groups — both are collected and
+    * re-classified to {@code inetsoft-radar} so hover CSS targets the correct class.
+    *
+    * <p>For line-style radar ({@code CHART_RADAR}) the path has {@code fill="none"}, so:
+    * <ul>
+    *   <li>A semi-transparent ghost fill path is injected inside the group (inherits animation).
+    *   <li>A transparent hit path is appended so the enclosed area captures pointer events.
+    * </ul>
+    * Fill-style radar ({@code CHART_FILL_RADAR}) already has a filled path; neither extra
+    * element is needed.
+    */
+   private static void injectRadarAnimation(Element svgRoot, Document doc) {
+      // Collect both line and area annotation groups — radar uses one or the other.
+      List<Element> groups = new ArrayList<>();
+      groups.addAll(collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_LINE));
+      groups.addAll(collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_AREA));
+
+      if(groups.isEmpty()) {
+         return;
+      }
+
+      // Re-classify all groups to inetsoft-radar so hover CSS and the directive are correct.
+      for(Element g : groups) {
+         g.setAttribute("class", SVGSupport.ANNOTATION_RADAR);
+      }
+
+      // Preserve DOM order (data-series is unreliable for radar — AreaVO.getColIndex() returns
+      // the axis count, not the series index, so all groups share the same data-series value).
+      // DOM order matches the back-to-front paint order, which is the correct stagger sequence.
+
+      // Assign sequential data-row to each group so the directive can map canvas hover events
+      // (row = series index, col = axis index) to the correct polygon.  PointVO emits
+      // data-row = series index in the same back-to-front order, so group[i] → data-row=i.
+      //
+      // Known limitation: for facet radar charts (multiple panels in one SVG), groups from all
+      // panels are collected and numbered globally (0, 1, …, n-1 across panels).  The per-series
+      // CSS hover rules keyed on these data-row values therefore span panels, so hovering a series
+      // in one panel also dims the same-numbered series in sibling panels.  Single-panel radar
+      // charts (the common case) are unaffected.
+      for(int i = 0; i < groups.size(); i++) {
+         groups.get(i).setAttribute("data-row", String.valueOf(i));
+      }
+
+      // Compute the radar center (centroid of all vertices from the first valid polygon).
+      // For a regular n-gon centred at (cx, cy), the vertex centroid == (cx, cy) exactly.
+      double[] center = computeRadarCenter(groups);
+      double cx = center[0];
+      double cy = center[1];
+
+      // Smooth ease-out grow from center — no overshoot/spring-back.
+      // opacity:1 must be explicit in the 100% stop; omitting it causes fill-mode:both to
+      // revert opacity to the element's inline value (opacity:0) once the animation ends.
+      // Simple fade keyframe re-used for points/labels that appear after the polygons settle.
+      appendStyle(svgRoot, doc,
+         "@keyframes inetsoft-radar-grow{" +
+         "0%{transform:scale(0);opacity:0}" +
+         "100%{transform:scale(1);opacity:1}}" +
+         "@keyframes inetsoft-radar-fade{from{opacity:0}to{opacity:1}}");
+
+      int n = groups.size();
+      double animDuration = 0.9;
+      double stagger      = 0.25;
+
+      // Per-series hover rules for each series i.
+      //
+      // Two activation sources exist:
+      //   A) Polygon interior — mouse over the hit path inside .inetsoft-radar[data-row=i].
+      //      The hit path is a descendant of .inetsoft-radar, so :hover propagates up to it.
+      //   B) Vertex circle   — .inetsoft-point[data-row=i] circles are painted AFTER radar
+      //      groups (later DOM order → higher z-order), so they sit on top of the hit paths.
+      //      Without an explicit CSS :hover rule keyed on .inetsoft-point, the full vertex
+      //      circle area would not trigger the dim effect (only the thin crescent of hit-path
+      //      area visible around the circle edge would activate .inetsoft-radar:hover).
+      //
+      // Both sources dim the same set of targets:
+      //   • sibling radar polygons  (not[data-row=i])
+      //   • other-series points     (not[data-row=i])
+      // The hovered series' own polygon and vertex points stay at full opacity.
+      StringBuilder perSeriesCss = new StringBuilder();
+
+      for(int i = 0; i < n; i++) {
+         perSeriesCss.append(String.format(java.util.Locale.US,
+            // When series i's polygon is CSS-hovered (mouse inside the interior), dim the
+            // vertex points of all other series. The hovered series' own points are excluded
+            // by :not([data-row=i]) so they stay at full opacity.
+            "svg:has(.inetsoft-radar[data-row=\"%d\"]:hover) .inetsoft-point:not([data-row=\"%d\"])" +
+            "{opacity:.2!important}", i, i));
+      }
+
+      appendStyle(svgRoot, doc, perSeriesCss.toString());
+
+      for(int i = 0; i < n; i++) {
+         Element g = groups.get(i);
+         double delay = i * stagger;
+
+         // transform-origin in SVG user-space so the scale radiates from the radar center,
+         // not from the polygon's own bounding-box centre (which would be off-centre for
+         // asymmetric score distributions).
+         mergeStyle(g, String.format(java.util.Locale.US,
+            "transform-origin:%.2fpx %.2fpx;" +
+            "opacity:0;animation:inetsoft-radar-grow %.2fs cubic-bezier(0.2,0,0.4,1) %.2fs both",
+            cx, cy, animDuration, delay));
+
+         // For line radar the path has fill="none": inject a ghost fill and a hit area.
+         Element path = firstDescendantPath(g);
+
+         if(path != null && "none".equals(path.getAttribute("fill"))) {
+            String pathD = path.getAttribute("d");
+
+            if(!pathD.isEmpty()) {
+               // Ghost fill — semi-transparent copy of the polygon, inside the group so it
+               // inherits the spring animation.  pointer-events:none keeps interaction on the
+               // explicit hit path added below.
+               int[] rgb = parseColorData(g.getAttribute("data-" + SVGSupport.ATTR_COLOR));
+
+               if(rgb != null) {
+                  Element ghostPath = doc.createElementNS(SVG_NS, "path");
+                  ghostPath.setAttribute("d", pathD);
+                  ghostPath.setAttribute("fill",
+                     String.format("rgba(%d,%d,%d,0.12)", rgb[0], rgb[1], rgb[2]));
+                  ghostPath.setAttribute("stroke", "none");
+                  ghostPath.setAttribute("pointer-events", "none");
+                  // path may be nested inside a Batik intermediate style <g>; insertBefore
+                  // requires the reference node to be a direct child of the receiver.
+                  Element pathParent = (Element) path.getParentNode();
+                  pathParent.insertBefore(ghostPath, path);
+               }
+
+               // Hit path — rgba(0,0,0,0) is transparent but still captures pointer events
+               // (unlike fill="none" which opts the filled area out of pointer events entirely).
+               // Append to path's parent for the same reason as the ghost path above.
+               Element hitPath = doc.createElementNS(SVG_NS, "path");
+               hitPath.setAttribute("d", pathD);
+               hitPath.setAttribute("fill", "rgba(0,0,0,0)");
+               hitPath.setAttribute("stroke", "none");
+               hitPath.setAttribute("pointer-events", "all");
+               path.getParentNode().appendChild(hitPath);
+            }
+         }
+      }
+
+      // Points and value labels appear after all polygons have settled.
+      // dotDelay = last polygon's start time + animation duration.
+      double dotDelay = (n - 1) * stagger + animDuration;
+
+      Set<Element> processedParents = Collections.newSetFromMap(new IdentityHashMap<>());
+
+      for(Element g : groups) {
+         Element parent = (Element) g.getParentNode();
+
+         if(parent == null || !processedParents.add(parent)) {
+            continue;
+         }
+
+         NodeList siblings = parent.getChildNodes();
+
+         for(int i = 0; i < siblings.getLength(); i++) {
+            if(!(siblings.item(i) instanceof Element sibling)) {
+               continue;
+            }
+
+            String sibClass = sibling.getAttribute("class");
+
+            // Fade in inetsoft-point and inetsoft-bar-label annotation groups after polygons.
+            // Also fade in unannotated value-label <g> elements: Batik renders text as path
+            // glyphs inside plain <g> elements. Both axis name labels ("Revenue", "Innovation")
+            // and per-datapoint value labels ("72", "65") have font-family set, so font-family
+            // alone is not a reliable discriminator.  Axis labels are bold (font-weight="bold");
+            // value labels carry no font-weight attribute.  Exclude bold groups to leave axis
+            // labels always visible.
+            if(SVGSupport.ANNOTATION_POINT.equals(sibClass) ||
+               SVGSupport.ANNOTATION_LABEL.equals(sibClass) ||
+               (!sibling.getAttribute("font-family").isEmpty() &&
+                sibling.getAttribute("font-weight").isEmpty() &&
+                sibClass.isEmpty()))
+            {
+               mergeStyle(sibling, String.format(java.util.Locale.US,
+                  "opacity:0;animation:inetsoft-radar-fade 0.35s ease-out %.2fs both", dotDelay));
+            }
+         }
+      }
+   }
+
+   /**
+    * Compute the radar chart centre as the centroid of all polygon vertices in the first
+    * valid annotated group.  Batik emits closed polygon paths as
+    * {@code M x0 y0 L x1 y1 … L xN yN Z}; stripping SVG command letters and parsing the
+    * remaining numbers as (x, y) pairs gives all vertex coordinates.
+    */
+   private static double[] computeRadarCenter(List<Element> groups) {
+      for(Element g : groups) {
+         Element path = firstDescendantPath(g);
+
+         if(path == null) {
+            continue;
+         }
+
+         String d = path.getAttribute("d");
+
+         if(d.isEmpty()) {
+            continue;
+         }
+
+         // Strip all SVG command letters (M, L, Z, C, Q, …) then split on whitespace/commas.
+         String[] tokens = d.replaceAll("[A-Za-z]", " ").trim().split("[\\s,]+");
+
+         double sumX = 0, sumY = 0;
+         int count = 0;
+
+         for(int i = 0; i + 1 < tokens.length; i += 2) {
+            try {
+               sumX += Double.parseDouble(tokens[i]);
+               sumY += Double.parseDouble(tokens[i + 1]);
+               count++;
+            }
+            catch(NumberFormatException ignored) {
+               // Skip malformed tokens.
+            }
+         }
+
+         if(count > 0) {
+            return new double[]{ sumX / count, sumY / count };
+         }
+      }
+
+      // Fallback: use the SVG viewBox midpoint so the animation scales from a reasonable
+      // center rather than the top-left corner (0, 0), which would look obviously wrong.
+      if(!groups.isEmpty()) {
+         Element svgRoot = (Element) groups.get(0).getOwnerDocument().getDocumentElement();
+         String viewBox = svgRoot.getAttribute("viewBox");
+
+         if(!viewBox.isEmpty()) {
+            String[] parts = viewBox.trim().split("[\\s,]+");
+
+            if(parts.length >= 4) {
+               try {
+                  double vbX = Double.parseDouble(parts[0]);
+                  double vbY = Double.parseDouble(parts[1]);
+                  double vbW = Double.parseDouble(parts[2]);
+                  double vbH = Double.parseDouble(parts[3]);
+                  return new double[]{ vbX + vbW / 2.0, vbY + vbH / 2.0 };
+               }
+               catch(NumberFormatException ignored) {
+               }
+            }
+         }
+      }
+
+      return new double[]{ 0, 0 };
+   }
+
    // -------------------------------------------------------------------------
    // Hover CSS (server-injected; JS toggles inetsoft-active)
    // -------------------------------------------------------------------------
@@ -1361,14 +2190,37 @@ public class SVGAnimationDOMInjector {
     * <p>The {@code :has()} relational pseudo-class requires Chrome 105+, Firefox 121+,
     * Safari 15.4+.  On older browsers the dimming rule is silently ignored (no error);
     * hover highlighting simply has no visual effect.  StyleBI targets modern browsers only.
+    *
+    * <p>All chart types share a uniform {@code transition: opacity .2s ease} — intentionally
+    * updated from the original {@code .15s} for bar and point charts when new types were added,
+    * to give every chart a consistent hover fade feel.
     */
    private static void appendHoverCSS(Element svgRoot, Document doc) {
       appendStyle(svgRoot, doc,
-         ".inetsoft-bar,.inetsoft-bar-label,.inetsoft-point{transition:opacity .15s}" +
+         ".inetsoft-bar,.inetsoft-bar-label,.inetsoft-point,.inetsoft-candle,.inetsoft-box," +
+         ".inetsoft-radar,.inetsoft-treemap,.inetsoft-mekko," +
+         ".inetsoft-treemap-label,.inetsoft-mekko-label{transition:opacity .2s ease}" +
          "svg:has(.inetsoft-bar.inetsoft-active) .inetsoft-bar:not(.inetsoft-active)," +
          "svg:has(.inetsoft-bar.inetsoft-active) .inetsoft-bar-label:not(.inetsoft-active)" +
          "{opacity:.2!important}" +
          "svg:has(.inetsoft-point.inetsoft-active) .inetsoft-point:not(.inetsoft-active)" +
+         "{opacity:.2!important}" +
+         "svg:has(.inetsoft-candle.inetsoft-active) .inetsoft-candle:not(.inetsoft-active)" +
+         "{opacity:.2!important}" +
+         "svg:has(.inetsoft-box.inetsoft-active) .inetsoft-box:not(.inetsoft-active)" +
+         "{opacity:.2!important}" +
+         "svg:has(.inetsoft-treemap.inetsoft-active) .inetsoft-treemap:not(.inetsoft-active)," +
+         "svg:has(.inetsoft-treemap.inetsoft-active) .inetsoft-treemap-label:not(.inetsoft-active)" +
+         "{opacity:.2!important}" +
+         "svg:has(.inetsoft-mekko.inetsoft-active) .inetsoft-mekko:not(.inetsoft-active)," +
+         "svg:has(.inetsoft-mekko.inetsoft-active) .inetsoft-mekko-label:not(.inetsoft-active)" +
+         "{opacity:.2!important}" +
+         // Radar polygon dimming via CSS :hover only — no inetsoft-active toggling for radar.
+         // Hovering inside a polygon's hit area dims sibling polygons; vertex points produce
+         // no dim effect. pointer-events:all on the group makes the filled interior reactive.
+         // Per-series point dimming is injected in injectRadarAnimation() once N is known.
+         ".inetsoft-radar{pointer-events:all}" +
+         "svg:has(.inetsoft-radar:hover) .inetsoft-radar:not(:hover)" +
          "{opacity:.2!important}");
    }
 
@@ -1553,6 +2405,11 @@ public class SVGAnimationDOMInjector {
    /**
     * Recursively collect {@code <g>} elements with {@code text-rendering="geometricPrecision"},
     * which are the label groups produced by the chart renderer.  Skips {@code <defs>}.
+    *
+    * <p><b>Batik-specific heuristic:</b> {@code text-rendering="geometricPrecision"} is a
+    * Batik-emitted attribute on every label group; no other SVG element in the output carries
+    * this attribute. If a future SVG renderer change stops emitting this attribute, or starts
+    * emitting it on non-label elements, label animation and hover matching will silently break.
     */
    private static void collectTextGroups(Element el, List<Element> result) {
       if("defs".equals(el.getLocalName())) {

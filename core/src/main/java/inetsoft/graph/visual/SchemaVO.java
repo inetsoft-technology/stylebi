@@ -25,8 +25,10 @@ import inetsoft.graph.geometry.*;
 import inetsoft.graph.guide.VLabel;
 import inetsoft.graph.internal.DimensionD;
 import inetsoft.graph.internal.GTool;
+import inetsoft.graph.schema.BoxPainter;
 import inetsoft.graph.schema.SchemaPainter;
 import inetsoft.util.CoreTool;
+import inetsoft.util.graphics.SVGSupport;
 
 import java.awt.*;
 import java.awt.geom.*;
@@ -83,14 +85,34 @@ public class SchemaVO extends ElementVO {
     */
    @Override
    public void paint(Graphics2D g) {
+      final Graphics2D g0 = g;
+      SVGSupport svg = SVGSupport.isSVGContext(g0) ? SVGSupport.getInstance() : null;
+
+      // Clone painter once; use it for both the screen-X measurement and the actual paint call.
       SchemaPainter painter = (SchemaPainter) this.painter.clone();
-
-      g = (Graphics2D) g.create();
-      g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
-
       painter.transformScreen(getScreenTransform());
-      painter.paint(g);
-      g.dispose();
+
+      if(svg != null) {
+         double screenCx = painter.getShape(0).getBounds2D().getCenterX();
+         String annotClass = isBoxPlot() ? SVGSupport.ANNOTATION_BOX : SVGSupport.ANNOTATION_CANDLE;
+         svg.beginAnnotationGroup(g0, annotClass, Map.of(
+            SVGSupport.ATTR_COL, String.valueOf(getColIndex()),
+            SVGSupport.ATTR_ROW, String.valueOf(getRowIndex()),
+            SVGSupport.ATTR_X,   String.format(java.util.Locale.US, "%.1f", screenCx)
+         ));
+      }
+
+      try {
+         Graphics2D g2 = (Graphics2D) g0.create();
+         g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+         painter.paint(g2);
+         g2.dispose();
+      }
+      finally {
+         if(svg != null) {
+            svg.endAnnotationGroup(g0);
+         }
+      }
    }
 
    /**
@@ -370,6 +392,11 @@ public class SchemaVO extends ElementVO {
       SchemaVO obj = (SchemaVO) super.clone();
       obj.vtext = cloneVOText(vtext);
       return obj;
+   }
+
+   /** Returns {@code true} if this VO is rendering a box-plot (vs. a candlestick/stock chart). */
+   public boolean isBoxPlot() {
+      return painter instanceof BoxPainter;
    }
 
    private static final int MIN_WIDTH = 5;

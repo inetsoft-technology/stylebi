@@ -26,12 +26,14 @@ import inetsoft.graph.element.MekkoElement;
 import inetsoft.graph.geometry.*;
 import inetsoft.graph.guide.VLabel;
 import inetsoft.graph.internal.DimensionD;
+import inetsoft.util.graphics.SVGSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
+import java.util.Map;
 
 /**
  * Visualizable object for a mekko area.
@@ -85,31 +87,47 @@ public class MekkoVO extends ElementVO {
       GLine line = gobj.getLine(0);
       Color borderColor = elem.getBorderColor();
       GTexture texture = gobj.getTexture(0);
-      Graphics2D g2 = (Graphics2D) g.create();
 
-      color = applyAlpha(color);
-      g2.setColor(color);
+      SVGSupport svg = SVGSupport.isSVGContext(g) ? SVGSupport.getInstance() : null;
 
-      if(texture != null) {
-         texture.paint(g2, shape);
-      }
-      else {
-         g2.fill(shape);
+      if(svg != null) {
+         svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_MEKKO, Map.of(
+            SVGSupport.ATTR_ROW, String.valueOf(getRowIndex()),
+            SVGSupport.ATTR_COL, String.valueOf(getColIndex())
+         ));
       }
 
-      if(borderColor != null) {
-         g2.setColor(borderColor);
-      }
-      else {
-         g2.setColor(Color.WHITE);
-      }
+      try {
+         Graphics2D g2 = (Graphics2D) g.create();
+         color = applyAlpha(color);
+         g2.setColor(color);
 
-      if(line != null) {
-         g2.setStroke(line.getStroke());
-      }
+         if(texture != null) {
+            texture.paint(g2, shape);
+         }
+         else {
+            g2.fill(shape);
+         }
 
-      g2.draw(shape);
-      g2.dispose();
+         if(borderColor != null) {
+            g2.setColor(borderColor);
+         }
+         else {
+            g2.setColor(Color.WHITE);
+         }
+
+         if(line != null) {
+            g2.setStroke(line.getStroke());
+         }
+
+         g2.draw(shape);
+         g2.dispose();
+      }
+      finally {
+         if(svg != null) {
+            svg.endAnnotationGroup(g);
+         }
+      }
    }
 
    /**

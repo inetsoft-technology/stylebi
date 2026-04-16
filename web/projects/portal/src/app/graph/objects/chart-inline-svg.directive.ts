@@ -58,8 +58,8 @@ export class ChartInlineSvgDirective implements OnDestroy {
     * determines which server-injected hover rule fires when inetsoft-active is toggled.
     */
    private elementGroupMap = new Map<string, Element>();
-   /** Maps "rowIdx-colIdx" to the value label group paired with that bar. */
-   private barLabelMap = new Map<string, Element>();
+   /** Maps "rowIdx-colIdx" to the external text label group paired with that data element. */
+   private labelGroupMap = new Map<string, Element>();
    /** Key of the currently active element, or null. */
    private _activeKey: string | null = null;
    /** Timer handle for debounced deactivation, so fast inter-bar moves don't flash. */
@@ -125,7 +125,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
       else {
          this.element.nativeElement.innerHTML = "";
          this.elementGroupMap.clear();
-         this.barLabelMap.clear();
+         this.labelGroupMap.clear();
          this._activeKey = null;
       }
    }
@@ -165,7 +165,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
    private activateKey(key: string): void {
       const el = this.elementGroupMap.get(key);
       if(el) el.classList.add("inetsoft-active");
-      const label = this.barLabelMap.get(key);
+      const label = this.labelGroupMap.get(key);
       if(label) label.classList.add("inetsoft-active");
    }
 
@@ -173,7 +173,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
       if(this._activeKey === null) return;
       const el = this.elementGroupMap.get(this._activeKey);
       if(el) el.classList.remove("inetsoft-active");
-      const label = this.barLabelMap.get(this._activeKey);
+      const label = this.labelGroupMap.get(this._activeKey);
       if(label) label.classList.remove("inetsoft-active");
    }
 
@@ -185,13 +185,13 @@ export class ChartInlineSvgDirective implements OnDestroy {
       }
 
       this.elementGroupMap.clear();
-      this.barLabelMap.clear();
+      this.labelGroupMap.clear();
       this._activeKey = null;
 
       // Populate the unified element map from all annotated VO groups.
       // Each CSS class corresponds to a different chart type; the CSS class on the stored
       // element determines which server-injected hover rule fires on inetsoft-active toggle.
-      for(const cssClass of [".inetsoft-bar", ".inetsoft-point"]) {
+      for(const cssClass of [".inetsoft-bar", ".inetsoft-point", ".inetsoft-candle", ".inetsoft-box", ".inetsoft-radar", ".inetsoft-treemap", ".inetsoft-mekko"]) {
          const elements = Array.from(
             this.element.nativeElement.querySelectorAll(cssClass) as NodeListOf<Element>);
 
@@ -205,15 +205,39 @@ export class ChartInlineSvgDirective implements OnDestroy {
          }
       }
 
-      // Build label map from server-annotated inetsoft-bar-label elements.
-      const labels = Array.from(
-         this.element.nativeElement.querySelectorAll(".inetsoft-bar-label") as NodeListOf<Element>);
+      // Radar hover is driven entirely by CSS :hover on polygon groups (hit paths injected
+      // server-side have pointer-events:all so the filled interior is reactive). Vertex points
+      // intentionally produce no dim effect — no JS activation and no inetsoft-active toggling.
+      // The elementGroupMap is cleared so canvas-reported hover events are a no-op.
+      const radarGroups = Array.from(
+         this.element.nativeElement.querySelectorAll(".inetsoft-radar") as NodeListOf<Element>);
 
-      for(const label of labels) {
-         const row = label.getAttribute("data-row");
-         const col = label.getAttribute("data-col");
-         if(row != null && col != null) {
-            this.barLabelMap.set(`${row}-${col}`, label);
+      if(radarGroups.length > 0) {
+         this.elementGroupMap.clear();
+
+         // Raise the SVG container above the canvas overlay so CSS :hover fires on polygon
+         // interior areas. pointer-events:none on the container is kept (set in the host
+         // component's SCSS); events outside polygon hit areas pass through to the canvas.
+         this.element.nativeElement.style.zIndex = "1";
+      }
+      else {
+         // Non-radar chart — reset in case SVG was replaced after a radar chart.
+         this.element.nativeElement.style.zIndex = "";
+      }
+
+      // Build label map from server-annotated label elements for all chart types that have
+      // external text groups matched to data elements (bar, treemap/sunburst/icicle, mekko).
+      for(const labelClass of [".inetsoft-bar-label", ".inetsoft-treemap-label", ".inetsoft-mekko-label"]) {
+         const labels = Array.from(
+            this.element.nativeElement.querySelectorAll(labelClass) as NodeListOf<Element>);
+
+         for(const label of labels) {
+            const row = label.getAttribute("data-row");
+            const col = label.getAttribute("data-col");
+
+            if(row != null && col != null) {
+               this.labelGroupMap.set(`${row}-${col}`, label);
+            }
          }
       }
    }
