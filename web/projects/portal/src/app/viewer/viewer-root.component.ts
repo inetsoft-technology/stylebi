@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, OnDestroy, OnInit } from "@angular/core";
+import { ActivatedRoute } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { StompClientConnection } from "../../../../shared/stomp/stomp-client-connection";
 import { StompClientService } from "../common/viewsheet-client";
@@ -27,12 +28,16 @@ import { ComponentTool } from "../common/util/component-tool";
    styleUrls: ["viewer-root.component.scss"]
 })
 export class ViewerRootComponent implements OnInit, OnDestroy {
+   inPortal: boolean = false;
    private connection: StompClientConnection;
 
-   constructor(private socket: StompClientService, private modalService: NgbModal) {
+   constructor(private socket: StompClientService, private modalService: NgbModal,
+               private route: ActivatedRoute) {
    }
 
    ngOnInit(): void {
+      this.inPortal = !!this.route.snapshot.data["inPortal"];
+
       if(document.body.className.indexOf("app-loaded") == -1) {
          document.body.className += " app-loaded";
          const splash = document.querySelector<HTMLElement>(".loading-splash");

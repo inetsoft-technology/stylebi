@@ -828,6 +828,8 @@ public class VSObjectPropertyService {
 
          if(box.isPresent()) {
             box.get().resetRuntime();
+            // prevent applyParameterToInput() from overwriting input values after rename
+            box.get().markParametersApplied();
             commandDispatcher.sendCommand(containerName, new RenameVSObjectCommand(oldName, newName));
             renameChildAssemblies(oldNames, newName, vs);
             ViewsheetScope scope = box.get().getScope();

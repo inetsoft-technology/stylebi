@@ -739,12 +739,13 @@ public class DeployManagerService {
                   continue;
                }
 
-               changeAssetMap.put(supportEntry, getAssetObjectByAsset(newAsset));
+               AssetObject newEntry = getAssetObjectByAsset(newAsset);
+               changeAssetMap.put(supportEntry, newEntry);
 
                if(supportEntry instanceof AssetEntry) {
                   AssetObject currOrgEntry = ((AssetEntry) supportEntry).cloneAssetEntry(
                                              new Organization(OrganizationManager.getInstance().getCurrentOrgID()));
-                  changeAssetMap.put(currOrgEntry, getAssetObjectByAsset(newAsset));
+                  changeAssetMap.put(currOrgEntry, newEntry);
                }
 
             }

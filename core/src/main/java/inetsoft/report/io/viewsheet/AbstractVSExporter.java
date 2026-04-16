@@ -3728,6 +3728,17 @@ public abstract class AbstractVSExporter implements VSExporter {
     * Render a widget image with the assembly-level background and borders suppressed.
     * Used by {@link #writeInputWithLabel} which draws those styles around the full
     * (label + widget) bounds instead.
+    *
+    * <p>Both the runtime value (rValue) and the design-time value (dValue) must be
+    * cleared for the suppression to take effect:
+    * <ul>
+    *   <li>{@code ClazzHolder.getRValue()} (used by borders) falls back to dValue
+    *       when rValue is null, so setting rValue to null alone leaves the border
+    *       visible.</li>
+    *   <li>{@code DynamicValue.getRValue()} (used by background) auto-assigns dValue
+    *       to rValue when rValue is null and dValue is a literal string, so setting
+    *       rValue to null alone allows dValue to re-appear on the next read.</li>
+    * </ul>
     */
    private BufferedImage getInputImageNoAssemblyStyle(VSAssembly assembly,
       VSAssemblyInfo info, Dimension widgetSize)
@@ -3741,17 +3752,28 @@ public abstract class AbstractVSExporter implements VSExporter {
       VSFormat udf = fmt.getUserDefinedFormat();
       Color savedBg = udf.getBackground();
       boolean savedBgDefined = udf.isBackgroundDefined();
+      String savedBgValue = udf.getBackgroundValue();
+      boolean savedBgValDefined = udf.isBackgroundValueDefined();
       Insets savedBorders = udf.getBorders();
       boolean savedBordersDefined = udf.isBordersDefined();
+      Insets savedBordersValue = udf.getBordersValue();
+      boolean savedBordersValDefined = udf.isBordersValueDefined();
+
+      // Clear both rValue and dValue so neither ClazzHolder nor DynamicValue
+      // can resurrect the original value during widget image rendering.
       udf.setBackground(null);
+      udf.setBackgroundValue(null);
       udf.setBorders(null);
+      udf.setBordersValue(null);
 
       try {
          return getInputImage(assembly, widgetSize);
       }
       finally {
          udf.setBackground(savedBg, savedBgDefined);
+         udf.setBackgroundValue(savedBgValue, savedBgValDefined);
          udf.setBorders(savedBorders, savedBordersDefined);
+         udf.setBordersValue(savedBordersValue, savedBordersValDefined);
       }
    }
 

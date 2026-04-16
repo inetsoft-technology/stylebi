@@ -53,8 +53,6 @@ import { ViewData } from "../view-data";
 import { Tool } from "../../../../../shared/util/tool";
 import { map, mergeMap } from "rxjs/operators";
 import { ModelService } from "../../widget/services/model.service";
-import { DashboardTabModel } from "../../portal/dashboard/dashboard-tab-model";
-import { DashboardTabService } from "../../portal/services/dashboard-tab.service";
 
 @Component({
    selector: "v-viewer-view",
@@ -82,7 +80,7 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
    fullScreenId: string;
    tabBarHeight: number = 0;
    hasBaseEntry: boolean = false;
-   dashboardTabModel: DashboardTabModel | null = null;
+   drillTabsTop: boolean = false;
    drillTabsTopPx: number | null = null;
    toolbarVisible: boolean = true;
    public modified: boolean = false;
@@ -95,7 +93,6 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
                private modelService: ModelService,
                private modalService: NgbModal,
                private hideNavService: HideNavService,
-               private dashboardTabService: DashboardTabService,
                private pageTabService: PageTabService,
                private changeRef: ChangeDetectorRef)
    {
@@ -149,10 +146,10 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
          this.runtimeId = tab.runtimeId;
       }));
 
-      this.subscriptions.add(this.dashboardTabService.getDashboardTabModel()
+      this.subscriptions.add(this.pageTabService.getDrillTabsTop()
          .subscribe({
-            next: data => { this.dashboardTabModel = data; this.updateDrillTabsTopPx(); },
-            error: err => console.error("Failed to load dashboard tab model", err)
+            next: data => { this.drillTabsTop = data; this.updateDrillTabsTopPx(); },
+            error: err => console.error("Failed to load drill tabs top setting", err)
          }));
    }
 
@@ -347,7 +344,7 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
    }
 
    private updateDrillTabsTopPx(): void {
-      if(this.dashboardTabModel?.drillTabsTop) {
+      if(this.drillTabsTop) {
          if(this.toolbarVisible) {
             this.drillTabsTopPx = this.isMobile
                ? ViewConstants.TOOLBAR_HEIGHT_MOBILE_PX

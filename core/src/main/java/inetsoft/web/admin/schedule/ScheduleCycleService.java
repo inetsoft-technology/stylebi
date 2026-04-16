@@ -234,6 +234,13 @@ public class ScheduleCycleService {
                }
             }
 
+            // Copy old permission to the new name before removing it, so that the renamed
+            // cycle retains its original permissions. Non-admin users are filtered out of the
+            // permission model returned to the client, so relying solely on the submitted model
+            // would lose their access grants.
+            Permission oldPermission =
+               securityEngine.getPermission(ResourceType.SCHEDULE_CYCLE, getCyclePermissionID(oldName, orgId));
+            securityEngine.setPermission(ResourceType.SCHEDULE_CYCLE, getCyclePermissionID(newName, orgId), oldPermission);
             removeCyclePermission(oldName, orgId);
          }
          else if(newName == null || "".equals(newName)) {
@@ -263,8 +270,7 @@ public class ScheduleCycleService {
          dataCycleManager.setCycleInfo(newName, orgId, cycleInfo);
          dataCycleManager.save();
 
-         if(model.permissionModel() != null &&
-            (model.permissionModel().changed() || !newName.equals(oldName))) {
+         if(model.permissionModel() != null && model.permissionModel().changed()) {
             permissionService.setResourcePermissions(getCyclePermissionID(newName, orgId), ResourceType.SCHEDULE_CYCLE,
                                                      model.permissionModel(), principal);
          }

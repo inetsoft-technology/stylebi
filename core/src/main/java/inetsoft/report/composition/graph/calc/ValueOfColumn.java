@@ -375,50 +375,12 @@ public class ValueOfColumn extends AbstractColumn {
          Object val = data.getData(ndim, row);
          Object tval = null;
 
-         if(ctype >= ValueOfCalc.PREVIOUS_YEAR) {
-            if(ctype != ValueOfCalc.PREVIOUS_RANGE) {
-               VSDataSet vsDataSet = getVSDataset(data);
-
-               if(vsDataSet != null && vsDataSet.isOthers(ndim, String.valueOf(val))) {
-                  return INVALID;
-               }
-
-               if(!(val instanceof Date)) {
-                  return INVALID;
-               }
-
-               tval = getPreviousDate(val);
-            }
-            else {
-               tval = getPreRange(val);
-            }
-         }
-         else {
-            // In a facet chart each facet is backed by a DataSetFilter containing only that
-            // facet's rows. The router built from a per-facet dataset only knows values within
-            // that facet, so navigating to a previous/next period that falls in a different facet
-            // returns INVALID. Use getRootDataSet() when ndim is the inner dimension so the
-            // router can traverse values across all facets.
-            DataSet routerData = (ndim.equals(innerDim) && data instanceof DataSetFilter)
-               ? ((DataSetFilter) data).getRootDataSet() : data;
-            Router router = getRouter(routerData, ndim);
-            tval = router.getValue(val, ctype == ValueOfCalc.PREVIOUS ? -1 : 1);
-         }
-
-         if(tval == DATE_INVALID || tval == Router.INVALID || tval == Router.NOT_EXIST) {
-            return INVALID;
-         }
-
-         // The first year in the dataset should not assume the previous year (which is not in
-         // the dataset) to be 0 when calculating change.
-         if(tval instanceof Date && getMinDate(data).after((Date) tval)) {
-            return INVALID;
-         }
-
-         // When ndim is the innermost dimension (no outer-dimension sub-grouping) AND ndim itself
-         // is a PART_DATE_GROUP, exclude any sibling PART_DATE_GROUP dimensions that share the
-         // same base date column. This prevents zero rows when a part-level lookup crosses a
-         // period boundary (e.g. April→March crosses Q2→Q1, so QuarterOfYear must be excluded).
+         // Pre-compute ndimIsPartDate before router construction so both the router selection
+         // and the sub-dataset lookup use consistent logic.
+         // A PART_DATE_GROUP inner dim (e.g. MonthOfYear) in a facet chart needs the
+         // root-dataset router to find cross-facet values (e.g. April→March crosses Q2→Q1).
+         // Non-date/non-PART_DATE_GROUP inner dims (e.g. plain string dimensions) must use
+         // the sorted dataset for the router so that previous/next follows chart sort order.
          // Only apply for PREVIOUS/NEXT: for PREVIOUS_YEAR and similar ctypes, the PART_DATE_GROUP
          // sibling (e.g. QuarterOfYear) is the correct position discriminator and must remain in
          // the condition to find the same quarter in the previous year.
@@ -452,6 +414,48 @@ public class ValueOfColumn extends AbstractColumn {
                   }
                }
             }
+         }
+
+         if(ctype >= ValueOfCalc.PREVIOUS_YEAR) {
+            if(ctype != ValueOfCalc.PREVIOUS_RANGE) {
+               VSDataSet vsDataSet = getVSDataset(data);
+
+               if(vsDataSet != null && vsDataSet.isOthers(ndim, String.valueOf(val))) {
+                  return INVALID;
+               }
+
+               if(!(val instanceof Date)) {
+                  return INVALID;
+               }
+
+               tval = getPreviousDate(val);
+            }
+            else {
+               tval = getPreRange(val);
+            }
+         }
+         else {
+            // In a facet chart, a PART_DATE_GROUP inner dimension (e.g. MonthOfYear) is backed
+            // by a per-facet DataSetFilter containing only that facet's rows (e.g. months 4-6
+            // for Q2). The router built from this sub-dataset cannot find the previous value
+            // that crosses a facet boundary (April→March is in Q1). Use getRootDataSet() so
+            // the router can traverse values across all facets.
+            // For non-PART_DATE_GROUP inner dimensions (e.g. plain string dimensions), use
+            // data (the sorted dataset) so that previous/next navigation follows chart sort order.
+            DataSet routerData = (ndimIsPartDate && data instanceof DataSetFilter)
+               ? ((DataSetFilter) data).getRootDataSet() : data;
+            Router router = getRouter(routerData, ndim);
+            tval = router.getValue(val, ctype == ValueOfCalc.PREVIOUS ? -1 : 1);
+         }
+
+         if(tval == DATE_INVALID || tval == Router.INVALID || tval == Router.NOT_EXIST) {
+            return INVALID;
+         }
+
+         // The first year in the dataset should not assume the previous year (which is not in
+         // the dataset) to be 0 when calculating change.
+         if(tval instanceof Date && getMinDate(data).after((Date) tval)) {
+            return INVALID;
          }
 
          Map<String, Object> cond = createCond(data, ndim, row, ignoreList, tval);

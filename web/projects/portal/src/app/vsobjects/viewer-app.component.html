@@ -372,7 +372,7 @@
   </div>
   <div class="viewer-root" #viewerRoot
        tabindex="0"
-       [class.mobile-viewer-root]="mobileDevice && !dashboardTabModel?.drillTabsTop"
+       [class.mobile-viewer-root]="mobileDevice && !drillTabsTop"
        [class.show-hints]="_showHints"
        [class.overflow-hide]="(scaleToScreen && !fitToWidth && !showScroll && !embed) || (maxMode && !embed)"
        [class.overflow-x-hide]="(scaleToScreen && fitToWidth && !showScroll && !mobileDevice && !embed) || (maxMode && !embed)"

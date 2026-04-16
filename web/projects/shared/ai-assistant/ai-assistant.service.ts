@@ -95,6 +95,10 @@ export class AiAssistantService {
          this.styleBIUrl = url || "";
       });
 
+      this.refreshBranding();
+   }
+
+   refreshBranding(): void {
       this.http.get<{title: string, vendorName: string, logoUrl: string}>(
          "../api/assistant/get-branding").pipe(
          catchError(() => of(null))

@@ -48,6 +48,7 @@ export class AiAssistantDialogComponent implements OnInit, OnDestroy {
    }
 
    ngOnInit(): void {
+      this.aiAssistantService.refreshBranding();
       this.contextSub = this.aiAssistantService.contextChange$.subscribe(() => {
          this.context = this.aiAssistantService.getFullContext();
       });

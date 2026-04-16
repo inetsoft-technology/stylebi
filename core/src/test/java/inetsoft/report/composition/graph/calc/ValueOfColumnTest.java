@@ -23,6 +23,9 @@ import inetsoft.report.composition.graph.BrushDataSet;
 import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.filter.CrossFilter;
 import inetsoft.report.filter.CrossTabFilter;
+import inetsoft.graph.data.SortedDataSet;
+import inetsoft.report.composition.graph.*;
+import inetsoft.report.filter.*;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.XConstants;
@@ -273,6 +276,50 @@ public class ValueOfColumnTest {
       // lookup returns the first row of 2020 (Q1, id=5) instead of Q2 (id=3).
       Object result = valueOfColumn.calculate(vsDataSet, 5, false, false);
       assertEquals(3, result);
+   }
+
+   /**
+    * Regression test for Bug #74582: PREVIOUS on a plain string dimension must use the
+    * sorted dataset's router (not the root VSDataSet's router) when data is a DataSetFilter.
+    *
+    * Original data order: C, A, B (intentionally non-alphabetical).
+    * Sorted (chart) order: A, B, C.
+    *
+    * With the bug (root-dataset router, iteration C → A → B):
+    *   getValue("A", -1) = "C" (A is at index 1, previous = C at index 0) → returns id=30 (wrong).
+    * With the fix (sorted-dataset router, iteration A → B → C):
+    *   getValue("A", -1) = INVALID (A is first) → correctly returns INVALID.
+    */
+   @Test
+   void testChangePreviousWithStringDimension_RouterUsesSortedOrder() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS);
+      valueOfColumn.setDim("name");
+      valueOfColumn.setInnerDim("name");
+
+      // Original row order: C=30, A=10, B=20 (intentionally NOT alphabetical)
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         { "name", "id" },
+         { "C", 30 },
+         { "A", 10 },
+         { "B", 20 }
+      });
+
+      VSDimensionRef mockDRef = mock(VSDimensionRef.class);
+      when(mockDRef.getFullName()).thenReturn("name");
+      vsDataSet = new VSDataSet(tb, new VSDataRef[]{ mockDRef });
+
+      // SortedDataSet (forceSort=true) sorts "name" alphabetically: A(id=10), B(id=20), C(id=30)
+      SortedDataSet sortedDataSet = new SortedDataSet(vsDataSet, "name");
+      sortedDataSet.setForceSort(true);
+
+      // Row 0 in sorted order = "A" — first alphabetically, so no previous → INVALID
+      Object result = valueOfColumn.calculate(sortedDataSet, 0, true, false);
+      assertEquals(CalcColumn.INVALID, result);
+
+      // Row 1 in sorted order = "B" — previous in sorted order is "A" (id=10)
+      result = valueOfColumn.calculate(sortedDataSet, 1, false, false);
+      assertEquals(10, result);
    }
 
    /**
