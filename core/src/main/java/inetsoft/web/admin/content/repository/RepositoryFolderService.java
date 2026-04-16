@@ -202,6 +202,10 @@ public class RepositoryFolderService {
                permissionService.updateResourcePermissions(oldPath, newPath, resourceType);
             }
 
+            if(!hasPermission(newPath, resourceType, ResourceAction.ADMIN, principal)) {
+               return null;
+            }
+
             return getSettings(newPath, true, owner, principal);
          }
          finally {
@@ -228,6 +232,10 @@ public class RepositoryFolderService {
          if(actionRecord != null) {
             Audit.getInstance().auditAction(actionRecord, principal);
          }
+      }
+
+      if(!hasPermission(newPath, resourceType, ResourceAction.ADMIN, principal)) {
+         return null;
       }
 
       return getSettings(newPath, false, owner, principal);
