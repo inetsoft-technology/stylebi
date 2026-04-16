@@ -152,6 +152,8 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
          this.form.get("defaultThemeGlobal").disable({ emitEvent: false });
       }
 
+      // Allow org admins to mark a global theme as their org default even when
+      // they cannot otherwise edit it.
       this.form.get("defaultThemeOrg").enable({ emitEvent: false });
    }
 

@@ -19,7 +19,7 @@ import { BreakpointObserver } from "@angular/cdk/layout";
 import { HttpClient } from "@angular/common/http";
 import { Component, OnInit } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
-import { Observable, of } from "rxjs";
+import { forkJoin, Observable, of } from "rxjs";
 import { map } from "rxjs/operators";
 import { CommonKVModel } from "../../../../../../portal/src/app/common/data/common-kv-model";
 import { DownloadService } from "../../../../../../shared/download/download.service";
@@ -97,16 +97,14 @@ export class PresentationThemesViewComponent implements OnInit {
             this.unselectedThemeNames = this.themes.map(t => t.name);
          });
 
-      this.http.get<CommonKVModel<string, boolean>>("../api/em/navbar/userInfo")
-         .subscribe((model: CommonKVModel<string, boolean>) => {
-            this.isSiteAdmin = model.value;
-            this.orgId = model.key;
-         });
-
-      this.http.get<boolean>("../api/em/navbar/isMultiTenant")
-         .subscribe(isMultiTenant => {
-            this.isMultiTenant = isMultiTenant;
-         });
+      forkJoin({
+         userInfo: this.http.get<CommonKVModel<string, boolean>>("../api/em/navbar/userInfo"),
+         isMultiTenant: this.http.get<boolean>("../api/em/navbar/isMultiTenant")
+      }).subscribe(({ userInfo, isMultiTenant }) => {
+         this.isSiteAdmin = userInfo.value;
+         this.orgId = userInfo.key;
+         this.isMultiTenant = isMultiTenant;
+      });
    }
 
    onThemeSelected(id: string) {
@@ -188,9 +186,8 @@ export class PresentationThemesViewComponent implements OnInit {
             });
 
             ref.afterClosed().subscribe(result => {
-               result.global = this.isSiteAdmin && this.orgId == "host-org";
-
                if(!!result) {
+                  result.global = this.isSiteAdmin && this.orgId == "host-org";
                   this.http.post<CustomThemeModel>("../api/em/settings/presentation/themes", result).subscribe(model => {
                      const newThemes = this.themes.slice();
                      newThemes.push(model);
