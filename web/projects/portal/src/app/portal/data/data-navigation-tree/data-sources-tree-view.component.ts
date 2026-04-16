@@ -1363,7 +1363,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
             icon: () => "",
             visible: () => node.type === PortalDataType.DATABASE ||
                node.type === PortalDataType.DATA_SOURCE,
-            enabled: () => this.canCreateChildren(node) && this.canCreateQuery(node),
+            enabled: () => this.canCreateQuery(node),
             action: () => this.createQuery(node)
          },
          {
