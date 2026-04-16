@@ -32,6 +32,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.net.ssl.*;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URLConnection;
@@ -245,7 +246,7 @@ public class AIAssistantController {
     * Only invoked when the stored logo URL is a relative storage path (no scheme, no leading slash).
     */
    @GetMapping("/api/assistant/logo")
-   public void getLogo(HttpServletResponse response) throws java.io.IOException {
+   public void getLogo(HttpServletResponse response) throws IOException {
       String storedUrl = emptyToNull(SreeEnv.getProperty(CHAT_APP_LOGO_URL));
 
       if(storedUrl == null || storedUrl.contains("://") || storedUrl.startsWith("/")) {
@@ -259,7 +260,7 @@ public class AIAssistantController {
       String dir = idx >= 0 ? path.substring(0, idx) : null;
       String file = idx >= 0 ? path.substring(idx + 1) : path;
 
-      if(!dataSpace.exists(dir, file)) {
+      if(file.isEmpty() || !dataSpace.exists(dir, file)) {
          response.sendError(HttpServletResponse.SC_NOT_FOUND);
          return;
       }
@@ -268,6 +269,11 @@ public class AIAssistantController {
       response.setContentType(contentType != null ? contentType : "application/octet-stream");
 
       try(InputStream in = dataSpace.getInputStream(dir, file)) {
+         if(in == null) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND);
+            return;
+         }
+
          in.transferTo(response.getOutputStream());
       }
    }
@@ -283,6 +289,10 @@ public class AIAssistantController {
       }
 
       String base = LinkUriArgumentResolver.getLinkUri(request);
+
+      if(!base.startsWith("http://") && !base.startsWith("https://")) {
+         return null;
+      }
 
       if(base.endsWith("/")) {
          base = base.substring(0, base.length() - 1);
