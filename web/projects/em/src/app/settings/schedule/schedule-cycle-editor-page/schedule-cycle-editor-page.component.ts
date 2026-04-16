@@ -110,6 +110,9 @@ export class ScheduleCycleEditorPageComponent implements OnInit, OnDestroy {
                this.model.timeZoneOptions, null);
             this.originalModel = Tool.clone(model);
             this.updateList();
+         },
+         () => {
+            this.close();
          });
    }
 
