@@ -184,12 +184,26 @@ public class MVSupportService {
          AssetEntry candidateEntry = getEntry(candidate.id);
 
          if(candidateEntry != null) {
-            ResourceType resourceType = candidateEntry.isWorksheet() ?
-               ResourceType.ASSET : ResourceType.REPORT;
+            boolean hasPermission;
 
-            if(!SecurityEngine.getSecurity().checkPermission(
-               principal, resourceType, candidateEntry.getPath(), ResourceAction.WRITE))
-            {
+            if(candidateEntry.getScope() == AssetRepository.USER_SCOPE) {
+               IdentityID entryUser = candidateEntry.getUser();
+               hasPermission = entryUser != null && principal != null &&
+                  (principal.getName().equals(entryUser.convertToKey()) ||
+                   SecurityEngine.getSecurity().checkPermission(
+                      principal, ResourceType.SECURITY_USER, entryUser.convertToKey(),
+                      ResourceAction.ADMIN)) &&
+                  SecurityEngine.getSecurity().checkPermission(
+                     principal, ResourceType.MY_DASHBOARDS, "*", ResourceAction.READ);
+            }
+            else {
+               ResourceType resourceType = candidateEntry.isWorksheet() ?
+                  ResourceType.ASSET : ResourceType.REPORT;
+               hasPermission = SecurityEngine.getSecurity().checkPermission(
+                  principal, resourceType, candidateEntry.getPath(), ResourceAction.WRITE);
+            }
+
+            if(!hasPermission) {
                throw new MessageException(Catalog.getCatalog().getString(
                   "em.common.security.no.permission", candidateEntry.getPath()));
             }
