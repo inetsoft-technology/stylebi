@@ -403,8 +403,7 @@ public abstract class Legend extends BoundedContainer {
       }
 
       Rectangle2D bounds = getBounds();
-      double lw = getBorderWidth();
-      double titlew = bounds.getWidth() - lw * 2;
+      double titlew = bounds.getWidth();
       double titleh = title.getPreferredHeight();
       double titlex = bounds.getX();
       double titley = bounds.getY() + bounds.getHeight() - titleh;
@@ -495,8 +494,6 @@ public abstract class Legend extends BoundedContainer {
       double y = bounds.getY() - getBorderWidth() / 2;
       double w = bounds.getWidth();
       double h = bounds.getHeight();
-      double lw = getBorderWidth();
-
       // when no item, layout is meaningless
       if(items.size() == 0) {
          return;
@@ -512,6 +509,7 @@ public abstract class Legend extends BoundedContainer {
 
       int leftPadding = getLeftPadding(false);
       int rightPadding = getRightPadding(false);
+      double lw = getBorderWidth();
 
       x = x + leftPadding + lw;
       w = w - leftPadding - rightPadding;
@@ -894,18 +892,20 @@ public abstract class Legend extends BoundedContainer {
 
       LegendSpec spec = frame.getLegendSpec();
 
+      // clip all painting to the rounded region so background, title, and content
+      // are all constrained — g2 inherits this clip automatically
+      if(spec.isRoundCorners()) {
+         Rectangle2D b = getBounds();
+         g.clip(new RoundRectangle2D.Double(b.getX(), b.getY(), b.getWidth(), b.getHeight(), 20, 20));
+      }
+
       paintBg(g, getBounds(), spec.getBackground(), true);
+      Rectangle2D cb = getContentBounds();
       paintTitle(g);
       // make sure content not paint to title, fix bug1244448217295
       Graphics2D g2 = (Graphics2D) g.create();
-      g2.clip(getContentBounds());
-
-      paintBg(g2, getContentBounds(), spec.getTextSpec().getBackground(), false);
-
-      if(spec.isRoundCorners()) {
-         Rectangle2D b = getBounds();
-         g2.clip(new RoundRectangle2D.Double(b.getX(), b.getY(), b.getWidth(), b.getHeight(), 20, 20));
-      }
+      g2.clip(cb);
+      paintBg(g2, cb, spec.getTextSpec().getBackground(), false);
 
       if(isScalar) {
          paintBand(g2);
@@ -926,13 +926,15 @@ public abstract class Legend extends BoundedContainer {
             // arcWidth/arcHeight of 20 means a 20px-diameter corner ellipse, i.e. 10px radius.
             // This matches the CSS border-radius: 10px applied by the Angular overlay.
             g.setStroke(new BasicStroke(lw));
-            g.draw(new RoundRectangle2D.Double(bounds.x - lw + 1, bounds.y,
-                                               bounds.width, bounds.height, 20, 20));
+            // BasicStroke draws centered on the shape edge, so inset by lw/2 on all sides
+            // so the stroke's inner edge aligns with getContentBounds().getX() = bounds.x + lw.
+            g.draw(new RoundRectangle2D.Double(bounds.x + lw / 2, bounds.y + lw / 2,
+                                               bounds.width - lw, bounds.height - lw, 20, 20));
          }
          else {
             // support double line. (53529)
             // don't draw border outside of bounds. (56446)
-            Common.drawRect(g, (float) bounds.x - lw + 1, (float) bounds.y,
+            Common.drawRect(g, (float) bounds.x, (float) bounds.y,
                             (float) bounds.width, (float) bounds.height, spec.getBorder());
          }
       }
