@@ -164,6 +164,7 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
 
                   ArrayNode providersArray = (ArrayNode) root.get("providers");
                   List<T> list = new ArrayList<>();
+                  int failureCount = 0;
 
                   for(int i = 0; i < providersArray.size(); i++) {
                      ObjectNode wrapperNode = (ObjectNode) providersArray.get(i);
@@ -180,13 +181,26 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
                         list.add(provider);
                      }
                      catch(Exception e) {
+                        failureCount++;
                         LOG.error(
                            "Failed to create instance of security provider: {}", providerClass, e);
                      }
                   }
 
-                  clear();
-                  setProviderList(list);
+                  // If the config file specified providers but ALL of them failed to instantiate,
+                  // retain the existing runtime providers rather than wiping them. This prevents a
+                  // corrupted or temporarily unreadable config (e.g. after a GKE node restart) from
+                  // clearing all security providers and locking out every user.
+                  if(list.isEmpty() && failureCount > 0) {
+                     LOG.error(
+                        "All {} security provider(s) failed to load from '{}'; retaining " +
+                        "existing providers to prevent loss of security configuration",
+                        failureCount, getConfigFile());
+                  }
+                  else {
+                     clear();
+                     setProviderList(list);
+                  }
                }
             }
          }

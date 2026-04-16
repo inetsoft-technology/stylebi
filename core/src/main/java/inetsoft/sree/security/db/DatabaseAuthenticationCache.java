@@ -43,6 +43,12 @@ class DatabaseAuthenticationCache implements AutoCloseable {
          return false;
       }
 
+      // Exponential backoff: don't hammer the cluster when the security provider is unavailable
+      // (e.g. immediately after a GKE node restart before SecurityEngine has loaded providers).
+      if(System.currentTimeMillis() < nextRetryTime) {
+         return false;
+      }
+
       serviceLock.lock();
 
       try {
@@ -62,10 +68,19 @@ class DatabaseAuthenticationCache implements AutoCloseable {
                   prefix, DatabaseAuthenticationCacheService.class,
                   () -> new DatabaseAuthenticationCacheServiceImpl(provider.getProviderName()));
                service.connect();
+               // Reset backoff on success
+               currentRetryDelayMs = INITIAL_RETRY_DELAY_MS;
+               nextRetryTime = 0L;
             }
             catch(Exception ex) {
                service = null;
-               LOG.error("Failed to initialize service for provider: " + provider.getProviderName(), ex);
+               nextRetryTime = System.currentTimeMillis() + currentRetryDelayMs;
+               currentRetryDelayMs = Math.min(currentRetryDelayMs * 2, MAX_RETRY_DELAY_MS);
+               LOG.warn(
+                  "Failed to initialize service for provider '{}', will retry in {}s: {}",
+                  provider.getProviderName(), currentRetryDelayMs / 1000,
+                  ex.getMessage());
+               LOG.debug("Service initialization failure detail", ex);
                return false;
             }
          }
@@ -348,6 +363,9 @@ class DatabaseAuthenticationCache implements AutoCloseable {
          groupUsers = null;
          userRoles = null;
          userEmails = null;
+         // Reset backoff so the next access retries immediately
+         currentRetryDelayMs = INITIAL_RETRY_DELAY_MS;
+         nextRetryTime = 0L;
       }
       finally {
          serviceLock.unlock();
@@ -365,9 +383,16 @@ class DatabaseAuthenticationCache implements AutoCloseable {
    private DistributedMap<IdentityID, IdentityArray> userRoles;
    private DistributedMap<IdentityID, String[]> userEmails;
 
+   // Exponential backoff state for initialize() failures
+   private volatile long nextRetryTime = 0L;
+   private volatile long currentRetryDelayMs = INITIAL_RETRY_DELAY_MS;
+
    private static final Logger LOG = LoggerFactory.getLogger(DatabaseAuthenticationCache.class);
    private static final String ORG_LIST = "orgs";
    private static final String USER_LIST = "users";
    private static final String GROUP_LIST = "groups";
    private static final String ROLE_LIST = "roles";
+   // Initial backoff after a failed initialize(): 10 seconds, doubling up to 5 minutes
+   private static final long INITIAL_RETRY_DELAY_MS = 10_000L;
+   private static final long MAX_RETRY_DELAY_MS = 300_000L;
 }
