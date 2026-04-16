@@ -465,6 +465,10 @@ export class RepositoryTreeDataSource
 
    protected transform(model: TreeDataModel<RepositoryTreeNode>,
       level: number, parent?: RepositoryFlatNode): RepositoryFlatNode[] {
+      if(!model) {
+         return [];
+      }
+
       return model.nodes.map((node) => {
          const expandable = (node.type & RepositoryEntryType.FOLDER) === RepositoryEntryType.FOLDER;
          let result = new RepositoryFlatNode(

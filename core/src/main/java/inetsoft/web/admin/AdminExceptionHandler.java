@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin;
 
+import inetsoft.sree.security.SecurityException;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.util.log.LogManager;
@@ -27,7 +28,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.lang.reflect.UndeclaredThrowableException;
 
 /**
  * @hidden
@@ -93,6 +97,31 @@ public class AdminExceptionHandler {
    })
    public GenericError handleUnsupportedOperation(UnsupportedOperationException e) {
       return new GenericError(e);
+   }
+
+   /**
+    * Error handler for access denied due to an expired or invalid session. The
+    * {@link SecurityException} thrown by {@link inetsoft.web.security.SecuredAspect} is a
+    * checked exception; Spring AOP wraps it in an {@link UndeclaredThrowableException} before it
+    * reaches this handler.
+    */
+   @ExceptionHandler(UndeclaredThrowableException.class)
+   @ResponseBody
+   @ApiResponses({
+      @ApiResponse(
+         responseCode = "401",
+         description = "Access was denied because the session has expired or the user does not have the required permissions.")
+   })
+   public ResponseEntity<GenericError> handleUndeclaredThrowable(UndeclaredThrowableException e) {
+      Throwable cause = e.getCause();
+
+      if(cause instanceof SecurityException) {
+         LOG.debug("Access denied for resource", cause);
+         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new GenericError(cause));
+      }
+
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+         .body(handleGenericException(e));
    }
 
    /**
