@@ -25,8 +25,6 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.BrowseDataController;
 import inetsoft.web.composer.model.BrowseDataModel;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -81,5 +79,4 @@ public class WizBrowseDataService {
    }
 
    private final ViewsheetService viewsheetService;
-   private static final Logger LOG = LoggerFactory.getLogger(WizBrowseDataService.class);
 }
