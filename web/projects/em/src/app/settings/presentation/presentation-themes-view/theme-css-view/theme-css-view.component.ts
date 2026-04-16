@@ -64,7 +64,14 @@ export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
       this.updateFormState();
    }
 
-   @Input() isSiteAdmin = false;
+   @Input() get isSiteAdmin(): boolean {
+      return this._isSiteAdmin;
+   }
+
+   set isSiteAdmin(value: boolean) {
+      this._isSiteAdmin = value;
+      this.updateFormState();
+   }
 
    @Input() get isMultiTenant(): boolean {
       return this._isMultiTenant;
@@ -88,6 +95,7 @@ export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
    portalForm: UntypedFormGroup;
    emForm: UntypedFormGroup;
    private _theme: CustomThemeModel;
+   private _isSiteAdmin = false;
    private _isMultiTenant = false;
    private destroy$ = new Subject<void>();
    presetColors = [];

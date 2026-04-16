@@ -55,24 +55,7 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
          this.form.get("defaultThemeOrg").setValue(value.defaultThemeOrg, { emitEvent: false });
          this.form.get("globalTheme").setValue(value.global, { emitEvent: false });
          this.form.get("jar").setValue(jar, { emitEvent: false });
-
-         if(!this.isMultiTenant || this.isSiteAdmin) {
-            this.form.enable({ emitEvent: false });
-            this.form.get("globalTheme").enable({ emitEvent: false });
-            this.form.get("defaultThemeGlobal").enable({ emitEvent: false });
-         }
-         else {
-            if(value.global) {
-               this.form.disable({ emitEvent: false });
-            }
-            else {
-               this.form.enable();
-               this.form.get("globalTheme").disable({ emitEvent: false });
-               this.form.get("defaultThemeGlobal").disable({ emitEvent: false });
-            }
-         }
-
-         this.form.get("defaultThemeOrg").enable({ emitEvent: false });
+         this.updateFormState();
       }
    }
 
@@ -154,22 +137,22 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
       }
 
       if(this._isMultiTenant && !this._isSiteAdmin && this.theme.global) {
-         this.form.disable();
+         this.form.disable({ emitEvent: false });
       }
       else {
-         this.form.enable();
+         this.form.enable({ emitEvent: false });
       }
 
       if(!this._isMultiTenant || this._isSiteAdmin) {
-         this.form.get("globalTheme").enable();
-         this.form.get("defaultThemeGlobal").enable();
+         this.form.get("globalTheme").enable({ emitEvent: false });
+         this.form.get("defaultThemeGlobal").enable({ emitEvent: false });
       }
       else {
-         this.form.get("globalTheme").disable();
-         this.form.get("defaultThemeGlobal").disable();
+         this.form.get("globalTheme").disable({ emitEvent: false });
+         this.form.get("defaultThemeGlobal").disable({ emitEvent: false });
       }
 
-      this.form.get("defaultThemeOrg").enable();
+      this.form.get("defaultThemeOrg").enable({ emitEvent: false });
    }
 
    private fireThemePropertiesChanged(): void {
