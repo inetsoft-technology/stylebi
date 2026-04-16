@@ -19,7 +19,6 @@ package inetsoft.web.admin.content.repository;
 
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
-import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.*;
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.security.RequiredPermission;
@@ -66,21 +65,7 @@ public class RepositoryViewsheetController {
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
       path = treeService.getUnscopedPath(path);
 
-      if(scope == AssetRepository.USER_SCOPE) {
-         if(!treeService.checkUserPermission(ownerID, principal) ||
-            !SecurityEngine.getSecurity().checkPermission(
-               principal, ResourceType.MY_DASHBOARDS, "*", ResourceAction.READ))
-         {
-            throw new MessageException(Catalog.getCatalog().getString(
-               "em.common.security.no.permission", path));
-         }
-      }
-      else if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.REPORT, path,
-                                                            ResourceAction.ADMIN))
-      {
-         throw new MessageException(Catalog.getCatalog().getString(
-            "em.common.security.no.permission", path));
-      }
+      treeService.checkSheetPermission(scope, ownerID, path, ResourceType.REPORT, principal);
 
       final AssetEntry entry = new AssetEntry(scope, AssetEntry.Type.VIEWSHEET, path, ownerID);
       return sheetService.getSheetSettings(entry, ResourceType.REPORT, timeZone, owner, principal);
@@ -104,21 +89,7 @@ public class RepositoryViewsheetController {
       path = treeService.getUnscopedPath(path);
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
 
-      if(scope == AssetRepository.USER_SCOPE) {
-         if(!treeService.checkUserPermission(ownerID, principal) ||
-            !SecurityEngine.getSecurity().checkPermission(
-               principal, ResourceType.MY_DASHBOARDS, "*", ResourceAction.READ))
-         {
-            throw new MessageException(Catalog.getCatalog().getString(
-               "em.common.security.no.permission", path));
-         }
-      }
-      else if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.REPORT, path,
-                                                            ResourceAction.ADMIN))
-      {
-         throw new MessageException(Catalog.getCatalog().getString(
-            "em.common.security.no.permission", path));
-      }
+      treeService.checkSheetPermission(scope, ownerID, path, ResourceType.REPORT, principal);
 
       final AssetEntry oldEntry = new AssetEntry(scope, AssetEntry.Type.VIEWSHEET, path, ownerID);
       final AssetEntry newEntry =
