@@ -35,12 +35,12 @@ import javax.net.ssl.*;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.net.URLConnection;
 import java.net.http.*;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 @RestController
@@ -260,13 +260,17 @@ public class AIAssistantController {
       String dir = idx >= 0 ? path.substring(0, idx) : null;
       String file = idx >= 0 ? path.substring(idx + 1) : path;
 
-      if(file.isEmpty() || !dataSpace.exists(dir, file)) {
+      if(file.isEmpty()) {
          response.sendError(HttpServletResponse.SC_NOT_FOUND);
          return;
       }
 
-      String contentType = URLConnection.guessContentTypeFromName(file);
-      response.setContentType(contentType != null ? contentType : "application/octet-stream");
+      String ext = file.contains(".") ? file.substring(file.lastIndexOf('.') + 1).toLowerCase() : "";
+
+      if(!LOGO_MIME_TYPES.containsKey(ext)) {
+         response.sendError(HttpServletResponse.SC_NOT_FOUND);
+         return;
+      }
 
       try(InputStream in = dataSpace.getInputStream(dir, file)) {
          if(in == null) {
@@ -274,9 +278,26 @@ public class AIAssistantController {
             return;
          }
 
+         response.setContentType(LOGO_MIME_TYPES.get(ext));
+         response.setHeader("Cache-Control", "public, max-age=3600, must-revalidate");
+         long lastModified = dataSpace.getLastModified(dir, file);
+
+         if(lastModified > 0) {
+            response.setDateHeader("Last-Modified", lastModified);
+         }
+
          in.transferTo(response.getOutputStream());
       }
    }
+
+   private static final Map<String, String> LOGO_MIME_TYPES = Map.of(
+      "png",  "image/png",
+      "jpg",  "image/jpeg",
+      "jpeg", "image/jpeg",
+      "gif",  "image/gif",
+      "svg",  "image/svg+xml",
+      "webp", "image/webp"
+   );
 
    /**
     * Resolves the logo URL. If the stored value is a relative storage path (no scheme,
