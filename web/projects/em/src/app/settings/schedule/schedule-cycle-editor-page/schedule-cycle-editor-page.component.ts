@@ -111,8 +111,20 @@ export class ScheduleCycleEditorPageComponent implements OnInit, OnDestroy {
             this.originalModel = Tool.clone(model);
             this.updateList();
          },
-         () => {
-            this.close();
+         (error: HttpErrorResponse) => {
+            if(error.error?.message) {
+               this.dialog.open(MessageDialog, {
+                  width: "500px",
+                  data: {
+                     title: "_#(js:Error)",
+                     content: error.error.message,
+                     type: MessageDialogType.ERROR
+                  }
+               }).afterClosed().subscribe(() => this.close());
+            }
+            else {
+               this.close();
+            }
          });
    }
 
