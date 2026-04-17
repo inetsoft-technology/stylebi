@@ -32,10 +32,14 @@ export class EmScheduleChangeService implements OnDestroy {
     this.stompClient.connect("../vs-events", true).subscribe(
        (connection) => {
          this.connection = connection;
+
+         // Schedule-change events carry a JSON payload that updates the task list.
          this.subscriptions.add(connection.subscribe(
                "/user/em-schedule-changed",
-               (message) => this.zone.run(() => this.taskChanged(JSON.parse(message.frame.body))))
+               (message) => this.zone.run(() => this.taskChanged(this.parseChange(message.frame.body))))
          );
+
+         // Folder-change events are signal-only; the consumer decides how to refresh.
          this.subscriptions.add(connection.subscribe(
             "/user/em-schedule-folder-changed",
             (message) => this.zone.run(() => this.onFolderChange.emit()))
@@ -57,6 +61,25 @@ export class EmScheduleChangeService implements OnDestroy {
   }
 
   private taskChanged(change: ScheduleTaskChange): void {
+    // Invalid or empty payloads are ignored so one bad server event does not break future updates.
+    if(!change) {
+      return;
+    }
+
     this.onChange.emit(change);
+  }
+
+  private parseChange(body: string): ScheduleTaskChange {
+    if(!body) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(body);
+    }
+    catch {
+      // STOMP messages should contain JSON, but this keeps the callback resilient to malformed payloads.
+      return null;
+    }
   }
 }

@@ -113,6 +113,13 @@ function makeDayDistribution(weekdayIndex: number): TaskDistribution {
 
 function setupDefaultEndpoints() {
    server.use(
+      http.get("*/api/em/authz", () =>
+         MswHttpResponse.json({
+            permissions: { distribution: false },
+            labels: {},
+            multiTenancyHiddenComponents: {},
+         })
+      ),
       http.get("*/api/em/schedule/change-show-type", () =>
          MswHttpResponse.json(false)
       ),

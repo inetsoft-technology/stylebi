@@ -52,6 +52,7 @@ export class SecurityTreeDataService implements OnDestroy {
 
    public initialize(roots: SecurityTreeNode[]) {
       this._filterChange = false;
+      this._filter.next("");
       this.updateDataSubscription(roots);
    }
 
