@@ -1006,7 +1006,24 @@ public abstract class Legend extends BoundedContainer {
          */
          // support double line. (53529)
          int style = spec.getBorder();
-         Common.drawHLine(g2, (float) y, (float) x, (float) (x + w), style, 0, 0);
+         float lw = getBorderWidth();
+         double lineFrom, lineTo;
+
+         if(!paintBackground) {
+            // Tile/SVG rendering: the canvas (layoutBounds.x=0) is CSS-positioned at the inner
+            // border edge, so canvas pixel 0 = inner border. SVG_x=0 already aligns with the
+            // inner left border — no lw offset needed on the left. The right side subtracts lw
+            // to avoid overshooting into the right border zone.
+            lineFrom = (int) x;
+            lineTo = (int) x + (int) w - lw;
+         }
+         else {
+            // Export rendering: use exact float coordinates to align with the rendered border.
+            lineFrom = x + lw;
+            lineTo = x + w - lw;
+         }
+
+         Common.drawHLine(g2, (float) y, (float) lineFrom, (float) lineTo, style, 0, 0);
       }
 
       g2.dispose();
