@@ -143,8 +143,15 @@ class AuthenticationChainTest {
    }
 
    private static AuthenticationChain chainOf(AuthenticationProvider... providers) {
-      AuthenticationChain chain = new AuthenticationChain(true);
+      AuthenticationChain chain = new TestAuthenticationChain();
       chain.getProviderList().addAll(List.of(providers));
       return chain;
+   }
+
+   private static final class TestAuthenticationChain extends AuthenticationChain {
+      @Override
+      void initialize() {
+         // Keep the test isolated from DataSpace and Spring-managed lifecycle state.
+      }
    }
 }
