@@ -378,7 +378,6 @@ describe("ScheduleTaskListComponent — mergeChange: real-time task lifecycle", 
       (comp as any).mergeChange(change);
       await fixture.whenStable();
 
-      // Currently fails because mergeChange looks for "INETSOFT_SYSTEM~;~org1:taskA" (colon)
       expect(comp.tasks.find(t => t.name === "taskA")).toBeUndefined();
    });
 

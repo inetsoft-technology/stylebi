@@ -161,7 +161,7 @@ describe("SecurityProviderService — scene layer", () => {
          const req = httpMock.expectOne("../api/em/security/edit-authentication-provider/existingProvider");
          expect(req.request.method).toBe("POST"); // (a)
          expect(req.request.body).toBeTruthy();
-         expect(req.request.body.providerName).toBe("DbProvider");
+         expect(req.request.body.providerName).toBe("MyProvider");
          req.flush({});
 
          expect(routerSpy.navigate).toHaveBeenCalledWith(["/settings/security/provider"]); // (b)
