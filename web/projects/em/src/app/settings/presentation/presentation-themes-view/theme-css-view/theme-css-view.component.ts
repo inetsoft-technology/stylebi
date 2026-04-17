@@ -61,20 +61,26 @@ export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
       this._theme = value;
       this.portalCss = value?.portalCss;
       this.emCss = value?.emCss;
-
-      if(!this.isSiteAdmin && this.theme.global) {
-         this.portalForm.disable({ emitEvent: false });
-         this.emForm.disable({ emitEvent: false });
-         this.disabled = true;
-      }
-      else {
-         this.portalForm.enable({ emitEvent: false });
-         this.emForm.enable({ emitEvent: false });
-         this.disabled = false
-      }
+      this.updateFormState();
    }
 
-   @Input() isSiteAdmin = false;
+   @Input() get isSiteAdmin(): boolean {
+      return this._isSiteAdmin;
+   }
+
+   set isSiteAdmin(value: boolean) {
+      this._isSiteAdmin = value;
+      this.updateFormState();
+   }
+
+   @Input() get isMultiTenant(): boolean {
+      return this._isMultiTenant;
+   }
+
+   set isMultiTenant(value: boolean) {
+      this._isMultiTenant = value;
+      this.updateFormState();
+   }
    @Output() themeCssChanged = new EventEmitter<ThemeCssEditorModel>();
    @ViewChild("portalSearch", {static: false}) portalSearchInput: ElementRef;
    @ViewChild("emSearch", {static: false}) emSearchInput: ElementRef;
@@ -89,6 +95,8 @@ export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
    portalForm: UntypedFormGroup;
    emForm: UntypedFormGroup;
    private _theme: CustomThemeModel;
+   private _isSiteAdmin = false;
+   private _isMultiTenant = false;
    private destroy$ = new Subject<void>();
    presetColors = [];
    disabled = false;
@@ -325,16 +333,7 @@ export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
             .subscribe(() => this.emFormValueChanged());
       }, 200);
 
-      if(!this.isSiteAdmin && this.theme.global) {
-         this.portalForm.disable();
-         this.emForm.disable();
-         this.disabled = true;
-      }
-      else {
-         this.portalForm.enable();
-         this.emForm.enable();
-         this.disabled = false;
-      }
+      this.updateFormState();
    }
 
    ngOnDestroy(): void {
@@ -722,6 +721,23 @@ export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
       }
       else {
          this.emCssDataSource.filter = filter;
+      }
+   }
+
+   private updateFormState(): void {
+      if(!this.portalForm || !this.theme) {
+         return;
+      }
+
+      if(!this.isSiteAdmin && this.theme.global && this._isMultiTenant) {
+         this.portalForm.disable({ emitEvent: false });
+         this.emForm.disable({ emitEvent: false });
+         this.disabled = true;
+      }
+      else {
+         this.portalForm.enable({ emitEvent: false });
+         this.emForm.enable({ emitEvent: false });
+         this.disabled = false;
       }
    }
 
