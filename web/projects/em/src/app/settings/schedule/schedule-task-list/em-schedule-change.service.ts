@@ -33,13 +33,11 @@ export class EmScheduleChangeService implements OnDestroy {
        (connection) => {
          this.connection = connection;
 
-         // Schedule-change events carry a JSON payload that updates the task list.
          this.subscriptions.add(connection.subscribe(
                "/user/em-schedule-changed",
                (message) => this.zone.run(() => this.taskChanged(this.parseChange(message.frame.body))))
          );
 
-         // Folder-change events are signal-only; the consumer decides how to refresh.
          this.subscriptions.add(connection.subscribe(
             "/user/em-schedule-folder-changed",
             (message) => this.zone.run(() => this.onFolderChange.emit()))

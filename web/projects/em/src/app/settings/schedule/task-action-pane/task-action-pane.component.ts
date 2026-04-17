@@ -21,6 +21,7 @@ import { GeneralActionModel } from "../../../../../../shared/schedule/model/gene
 import { ScheduleActionModel } from "../../../../../../shared/schedule/model/schedule-action-model";
 import { TaskActionPaneModel } from "../../../../../../shared/schedule/model/task-action-pane-model";
 import { BackupActionModel } from "../../../../../../shared/schedule/model/backup-action-model";
+import { VSBookmarkInfoModel } from "../../../../../../portal/src/app/vsobjects/model/vs-bookmark-info-model";
 
 export interface TaskActionChanges {
    valid: boolean;
@@ -53,7 +54,7 @@ export class TaskActionPaneComponent {
    set action(value: ScheduleActionModel) {
       if(value) {
          this.selectedActionType = value.actionType;
-         this._action = Object.assign({}, value);
+         this._action = this.cloneActionModel(value);
       }
       else {
          this.selectedActionType = "ViewsheetAction";
@@ -109,5 +110,21 @@ export class TaskActionPaneComponent {
          valid,
          model: this.action
       });
+   }
+
+   private cloneActionModel(value: ScheduleActionModel): ScheduleActionModel {
+      const cloned = Object.assign({}, value) as GeneralActionModel;
+
+      // Avoid mutating the caller's nested bookmark state via child editors.
+      if(Array.isArray(cloned.bookmarks)) {
+         cloned.bookmarks = cloned.bookmarks.map((bookmark: VSBookmarkInfoModel) =>
+            bookmark ? {
+               ...bookmark,
+               owner: bookmark.owner ? { ...bookmark.owner } : bookmark.owner
+            } : bookmark
+         );
+      }
+
+      return cloned;
    }
 }

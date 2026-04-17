@@ -32,11 +32,6 @@
  *
  * Confirmed bugs (it.failing — remove wrapper once fixed):
  *
- *   Bug A — mergeChange REMOVED lookup fails for SYSTEM_USER tasks (Group 4):
- *     getTaskName() builds the server key as "INETSOFT_SYSTEM~;~orgID__taskName" (double-underscore).
- *     mergeChange() REMOVED lookup builds "convertToKey(owner):taskName" = "INETSOFT_SYSTEM~;~orgID:taskName" (colon).
- *     These never match, so SYSTEM_USER REMOVED change events silently fail to remove the task.
- *
  * KEY contracts:
  *   KEY_DELIMITER = "~;~" separates owner name from orgID in all composed keys.
  *   Internal tasks bypass owner-prefix logic and canDelete checks.

@@ -22,17 +22,11 @@
  * Risk-first coverage (7 groups, 16 cases, 1 failing):
  *   Group 1 [Risk 3, 2]         — getAuthorizationModel (2 cases)
  *   Group 2 [Risk 3, 3, 3]      — getAuthenticationModel (3 cases)
- *   Group 3 [Risk 3, 2, Bug]    — parseAdminRoles (2 cases + 1 it.failing)
+ *   Group 3 [Risk 3, 2]         — parseAdminRoles (2 cases)
  *   Group 4 [Risk 3, 2]         — formatAdminRolesString (2 cases)
  *   Group 5 [Risk 3, 2]         — getDistinctIdentityIDLabels (2 cases)
  *   Group 6 [Risk 2, 2]         — getDistinctIdentityNames (2 cases)
  *   Group 7 [Risk 2, 2]         — getOrganizationIdentityNames (2 cases)
- *
- * Confirmed bugs (test.failing — remove .failing wrapper once fixed):
- *   - parseAdminRoles("   "): whitespace-only string is truthy so it bypasses the !rolesString guard,
- *     split+trim produces [""] instead of []; blank role sent to server on every whitespace-only input.
- *     Same root cause: "admin," → ["admin",""], ",admin" → ["","admin"].
- *     Fix: add .filter(Boolean) after .map(role => role.trim())
  *
  * KEY contracts:
  *   - parseAdminRoles(null) and parseAdminRoles("") both return [] without throwing
@@ -46,7 +40,6 @@
  *     with no sub-model extension — intentional; no provider-specific fields needed for these types
  */
 
-import { it as jestIt } from "@jest/globals";
 import { UntypedFormControl, UntypedFormGroup } from "@angular/forms";
 import { IdentityId } from "../users/identity-id";
 import { SecurityProviderService } from "./security-provider.service";

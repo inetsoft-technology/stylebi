@@ -21,7 +21,7 @@
  *
  * Risk-first coverage:
  *   Group 1 [Risk 3] — set action(null): default model uses "RepletAction" type which is absent from the dropdown (it.failing — confirmed bug)
- *   Group 2 [Risk 3] — set action(value): shallow copy shares nested array references
+ *   Group 2 [Risk 3] — set action(value): nested bookmarks are defensively cloned
  *   Group 3 [Risk 2] — changeActionType: per-type model creation contracts
  *   Group 4 [Risk 2] — onModelChanged / fireModelChanged: valid state propagation
  *
@@ -130,10 +130,10 @@ describe("TaskActionPaneComponent — set action(null): default type", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Group 2 [Risk 3] — set action(value): shallow copy contract
+// Group 2 [Risk 3] — set action(value): clone contract
 // ---------------------------------------------------------------------------
 
-describe("TaskActionPaneComponent — set action(value): shallow copy", () => {
+describe("TaskActionPaneComponent — set action(value): clone behavior", () => {
 
    // 🔁 Regression-sensitive: Object.assign({}) creates a NEW top-level object —
    // mutating comp.action must not affect the original reference.
@@ -144,16 +144,15 @@ describe("TaskActionPaneComponent — set action(value): shallow copy", () => {
       expect(comp.action).not.toBe(original);
    });
 
-   // 🔁 Regression-sensitive: Object.assign is SHALLOW — nested arrays are shared.
-   // If a consumer mutates action.bookmarks, the original array is also modified.
-   // Risk Point: caller code or child editors that push/splice on bookmarks will corrupt the parent model.
-   it("should share the same nested bookmarks array reference (shallow copy limitation)", async () => {
+   // Regression-sensitive: nested bookmarks must be copied so child edits cannot mutate parent input.
+   it("should not share nested bookmarks array reference with the input", async () => {
       const bookmarks: VSBookmarkInfoModel[] = [{ name: "(Home)", label: "(Home)" }];
       const original = makeGeneralAction({ bookmarks });
       const { comp } = await renderComponent(original);
 
-      // comp.action.bookmarks and original.bookmarks point to the same array
-      expect((comp.action as GeneralActionModel).bookmarks).toBe(original.bookmarks);
+      const copiedBookmarks = (comp.action as GeneralActionModel).bookmarks;
+      expect(copiedBookmarks).not.toBe(original.bookmarks);
+      expect(copiedBookmarks[0]).not.toBe(original.bookmarks[0]);
    });
 
    // Error path: scalar properties must be independently copied
