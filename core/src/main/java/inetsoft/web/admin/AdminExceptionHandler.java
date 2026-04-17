@@ -100,24 +100,26 @@ public class AdminExceptionHandler {
    }
 
    /**
-    * Error handler for access denied due to an expired or invalid session. The
-    * {@link SecurityException} thrown by {@link inetsoft.web.security.SecuredAspect} is a
-    * checked exception; Spring AOP wraps it in an {@link UndeclaredThrowableException} before it
-    * reaches this handler.
+    * Error handler for access denied. The {@link SecurityException} thrown by
+    * {@link inetsoft.web.security.SecuredAspect} is a checked exception; Spring AOP wraps it in
+    * an {@link UndeclaredThrowableException} before it reaches this handler.
     */
    @ExceptionHandler(UndeclaredThrowableException.class)
    @ResponseBody
    @ApiResponses({
       @ApiResponse(
-         responseCode = "401",
-         description = "Access was denied because the session has expired or the user does not have the required permissions.")
+         responseCode = "403",
+         description = "Access was denied because the session has expired or the user does not have the required permissions."),
+      @ApiResponse(
+         responseCode = "500",
+         description = "An error occurred on the server while processing the request.")
    })
    public ResponseEntity<GenericError> handleUndeclaredThrowable(UndeclaredThrowableException e) {
       Throwable cause = e.getCause();
 
       if(cause instanceof SecurityException) {
          LOG.debug("Access denied for resource", cause);
-         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new GenericError(cause));
+         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new GenericError(cause));
       }
 
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

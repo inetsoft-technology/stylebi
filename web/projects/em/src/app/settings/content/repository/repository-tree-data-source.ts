@@ -208,14 +208,14 @@ export class RepositoryTreeDataSource
       return this.http.post<TreeDataModel<RepositoryTreeNode>>("../api/em/content/repository/tree", expandedUsers)
          .pipe(
             catchError(error => {
-               const orgInvalid = error.error.type === "InvalidOrgException";
+               const orgInvalid = error.error?.type === "InvalidOrgException";
 
                if(orgInvalid) {
                   this.dialog.open(MessageDialog, <MatDialogConfig>{
                      width: "350px",
                      data: {
                         title: "_#(js:Error)",
-                        content: error.error.message,
+                        content: error.error?.message,
                         type: MessageDialogType.ERROR
                      }
                   });
@@ -432,10 +432,10 @@ export class RepositoryTreeDataSource
             .set("owner", Tool.byteEncode(convertToKey(node.data.owner)));
          return this.http.get<any>("../api/em/content/repository/tree", { params }).pipe(
             catchError(error => {
-               const orgInvalid = error.error.type === "InvalidOrgException";
+               const orgInvalid = error.error?.type === "InvalidOrgException";
 
                const errContent: string = orgInvalid
-                  ? error.error.message
+                  ? error.error?.message
                   : "_#(js:em.security.orgAdmin.identityPermissionDenied)";
 
                this.dialog.open(MessageDialog, <MatDialogConfig>{
