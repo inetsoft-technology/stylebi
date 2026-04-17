@@ -922,7 +922,7 @@ public abstract class Legend extends BoundedContainer {
       if(spec.getBorder() != GraphConstants.NONE) {
          g.setClip(clip);
          g.setColor(spec.getBorderColor());
-         Rectangle2D.Double bounds = (Rectangle2D.Double) getBounds();
+         Rectangle2D bounds = getBounds();
          float lw = getBorderWidth();
 
          if(spec.isRoundCorners()) {
@@ -931,14 +931,14 @@ public abstract class Legend extends BoundedContainer {
             g.setStroke(new BasicStroke(lw));
             // BasicStroke draws centered on the shape edge, so inset by lw/2 on all sides
             // so the stroke's inner edge aligns with getContentBounds().getX() = bounds.x + lw.
-            g.draw(new RoundRectangle2D.Double(bounds.x + lw / 2, bounds.y + lw / 2,
-                                               bounds.width - lw, bounds.height - lw, 20, 20));
+            g.draw(new RoundRectangle2D.Double(bounds.getX() + lw / 2, bounds.getY() + lw / 2,
+                                               bounds.getWidth() - lw, bounds.getHeight() - lw, 20, 20));
          }
          else {
             // support double line. (53529)
             // don't draw border outside of bounds. (56446)
-            Common.drawRect(g, (float) bounds.x, (float) bounds.y,
-                            (float) bounds.width, (float) bounds.height, spec.getBorder());
+            Common.drawRect(g, (float) bounds.getX(), (float) bounds.getY(),
+                            (float) bounds.getWidth(), (float) bounds.getHeight(), spec.getBorder());
          }
       }
 
@@ -1012,16 +1012,19 @@ public abstract class Legend extends BoundedContainer {
          float lw = getBorderWidth();
          double lineFrom, lineTo;
 
+         // paintBackground=false means tile/SVG rendering (getLegendGraphic sets it before
+         // calling paintTitle). paintBackground=true means PDF/export rendering. The two paths
+         // need different coordinate math because:
+         //   SVG: the canvas is CSS-positioned at the inner border edge, so canvas pixel 0 IS
+         //        the inner left border — no lw offset on the left. Integer truncation aligns
+         //        with the CSS integer-pixel canvas origin.
+         //   Export: coordinates are in the full graph space with sub-pixel precision; the line
+         //        must be inset by lw on both sides to sit inside the rendered border.
          if(!paintBackground) {
-            // Tile/SVG rendering: the canvas (layoutBounds.x=0) is CSS-positioned at the inner
-            // border edge, so canvas pixel 0 = inner border. SVG_x=0 already aligns with the
-            // inner left border — no lw offset needed on the left. The right side subtracts lw
-            // to avoid overshooting into the right border zone.
             lineFrom = (int) x;
             lineTo = (int) x + (int) w - lw;
          }
          else {
-            // Export rendering: use exact float coordinates to align with the rendered border.
             lineFrom = x + lw;
             lineTo = x + w - lw;
          }
