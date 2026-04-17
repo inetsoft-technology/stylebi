@@ -19,10 +19,12 @@
 package inetsoft.web.assistant;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.DataSpace;
 import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -30,12 +32,15 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.net.ssl.*;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.http.*;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 @RestController
@@ -228,12 +233,93 @@ public class AIAssistantController {
     * tells the web component to use its own built-in defaults.
     */
    @GetMapping("/api/assistant/get-branding")
-   public AssistantBrandingModel getBranding() {
+   public AssistantBrandingModel getBranding(HttpServletRequest request) {
       return new AssistantBrandingModel(
          emptyToNull(SreeEnv.getProperty(CHAT_APP_TITLE)),
          emptyToNull(SreeEnv.getProperty(CHAT_APP_VENDOR_NAME)),
-         emptyToNull(SreeEnv.getProperty(CHAT_APP_LOGO_URL))
+         resolveLogoUrl(emptyToNull(SreeEnv.getProperty(CHAT_APP_LOGO_URL)), request)
       );
+   }
+
+   /**
+    * Serves the configured AI assistant logo from DataSpace storage.
+    * Only invoked when the stored logo URL is a relative storage path (no scheme, no leading slash).
+    */
+   @GetMapping("/api/assistant/logo")
+   public void getLogo(HttpServletResponse response) throws IOException {
+      String storedUrl = emptyToNull(SreeEnv.getProperty(CHAT_APP_LOGO_URL));
+
+      if(storedUrl == null || storedUrl.contains("://") || storedUrl.startsWith("/")) {
+         response.sendError(HttpServletResponse.SC_NOT_FOUND);
+         return;
+      }
+
+      DataSpace dataSpace = DataSpace.getDataSpace();
+      String path = storedUrl;
+      int idx = path.lastIndexOf('/');
+      String dir = idx >= 0 ? path.substring(0, idx) : null;
+      String file = idx >= 0 ? path.substring(idx + 1) : path;
+
+      if(file.isEmpty()) {
+         response.sendError(HttpServletResponse.SC_NOT_FOUND);
+         return;
+      }
+
+      String ext = file.contains(".") ? file.substring(file.lastIndexOf('.') + 1).toLowerCase() : "";
+
+      if(!LOGO_MIME_TYPES.containsKey(ext)) {
+         response.sendError(HttpServletResponse.SC_NOT_FOUND);
+         return;
+      }
+
+      try(InputStream in = dataSpace.getInputStream(dir, file)) {
+         if(in == null) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND);
+            return;
+         }
+
+         response.setContentType(LOGO_MIME_TYPES.get(ext));
+         response.setHeader("Cache-Control", "public, max-age=3600, must-revalidate");
+         long lastModified = dataSpace.getLastModified(dir, file);
+
+         if(lastModified > 0) {
+            response.setDateHeader("Last-Modified", lastModified);
+         }
+
+         in.transferTo(response.getOutputStream());
+      }
+   }
+
+   private static final Map<String, String> LOGO_MIME_TYPES = Map.of(
+      "png",  "image/png",
+      "jpg",  "image/jpeg",
+      "jpeg", "image/jpeg",
+      "gif",  "image/gif",
+      "svg",  "image/svg+xml",
+      "webp", "image/webp"
+   );
+
+   /**
+    * Resolves the logo URL. If the stored value is a relative storage path (no scheme,
+    * no leading slash), returns the full URL to the dedicated logo endpoint so the browser
+    * can fetch the image regardless of the server's context path.
+    */
+   private static String resolveLogoUrl(String url, HttpServletRequest request) {
+      if(url == null || url.contains("://") || url.startsWith("/")) {
+         return url;
+      }
+
+      String base = LinkUriArgumentResolver.getLinkUri(request);
+
+      if(!base.startsWith("http://") && !base.startsWith("https://")) {
+         return null;
+      }
+
+      if(base.endsWith("/")) {
+         base = base.substring(0, base.length() - 1);
+      }
+
+      return base + "/api/assistant/logo";
    }
 
    private static String emptyToNull(String value) {
