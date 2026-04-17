@@ -570,10 +570,11 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    }
 
    /**
-    * Returns the effective bottomTabs value, reflecting the runtime value if set,
-    * otherwise the design-time value. Callers in the Composer (design-time) context
-    * should prefer {@link #getBottomTabsValue()} to avoid reading a stale runtime
-    * override.
+    * Returns the effective {@code bottomTabs} value: the runtime (script-set) value
+    * if present, otherwise the design-time value. Use this method in all layout,
+    * export, and rendering paths. Callers that specifically need the raw design-time
+    * value (e.g. property dialog editors) should use {@link #getBottomTabsValue()}
+    * instead.
     */
    public boolean isBottomTabs() {
       Object rval = bottomTabs.getRValue();
