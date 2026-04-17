@@ -35,6 +35,10 @@
   overflow: hidden;
   transition: width 0.2s ease, height 0.2s ease;
 
+  &.dragging {
+    transition: none;
+  }
+
   &.side-mode {
     top: var(--ai-panel-top-offset, 52px);
     right: 0;
