@@ -127,7 +127,7 @@ public abstract class Legend extends BoundedContainer {
       double minh = GAP;
 
       if(title != null) {
-         minh += title.getMinHeight() + getBorderWidth();
+         minh += title.getMinHeight() + GAP + getBorderWidth();
       }
 
       if(isScalar) {
@@ -139,6 +139,7 @@ public abstract class Legend extends BoundedContainer {
          // if horizontal layout, prefer 1 row so items don't wrap
          // if not necessary
          int mincnt = verticalLayout ? 3 : 1;
+         minh += GAP;
 
          for(int i = 0; i < mincnt && i < items.size(); i++) {
             minh += items.get(i).getMinHeight();
@@ -185,7 +186,7 @@ public abstract class Legend extends BoundedContainer {
       double pheight = GAP;
 
       if(title != null) {
-         pheight += title.getPreferredHeight();
+         pheight += title.getPreferredHeight() + GAP;
       }
 
       if(isScalar) {
@@ -195,6 +196,8 @@ public abstract class Legend extends BoundedContainer {
          pheight += bandHeight + 2 * GAP + Math.max(minLabelHeight, maxLabelHeight);
       }
       else {
+         pheight += GAP;
+
          for(LegendItem item : items) {
             pheight += item.getPreferredHeight();
          }
@@ -404,7 +407,7 @@ public abstract class Legend extends BoundedContainer {
 
       Rectangle2D bounds = getBounds();
       double titlew = bounds.getWidth();
-      double titleh = title.getPreferredHeight();
+      double titleh = title.getPreferredHeight() + GAP;
       double titlex = bounds.getX();
       double titley = bounds.getY() + bounds.getHeight() - titleh;
 
@@ -1075,7 +1078,7 @@ public abstract class Legend extends BoundedContainer {
       if(title != null) {
          titlew = title.getWidth(PREFERRED_CHAR_COUNT) +
             getLeftPadding(true) + getRightPadding(true);
-         titleh = title.getPreferredHeight();
+         titleh = title.getPreferredHeight() + GAP;
       }
 
       if(isScalar) {
@@ -1131,7 +1134,7 @@ public abstract class Legend extends BoundedContainer {
          pheight = getPreferredHeight0();
       }
       else {
-         double titleh = (title != null) ? title.getPreferredHeight() : 0;
+         double titleh = (title != null) ? title.getPreferredHeight() + GAP : 0;
          // minus ITEM_LEFT_PADDING, or the preferred height will be false
          double awidth = width - getLeftPadding(false) - getRightPadding(false);
          int colCount = (int) Math.floor(awidth / getItemPreferredWidth(1));
@@ -1141,7 +1144,7 @@ public abstract class Legend extends BoundedContainer {
          double itemh = items.size() == 0 ? 20 :
             items.get(0).getPreferredHeight();
          double itemsh = itemh * Math.min(rowCount, (int) (maxh / itemh));
-         pheight = titleh + itemsh + GAP + getBorderWidth();
+         pheight = titleh + itemsh + 2 * GAP + getBorderWidth();
       }
 
       lwidth = width;
@@ -1159,7 +1162,7 @@ public abstract class Legend extends BoundedContainer {
       double itemsh = height;
 
       if(title != null) {
-         itemsh -= title.getPreferredHeight() + GAP + getBorderWidth();
+         itemsh -= title.getPreferredHeight() + 3 * GAP + getBorderWidth();
       }
       else {
          itemsh -= GAP / 2 + getBorderWidth() / 2;
