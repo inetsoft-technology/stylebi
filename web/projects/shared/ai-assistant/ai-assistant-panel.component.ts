@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { Component, HostListener, NgZone, OnDestroy, OnInit, Renderer2 } from "@angular/core";
+import { Component, ElementRef, HostListener, NgZone, OnDestroy, OnInit, Renderer2 } from "@angular/core";
 import { Subscription } from "rxjs";
 import { AiAssistantService } from "./ai-assistant.service";
 
@@ -48,6 +48,7 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
    private dragging = false;
    private dragStartPos = 0;
    private dragStartSize = 0;
+   private dragPanelEl: HTMLElement | null = null;
    private unlisten: (() => void)[] = [];
    private healthSub: Subscription | null = null;
    private panelOpenSub: Subscription | null = null;
@@ -55,7 +56,8 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
    constructor(
       private aiAssistantService: AiAssistantService,
       private renderer: Renderer2,
-      private zone: NgZone
+      private zone: NgZone,
+      private el: ElementRef
    ) {}
 
    ngOnInit(): void {
@@ -113,6 +115,7 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
    }
 
    ngOnDestroy(): void {
+      this.stopDrag();
       this.unlisten.forEach(fn => fn());
       this.healthSub?.unsubscribe();
       this.panelOpenSub?.unsubscribe();
@@ -173,13 +176,18 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
       this.dragStartPos = this.mode === "side" ? event.clientX : event.clientY;
       this.dragStartSize = this.mode === "side" ? this.sideWidth : this.bottomHeight;
 
-      const moveUnsub = this.renderer.listen("document", "mousemove", (e: MouseEvent) => {
-         this.zone.run(() => this.onDrag(e));
+      this.zone.runOutsideAngular(() => {
+         this.dragPanelEl = (this.el.nativeElement as HTMLElement).querySelector<HTMLElement>(".ai-assistant-panel");
+         this.dragPanelEl?.classList.add("dragging");
+
+         const moveUnsub = this.renderer.listen("document", "mousemove", (e: MouseEvent) => {
+            this.onDrag(e);
+         });
+         const upUnsub = this.renderer.listen("document", "mouseup", () => {
+            this.zone.run(() => this.stopDrag());
+         });
+         this.unlisten = [moveUnsub, upUnsub];
       });
-      const upUnsub = this.renderer.listen("document", "mouseup", () => {
-         this.zone.run(() => this.stopDrag());
-      });
-      this.unlisten = [moveUnsub, upUnsub];
    }
 
    private onDrag(event: MouseEvent): void {
@@ -191,11 +199,19 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
          const delta = this.dragStartPos - event.clientX;
          const maxWidth = Math.floor(window.innerWidth * 0.8);
          this.sideWidth = Math.min(maxWidth, Math.max(MIN_SIZE, this.dragStartSize + delta));
+
+         if(this.dragPanelEl) {
+            this.dragPanelEl.style.width = `${this.sideWidth}px`;
+         }
       }
       else {
          const delta = this.dragStartPos - event.clientY;
          const maxBottomHeight = window.innerHeight - TOP_OFFSET;
          this.bottomHeight = Math.min(maxBottomHeight, Math.max(MIN_SIZE, this.dragStartSize + delta));
+
+         if(this.dragPanelEl) {
+            this.dragPanelEl.style.height = `${this.bottomHeight}px`;
+         }
       }
    }
 
@@ -205,6 +221,8 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
       }
 
       this.dragging = false;
+      this.dragPanelEl?.classList.remove("dragging");
+      this.dragPanelEl = null;
       this.unlisten.forEach(fn => fn());
       this.unlisten = [];
       try {
