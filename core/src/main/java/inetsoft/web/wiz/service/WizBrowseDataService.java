@@ -1,0 +1,82 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2026  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.web.wiz.service;
+
+import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.cluster.*;
+import inetsoft.report.composition.*;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.erm.DataRef;
+import inetsoft.web.binding.drm.DataRefModel;
+import inetsoft.web.composer.BrowseDataController;
+import inetsoft.web.composer.model.BrowseDataModel;
+import org.springframework.stereotype.Service;
+
+import java.security.Principal;
+
+@Service
+@ClusterProxy
+public class WizBrowseDataService {
+   public WizBrowseDataService(ViewsheetService viewsheetService) {
+      this.viewsheetService = viewsheetService;
+   }
+
+   /**
+    * Browse distinct values for a worksheet table column, accessed via a VS runtimeId.
+    *
+    * @param runtimeId    the VS runtime ID (vsId)
+    * @param assemblyName the worksheet table/assembly name that owns the column
+    * @param dataRefModel the column ref describing which column to browse
+    * @param principal    the current user
+    */
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public BrowseDataModel browseData(@ClusterProxyKey String runtimeId, String assemblyName,
+                                     DataRefModel dataRefModel, Principal principal)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+
+      if(rvs == null) {
+         throw new IllegalArgumentException("No viewsheet found for runtimeId=" + runtimeId);
+      }
+
+      RuntimeWorksheet rws = rvs.getRuntimeWorksheet();
+
+      if(rws == null) {
+         throw new IllegalStateException("No RuntimeWorksheet found for VS runtimeId=" + runtimeId);
+      }
+
+      BrowseDataController browseDataController = new BrowseDataController();
+      DataRef dataRef = dataRefModel.createDataRef();
+
+      if(dataRef == null) {
+         throw new IllegalArgumentException("DataRefModel produced a null DataRef");
+      }
+
+      if(!(dataRef instanceof ColumnRef)) {
+         dataRef = new ColumnRef(dataRef);
+      }
+
+      browseDataController.setColumn((ColumnRef) dataRef);
+      browseDataController.setName(assemblyName);
+
+      return browseDataController.process(rws.getAssetQuerySandbox());
+   }
+
+   private final ViewsheetService viewsheetService;
+}
