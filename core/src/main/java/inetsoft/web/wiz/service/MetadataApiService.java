@@ -592,13 +592,17 @@ public class MetadataApiService {
    }
 
    private TreeNodeModel filterWizTree(TreeNodeModel node) {
+      return filterWizTree(node, new HashMap<>());
+   }
+
+   private TreeNodeModel filterWizTree(TreeNodeModel node, Map<String, SystemFilter> filterCache) {
       if(node == null) {
          return null;
       }
 
       AssetEntry entry = node.data() instanceof AssetEntry assetEntry ? assetEntry : null;
 
-      if(shouldHideWizTreeNode(entry)) {
+      if(shouldHideWizTreeNode(entry, filterCache)) {
          return null;
       }
 
@@ -606,7 +610,7 @@ public class MetadataApiService {
       builder.children(new ArrayList<>());
 
       for(TreeNodeModel child : node.children()) {
-         TreeNodeModel filteredChild = filterWizTree(child);
+         TreeNodeModel filteredChild = filterWizTree(child, filterCache);
 
          if(filteredChild != null) {
             builder.addChildren(filteredChild);
@@ -616,7 +620,7 @@ public class MetadataApiService {
       return builder.build();
    }
 
-   private boolean shouldHideWizTreeNode(AssetEntry entry) {
+   private boolean shouldHideWizTreeNode(AssetEntry entry, Map<String, SystemFilter> filterCache) {
       if(entry == null || Tool.isEmptyString(entry.getPath())) {
          return false;
       }
@@ -633,12 +637,21 @@ public class MetadataApiService {
          return false;
       }
 
-      String dsName = parts[0];
-      Set<String> systemCatalogs = getSystemNameSet(getJdbcSystemCatalogs(dsName));
-      Set<String> systemSchemas = getSystemNameSet(getJdbcSystemSchemas(dsName));
-      String schemaOrCatalog = parts[2].toUpperCase(Locale.ROOT);
+      SystemFilter filter = getSystemFilter(parts[0], filterCache);
 
-      return systemCatalogs.contains(schemaOrCatalog) || systemSchemas.contains(schemaOrCatalog);
+      if(filter.isEmpty()) {
+         return false;
+      }
+
+      String catalogOrSchema = parts[2];
+
+      if(matchesSystemName(catalogOrSchema, filter.catalogs) ||
+         matchesSystemName(catalogOrSchema, filter.schemas))
+      {
+         return true;
+      }
+
+      return parts.length > 3 && matchesSystemName(parts[3], filter.schemas);
    }
 
    private XNode filterSystemSchemaTree(XNode schemas, JDBCDataSource jdbcDataSource) {
@@ -665,20 +678,6 @@ public class MetadataApiService {
    private XNode filterSystemSchemaNode(XNode node, Set<String> systemCatalogs,
                                         Set<String> systemSchemas)
    {
-      XNode filtered = cloneNodeWithoutChildren(node);
-
-      for(int i = 0; i < node.getChildCount(); i++) {
-         XNode child = filterSystemSchemaNode(node.getChild(i), systemCatalogs, systemSchemas);
-
-         if(child != null) {
-            filtered.addChild(child, true, false);
-         }
-      }
-
-      if(filtered.getChildCount() > 0) {
-         return filtered;
-      }
-
       String catalogName = (String) node.getAttribute("catalog");
       String schemaName = (String) node.getAttribute("schema");
       String nodeName = node.getName();
@@ -691,14 +690,26 @@ public class MetadataApiService {
          return null;
       }
 
+      XNode filtered = cloneNodeWithoutChildren(node);
+
+      for(int i = 0; i < node.getChildCount(); i++) {
+         XNode child = filterSystemSchemaNode(node.getChild(i), systemCatalogs, systemSchemas);
+
+         if(child != null) {
+            filtered.addChild(child, true, false);
+         }
+      }
+
       return filtered;
    }
 
    private XNode cloneNodeWithoutChildren(XNode node) {
-      XNode copy = (XNode) node.clone();
+      XNode copy = new XNode(node.getName());
+      Enumeration<String> attrNames = node.getAttributeNames();
 
-      while(copy.getChildCount() > 0) {
-         copy.removeChild(0);
+      while(attrNames.hasMoreElements()) {
+         String attrName = attrNames.nextElement();
+         copy.setAttribute(attrName, node.getAttribute(attrName));
       }
 
       return copy;
@@ -740,6 +751,26 @@ public class MetadataApiService {
 
    private boolean matchesSystemName(String name, Set<String> systemNames) {
       return !Tool.isEmptyString(name) && systemNames.contains(name.toUpperCase(Locale.ROOT));
+   }
+
+   private SystemFilter getSystemFilter(String dsName, Map<String, SystemFilter> filterCache) {
+      return filterCache.computeIfAbsent(dsName, key -> new SystemFilter(
+         getSystemNameSet(getJdbcSystemCatalogs(key)),
+         getSystemNameSet(getJdbcSystemSchemas(key))));
+   }
+
+   private static final class SystemFilter {
+      private final Set<String> catalogs;
+      private final Set<String> schemas;
+
+      private SystemFilter(Set<String> catalogs, Set<String> schemas) {
+         this.catalogs = catalogs;
+         this.schemas = schemas;
+      }
+
+      private boolean isEmpty() {
+         return catalogs.isEmpty() && schemas.isEmpty();
+      }
    }
 
    /**
