@@ -81,9 +81,9 @@ class DefaultCheckPermissionStrategyTest {
    static final String TEST_ORG  = "testOrg";
    static final String TEST_USER = "testUser";
    static final String TEST_ROLE = "testRole";
-   static SecurityProvider mockProvider;
-   static DefaultCheckPermissionStrategy mockStrategy;
-   static SRPrincipal mockUser;
+   SecurityProvider mockProvider;
+   DefaultCheckPermissionStrategy mockStrategy;
+   SRPrincipal mockUser;
 
    @BeforeAll
    static void before(@Autowired SecurityEngine securityEngine) throws Exception {
@@ -104,7 +104,10 @@ class DefaultCheckPermissionStrategyTest {
       IdentityID[] everyoneRoles = { new IdentityID("Everyone", "org0") };
       normalUser = new SRPrincipal(new IdentityID("normalUser", "org0"), everyoneRoles,
                                     new String[0], "org0", Tool.getSecureRandom().nextLong());
+   }
 
+   @BeforeEach
+   void setUpMockStrategy() {
       // mock-based setup: strategy driven entirely by stubbed provider calls
       mockProvider = Mockito.mock(SecurityProvider.class);
       mockStrategy = new DefaultCheckPermissionStrategy(mockProvider);

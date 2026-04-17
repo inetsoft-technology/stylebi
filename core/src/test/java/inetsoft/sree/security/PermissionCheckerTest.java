@@ -36,6 +36,8 @@ package inetsoft.sree.security;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.util.Identity;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -50,6 +52,10 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+// This class mutates PermissionChecker.andCond (a private static field) via reflection.
+// Force same-thread execution to avoid races when test parallelism is enabled.
+@Tag("core")
+@Execution(ExecutionMode.SAME_THREAD)
 class PermissionCheckerTest {
 
    private static final String ORG = "testOrg";

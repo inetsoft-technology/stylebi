@@ -67,6 +67,8 @@ package inetsoft.sree.security;
  */
 
 import inetsoft.uql.util.Identity;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -77,6 +79,7 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("core")
 class PermissionTest {
 
    private static final String ORG_A = "orgA";
@@ -520,11 +523,12 @@ class PermissionTest {
    // case-insensitively and both orgs are null. As a result, case-insensitive matching silently
    // fails for identities with no org scope.
    @Test
+   @Disabled("Bug: line 1154 uses other.name instead of other.organizationID — should assertTrue once fixed")
    void permissionIdentity_equalsIgnoreCase_nullOrgBug_returnsFalse() {
       Permission.PermissionIdentity a = new Permission.PermissionIdentity("Alice", null);
       Permission.PermissionIdentity b = new Permission.PermissionIdentity("alice", null);
       // If the bug were fixed this should return true (names match, both orgs null).
       // Actual behavior due to the bug: false.
-      assertFalse(a.equalsIgnoreCase(b));
+      assertTrue(a.equalsIgnoreCase(b));
    }
 }

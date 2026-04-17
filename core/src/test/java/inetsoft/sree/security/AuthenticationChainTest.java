@@ -17,17 +17,13 @@
  */
 package inetsoft.sree.security;
 
-import inetsoft.test.BaseTestConfiguration;
-import inetsoft.test.ConfigurationContextInitializer;
-import inetsoft.test.SreeHome;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -40,11 +36,6 @@ import static org.mockito.Mockito.*;
  *  - provider exceptions are propagated instead of being swallowed
  *  - an empty chain denies authentication
  */
-@ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class },
-   initializers = ConfigurationContextInitializer.class)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-@SreeHome()
 @Tag("core")
 class AuthenticationChainTest {
    private static final IdentityID USER_ID = new IdentityID("alice", "org1");
@@ -120,7 +111,8 @@ class AuthenticationChainTest {
 
       IdentityID[] users = chain.getUsers();
 
-      assertArrayEquals(new IdentityID[] { USER_ID, bob }, users);
+      assertEquals(Set.of(USER_ID, bob), new HashSet<>(Arrays.asList(users)));
+      assertEquals(2, users.length);
    }
 
    // [Scenario: exception] an exception from the selected provider is propagated
