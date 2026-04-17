@@ -1458,7 +1458,7 @@ public class MVSupportService {
       }
 
       boolean isSameUser = principal.getName().equals(entryUser.convertToKey());
-      boolean isAdmin = SecurityEngine.getSecurity().checkPermission(
+      boolean isAdmin = !isSameUser && SecurityEngine.getSecurity().checkPermission(
          principal, ResourceType.SECURITY_USER, entryUser, ResourceAction.ADMIN);
 
       return (isSameUser || isAdmin) &&
