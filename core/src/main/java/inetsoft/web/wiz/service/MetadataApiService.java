@@ -38,6 +38,7 @@ import inetsoft.util.Tool;
 import inetsoft.web.composer.AssetTreeService;
 import inetsoft.web.composer.model.LoadAssetTreeNodesEvent;
 import inetsoft.web.composer.model.LoadAssetTreeNodesValidator;
+import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.portal.controller.database.DataSourceService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,10 +68,17 @@ public class MetadataApiService {
    public LoadAssetTreeNodesValidator getNodes(LoadAssetTreeNodesEvent event, Principal principal)
       throws Exception
    {
-      return assetTreeService.getNodes(true, false, true,
-                                       false, false, false,
-                                       false, false,
-                                       true, true, event, principal);
+      LoadAssetTreeNodesValidator result =
+         assetTreeService.getNodes(true, false, true,
+                                   false, false, false,
+                                   false, false,
+                                   true, true, event, principal);
+      TreeNodeModel filteredTree = filterWizTree(result.treeNodeModel());
+
+      return LoadAssetTreeNodesValidator.builder()
+         .treeNodeModel(filteredTree)
+         .parameters(result.parameters())
+         .build();
    }
 
    public OsiDataset getMetaData(GetDatabaseTableMetaRequest data) throws Exception {
@@ -528,6 +536,7 @@ public class MetadataApiService {
       XNode schemaQuery = new XNode();
       schemaQuery.setAttribute("type", "SCHEMAS");
       XNode schemaList = metaDataProvider.getMetaData(schemaQuery, true);
+      schemaList = filterSystemSchemaTree(schemaList, jdbcDataSource);
 
       // If the database has no schema hierarchy, schemaList itself becomes the single leaf node
       // (with no schema attributes), which causes the table query to run without a schema filter.
@@ -580,6 +589,157 @@ public class MetadataApiService {
       response.setTables(tables);
       response.setRelationships(relationships);
       return response;
+   }
+
+   private TreeNodeModel filterWizTree(TreeNodeModel node) {
+      if(node == null) {
+         return null;
+      }
+
+      AssetEntry entry = node.data() instanceof AssetEntry assetEntry ? assetEntry : null;
+
+      if(shouldHideWizTreeNode(entry)) {
+         return null;
+      }
+
+      TreeNodeModel.Builder builder = TreeNodeModel.builder().from(node);
+      builder.children(new ArrayList<>());
+
+      for(TreeNodeModel child : node.children()) {
+         TreeNodeModel filteredChild = filterWizTree(child);
+
+         if(filteredChild != null) {
+            builder.addChildren(filteredChild);
+         }
+      }
+
+      return builder.build();
+   }
+
+   private boolean shouldHideWizTreeNode(AssetEntry entry) {
+      if(entry == null || Tool.isEmptyString(entry.getPath())) {
+         return false;
+      }
+
+      String[] parts = entry.getPath().split("/");
+
+      if(parts.length < 3) {
+         return false;
+      }
+
+      String tableType = parts[1];
+
+      if(!"TABLE".equalsIgnoreCase(tableType) && !"VIEW".equalsIgnoreCase(tableType)) {
+         return false;
+      }
+
+      String dsName = parts[0];
+      Set<String> systemCatalogs = getSystemNameSet(getJdbcSystemCatalogs(dsName));
+      Set<String> systemSchemas = getSystemNameSet(getJdbcSystemSchemas(dsName));
+      String schemaOrCatalog = parts[2].toUpperCase(Locale.ROOT);
+
+      return systemCatalogs.contains(schemaOrCatalog) || systemSchemas.contains(schemaOrCatalog);
+   }
+
+   private XNode filterSystemSchemaTree(XNode schemas, JDBCDataSource jdbcDataSource) {
+      Set<String> systemCatalogs = getSystemNameSet(jdbcDataSource.getSystemCatalogs());
+      Set<String> systemSchemas = getSystemNameSet(jdbcDataSource.getSystemSchemas());
+
+      if(systemCatalogs.isEmpty() && systemSchemas.isEmpty()) {
+         return schemas;
+      }
+
+      XNode filtered = cloneNodeWithoutChildren(schemas);
+
+      for(int i = 0; i < schemas.getChildCount(); i++) {
+         XNode child = filterSystemSchemaNode(schemas.getChild(i), systemCatalogs, systemSchemas);
+
+         if(child != null) {
+            filtered.addChild(child, true, false);
+         }
+      }
+
+      return filtered;
+   }
+
+   private XNode filterSystemSchemaNode(XNode node, Set<String> systemCatalogs,
+                                        Set<String> systemSchemas)
+   {
+      XNode filtered = cloneNodeWithoutChildren(node);
+
+      for(int i = 0; i < node.getChildCount(); i++) {
+         XNode child = filterSystemSchemaNode(node.getChild(i), systemCatalogs, systemSchemas);
+
+         if(child != null) {
+            filtered.addChild(child, true, false);
+         }
+      }
+
+      if(filtered.getChildCount() > 0) {
+         return filtered;
+      }
+
+      String catalogName = (String) node.getAttribute("catalog");
+      String schemaName = (String) node.getAttribute("schema");
+      String nodeName = node.getName();
+
+      if(matchesSystemName(catalogName, systemCatalogs) ||
+         matchesSystemName(schemaName, systemSchemas) ||
+         matchesSystemName(nodeName, systemCatalogs) ||
+         matchesSystemName(nodeName, systemSchemas))
+      {
+         return null;
+      }
+
+      return filtered;
+   }
+
+   private XNode cloneNodeWithoutChildren(XNode node) {
+      XNode copy = (XNode) node.clone();
+
+      while(copy.getChildCount() > 0) {
+         copy.removeChild(0);
+      }
+
+      return copy;
+   }
+
+   private Set<String> getSystemNameSet(String[] values) {
+      Set<String> result = new HashSet<>();
+
+      if(values != null) {
+         for(String value : values) {
+            if(!Tool.isEmptyString(value)) {
+               result.add(value.toUpperCase(Locale.ROOT));
+            }
+         }
+      }
+
+      return result;
+   }
+
+   private String[] getJdbcSystemCatalogs(String dsName) {
+      try {
+         return getJDBCDatasource(dsName).getSystemCatalogs();
+      }
+      catch(Exception e) {
+         log.debug("Failed to get system catalogs for '{}'", dsName, e);
+         return new String[0];
+      }
+   }
+
+   private String[] getJdbcSystemSchemas(String dsName) {
+      try {
+         return getJDBCDatasource(dsName).getSystemSchemas();
+      }
+      catch(Exception e) {
+         log.debug("Failed to get system schemas for '{}'", dsName, e);
+         return new String[0];
+      }
+   }
+
+   private boolean matchesSystemName(String name, Set<String> systemNames) {
+      return !Tool.isEmptyString(name) && systemNames.contains(name.toUpperCase(Locale.ROOT));
    }
 
    /**
