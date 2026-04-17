@@ -20,20 +20,12 @@
  * TaskActionPaneComponent — Testing Library style
  *
  * Risk-first coverage:
- *   Group 1 [Risk 3] — set action(null): default model uses "RepletAction" type which is absent from the dropdown (it.failing — confirmed bug)
+ *   Group 1 [Risk 3] — set action(null): default type remains aligned with dropdown options
  *   Group 2 [Risk 3] — set action(value): nested bookmarks are defensively cloned
  *   Group 3 [Risk 2] — changeActionType: per-type model creation contracts
  *   Group 4 [Risk 2] — onModelChanged / fireModelChanged: valid state propagation
  *
- * Confirmed bugs (it.failing — remove wrapper once fixed):
- *
- *   Bug A — null action defaults to "RepletAction" type not offered by the dropdown (Group 1):
- *     `set action(null)` sets `selectedActionType = "RepletAction"` and creates a
- *     GeneralActionModel with `actionType: "RepletAction"`.
- *     The template mat-select only offers "ViewsheetAction", "BackupAction", "BatchAction".
- *     Result: the dropdown shows nothing selected; the scheduler form starts with an invisible
- *     action type that cannot be reached through the UI.
- *     Issue #74498 
+ * Fixed bug regression coverage:I.
  *
  * KEY contracts:
  *   - "ViewsheetAction" → GeneralActionModel  (actionClass: "GeneralActionModel")
@@ -84,14 +76,12 @@ async function renderComponent(action = makeGeneralAction()) {
 }
 
 // ---------------------------------------------------------------------------
-// Group 1 [Risk 3] — set action(null): defaults to RepletAction (confirmed bug)
+// Group 1 [Risk 3] — set action(null): fixed default type regression coverage
 // ---------------------------------------------------------------------------
 
 describe("TaskActionPaneComponent — set action(null): default type", () => {
 
-   // The dropdown only offers ViewsheetAction / BackupAction / BatchAction.
-   // Defaulting to "RepletAction" leaves the select showing nothing, making the form appear broken.
-   // Issue #74498(fixed)
+   // the default selected type for null input must remain one of the visible dropdown options.
    it("should default selectedActionType to a type offered in the dropdown when action is null", async () => {
       const { comp, fixture } = await renderComponent();
 
