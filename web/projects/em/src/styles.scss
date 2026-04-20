@@ -275,11 +275,16 @@ $brush-cursor-path: '~/../../portal/src/assets/cursor/brushcursor.gif';
 }
 
 #assistant-root {
+  font-size: 14px;
+
   .MuiListItemText-root span,
   .MuiTypography-root,
   .MuiDrawer-paper,
-  .MuiPaper-root {
-    font-size: 13px !important;
+  .MuiPaper-root,
+  .branding-title,
+  .markdown-paragraph,
+  .message-content {
+    font-size: 14px !important;
   }
 
   .chat-item.MuiListItemButton-root {
@@ -287,5 +292,9 @@ $brush-cursor-path: '~/../../portal/src/assets/cursor/brushcursor.gif';
     padding-bottom: 4px !important;
     min-height: 36px !important;
   }
+}
+
+ai-assistant-panel .panel-title {
+  font-size: 14px !important;
 }
 
