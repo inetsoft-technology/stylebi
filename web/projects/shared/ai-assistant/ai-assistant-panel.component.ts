@@ -38,7 +38,8 @@ const TOP_OFFSET = 52;
 })
 export class AiAssistantPanelComponent implements OnInit, OnDestroy {
    mode: PanelMode = "side";
-   collapsed: boolean = false;
+   get collapsed(): boolean { return this.aiAssistantService.panelCollapsed; }
+   set collapsed(v: boolean) { this.aiAssistantService.panelCollapsed = v; }
    sideWidth: number = DEFAULT_SIDE_WIDTH;
    bottomHeight: number = DEFAULT_BOTTOM_HEIGHT;
    serverState: "checking" | "online" | "offline" = "checking";
@@ -63,9 +64,6 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
    ngOnInit(): void {
       this.panelOpenSub = this.aiAssistantService.panelOpen$.subscribe(open => {
          if(open) {
-            // Reset collapsed state each time the panel is opened so users are never
-            // greeted by a header-only strip with no explanation.
-            this.collapsed = false;
             this.serverState = "checking";
             this.healthSub?.unsubscribe();
             this.healthSub = this.aiAssistantService.checkHealth().subscribe(online => {
