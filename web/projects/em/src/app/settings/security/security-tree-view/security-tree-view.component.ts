@@ -34,7 +34,7 @@ import { SecurityTreeDataService } from "./security-tree-data.service";
 import { SecurityTreeFlattener } from "./security-tree-flattener";
 import { FlatSecurityTreeNode, SecurityTreeNode } from "./security-tree-node";
 import { IdentityType } from "../../../../../../shared/data/identity-type";
-import {IdentityId} from "../users/identity-id";
+import { IdentityId, equalsIdentity } from "../users/identity-id";
 
 @Component({
    selector: "em-security-tree-view",
@@ -166,7 +166,7 @@ export class SecurityTreeViewComponent implements OnInit, OnChanges, OnDestroy,
 
             const newIndex = this.flattenTree.indexOf(node);
             const lastIndex = this.flattenTree.findIndex(treeNode =>
-               treeNode.getData().identityID.name === last.identityID.name && treeNode.getData().type === last.type);
+               this.isSameNode(treeNode.getData(), last));
 
             if(newIndex < 0 || lastIndex < 0) {
                this.selectedNodes = [nodeData];
@@ -245,7 +245,9 @@ export class SecurityTreeViewComponent implements OnInit, OnChanges, OnDestroy,
    }
 
    private isSameNode(left: SecurityTreeNode, right: SecurityTreeNode): boolean {
-      return !!left && !!right && left.identityID.name === right.identityID.name && left.type === right.type;
+      return !!left && !!right &&
+         equalsIdentity(left.identityID, right.identityID) &&
+         left.type === right.type;
    }
 
    trackByFn(index, node: FlatSecurityTreeNode) {

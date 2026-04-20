@@ -39,7 +39,6 @@
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { it } from "@jest/globals";
 import { render } from "@testing-library/angular";
 import { SecurityTreeViewComponent } from "./security-tree-view.component";
 import { FlatSecurityTreeNode, SecurityTreeNode } from "./security-tree-node";
@@ -54,8 +53,9 @@ function makeNode(
    type: IdentityType,
    children: SecurityTreeNode[] = [],
    readOnly = false,
+   orgID = "TestOrg",
 ): SecurityTreeNode {
-   return new SecurityTreeNode({ name, orgID: "TestOrg" }, type, children, readOnly);
+   return new SecurityTreeNode({ name, orgID }, type, children, readOnly);
 }
 
 function clickEvent(overrides: Partial<MouseEvent> = {}): MouseEvent {
@@ -168,6 +168,32 @@ describe("SecurityTreeViewComponent - selectNode() Ctrl+click: deselection after
       comp.selectNode(filteredAliceFlat, clickEvent({ ctrlKey: true })); // should deselect
 
       expect(emitted[0]).toHaveLength(0);
+   });
+
+   // Multi-tenant guard: same-name identities in different orgs must not collapse
+   // into one logical selection target. Ctrl+clicking alice in OrgB must not
+   // deselect or visually merge alice in OrgA.
+   it("should keep same-name users in different orgs independently selected on Ctrl+click", async () => {
+      const aliceOrgA = makeNode("alice", IdentityType.USER, [], false, "OrgA");
+      const aliceOrgB = makeNode("alice", IdentityType.USER, [], false, "OrgB");
+      const { comp } = await renderComponent([
+         makeNode("Users", IdentityType.USERS, [aliceOrgA, aliceOrgB]),
+      ]);
+
+      const aliceNodes = flatTree(comp).filter(n => n.getData().identityID.name === "alice");
+      const aliceOrgAFlat = aliceNodes.find(n => n.getData().identityID.orgID === "OrgA");
+      const aliceOrgBFlat = aliceNodes.find(n => n.getData().identityID.orgID === "OrgB");
+
+      comp.selectNode(aliceOrgAFlat, clickEvent());
+      expect(comp.selectedNodes.map(n => n.identityID.orgID)).toEqual(["OrgA"]);
+      expect(comp.isSelected(aliceOrgAFlat)).toBe(true);
+      expect(comp.isSelected(aliceOrgBFlat)).toBe(false);
+
+      comp.selectNode(aliceOrgBFlat, clickEvent({ ctrlKey: true }));
+
+      expect(comp.selectedNodes.map(n => n.identityID.orgID)).toEqual(["OrgA", "OrgB"]);
+      expect(comp.isSelected(aliceOrgAFlat)).toBe(true);
+      expect(comp.isSelected(aliceOrgBFlat)).toBe(true);
    });
 });
 
