@@ -51,11 +51,16 @@ public class CreateVsService {
    }
 
    public CreateViewsheetResult createViewsheet(CreateVisualizationModel model, Principal user) throws Exception {
-      if(Tool.isEmptyString(model.getRuntimeId())) {
-         throw new IllegalArgumentException("Runtime Viewsheet is empty");
+      String runtimeId = model.getRuntimeId();
+      boolean createdRuntimeId = false;
+
+      if(Tool.isEmptyString(runtimeId)) {
+         Viewsheet.WizInfo wizInfo = new Viewsheet.WizInfo(true, null, null);
+         runtimeId = viewsheetService.openTemporaryViewsheet(null, null, user, wizInfo);
+         createdRuntimeId = true;
       }
 
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(model.getRuntimeId(), user);
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
 
       if(rvs == null) {
          throw new Exception("Runtime Viewsheet not found");
@@ -145,6 +150,10 @@ public class CreateVsService {
          }
 
          result.setBinding(collectFlatBinding(assembly));
+
+         if(createdRuntimeId) {
+            result.setRuntimeId(runtimeId);
+         }
 
          return result;
       }

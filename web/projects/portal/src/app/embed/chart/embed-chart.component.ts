@@ -105,6 +105,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
    assetId: string;
    assemblyName: string;
    queryParams: Params = {};
+   private inputRuntimeId: string;
    mobileDevice: boolean = GuiTool.isMobileDevice();
    connected: boolean;
    errorTimeout: any;
@@ -163,7 +164,10 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
          const result = EMBED_CHART_URL_MATCHER(tree.root?.children?.primary?.segments);
          this.assetId = result.posParams?.assetId?.path;
          this.assemblyName = result.posParams?.assemblyName?.path;
+         this.inputRuntimeId = result.posParams?.runtimeId?.path;
          this.queryParams = tree.queryParams;
+
+         console.log("=================", this.inputRuntimeId);
 
          (window.inetsoftConnected as BehaviorSubject<boolean>).subscribe((connected) => {
             if(!this.connected && connected) {
@@ -198,6 +202,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
                   this.queryParams = queryParams;
                   this.assetId = params.assetId;
                   this.assemblyName = params.assemblyName;
+                  this.inputRuntimeId = params.runtimeId;
                   this.openViewsheet();
                }));
       }
@@ -366,8 +371,20 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       return !this.miniToolbarService?.isMiniToolbarHidden(this.vsObject?.absoluteName);
    }
 
-   private openViewsheet(runtimeId: string = null): void {
-      if(this.assetId) {
+   private openViewsheet(): void {
+      console.log("=======openViewsheet=============");
+      if(this.inputRuntimeId) {
+         this.viewsheetClient.runtimeId = this.inputRuntimeId;
+         this.runtimeId = this.inputRuntimeId;
+         this.subscriptions.add(this.viewsheetClient.whenConnected()
+            .subscribe(() => setTimeout(() => this.refreshEmbedViewsheet(), 0)));
+         this.subscriptions.add(this.viewsheetClient.connectionError().subscribe((error) => {
+            this.timeoutError = !!error;
+         }));
+         this.viewsheetClient.connect(!!this.url);
+         this.viewsheetClient.beforeDestroy = () => this.beforeDestroy();
+      }
+      else if(this.assetId) {
          this.subscriptions.add(this.viewsheetClient.whenConnected()
             .subscribe(() => setTimeout(() => this.openViewsheet0(), 0)));
          this.subscriptions.add(this.viewsheetClient.connectionError().subscribe((error) => {
@@ -379,6 +396,15 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       else {
          console.error("The runtime or asset identifier must be provided");
       }
+   }
+
+   private refreshEmbedViewsheet(): void {
+      this.setAppSize();
+      const refreshEvent = new VSRefreshEvent();
+      refreshEvent.setWidth(this.appSize.width);
+      refreshEvent.setHeight(this.appSize.height);
+      refreshEvent.setEmbedAssemblySize(this.assemblySize);
+      this.viewsheetClient.sendEvent("/events/vs/refresh", refreshEvent);
    }
 
    /**
