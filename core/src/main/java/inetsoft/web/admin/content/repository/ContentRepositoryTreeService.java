@@ -2025,8 +2025,29 @@ public class ContentRepositoryTreeService {
       };
    }
 
+   void checkSheetPermission(int scope, IdentityID ownerID, String path,
+                             ResourceType nonUserScopeType, Principal principal)
+      throws inetsoft.sree.security.SecurityException
+   {
+      if(scope == AssetRepository.USER_SCOPE) {
+         if(!checkUserPermission(ownerID, principal) ||
+            !SecurityEngine.getSecurity().checkPermission(
+               principal, ResourceType.MY_DASHBOARDS, "*", ResourceAction.READ))
+         {
+            throw new MessageException(Catalog.getCatalog().getString(
+               "em.common.security.no.permission", path));
+         }
+      }
+      else if(!SecurityEngine.getSecurity().checkPermission(
+                 principal, nonUserScopeType, path, ResourceAction.ADMIN))
+      {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", path));
+      }
+   }
+
    private boolean checkUserPermission(IdentityID user, Principal principal) {
-      if(principal == null) {
+      if(principal == null || user == null) {
          return false;
       }
 

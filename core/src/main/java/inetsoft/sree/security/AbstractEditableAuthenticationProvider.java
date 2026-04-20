@@ -331,6 +331,7 @@ public abstract class AbstractEditableAuthenticationProvider
             {
                CustomTheme clone = (CustomTheme) theme.clone();
                clone.setOrgID(toOrgId);
+               clone.setId(UUID.randomUUID().toString().replace("-", ""));
 
                String originalID = clone.getId();
                int i = 1;

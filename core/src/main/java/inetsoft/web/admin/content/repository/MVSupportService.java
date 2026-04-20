@@ -197,15 +197,7 @@ public class MVSupportService {
          AssetEntry candidateEntry = getEntry(candidate.id);
 
          if(candidateEntry != null) {
-            ResourceType resourceType = candidateEntry.isWorksheet() ?
-               ResourceType.ASSET : ResourceType.REPORT;
-
-            if(!SecurityEngine.getSecurity().checkPermission(
-               principal, resourceType, candidateEntry.getPath(), ResourceAction.WRITE))
-            {
-               throw new MessageException(Catalog.getCatalog().getString(
-                  "em.common.security.no.permission", candidateEntry.getPath()));
-            }
+            checkAssetPermission(candidateEntry, principal);
          }
       }
 
@@ -1529,6 +1521,48 @@ public class MVSupportService {
          return Boolean.compare(mv1.getDefinition().isAssociationMV(),
                                 mv2.getDefinition().isAssociationMV());
       }
+   }
+
+   private void checkAssetPermission(AssetEntry entry, Principal principal)
+      throws inetsoft.sree.security.SecurityException
+   {
+      boolean hasPermission;
+
+      if(entry.getScope() == AssetRepository.USER_SCOPE) {
+         hasPermission = hasUserScopePermission(entry, principal);
+      }
+      else {
+         ResourceType resourceType = entry.isWorksheet() ?
+            ResourceType.ASSET : ResourceType.REPORT;
+         hasPermission = securityEngine.checkPermission(
+            principal, resourceType, entry.getPath(), ResourceAction.WRITE);
+      }
+
+      if(!hasPermission) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", entry.getPath()));
+      }
+   }
+
+   private boolean hasUserScopePermission(AssetEntry entry, Principal principal)
+      throws inetsoft.sree.security.SecurityException
+   {
+      IdentityID entryUser = entry.getUser();
+
+      // Intentionally fail-closed: deny access when the owning user is unknown.
+      // AbstractAssetEngine.checkAssetPermission() returns true in this case, but
+      // MV analysis must not proceed without a verifiable owner.
+      if(entryUser == null || principal == null) {
+         return false;
+      }
+
+      boolean isSameUser = principal.getName().equals(entryUser.convertToKey());
+      boolean isAdmin = !isSameUser && securityEngine.checkPermission(
+         principal, ResourceType.SECURITY_USER, entryUser, ResourceAction.ADMIN);
+
+      return (isSameUser || isAdmin) &&
+         securityEngine.checkPermission(
+            principal, ResourceType.MY_DASHBOARDS, "*", ResourceAction.READ);
    }
 
    private final MVManager mvManager;

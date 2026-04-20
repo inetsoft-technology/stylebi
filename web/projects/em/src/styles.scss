@@ -274,3 +274,18 @@ $brush-cursor-path: '~/../../portal/src/assets/cursor/brushcursor.gif';
   word-break: break-word;
 }
 
+#assistant-root {
+  .MuiListItemText-root span,
+  .MuiTypography-root,
+  .MuiDrawer-paper,
+  .MuiPaper-root {
+    font-size: 13px !important;
+  }
+
+  .chat-item.MuiListItemButton-root {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+    min-height: 36px !important;
+  }
+}
+

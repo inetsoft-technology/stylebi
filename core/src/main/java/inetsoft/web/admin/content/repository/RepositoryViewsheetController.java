@@ -64,16 +64,11 @@ public class RepositoryViewsheetController {
       }
 
       int scope = treeService.getAssetScope(path);
+      IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
       path = treeService.getUnscopedPath(path);
 
-      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.REPORT, path,
-                                                       ResourceAction.ADMIN))
-      {
-         throw new MessageException(Catalog.getCatalog().getString(
-            "em.common.security.no.permission", path));
-      }
+      treeService.checkSheetPermission(scope, ownerID, path, ResourceType.REPORT, principal);
 
-      IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
       final AssetEntry entry = new AssetEntry(scope, AssetEntry.Type.VIEWSHEET, path, ownerID);
       return sheetService.getSheetSettings(entry, ResourceType.REPORT, timeZone, owner, principal);
    }
@@ -96,12 +91,7 @@ public class RepositoryViewsheetController {
       path = treeService.getUnscopedPath(path);
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
 
-      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.REPORT, path,
-                                                       ResourceAction.ADMIN))
-      {
-         throw new MessageException(Catalog.getCatalog().getString(
-            "em.common.security.no.permission", path));
-      }
+      treeService.checkSheetPermission(scope, ownerID, path, ResourceType.REPORT, principal);
 
       final AssetEntry oldEntry = new AssetEntry(scope, AssetEntry.Type.VIEWSHEET, path, ownerID);
       final AssetEntry newEntry =

@@ -35,6 +35,10 @@
   overflow: hidden;
   transition: width 0.2s ease, height 0.2s ease;
 
+  &.dragging {
+    transition: none;
+  }
+
   &.side-mode {
     top: var(--ai-panel-top-offset, 52px);
     right: 0;
@@ -124,7 +128,7 @@
 }
 
 .panel-title {
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: 0.01em;
 }
@@ -188,4 +192,8 @@
 // Angular's view encapsulation cannot pierce with normal scoped selectors.
 ::ng-deep #assistant-root {
   border-radius: 0 !important;
+
+  .branding-title {
+    font-size: 13px !important;
+  }
 }

@@ -177,31 +177,24 @@ public class PluginsService {
       ArrayList<PluginModel> pluginsList = new ArrayList<>(model.plugins());
       String actionName = ActionRecord.ACTION_NAME_DELETE;
       String objectType = ActionRecord.OBJECT_TYPE_PLUG;
-      Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
-      ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), actionName, null,
-                                                   objectType, actionTimestamp,
-                                                   ActionRecord.ACTION_STATUS_FAILURE, null);
 
       for(PluginModel plugin : pluginsList) {
-         if(actionRecord != null) {
-            String objectName = plugin.name() == null ? "" : plugin.name();
-            actionRecord.setObjectName(objectName);
-         }
+         String objectName = plugin.name() == null ? "" : plugin.name();
+         Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
+         ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), actionName,
+                                                      objectName, objectType, actionTimestamp,
+                                                      ActionRecord.ACTION_STATUS_FAILURE, null);
 
          try {
             uqlConfig.removePlugin(plugins.getPlugin(plugin.id()));
             plugins.uninstallPlugin(plugin.id());
             actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
-
          }
          catch(IOException e) {
-            actionRecord = null;
             LOG.warn("There was an error uninstalling plugin: " + plugin.name());
          }
          finally {
-            if(actionRecord != null) {
-               Audit.getInstance().auditAction(actionRecord, principal);
-            }
+            Audit.getInstance().auditAction(actionRecord, principal);
          }
       }
    }

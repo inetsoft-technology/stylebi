@@ -21,6 +21,7 @@ import inetsoft.util.ConfigurationContext;
 import org.springframework.context.ApplicationContext;
 
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.file.Path;
 import java.util.Set;
 
@@ -83,6 +84,16 @@ public interface BlobEngine extends AutoCloseable {
       for(String digest : digests) {
          delete(id, digest);
       }
+   }
+
+   /**
+    * List all the blobs from storage.
+    *
+    * @param id     the unique identifier of the storage.
+    *
+    * @throws IOException if an I/O error occurs.
+    */
+   default void list(String id, PrintWriter writer) throws IOException {
    }
 
    @Override
