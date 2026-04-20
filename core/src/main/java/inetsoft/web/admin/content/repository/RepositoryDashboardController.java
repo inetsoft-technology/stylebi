@@ -65,7 +65,7 @@ public class RepositoryDashboardController {
       path = treeService.getUnscopedPath(path);
       IdentityID principalID = IdentityID.getIdentityIDFromKey(principal.getName());
 
-      if(!ownerID.equals(principalID) &&
+      if((ownerID == null || !ownerID.equals(principalID)) &&
          !SecurityEngine.getSecurity().checkPermission(principal, ResourceType.DASHBOARD, path,
                                                        ResourceAction.ADMIN))
       {
