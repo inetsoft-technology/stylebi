@@ -160,8 +160,6 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
                      root = (ObjectNode) mapper.readTree(input);
                   }
 
-                  timestamp = dataSpace.getLastModified(null, getConfigFile());
-
                   ArrayNode providersArray = (ArrayNode) root.get("providers");
                   List<T> list = new ArrayList<>();
                   int failureCount = 0;
@@ -191,6 +189,8 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
                   // retain the existing runtime providers rather than wiping them. This prevents a
                   // corrupted or temporarily unreadable config (e.g. after a GKE node restart) from
                   // clearing all security providers and locking out every user.
+                  // Do NOT update timestamp on total failure – allow the next dataChanged() to retry
+                  // when the transient condition clears, without requiring a manual config edit.
                   if(list.isEmpty() && failureCount > 0) {
                      LOG.error(
                         "All {} security provider(s) failed to load from '{}'; retaining " +
@@ -206,6 +206,7 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
                            failureCount, list.size() + failureCount, getConfigFile());
                      }
 
+                     timestamp = dataSpace.getLastModified(null, getConfigFile());
                      clear();
                      setProviderList(list);
                   }
