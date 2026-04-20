@@ -141,8 +141,16 @@ public class VSRefreshService {
       box.get().lockWrite();
       pending.put(id, true);
 
-      // reset embed assembly size on refresh
-      if(event.embedAssemblySize() != null) {
+      // initialize or update embed assembly info on refresh
+      // Double-write is intentionally tolerated: concurrent refreshes produce identical values,
+      // so the last writer wins without inconsistency.
+      if(event.embedAssemblyName() != null && rvs.getEmbedAssemblyInfo() == null) {
+         EmbedAssemblyInfo embedAssemblyInfo = new EmbedAssemblyInfo();
+         embedAssemblyInfo.setAssemblyName(event.embedAssemblyName());
+         embedAssemblyInfo.setAssemblySize(event.embedAssemblySize());
+         rvs.setEmbedAssemblyInfo(embedAssemblyInfo);
+      }
+      else if(event.embedAssemblySize() != null) {
          EmbedAssemblyInfo embedAssemblyInfo = rvs.getEmbedAssemblyInfo();
 
          if(embedAssemblyInfo != null) {

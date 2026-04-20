@@ -167,8 +167,6 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
          this.inputRuntimeId = result.posParams?.runtimeId?.path;
          this.queryParams = tree.queryParams;
 
-         console.log("=================", this.inputRuntimeId);
-
          (window.inetsoftConnected as BehaviorSubject<boolean>).subscribe((connected) => {
             if(!this.connected && connected) {
                this.connected = true;
@@ -372,7 +370,6 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
    }
 
    private openViewsheet(): void {
-      console.log("=======openViewsheet=============");
       if(this.inputRuntimeId) {
          this.viewsheetClient.runtimeId = this.inputRuntimeId;
          this.runtimeId = this.inputRuntimeId;
@@ -382,7 +379,8 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
             this.timeoutError = !!error;
          }));
          this.viewsheetClient.connect(!!this.url);
-         this.viewsheetClient.beforeDestroy = () => this.beforeDestroy();
+         // Do not close the viewsheet on destroy: it was created externally by the
+         // API caller and may be reused after this component is gone.
       }
       else if(this.assetId) {
          this.subscriptions.add(this.viewsheetClient.whenConnected()
@@ -394,6 +392,8 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
          this.viewsheetClient.beforeDestroy = () => this.beforeDestroy();
       }
       else {
+         this.showError = true;
+         this.timeoutError = false;
          console.error("The runtime or asset identifier must be provided");
       }
    }
@@ -403,7 +403,11 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       const refreshEvent = new VSRefreshEvent();
       refreshEvent.setWidth(this.appSize.width);
       refreshEvent.setHeight(this.appSize.height);
+      refreshEvent.setEmbedAssemblyName(this.assemblyName);
       refreshEvent.setEmbedAssemblySize(this.assemblySize);
+      // queryParams are intentionally not forwarded: the caller-owned viewsheet was
+      // already opened with its parameters applied; re-sending them on refresh would
+      // override any runtime state the caller has set since opening.
       this.viewsheetClient.sendEvent("/events/vs/refresh", refreshEvent);
    }
 
@@ -557,6 +561,9 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
          const refreshEvent = new VSRefreshEvent();
          refreshEvent.setWidth(this.appSize.width);
          refreshEvent.setHeight(this.appSize.height);
+         // Include assemblyName so the server can initialize EmbedAssemblyInfo if the
+         // session was re-connected and this resize fires before refreshEmbedViewsheet().
+         refreshEvent.setEmbedAssemblyName(this.assemblyName);
          refreshEvent.setEmbedAssemblySize(this.assemblySize);
          this.viewsheetClient.sendEvent("/events/vs/refresh", refreshEvent);
       }, 100, []);

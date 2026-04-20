@@ -30,6 +30,7 @@ export class VSRefreshEvent {
    private parameters?: {[name: string]: string[]};
    private name?: string = "";
    private confirmed: boolean = false;
+   private embedAssemblyName: string = null;
    private embedAssemblySize: Dimension = null;
    private maxModeSize: Dimension = null;
 
@@ -79,6 +80,10 @@ export class VSRefreshEvent {
 
    public setConfirmed(value: boolean) {
       this.confirmed = value;
+   }
+
+   public setEmbedAssemblyName(value: string) {
+      this.embedAssemblyName = value;
    }
 
    public setEmbedAssemblySize(value: Dimension) {
