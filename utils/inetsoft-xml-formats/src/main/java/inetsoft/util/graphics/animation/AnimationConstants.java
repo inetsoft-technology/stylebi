@@ -89,6 +89,30 @@ public final class AnimationConstants {
    public static final double BAR_GROW_FADE_DURATION = 0.45;
 
    // -------------------------------------------------------------------------
+   // Pie animation constants
+   // -------------------------------------------------------------------------
+
+   /**
+    * Proportional sweep budget per arc group (seconds).  The total pie animation time equals
+    * {@code numGroups * PIE_SLICE_DURATION}; each slice's share is then scaled by its sweep
+    * angle so that the arc tip moves at a constant angular velocity across all slices.
+    */
+   public static final double PIE_SLICE_DURATION = 0.25;
+
+   /**
+    * Fade duration for pie slices when arc-sweep animation is not available (bezier fallback
+    * or when no pie center is found).  Intentionally shorter than {@link #DURATION} because
+    * slices are staggered sequentially — each slice starts as the previous one is finishing.
+    */
+   public static final double PIE_FADE_DURATION = 0.5;
+
+   /**
+    * Fade duration for the donut center text / label group.  Appears after all arc sweeps
+    * finish, so a slightly shorter fade feels snappier without overlapping slice animation.
+    */
+   public static final double PIE_TEXT_DURATION = 0.4;
+
+   // -------------------------------------------------------------------------
    // Stagger helper
    // -------------------------------------------------------------------------
 

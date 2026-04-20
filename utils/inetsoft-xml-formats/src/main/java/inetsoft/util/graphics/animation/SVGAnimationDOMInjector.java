@@ -438,7 +438,7 @@ public class SVGAnimationDOMInjector {
       // 3D pie faces: multiple arc-containing paths share the same startX (one per 3D face of
       // each logical slice).  We deduplicate by startX so all faces of the same slice receive
       // the same animation delay, keeping the 3D faces in sync during the sweep.
-      final double SLICE_DUR = 0.25; // seconds per slice
+      final double SLICE_DUR = AnimationConstants.PIE_SLICE_DURATION;
 
       appendStyle(svgRoot, doc, "@keyframes inetsoft-pie-fade{from{opacity:0}to{opacity:1}}");
 
@@ -490,14 +490,16 @@ public class SVGAnimationDOMInjector {
       if(numArcGroups == 0) {
          for(int si = 0; si < slices.size(); si++) {
             mergeStyle(slices.get(si), String.format(java.util.Locale.US,
-               "opacity:0;animation:inetsoft-pie-fade 0.5s ease %.2fs both", si * SLICE_DUR));
+               "opacity:0;animation:inetsoft-pie-fade %.2fs ease %.2fs both",
+               AnimationConstants.PIE_FADE_DURATION, si * SLICE_DUR));
          }
 
          double centerTextDelay = slices.size() * SLICE_DUR + 0.1;
 
          for(Element textGroup : textGroups) {
             mergeStyle(textGroup, String.format(java.util.Locale.US,
-               "opacity:0;animation:inetsoft-pie-fade 0.4s ease %.2fs both", centerTextDelay));
+               "opacity:0;animation:inetsoft-pie-fade %.2fs ease %.2fs both",
+               AnimationConstants.PIE_TEXT_DURATION, centerTextDelay));
          }
 
          return;
@@ -706,7 +708,8 @@ public class SVGAnimationDOMInjector {
 
          // No center available: opacity fade.
          mergeStyle(slice, String.format(java.util.Locale.US,
-            "opacity:0;animation:inetsoft-pie-fade 0.5s ease %.2fs both", delay));
+            "opacity:0;animation:inetsoft-pie-fade %.2fs ease %.2fs both",
+            AnimationConstants.PIE_FADE_DURATION, delay));
       }
 
       if(!cssKeyframes.isEmpty()) {
@@ -718,7 +721,8 @@ public class SVGAnimationDOMInjector {
 
       for(Element textGroup : textGroups) {
          mergeStyle(textGroup, String.format(java.util.Locale.US,
-            "opacity:0;animation:inetsoft-pie-fade 0.4s ease %.2fs both", centerTextDelay));
+            "opacity:0;animation:inetsoft-pie-fade %.2fs ease %.2fs both",
+            AnimationConstants.PIE_TEXT_DURATION, centerTextDelay));
       }
    }
 

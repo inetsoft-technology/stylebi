@@ -75,7 +75,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
    /** Index into areaSeries of the currently highlighted series, or -1. */
    private activeSeriesIdx: number = -1;
    /** SVG element that holds area mousemove/mouseleave listeners, kept for cleanup. */
-   private areaHoverSvgEl: Element | null = null;
+   private areaHoverSvgEl: SVGSVGElement | null = null;
    private areaMouseMoveHandler: ((e: MouseEvent) => void) | null = null;
    private areaMouseLeaveHandler: (() => void) | null = null;
    private static readonly CLEAR_DELAY_MS = 120;
@@ -367,6 +367,9 @@ export class ChartInlineSvgDirective implements OnDestroy {
                pts.push({localX: lp.x, localY: lp.y});
             }
          }
+         // Sort ascending by localX so the binary search in getScreenYAtX is correct for
+         // non-monotone paths (step charts, RTL series, reversed axes).
+         pts.sort((a, b) => a.localX - b.localX);
          this.areaSeriesCache.push(pts);
       }
 
@@ -392,7 +395,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
          if(this.areaMouseLeaveHandler) {
             this.areaHoverSvgEl.removeEventListener("mouseleave", this.areaMouseLeaveHandler);
          }
-         (this.areaHoverSvgEl as HTMLElement).style.pointerEvents = "";
+         this.areaHoverSvgEl.style.pointerEvents = "";
          this.areaHoverSvgEl = null;
       }
       this.areaMouseMoveHandler = null;
@@ -461,9 +464,12 @@ export class ChartInlineSvgDirective implements OnDestroy {
     * then convert back to screen y with one forward matrixTransform.  This replaces the previous
     * 25-iteration getPointAtLength bisection (expensive — O(path-length) per call in all engines).
     *
-    * Returns NaN when the converged screen x is >20px from targetScreenX — the mouse is outside
-    * this path's x-range (a different facet panel).  The 20px guard is well below the typical
-    * inter-panel gap (~60px), preventing cross-panel series from being selected.
+    * Returns NaN when the mouse x falls outside this path's sampled x-range: the nearest
+    * endpoint is mapped back to screen x via the CTM; if that screen x is >20px from
+    * targetScreenX the path is in a different facet panel.  The round-trip approach is used
+    * because converting targetLocalX back to screen x via the CTM always yields exactly
+    * targetScreenX (a mathematical identity of the CTM/inverse pair), so a direct comparison
+    * at the extrapolated point would never detect an out-of-range position.
     */
    private getScreenYAtX(seriesIdx: number, targetScreenX: number): number {
       const pts = this.areaSeriesCache[seriesIdx];
@@ -484,7 +490,16 @@ export class ChartInlineSvgDirective implements OnDestroy {
       pt.x = targetScreenX; pt.y = 0;
       const targetLocalX = pt.matrixTransform(invCtm).x;
 
-      // Binary-search the pre-sampled array by local x (path is x-monotone left-to-right).
+      // Guard: if targetLocalX is outside this path's sampled x-range, map the nearest
+      // endpoint back to screen x. Cross-panel paths are 60+ px away so they return NaN.
+      const minX = pts[0].localX, maxX = pts[pts.length - 1].localX;
+      if(targetLocalX < minX || targetLocalX > maxX) {
+         pt.x = targetLocalX < minX ? minX : maxX;
+         pt.y = 0;
+         if(Math.abs(pt.matrixTransform(ctm).x - targetScreenX) > 20) return NaN;
+      }
+
+      // Binary-search the pre-sampled array by local x (sorted ascending by setupAreaHover).
       let lo = 0, hi = pts.length - 1;
       while(lo < hi - 1) {
          const mid = (lo + hi) >> 1;
@@ -498,12 +513,8 @@ export class ChartInlineSvgDirective implements OnDestroy {
       const t   = dx === 0 ? 0 : (targetLocalX - p0.localX) / dx;
       const localY = p0.localY + t * (p1.localY - p0.localY);
 
-      // Convert the interpolated local point to screen coordinates.
       pt.x = targetLocalX; pt.y = localY;
-      const sp = pt.matrixTransform(ctm);
-
-      if(Math.abs(sp.x - targetScreenX) > 20) return NaN;
-      return sp.y;
+      return pt.matrixTransform(ctm).y;
    }
 
    /**
