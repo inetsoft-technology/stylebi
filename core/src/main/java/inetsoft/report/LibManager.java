@@ -654,8 +654,7 @@ public class LibManager implements AutoCloseable {
    }
 
    public String listBlobs(String orgID) throws IOException {
-      BlobStorage<Metadata> storage = storages.get(getStorageId(orgID));
-
+      BlobStorage<Metadata> storage = blobStorageManager.getStorage(getStorageId(orgID), false);
       return storage != null ? storage.listBlobs() : null;
    }
 

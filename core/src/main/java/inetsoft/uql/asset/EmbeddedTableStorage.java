@@ -46,11 +46,6 @@ public class EmbeddedTableStorage implements AutoCloseable {
       return blobStorageManager.getStorage(storeID, true);
    }
 
-   private BlobStorage<Metadata> getStorage(String orgID) {
-      String storeID = orgID.toLowerCase() +  "__pdata";
-      return SingletonManager.getInstance(BlobStorage.class, storeID, true);
-   }
-
    public boolean tableExists(String path) {
       try {
          return getStorage().exists(path);
