@@ -33,6 +33,6 @@
     >
     </em-email-picker>
     <mat-checkbox [(ngModel)]="notifyIfFailed" (change)="fireNotificationsChanged()">_#(Notify only if failed)</mat-checkbox>
-    <mat-checkbox *ngIf="!burst" [(ngModel)]="notifyLink" (change)="fireNotificationsChanged()">_#(Include Link)</mat-checkbox>
+    <mat-checkbox [(ngModel)]="notifyLink" (change)="fireNotificationsChanged()">_#(Include Link)</mat-checkbox>
   </mat-card-content>
 </mat-card>

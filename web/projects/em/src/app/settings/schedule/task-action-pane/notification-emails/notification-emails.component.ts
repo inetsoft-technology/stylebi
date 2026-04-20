@@ -38,7 +38,6 @@ export class NotificationEmailsComponent implements OnInit {
    @Input() emailBrowserEnabled: boolean;
    @Input() users = [];
    @Input() groups = [];
-   @Input() burst: boolean;
    @Output() notificationsChanged = new EventEmitter<NotificationEmails>();
    _emails: string = "";
 
