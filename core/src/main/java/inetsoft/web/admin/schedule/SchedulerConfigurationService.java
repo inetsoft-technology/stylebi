@@ -236,17 +236,7 @@ public class SchedulerConfigurationService {
       String result;
 
       try {
-         String emails = null;
-         String queryNode = mailParams.sourceInfo();
-         boolean checkUser = true;
-
-         // For burst action, get email addresses from query. Have checked
-         // user's address in burstAction.
-         if(queryNode == null) {
-            emails = mailParams.toAddresses();
-         }
-
-         SUtil.checkMail(emails, checkUser);
+         SUtil.checkMail(mailParams.toAddresses(), true);
          result = catalog.getString("Test Mail Success");
       }
       catch(Exception e) {
