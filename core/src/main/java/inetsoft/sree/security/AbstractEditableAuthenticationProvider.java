@@ -317,7 +317,9 @@ public abstract class AbstractEditableAuthenticationProvider
                      clone.setOrganizations(newOrgs);
                   }
 
-                  clone.setJarPath(clone.getJarPath().replace(fromOrgId, toOrgId));
+                  if(clone.getJarPath() != null) {
+                     clone.setJarPath(clone.getJarPath().replace(fromOrgId, toOrgId));
+                  }
 
                   themes.add(clone);
                }
