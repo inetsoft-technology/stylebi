@@ -490,16 +490,16 @@ public class SVGAnimationDOMInjector {
       if(numArcGroups == 0) {
          for(int si = 0; si < slices.size(); si++) {
             mergeStyle(slices.get(si), String.format(java.util.Locale.US,
-               "opacity:0;animation:inetsoft-pie-fade %.2fs ease %.2fs both",
-               AnimationConstants.PIE_FADE_DURATION, si * SLICE_DUR));
+               "opacity:0;animation:inetsoft-pie-fade %.2fs %s %.2fs both",
+               AnimationConstants.PIE_FADE_DURATION, AnimationConstants.PIE_FADE_EASING, si * SLICE_DUR));
          }
 
          double centerTextDelay = slices.size() * SLICE_DUR + 0.1;
 
          for(Element textGroup : textGroups) {
             mergeStyle(textGroup, String.format(java.util.Locale.US,
-               "opacity:0;animation:inetsoft-pie-fade %.2fs ease %.2fs both",
-               AnimationConstants.PIE_TEXT_DURATION, centerTextDelay));
+               "opacity:0;animation:inetsoft-pie-fade %.2fs %s %.2fs both",
+               AnimationConstants.PIE_TEXT_DURATION, AnimationConstants.PIE_FADE_EASING, centerTextDelay));
          }
 
          return;
@@ -708,8 +708,8 @@ public class SVGAnimationDOMInjector {
 
          // No center available: opacity fade.
          mergeStyle(slice, String.format(java.util.Locale.US,
-            "opacity:0;animation:inetsoft-pie-fade %.2fs ease %.2fs both",
-            AnimationConstants.PIE_FADE_DURATION, delay));
+            "opacity:0;animation:inetsoft-pie-fade %.2fs %s %.2fs both",
+            AnimationConstants.PIE_FADE_DURATION, AnimationConstants.PIE_FADE_EASING, delay));
       }
 
       if(!cssKeyframes.isEmpty()) {
@@ -721,8 +721,8 @@ public class SVGAnimationDOMInjector {
 
       for(Element textGroup : textGroups) {
          mergeStyle(textGroup, String.format(java.util.Locale.US,
-            "opacity:0;animation:inetsoft-pie-fade %.2fs ease %.2fs both",
-            AnimationConstants.PIE_TEXT_DURATION, centerTextDelay));
+            "opacity:0;animation:inetsoft-pie-fade %.2fs %s %.2fs both",
+            AnimationConstants.PIE_TEXT_DURATION, AnimationConstants.PIE_FADE_EASING, centerTextDelay));
       }
    }
 
@@ -857,7 +857,7 @@ public class SVGAnimationDOMInjector {
                if(rgb != null && polygon != null && !polygon.isEmpty()) {
                   String transform = ((Element) path.getParentNode()).getAttribute("transform");
                   String clipPath  = path.getAttribute("clip-path");
-                  ghostFills.add(new GhostFillInfo(polygon, rgb, delay, AnimationConstants.DURATION,
+                  ghostFills.add(new GhostFillInfo(polygon, rgb, delay,
                                                    (Element) g.getParentNode(), g, seriesIdx,
                                                    transform, clipPath));
                }
@@ -967,7 +967,7 @@ public class SVGAnimationDOMInjector {
       for(int gi = ghostFills.size() - 1; gi >= 0; gi--) {
          GhostFillInfo gf = ghostFills.get(gi);
          injectGhostFill(doc, gf.panel, gf.insertBeforeGroup, gf.polygon,
-                         gf.rgb, gf.delay, gf.duration, ghostFills.size(), gi, gf.transform,
+                         gf.rgb, gf.delay, ghostFills.size(), gi, gf.transform,
                          gf.clipPath);
       }
 
@@ -1385,7 +1385,7 @@ public class SVGAnimationDOMInjector {
     * Wipes left-to-right in sync with the line draw (same delay and easing).
     */
    private static void injectGhostFill(Document doc, Element panel, Element insertBefore,
-                                       String polygon, int[] rgb, double lineDelay, double duration,
+                                       String polygon, int[] rgb, double lineDelay,
                                        int numSeries, int seriesIdx, String transform,
                                        String clipPath)
    {
@@ -1704,9 +1704,10 @@ public class SVGAnimationDOMInjector {
    /**
     * Inject staggered fade-in for icicle charts.
     *
-    * <p>Cells are ordered by depth level (deepest first, root last), and within each level
-    * top-to-bottom.  Stagger is distributed across {@link AnimationConstants#STAGGER_WINDOW}
-    * using a flat formula so the total window is always bounded.
+    * <p>Cells are ordered by {@code data-level} (root — highest value — first, leaves — level 0
+    * — last) and within each level top-to-bottom.  Stagger is distributed across
+    * {@link AnimationConstants#STAGGER_WINDOW} using a flat formula so the total window is
+    * always bounded.
     */
    private static void injectIcicleAnimation(Element svgRoot, Document doc) {
       appendStyle(svgRoot, doc,
@@ -1733,9 +1734,9 @@ public class SVGAnimationDOMInjector {
          indices.sort(Comparator.comparingDouble(i -> bounds.get(i)[1]));
       }
 
-      // Build stagger order: deepest level first (delay=0), root level last.
+      // Build stagger order: root (highest data-level) first with delay=0, leaves (level=0) last.
       List<Integer> levelOrder = new ArrayList<>(byLevel.keySet());
-      levelOrder.sort(Comparator.reverseOrder()); // highest level value = deepest = first
+      levelOrder.sort(Comparator.reverseOrder()); // highest data-level = root = first; level=0 = leaf = last
 
       List<Integer> staggerOrder = new ArrayList<>(n);
       for(int level : levelOrder) {
@@ -2623,21 +2624,19 @@ public class SVGAnimationDOMInjector {
       final String polygon;
       final int[] rgb;
       final double delay;
-      final double duration;
       final Element panel;
       final Element insertBeforeGroup;
       final int seriesIdx;
       final String transform;
       final String clipPath;
 
-      GhostFillInfo(String polygon, int[] rgb, double delay, double duration,
+      GhostFillInfo(String polygon, int[] rgb, double delay,
                     Element panel, Element insertBeforeGroup, int seriesIdx, String transform,
                     String clipPath)
       {
          this.polygon = polygon;
          this.rgb = rgb;
          this.delay = delay;
-         this.duration = duration;
          this.panel = panel;
          this.insertBeforeGroup = insertBeforeGroup;
          this.seriesIdx = seriesIdx;

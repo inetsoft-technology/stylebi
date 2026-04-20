@@ -107,6 +107,13 @@ public final class AnimationConstants {
    public static final double PIE_FADE_DURATION = 0.5;
 
    /**
+    * CSS timing function for pie fallback fades.  Uses {@code "ease"} rather than
+    * {@link #EASING} ({@code "ease-out"}) because the sequential per-slice fade looks
+    * more natural with a symmetric ease; the arc-sweep path already has its own timing.
+    */
+   public static final String PIE_FADE_EASING = "ease";
+
+   /**
     * Fade duration for the donut center text / label group.  Appears after all arc sweeps
     * finish, so a slightly shorter fade feels snappier without overlapping slice animation.
     */
