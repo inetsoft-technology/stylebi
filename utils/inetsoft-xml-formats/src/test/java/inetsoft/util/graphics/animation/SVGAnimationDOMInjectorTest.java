@@ -266,6 +266,18 @@ class SVGAnimationDOMInjectorTest {
                  "all chart types must share the uniform transition:opacity .2s ease");
    }
 
+   /** {@code data-animated} must be present on the SVG root after animation is injected. */
+   @Test
+   void dataAnimatedSetAfterAnimation() throws Exception {
+      Document doc = newDocument();
+      addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                    Map.of("row", "0", "col", "0", "level", "0"),
+                    0, 0, 100, 100);
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_TREEMAP);
+      assertTrue(doc.getDocumentElement().hasAttribute("data-animated"),
+                 "data-animated must be present on the SVG root after animation injection");
+   }
+
    // -------------------------------------------------------------------------
    // Treemap animation tests
    // -------------------------------------------------------------------------

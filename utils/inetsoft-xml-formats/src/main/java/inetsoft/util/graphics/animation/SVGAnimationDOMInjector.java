@@ -61,48 +61,60 @@ public class SVGAnimationDOMInjector {
 
       appendHoverCSS(svgRoot, doc);
 
-      double lastDelay = 0;
+      // animated = true for every branch that injects animation (even single-element charts
+      // where staggerDelay(0,1)=0, so lastDelay would stay 0 and cannot be used as a signal).
+      // Pie is excluded: it has no inetsoft-active hover so no .ready gate is needed.
+      boolean animated = false;
 
       if(SVGSupport.ANIMATION_PIE.equals(base)) {
          injectPieAnimation(svgRoot, doc);
-         // Pie has no inetsoft-active hover so no .ready gate is needed; lastDelay stays 0.
       }
       else if(SVGSupport.ANIMATION_LINE.equals(base)) {
-         lastDelay = injectLineAnimation(svgRoot, doc);
+         injectLineAnimation(svgRoot, doc);
+         animated = true;
       }
       else if(SVGSupport.ANIMATION_POINT.equals(base)) {
-         lastDelay = injectPointAnimation(svgRoot, doc);
+         injectPointAnimation(svgRoot, doc);
+         animated = true;
       }
       else if(SVGSupport.ANIMATION_CANDLE.equals(base)) {
-         lastDelay = injectCandleAnimation(svgRoot, doc);
+         injectCandleAnimation(svgRoot, doc);
+         animated = true;
       }
       else if(SVGSupport.ANIMATION_BOX.equals(base)) {
-         lastDelay = injectBoxAnimation(svgRoot, doc);
+         injectBoxAnimation(svgRoot, doc);
+         animated = true;
       }
       else if(SVGSupport.ANIMATION_RADAR.equals(base)) {
-         lastDelay = injectRadarAnimation(svgRoot, doc);
+         injectRadarAnimation(svgRoot, doc);
+         animated = true;
       }
       else if(SVGSupport.ANIMATION_TREEMAP.equals(base)) {
-         lastDelay = injectTreemapAnimation(svgRoot, doc);
+         injectTreemapAnimation(svgRoot, doc);
+         animated = true;
       }
       else if(SVGSupport.ANIMATION_SUNBURST.equals(base)) {
-         lastDelay = injectSunburstAnimation(svgRoot, doc);
+         injectSunburstAnimation(svgRoot, doc);
+         animated = true;
       }
       else if(SVGSupport.ANIMATION_ICICLE.equals(base)) {
-         lastDelay = injectIcicleAnimation(svgRoot, doc);
+         injectIcicleAnimation(svgRoot, doc);
+         animated = true;
       }
       else if(SVGSupport.ANIMATION_MEKKO.equals(base)) {
-         lastDelay = injectMekkoAnimation(svgRoot, doc);
+         injectMekkoAnimation(svgRoot, doc);
+         animated = true;
       }
       else {
          boolean fadeOnly = SVGSupport.ANIMATION_FADE.equals(base);
          List<Element> annotBars = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_BAR);
-         lastDelay = injectBarAnimationFromAnnotations(annotBars, svgRoot, doc, fadeOnly);
+         injectBarAnimationFromAnnotations(annotBars, svgRoot, doc, fadeOnly);
+         animated = true;
       }
 
       // Signal to the Angular directive that animation was injected so it can schedule .ready.
-      // Only presence matters — the directive uses a fixed READY_MS gate, not the stored value.
-      if(lastDelay > 0) {
+      // Only presence matters — the directive uses a fixed READY_MS gate, not the delay value.
+      if(animated) {
          svgRoot.setAttribute("data-animated", "");
       }
    }
@@ -215,7 +227,10 @@ public class SVGAnimationDOMInjector {
             mergeStyle(g, SVGAnimationInjector.buildAnimStyle(barOrigin, growAnim, delay));
          }
          else {
-            mergeStyle(g, SVGAnimationInjector.buildFadeStyle(delay));
+            // A2 pattern: apply fade to inner child elements so the annotation group's own
+            // opacity is never animated. This prevents a fill-mode conflict with hover dim
+            // (which sets opacity on the group via :has()) without needing a .ready gate.
+            applyAnimStyleToChildren(g, SVGAnimationInjector.buildFadeStyle(delay));
          }
       }
 
@@ -767,8 +782,7 @@ public class SVGAnimationDOMInjector {
       String css =
          "@keyframes inetsoft-line-draw{from{stroke-dashoffset:var(--len,2000)}to{stroke-dashoffset:0}}" +
          "@keyframes inetsoft-line-wipe{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0% 0 0)}}" +
-         "@keyframes inetsoft-line-fade{from{opacity:0}to{opacity:1}}" +
-         "@keyframes inetsoft-area-fade{from{opacity:0}to{opacity:1}}";
+         "@keyframes inetsoft-line-fade{from{opacity:0}to{opacity:1}}";
       appendStyle(svgRoot, doc, css);
 
       List<GhostFillInfo> ghostFills = new ArrayList<>();
@@ -2217,7 +2231,8 @@ public class SVGAnimationDOMInjector {
       }
 
       // Points and value labels appear after all polygons have settled.
-      double dotDelay = AnimationConstants.staggerDelay(n - 1, n) + AnimationConstants.DURATION;
+      double dotDelay = AnimationConstants.staggerDelay(n - 1, n) +
+         AnimationConstants.DURATION + AnimationConstants.READY_BUFFER;
 
       Set<Element> processedParents = Collections.newSetFromMap(new IdentityHashMap<>());
 
