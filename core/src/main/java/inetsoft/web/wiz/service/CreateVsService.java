@@ -55,110 +55,123 @@ public class CreateVsService {
       boolean createdRuntimeId = false;
 
       if(Tool.isEmptyString(runtimeId)) {
-         Viewsheet.WizInfo wizInfo = new Viewsheet.WizInfo(true, null, null);
+         Viewsheet.WizInfo wizInfo = new Viewsheet.WizInfo(true, null, null); // isWizVisualization=true, id=null, layoutName=null
          runtimeId = viewsheetService.openTemporaryViewsheet(null, null, user, wizInfo);
          createdRuntimeId = true;
       }
 
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
-
-      if(rvs == null) {
-         throw new Exception("Runtime Viewsheet not found");
-      }
-
-      Viewsheet vs = rvs.getViewsheet();
-
-      if(vs == null) {
-         throw new IllegalArgumentException("Runtime Viewsheet does not contain a Viewsheet object");
-      }
-
-      if(vs.getWizInfo() == null) {
-         throw new IllegalArgumentException("Runtime Viewsheet does not have WizInfo configured");
-      }
-
-      if(!vs.getWizInfo().isWizVisualization()) {
-         throw new IllegalArgumentException("Runtime Viewsheet is not configured as a Wiz visualization");
-      }
-
-      VisualizationConfig config = model.getConfig();
-      String title = config != null && config.getTitle() != null && !config.getTitle().isEmpty()
-         ? config.getTitle()
-         : "vs_" + System.currentTimeMillis();
-
-      AssetEntry sourceWs = null;
-
-      if(config == null || config.getData() == null || config.getData().getSource() == null) {
-         throw new IllegalArgumentException("Invalid configuration, missing source");
-      }
-
       try {
-         sourceWs = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, config.getData().getSource(), null);
+         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+
+         if(rvs == null) {
+            throw new IllegalStateException("Runtime Viewsheet not found");
+         }
+
+         Viewsheet vs = rvs.getViewsheet();
+
+         if(vs == null) {
+            throw new IllegalArgumentException("Runtime Viewsheet does not contain a Viewsheet object");
+         }
+
+         if(vs.getWizInfo() == null) {
+            throw new IllegalArgumentException("Runtime Viewsheet does not have WizInfo configured");
+         }
+
+         if(!vs.getWizInfo().isWizVisualization()) {
+            throw new IllegalArgumentException("Runtime Viewsheet is not configured as a Wiz visualization");
+         }
+
+         VisualizationConfig config = model.getConfig();
+         String title = config != null && config.getTitle() != null && !config.getTitle().isEmpty()
+            ? config.getTitle()
+            : "vs_" + System.currentTimeMillis();
+
+         AssetEntry sourceWs = null;
+
+         if(config == null || config.getData() == null || config.getData().getSource() == null) {
+            throw new IllegalArgumentException("Invalid configuration, missing source");
+         }
+
+         try {
+            sourceWs = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, config.getData().getSource(), null);
+         }
+         catch(Exception e) {
+            throw new IllegalArgumentException("Datasource is invalid", e);
+         }
+
+         AbstractSheet sheet = engine.getSheet(sourceWs, user, true, AssetContent.ALL);
+
+         if(!(sheet instanceof Worksheet worksheet)) {
+            throw new IllegalStateException("Cannot find worksheet");
+         }
+
+         WSAssembly primaryAssembly = worksheet.getPrimaryAssembly();
+
+         if(primaryAssembly == null) {
+            throw new IllegalStateException("Worksheet has no primary assembly");
+         }
+
+         Viewsheet newVs = new Viewsheet(sourceWs);
+         newVs.syncWizData(vs);
+         VSAssembly assembly = createAssembly(newVs, model.getVisualizationType(), title, config, primaryAssembly.getName());
+
+         if(assembly == null) {
+            throw new RuntimeException("Unsupported visualization type: " + model.getVisualizationType());
+         }
+
+         newVs.addAssembly(assembly);
+         assembly.setPrimary(true);
+
+         Viewsheet previousVs = rvs.getViewsheet();
+         rvs.setViewsheet(newVs);
+
+         try {
+            // Execute the assembly view after the viewsheet is set so that dynamic values are
+            // resolved, chart state is initialized, and output assembly values are computed.
+            Optional<ViewsheetSandbox> viewsheetSandbox = rvs.getViewsheetSandbox();
+
+            if(viewsheetSandbox.isEmpty()) {
+               throw new IllegalStateException("ViewsheetSandbox is empty");
+            }
+
+            viewsheetSandbox.get().executeView(assembly.getName(), true);
+            CreateViewsheetResult result;
+
+            if(assembly instanceof ChartVSAssembly) {
+               result = extractChartData(rvs, assembly.getName());
+            }
+            else if(assembly instanceof TableVSAssembly || assembly instanceof CrosstabVSAssembly) {
+               result = extractTableLensData(rvs, assembly.getName());
+            }
+            else if(assembly instanceof OutputVSAssembly) {
+               result = extractOutputAssemblyData(rvs, assembly.getName());
+            }
+            else {
+               result = new CreateViewsheetResult();
+            }
+
+            result.setBinding(collectFlatBinding(assembly));
+            result.setAssemblyName(assembly.getName());
+
+            if(createdRuntimeId) {
+               result.setRuntimeId(runtimeId);
+            }
+
+            return result;
+         }
+         catch(Exception e) {
+            rvs.setViewsheet(previousVs);
+            throw e;
+         }
       }
       catch(Exception e) {
-         throw new IllegalArgumentException("Datasource is invalid", e);
-      }
-
-      AbstractSheet sheet = engine.getSheet(sourceWs, user, true, AssetContent.ALL);
-
-      if(!(sheet instanceof Worksheet worksheet)) {
-         throw new Exception("Cannot find worksheet");
-      }
-
-      WSAssembly primaryAssembly = worksheet.getPrimaryAssembly();
-
-      if(primaryAssembly == null) {
-         throw new Exception("Worksheet has no primary assembly");
-      }
-
-      Viewsheet newVs = new Viewsheet(sourceWs);
-      newVs.syncWizData(vs);
-      VSAssembly assembly = createAssembly(newVs, model.getVisualizationType(), title, config, primaryAssembly.getName());
-
-      if(assembly == null) {
-         throw new RuntimeException("Unsupported visualization type: " + model.getVisualizationType());
-      }
-
-      newVs.addAssembly(assembly);
-      assembly.setPrimary(true);
-
-      Viewsheet previousVs = rvs.getViewsheet();
-      rvs.setViewsheet(newVs);
-
-      try {
-         // Execute the assembly view after the viewsheet is set so that dynamic values are
-         // resolved, chart state is initialized, and output assembly values are computed.
-         Optional<ViewsheetSandbox> viewsheetSandbox = rvs.getViewsheetSandbox();
-
-         if(viewsheetSandbox.isEmpty()) {
-            throw new Exception("ViewsheetSandbox is empty");
-         }
-
-         viewsheetSandbox.get().executeView(assembly.getName(), true);
-         CreateViewsheetResult result;
-
-         if(assembly instanceof ChartVSAssembly) {
-            result = extractChartData(rvs, assembly.getName());
-         }
-         else if(assembly instanceof TableVSAssembly || assembly instanceof CrosstabVSAssembly) {
-            result = extractTableLensData(rvs, assembly.getName());
-         }
-         else if(assembly instanceof OutputVSAssembly) {
-            result = extractOutputAssemblyData(rvs, assembly.getName());
-         }
-         else {
-            result = new CreateViewsheetResult();
-         }
-
-         result.setBinding(collectFlatBinding(assembly));
-
          if(createdRuntimeId) {
-            result.setRuntimeId(runtimeId);
+            try { viewsheetService.closeViewsheet(runtimeId, user); }
+            catch(Exception ex) {
+               LOG.warn("Failed to close temporary viewsheet [{}] during error cleanup: {}", runtimeId, ex.getMessage());
+            }
          }
 
-         return result;
-      }
-      catch(Exception e) {
-         rvs.setViewsheet(previousVs);
          throw e;
       }
    }

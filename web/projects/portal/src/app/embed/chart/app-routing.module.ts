@@ -32,6 +32,14 @@ export function EMBED_CHART_URL_MATCHER(url: UrlSegment[]): UrlMatchResult {
       };
 
       if(url.length > 0) {
+         // "runtime" is a reserved first-path-segment for this URL scheme (runtime/<runtimeId>/<assemblyName>).
+         // Viewsheets stored at a path beginning with "runtime" cannot be addressed via the scope-less URL form.
+         if(url[0].path === "runtime" && url.length === 3) {
+            params.runtimeId = new UrlSegment(url[1].path, {});
+            params.assemblyName = new UrlSegment(url[url.length - 1].path, {});
+            return result;
+         }
+
          let assetScope: UrlSegment = null;
          let assetOwner: UrlSegment = null;
          let assetPath: string = null;

@@ -141,7 +141,6 @@ public class VSRefreshService {
       box.get().lockWrite();
       pending.put(id, true);
 
-      // reset embed assembly size on refresh
       if(event.embedAssemblySize() != null) {
          EmbedAssemblyInfo embedAssemblyInfo = rvs.getEmbedAssemblyInfo();
 
