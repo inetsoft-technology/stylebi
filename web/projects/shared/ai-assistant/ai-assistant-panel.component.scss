@@ -194,6 +194,6 @@
   border-radius: 0 !important;
 
   .branding-title {
-    font-size: 13px !important;
+    font-size: var(--ai-branding-title-font-size, 13px) !important;
   }
 }

@@ -281,7 +281,6 @@ $brush-cursor-path: '~/../../portal/src/assets/cursor/brushcursor.gif';
   .MuiTypography-root,
   .MuiDrawer-paper,
   .MuiPaper-root,
-  .branding-title,
   .markdown-paragraph,
   .message-content {
     font-size: 14px !important;
@@ -294,7 +293,11 @@ $brush-cursor-path: '~/../../portal/src/assets/cursor/brushcursor.gif';
   }
 }
 
-ai-assistant-panel .panel-title {
-  font-size: 14px !important;
+ai-assistant-panel {
+  --ai-branding-title-font-size: 14px;
+
+  .panel-title {
+    font-size: 14px !important;
+  }
 }
 
