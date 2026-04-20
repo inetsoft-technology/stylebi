@@ -68,6 +68,7 @@ import { CollectParametersCommand } from "../../vsobjects/command/collect-parame
 import { CollectParametersOverEvent } from "../../common/event/collect-parameters-over-event";
 import { first } from "rxjs/operators";
 import { VSRefreshEvent } from "../../vsobjects/event/vs-refresh-event";
+import { RefreshVsAssemblyEvent } from "../../vsobjects/event/refresh-vs-assembly-event";
 import { DebounceService } from "../../widget/services/debounce.service";
 import { InteractService } from "../../widget/interact/interact.service";
 import { EmbedErrorCommand } from "../embed-error-command";
@@ -105,6 +106,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
    assetId: string;
    assemblyName: string;
    queryParams: Params = {};
+   private inputRuntimeId: string;
    mobileDevice: boolean = GuiTool.isMobileDevice();
    connected: boolean;
    errorTimeout: any;
@@ -163,6 +165,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
          const result = EMBED_CHART_URL_MATCHER(tree.root?.children?.primary?.segments);
          this.assetId = result.posParams?.assetId?.path;
          this.assemblyName = result.posParams?.assemblyName?.path;
+         this.inputRuntimeId = result.posParams?.runtimeId?.path;
          this.queryParams = tree.queryParams;
 
          (window.inetsoftConnected as BehaviorSubject<boolean>).subscribe((connected) => {
@@ -198,6 +201,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
                   this.queryParams = queryParams;
                   this.assetId = params.assetId;
                   this.assemblyName = params.assemblyName;
+                  this.inputRuntimeId = params.runtimeId;
                   this.openViewsheet();
                }));
       }
@@ -366,8 +370,20 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       return !this.miniToolbarService?.isMiniToolbarHidden(this.vsObject?.absoluteName);
    }
 
-   private openViewsheet(runtimeId: string = null): void {
-      if(this.assetId) {
+   private openViewsheet(): void {
+      if(this.inputRuntimeId) {
+         this.viewsheetClient.runtimeId = this.inputRuntimeId;
+         this.runtimeId = this.inputRuntimeId;
+         this.subscriptions.add(this.viewsheetClient.whenConnected()
+            .subscribe(() => setTimeout(() => this.refreshEmbedAssembly(), 0)));
+         this.subscriptions.add(this.viewsheetClient.connectionError().subscribe((error) => {
+            this.timeoutError = !!error;
+         }));
+         this.viewsheetClient.connect(!!this.url);
+         // Do not close the viewsheet on destroy: it was created externally by the
+         // API caller and may be reused after this component is gone.
+      }
+      else if(this.assetId) {
          this.subscriptions.add(this.viewsheetClient.whenConnected()
             .subscribe(() => setTimeout(() => this.openViewsheet0(), 0)));
          this.subscriptions.add(this.viewsheetClient.connectionError().subscribe((error) => {
@@ -377,8 +393,22 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
          this.viewsheetClient.beforeDestroy = () => this.beforeDestroy();
       }
       else {
+         this.showError = true;
+         this.timeoutError = false;
          console.error("The runtime or asset identifier must be provided");
       }
+   }
+
+   private refreshEmbedAssembly(): void {
+      this.setAppSize();
+      // queryParams are intentionally not forwarded: the caller-owned viewsheet was
+      // already opened with its parameters applied; re-sending them on refresh would
+      // override any runtime state the caller has set since opening.
+      const refreshEvent: RefreshVsAssemblyEvent = {
+         vsRuntimeId: this.runtimeId,
+         assemblyName: this.assemblyName
+      };
+      this.viewsheetClient.sendEvent("/events/vs/refresh/assembly", refreshEvent);
    }
 
    /**
@@ -528,11 +558,20 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       }
 
       this.debounceService.debounce("embed-chart-vs-resize" + this.runtimeId, () => {
-         const refreshEvent = new VSRefreshEvent();
-         refreshEvent.setWidth(this.appSize.width);
-         refreshEvent.setHeight(this.appSize.height);
-         refreshEvent.setEmbedAssemblySize(this.assemblySize);
-         this.viewsheetClient.sendEvent("/events/vs/refresh", refreshEvent);
+         if(this.inputRuntimeId) {
+            const refreshEvent: RefreshVsAssemblyEvent = {
+               vsRuntimeId: this.runtimeId,
+               assemblyName: this.assemblyName
+            };
+            this.viewsheetClient.sendEvent("/events/vs/refresh/assembly", refreshEvent);
+         }
+         else {
+            const refreshEvent = new VSRefreshEvent();
+            refreshEvent.setWidth(this.appSize.width);
+            refreshEvent.setHeight(this.appSize.height);
+            refreshEvent.setEmbedAssemblySize(this.assemblySize);
+            this.viewsheetClient.sendEvent("/events/vs/refresh", refreshEvent);
+         }
       }, 100, []);
    }
 }
