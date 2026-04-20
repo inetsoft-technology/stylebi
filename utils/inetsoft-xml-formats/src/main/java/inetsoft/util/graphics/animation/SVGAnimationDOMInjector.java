@@ -156,10 +156,8 @@ public class SVGAnimationDOMInjector {
     * <p>When {@link AnimationConstants#BAR_GROW_ENABLED} is {@code false} (default), bars fade
     * in opacity-only per the design spec.  Set it to {@code true} to restore the legacy
     * scaleY/scaleX spring-from-baseline grow animation.
-    *
-    * @return the delay (in seconds) of the last animated element, for scheduling {@code .ready}
     */
-   private static double injectBarAnimationFromAnnotations(List<Element> annotBars,
+   private static void injectBarAnimationFromAnnotations(List<Element> annotBars,
                                                            Element svgRoot, Document doc,
                                                            boolean fadeOnly)
    {
@@ -258,7 +256,6 @@ public class SVGAnimationDOMInjector {
             bar.getAttribute("data-" + SVGSupport.ATTR_COL));
       }
 
-      return dotDelay;
    }
 
    /**
@@ -722,10 +719,10 @@ public class SVGAnimationDOMInjector {
    // Line animation
    // -------------------------------------------------------------------------
 
-   private static double injectLineAnimation(Element svgRoot, Document doc) {
+   private static void injectLineAnimation(Element svgRoot, Document doc) {
       List<Element> annotLines = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_LINE);
       List<Element> annotAreas = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_AREA);
-      return injectLineAnimationFromAnnotations(annotLines, annotAreas, svgRoot, doc);
+      injectLineAnimationFromAnnotations(annotLines, annotAreas, svgRoot, doc);
    }
 
    /**
@@ -739,8 +736,7 @@ public class SVGAnimationDOMInjector {
     * <p>No color parsing, chromatic heuristics, or fill classification is needed — all identity
     * information comes directly from the annotations.
     */
-   /** @return delay of the last animated element (for .ready scheduling) */
-   private static double injectLineAnimationFromAnnotations(List<Element> annotLines,
+   private static void injectLineAnimationFromAnnotations(List<Element> annotLines,
                                                             List<Element> annotAreas,
                                                             Element svgRoot, Document doc)
    {
@@ -1019,7 +1015,6 @@ public class SVGAnimationDOMInjector {
             AnimationConstants.DURATION, AnimationConstants.EASING, dotDelay));
       }
 
-      return dotDelay;
    }
 
    // -------------------------------------------------------------------------
@@ -1423,17 +1418,15 @@ public class SVGAnimationDOMInjector {
     * Fade in point markers staggered largest-first (primary sort), left-to-right (tiebreaker).
     * Each {@code inetsoft-point} annotation group receives an {@code animation} inline style;
     * a single {@code @keyframes inetsoft-point-fade} block is appended to a {@code <style>}.
-    *
-    * @return delay of the last animated element (for .ready scheduling)
     */
-   private static double injectPointAnimation(Element svgRoot, Document doc) {
+   private static void injectPointAnimation(Element svgRoot, Document doc) {
       appendStyle(svgRoot, doc,
          "@keyframes inetsoft-point-fade{from{opacity:0}to{opacity:1}}");
 
       List<Element> points = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_POINT);
 
       if(points.isEmpty()) {
-         return 0;
+         return;
       }
 
       // Primary: largest radius first (most prominent data points appear first).
@@ -1472,7 +1465,6 @@ public class SVGAnimationDOMInjector {
          }
       }
 
-      return AnimationConstants.staggerDelay(n - 1, n);
    }
 
    /**
@@ -1548,17 +1540,15 @@ public class SVGAnimationDOMInjector {
     * <p>Cells are sorted by bounding-box area (largest first) so the most prominent cells
     * appear first, with smaller cells trailing behind.  Stagger is spread across the
     * {@link AnimationConstants#STAGGER_WINDOW} regardless of cell count.
-    *
-    * @return delay of the last animated element (for .ready scheduling)
     */
-   private static double injectTreemapAnimation(Element svgRoot, Document doc) {
+   private static void injectTreemapAnimation(Element svgRoot, Document doc) {
       appendStyle(svgRoot, doc,
          "@keyframes inetsoft-treemap-fade{from{opacity:0}to{opacity:1}}");
 
       List<Element> cells = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_TREEMAP);
 
       if(cells.isEmpty()) {
-         return 0;
+         return;
       }
 
       cells.sort(Comparator.comparingDouble((Element g) -> {
@@ -1599,7 +1589,6 @@ public class SVGAnimationDOMInjector {
          }
       }
 
-      return AnimationConstants.staggerDelay(n - 1, n);
    }
 
    // -------------------------------------------------------------------------
@@ -1615,17 +1604,15 @@ public class SVGAnimationDOMInjector {
     *
     * <p>Text label groups are matched to their nearest arc by Euclidean distance and receive
     * the same {@code animation-delay} so they fade in together with their arc.
-    *
-    * @return delay of the last animated element (for .ready scheduling)
     */
-   private static double injectSunburstAnimation(Element svgRoot, Document doc) {
+   private static void injectSunburstAnimation(Element svgRoot, Document doc) {
       appendStyle(svgRoot, doc,
          "@keyframes inetsoft-sunburst-fade{from{opacity:0}to{opacity:1}}");
 
       List<Element> arcs = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_TREEMAP);
 
       if(arcs.isEmpty()) {
-         return 0;
+         return;
       }
 
       int n = arcs.size();
@@ -1697,7 +1684,6 @@ public class SVGAnimationDOMInjector {
          }
       }
 
-      return AnimationConstants.staggerDelay(n - 1, n);
    }
 
    // -------------------------------------------------------------------------
@@ -1710,17 +1696,15 @@ public class SVGAnimationDOMInjector {
     * <p>Cells are ordered by depth level (deepest first, root last), and within each level
     * top-to-bottom.  Stagger is distributed across {@link AnimationConstants#STAGGER_WINDOW}
     * using a flat formula so the total window is always bounded.
-    *
-    * @return delay of the last animated element (for .ready scheduling)
     */
-   private static double injectIcicleAnimation(Element svgRoot, Document doc) {
+   private static void injectIcicleAnimation(Element svgRoot, Document doc) {
       appendStyle(svgRoot, doc,
          "@keyframes inetsoft-icicle-fade{from{opacity:0}to{opacity:1}}");
 
       List<Element> cells = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_TREEMAP);
 
       if(cells.isEmpty()) {
-         return 0;
+         return;
       }
 
       int n = cells.size();
@@ -1778,7 +1762,6 @@ public class SVGAnimationDOMInjector {
          }
       }
 
-      return AnimationConstants.staggerDelay(n - 1, n);
    }
 
    // -------------------------------------------------------------------------
@@ -1790,17 +1773,15 @@ public class SVGAnimationDOMInjector {
     *
     * <p>Cells use a diagonal wave: {@code delay = colIdx * COL_STEP + rowIdx * ROW_STEP} scaled
     * so the last cell always starts at {@link AnimationConstants#STAGGER_WINDOW} seconds.
-    *
-    * @return delay of the last animated element (for .ready scheduling)
     */
-   private static double injectMekkoAnimation(Element svgRoot, Document doc) {
+   private static void injectMekkoAnimation(Element svgRoot, Document doc) {
       appendStyle(svgRoot, doc,
          "@keyframes inetsoft-mekko-fade{from{opacity:0}to{opacity:1}}");
 
       List<Element> cells = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_MEKKO);
 
       if(cells.isEmpty()) {
-         return 0;
+         return;
       }
 
       // Diagonal stagger: delay = colIdx * COL_STEP + rowIdx * ROW_STEP.
@@ -1864,7 +1845,6 @@ public class SVGAnimationDOMInjector {
 
       // cell index → animation style, reused when matching labels.
       Map<Integer, String> cellStyles = new HashMap<>();
-      double lastDelay = 0;
 
       for(int i = 0; i < cells.size(); i++) {
          double cx = xCenters.get(i);
@@ -1872,7 +1852,6 @@ public class SVGAnimationDOMInjector {
          long yTop = Math.round(bounds.get(i)[1]);
          int rowIdx = rowIndexMap.get(cx).get(yTop);
          double delay = colIdx * COL_STEP + rowIdx * ROW_STEP;
-         lastDelay = Math.max(lastDelay, delay);
          String animStyle = String.format(java.util.Locale.US,
             "animation:inetsoft-mekko-fade %.2fs %s %.2fs both",
             AnimationConstants.DURATION, AnimationConstants.EASING, delay);
@@ -1894,7 +1873,6 @@ public class SVGAnimationDOMInjector {
          }
       }
 
-      return lastDelay;
    }
 
    /**
@@ -2011,8 +1989,8 @@ public class SVGAnimationDOMInjector {
     * ({@code data-x}) so they animate left-to-right in visual order.  Delays are spread
     * evenly across {@link AnimationConstants#STAGGER_WINDOW} seconds regardless of item count.
     */
-   private static double injectCandleAnimation(Element svgRoot, Document doc) {
-      return injectXPositionFadeAnimation(svgRoot, doc,
+   private static void injectCandleAnimation(Element svgRoot, Document doc) {
+      injectXPositionFadeAnimation(svgRoot, doc,
          SVGSupport.ANNOTATION_CANDLE, "inetsoft-candle-fade");
    }
 
@@ -2026,8 +2004,8 @@ public class SVGAnimationDOMInjector {
     * <p>Each {@code inetsoft-box} annotation group (one per box) fades in left-to-right.
     * Delays are distributed across {@link AnimationConstants#STAGGER_WINDOW}.
     */
-   private static double injectBoxAnimation(Element svgRoot, Document doc) {
-      return injectXPositionFadeAnimation(svgRoot, doc,
+   private static void injectBoxAnimation(Element svgRoot, Document doc) {
+      injectXPositionFadeAnimation(svgRoot, doc,
          SVGSupport.ANNOTATION_BOX, "inetsoft-box-fade");
    }
 
@@ -2039,10 +2017,8 @@ public class SVGAnimationDOMInjector {
     * {@code CandlePainter} and {@code BoxPainter} emit paths as direct children with no
     * wrapping inner {@code <g>}.  Hover dimming is gated via the {@code svg.ready} class so
     * hover CSS does not conflict with the animation's fill-mode.
-    *
-    * @return delay of the last animated element (for .ready scheduling)
     */
-   private static double injectXPositionFadeAnimation(Element svgRoot, Document doc,
+   private static void injectXPositionFadeAnimation(Element svgRoot, Document doc,
                                                       String annotClass, String keyframeName)
    {
       appendStyle(svgRoot, doc,
@@ -2051,7 +2027,7 @@ public class SVGAnimationDOMInjector {
       List<Element> items = collectAnnotationGroups(svgRoot, annotClass);
 
       if(items.isEmpty()) {
-         return 0;
+         return;
       }
 
       // Sort left-to-right by screen X center so items animate in visual order regardless
@@ -2077,7 +2053,6 @@ public class SVGAnimationDOMInjector {
          items.get(i).setAttribute("style", animStyle);
       }
 
-      return AnimationConstants.staggerDelay(n - 1, n);
    }
 
    // -------------------------------------------------------------------------
@@ -2100,15 +2075,14 @@ public class SVGAnimationDOMInjector {
     * Fill-style radar ({@code CHART_FILL_RADAR}) already has a filled path; neither extra
     * element is needed.
     */
-   /** @return delay of the last animated element (for .ready scheduling) */
-   private static double injectRadarAnimation(Element svgRoot, Document doc) {
+   private static void injectRadarAnimation(Element svgRoot, Document doc) {
       // Collect both line and area annotation groups — radar uses one or the other.
       List<Element> groups = new ArrayList<>();
       groups.addAll(collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_LINE));
       groups.addAll(collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_AREA));
 
       if(groups.isEmpty()) {
-         return 0;
+         return;
       }
 
       // Re-classify all groups to inetsoft-radar so hover CSS and the directive are correct.
@@ -2272,7 +2246,6 @@ public class SVGAnimationDOMInjector {
          }
       }
 
-      return dotDelay;
    }
 
    /**

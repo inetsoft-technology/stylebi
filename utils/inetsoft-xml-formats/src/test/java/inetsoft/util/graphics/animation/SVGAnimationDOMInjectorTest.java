@@ -35,8 +35,8 @@ import static org.junit.jupiter.api.Assertions.*;
  *   <li>Hover CSS correctness — all annotation classes covered, dim rules present,
  *       uniform {@code .2s ease} transition.</li>
  *   <li>Treemap fade-in stagger — larger cells animate before smaller ones.</li>
- *   <li>Icicle cascade stagger — root depth animates before leaf depth at 0.25 s/level.</li>
- *   <li>Mekko diagonal stagger — {@code delay = colIdx * 0.08 + rowIdx * 0.05}.</li>
+ *   <li>Icicle cascade stagger — root depth animates before leaf depth; steps distributed across {@link AnimationConstants#STAGGER_WINDOW}.</li>
+ *   <li>Mekko diagonal stagger — {@code delay = colIdx * COL_STEP + rowIdx * ROW_STEP} scaled to {@link AnimationConstants#STAGGER_WINDOW}.</li>
  *   <li>Label matching — text groups are tagged with hover CSS class and data-row/col.</li>
  * </ul>
  *
@@ -276,6 +276,18 @@ class SVGAnimationDOMInjectorTest {
       SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_TREEMAP);
       assertTrue(doc.getDocumentElement().hasAttribute("data-animated"),
                  "data-animated must be present on the SVG root after animation injection");
+   }
+
+   /**
+    * Pie charts have no {@code inetsoft-active} hover — no {@code .ready} gate is needed.
+    * {@code data-animated} must NOT be set so the directive adds {@code .ready} immediately.
+    */
+   @Test
+   void dataAnimatedAbsentForPie() throws Exception {
+      Document doc = newDocument();
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+      assertFalse(doc.getDocumentElement().hasAttribute("data-animated"),
+                  "data-animated must be absent for pie charts (no .ready gate needed)");
    }
 
    // -------------------------------------------------------------------------
