@@ -200,6 +200,13 @@ public class SVGAnimationDOMInjector {
          .toList();
 
       int numCols = sortedUnique.size();
+
+      // O(1) lookup: center position → stagger column index.
+      Map<Double, Integer> colIndexMap = new HashMap<>();
+      for(int k = 0; k < sortedUnique.size(); k++) {
+         colIndexMap.put(sortedUnique.get(k), k);
+      }
+
       boolean useGrow = !fadeOnly && AnimationConstants.BAR_GROW_ENABLED;
 
       double baseline = useGrow
@@ -211,7 +218,7 @@ public class SVGAnimationDOMInjector {
          Element g    = annotBars.get(i);
          double[] b   = allBounds.get(i);
          double pos   = horizontal ? (b[1] + b[3]) / 2.0 : (b[0] + b[2]) / 2.0;
-         int colIdx   = sortedUnique.indexOf(pos);
+         int colIdx   = colIndexMap.getOrDefault(pos, 0);
          double delay = AnimationConstants.staggerDelay(colIdx, numCols);
 
          if(useGrow) {
@@ -1969,8 +1976,14 @@ public class SVGAnimationDOMInjector {
     * attribute name as-is and should be used when the caller already holds the full name.
     */
    private static int parseIntAttr(Element el, String attr) {
+      String v = el.getAttribute("data-" + attr);
+
+      if(v.isEmpty()) {
+         return 0;
+      }
+
       try {
-         return Integer.parseInt(el.getAttribute("data-" + attr));
+         return Integer.parseInt(v);
       }
       catch(NumberFormatException e) {
          return 0;
@@ -2348,7 +2361,8 @@ public class SVGAnimationDOMInjector {
          // group's own animation fill-mode during the entrance animation (~0.9s gate).
          "svg.ready .inetsoft-point,svg.ready .inetsoft-candle,svg.ready .inetsoft-box," +
          "svg.ready .inetsoft-treemap,svg.ready .inetsoft-mekko," +
-         "svg.ready .inetsoft-treemap-label,svg.ready .inetsoft-mekko-label" +
+         "svg.ready .inetsoft-treemap-label,svg.ready .inetsoft-mekko-label," +
+         "svg.ready .inetsoft-radar" +
          "{transition:" + tr + "}" +
          // Point dimming.
          "svg.ready:has(.inetsoft-point.inetsoft-active) .inetsoft-point:not(.inetsoft-active)" +
