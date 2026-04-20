@@ -161,7 +161,13 @@ public final class SVGAnimationInjector {
       List<double[]> topPts = extractXYPairs(topPath);
       List<double[]> botPts = extractXYPairs(bottomPath);
 
-      if(topPts.isEmpty() || botPts.isEmpty()) {
+      // If the top path is empty/unparseable, there is nothing to build.
+      // Return null so the call site's guard (band != null && !band.isEmpty()) skips the set.
+      if(topPts.isEmpty()) {
+         return null;
+      }
+      // If only the bottom path is missing, fall back to a baseline-to-line polygon for the top.
+      if(botPts.isEmpty()) {
          return buildFillPolygon(topPath);
       }
 
@@ -183,7 +189,11 @@ public final class SVGAnimationInjector {
 
    /**
     * Average y-value of an M/L path (odd-indexed numbers).
-    * Higher average y = higher series in Batik's local coords (y=0 at baseline, y increases up).
+    * Higher average y = higher series in Batik's y-flipped local coordinate space, where y
+    * increases upward (opposite of standard SVG, where y increases downward).  The parent
+    * {@code <g transform="matrix(1,0,0,-1,...)">} applies the flip, so a path with larger local
+    * y values renders higher on screen.  The downstream sort (descending by averageLineY) places
+    * the topmost visible series first.
     */
    static double averageLineY(String d) {
       List<double[]> pts = extractXYPairs(d);

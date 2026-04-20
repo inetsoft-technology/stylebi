@@ -248,8 +248,12 @@ class SVGAnimationDOMInjectorTest {
          css.contains(".inetsoft-box.inetsoft-active") &&
          css.contains(".inetsoft-box:not(.inetsoft-active)"),
          "hover CSS must contain box :has() dim rule");
-      assertTrue(css.contains("opacity:.2!important"),
-                 "dim rules must use opacity:.2!important");
+      // HOVER_DIM_OPACITY = 0.20 formatted as "%.2f" produces "0.20"
+      String expectedOpacity = "opacity:" +
+         String.format(java.util.Locale.US, "%.2f", AnimationConstants.HOVER_DIM_OPACITY) +
+         "!important";
+      assertTrue(css.contains(expectedOpacity),
+                 "dim rules must use opacity:" + expectedOpacity);
    }
 
    @Test
@@ -380,7 +384,7 @@ class SVGAnimationDOMInjectorTest {
     * {@code 2.0 / (3-1) = 1.0 s}: delays should be 0.0, 1.0, and 2.0 respectively.
     */
    @Test
-   void icicle_depthStepIs025PerLevel() throws Exception {
+   void icicle_staggerDistributedAcrossWindow() throws Exception {
       Document doc = newDocument();
       // level=2 is the root (maxLevel); level=0 is the leaf.
       Element lvl2 = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,

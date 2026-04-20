@@ -70,6 +70,8 @@ export class ChartInlineSvgDirective implements OnDestroy {
    private readyHandle: ReturnType<typeof setTimeout> | null = null;
    /** Ordered list of area series objects; one entry per (panel, series) pair. */
    private areaSeries: Array<{fillGroup: Element, lineGroup: Element, linePath: SVGGeometryElement}> = [];
+   /** Pre-sampled SVG local-coordinate points per series for fast mousemove hit-testing. */
+   private areaSeriesCache: Array<{localX: number, localY: number}[]> = [];
    /** Index into areaSeries of the currently highlighted series, or -1. */
    private activeSeriesIdx: number = -1;
    /** SVG element that holds area mousemove/mouseleave listeners, kept for cleanup. */
@@ -77,6 +79,8 @@ export class ChartInlineSvgDirective implements OnDestroy {
    private areaMouseMoveHandler: ((e: MouseEvent) => void) | null = null;
    private areaMouseLeaveHandler: (() => void) | null = null;
    private static readonly CLEAR_DELAY_MS = 120;
+   /** Milliseconds after SVG load before the .ready class is added (gates A1 hover CSS). */
+   private static readonly READY_MS = 900;
    private readonly destroy$ = new Subject<void>();
 
    constructor(private element: ElementRef, private http: HttpClient) {
@@ -201,10 +205,10 @@ export class ChartInlineSvgDirective implements OnDestroy {
     * treemap, mekko, radar) — types where the animated group is also the hover target, so
     * setting opacity via hover during fill-mode can conflict. Bar hover is never gated.
     *
-    * The gate fires {@code DURATION + READY_BUFFER = 900ms} after SVG injection — long enough
+    * The gate fires {@link ChartInlineSvgDirective.READY_MS} after SVG injection — long enough
     * for the first animated element to complete, short enough not to frustrate users. If the
-    * Java injector did not set {@code data-last-delay} (no animation), {@code .ready} is added
-    * immediately.
+    * Java injector did not set {@code data-animated} (no animation was injected), {@code .ready}
+    * is added immediately.
     */
    private scheduleReady(): void {
       if(this.readyHandle !== null) {
@@ -218,7 +222,9 @@ export class ChartInlineSvgDirective implements OnDestroy {
          return;
       }
 
-      const hasAnimation = svgEl.hasAttribute("data-last-delay");
+      // data-animated is a boolean presence flag set by the Java injector when any animation
+      // was added. Only presence matters — the value is not read.
+      const hasAnimation = svgEl.hasAttribute("data-animated");
 
       if(!hasAnimation) {
          // No animation injected — add .ready immediately so A1 hover works.
@@ -226,16 +232,13 @@ export class ChartInlineSvgDirective implements OnDestroy {
          return;
       }
 
-      // Gate A1 hover rules for DURATION + READY_BUFFER = 900ms after the SVG loads.
-      // This is long enough for the first animated element to complete, preventing
-      // fill-mode conflicts on the first hover attempt, without locking out hover for
-      // the full stagger window (which can be 2+ seconds on busy charts).
-      const readyMs = (0.8 + 0.1) * 1000;
-
+      // Gate A1 hover rules for READY_MS after the SVG loads.  Long enough for the first
+      // animated element to finish, without locking out hover for the full stagger window
+      // (which can be 2+ seconds on busy charts).
       this.readyHandle = setTimeout(() => {
          this.readyHandle = null;
          svgEl.classList.add("ready");
-      }, readyMs);
+      }, ChartInlineSvgDirective.READY_MS);
    }
 
    /** Called after new SVG content is injected. Builds element and label lookup maps. */
@@ -329,6 +332,11 @@ export class ChartInlineSvgDirective implements OnDestroy {
       const lineAnnotGroups = Array.from(
          this.element.nativeElement.querySelectorAll(".inetsoft-line") as NodeListOf<Element>);
 
+      if(areaFillGroups.length !== lineAnnotGroups.length) {
+         console.warn(`[ChartInlineSvgDirective] area fill/line group count mismatch: ` +
+            `${areaFillGroups.length} fill, ${lineAnnotGroups.length} line — hover pairing may be wrong`);
+      }
+
       // Pair each area fill group with its matching line group by parallel index.
       // Both lists have one entry per (panel × series); the i-th entry in each list
       // is always the same series in the same panel.
@@ -343,6 +351,24 @@ export class ChartInlineSvgDirective implements OnDestroy {
       }
 
       if(this.areaSeries.length === 0) return;
+
+      // Pre-sample each line path in SVG local coordinates so mousemove hit-testing can avoid
+      // repeated getPointAtLength() calls. getPointAtLength is O(path-length) in all browsers;
+      // at 60 fps with multiple series that compounds quickly. Pre-sampling once at load time
+      // and doing a binary search on the cached array per mousemove is far cheaper.
+      const SAMPLES = 100;
+      this.areaSeriesCache = [];
+      for(const s of this.areaSeries) {
+         const pts: {localX: number, localY: number}[] = [];
+         const total = s.linePath.getTotalLength();
+         if(total > 0) {
+            for(let j = 0; j <= SAMPLES; j++) {
+               const lp = s.linePath.getPointAtLength(j / SAMPLES * total);
+               pts.push({localX: lp.x, localY: lp.y});
+            }
+         }
+         this.areaSeriesCache.push(pts);
+      }
 
       const svgEl = this.element.nativeElement.querySelector("svg") as SVGSVGElement | null;
       if(!svgEl) return;
@@ -371,6 +397,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
       }
       this.areaMouseMoveHandler = null;
       this.areaMouseLeaveHandler = null;
+      this.areaSeriesCache = [];
    }
 
    private onAreaMouseMove(e: MouseEvent): void {
@@ -380,16 +407,16 @@ export class ChartInlineSvgDirective implements OnDestroy {
       const yValues: (number | null)[] = [];
 
       for(let i = 0; i < this.areaSeries.length; i++) {
-         const y = this.getScreenYAtX(this.areaSeries[i].linePath, e.clientX);
+         const y = this.getScreenYAtX(i, e.clientX);
          yValues.push(isNaN(y) ? null : y);
       }
 
       // Ceiling algorithm: the fill band between line A (above) and line B (below) belongs to A.
       // "Above the mouse" = lineY < mouseY (smaller screen y = higher on screen).
       // Among all lines above the mouse, pick the one with the LARGEST lineY (the ceiling —
-      // the line immediately above the cursor). This correctly maps the mouse into its fill band.
-      // If no line is above the mouse (cursor is above every series), fall back to the topmost
-      // series so the area above the top line still activates the right series.
+      // the line immediately above the cursor). This correctly maps the cursor into its fill band.
+      // If no line is above the mouse (cursor is above every series or between panels), nearestIdx
+      // stays -1 and deactivateArea() clears all highlighting — intentional reset.
       let nearestIdx = -1;
       let ceilingY   = -Infinity; // largest lineY that is still < mouseY
 
@@ -426,35 +453,55 @@ export class ChartInlineSvgDirective implements OnDestroy {
    }
 
    /**
-    * Binary-search the SVG path for the point whose screen x ≈ targetScreenX, then return
-    * its screen y. Works correctly for monotonically left-to-right paths (typical line series).
+    * Return the screen y for the given series at the given screen x, using the pre-sampled
+    * local-coordinate cache built in setupAreaHover.
     *
-    * Returns NaN if the converged screen x is more than 20px from targetScreenX. This occurs
-    * when the target x is outside the path's x-range (e.g. a different facet panel), so the
-    * search clamps to the nearest endpoint. The 20px guard is well below the typical
-    * inter-panel gap (~60px), reliably preventing cross-panel series from becoming candidates.
+    * Approach: convert targetScreenX to SVG local x via the inverse CTM (one cheap matrix
+    * multiply), binary-search the cached sample array by local x, linearly interpolate local y,
+    * then convert back to screen y with one forward matrixTransform.  This replaces the previous
+    * 25-iteration getPointAtLength bisection (expensive — O(path-length) per call in all engines).
+    *
+    * Returns NaN when the converged screen x is >20px from targetScreenX — the mouse is outside
+    * this path's x-range (a different facet panel).  The 20px guard is well below the typical
+    * inter-panel gap (~60px), preventing cross-panel series from being selected.
     */
-   private getScreenYAtX(path: SVGGeometryElement, targetScreenX: number): number {
-      const total = path.getTotalLength();
-      const ctm = path.getScreenCTM();
-      if(!ctm || total === 0) return NaN;
+   private getScreenYAtX(seriesIdx: number, targetScreenX: number): number {
+      const pts = this.areaSeriesCache[seriesIdx];
+      const s   = this.areaSeries[seriesIdx];
+      if(!pts || pts.length === 0 || !s) return NaN;
 
-      const svgEl = path.ownerSVGElement;
+      const ctm = s.linePath.getScreenCTM();
+      if(!ctm) return NaN;
+
+      const svgEl = s.linePath.ownerSVGElement;
       if(!svgEl) return NaN;
       const pt = svgEl.createSVGPoint();
 
-      let lo = 0, hi = total;
-      for(let i = 0; i < 25; i++) {
-         const mid = (lo + hi) * 0.5;
-         const lp = path.getPointAtLength(mid);
-         pt.x = lp.x; pt.y = lp.y;
-         if(pt.matrixTransform(ctm).x < targetScreenX) lo = mid;
+      // Convert targetScreenX to SVG local x via the inverse CTM.
+      let invCtm: DOMMatrix;
+      try { invCtm = ctm.inverse(); }
+      catch { return NaN; }
+      pt.x = targetScreenX; pt.y = 0;
+      const targetLocalX = pt.matrixTransform(invCtm).x;
+
+      // Binary-search the pre-sampled array by local x (path is x-monotone left-to-right).
+      let lo = 0, hi = pts.length - 1;
+      while(lo < hi - 1) {
+         const mid = (lo + hi) >> 1;
+         if(pts[mid].localX < targetLocalX) lo = mid;
          else hi = mid;
       }
 
-      const lp = path.getPointAtLength((lo + hi) * 0.5);
-      pt.x = lp.x; pt.y = lp.y;
+      // Linearly interpolate y between the two nearest cached samples.
+      const p0 = pts[lo], p1 = pts[hi];
+      const dx  = p1.localX - p0.localX;
+      const t   = dx === 0 ? 0 : (targetLocalX - p0.localX) / dx;
+      const localY = p0.localY + t * (p1.localY - p0.localY);
+
+      // Convert the interpolated local point to screen coordinates.
+      pt.x = targetLocalX; pt.y = localY;
       const sp = pt.matrixTransform(ctm);
+
       if(Math.abs(sp.x - targetScreenX) > 20) return NaN;
       return sp.y;
    }

@@ -49,9 +49,10 @@ public class SVGAnimationDOMInjector {
     * are {@code "3d"}, {@code "stacked"}, {@code "area"} (defined as {@code ANIMATION_FLAG_*}
     * constants in {@link SVGSupport}).  Example: {@code "grow:stacked"}, {@code "pie:3d"}.
     *
-    * <p>Sets {@code data-last-delay} on the SVG root element with the delay (in seconds) of
-    * the last animated element.  The Angular directive reads this to schedule the {@code .ready}
-    * class that gates hover CSS rules so dimming never fires during the entrance animation.
+    * <p>Sets the {@code data-animated} attribute (empty string, presence-only flag) on the SVG
+    * root element when any animation was injected.  The Angular directive detects this flag to
+    * schedule the {@code .ready} class that gates hover CSS rules so dimming never fires during
+    * the entrance animation.
     */
    public static void injectAnimation(Element svgRoot, String animHint) {
       Document doc = svgRoot.getOwnerDocument();
@@ -99,10 +100,10 @@ public class SVGAnimationDOMInjector {
          lastDelay = injectBarAnimationFromAnnotations(annotBars, svgRoot, doc, fadeOnly);
       }
 
-      // Publish the last animation delay so the Angular directive can schedule .ready.
+      // Signal to the Angular directive that animation was injected so it can schedule .ready.
+      // Only presence matters — the directive uses a fixed READY_MS gate, not the stored value.
       if(lastDelay > 0) {
-         svgRoot.setAttribute("data-last-delay",
-            String.format(java.util.Locale.US, "%.2f", lastDelay));
+         svgRoot.setAttribute("data-animated", "");
       }
    }
 
@@ -1969,6 +1970,11 @@ public class SVGAnimationDOMInjector {
    /**
     * Parse the {@code data-<attr>} integer attribute of an element, returning {@code 0} on
     * missing or malformed values.
+    *
+    * <p><b>Note:</b> this overload automatically prepends {@code "data-"} to {@code attr}.
+    * Pass a short name like {@code SVGSupport.ATTR_LEVEL} (not {@code "data-level"}) or the
+    * attribute read will be {@code "data-data-level"}.  The 3-arg overload takes the full
+    * attribute name as-is and should be used when the caller already holds the full name.
     */
    private static int parseIntAttr(Element el, String attr) {
       try {
@@ -1986,9 +1992,10 @@ public class SVGAnimationDOMInjector {
    /**
     * Inject staggered fade-in animation for candlestick charts.
     *
-    * <p>Each {@code inetsoft-candle} annotation group (one per candle) fades in over 0.6 s.
-    * Items are sorted by screen X position ({@code data-x}) so they animate left-to-right
-    * in visual order.  Delays are spread evenly across 0–1.2 s regardless of item count.
+    * <p>Each {@code inetsoft-candle} annotation group (one per candle) fades in over
+    * {@link AnimationConstants#DURATION} seconds.  Items are sorted by screen X position
+    * ({@code data-x}) so they animate left-to-right in visual order.  Delays are spread
+    * evenly across {@link AnimationConstants#STAGGER_WINDOW} seconds regardless of item count.
     */
    private static double injectCandleAnimation(Element svgRoot, Document doc) {
       return injectXPositionFadeAnimation(svgRoot, doc,
@@ -2337,53 +2344,51 @@ public class SVGAnimationDOMInjector {
     * On older browsers the dim rules are silently ignored.
     */
    private static void appendHoverCSS(Element svgRoot, Document doc) {
+      String dim = String.format(java.util.Locale.US, "%.2f", AnimationConstants.HOVER_DIM_OPACITY);
+      String tr  = AnimationConstants.HOVER_TRANSITION;
       appendStyle(svgRoot, doc,
          // Bar (A2 pattern): animation is applied to inner child <path> elements, not to the
          // annotation group itself. The group's own opacity is never animated, so hover dim
-         // (opacity:.2 on the group) does not conflict with fill-mode on the inner paths.
+         // does not conflict with fill-mode on the inner paths.
          // No .ready gate is needed — bar hover is active immediately on load.
-         ".inetsoft-bar,.inetsoft-bar-label{transition:opacity .2s ease}" +
+         ".inetsoft-bar,.inetsoft-bar-label{transition:" + tr + "}" +
          "svg:has(.inetsoft-bar.inetsoft-active) .inetsoft-bar:not(.inetsoft-active)," +
          "svg:has(.inetsoft-bar.inetsoft-active) .inetsoft-bar-label:not(.inetsoft-active)" +
-         "{opacity:.2!important}" +
+         "{opacity:" + dim + "!important}" +
          // A1 chart types: animation is applied directly to the annotation group that is also
          // the hover target. The .ready gate prevents hover dim from conflicting with the
          // group's own animation fill-mode during the entrance animation (~0.9s gate).
          "svg.ready .inetsoft-point,svg.ready .inetsoft-candle,svg.ready .inetsoft-box," +
          "svg.ready .inetsoft-treemap,svg.ready .inetsoft-mekko," +
          "svg.ready .inetsoft-treemap-label,svg.ready .inetsoft-mekko-label" +
-         "{transition:opacity .2s ease}" +
+         "{transition:" + tr + "}" +
          // Point dimming.
          "svg.ready:has(.inetsoft-point.inetsoft-active) .inetsoft-point:not(.inetsoft-active)" +
-         "{opacity:.2!important}" +
+         "{opacity:" + dim + "!important}" +
          // Candlestick dimming.
          "svg.ready:has(.inetsoft-candle.inetsoft-active) .inetsoft-candle:not(.inetsoft-active)" +
-         "{opacity:.2!important}" +
+         "{opacity:" + dim + "!important}" +
          // Box-plot dimming.
          "svg.ready:has(.inetsoft-box.inetsoft-active) .inetsoft-box:not(.inetsoft-active)" +
-         "{opacity:.2!important}" +
+         "{opacity:" + dim + "!important}" +
          // Treemap + label dimming.
          "svg.ready:has(.inetsoft-treemap.inetsoft-active) .inetsoft-treemap:not(.inetsoft-active)," +
          "svg.ready:has(.inetsoft-treemap.inetsoft-active) .inetsoft-treemap-label:not(.inetsoft-active)" +
-         "{opacity:.2!important}" +
+         "{opacity:" + dim + "!important}" +
          // Mekko + label dimming.
          "svg.ready:has(.inetsoft-mekko.inetsoft-active) .inetsoft-mekko:not(.inetsoft-active)," +
          "svg.ready:has(.inetsoft-mekko.inetsoft-active) .inetsoft-mekko-label:not(.inetsoft-active)" +
-         "{opacity:.2!important}" +
-         // Area series hover — fill and border line dim together when a series is active.
-         // JS proximity detection (nearest line) sets inetsoft-active on the area fill group
-         // and its matching line annotation group; the :has() rule dims all others.
-         "svg.ready .inetsoft-area,svg.ready .inetsoft-line{transition:opacity .2s ease}" +
-         "svg.ready:has(.inetsoft-area.inetsoft-active) .inetsoft-area:not(.inetsoft-active)," +
-         "svg.ready:has(.inetsoft-area.inetsoft-active) .inetsoft-line:not(.inetsoft-active)" +
-         "{opacity:.2!important}" +
+         "{opacity:" + dim + "!important}" +
+         // Area/line hover uses JS-only inline style.opacity (no inetsoft-active class is set).
+         // CSS :has(.inetsoft-area.inetsoft-active) rules are not used because CSS :has()
+         // cannot scope to a single facet panel within one SVG — all panels would be affected.
          // Radar polygon dimming via CSS :hover only — no inetsoft-active toggling for radar.
          // Hovering inside a polygon's hit area dims sibling polygons; vertex points produce
          // no dim effect. pointer-events:all on the group makes the filled interior reactive.
          // Per-series point dimming is injected in injectRadarAnimation() once N is known.
          ".inetsoft-radar{pointer-events:all}" +
          "svg.ready:has(.inetsoft-radar:hover) .inetsoft-radar:not(:hover)" +
-         "{opacity:.2!important}");
+         "{opacity:" + dim + "!important}");
    }
 
    // -------------------------------------------------------------------------
