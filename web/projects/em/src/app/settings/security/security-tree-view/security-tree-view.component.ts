@@ -34,7 +34,7 @@ import { SecurityTreeDataService } from "./security-tree-data.service";
 import { SecurityTreeFlattener } from "./security-tree-flattener";
 import { FlatSecurityTreeNode, SecurityTreeNode } from "./security-tree-node";
 import { IdentityType } from "../../../../../../shared/data/identity-type";
-import { IdentityId, equalsIdentity } from "../users/identity-id";
+import { equalsIdentity } from "../users/identity-id";
 
 @Component({
    selector: "em-security-tree-view",
