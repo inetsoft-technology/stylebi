@@ -44,15 +44,6 @@ public class LegendContainer {
                           List<Legend> legendObjects, String aestheticType, boolean nodeAesthetic,
                           boolean roundCorners)
    {
-      this(legendIndex, bounds, border, field, targetFields, minSize, legendObjects, aestheticType,
-         nodeAesthetic, roundCorners, 0);
-   }
-
-   public LegendContainer(int legendIndex, RectangularShape bounds, String border,
-                          String field, List<String> targetFields, Dimension minSize,
-                          List<Legend> legendObjects, String aestheticType, boolean nodeAesthetic,
-                          boolean roundCorners, int outerGap)
-   {
       this.legendIndex = legendIndex;
       this.bounds = bounds;
       this.border = border;
@@ -63,7 +54,6 @@ public class LegendContainer {
       this.aestheticType = aestheticType;
       this.nodeAesthetic = nodeAesthetic;
       this.roundCorners = roundCorners;
-      this.outerGap = outerGap;
    }
 
    public int getLegendIndex() {
@@ -114,14 +104,6 @@ public class LegendContainer {
       this.roundCorners = roundCorners;
    }
 
-   public int getOuterGap() {
-      return outerGap;
-   }
-
-   public void setOuterGap(int outerGap) {
-      this.outerGap = outerGap;
-   }
-
    private int legendIndex;
    private RectangularShape bounds;
    private String border;
@@ -132,5 +114,4 @@ public class LegendContainer {
    private Dimension minSize;
    private boolean nodeAesthetic;
    private boolean roundCorners;
-   private int outerGap;
 }

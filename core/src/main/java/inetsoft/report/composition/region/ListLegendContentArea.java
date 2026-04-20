@@ -186,17 +186,17 @@ public class ListLegendContentArea extends LegendContentArea implements RollOver
    public void setRelPos(Point2D pos) {
       super.setRelPos(pos);
 
-      // Previously, item areas received pos2 = pos offset by (contentBounds - legendBounds)
-      // to account for the content area being inset within the legend bounds. With the
-      // BORDER_PADDING and OUTER_GAP layout changes in Legend.java, item positions are
-      // now laid out directly relative to the legend's origin (the same coordinate origin
-      // used by the canvas/frontend hit-testing), so no secondary offset is needed.
-      // Passing pos directly keeps item-level regions (tooltips, drill-through, selection)
-      // aligned with what the frontend renders.
+      Legend legend = (Legend) getVisualizable();
+      Rectangle2D bounds = legend.getBounds();
+      Rectangle2D contentBounds = legend.getContentBounds();
+
+      Point2D pos2 = new Point2D.Double(pos.getX() + contentBounds.getX() - bounds.getX(),
+                                        pos.getY() + contentBounds.getY() - bounds.getY());
+
       for(int i = 0; i < itemAreas.length; i++) {
          for(int j = 0; j < itemAreas[0].length; j++) {
             if(itemAreas[i][j] != null) {
-               itemAreas[i][j].setRelPos(pos);
+               itemAreas[i][j].setRelPos(pos2);
             }
          }
       }
