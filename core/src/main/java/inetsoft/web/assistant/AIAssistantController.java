@@ -206,7 +206,7 @@ public class AIAssistantController {
       return healthClient.sendAsync(req, HttpResponse.BodyHandlers.discarding())
          .thenApply(r -> ResponseEntity.ok(r.statusCode() < 500))
          .exceptionally(e -> {
-            LOG.debug("AI assistant health check failed for {}: {}", url, e.getMessage());
+            LOG.warn("AI assistant health check failed for {}: {}", url, e.getMessage());
             return ResponseEntity.ok(false);
          });
    }
