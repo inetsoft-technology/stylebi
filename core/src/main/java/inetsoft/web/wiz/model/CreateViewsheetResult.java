@@ -85,11 +85,20 @@ public class CreateViewsheetResult {
       this.runtimeId = runtimeId;
    }
 
+   public String getAssemblyName() {
+      return assemblyName;
+   }
+
+   public void setAssemblyName(String assemblyName) {
+      this.assemblyName = assemblyName;
+   }
+
    private List<String> headers;
    private List<Map<String, Object>> rows;
    private FlatBinding binding;
    private Boolean truncated;
    private String runtimeId;
+   private String assemblyName;
 
    // -------------------------------------------------------------------------
    // Nested model
