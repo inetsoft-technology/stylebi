@@ -375,8 +375,9 @@ class SVGAnimationDOMInjectorTest {
    }
 
    /**
-    * Each depth column adds {@code DEPTH_STEP = 0.25 s} of base delay.  With three levels
-    * (2, 1, 0) and one cell per level, delays should be 0.0, 0.25, and 0.50 respectively.
+    * Stagger is distributed across {@link AnimationConstants#STAGGER_WINDOW} (2.0 s) using
+    * {@link AnimationConstants#staggerDelay}.  With three cells (one per level) the step is
+    * {@code 2.0 / (3-1) = 1.0 s}: delays should be 0.0, 1.0, and 2.0 respectively.
     */
    @Test
    void icicle_depthStepIs025PerLevel() throws Exception {
@@ -394,8 +395,8 @@ class SVGAnimationDOMInjectorTest {
       SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_ICICLE);
 
       assertEquals(0.00, parseDelay(firstChildStyle(lvl2)), 0.01, "root  (level=2) → 0.00 s");
-      assertEquals(0.25, parseDelay(firstChildStyle(lvl1)), 0.01, "mid   (level=1) → 0.25 s");
-      assertEquals(0.50, parseDelay(firstChildStyle(lvl0)), 0.01, "leaf  (level=0) → 0.50 s");
+      assertEquals(1.00, parseDelay(firstChildStyle(lvl1)), 0.01, "mid   (level=1) → 1.00 s");
+      assertEquals(2.00, parseDelay(firstChildStyle(lvl0)), 0.01, "leaf  (level=0) → 2.00 s");
    }
 
    /** A label contained in an icicle cell should be tagged with the treemap-label class. */
@@ -421,11 +422,13 @@ class SVGAnimationDOMInjectorTest {
    // -------------------------------------------------------------------------
 
    /**
-    * Verifies the diagonal stagger formula: {@code delay = colIdx * 0.08 + rowIdx * 0.05}.
+    * Verifies the diagonal stagger formula scaled to {@link AnimationConstants#STAGGER_WINDOW}.
+    * Raw ratios are COL_RATIO=0.08 and ROW_RATIO=0.05; for this grid (1 col-step, 1 row-step)
+    * rawMax = 0.08 + 0.05 = 0.13, scale = 2.0/0.13.
     * <ul>
     *   <li>Column 0, row 0: 0.00 s</li>
-    *   <li>Column 0, row 1: 0.05 s</li>
-    *   <li>Column 1, row 0: 0.08 s</li>
+    *   <li>Column 0, row 1: ROW_STEP = 0.05 * (2.0/0.13) ≈ 0.77 s</li>
+    *   <li>Column 1, row 0: COL_STEP = 0.08 * (2.0/0.13) ≈ 1.23 s</li>
     * </ul>
     */
    @Test
@@ -439,10 +442,15 @@ class SVGAnimationDOMInjectorTest {
 
       SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_MEKKO);
 
+      // scale = 2.0 / (1*0.08 + 1*0.05) = 2.0/0.13
+      double scale = 2.0 / 0.13;
+      double colStep = 0.08 * scale;
+      double rowStep = 0.05 * scale;
+
       // Mekko sets the animation style directly on the annotation group element.
-      assertEquals(0.00, parseDelay(col0row0.getAttribute("style")), 0.01, "col0 row0 → 0.00 s");
-      assertEquals(0.05, parseDelay(col0row1.getAttribute("style")), 0.01, "col0 row1 → 0.05 s");
-      assertEquals(0.08, parseDelay(col1row0.getAttribute("style")), 0.01, "col1 row0 → 0.08 s");
+      assertEquals(0.00,    parseDelay(col0row0.getAttribute("style")), 0.02, "col0 row0 → 0.00 s");
+      assertEquals(rowStep, parseDelay(col0row1.getAttribute("style")), 0.02, "col0 row1 → ~0.77 s");
+      assertEquals(colStep, parseDelay(col1row0.getAttribute("style")), 0.02, "col1 row0 → ~1.23 s");
    }
 
    /**
@@ -576,8 +584,9 @@ class SVGAnimationDOMInjectorTest {
       assertEquals(2, radar.size(), "both line groups must be reclassified");
       double delay0 = parseDelay(radar.get(0).getAttribute("style"));
       double delay1 = parseDelay(radar.get(1).getAttribute("style"));
-      assertEquals(0.25, delay1 - delay0, 0.01,
-                   "second series must be delayed by stagger=0.25 s relative to first");
+      // staggerDelay(1, 2) - staggerDelay(0, 2) = 2.0/(2-1) = 2.0 s (full STAGGER_WINDOW)
+      assertEquals(AnimationConstants.STAGGER_WINDOW, delay1 - delay0, 0.01,
+                   "second series must be delayed by STAGGER_WINDOW relative to first");
    }
 
    // -------------------------------------------------------------------------
@@ -623,8 +632,7 @@ class SVGAnimationDOMInjectorTest {
 
    /**
     * Two arcs at the same level (same ring) should receive staggered delays within the ring.
-    * With two arcs in one ring, {@code step = min(0.15, 0.8/2) = 0.15 s}, so the second arc
-    * should be delayed by 0.15 s relative to the first.
+    * With two total arcs, {@code staggerDelay(1, 2) - staggerDelay(0, 2) = STAGGER_WINDOW = 2.0 s}.
     */
    @Test
    void sunburst_sameRingArcsAreStaggered() throws Exception {
@@ -644,8 +652,9 @@ class SVGAnimationDOMInjectorTest {
       // The two arcs are in the same ring, so their delays must differ (stagger within ring).
       assertNotEquals(delay0, delay1, 0.001,
                       "two arcs in the same ring must have different animation delays");
-      assertEquals(0.15, Math.abs(delay1 - delay0), 0.01,
-                   "within-ring step for 2 arcs must be min(0.15, 0.8/2) = 0.15 s");
+      // staggerDelay(1, 2) - staggerDelay(0, 2) = STAGGER_WINDOW / (2-1) = 2.0 s
+      assertEquals(AnimationConstants.STAGGER_WINDOW, Math.abs(delay1 - delay0), 0.01,
+                   "within-ring step for 2 arcs must equal STAGGER_WINDOW = 2.0 s");
    }
 
    // -------------------------------------------------------------------------
