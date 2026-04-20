@@ -198,6 +198,14 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
                         failureCount, getConfigFile());
                   }
                   else {
+                     if(failureCount > 0) {
+                        LOG.warn(
+                           "{} of {} security provider(s) failed to load from '{}'; " +
+                           "the remaining providers have been applied but security " +
+                           "configuration may be incomplete",
+                           failureCount, list.size() + failureCount, getConfigFile());
+                     }
+
                      clear();
                      setProviderList(list);
                   }

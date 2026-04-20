@@ -43,15 +43,15 @@ class DatabaseAuthenticationCache implements AutoCloseable {
          return false;
       }
 
-      // Exponential backoff: don't hammer the cluster when the security provider is unavailable
-      // (e.g. immediately after a GKE node restart before SecurityEngine has loaded providers).
-      if(System.currentTimeMillis() < nextRetryTime) {
-         return false;
-      }
-
       serviceLock.lock();
 
       try {
+         // Exponential backoff: don't hammer the cluster when the security provider is unavailable
+         // (e.g. immediately after a GKE node restart before SecurityEngine has loaded providers).
+         if(System.currentTimeMillis() < nextRetryTime) {
+            return false;
+         }
+
          if(service == null) {
             try {
                Cluster cluster = Cluster.getInstance();
@@ -74,11 +74,12 @@ class DatabaseAuthenticationCache implements AutoCloseable {
             }
             catch(Exception ex) {
                service = null;
-               nextRetryTime = System.currentTimeMillis() + currentRetryDelayMs;
+               long retryDelayMs = currentRetryDelayMs;
+               nextRetryTime = System.currentTimeMillis() + retryDelayMs;
                currentRetryDelayMs = Math.min(currentRetryDelayMs * 2, MAX_RETRY_DELAY_MS);
                LOG.warn(
                   "Failed to initialize service for provider '{}', will retry in {}s: {}",
-                  provider.getProviderName(), currentRetryDelayMs / 1000,
+                  provider.getProviderName(), retryDelayMs / 1000,
                   ex.getMessage());
                LOG.debug("Service initialization failure detail", ex);
                return false;
