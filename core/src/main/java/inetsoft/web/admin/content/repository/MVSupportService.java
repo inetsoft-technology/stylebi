@@ -1083,7 +1083,17 @@ public class MVSupportService {
             error = e;
          }
 
-         updateStatus(results, error);
+         // Set the principal so persistAndClearWorksheet() reads embedded table
+         // data from the correct org rather than the host org.
+         Principal oldPrincipal = ThreadContext.getContextPrincipal();
+         ThreadContext.setContextPrincipal(principal);
+
+         try {
+            updateStatus(results, error);
+         }
+         finally {
+            ThreadContext.setContextPrincipal(oldPrincipal);
+         }
       }
 
       public List<MVStatus> call() {
