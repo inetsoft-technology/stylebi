@@ -39,7 +39,7 @@ public abstract class RefreshVSAssemblyEvent {
    }
 
    @Value.Default
-   public boolean embed() {
+   public boolean getEmbed() {
       return false;
    }
 
