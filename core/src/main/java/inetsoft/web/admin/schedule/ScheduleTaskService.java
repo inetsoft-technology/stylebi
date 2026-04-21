@@ -542,7 +542,7 @@ public class ScheduleTaskService {
 
       if(!internalTask) {
          for(int i = 0; i < model.actions().size(); i++) {
-            ScheduleAction scheduleAction = task.getActionCount() > i ? task.getAction(i) : null;
+            ScheduleAction scheduleAction = originalTask.getActionCount() > i ? originalTask.getAction(i) : null;
             ScheduleAction action =
                scheduleService.getActionFromModel(model.actions().get(i), scheduleAction, principal, linkURI);
 
@@ -712,6 +712,8 @@ public class ScheduleTaskService {
             vsa.setOnlyDataComponents(origVsa.isOnlyDataComponents());
             vsa.setExportAllTabbedTables(origVsa.isExportAllTabbedTables());
             vsa.setEmailCSVConfig(origVsa.getEmailCSVConfig());
+            vsa.setAttachmentName(origVsa.getAttachmentName());
+            vsa.setCompressFile(origVsa.isCompressFile());
          }
          else {
             vsa.setEmails(null);
@@ -728,6 +730,8 @@ public class ScheduleTaskService {
             vsa.setOnlyDataComponents(false);
             vsa.setExportAllTabbedTables(false);
             vsa.setEmailCSVConfig(null);
+            vsa.setAttachmentName(null);
+            vsa.setCompressFile(false);
          }
       }
 

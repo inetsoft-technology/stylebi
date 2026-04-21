@@ -497,10 +497,10 @@ public class ScheduleDialogController {
          action.setCCAddresses(emailInfoModel.ccAddresses());
          action.setBCCAddresses(emailInfoModel.bccAddresses());
          action.setExportAllTabbedTables(emailInfoModel.exportAllTabbedTables());
-      }
 
-      if(emailInfoModel.formatType() == FileFormatInfo.EXPORT_TYPE_CSV) {
-         action.setCompressFile(true);
+         if(emailInfoModel.formatType() == FileFormatInfo.EXPORT_TYPE_CSV) {
+            action.setCompressFile(true);
+         }
       }
 
       TimeCondition condition = new TimeCondition();

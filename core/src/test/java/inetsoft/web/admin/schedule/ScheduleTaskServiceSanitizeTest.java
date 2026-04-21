@@ -382,9 +382,58 @@ class ScheduleTaskServiceSanitizeTest {
    }
 
    @Test
+   void sanitizeAction_noEmailDelivery_differentSheet_clears() {
+      allowNotificationEmail();
+      allowSaveToDisk();
+      denyEmailDelivery();
+
+      ViewsheetAction original = vsActionWithSheet("vs1");
+      original.setEmails("admin@example.com");
+      original.setCCAddresses("cc@example.com");
+      original.setSubject("Server subject");
+      original.setAttachmentName("report.pdf");
+      original.setCompressFile(true);
+
+      ViewsheetAction action = vsActionWithSheet("vs2");
+      action.setEmails("hacker@evil.com");
+      action.setCCAddresses("hacker2@evil.com");
+      action.setSubject("Hacker subject");
+      action.setAttachmentName("evil.pdf");
+      action.setCompressFile(true);
+
+      service.sanitizeAction(action, original, principal);
+
+      assertNull(action.getEmails());
+      assertNull(action.getCCAddresses());
+      assertNull(action.getSubject());
+      assertNull(action.getAttachmentName());
+      assertFalse(action.isCompressFile());
+   }
+
+   @Test
+   void sanitizeAction_noSaveToDisk_differentSheet_clears() {
+      allowNotificationEmail();
+      denySaveToDisk();
+      allowEmailDelivery();
+
+      ViewsheetAction original = vsActionWithSheet("vs1");
+      original.setFilePath(FileFormatInfo.EXPORT_TYPE_PDF, new ServerPathInfo("/reports/report.pdf"));
+      original.setSaveToServerMatch(true);
+
+      ViewsheetAction action = vsActionWithSheet("vs2");
+      action.setFilePath(FileFormatInfo.EXPORT_TYPE_PDF, new ServerPathInfo("/evil/path.pdf"));
+      action.setSaveToServerMatch(true);
+
+      service.sanitizeAction(action, original, principal);
+
+      assertEquals(0, action.getSaveFormats().length);
+      assertFalse(action.isSaveToServerMatch());
+   }
+
+   @Test
    void sanitizeAction_noSaveToDisk_sameSheet_origHadSave_restoresSaveSettings() {
       allowNotificationEmail();
-      denyDisk();
+      denySaveToDisk();
       allowEmailDelivery();
 
       ViewsheetAction original = vsActionWithSheet("vs1");
@@ -403,7 +452,7 @@ class ScheduleTaskServiceSanitizeTest {
    @Test
    void sanitizeAction_noSaveToDisk_sameSheet_origHadNoSave_clearsSaveSettings() {
       allowNotificationEmail();
-      denyDisk();
+      denySaveToDisk();
       allowEmailDelivery();
 
       ViewsheetAction action = vsActionWithSheet("vs1");
@@ -496,7 +545,7 @@ class ScheduleTaskServiceSanitizeTest {
          .thenReturn(true);
    }
 
-   private void denyDisk() {
+   private void denySaveToDisk() {
       when(scheduleService.checkPermission(eq(principal),
          eq(ResourceType.SCHEDULE_OPTION), eq("saveToDisk")))
          .thenReturn(false);
