@@ -1212,7 +1212,7 @@ public class RepositoryObjectService {
          IdentityID principalID = IdentityID.getIdentityIDFromKey(principal.getName());
          String dashboardName = SUtil.isMyDashboard(src) ? SUtil.getUnscopedPath(src) : src;
          DashboardRegistry userRegistry = DashboardRegistry.getRegistry(principalID);
-         boolean isOwnDashboard = userRegistry != null && userRegistry.getDashboard(dashboardName) != null;
+         boolean isOwnDashboard = SUtil.isMyDashboard(src) && userRegistry.getDashboard(dashboardName) != null;
 
          if(!isOwnDashboard &&
             !securityProvider.checkPermission(
