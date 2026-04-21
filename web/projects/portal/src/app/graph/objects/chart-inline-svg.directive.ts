@@ -345,8 +345,8 @@ export class ChartInlineSvgDirective implements OnDestroy {
          if(i >= lineAnnotGroups.length) break;
          const lineGroup = lineAnnotGroups[i];
          const path = lineGroup.querySelector("path");
-         if(path instanceof SVGGeometryElement && path.getTotalLength) {
-            this.areaSeries.push({fillGroup, lineGroup, linePath: path as SVGGeometryElement});
+         if(path instanceof SVGGeometryElement) {
+            this.areaSeries.push({fillGroup, lineGroup, linePath: path});
          }
       }
 

@@ -2160,6 +2160,7 @@ public class SVGAnimationDOMInjector {
       //   • other-series points     (not[data-row=i])
       // The hovered series' own polygon and vertex points stay at full opacity.
       StringBuilder perSeriesCss = new StringBuilder();
+      String dim = String.format(java.util.Locale.US, "%.2f", AnimationConstants.HOVER_DIM_OPACITY);
 
       for(int i = 0; i < n; i++) {
          perSeriesCss.append(String.format(java.util.Locale.US,
@@ -2167,7 +2168,7 @@ public class SVGAnimationDOMInjector {
             // vertex points of all other series. The hovered series' own points are excluded
             // by :not([data-row=i]) so they stay at full opacity.
             "svg.ready:has(.inetsoft-radar[data-row=\"%d\"]:hover) .inetsoft-point:not([data-row=\"%d\"])" +
-            "{opacity:.2!important}", i, i));
+            "{opacity:" + dim + "!important}", i, i));
       }
 
       appendStyle(svgRoot, doc, perSeriesCss.toString());
