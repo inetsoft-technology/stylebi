@@ -606,10 +606,10 @@ public class ScheduleTaskService {
    void sanitizeConditions(ScheduleTask task, ScheduleTask originalTask,
                            Principal principal)
    {
-      boolean canSetStartTime = securityProvider.checkPermission(
-         principal, ResourceType.SCHEDULE_OPTION, "startTime", ResourceAction.READ);
-      boolean canUseTimeRange = securityProvider.checkPermission(
-         principal, ResourceType.SCHEDULE_OPTION, "timeRange", ResourceAction.READ);
+      boolean canSetStartTime = scheduleService.checkPermission(
+         principal, ResourceType.SCHEDULE_OPTION, "startTime");
+      boolean canUseTimeRange = scheduleService.checkPermission(
+         principal, ResourceType.SCHEDULE_OPTION, "timeRange");
 
       if(canSetStartTime && canUseTimeRange) {
          return;

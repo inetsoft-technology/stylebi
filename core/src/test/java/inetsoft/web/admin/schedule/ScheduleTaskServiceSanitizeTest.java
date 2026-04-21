@@ -18,7 +18,8 @@
 package inetsoft.web.admin.schedule;
 
 import inetsoft.sree.schedule.*;
-import inetsoft.sree.security.*;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,16 +39,13 @@ class ScheduleTaskServiceSanitizeTest {
    @Mock
    private ScheduleService scheduleService;
    @Mock
-   private SecurityProvider securityProvider;
-   @Mock
    private Principal principal;
 
    private ScheduleTaskService service;
 
    @BeforeEach
    void setUp() {
-      service = new ScheduleTaskService(null, null, scheduleService, null,
-                                        securityProvider, null);
+      service = new ScheduleTaskService(null, null, scheduleService, null, null, null);
    }
 
    // ── sanitizeConditions ────────────────────────────────────────────────────
@@ -152,6 +150,34 @@ class ScheduleTaskServiceSanitizeTest {
 
       // client sends AT but original at index 0 is EVERY_DAY
       ScheduleTask task = taskWithAt(new Date());
+      ScheduleTask original = taskWithEveryDay(9, 0, 0);
+
+      service.sanitizeConditions(task, original, principal);
+
+      assertEquals(0, task.getConditionCount());
+   }
+
+   @Test
+   void sanitizeConditions_noStartTime_everyHourSameIndex_restoresOriginal() {
+      denyStartTime();
+      allowTimeRange();
+
+      ScheduleTask task = taskWithEveryHour(10, 0);
+      ScheduleTask original = taskWithEveryHour(9, 15);
+      TimeCondition origTc = (TimeCondition) original.getCondition(0);
+
+      service.sanitizeConditions(task, original, principal);
+
+      assertEquals(1, task.getConditionCount());
+      assertSame(origTc, task.getCondition(0));
+   }
+
+   @Test
+   void sanitizeConditions_noStartTime_everyHourTypeMismatch_removesCondition() {
+      denyStartTime();
+      allowTimeRange();
+
+      ScheduleTask task = taskWithEveryHour(10, 0);
       ScheduleTask original = taskWithEveryDay(9, 0, 0);
 
       service.sanitizeConditions(task, original, principal);
@@ -405,6 +431,16 @@ class ScheduleTaskServiceSanitizeTest {
       return task;
    }
 
+   private ScheduleTask taskWithEveryHour(int hour, int minute) {
+      ScheduleTask task = new ScheduleTask();
+      TimeCondition tc = new TimeCondition();
+      tc.setType(TimeCondition.EVERY_HOUR);
+      tc.setHour(hour);
+      tc.setMinute(minute);
+      task.addCondition(tc);
+      return task;
+   }
+
    private ScheduleTask taskWithAt(Date date) {
       ScheduleTask task = new ScheduleTask();
       TimeCondition tc = TimeCondition.at(date);
@@ -419,26 +455,26 @@ class ScheduleTaskServiceSanitizeTest {
    }
 
    private void allowStartTime() {
-      when(securityProvider.checkPermission(eq(principal),
-         eq(ResourceType.SCHEDULE_OPTION), eq("startTime"), eq(ResourceAction.READ)))
+      when(scheduleService.checkPermission(eq(principal),
+         eq(ResourceType.SCHEDULE_OPTION), eq("startTime")))
          .thenReturn(true);
    }
 
    private void denyStartTime() {
-      when(securityProvider.checkPermission(eq(principal),
-         eq(ResourceType.SCHEDULE_OPTION), eq("startTime"), eq(ResourceAction.READ)))
+      when(scheduleService.checkPermission(eq(principal),
+         eq(ResourceType.SCHEDULE_OPTION), eq("startTime")))
          .thenReturn(false);
    }
 
    private void allowTimeRange() {
-      when(securityProvider.checkPermission(eq(principal),
-         eq(ResourceType.SCHEDULE_OPTION), eq("timeRange"), eq(ResourceAction.READ)))
+      when(scheduleService.checkPermission(eq(principal),
+         eq(ResourceType.SCHEDULE_OPTION), eq("timeRange")))
          .thenReturn(true);
    }
 
    private void denyTimeRange() {
-      when(securityProvider.checkPermission(eq(principal),
-         eq(ResourceType.SCHEDULE_OPTION), eq("timeRange"), eq(ResourceAction.READ)))
+      when(scheduleService.checkPermission(eq(principal),
+         eq(ResourceType.SCHEDULE_OPTION), eq("timeRange")))
          .thenReturn(false);
    }
 
