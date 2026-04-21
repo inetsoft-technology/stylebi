@@ -43,6 +43,7 @@
         <schema>OUTLN</schema>
         <schema>SYS</schema>
         <schema>SYSTEM</schema>
+        <schema>XDB</schema>
     </database>
     
     <!-- Sybase -->
