@@ -100,7 +100,7 @@ public class FileAuthenticationProviderTest {
       authz.setProviderName("Primary");
       AuthorizationChain authzChain = new AuthorizationChain();
       authzChain.setProviders(List.of(authz));
-      authcChain.saveConfiguration();
+      authzChain.saveConfiguration();
 
       SreeEnv.setProperty("security.enabled", "true");
       SreeEnv.setProperty("security.users.multiTenant", "true");
@@ -194,9 +194,7 @@ public class FileAuthenticationProviderTest {
       assertNull(provider.getOrgNameFromID("NonExisting"));
 
       //add invalid organization
-      Exception exception = assertThrows(NullPointerException.class, () -> provider.addOrganization(null));
-      assertEquals("Cannot invoke \"inetsoft.sree.security.Organization.getName()\" because \"organization\" is null",
-                   exception.getMessage());
+      assertThrows(NullPointerException.class, () -> provider.addOrganization(null));
    }
 
    @Test

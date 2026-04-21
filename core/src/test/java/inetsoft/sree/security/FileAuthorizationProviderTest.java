@@ -327,6 +327,7 @@ class FileAuthorizationProviderTest {
       @Override
       public Future<T> rename(String oldKey, String newKey, T value) {
          T renamedValue = value != null ? value : values.remove(oldKey);
+         values.remove(oldKey);
          T previous = values.put(newKey, renamedValue);
          return CompletableFuture.completedFuture(previous);
       }

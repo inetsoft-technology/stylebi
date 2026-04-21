@@ -342,7 +342,7 @@ class IdentityIDTest {
    }
 
    @Test
-   void hashCode_differentObjects_likelyDifferentHashCode() {
+   void hashCode_unequalObjects_produceDifferentHashCodes() {
       IdentityID a = new IdentityID("alice", "orgX");
       IdentityID b = new IdentityID("bob", "orgY");
       assertNotEquals(a.hashCode(), b.hashCode());
