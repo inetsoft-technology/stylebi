@@ -98,7 +98,7 @@ public class VSRefreshService {
       // In embed mode the client needs the linkUri from SetViewsheetInfoCommand to
       // construct chart image URLs (getAssemblyImage). Without it, the chart area
       // renders but image tiles cannot be loaded.
-      if(event.embed()) {
+      if(event.getEmbed()) {
          coreLifecycleService.setViewsheetInfo(rvs, linkUri, dispatcher);
       }
 
