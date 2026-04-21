@@ -103,7 +103,7 @@ public class RepositoryObjectService {
             path = node.path() + "&identifier=" + entry.toIdentifier();
          }
 
-         checkPermission(node.type(), path, EnumSet.of(ResourceAction.DELETE), principal);
+         checkPermission(node.type(), path, EnumSet.of(ResourceAction.DELETE), principal, node.owner());
       }
 
       deleteAutoSaveNodes(autoSaveNodes, principal);
@@ -1123,7 +1123,7 @@ public class RepositoryObjectService {
             int type = Integer.parseInt(typeFroms[i]);
             String src = pathFroms[i];
             checkPermission(type, src, EnumSet.of(ResourceAction.WRITE, ResourceAction.DELETE),
-               principal);
+               principal, null);
          }
       }
 
@@ -1149,7 +1149,7 @@ public class RepositoryObjectService {
    }
 
    private void checkPermission(int type, String src, EnumSet<ResourceAction> actions,
-                                   Principal principal)
+                                   Principal principal, IdentityID owner)
    {
       AssetEntry.Type newType = AssetEntry.Type.UNKNOWN;
       boolean isWS = false;
@@ -1208,8 +1208,11 @@ public class RepositoryObjectService {
             actions, true, principal);
       }
       else if(type == RepositoryEntry.DASHBOARD) {
-         if(!securityProvider.checkPermission(
-            principal, resource.getType(), resource.getPath(), ResourceAction.ADMIN))
+         IdentityID principalID = IdentityID.getIdentityIDFromKey(principal.getName());
+
+         if((owner == null || !owner.equals(principalID)) &&
+            !securityProvider.checkPermission(
+               principal, resource.getType(), resource.getPath(), ResourceAction.ADMIN))
          {
             throw new MessageException(Catalog.getCatalog().getString(
                "em.common.security.no.permission", src));
