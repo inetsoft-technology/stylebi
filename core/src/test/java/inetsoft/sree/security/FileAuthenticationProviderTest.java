@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2025  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -18,6 +18,54 @@
 
 package inetsoft.sree.security;
 
+/*
+ * FileAuthenticationProvider state transition table
+ *
+ * [Op: add→get/User]       empty + addUser(u)                              → getUser(id) == u
+ * [Op: set/User]           getUser(id)==u + setUser(id, u2)                → getUser(newId)==u2, getUser(oldId)==null
+ * [Op: remove/User]        getUser(id)==u + removeUser(id)                 → getUser(id) == null
+ * [Op: add→get/Group]      empty + addGroup(g)                             → getGroup(id) == g
+ * [Op: set/Group]          getGroup(id)==g + setGroup(id, g2)              → getGroup(newId)==g2, getGroup(oldId)==null
+ * [Op: remove/Group]       getGroup(id)==g + removeGroup(id)               → getGroup(id) == null
+ * [Op: add→get/Role]       empty + addRole(r)                              → getRole(id) == r
+ * [Op: set/Role]           getRole(id)==r + setRole(id, r2)                → getRole(newId)==r2, getRole(oldId)==null
+ * [Op: remove/Role]        getRole(id)==r + removeRole(id)                 → getRole(id) == null
+ * [Op: add→get/Org]        empty + addOrganization(o)                      → getOrganization(id) == o
+ * [Op: set/Org]            getOrganization(id)==o + setOrganization(id, o2)→ getOrganization(newId)==o2, old removed
+ * [Op: remove/Org]         getOrganization(id)==o + removeOrganization(id) → getOrganization(id) == null
+ * [Op: remove/Org-missing] removeOrganization(nonExistentId)               → no exception, silent skip
+ * [Key: org-lookup]        getOrgIdFromName / getOrgNameFromID             → reverse lookup returns correct value
+ * [Bulk: group-members]    users in group + setGroup(rename)               → getUsers(newGroupId) returns same members
+ * [Bulk: org-members]      users/groups/roles in org + setOrganization(rename orgId) → all members migrated to new orgId
+ * [Lifecycle: close]       open storages + tearDown()                      → user/group/role storage nulled
+ * [Event: getUserGroups]   user in group                                   → getUserGroups returns group name
+ * [Event: getRoles]        user + group + role chain (roleA→roleC, group→roleB) → getRoles returns all accumulated roles
+ * [Event: rename/Group]    setGroup(oldId, newGroup) + getUsers            → users' group refs rewritten to new name
+ * [Auth: valid]            active user + correct password                  → authenticate returns true
+ * [Auth: inactive]         inactive user + correct password                → false
+ * [Auth: wrong-password]   active user + wrong password                   → false
+ * [Auth: no-password]      user with null stored password                 → false
+ * [Auth: null-ticket]      null credential                                → false
+ * [Auth: empty-username]   ticket with empty username                     → false
+ * [Auth: non-ticket]       non-DefaultTicket string credential            → false
+ * [Auth: unknown-user]     user not found                                 → false
+ * [Role: sysAdmin=true]    FSRole.sysAdmin=true                           → isSystemAdministratorRole returns true
+ * [Role: orgAdmin=true]    FSRole.orgAdmin=true                           → isOrgAdministratorRole returns true
+ * [Role: nonExistent]      getRole returns null                           → both admin checks return false
+ * [Individual: email]      no-group user with multiple emails             → getIndividualEmailAddresses returns first email only
+ * [ChangePassword: valid]  existing user + new password                   → password re-hashed and stored
+ * [ChangePassword: missing]non-existent user                              → IllegalArgumentException
+ * [ChangePassword: null]   null password                                  → NullPointerException
+ * [removeGroup(id,false)]  group with no members + removeGroup(id, false) → group removed, no exception
+ *
+ * Intent vs implementation suspects
+ *
+ * [Suspect 1] tearDown() → intent: close all 4 storages
+ *             actual: organizationStorage omitted from close block → never closed or nulled
+ * [Suspect 2] removeGroup(id, false) with member users → intent: safe unlink
+ *             actual: processAuthenticationChange sets groups[index] = newID.name but newID is null → NPE
+ */
+
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.util.PasswordEncryption;
@@ -28,6 +76,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.List;
 
@@ -329,6 +378,26 @@ public class FileAuthenticationProviderTest {
 
       assertFalse(provider.isOrgAdministratorRole(roleId));
       assertFalse(provider.isSystemAdministratorRole(roleId));
+
+      // sysAdmin role returns true for isSystemAdministratorRole only
+      IdentityID sysAdminRoleId = new IdentityID("sysAdminTestRole", "testOrg");
+      FSRole sysAdminRole = new FSRole(sysAdminRoleId);
+      sysAdminRole.setSysAdmin(true);
+      provider.addRole(sysAdminRole);
+      assertTrue(provider.isSystemAdministratorRole(sysAdminRoleId));
+      assertFalse(provider.isOrgAdministratorRole(sysAdminRoleId));
+
+      // orgAdmin role returns true for isOrgAdministratorRole only
+      IdentityID orgAdminRoleId = new IdentityID("orgAdminTestRole", "testOrg");
+      FSRole orgAdminRole = new FSRole(orgAdminRoleId);
+      orgAdminRole.setOrgAdmin(true);
+      provider.addRole(orgAdminRole);
+      assertTrue(provider.isOrgAdministratorRole(orgAdminRoleId));
+      assertFalse(provider.isSystemAdministratorRole(orgAdminRoleId));
+
+      // non-existent role returns false for both
+      assertFalse(provider.isSystemAdministratorRole(new IdentityID("nonExistentRole", "testOrg")));
+      assertFalse(provider.isOrgAdministratorRole(new IdentityID("nonExistentRole", "testOrg")));
    }
 
    @Test
@@ -378,6 +447,9 @@ public class FileAuthenticationProviderTest {
                                                         () -> provider.changePassword(nonExistentUser, "newPassword"));
 
       assertEquals("User \"IdentityID{name='nonExistentUser', orgID='testOrg'}\" does not exist", exception.getMessage());
+
+      // null password throws NullPointerException before any user lookup
+      assertThrows(NullPointerException.class, () -> provider.changePassword(userIdentity, null));
    }
 
    @Test
@@ -411,6 +483,8 @@ public class FileAuthenticationProviderTest {
       assertNotNull(emailAddresses, "Email addresses should not be null");
       assertTrue(Arrays.asList(emailAddresses).contains("user1@example.com"));
       assertTrue(Arrays.asList(emailAddresses).contains("user2@example.com"));
+      assertFalse(Arrays.asList(emailAddresses).contains("user2_alt@example.com"),
+                  "Only the first email per user should be included");
       assertFalse(Arrays.asList(emailAddresses).contains("user3@example.com"));
       assertFalse(Arrays.asList(emailAddresses).contains("user4@example.com"));
 
@@ -455,6 +529,10 @@ public class FileAuthenticationProviderTest {
 
       //null ticket
       assertFalse(provider.authenticate(userIdentity, null));
+      //ticket with empty username
+      assertFalse(provider.authenticate(userIdentity, new DefaultTicket(new IdentityID("", "testOrg"), plainPassword)));
+      //non-DefaultTicket credential is parsed via DefaultTicket.parse(); unparseable string yields false
+      assertFalse(provider.authenticate(userIdentity, "not_a_ticket"));
       //invalid user identity
       assertFalse(provider.authenticate(new IdentityID("notExist", "testOrg"), ticket));
       //no password user
@@ -465,6 +543,114 @@ public class FileAuthenticationProviderTest {
       assertFalse(provider.authenticate(userIdentity, invalidTicket));
       //correct password
       assertTrue(provider.authenticate(userIdentity, ticket));
+   }
+
+   @Test
+   void testGetRoles() {
+      String orgId = "testOrg";
+
+      // roleA inherits roleC; group has roleB; user has roleA directly and belongs to group
+      IdentityID roleAId = new IdentityID("roleA", orgId);
+      IdentityID roleBId = new IdentityID("roleB", orgId);
+      IdentityID roleCId = new IdentityID("roleC", orgId);
+      FSRole roleA = new FSRole(roleAId);
+      FSRole roleB = new FSRole(roleBId);
+      FSRole roleC = new FSRole(roleCId);
+      roleA.setRoles(new IdentityID[]{ roleCId });
+      provider.addRole(roleA);
+      provider.addRole(roleB);
+      provider.addRole(roleC);
+
+      IdentityID groupId = new IdentityID("group1", orgId);
+      FSGroup group = new FSGroup(groupId);
+      group.setRoles(new IdentityID[]{ roleBId });
+      provider.addGroup(group);
+
+      IdentityID userId = new IdentityID("user1", orgId);
+      FSUser user = new FSUser(userId);
+      user.setRoles(new IdentityID[]{ roleAId });
+      user.setGroups(new String[]{ "group1" });
+      provider.addUser(user);
+
+      List<IdentityID> roles = Arrays.asList(provider.getRoles(userId));
+      assertTrue(roles.contains(roleAId), "Direct role should be included");
+      assertTrue(roles.contains(roleBId), "Role via group membership should be included");
+      assertTrue(roles.contains(roleCId), "Role inherited via parent chain should be included");
+
+      // user with no roles returns empty array
+      IdentityID noRoleUserId = new IdentityID("noRoleUser", orgId);
+      provider.addUser(new FSUser(noRoleUserId));
+      assertEquals(0, provider.getRoles(noRoleUserId).length);
+   }
+
+   @Test
+   void testGetUserGroups() {
+      String orgId = "testOrg";
+
+      IdentityID groupId = new IdentityID("groupA", orgId);
+      provider.addGroup(new FSGroup(groupId));
+
+      IdentityID userId = new IdentityID("user1", orgId);
+      FSUser user = new FSUser(userId);
+      user.setGroups(new String[]{ "groupA" });
+      provider.addUser(user);
+
+      assertTrue(Arrays.asList(provider.getUserGroups(userId)).contains("groupA"));
+
+      // user with no groups returns empty array
+      IdentityID noGroupUserId = new IdentityID("noGroupUser", orgId);
+      provider.addUser(new FSUser(noGroupUserId));
+      assertEquals(0, provider.getUserGroups(noGroupUserId).length);
+   }
+
+   @Test
+   void testRemoveGroupWithRemovedFalse_noMembers() {
+      // removeGroup(id, false) on a group with no members removes the group without exception
+      IdentityID groupId = new IdentityID("emptyGroup", "testOrg");
+      provider.addGroup(new FSGroup(groupId));
+      assertDoesNotThrow(() -> provider.removeGroup(groupId, false));
+      assertNull(provider.getGroup(groupId));
+   }
+
+   @Test
+   @Disabled("Bug: removeGroup(id, false) throws NullPointerException when users are members — " +
+             "processAuthenticationChange attempts groups[index] = newID.name but newID is null")
+   void testRemoveGroupWithRemovedFalse_memberUserCausesNPE() {
+      String orgId = "testOrg";
+      IdentityID groupId = new IdentityID("group1", orgId);
+      provider.addGroup(new FSGroup(groupId));
+
+      FSUser user = new FSUser(new IdentityID("user1", orgId));
+      user.setGroups(new String[]{ "group1" });
+      provider.addUser(user);
+
+      assertDoesNotThrow(() -> provider.removeGroup(groupId, false));
+   }
+
+   @Test
+   void testRemoveNonExistentOrganization() {
+      // Removing a non-existent organization logs a warning and returns without throwing
+      assertDoesNotThrow(() -> provider.removeOrganization("nonExistentOrgId"));
+   }
+
+   @Test
+   void testTearDown() throws Exception {
+      provider.tearDown();
+
+      for(String fieldName : List.of("userStorage", "groupStorage", "roleStorage")) {
+         Field field = FileAuthenticationProvider.class.getDeclaredField(fieldName);
+         field.setAccessible(true);
+         assertNull(field.get(provider), fieldName + " should be null after tearDown");
+      }
+   }
+
+   @Test
+   @Disabled("Bug: tearDown() does not close or null organizationStorage")
+   void testTearDown_organizationStorageNotNulled() throws Exception {
+      provider.tearDown();
+      Field field = FileAuthenticationProvider.class.getDeclaredField("organizationStorage");
+      field.setAccessible(true);
+      assertNull(field.get(provider), "organizationStorage should be null after tearDown");
    }
 
    private FileAuthenticationProvider provider;
