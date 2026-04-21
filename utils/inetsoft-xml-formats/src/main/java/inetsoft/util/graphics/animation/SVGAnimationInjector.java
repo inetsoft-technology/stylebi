@@ -152,6 +152,70 @@ public final class SVGAnimationInjector {
                            x0, x0, y0, rest, lastX);
    }
 
+   /**
+    * Build a closed polygon between two M/L line paths (topPath above bottomPath).
+    * Traces the top path left-to-right then the bottom path right-to-left to close the band.
+    * Falls back to {@link #buildFillPolygon(String)} if either path cannot be parsed.
+    */
+   static String buildBandPolygon(String topPath, String bottomPath) {
+      List<double[]> topPts = extractXYPairs(topPath);
+      List<double[]> botPts = extractXYPairs(bottomPath);
+
+      // If the top path is empty/unparseable, there is nothing to build.
+      // Return null so the call site's guard (band != null && !band.isEmpty()) skips the set.
+      if(topPts.isEmpty()) {
+         return null;
+      }
+      // If only the bottom path is missing, fall back to a baseline-to-line polygon for the top.
+      if(botPts.isEmpty()) {
+         return buildFillPolygon(topPath);
+      }
+
+      int n = Math.min(topPts.size(), botPts.size());
+      StringBuilder sb = new StringBuilder();
+      sb.append(String.format(Locale.US, "M%.4f,%.4f", topPts.get(0)[0], topPts.get(0)[1]));
+
+      for(int i = 1; i < n; i++) {
+         sb.append(String.format(Locale.US, " L%.4f,%.4f", topPts.get(i)[0], topPts.get(i)[1]));
+      }
+
+      for(int i = n - 1; i >= 0; i--) {
+         sb.append(String.format(Locale.US, " L%.4f,%.4f", botPts.get(i)[0], botPts.get(i)[1]));
+      }
+
+      sb.append(" Z");
+      return sb.toString();
+   }
+
+   /**
+    * Average y-value of an M/L path (odd-indexed numbers).
+    * Higher average y = higher series in Batik's y-flipped local coordinate space, where y
+    * increases upward (opposite of standard SVG, where y increases downward).  The parent
+    * {@code <g transform="matrix(1,0,0,-1,...)">} applies the flip, so a path with larger local
+    * y values renders higher on screen.  The downstream sort (descending by averageLineY) places
+    * the topmost visible series first.
+    */
+   static double averageLineY(String d) {
+      List<double[]> pts = extractXYPairs(d);
+      if(pts.isEmpty()) return 0;
+      double sum = 0;
+      for(double[] pt : pts) sum += pt[1];
+      return sum / pts.size();
+   }
+
+   private static List<double[]> extractXYPairs(String d) {
+      if(d == null || d.isEmpty()) return Collections.emptyList();
+      Matcher m = Pattern.compile("-?[0-9]+(?:\\.[0-9]+)?(?:[eE][-+]?[0-9]+)?")
+                          .matcher(d.replace(',', ' '));
+      List<Double> nums = new ArrayList<>();
+      while(m.find()) nums.add(Double.parseDouble(m.group()));
+      List<double[]> pts = new ArrayList<>();
+      for(int i = 0; i + 1 < nums.size(); i += 2) {
+         pts.add(new double[]{nums.get(i), nums.get(i + 1)});
+      }
+      return pts;
+   }
+
    static double findBarBaseline(List<double[]> bounds, boolean horizontal) {
       int iMin = horizontal ? 0 : 1;
       int iMax = horizontal ? 2 : 3;
@@ -191,14 +255,18 @@ public final class SVGAnimationInjector {
    static String buildAnimStyle(String origin, String growAnim, double delay) {
       return String.format(Locale.US,
          "transform-box:fill-box;transform-origin:%s;" +
-         "animation:%s 1.2s cubic-bezier(0.34,1.4,0.64,1) %.2fs both," +
-         "inetsoft-bar-fade 0.45s linear %.2fs both",
-         origin, growAnim, delay, delay);
+         "animation:%s %.2fs %s %.2fs both," +
+         "inetsoft-bar-fade %.2fs linear %.2fs both",
+         origin, growAnim,
+         AnimationConstants.BAR_GROW_DURATION, AnimationConstants.BAR_GROW_EASING,
+         delay,
+         AnimationConstants.BAR_GROW_FADE_DURATION, delay);
    }
 
    static String buildFadeStyle(double delay) {
       return String.format(Locale.US,
-         "animation:inetsoft-bar-fade 0.8s ease-out %.2fs both", delay);
+         "animation:inetsoft-bar-fade %.2fs %s %.2fs both",
+         AnimationConstants.DURATION, AnimationConstants.EASING, delay);
    }
 
    static double[] parseBarBounds(String d) {

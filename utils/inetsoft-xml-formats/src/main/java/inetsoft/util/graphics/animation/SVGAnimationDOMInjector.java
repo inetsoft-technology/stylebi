@@ -48,6 +48,11 @@ public class SVGAnimationDOMInjector {
     * {@code "grow"}, {@code "fade"}, {@code "pie"}, {@code "line"}, and optional flags
     * are {@code "3d"}, {@code "stacked"}, {@code "area"} (defined as {@code ANIMATION_FLAG_*}
     * constants in {@link SVGSupport}).  Example: {@code "grow:stacked"}, {@code "pie:3d"}.
+    *
+    * <p>Sets the {@code data-animated} attribute (empty string, presence-only flag) on the SVG
+    * root element when any animation was injected.  The Angular directive detects this flag to
+    * schedule the {@code .ready} class that gates hover CSS rules so dimming never fires during
+    * the entrance animation.
     */
    public static void injectAnimation(Element svgRoot, String animHint) {
       Document doc = svgRoot.getOwnerDocument();
@@ -56,40 +61,61 @@ public class SVGAnimationDOMInjector {
 
       appendHoverCSS(svgRoot, doc);
 
+      // animated = true for every branch that injects animation (even single-element charts
+      // where staggerDelay(0,1)=0, so lastDelay would stay 0 and cannot be used as a signal).
+      // Pie is excluded: it has no inetsoft-active hover so no .ready gate is needed.
+      boolean animated = false;
+
       if(SVGSupport.ANIMATION_PIE.equals(base)) {
          injectPieAnimation(svgRoot, doc);
       }
       else if(SVGSupport.ANIMATION_LINE.equals(base)) {
          injectLineAnimation(svgRoot, doc);
+         animated = true;
       }
       else if(SVGSupport.ANIMATION_POINT.equals(base)) {
          injectPointAnimation(svgRoot, doc);
+         animated = true;
       }
       else if(SVGSupport.ANIMATION_CANDLE.equals(base)) {
          injectCandleAnimation(svgRoot, doc);
+         animated = true;
       }
       else if(SVGSupport.ANIMATION_BOX.equals(base)) {
          injectBoxAnimation(svgRoot, doc);
+         animated = true;
       }
       else if(SVGSupport.ANIMATION_RADAR.equals(base)) {
          injectRadarAnimation(svgRoot, doc);
+         animated = true;
       }
       else if(SVGSupport.ANIMATION_TREEMAP.equals(base)) {
          injectTreemapAnimation(svgRoot, doc);
+         animated = true;
       }
       else if(SVGSupport.ANIMATION_SUNBURST.equals(base)) {
          injectSunburstAnimation(svgRoot, doc);
+         animated = true;
       }
       else if(SVGSupport.ANIMATION_ICICLE.equals(base)) {
          injectIcicleAnimation(svgRoot, doc);
+         animated = true;
       }
       else if(SVGSupport.ANIMATION_MEKKO.equals(base)) {
          injectMekkoAnimation(svgRoot, doc);
+         animated = true;
       }
       else {
          boolean fadeOnly = SVGSupport.ANIMATION_FADE.equals(base);
          List<Element> annotBars = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_BAR);
          injectBarAnimationFromAnnotations(annotBars, svgRoot, doc, fadeOnly);
+         animated = true;
+      }
+
+      // Signal to the Angular directive that animation was injected so it can schedule .ready.
+      // Only presence matters — the directive uses a fixed READY_MS gate, not the delay value.
+      if(animated) {
+         svgRoot.setAttribute("data-animated", "");
       }
    }
 
@@ -125,11 +151,15 @@ public class SVGAnimationDOMInjector {
 
    /**
     * Animate bars using semantic annotation groups ({@code <g class="inetsoft-bar" data-col="N">}).
-    * No color or shape heuristics — every annotation group gets the grow animation.
+    * No color or shape heuristics — every annotation group gets the animation.
+    *
+    * <p>When {@link AnimationConstants#BAR_GROW_ENABLED} is {@code false} (default), bars fade
+    * in opacity-only per the design spec.  Set it to {@code true} to restore the legacy
+    * scaleY/scaleX spring-from-baseline grow animation.
     */
    private static void injectBarAnimationFromAnnotations(List<Element> annotBars,
-                                                         Element svgRoot, Document doc,
-                                                         boolean fadeOnly)
+                                                           Element svgRoot, Document doc,
+                                                           boolean fadeOnly)
    {
       appendStyle(svgRoot, doc,
          "@keyframes inetsoft-bar-grow-y{from{transform:scaleY(0)}to{transform:scaleY(1)}}" +
@@ -169,21 +199,29 @@ public class SVGAnimationDOMInjector {
          .sorted()
          .toList();
 
-      double baseline = fadeOnly ? 0.0
-         : SVGAnimationInjector.findBarBaseline(allBounds, horizontal);
+      int numCols = sortedUnique.size();
+
+      // O(1) lookup: center position → stagger column index.
+      Map<Double, Integer> colIndexMap = new HashMap<>();
+      for(int k = 0; k < sortedUnique.size(); k++) {
+         colIndexMap.put(sortedUnique.get(k), k);
+      }
+
+      boolean useGrow = !fadeOnly && AnimationConstants.BAR_GROW_ENABLED;
+
+      double baseline = useGrow
+         ? SVGAnimationInjector.findBarBaseline(allBounds, horizontal)
+         : 0.0;
       String growAnim = horizontal ? "inetsoft-bar-grow-x" : "inetsoft-bar-grow-y";
 
       for(int i = 0; i < annotBars.size(); i++) {
          Element g    = annotBars.get(i);
          double[] b   = allBounds.get(i);
          double pos   = horizontal ? (b[1] + b[3]) / 2.0 : (b[0] + b[2]) / 2.0;
-         int colIdx   = sortedUnique.indexOf(pos);
-         double delay = Math.min(colIdx * 0.12, 2.0);
+         int colIdx   = colIndexMap.getOrDefault(pos, 0);
+         double delay = AnimationConstants.staggerDelay(colIdx, numCols);
 
-         if(fadeOnly) {
-            mergeStyle(g, SVGAnimationInjector.buildFadeStyle(delay));
-         }
-         else {
+         if(useGrow) {
             // Per-bar transform-origin anchored at the baseline.
             double dimMin  = horizontal ? b[0] : b[1];
             double dimSize = horizontal ? (b[2] - b[0]) : (b[3] - b[1]);
@@ -193,16 +231,24 @@ public class SVGAnimationDOMInjector {
                : String.format(java.util.Locale.US, "50%% %.2f%%", p);
             mergeStyle(g, SVGAnimationInjector.buildAnimStyle(barOrigin, growAnim, delay));
          }
+         else {
+            // A2 pattern: apply fade to inner child elements so the annotation group's own
+            // opacity is never animated. This prevents a fill-mode conflict with hover dim
+            // (which sets opacity on the group via :has()) without needing a .ready gate.
+            applyAnimStyleToChildren(g, SVGAnimationInjector.buildFadeStyle(delay));
+         }
       }
 
-      // Fade text label groups that appear after the bars.
-      double dotDelay = Math.min(sortedUnique.size() * 0.12, 2.0) + 1.2;
+      // Fade text label groups after the last bar has finished animating.
+      double lastBarDelay = AnimationConstants.staggerDelay(numCols - 1, numCols);
+      double dotDelay     = lastBarDelay + AnimationConstants.DURATION + AnimationConstants.READY_BUFFER;
       List<Element> valueLabelGroups = new ArrayList<>();
       collectTextGroups(svgRoot, valueLabelGroups);
 
       for(Element labelG : valueLabelGroups) {
          mergeStyle(labelG, String.format(java.util.Locale.US,
-            "opacity:0;animation:inetsoft-bar-fade 0.35s ease-out %.2fs both", dotDelay));
+            "opacity:0;animation:inetsoft-bar-fade %.2fs %s %.2fs both",
+            AnimationConstants.DURATION, AnimationConstants.EASING, dotDelay));
       }
 
       // Annotate value labels with inetsoft-bar-label and matching data-row/data-col so the
@@ -216,6 +262,7 @@ public class SVGAnimationDOMInjector {
          label.setAttribute("data-" + SVGSupport.ATTR_COL,
             bar.getAttribute("data-" + SVGSupport.ATTR_COL));
       }
+
    }
 
    /**
@@ -391,7 +438,7 @@ public class SVGAnimationDOMInjector {
       // 3D pie faces: multiple arc-containing paths share the same startX (one per 3D face of
       // each logical slice).  We deduplicate by startX so all faces of the same slice receive
       // the same animation delay, keeping the 3D faces in sync during the sweep.
-      final double SLICE_DUR = 0.25; // seconds per slice
+      final double SLICE_DUR = AnimationConstants.PIE_SLICE_DURATION;
 
       appendStyle(svgRoot, doc, "@keyframes inetsoft-pie-fade{from{opacity:0}to{opacity:1}}");
 
@@ -443,14 +490,16 @@ public class SVGAnimationDOMInjector {
       if(numArcGroups == 0) {
          for(int si = 0; si < slices.size(); si++) {
             mergeStyle(slices.get(si), String.format(java.util.Locale.US,
-               "opacity:0;animation:inetsoft-pie-fade 0.5s ease %.2fs both", si * SLICE_DUR));
+               "opacity:0;animation:inetsoft-pie-fade %.2fs %s %.2fs both",
+               AnimationConstants.PIE_FADE_DURATION, AnimationConstants.PIE_FADE_EASING, si * SLICE_DUR));
          }
 
          double centerTextDelay = slices.size() * SLICE_DUR + 0.1;
 
          for(Element textGroup : textGroups) {
             mergeStyle(textGroup, String.format(java.util.Locale.US,
-               "opacity:0;animation:inetsoft-pie-fade 0.4s ease %.2fs both", centerTextDelay));
+               "opacity:0;animation:inetsoft-pie-fade %.2fs %s %.2fs both",
+               AnimationConstants.PIE_TEXT_DURATION, AnimationConstants.PIE_FADE_EASING, centerTextDelay));
          }
 
          return;
@@ -659,7 +708,8 @@ public class SVGAnimationDOMInjector {
 
          // No center available: opacity fade.
          mergeStyle(slice, String.format(java.util.Locale.US,
-            "opacity:0;animation:inetsoft-pie-fade 0.5s ease %.2fs both", delay));
+            "opacity:0;animation:inetsoft-pie-fade %.2fs %s %.2fs both",
+            AnimationConstants.PIE_FADE_DURATION, AnimationConstants.PIE_FADE_EASING, delay));
       }
 
       if(!cssKeyframes.isEmpty()) {
@@ -671,7 +721,8 @@ public class SVGAnimationDOMInjector {
 
       for(Element textGroup : textGroups) {
          mergeStyle(textGroup, String.format(java.util.Locale.US,
-            "opacity:0;animation:inetsoft-pie-fade 0.4s ease %.2fs both", centerTextDelay));
+            "opacity:0;animation:inetsoft-pie-fade %.2fs %s %.2fs both",
+            AnimationConstants.PIE_TEXT_DURATION, AnimationConstants.PIE_FADE_EASING, centerTextDelay));
       }
    }
 
@@ -697,8 +748,8 @@ public class SVGAnimationDOMInjector {
     * information comes directly from the annotations.
     */
    private static void injectLineAnimationFromAnnotations(List<Element> annotLines,
-                                                          List<Element> annotAreas,
-                                                          Element svgRoot, Document doc)
+                                                            List<Element> annotAreas,
+                                                            Element svgRoot, Document doc)
    {
       // Line rank: data-series column index → 0-based rank.
       // getColIndex() starts at 1 in some charts; TreeSet + sequential rank normalizes to 0-based.
@@ -731,14 +782,14 @@ public class SVGAnimationDOMInjector {
       int numAreaSeries = areaColorRank.size();
       int numSeries     = Math.max(numLineSeries, numAreaSeries);
       boolean isAreaChart = !annotAreas.isEmpty();
-      // Dots and value labels appear after all series have started their line animation.
-      double dotDelay = Math.max(numSeries - 1, 0) * 0.15 + 1.2;
+      // Dots and value labels appear after all series have finished their line animation.
+      double dotDelay = AnimationConstants.staggerDelay(numSeries - 1, numSeries)
+                        + AnimationConstants.DURATION + AnimationConstants.READY_BUFFER;
 
       String css =
          "@keyframes inetsoft-line-draw{from{stroke-dashoffset:var(--len,2000)}to{stroke-dashoffset:0}}" +
          "@keyframes inetsoft-line-wipe{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0% 0 0)}}" +
-         "@keyframes inetsoft-line-fade{from{opacity:0}to{opacity:1}}" +
-         "@keyframes inetsoft-area-fade{from{opacity:0}to{opacity:1}}";
+         "@keyframes inetsoft-line-fade{from{opacity:0}to{opacity:1}}";
       appendStyle(svgRoot, doc, css);
 
       List<GhostFillInfo> ghostFills = new ArrayList<>();
@@ -766,43 +817,47 @@ public class SVGAnimationDOMInjector {
             seriesIdx = lineSeriesRank.getOrDefault(col, 0);
          }
 
-         double delay     = seriesIdx * 0.15;
+         double delay     = AnimationConstants.staggerDelay(seriesIdx, numSeries);
          boolean isDashed = "true".equals(g.getAttribute("data-" + SVGSupport.ATTR_DASHED));
 
          if(isDashed) {
             // Clip-path wipe — leaves stroke-dasharray pattern intact.
             // clip-path:inset(0 100% 0 0) mirrors the from-keyframe to prevent a flash on
             // the first paint frame before fill-mode takes effect.
+            // Keeps cubic-bezier easing (ease-in-out) which is correct for a left-to-right reveal.
             mergeStyle(path, String.format(
-               "clip-path:inset(0 100%% 0 0);animation:inetsoft-line-wipe 1.2s cubic-bezier(0.4,0,0.2,1) %.2fs both",
-               delay));
+               "clip-path:inset(0 100%% 0 0);animation:inetsoft-line-wipe %.2fs cubic-bezier(0.4,0,0.2,1) %.2fs both",
+               AnimationConstants.DURATION, delay));
          }
          else {
             // Stroke-dashoffset draw-on.
             // Add 2 to the ceiling so the dasharray is always strictly longer than the actual path.
+            // Keeps cubic-bezier easing (ease-in-out) which is correct for a progressive draw-on.
             long len = (long) Math.ceil(SVGAnimationInjector.computePathLength(path.getAttribute("d"))) + 2;
             path.setAttribute("stroke-dasharray", len + " " + len);
             path.setAttribute("stroke-dashoffset", String.valueOf(len));
             mergeStyle(path, String.format(
-               "stroke-dashoffset:%d;--len:%d;animation:inetsoft-line-draw 1.2s cubic-bezier(0.4,0,0.2,1) %.2fs both",
-               len, len, delay));
+               "stroke-dashoffset:%d;--len:%d;animation:inetsoft-line-draw %.2fs cubic-bezier(0.4,0,0.2,1) %.2fs both",
+               len, len, AnimationConstants.DURATION, delay));
          }
 
          // Ghost fill — color comes from data-color annotation, not from SVG stroke parsing.
          // The transform lives on Batik's inner style group (path's parent), not on the annotation
-         // group itself.
+         // group itself.  Each series fills independently from its line to the baseline (y=0 in
+         // local coords), so crossing lines never produce self-intersecting polygons.
          if(!isAreaChart) {
             String pathFill = path.getAttribute("fill");
             boolean hasFill = !pathFill.isEmpty() && !"none".equals(pathFill) && !pathFill.startsWith("url(");
 
             if(!hasFill) {
-               int[] rgb = parseColorData(g.getAttribute("data-" + SVGSupport.ATTR_COLOR));
-               String polygon = SVGAnimationInjector.buildFillPolygon(path.getAttribute("d"));
+               int[] rgb     = parseColorData(g.getAttribute("data-" + SVGSupport.ATTR_COLOR));
+               String lineD  = path.getAttribute("d");
+               String polygon = SVGAnimationInjector.buildFillPolygon(lineD);
 
                if(rgb != null && polygon != null && !polygon.isEmpty()) {
                   String transform = ((Element) path.getParentNode()).getAttribute("transform");
                   String clipPath  = path.getAttribute("clip-path");
-                  ghostFills.add(new GhostFillInfo(polygon, rgb, delay, 1.2,
+                  ghostFills.add(new GhostFillInfo(polygon, rgb, delay,
                                                    (Element) g.getParentNode(), g, seriesIdx,
                                                    transform, clipPath));
                }
@@ -816,26 +871,103 @@ public class SVGAnimationDOMInjector {
          }
       }
 
-      // Area fill groups — delay is reversed so the innermost (smallest) polygon fades in first.
-      // Rank by color (DOM order) rather than data-series; see areaColorRank comment above.
-      for(Element g : annotAreas) {
+      // Area fill groups — wipe left-to-right; reshape into non-overlapping bands.
+      //
+      // annotAreas and annotLines are both collected in DOM traversal order.  Within each
+      // chart panel the SVG emits [area_seriesN, line_seriesN] pairs, so annotAreas[i] and
+      // annotLines[i] are always the same series in the same panel.  Using parallel indexing
+      // avoids the cross-panel coordinate mismatch that occurs when matching by color alone
+      // (facet charts repeat the same color across multiple panels).
+      List<AreaBandEntry> areaBandEntries = new ArrayList<>();
+
+      for(int aIdx = 0; aIdx < annotAreas.size(); aIdx++) {
+         Element g    = annotAreas.get(aIdx);
          Element path = firstDescendantPath(g);
 
          if(path == null) {
+            areaBandEntries.add(null);
             continue;
          }
 
          String color     = g.getAttribute("data-" + SVGSupport.ATTR_COLOR);
          int    seriesIdx = areaColorRank.getOrDefault(color, 0);
-         double delay     = (numAreaSeries - 1 - seriesIdx) * 0.15;
-         mergeStyle(path, String.format("opacity:0;animation:inetsoft-area-fade 0.6s ease %.2fs both", delay));
+         double delay     = AnimationConstants.staggerDelay(seriesIdx, numSeries);
+
+         // Collect the panel-local line path for band polygon computation below.
+         // The matching line group is annotLines[aIdx] — same series, same panel.
+         String localLinePath = "";
+
+         if(aIdx < annotLines.size()) {
+            Element lineGroup  = annotLines.get(aIdx);
+            String  lineColor  = lineGroup.getAttribute("data-" + SVGSupport.ATTR_COLOR);
+
+            if(color.equals(lineColor)) {
+               Element linePathEl = firstDescendantPath(lineGroup);
+               if(linePathEl != null) {
+                  localLinePath = linePathEl.getAttribute("d");
+               }
+            }
+         }
+
+         areaBandEntries.add(new AreaBandEntry(path, localLinePath));
+
+         // The path may carry a chart-boundary clip-path attribute. CSS clip-path set on the
+         // same element (by the wipe animation's fill-mode) would evict it. Preserve the
+         // boundary clip on a wrapper <g> so both clips apply independently.
+         String existingClip = path.getAttribute("clip-path");
+
+         if(existingClip != null && !existingClip.isEmpty()) {
+            path.removeAttribute("clip-path");
+            Element wrapper = doc.createElementNS(SVG_NS, "g");
+            wrapper.setAttribute("clip-path", existingClip);
+            Node pathParent = path.getParentNode();
+            pathParent.insertBefore(wrapper, path);
+            wrapper.appendChild(path);
+         }
+
+         mergeStyle(path, String.format(
+            "clip-path:inset(0 100%% 0 0);animation:inetsoft-line-wipe %.2fs cubic-bezier(0.4,0,0.2,1) %.2fs both",
+            AnimationConstants.DURATION, delay));
+      }
+
+      // Reshape area fill polygons into non-overlapping bands, one chart panel at a time.
+      // Each panel contributes numAreaSeries consecutive entries to areaBandEntries.
+      // Within each panel: sort by average line y, replace non-bottom fills with band polygons.
+      // Bottom series keeps Batik's polygon (already goes from its line to the baseline).
+      if(numAreaSeries > 0) {
+         for(int panelStart = 0; panelStart < areaBandEntries.size(); panelStart += numAreaSeries) {
+            int panelEnd = Math.min(panelStart + numAreaSeries, areaBandEntries.size());
+            List<AreaBandEntry> panel = new ArrayList<>();
+
+            for(int i = panelStart; i < panelEnd; i++) {
+               if(areaBandEntries.get(i) != null) {
+                  panel.add(areaBandEntries.get(i));
+               }
+            }
+
+            panel.sort((a, b) -> Double.compare(
+               SVGAnimationInjector.averageLineY(b.linePath),
+               SVGAnimationInjector.averageLineY(a.linePath)));
+
+            for(int i = 0; i < panel.size() - 1; i++) {
+               AreaBandEntry top  = panel.get(i);
+               AreaBandEntry bot  = panel.get(i + 1);
+
+               if(!top.linePath.isEmpty() && !bot.linePath.isEmpty()) {
+                  String band = SVGAnimationInjector.buildBandPolygon(top.linePath, bot.linePath);
+                  if(band != null && !band.isEmpty()) {
+                     top.fillPath.setAttribute("d", band);
+                  }
+               }
+            }
+         }
       }
 
       // Inject ghost fills in reverse so earlier (lower-indexed) series render behind later ones.
       for(int gi = ghostFills.size() - 1; gi >= 0; gi--) {
          GhostFillInfo gf = ghostFills.get(gi);
          injectGhostFill(doc, gf.panel, gf.insertBeforeGroup, gf.polygon,
-                         gf.rgb, gf.delay, gf.duration, numSeries, gf.seriesIdx, gf.transform,
+                         gf.rgb, gf.delay, ghostFills.size(), gi, gf.transform,
                          gf.clipPath);
       }
 
@@ -864,7 +996,8 @@ public class SVGAnimationDOMInjector {
             // the dot appears after, not before, its line.
             if(SVGSupport.ANNOTATION_POINT.equals(sibClass)) {
                mergeStyle(sibling, String.format(
-                  "opacity:0;animation:inetsoft-line-fade 0.35s ease-out %.2fs both", dotDelay));
+                  "opacity:0;animation:inetsoft-line-fade %.2fs %s %.2fs both",
+                  AnimationConstants.DURATION, AnimationConstants.EASING, dotDelay));
                continue;
             }
 
@@ -876,7 +1009,8 @@ public class SVGAnimationDOMInjector {
             if(classifyLineGroup(sibling) == LineGroupType.DOTS) {
                for(Element circle : childCircles(sibling)) {
                   mergeStyle(circle, String.format(
-                     "opacity:0;animation:inetsoft-line-fade 0.35s ease-out %.2fs both", dotDelay));
+                     "opacity:0;animation:inetsoft-line-fade %.2fs %s %.2fs both",
+                     AnimationConstants.DURATION, AnimationConstants.EASING, dotDelay));
                }
             }
          }
@@ -888,8 +1022,10 @@ public class SVGAnimationDOMInjector {
 
       for(Element labelG : valueLabelGroups) {
          mergeStyle(labelG, String.format(java.util.Locale.US,
-            "opacity:0;animation:inetsoft-line-fade 0.35s ease-out %.2fs both", dotDelay));
+            "opacity:0;animation:inetsoft-line-fade %.2fs %s %.2fs both",
+            AnimationConstants.DURATION, AnimationConstants.EASING, dotDelay));
       }
+
    }
 
    // -------------------------------------------------------------------------
@@ -1246,9 +1382,10 @@ public class SVGAnimationDOMInjector {
    /**
     * Inject a ghost (translucent) fill polygon for a solid line series.
     * The fill polygon goes from the line path down to the baseline (y=0 in local coords).
+    * Wipes left-to-right in sync with the line draw (same delay and easing).
     */
    private static void injectGhostFill(Document doc, Element panel, Element insertBefore,
-                                       String polygon, int[] rgb, double lineDelay, double duration,
+                                       String polygon, int[] rgb, double lineDelay,
                                        int numSeries, int seriesIdx, String transform,
                                        String clipPath)
    {
@@ -1256,22 +1393,32 @@ public class SVGAnimationDOMInjector {
       opacity = Math.min(opacity, 0.15);
       String fill = String.format("rgba(%d,%d,%d,%.3f)", rgb[0], rgb[1], rgb[2], opacity);
 
-      double delay = Math.max(0, lineDelay + duration * 0.5);
+      String wipeStyle = String.format(
+         "clip-path:inset(0 100%% 0 0);animation:inetsoft-line-wipe %.2fs cubic-bezier(0.4,0,0.2,1) %.2fs both",
+         AnimationConstants.DURATION, lineDelay);
 
       Element ghostPath = doc.createElementNS(SVG_NS, "path");
       ghostPath.setAttribute("d", polygon);
       ghostPath.setAttribute("fill", fill);
       ghostPath.setAttribute("stroke", "none");
-      if(transform != null && !transform.isEmpty()) {
-         ghostPath.setAttribute("transform", transform);
-      }
-      if(clipPath != null && !clipPath.isEmpty()) {
-         ghostPath.setAttribute("clip-path", clipPath);
-      }
-      ghostPath.setAttribute("style", String.format(
-         "opacity:0;animation:inetsoft-area-fade 0.5s ease %.2fs both", delay));
+      ghostPath.setAttribute("style", wipeStyle);
 
-      panel.insertBefore(ghostPath, insertBefore);
+      if(clipPath != null && !clipPath.isEmpty()) {
+         // Boundary clip on a wrapper so the wipe clip-path does not evict it.
+         Element wrapper = doc.createElementNS(SVG_NS, "g");
+         if(transform != null && !transform.isEmpty()) {
+            wrapper.setAttribute("transform", transform);
+         }
+         wrapper.setAttribute("clip-path", clipPath);
+         wrapper.appendChild(ghostPath);
+         panel.insertBefore(wrapper, insertBefore);
+      }
+      else {
+         if(transform != null && !transform.isEmpty()) {
+            ghostPath.setAttribute("transform", transform);
+         }
+         panel.insertBefore(ghostPath, insertBefore);
+      }
    }
 
    // -------------------------------------------------------------------------
@@ -1282,9 +1429,6 @@ public class SVGAnimationDOMInjector {
     * Fade in point markers staggered largest-first (primary sort), left-to-right (tiebreaker).
     * Each {@code inetsoft-point} annotation group receives an {@code animation} inline style;
     * a single {@code @keyframes inetsoft-point-fade} block is appended to a {@code <style>}.
-    *
-    * <p>Delays are distributed uniformly across 0–0.6 s regardless of marker count so that
-    * large scatter plots do not produce a slow trailing tail.
     */
    private static void injectPointAnimation(Element svgRoot, Document doc) {
       appendStyle(svgRoot, doc,
@@ -1313,19 +1457,16 @@ public class SVGAnimationDOMInjector {
          .thenComparingDouble(SVGAnimationDOMInjector::firstChildCx));
 
       int n = points.size();
-      // Spread delays evenly across 0–1.2 s so large charts still feel snappy.
-      // Each marker fades over 0.9 s, giving a total experience of ~2.1 s for the last point.
-      double maxDelay = 1.2;
-      double step = n > 1 ? maxDelay / (n - 1) : 0;
 
       for(int i = 0; i < n; i++) {
-         double delay = i * step;
+         double delay = AnimationConstants.staggerDelay(i, n);
          String animStyle = String.format(java.util.Locale.US,
-            "animation:inetsoft-point-fade 0.9s ease-out %.2fs both", delay);
+            "animation:inetsoft-point-fade %.2fs %s %.2fs both",
+            AnimationConstants.DURATION, AnimationConstants.EASING, delay);
          // Apply the animation to the inner content group(s), not the outer annotation group.
          // The outer .inetsoft-point group must have no animation on its own opacity so that
-         // the hover CSS rule (opacity:.2!important) can take effect without a cascade conflict
-         // between !important-level and animation-level declarations.
+         // hover CSS (opacity:.2!important) can take effect via the .ready gate without a
+         // cascade conflict.
          Node child = points.get(i).getFirstChild();
          while(child != null) {
             if(child instanceof Element e) {
@@ -1334,6 +1475,7 @@ public class SVGAnimationDOMInjector {
             child = child.getNextSibling();
          }
       }
+
    }
 
    /**
@@ -1407,8 +1549,8 @@ public class SVGAnimationDOMInjector {
     * Inject staggered fade-in for rectangular treemap charts.
     *
     * <p>Cells are sorted by bounding-box area (largest first) so the most prominent cells
-    * appear first, with smaller cells trailing behind.  Maximum stagger is capped at 1.2 s
-    * regardless of cell count so dense treemaps still feel snappy.
+    * appear first, with smaller cells trailing behind.  Stagger is spread across the
+    * {@link AnimationConstants#STAGGER_WINDOW} regardless of cell count.
     */
    private static void injectTreemapAnimation(Element svgRoot, Document doc) {
       appendStyle(svgRoot, doc,
@@ -1426,7 +1568,6 @@ public class SVGAnimationDOMInjector {
       }));
 
       int n = cells.size();
-      double step = n > 1 ? Math.min(0.25, 1.0 / n) : 0;
 
       // Compute bounds after sorting (order has changed but elements are the same).
       List<double[]> cellBounds = cells.stream()
@@ -1437,8 +1578,10 @@ public class SVGAnimationDOMInjector {
       Map<Integer, String> cellStyles = new HashMap<>();
 
       for(int i = 0; i < n; i++) {
+         double delay = AnimationConstants.staggerDelay(i, n);
          String animStyle = String.format(java.util.Locale.US,
-            "animation:inetsoft-treemap-fade 0.8s ease-out %.2fs both", i * step);
+            "animation:inetsoft-treemap-fade %.2fs %s %.2fs both",
+            AnimationConstants.DURATION, AnimationConstants.EASING, delay);
          applyAnimStyleToChildren(cells.get(i), animStyle);
          cellStyles.put(i, animStyle);
       }
@@ -1456,6 +1599,7 @@ public class SVGAnimationDOMInjector {
             tagLabelForHover(textG, cells.get(idx), SVGSupport.ANNOTATION_TREEMAP_LABEL);
          }
       }
+
    }
 
    // -------------------------------------------------------------------------
@@ -1465,10 +1609,9 @@ public class SVGAnimationDOMInjector {
    /**
     * Inject a ring-depth-first spiral fade-in for sunburst charts.
     *
-    * <p>Rings are animated in order from the innermost (root) outward.  Within each ring,
-    * arcs are sorted clockwise from 12 o'clock using the bounding-box centre angle relative
-    * to the approximate sunburst origin, producing a spiral sweep within each ring.  A short
-    * gap between rings lets each spiral complete before the next one begins.
+    * <p>Arcs are ordered ring-by-ring (root inward first), and within each ring clockwise from
+    * 12 o'clock.  Stagger is distributed across {@link AnimationConstants#STAGGER_WINDOW} using
+    * a flat formula so the total animation window is always bounded regardless of arc count.
     *
     * <p>Text label groups are matched to their nearest arc by Euclidean distance and receive
     * the same {@code animation-delay} so they fade in together with their arc.
@@ -1497,27 +1640,18 @@ public class SVGAnimationDOMInjector {
       double originX = sumX / n;
       double originY = sumY / n;
 
-      // Group arc indices by level; TreeMap with reverseOrder puts root (highest) first.
+      // Order arcs ring-by-ring (root first), clockwise within each ring, then assign flat
+      // stagger delays across STAGGER_WINDOW so the total is always bounded regardless of count.
       Map<Integer, List<Integer>> byLevel = new TreeMap<>(Comparator.reverseOrder());
       for(int i = 0; i < n; i++) {
          int level = parseIntAttr(arcs.get(i), SVGSupport.ATTR_LEVEL);
          byLevel.computeIfAbsent(level, k -> new ArrayList<>()).add(i);
       }
 
-      // Per-arc stagger within a ring; min(0.15, 0.8/ringSize) keeps dense rings snappy.
-      final double ANIM_DURATION   = 0.45; // fade duration of a single arc
-      final double RING_GAP        = 0.05; // gap after inner ring finishes before outer ring starts
-
-      // arc index → animation style string, used later to match labels.
-      Map<Integer, String> arcStyles = new HashMap<>();
-      double baseDelay = 0;
-
-      for(List<Integer> indices : byLevel.values()) {
-         int m = indices.size();
-         double step = m > 1 ? Math.min(0.15, 0.8 / m) : 0;
-
-         // Sort clockwise from 12 o'clock within this ring.
-         indices.sort(Comparator.comparingDouble(i -> {
+      List<Integer> staggerOrder = new ArrayList<>(n);
+      for(List<Integer> ringIndices : byLevel.values()) {
+         List<Integer> sorted = new ArrayList<>(ringIndices);
+         sorted.sort(Comparator.comparingDouble(i -> {
             double[] b = bounds.get(i);
             double dx = (b[0] + b[2]) / 2.0 - originX;
             double dy = (b[1] + b[3]) / 2.0 - originY;
@@ -1526,19 +1660,24 @@ public class SVGAnimationDOMInjector {
             if(angle >= 2 * Math.PI) angle -= 2 * Math.PI;
             return angle;
          }));
+         staggerOrder.addAll(sorted);
+      }
 
-         for(int rank = 0; rank < m; rank++) {
-            int origIdx = indices.get(rank);
-            double delay = baseDelay + rank * step;
-            String style = String.format(java.util.Locale.US,
-               "animation:inetsoft-sunburst-fade %.2fs ease-out %.2fs both",
-               ANIM_DURATION, delay);
-            arcStyles.put(origIdx, style);
-            applyAnimStyleToChildren(arcs.get(origIdx), style);
-         }
+      int[] arcStaggerPos = new int[n];
+      for(int k = 0; k < staggerOrder.size(); k++) {
+         arcStaggerPos[staggerOrder.get(k)] = k;
+      }
 
-         // Next ring begins after this ring's last arc has fully faded in, plus a small gap.
-         baseDelay += (m - 1) * step + ANIM_DURATION + RING_GAP;
+      // arc index → animation style string, used later to match labels.
+      Map<Integer, String> arcStyles = new HashMap<>();
+
+      for(int i = 0; i < n; i++) {
+         double delay = AnimationConstants.staggerDelay(arcStaggerPos[i], n);
+         String style = String.format(java.util.Locale.US,
+            "animation:inetsoft-sunburst-fade %.2fs %s %.2fs both",
+            AnimationConstants.DURATION, AnimationConstants.EASING, delay);
+         arcStyles.put(i, style);
+         applyAnimStyleToChildren(arcs.get(i), style);
       }
 
       // Match each label text group to its nearest arc via CTM-based positioning (avoids
@@ -1555,6 +1694,7 @@ public class SVGAnimationDOMInjector {
             tagLabelForHover(textG, arcs.get(bestIdx), SVGSupport.ANNOTATION_TREEMAP_LABEL);
          }
       }
+
    }
 
    // -------------------------------------------------------------------------
@@ -1564,9 +1704,10 @@ public class SVGAnimationDOMInjector {
    /**
     * Inject staggered fade-in for icicle charts.
     *
-    * <p>Depth columns are staggered left-to-right with a fixed 0.25s base offset per level.
-    * Within each depth column, cells cascade top-to-bottom using {@code min(0.25, 1.0/count)}.
-    * Formula: {@code delay = (maxLevel - level) * 0.25 + idxWithinDepth * min(0.25, 1.0/count)}.
+    * <p>Cells are ordered by {@code data-level} (root — highest value — first, leaves — level 0
+    * — last) and within each level top-to-bottom.  Stagger is distributed across
+    * {@link AnimationConstants#STAGGER_WINDOW} using a flat formula so the total window is
+    * always bounded.
     */
    private static void injectIcicleAnimation(Element svgRoot, Document doc) {
       appendStyle(svgRoot, doc,
@@ -1578,46 +1719,45 @@ public class SVGAnimationDOMInjector {
          return;
       }
 
+      int n = cells.size();
       List<double[]> bounds = cells.stream()
          .map(SVGAnimationDOMInjector::annotGroupBounds)
          .collect(Collectors.toList());
 
-      int maxLevel = cells.stream()
-         .mapToInt(g -> parseIntAttr(g, SVGSupport.ATTR_LEVEL))
-         .max().orElse(0);
-
-      // Group cell indices by level; count cells per level for within-depth stagger.
+      // Group cell indices by level; sort within each level top-to-bottom.
       Map<Integer, List<Integer>> byLevel = new HashMap<>();
-      for(int i = 0; i < cells.size(); i++) {
+      for(int i = 0; i < n; i++) {
          int level = parseIntAttr(cells.get(i), SVGSupport.ATTR_LEVEL);
          byLevel.computeIfAbsent(level, k -> new ArrayList<>()).add(i);
       }
-
-      // Within each depth column sort top-to-bottom by Y position.
       for(List<Integer> indices : byLevel.values()) {
          indices.sort(Comparator.comparingDouble(i -> bounds.get(i)[1]));
       }
 
-      final double DEPTH_STEP = 0.25; // base delay per depth column (left → right)
+      // Build stagger order: root (highest data-level) first with delay=0, leaves (level=0) last.
+      List<Integer> levelOrder = new ArrayList<>(byLevel.keySet());
+      levelOrder.sort(Comparator.reverseOrder()); // highest data-level = root = first; level=0 = leaf = last
+
+      List<Integer> staggerOrder = new ArrayList<>(n);
+      for(int level : levelOrder) {
+         staggerOrder.addAll(byLevel.get(level));
+      }
+
+      int[] cellStaggerPos = new int[n];
+      for(int k = 0; k < staggerOrder.size(); k++) {
+         cellStaggerPos[staggerOrder.get(k)] = k;
+      }
 
       // cell index → animation style, used to match labels after cell pass.
       Map<Integer, String> cellStyles = new HashMap<>();
 
-      for(Map.Entry<Integer, List<Integer>> entry : byLevel.entrySet()) {
-         int level = entry.getKey();
-         List<Integer> indices = entry.getValue();
-         int count = indices.size();
-         double depthBase = (maxLevel - level) * DEPTH_STEP;
-         double withinStep = count > 1 ? Math.min(0.25, 1.0 / count) : 0;
-
-         for(int rank = 0; rank < count; rank++) {
-            int idx = indices.get(rank);
-            double delay = depthBase + rank * withinStep;
-            String animStyle = String.format(java.util.Locale.US,
-               "animation:inetsoft-icicle-fade 0.8s ease-out %.2fs both", delay);
-            applyAnimStyleToChildren(cells.get(idx), animStyle);
-            cellStyles.put(idx, animStyle);
-         }
+      for(int i = 0; i < n; i++) {
+         double delay = AnimationConstants.staggerDelay(cellStaggerPos[i], n);
+         String animStyle = String.format(java.util.Locale.US,
+            "animation:inetsoft-icicle-fade %.2fs %s %.2fs both",
+            AnimationConstants.DURATION, AnimationConstants.EASING, delay);
+         applyAnimStyleToChildren(cells.get(i), animStyle);
+         cellStyles.put(i, animStyle);
       }
 
       // Match label text groups to their cell and apply the same animation style so labels
@@ -1633,6 +1773,7 @@ public class SVGAnimationDOMInjector {
             tagLabelForHover(textG, cells.get(bestIdx), SVGSupport.ANNOTATION_TREEMAP_LABEL);
          }
       }
+
    }
 
    // -------------------------------------------------------------------------
@@ -1642,15 +1783,8 @@ public class SVGAnimationDOMInjector {
    /**
     * Inject staggered fade-in for marimekko charts.
     *
-    * <p>Cells use a diagonal stagger: {@code delay = colIdx * 0.08 + rowIdx * 0.05}, where
-    * {@code colIdx} is the left-to-right column index by x-center and {@code rowIdx} is the
-    * top-to-bottom position within the column.  This produces a wave that sweeps down and to
-    * the right across the chart.
-    *
-    * <p>The animation style is set directly on the {@code inetsoft-mekko} annotation group
-    * (not on inner children as in treemap/sunburst/icicle) because MekkoVO places all fill and
-    * stroke paths as direct children with no wrapping inner {@code <g>}.  CSS {@code !important}
-    * hover rules correctly override CSS animations, so hover dimming still works.
+    * <p>Cells use a diagonal wave: {@code delay = colIdx * COL_STEP + rowIdx * ROW_STEP} scaled
+    * so the last cell always starts at {@link AnimationConstants#STAGGER_WINDOW} seconds.
     */
    private static void injectMekkoAnimation(Element svgRoot, Document doc) {
       appendStyle(svgRoot, doc,
@@ -1665,8 +1799,10 @@ public class SVGAnimationDOMInjector {
       // Diagonal stagger: delay = colIdx * COL_STEP + rowIdx * ROW_STEP.
       // colIdx = left-to-right column order by x-center.
       // rowIdx = top-to-bottom position within that column by y-top (rounded to nearest pixel).
-      final double COL_STEP = 0.08;
-      final double ROW_STEP = 0.05;
+      // COL_STEP and ROW_STEP ratios preserved from original (8:5); scaled so the last cell
+      // always starts at STAGGER_WINDOW regardless of grid dimensions.
+      final double COL_RATIO = 0.08;
+      final double ROW_RATIO = 0.05;
 
       List<double[]> bounds = cells.stream()
          .map(SVGAnimationDOMInjector::annotGroupBounds)
@@ -1709,6 +1845,16 @@ public class SVGAnimationDOMInjector {
          rowIndexMap.put(e.getKey(), rowMap);
       }
 
+      // Compute raw max delay (using ratio constants) to derive scale factor.
+      int maxColIdx = sortedCols.size() - 1;
+      int maxRowIdx = colYMap.values().stream()
+         .mapToInt(List::size)
+         .max().orElse(1) - 1;
+      double rawMax = maxColIdx * COL_RATIO + maxRowIdx * ROW_RATIO;
+      double scale = rawMax > 0 ? AnimationConstants.STAGGER_WINDOW / rawMax : 1.0;
+      double COL_STEP = COL_RATIO * scale;
+      double ROW_STEP = ROW_RATIO * scale;
+
       // cell index → animation style, reused when matching labels.
       Map<Integer, String> cellStyles = new HashMap<>();
 
@@ -1719,7 +1865,8 @@ public class SVGAnimationDOMInjector {
          int rowIdx = rowIndexMap.get(cx).get(yTop);
          double delay = colIdx * COL_STEP + rowIdx * ROW_STEP;
          String animStyle = String.format(java.util.Locale.US,
-            "animation:inetsoft-mekko-fade 0.8s ease-out %.2fs both", delay);
+            "animation:inetsoft-mekko-fade %.2fs %s %.2fs both",
+            AnimationConstants.DURATION, AnimationConstants.EASING, delay);
          cells.get(i).setAttribute("style", animStyle);
          cellStyles.put(i, animStyle);
       }
@@ -1737,6 +1884,7 @@ public class SVGAnimationDOMInjector {
             tagLabelForHover(textG, cells.get(idx), SVGSupport.ANNOTATION_MEKKO_LABEL);
          }
       }
+
    }
 
    /**
@@ -1826,10 +1974,21 @@ public class SVGAnimationDOMInjector {
    /**
     * Parse the {@code data-<attr>} integer attribute of an element, returning {@code 0} on
     * missing or malformed values.
+    *
+    * <p><b>Note:</b> this overload automatically prepends {@code "data-"} to {@code attr}.
+    * Pass a short name like {@code SVGSupport.ATTR_LEVEL} (not {@code "data-level"}) or the
+    * attribute read will be {@code "data-data-level"}.  The 3-arg overload takes the full
+    * attribute name as-is and should be used when the caller already holds the full name.
     */
    private static int parseIntAttr(Element el, String attr) {
+      String v = el.getAttribute("data-" + attr);
+
+      if(v.isEmpty()) {
+         return 0;
+      }
+
       try {
-         return Integer.parseInt(el.getAttribute("data-" + attr));
+         return Integer.parseInt(v);
       }
       catch(NumberFormatException e) {
          return 0;
@@ -1843,9 +2002,10 @@ public class SVGAnimationDOMInjector {
    /**
     * Inject staggered fade-in animation for candlestick charts.
     *
-    * <p>Each {@code inetsoft-candle} annotation group (one per candle) fades in over 0.6 s.
-    * Items are sorted by screen X position ({@code data-x}) so they animate left-to-right
-    * in visual order.  Delays are spread evenly across 0–1.2 s regardless of item count.
+    * <p>Each {@code inetsoft-candle} annotation group (one per candle) fades in over
+    * {@link AnimationConstants#DURATION} seconds.  Items are sorted by screen X position
+    * ({@code data-x}) so they animate left-to-right in visual order.  Delays are spread
+    * evenly across {@link AnimationConstants#STAGGER_WINDOW} seconds regardless of item count.
     */
    private static void injectCandleAnimation(Element svgRoot, Document doc) {
       injectXPositionFadeAnimation(svgRoot, doc,
@@ -1859,9 +2019,8 @@ public class SVGAnimationDOMInjector {
    /**
     * Inject staggered fade-in animation for box-plot charts.
     *
-    * <p>Each {@code inetsoft-box} annotation group (one per box) fades in over 0.6 s.
-    * Items are sorted by screen X position ({@code data-x}) so they animate left-to-right
-    * in visual order.  Delays are spread evenly across 0–1.2 s regardless of item count.
+    * <p>Each {@code inetsoft-box} annotation group (one per box) fades in left-to-right.
+    * Delays are distributed across {@link AnimationConstants#STAGGER_WINDOW}.
     */
    private static void injectBoxAnimation(Element svgRoot, Document doc) {
       injectXPositionFadeAnimation(svgRoot, doc,
@@ -1872,17 +2031,13 @@ public class SVGAnimationDOMInjector {
     * Shared fade-in implementation for chart types whose items are staggered left-to-right
     * by screen X position.  Used by both candlestick and box-plot animations.
     *
-    * <p>Groups are sorted by the {@code data-x} attribute (screen X center in pixels), then
-    * assigned delays spread evenly across 0–1.2 s.  Each item fades in over 0.6 s.
-    *
-    * <p>The animation style is applied directly to the annotation group element (not via
-    * {@link #applyAnimStyleToChildren}) because {@code CandlePainter} and {@code BoxPainter}
-    * emit all shape paths as direct children of the annotation group with no intermediate
-    * wrapper {@code <g>} — there is no inner child to target.  CSS {@code !important} hover
-    * rules correctly override CSS animations, so hover dimming still works.
+    * <p>The animation style is applied directly to the annotation group element because
+    * {@code CandlePainter} and {@code BoxPainter} emit paths as direct children with no
+    * wrapping inner {@code <g>}.  Hover dimming is gated via the {@code svg.ready} class so
+    * hover CSS does not conflict with the animation's fill-mode.
     */
    private static void injectXPositionFadeAnimation(Element svgRoot, Document doc,
-                                                     String annotClass, String keyframeName)
+                                                      String annotClass, String keyframeName)
    {
       appendStyle(svgRoot, doc,
          "@keyframes " + keyframeName + "{from{opacity:0}to{opacity:1}}");
@@ -1907,15 +2062,15 @@ public class SVGAnimationDOMInjector {
       }));
 
       int n = items.size();
-      double maxDelay = 1.2;
-      double step = n > 1 ? maxDelay / (n - 1) : 0;
 
       for(int i = 0; i < n; i++) {
-         double delay = i * step;
+         double delay = AnimationConstants.staggerDelay(i, n);
          String animStyle = String.format(java.util.Locale.US,
-            "animation:%s 0.6s ease-out %.2fs both", keyframeName, delay);
+            "animation:%s %.2fs %s %.2fs both",
+            keyframeName, AnimationConstants.DURATION, AnimationConstants.EASING, delay);
          items.get(i).setAttribute("style", animStyle);
       }
+
    }
 
    // -------------------------------------------------------------------------
@@ -1987,10 +2142,9 @@ public class SVGAnimationDOMInjector {
          "@keyframes inetsoft-radar-fade{from{opacity:0}to{opacity:1}}");
 
       int n = groups.size();
-      double animDuration = 0.9;
-      double stagger      = 0.25;
 
-      // Per-series hover rules for each series i.
+      // Per-series hover rules for each series i.  Gated on svg.ready so dimming never fires
+      // during the entrance animation.
       //
       // Two activation sources exist:
       //   A) Polygon interior — mouse over the hit path inside .inetsoft-radar[data-row=i].
@@ -2006,29 +2160,30 @@ public class SVGAnimationDOMInjector {
       //   • other-series points     (not[data-row=i])
       // The hovered series' own polygon and vertex points stay at full opacity.
       StringBuilder perSeriesCss = new StringBuilder();
+      String dim = String.format(java.util.Locale.US, "%.2f", AnimationConstants.HOVER_DIM_OPACITY);
 
       for(int i = 0; i < n; i++) {
          perSeriesCss.append(String.format(java.util.Locale.US,
             // When series i's polygon is CSS-hovered (mouse inside the interior), dim the
             // vertex points of all other series. The hovered series' own points are excluded
             // by :not([data-row=i]) so they stay at full opacity.
-            "svg:has(.inetsoft-radar[data-row=\"%d\"]:hover) .inetsoft-point:not([data-row=\"%d\"])" +
-            "{opacity:.2!important}", i, i));
+            "svg.ready:has(.inetsoft-radar[data-row=\"%d\"]:hover) .inetsoft-point:not([data-row=\"%d\"])" +
+            "{opacity:" + dim + "!important}", i, i));
       }
 
       appendStyle(svgRoot, doc, perSeriesCss.toString());
 
       for(int i = 0; i < n; i++) {
          Element g = groups.get(i);
-         double delay = i * stagger;
+         double delay = AnimationConstants.staggerDelay(i, n);
 
          // transform-origin in SVG user-space so the scale radiates from the radar center,
          // not from the polygon's own bounding-box centre (which would be off-centre for
          // asymmetric score distributions).
          mergeStyle(g, String.format(java.util.Locale.US,
             "transform-origin:%.2fpx %.2fpx;" +
-            "opacity:0;animation:inetsoft-radar-grow %.2fs cubic-bezier(0.2,0,0.4,1) %.2fs both",
-            cx, cy, animDuration, delay));
+            "opacity:0;animation:inetsoft-radar-grow %.2fs %s %.2fs both",
+            cx, cy, AnimationConstants.DURATION, AnimationConstants.EASING, delay));
 
          // For line radar the path has fill="none": inject a ghost fill and a hit area.
          Element path = firstDescendantPath(g);
@@ -2069,8 +2224,8 @@ public class SVGAnimationDOMInjector {
       }
 
       // Points and value labels appear after all polygons have settled.
-      // dotDelay = last polygon's start time + animation duration.
-      double dotDelay = (n - 1) * stagger + animDuration;
+      double dotDelay = AnimationConstants.staggerDelay(n - 1, n) +
+         AnimationConstants.DURATION + AnimationConstants.READY_BUFFER;
 
       Set<Element> processedParents = Collections.newSetFromMap(new IdentityHashMap<>());
 
@@ -2104,10 +2259,12 @@ public class SVGAnimationDOMInjector {
                 sibClass.isEmpty()))
             {
                mergeStyle(sibling, String.format(java.util.Locale.US,
-                  "opacity:0;animation:inetsoft-radar-fade 0.35s ease-out %.2fs both", dotDelay));
+                  "opacity:0;animation:inetsoft-radar-fade %.2fs %s %.2fs both",
+                  AnimationConstants.DURATION, AnimationConstants.EASING, dotDelay));
             }
          }
       }
+
    }
 
    /**
@@ -2183,45 +2340,63 @@ public class SVGAnimationDOMInjector {
    // -------------------------------------------------------------------------
 
    /**
-    * Inject CSS that dims non-hovered bars/labels when any bar carries the
-    * {@code inetsoft-active} class.  JS only needs to toggle that one class;
-    * the CSS handles opacity and transitions for the whole chart.
+    * Inject hover dim CSS for all chart types.
     *
-    * <p>The {@code :has()} relational pseudo-class requires Chrome 105+, Firefox 121+,
-    * Safari 15.4+.  On older browsers the dimming rule is silently ignored (no error);
-    * hover highlighting simply has no visual effect.  StyleBI targets modern browsers only.
+    * <p>Bars (A2 pattern) are not gated — the annotation group is never animated directly, so
+    * hover dim cannot conflict with fill-mode. A1 chart types (point, candle, box, treemap,
+    * mekko, radar) are gated on {@code svg.ready}, which the Angular directive adds ~900ms after
+    * SVG load — just long enough for the first animated element to complete.
     *
-    * <p>All chart types share a uniform {@code transition: opacity .2s ease} — intentionally
-    * updated from the original {@code .15s} for bar and point charts when new types were added,
-    * to give every chart a consistent hover fade feel.
+    * <p>The {@code :has()} selector requires Chrome 105+, Firefox 121+, Safari 15.4+.
+    * On older browsers the dim rules are silently ignored.
     */
    private static void appendHoverCSS(Element svgRoot, Document doc) {
+      String dim = String.format(java.util.Locale.US, "%.2f", AnimationConstants.HOVER_DIM_OPACITY);
+      String tr  = AnimationConstants.HOVER_TRANSITION;
       appendStyle(svgRoot, doc,
-         ".inetsoft-bar,.inetsoft-bar-label,.inetsoft-point,.inetsoft-candle,.inetsoft-box," +
-         ".inetsoft-radar,.inetsoft-treemap,.inetsoft-mekko," +
-         ".inetsoft-treemap-label,.inetsoft-mekko-label{transition:opacity .2s ease}" +
+         // Bar (A2 pattern): animation is applied to inner child <path> elements, not to the
+         // annotation group itself. The group's own opacity is never animated, so hover dim
+         // does not conflict with fill-mode on the inner paths.
+         // No .ready gate is needed — bar hover is active immediately on load.
+         ".inetsoft-bar,.inetsoft-bar-label{transition:" + tr + "}" +
          "svg:has(.inetsoft-bar.inetsoft-active) .inetsoft-bar:not(.inetsoft-active)," +
          "svg:has(.inetsoft-bar.inetsoft-active) .inetsoft-bar-label:not(.inetsoft-active)" +
-         "{opacity:.2!important}" +
-         "svg:has(.inetsoft-point.inetsoft-active) .inetsoft-point:not(.inetsoft-active)" +
-         "{opacity:.2!important}" +
-         "svg:has(.inetsoft-candle.inetsoft-active) .inetsoft-candle:not(.inetsoft-active)" +
-         "{opacity:.2!important}" +
-         "svg:has(.inetsoft-box.inetsoft-active) .inetsoft-box:not(.inetsoft-active)" +
-         "{opacity:.2!important}" +
-         "svg:has(.inetsoft-treemap.inetsoft-active) .inetsoft-treemap:not(.inetsoft-active)," +
-         "svg:has(.inetsoft-treemap.inetsoft-active) .inetsoft-treemap-label:not(.inetsoft-active)" +
-         "{opacity:.2!important}" +
-         "svg:has(.inetsoft-mekko.inetsoft-active) .inetsoft-mekko:not(.inetsoft-active)," +
-         "svg:has(.inetsoft-mekko.inetsoft-active) .inetsoft-mekko-label:not(.inetsoft-active)" +
-         "{opacity:.2!important}" +
+         "{opacity:" + dim + "!important}" +
+         // A1 chart types: animation is applied directly to the annotation group that is also
+         // the hover target. The .ready gate prevents hover dim from conflicting with the
+         // group's own animation fill-mode during the entrance animation (~0.9s gate).
+         "svg.ready .inetsoft-point,svg.ready .inetsoft-candle,svg.ready .inetsoft-box," +
+         "svg.ready .inetsoft-treemap,svg.ready .inetsoft-mekko," +
+         "svg.ready .inetsoft-treemap-label,svg.ready .inetsoft-mekko-label," +
+         "svg.ready .inetsoft-radar" +
+         "{transition:" + tr + "}" +
+         // Point dimming.
+         "svg.ready:has(.inetsoft-point.inetsoft-active) .inetsoft-point:not(.inetsoft-active)" +
+         "{opacity:" + dim + "!important}" +
+         // Candlestick dimming.
+         "svg.ready:has(.inetsoft-candle.inetsoft-active) .inetsoft-candle:not(.inetsoft-active)" +
+         "{opacity:" + dim + "!important}" +
+         // Box-plot dimming.
+         "svg.ready:has(.inetsoft-box.inetsoft-active) .inetsoft-box:not(.inetsoft-active)" +
+         "{opacity:" + dim + "!important}" +
+         // Treemap + label dimming.
+         "svg.ready:has(.inetsoft-treemap.inetsoft-active) .inetsoft-treemap:not(.inetsoft-active)," +
+         "svg.ready:has(.inetsoft-treemap.inetsoft-active) .inetsoft-treemap-label:not(.inetsoft-active)" +
+         "{opacity:" + dim + "!important}" +
+         // Mekko + label dimming.
+         "svg.ready:has(.inetsoft-mekko.inetsoft-active) .inetsoft-mekko:not(.inetsoft-active)," +
+         "svg.ready:has(.inetsoft-mekko.inetsoft-active) .inetsoft-mekko-label:not(.inetsoft-active)" +
+         "{opacity:" + dim + "!important}" +
+         // Area/line hover uses JS-only inline style.opacity (no inetsoft-active class is set).
+         // CSS :has(.inetsoft-area.inetsoft-active) rules are not used because CSS :has()
+         // cannot scope to a single facet panel within one SVG — all panels would be affected.
          // Radar polygon dimming via CSS :hover only — no inetsoft-active toggling for radar.
          // Hovering inside a polygon's hit area dims sibling polygons; vertex points produce
          // no dim effect. pointer-events:all on the group makes the filled interior reactive.
          // Per-series point dimming is injected in injectRadarAnimation() once N is known.
          ".inetsoft-radar{pointer-events:all}" +
-         "svg:has(.inetsoft-radar:hover) .inetsoft-radar:not(:hover)" +
-         "{opacity:.2!important}");
+         "svg.ready:has(.inetsoft-radar:hover) .inetsoft-radar:not(:hover)" +
+         "{opacity:" + dim + "!important}");
    }
 
    // -------------------------------------------------------------------------
@@ -2436,25 +2611,33 @@ public class SVGAnimationDOMInjector {
       }
    }
 
+   private static final class AreaBandEntry {
+      final Element fillPath;
+      final String linePath;
+
+      AreaBandEntry(Element fillPath, String linePath) {
+         this.fillPath = fillPath;
+         this.linePath = linePath;
+      }
+   }
+
    private static final class GhostFillInfo {
       final String polygon;
       final int[] rgb;
       final double delay;
-      final double duration;
       final Element panel;
       final Element insertBeforeGroup;
       final int seriesIdx;
       final String transform;
       final String clipPath;
 
-      GhostFillInfo(String polygon, int[] rgb, double delay, double duration,
+      GhostFillInfo(String polygon, int[] rgb, double delay,
                     Element panel, Element insertBeforeGroup, int seriesIdx, String transform,
                     String clipPath)
       {
          this.polygon = polygon;
          this.rgb = rgb;
          this.delay = delay;
-         this.duration = duration;
          this.panel = panel;
          this.insertBeforeGroup = insertBeforeGroup;
          this.seriesIdx = seriesIdx;

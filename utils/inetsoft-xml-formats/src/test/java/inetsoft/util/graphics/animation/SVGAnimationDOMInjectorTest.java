@@ -35,8 +35,8 @@ import static org.junit.jupiter.api.Assertions.*;
  *   <li>Hover CSS correctness — all annotation classes covered, dim rules present,
  *       uniform {@code .2s ease} transition.</li>
  *   <li>Treemap fade-in stagger — larger cells animate before smaller ones.</li>
- *   <li>Icicle cascade stagger — root depth animates before leaf depth at 0.25 s/level.</li>
- *   <li>Mekko diagonal stagger — {@code delay = colIdx * 0.08 + rowIdx * 0.05}.</li>
+ *   <li>Icicle cascade stagger — root depth animates before leaf depth; steps distributed across {@link AnimationConstants#STAGGER_WINDOW}.</li>
+ *   <li>Mekko diagonal stagger — {@code delay = colIdx * COL_STEP + rowIdx * ROW_STEP} scaled to {@link AnimationConstants#STAGGER_WINDOW}.</li>
  *   <li>Label matching — text groups are tagged with hover CSS class and data-row/col.</li>
  * </ul>
  *
@@ -248,8 +248,12 @@ class SVGAnimationDOMInjectorTest {
          css.contains(".inetsoft-box.inetsoft-active") &&
          css.contains(".inetsoft-box:not(.inetsoft-active)"),
          "hover CSS must contain box :has() dim rule");
-      assertTrue(css.contains("opacity:.2!important"),
-                 "dim rules must use opacity:.2!important");
+      // HOVER_DIM_OPACITY = 0.20 formatted as "%.2f" produces "0.20"
+      String expectedOpacity = "opacity:" +
+         String.format(java.util.Locale.US, "%.2f", AnimationConstants.HOVER_DIM_OPACITY) +
+         "!important";
+      assertTrue(css.contains(expectedOpacity),
+                 "dim rules must use opacity:" + expectedOpacity);
    }
 
    @Test
@@ -260,6 +264,30 @@ class SVGAnimationDOMInjectorTest {
 
       assertTrue(css.contains("transition:opacity .2s ease"),
                  "all chart types must share the uniform transition:opacity .2s ease");
+   }
+
+   /** {@code data-animated} must be present on the SVG root after animation is injected. */
+   @Test
+   void dataAnimatedSetAfterAnimation() throws Exception {
+      Document doc = newDocument();
+      addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
+                    Map.of("row", "0", "col", "0", "level", "0"),
+                    0, 0, 100, 100);
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_TREEMAP);
+      assertTrue(doc.getDocumentElement().hasAttribute("data-animated"),
+                 "data-animated must be present on the SVG root after animation injection");
+   }
+
+   /**
+    * Pie charts have no {@code inetsoft-active} hover — no {@code .ready} gate is needed.
+    * {@code data-animated} must NOT be set so the directive adds {@code .ready} immediately.
+    */
+   @Test
+   void dataAnimatedAbsentForPie() throws Exception {
+      Document doc = newDocument();
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+      assertFalse(doc.getDocumentElement().hasAttribute("data-animated"),
+                  "data-animated must be absent for pie charts (no .ready gate needed)");
    }
 
    // -------------------------------------------------------------------------
@@ -375,11 +403,12 @@ class SVGAnimationDOMInjectorTest {
    }
 
    /**
-    * Each depth column adds {@code DEPTH_STEP = 0.25 s} of base delay.  With three levels
-    * (2, 1, 0) and one cell per level, delays should be 0.0, 0.25, and 0.50 respectively.
+    * Stagger is distributed across {@link AnimationConstants#STAGGER_WINDOW} (2.0 s) using
+    * {@link AnimationConstants#staggerDelay}.  With three cells (one per level) the step is
+    * {@code 2.0 / (3-1) = 1.0 s}: delays should be 0.0, 1.0, and 2.0 respectively.
     */
    @Test
-   void icicle_depthStepIs025PerLevel() throws Exception {
+   void icicle_staggerDistributedAcrossWindow() throws Exception {
       Document doc = newDocument();
       // level=2 is the root (maxLevel); level=0 is the leaf.
       Element lvl2 = addAnnotGroup(doc, SVGSupport.ANNOTATION_TREEMAP,
@@ -394,8 +423,8 @@ class SVGAnimationDOMInjectorTest {
       SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_ICICLE);
 
       assertEquals(0.00, parseDelay(firstChildStyle(lvl2)), 0.01, "root  (level=2) → 0.00 s");
-      assertEquals(0.25, parseDelay(firstChildStyle(lvl1)), 0.01, "mid   (level=1) → 0.25 s");
-      assertEquals(0.50, parseDelay(firstChildStyle(lvl0)), 0.01, "leaf  (level=0) → 0.50 s");
+      assertEquals(1.00, parseDelay(firstChildStyle(lvl1)), 0.01, "mid   (level=1) → 1.00 s");
+      assertEquals(2.00, parseDelay(firstChildStyle(lvl0)), 0.01, "leaf  (level=0) → 2.00 s");
    }
 
    /** A label contained in an icicle cell should be tagged with the treemap-label class. */
@@ -421,11 +450,13 @@ class SVGAnimationDOMInjectorTest {
    // -------------------------------------------------------------------------
 
    /**
-    * Verifies the diagonal stagger formula: {@code delay = colIdx * 0.08 + rowIdx * 0.05}.
+    * Verifies the diagonal stagger formula scaled to {@link AnimationConstants#STAGGER_WINDOW}.
+    * Raw ratios are COL_RATIO=0.08 and ROW_RATIO=0.05; for this grid (1 col-step, 1 row-step)
+    * rawMax = 0.08 + 0.05 = 0.13, scale = 2.0/0.13.
     * <ul>
     *   <li>Column 0, row 0: 0.00 s</li>
-    *   <li>Column 0, row 1: 0.05 s</li>
-    *   <li>Column 1, row 0: 0.08 s</li>
+    *   <li>Column 0, row 1: ROW_STEP = 0.05 * (2.0/0.13) ≈ 0.77 s</li>
+    *   <li>Column 1, row 0: COL_STEP = 0.08 * (2.0/0.13) ≈ 1.23 s</li>
     * </ul>
     */
    @Test
@@ -439,10 +470,15 @@ class SVGAnimationDOMInjectorTest {
 
       SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_MEKKO);
 
+      // scale = 2.0 / (1*0.08 + 1*0.05) = 2.0/0.13
+      double scale = 2.0 / 0.13;
+      double colStep = 0.08 * scale;
+      double rowStep = 0.05 * scale;
+
       // Mekko sets the animation style directly on the annotation group element.
-      assertEquals(0.00, parseDelay(col0row0.getAttribute("style")), 0.01, "col0 row0 → 0.00 s");
-      assertEquals(0.05, parseDelay(col0row1.getAttribute("style")), 0.01, "col0 row1 → 0.05 s");
-      assertEquals(0.08, parseDelay(col1row0.getAttribute("style")), 0.01, "col1 row0 → 0.08 s");
+      assertEquals(0.00,    parseDelay(col0row0.getAttribute("style")), 0.02, "col0 row0 → 0.00 s");
+      assertEquals(rowStep, parseDelay(col0row1.getAttribute("style")), 0.02, "col0 row1 → ~0.77 s");
+      assertEquals(colStep, parseDelay(col1row0.getAttribute("style")), 0.02, "col1 row0 → ~1.23 s");
    }
 
    /**
@@ -576,8 +612,9 @@ class SVGAnimationDOMInjectorTest {
       assertEquals(2, radar.size(), "both line groups must be reclassified");
       double delay0 = parseDelay(radar.get(0).getAttribute("style"));
       double delay1 = parseDelay(radar.get(1).getAttribute("style"));
-      assertEquals(0.25, delay1 - delay0, 0.01,
-                   "second series must be delayed by stagger=0.25 s relative to first");
+      // staggerDelay(1, 2) - staggerDelay(0, 2) = 2.0/(2-1) = 2.0 s (full STAGGER_WINDOW)
+      assertEquals(AnimationConstants.STAGGER_WINDOW, delay1 - delay0, 0.01,
+                   "second series must be delayed by STAGGER_WINDOW relative to first");
    }
 
    // -------------------------------------------------------------------------
@@ -623,8 +660,7 @@ class SVGAnimationDOMInjectorTest {
 
    /**
     * Two arcs at the same level (same ring) should receive staggered delays within the ring.
-    * With two arcs in one ring, {@code step = min(0.15, 0.8/2) = 0.15 s}, so the second arc
-    * should be delayed by 0.15 s relative to the first.
+    * With two total arcs, {@code staggerDelay(1, 2) - staggerDelay(0, 2) = STAGGER_WINDOW = 2.0 s}.
     */
    @Test
    void sunburst_sameRingArcsAreStaggered() throws Exception {
@@ -644,8 +680,9 @@ class SVGAnimationDOMInjectorTest {
       // The two arcs are in the same ring, so their delays must differ (stagger within ring).
       assertNotEquals(delay0, delay1, 0.001,
                       "two arcs in the same ring must have different animation delays");
-      assertEquals(0.15, Math.abs(delay1 - delay0), 0.01,
-                   "within-ring step for 2 arcs must be min(0.15, 0.8/2) = 0.15 s");
+      // staggerDelay(1, 2) - staggerDelay(0, 2) = STAGGER_WINDOW / (2-1) = 2.0 s
+      assertEquals(AnimationConstants.STAGGER_WINDOW, Math.abs(delay1 - delay0), 0.01,
+                   "within-ring step for 2 arcs must equal STAGGER_WINDOW = 2.0 s");
    }
 
    // -------------------------------------------------------------------------
