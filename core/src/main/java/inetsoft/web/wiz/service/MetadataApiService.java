@@ -117,6 +117,14 @@ public class MetadataApiService {
       dataset.setSource(source);
       dataset.setCustomExtensions(List.of(buildDatasetExtension(dsName, catalog, schema, source)));
 
+      Object synonyms = tableData.getAttribute("synonyms");
+
+      if(synonyms != null) {
+         Map<String, Object> aiContext = new LinkedHashMap<>();
+         aiContext.put("synonyms", synonyms);
+         dataset.setAiContext(aiContext);
+      }
+
       List<String> primaryKeys = new ArrayList<>();
       List<OsiField> fields = new ArrayList<>();
 
