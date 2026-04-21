@@ -406,7 +406,6 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
    }
 
    private refreshEmbedAssembly(): void {
-      console.log("refreshEmbedAssembly");
       this.setAppSize();
       // queryParams are intentionally not forwarded: the caller-owned viewsheet was
       // already opened with its parameters applied; re-sending them on refresh would
