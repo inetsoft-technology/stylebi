@@ -38,6 +38,11 @@ public abstract class RefreshVSAssemblyEvent {
       return "";
    }
 
+   @Value.Default
+   public boolean embed() {
+      return false;
+   }
+
    public static CacheMetrics.Builder builder() {
       return new CacheMetrics.Builder();
    }

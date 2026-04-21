@@ -18,4 +18,5 @@
 export interface RefreshVsAssemblyEvent {
    vsRuntimeId: string;
    assemblyName: string;
+   embed?: boolean;
 }
