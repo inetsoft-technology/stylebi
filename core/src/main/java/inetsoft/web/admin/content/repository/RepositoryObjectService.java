@@ -25,6 +25,7 @@ import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.sree.web.dashboard.DashboardRegistry;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -103,7 +104,7 @@ public class RepositoryObjectService {
             path = node.path() + "&identifier=" + entry.toIdentifier();
          }
 
-         checkPermission(node.type(), path, EnumSet.of(ResourceAction.DELETE), principal, node.owner());
+         checkPermission(node.type(), path, EnumSet.of(ResourceAction.DELETE), principal);
       }
 
       deleteAutoSaveNodes(autoSaveNodes, principal);
@@ -1123,7 +1124,7 @@ public class RepositoryObjectService {
             int type = Integer.parseInt(typeFroms[i]);
             String src = pathFroms[i];
             checkPermission(type, src, EnumSet.of(ResourceAction.WRITE, ResourceAction.DELETE),
-               principal, null);
+               principal);
          }
       }
 
@@ -1149,7 +1150,7 @@ public class RepositoryObjectService {
    }
 
    private void checkPermission(int type, String src, EnumSet<ResourceAction> actions,
-                                   Principal principal, IdentityID owner)
+                                   Principal principal)
    {
       AssetEntry.Type newType = AssetEntry.Type.UNKNOWN;
       boolean isWS = false;
@@ -1209,8 +1210,11 @@ public class RepositoryObjectService {
       }
       else if(type == RepositoryEntry.DASHBOARD) {
          IdentityID principalID = IdentityID.getIdentityIDFromKey(principal.getName());
+         String dashboardName = SUtil.isMyDashboard(src) ? SUtil.getUnscopedPath(src) : src;
+         DashboardRegistry userRegistry = DashboardRegistry.getRegistry(principalID);
+         boolean isOwnDashboard = userRegistry != null && userRegistry.getDashboard(dashboardName) != null;
 
-         if((owner == null || !owner.equals(principalID)) &&
+         if(!isOwnDashboard &&
             !securityProvider.checkPermission(
                principal, resource.getType(), resource.getPath(), ResourceAction.ADMIN))
          {
