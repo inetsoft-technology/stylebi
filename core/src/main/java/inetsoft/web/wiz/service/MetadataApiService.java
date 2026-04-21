@@ -133,6 +133,17 @@ public class MetadataApiService {
          dataset.setAiContext(aiContext);
       }
 
+      Object synonyms = tableData.getAttribute("synonyms");
+      boolean hasSynonyms = synonyms instanceof String s ? !s.isEmpty()
+         : synonyms instanceof Collection<?> c ? !c.isEmpty()
+         : synonyms != null;
+
+      if(hasSynonyms) {
+         Map<String, Object> aiContext = new LinkedHashMap<>();
+         aiContext.put("synonyms", synonyms);
+         dataset.setAiContext(aiContext);
+      }
+
       List<String> primaryKeys = new ArrayList<>();
       List<OsiField> fields = new ArrayList<>();
 
