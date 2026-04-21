@@ -25,6 +25,7 @@ import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.sree.web.dashboard.DashboardRegistry;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -1208,8 +1209,14 @@ public class RepositoryObjectService {
             actions, true, principal);
       }
       else if(type == RepositoryEntry.DASHBOARD) {
-         if(!securityProvider.checkPermission(
-            principal, resource.getType(), resource.getPath(), ResourceAction.ADMIN))
+         IdentityID principalID = IdentityID.getIdentityIDFromKey(principal.getName());
+         String dashboardName = SUtil.isMyDashboard(src) ? SUtil.getUnscopedPath(src) : src;
+         DashboardRegistry userRegistry = DashboardRegistry.getRegistry(principalID);
+         boolean isOwnDashboard = SUtil.isMyDashboard(src) && userRegistry.getDashboard(dashboardName) != null;
+
+         if(!isOwnDashboard &&
+            !securityProvider.checkPermission(
+               principal, resource.getType(), resource.getPath(), ResourceAction.ADMIN))
          {
             throw new MessageException(Catalog.getCatalog().getString(
                "em.common.security.no.permission", src));
