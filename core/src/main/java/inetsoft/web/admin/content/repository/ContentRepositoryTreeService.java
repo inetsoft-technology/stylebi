@@ -1384,6 +1384,10 @@ public class ContentRepositoryTreeService {
    }
 
    private List<ContentRepositoryTreeNode> getSchedulerNodes(Principal principal) {
+      if(!securityProvider.checkPermission(principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS)) {
+         return Collections.emptyList();
+      }
+
       List<ContentRepositoryTreeNode> result = new ArrayList<>();
       List<ContentRepositoryTreeNode> children = getScheduleTaskNodeChildren(principal);
 
