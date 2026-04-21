@@ -126,14 +126,6 @@ public class MetadataApiService {
       dataset.setCustomExtensions(List.of(buildDatasetExtension(dsName, catalog, schema, source)));
 
       Object synonyms = tableData.getAttribute("synonyms");
-
-      if(synonyms != null) {
-         Map<String, Object> aiContext = new LinkedHashMap<>();
-         aiContext.put("synonyms", synonyms);
-         dataset.setAiContext(aiContext);
-      }
-
-      Object synonyms = tableData.getAttribute("synonyms");
       boolean hasSynonyms = synonyms instanceof String s ? !s.isEmpty()
          : synonyms instanceof Collection<?> c ? !c.isEmpty()
          : synonyms != null;
