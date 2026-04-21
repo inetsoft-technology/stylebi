@@ -298,7 +298,13 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
          return;
       }
 
-      this.vsObject = <VSChartModel>VSUtil.replaceObject(Tool.clone(this.vsObject), command.info);
+      if(!this.vsObject) {
+         this.vsObject = <VSChartModel> command.info;
+      }
+      else {
+         this.vsObject = <VSChartModel>VSUtil.replaceObject(Tool.clone(this.vsObject), command.info);
+      }
+
       this.vsObject.active = true;
       this.vsObjectActions = new EmbedChartActions(this.vsObject, null,
          this.contextProvider, false, null, null, this.miniToolbarService);
@@ -406,7 +412,8 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       // override any runtime state the caller has set since opening.
       const refreshEvent: RefreshVsAssemblyEvent = {
          vsRuntimeId: this.runtimeId,
-         assemblyName: this.assemblyName
+         assemblyName: this.assemblyName,
+         embed: true
       };
       this.viewsheetClient.sendEvent("/events/vs/refresh/assembly", refreshEvent);
    }
