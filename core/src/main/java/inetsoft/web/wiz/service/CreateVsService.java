@@ -111,19 +111,39 @@ public class CreateVsService {
             throw new IllegalStateException("Worksheet has no primary assembly");
          }
 
-         Viewsheet newVs = new Viewsheet(sourceWs);
-         newVs.syncWizData(vs);
-         VSAssembly assembly = createAssembly(newVs, model.getVisualizationType(), title, config, primaryAssembly.getName());
+         // Incremental mode: when runtimeId was supplied by the caller, add the new assembly
+         // to the existing viewsheet rather than replacing it wholesale.
+         final Viewsheet targetVs;
+
+         if(createdRuntimeId) {
+            // Fresh viewsheet: create a new one bound to the source worksheet.
+            targetVs = new Viewsheet(sourceWs);
+            targetVs.syncWizData(vs);
+         }
+         else {
+            // Incremental: reuse the existing viewsheet; update the base entry only if it differs.
+            targetVs = vs;
+         }
+
+         // Snapshot the previous base entry before any mutation so we can restore it on failure.
+         AssetEntry previousBaseEntry = targetVs.getBaseEntry();
+
+         if(!createdRuntimeId && !sourceWs.equals(previousBaseEntry)) {
+            targetVs.setBaseEntry(sourceWs);
+         }
+
+         VSAssembly assembly = createAssembly(targetVs, model.getVisualizationType(), title, config, primaryAssembly.getName());
 
          if(assembly == null) {
             throw new RuntimeException("Unsupported visualization type: " + model.getVisualizationType());
          }
 
-         newVs.addAssembly(assembly);
+         targetVs.addAssembly(assembly);
          assembly.setPrimary(true);
 
+         // Always call setViewsheet so the sandbox picks up the updated viewsheet object.
          Viewsheet previousVs = rvs.getViewsheet();
-         rvs.setViewsheet(newVs);
+         rvs.setViewsheet(targetVs);
 
          try {
             // Execute the assembly view after the viewsheet is set so that dynamic values are
@@ -160,7 +180,16 @@ public class CreateVsService {
             return result;
          }
          catch(Exception e) {
+            // Rollback: restore the previous viewsheet state.
             rvs.setViewsheet(previousVs);
+
+            if(!createdRuntimeId) {
+               // In incremental mode targetVs == previousVs; remove the assembly and restore
+               // the base entry to leave the viewsheet in exactly its pre-call state.
+               previousVs.removeAssembly(assembly.getName());
+               previousVs.setBaseEntry(previousBaseEntry);
+            }
+
             throw e;
          }
       }

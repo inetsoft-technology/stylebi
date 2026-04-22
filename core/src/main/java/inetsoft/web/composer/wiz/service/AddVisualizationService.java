@@ -23,9 +23,9 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
-import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.web.wiz.service.WsMergeService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -46,17 +46,13 @@ import java.util.List;
 @ClusterProxy
 public class AddVisualizationService {
 
-   /**
-    * Property key set on every MirrorTableAssembly that was created by the wiz merge process.
-    * Used to identify wiz-managed mirrors without relying on name prefixes.
-    */
-   static final String PROP_WIZ_MERGED = "wiz.merged";
-
    public AddVisualizationService(ViewsheetService viewsheetService,
-                                  AssetRepository assetRepository)
+                                  AssetRepository assetRepository,
+                                  WsMergeService wsMergeService)
    {
       this.viewsheetService = viewsheetService;
       this.assetRepository = assetRepository;
+      this.wsMergeService = wsMergeService;
    }
 
    /**
@@ -157,7 +153,7 @@ public class AddVisualizationService {
       Map<String, String> vsRenameMap = new HashMap<>();
 
       // Step 1: merge worksheet (returns vizWS-name → dashWS-name mapping)
-      Map<String, String> wsRenameMap = mergeWorksheet(vizWS, dashWS, vizSuffix, vsRenameMap);
+      Map<String, String> wsRenameMap = wsMergeService.mergeWorksheet(vizWS, dashWS, vizSuffix, vsRenameMap);
 
       // Apply deferred VS binding redirects accumulated during WS merge
       for(Map.Entry<String, String> e : vsRenameMap.entrySet()) {
@@ -174,193 +170,6 @@ public class AddVisualizationService {
       assetRepository.setSheet(dashVS.getBaseEntry(), dashWS, principal, true);
 
       return null;
-   }
-
-   // ---------------------------------------------------------------------------
-   // Step 1: Worksheet merge
-   // ---------------------------------------------------------------------------
-
-   /**
-    * Merges all WSAssemblies from {@code vizWS} into {@code dashWS} and returns a map of
-    * old assembly names (in vizWS) to their effective names in dashWS after merging.
-    */
-   private Map<String, String> mergeWorksheet(Worksheet vizWS, Worksheet dashWS,
-                                              String vizSuffix,
-                                              Map<String, String> vsRenameMap)
-   {
-      Map<String, String> wsRenameMap = new HashMap<>();
-      List<WSAssembly> sorted = topologicalSort(vizWS);
-
-      for(WSAssembly srcAssembly : sorted) {
-         // Situation A: BoundTableAssembly with same data source as an existing one
-         if(srcAssembly instanceof BoundTableAssembly srcBound) {
-            BoundTableAssembly existingTable = findMergeableTable(dashWS, srcBound);
-
-            if(existingTable != null) {
-               // Ensure the existing table has a "prev" mirror (first-merge promotion).
-               // Any VS binding redirects are collected into vsRenameMap and applied later.
-               ensureBaseHasPrevMirror(dashWS, existingTable, vsRenameMap);
-               // Expand the base with any new columns from srcBound
-               mergeColumns(existingTable, srcBound);
-               // Create a new mirror for this visualization's column/condition view
-               String curMirrorName = createVizMirror(dashWS, existingTable, srcBound);
-               wsRenameMap.put(srcBound.getName(), curMirrorName);
-               continue;
-            }
-         }
-
-         // Situation B: everything else — clone and resolve name conflicts
-         // Note: if this assembly (e.g. MirrorTableAssembly, CompositeTableAssembly) references
-         // a BoundTableAssembly that was already processed under Situation A, the rename
-         // (srcBound → curMirrorName) is already in wsRenameMap. The renameDepended loop below
-         // will correctly update the child reference, because topological order guarantees the
-         // BoundTableAssembly entry is in wsRenameMap before this downstream assembly is reached.
-         WSAssembly cloned = (WSAssembly) srcAssembly.clone();
-         String originalName = srcAssembly.getName();
-         String targetName = originalName;
-
-         if(dashWS.getAssembly(targetName) != null) {
-            targetName = resolveNameConflict(originalName, vizSuffix, dashWS);
-            cloned.getWSAssemblyInfo().setName(targetName);
-            wsRenameMap.put(originalName, targetName);
-         }
-
-         // addAssembly sets cloned.ws = dashWS, enabling correct renameDepended behaviour
-         dashWS.addAssembly(cloned);
-
-         // Apply accumulated renames to update child references within this assembly
-         for(Map.Entry<String, String> entry : wsRenameMap.entrySet()) {
-            cloned.renameDepended(entry.getKey(), entry.getValue());
-         }
-      }
-
-      return wsRenameMap;
-   }
-
-   /**
-    * Returns the BoundTableAssembly in {@code dashWS} that shares the same data source
-    * (type + datasource prefix + physical table/query name) as {@code srcTable}, or
-    * {@code null} if none exists.
-    */
-   private BoundTableAssembly findMergeableTable(Worksheet dashWS,
-                                                 BoundTableAssembly srcTable)
-   {
-      SourceInfo srcInfo = srcTable.getSourceInfo();
-
-      if(srcInfo == null || srcInfo.isEmpty()) {
-         return null;
-      }
-
-      for(Assembly a : dashWS.getAssemblies()) {
-         if(!(a instanceof BoundTableAssembly candidate)) {
-            continue;
-         }
-
-         SourceInfo candidateInfo = candidate.getSourceInfo();
-
-         if(candidateInfo == null || candidateInfo.isEmpty()) {
-            continue;
-         }
-
-         if(srcInfo.getType() == candidateInfo.getType() &&
-            Objects.equals(srcInfo.getPrefix(), candidateInfo.getPrefix()) &&
-            Objects.equals(srcInfo.getSource(), candidateInfo.getSource()))
-         {
-            return candidate;
-         }
-      }
-
-      return null;
-   }
-
-   /**
-    * If {@code existingTable} does not yet have a wiz mirror pointing to it, promotes it
-    * to a "base" table: strips its conditions/aggregation (moving them to a new mirror
-    * that takes its original role), and updates dashVS VS bindings to point at the mirror.
-    */
-   private void ensureBaseHasPrevMirror(Worksheet dashWS,
-                                        BoundTableAssembly existingTable,
-                                        Map<String, String> vsRenameMap)
-   {
-      String baseName = existingTable.getName();
-
-      // Check if any wiz mirror already targets this base
-      boolean hasMirror = Arrays.stream(dashWS.getAssemblies())
-         .anyMatch(a -> a instanceof MirrorTableAssembly m &&
-            "true".equals(m.getProperty(PROP_WIZ_MERGED)) &&
-            Objects.equals(m.getAssemblyName(), baseName));
-
-      if(hasMirror) {
-         return; // already promoted in a previous merge
-      }
-
-      // Save the original semantics that belong to the first visualization
-      ConditionListWrapper preconds = existingTable.getPreConditionList();
-      ConditionListWrapper postconds = existingTable.getPostConditionList();
-      AggregateInfo aggr = (AggregateInfo) existingTable.getAggregateInfo().clone();
-      ColumnSelection origCols = existingTable.getColumnSelection(true).clone();
-
-      // Strip conditions/aggregation from the base so it becomes a "full data" query
-      existingTable.setPreConditionList(new ConditionList());
-      existingTable.setPostConditionList(new ConditionList());
-      existingTable.setAggregateInfo(new AggregateInfo());
-
-      // Create a mirror that restores the original viz's view
-      String prevMirrorName = ensureUniqueName(baseName, dashWS);
-      MirrorTableAssembly prevMirror = new MirrorTableAssembly(dashWS, prevMirrorName, existingTable);
-      prevMirror.setColumnSelection(origCols, true);
-      prevMirror.setPreConditionList(preconds);
-      prevMirror.setPostConditionList(postconds);
-      prevMirror.setAggregateInfo(aggr);
-      prevMirror.setProperty(PROP_WIZ_MERGED, "true");
-      dashWS.addAssembly(prevMirror);
-
-      // Collect the redirect (existingTable → prevMirror) so the caller can apply it to dashVS
-      // after the full WS merge is complete, rather than touching VS assemblies mid-merge.
-      vsRenameMap.put(baseName, prevMirrorName);
-   }
-
-   /**
-    * Expands {@code base}'s public column selection with any columns from {@code srcTable}
-    * that are not already present.
-    */
-   private void mergeColumns(BoundTableAssembly base, BoundTableAssembly srcTable) {
-      ColumnSelection baseColumns = base.getColumnSelection(true);
-      ColumnSelection srcColumns = srcTable.getColumnSelection(true);
-
-      for(int i = 0; i < srcColumns.getAttributeCount(); i++) {
-         DataRef col = srcColumns.getAttribute(i);
-
-         if(baseColumns.getAttribute(col.getName()) == null) {
-            baseColumns.addAttribute(col);
-         }
-      }
-
-      base.setColumnSelection(baseColumns, true);
-   }
-
-   /**
-    * Creates a MirrorTableAssembly in {@code dashWS} that points at {@code base} and exposes
-    * only the columns (and conditions/aggregation) of {@code srcTable}.
-    *
-    * @return the name of the created mirror assembly.
-    */
-   private String createVizMirror(Worksheet dashWS, BoundTableAssembly base,
-                                  BoundTableAssembly srcTable)
-   {
-      String mirrorName = ensureUniqueName(base.getName(), dashWS);
-
-      ColumnSelection vizCols = srcTable.getColumnSelection(true).clone();
-
-      MirrorTableAssembly mirror = new MirrorTableAssembly(dashWS, mirrorName, base);
-      mirror.setColumnSelection(vizCols, true);
-      mirror.setPreConditionList((ConditionListWrapper) srcTable.getPreConditionList().clone());
-      mirror.setPostConditionList((ConditionListWrapper) srcTable.getPostConditionList().clone());
-      mirror.setAggregateInfo((AggregateInfo) srcTable.getAggregateInfo().clone());
-      mirror.setProperty(PROP_WIZ_MERGED, "true");
-      dashWS.addAssembly(mirror);
-
-      return mirrorName;
    }
 
    // ---------------------------------------------------------------------------
@@ -382,10 +191,11 @@ public class AddVisualizationService {
       int offsetX = (int) (xOffset / scale);
       int offsetY = (int) (yOffset / scale);
 
-      // Pass 1: clone every assembly and compute its final name, building vsRenameMap
+      // Pass 1: clone every assembly and compute its final name, building vsConflictRenameMap
       //         so that intra-visualization cross-references can be patched in pass 2.
+      //         (distinct from the outer vsRenameMap which tracks WS base→mirror renames)
       List<VSAssembly> clones = new ArrayList<>();
-      Map<String, String> vsRenameMap = new HashMap<>();
+      Map<String, String> vsConflictRenameMap = new HashMap<>();
 
       for(Assembly a : vizVS.getAssemblies()) {
          if(!(a instanceof VSAssembly srcAssembly)) {
@@ -416,7 +226,7 @@ public class AddVisualizationService {
 
          if(!targetName.equals(originalName)) {
             cloned.getVSAssemblyInfo().setName(targetName);
-            vsRenameMap.put(originalName, targetName);
+            vsConflictRenameMap.put(originalName, targetName);
          }
 
          clones.add(cloned);
@@ -428,7 +238,7 @@ public class AddVisualizationService {
          applyWsRenameToVSAssembly(cloned, wsRenameMap);
 
          // Patch VS-level cross-references (container children, linked/selection assemblies)
-         for(Map.Entry<String, String> e : vsRenameMap.entrySet()) {
+         for(Map.Entry<String, String> e : vsConflictRenameMap.entrySet()) {
             cloned.renameDepended(e.getKey(), e.getValue());
          }
 
@@ -488,130 +298,9 @@ public class AddVisualizationService {
    }
 
    /**
-    * Performs a topological sort of the assemblies in {@code ws} so that dependencies are
-    * processed before the assemblies that depend on them (sources before sinks).
-    * Uses Kahn's algorithm on the dependency graph derived from
-    * {@link WSAssembly#getDependeds(Set)}.
-    */
-   private List<WSAssembly> topologicalSort(Worksheet ws) {
-      Assembly[] all = ws.getAssemblies();
-
-      // deps: assembly name → names of WS assemblies it depends on
-      // revDeps: assembly name → names of WS assemblies that depend on it
-      Map<String, Set<String>> deps = new HashMap<>();
-      Map<String, Set<String>> revDeps = new HashMap<>();
-
-      for(Assembly a : all) {
-         deps.put(a.getName(), new HashSet<>());
-         revDeps.put(a.getName(), new HashSet<>());
-      }
-
-      for(Assembly a : all) {
-         Set<AssemblyRef> depRefs = new HashSet<>();
-         ((WSAssembly) a).getDependeds(depRefs);
-
-         for(AssemblyRef ref : depRefs) {
-            String depName = ref.getEntry().getName();
-
-            if(deps.containsKey(depName)) {
-               deps.get(a.getName()).add(depName);
-               revDeps.get(depName).add(a.getName());
-            }
-         }
-      }
-
-      // Compute in-degree (number of dependencies each assembly has within this WS)
-      Map<String, Integer> inDegree = new HashMap<>();
-
-      for(Map.Entry<String, Set<String>> e : deps.entrySet()) {
-         inDegree.put(e.getKey(), e.getValue().size());
-      }
-
-      // Seed queue with root nodes (no WS-internal dependencies)
-      Queue<String> queue = new LinkedList<>();
-
-      for(Map.Entry<String, Integer> e : inDegree.entrySet()) {
-         if(e.getValue() == 0) {
-            queue.add(e.getKey());
-         }
-      }
-
-      List<WSAssembly> sorted = new ArrayList<>(all.length);
-
-      while(!queue.isEmpty()) {
-         String name = queue.poll();
-         WSAssembly node = (WSAssembly) ws.getAssembly(name);
-
-         if(node != null) {
-            sorted.add(node);
-         }
-
-         for(String downstream : revDeps.getOrDefault(name, Collections.emptySet())) {
-            if(inDegree.merge(downstream, -1, Integer::sum) == 0) {
-               queue.add(downstream);
-            }
-         }
-      }
-
-      // Append any assemblies not reached (e.g. cycles or disconnected nodes)
-      Set<String> visited = new HashSet<>();
-
-      for(WSAssembly a : sorted) {
-         visited.add(a.getName());
-      }
-
-      for(Assembly a : all) {
-         if(!visited.contains(a.getName())) {
-            sorted.add((WSAssembly) a);
-         }
-      }
-
-      return sorted;
-   }
-
-   /**
-    * Generates a unique name for a new assembly in {@code ws} by appending {@code "_" + vizSuffix},
-    * then a counter if still conflicting.
-    */
-   private String resolveNameConflict(String originalName, String vizSuffix, Worksheet ws) {
-      String candidate = originalName + "_" + vizSuffix;
-
-      if(ws.getAssembly(candidate) == null) {
-         return candidate;
-      }
-
-      int counter = 2;
-
-      while(ws.getAssembly(candidate) != null) {
-         candidate = originalName + "_" + vizSuffix + "_" + counter++;
-      }
-
-      return candidate;
-   }
-
-   /**
-    * Returns {@code name} if it does not already exist in {@code ws}, otherwise appends
-    * an incrementing counter until a free name is found.
-    */
-   private String ensureUniqueName(String name, Worksheet ws) {
-      if(ws.getAssembly(name) == null) {
-         return name;
-      }
-
-      int counter = 1;
-      String candidate = name + "_" + counter;
-
-      while(ws.getAssembly(candidate) != null) {
-         candidate = name + "_" + (++counter);
-      }
-
-      return candidate;
-   }
-
-   /**
     * Computes a short, unique name suffix for this visualization by sanitizing the entry
-    * name (keep alphanumeric + underscore, max 20 chars) and appending a counter if the
-    * same suffix has already been used in dashVS.
+    * name (keep alphanumeric + underscore, max 20 chars) and appending a counter based on
+    * how many visualizations have already been merged into dashVS.
     */
    private String computeUniqueSuffix(String vizName, Viewsheet dashVS) {
       String base = vizName.replaceAll("[^A-Za-z0-9_]", "_");
@@ -628,6 +317,7 @@ public class AddVisualizationService {
 
    private final ViewsheetService viewsheetService;
    private final AssetRepository assetRepository;
+   private final WsMergeService wsMergeService;
 
    private static final Logger LOG = LoggerFactory.getLogger(AddVisualizationService.class);
 }
