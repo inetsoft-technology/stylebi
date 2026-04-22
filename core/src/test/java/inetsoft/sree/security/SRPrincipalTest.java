@@ -363,6 +363,16 @@ class SRPrincipalTest {
       }
    }
 
+   @Test
+   void getNameFromID_stripsClientInfoSuffixAndDecodesName() {
+      // toIdentifier embeds "^secureID^ip^session" after the encoded name
+      // getNameFromID must strip that suffix and return only the decoded name
+      SRPrincipal principal = newPrincipal();
+      String id = principal.toIdentifier();
+      String name = SRPrincipal.getNameFromID(id);
+      assertEquals(principal.getName(), name);
+   }
+
    private static SRPrincipal newPrincipal() {
       SRPrincipal principal = new SRPrincipal(
          new ClientInfo(new IdentityID("alice", ORG_A), "10.0.0.1", "session-1"),

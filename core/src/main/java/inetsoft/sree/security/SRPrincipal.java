@@ -326,12 +326,12 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
       sb.append(SEP2).append(secureID);
 
       if(getUser() != null && getUser().getIPAddress() != null) {
-         sb.append(SEP2).append(getUser().getIPAddress());
-
+         sb.append(SEP2).append(encodeComponent(getUser().getIPAddress()));
+     
          if(getUser().getSession() != null) {
-            sb.append(SEP2).append(getUser().getSession());
+             sb.append(SEP2).append(encodeComponent(getUser().getSession()));
          }
-      }
+     }
 
       String[] groups = getGroups();
       sb.append(SEP);
