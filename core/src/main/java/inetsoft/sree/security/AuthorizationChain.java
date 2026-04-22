@@ -68,14 +68,7 @@ public class AuthorizationChain
          changedProvider = getProviderList().get(0);
       }
       finally {
-         try {
-            if(changedProvider != null && changedProvider.contentInConfig()) {
-               saveConfiguration();
-            }
-         }
-         catch(IOException e) {
-            throw new RuntimeException(e);
-         }
+         saveConfigurationIfNeeded(changedProvider);
       }
    }
 

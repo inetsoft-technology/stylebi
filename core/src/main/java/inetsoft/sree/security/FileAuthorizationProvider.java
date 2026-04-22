@@ -214,6 +214,19 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
       }
    }
 
+   @Override
+   public void removePermission(ResourceType type, IdentityID identityID, String orgID) {
+      init();
+      orgID = getResourceOrgID(orgID);
+
+      try {
+         storage.remove(getResourceKey(type, identityID.convertToKey(), orgID)).get(10L, TimeUnit.SECONDS);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to remove permission from {} {}", type, identityID, e);
+      }
+   }
+
    public void cleanOrganizationFromPermissions(String orgId) {
       for(Tuple4<ResourceType, String, String, Permission> permissionSet : getPermissions()) {
          String resourceOrgID = permissionSet.getSecond();
@@ -269,10 +282,14 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
             boolean changed = false;
 
             for(ResourceAction action : ResourceAction.values()) {
-               Set<Permission.PermissionIdentity> identities = perm.getGrants(action, type);
+               Set<Permission.PermissionIdentity> identities = perm.getGrants(action, type, null);
 
-               if(identities.remove(oldID) && !removed) {
-                  identities.add(new Permission.PermissionIdentity(newID.name, newID.orgID));
+               if(identities.removeIf(pi -> Tool.equals(pi.getName(), oldID.name) &&
+                                            Tool.equals(pi.getOrganizationID(), oldID.orgID)))
+               {
+                  if(!removed) {
+                     identities.add(new Permission.PermissionIdentity(newID.name, newID.orgID));
+                  }
                   perm.setGrants(action, type, identities);
                   changed = true;
                }
