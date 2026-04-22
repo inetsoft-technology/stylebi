@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;
 
+import javax.xml.XMLConstants;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
@@ -34,6 +35,10 @@ public interface Transformer {
     */
    default void updateFile(Document doc, File file) {
       TransformerFactory transformerFactory = TransformerFactory.newInstance();
+      try { transformerFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, ""); }
+      catch(IllegalArgumentException ignored) {}
+      try { transformerFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, ""); }
+      catch(IllegalArgumentException ignored) {}
       javax.xml.transform.Transformer transformer;
 
       try {
