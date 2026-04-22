@@ -151,8 +151,19 @@ public class TwitterDataSource extends OAuthEndpointJsonDataSource<TwitterDataSo
    public void updateTokens(Tokens tokens) {
       setAccessToken(tokens.accessToken());
       setRefreshToken(tokens.refreshToken());
-      // expiresIn not returned by oauth server, all tokens expire in 24 hours
-      setTokenExpiration(tokens.issued() + TimeUnit.MILLISECONDS.convert(24L, TimeUnit.HOURS));
+      long now = System.currentTimeMillis();
+      long expiration = tokens.expiration();
+
+      if(expiration <= now) {
+         // fallback when expires_in missing
+         expiration = now + TimeUnit.MILLISECONDS.convert(2L, TimeUnit.HOURS);
+      }
+      else {
+         // buffer against clock skew
+         expiration -= TimeUnit.MILLISECONDS.convert(30L, TimeUnit.SECONDS);
+      }
+
+      setTokenExpiration(expiration);
    }
 
    @Override
