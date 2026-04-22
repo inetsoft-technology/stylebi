@@ -17,7 +17,6 @@
  */
 package inetsoft.sree.security;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -31,23 +30,6 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests for {@link IdentityID}.
  *
  * <p>Class type: data model / utility — decision tree path coverage.
- *
- * <p>Intent vs implementation suspects:
- * <pre>
- * [Suspect 1] getIdentityIDFromKey(key) when key starts with KEY_DELIMITER
- *             intent: key "~;~org" should parse as name="" with orgID="org"
- *             actual: deliminator == 0 fails the `> 0` guard → falls into the no-delimiter
- *                     else-branch, ignores the org token, uses ThreadContext / OrganizationManager
- *
- * [Suspect 2] equalsIgnoreCase(null)
- *             intent: return false (treat null as non-equal)
- *             actual: other.name dereference → NullPointerException
- *
- * [Suspect 3] getConvertKey(idName, orgId) idempotency
- *             intent: return idName unchanged when it already contains KEY_DELIMITER
- *             actual: condition `!idName.startsWith(idName + KEY_DELIMITER)` is always true
- *                     (no string can start with a strictly longer string) → key is always re-appended
- * </pre>
  *
  * <p>Decision trees:
  * <pre>
@@ -148,9 +130,7 @@ class IdentityIDTest {
       );
    }
 
-   //Bug #74667 
-   @Disabled("[Suspect 1] delimiter at index 0 fails the `> 0` guard → falls into the no-delimiter " +
-             "else-branch (ThreadContext) instead of parsing empty name with the given org")
+   // Bug #74667
    @Test
    void getIdentityIDFromKey_delimiterAtStart_parsesEmptyNameAndOrg() {
       // key "~;~someOrg" has delimiter at position 0; `deliminator > 0` is false
@@ -234,13 +214,11 @@ class IdentityIDTest {
       assertFalse(a.equalsIgnoreCase(b));
    }
 
-   //Bug #74667 
-   @Disabled("[Suspect 2] other == null → NullPointerException on other.name dereference; " +
-             "no null guard exists in equalsIgnoreCase()")
+   // Bug #74667
    @Test
-   void equalsIgnoreCase_nullArgument_throwsNPE() {
+   void equalsIgnoreCase_nullArgument_returnsFalse() {
       IdentityID a = new IdentityID("Alice", "OrgA");
-      assertThrows(NullPointerException.class, () -> a.equalsIgnoreCase(null));
+      assertFalse(a.equalsIgnoreCase(null));
    }
 
    // ---- compareTo ----
@@ -414,10 +392,7 @@ class IdentityIDTest {
    }
 
 
-   //Bug #74667 
-   @Disabled("[Suspect 3] `!idName.startsWith(idName + KEY_DELIMITER)` is always true — " +
-             "a string cannot start with a strictly longer string — so the delimiter is always " +
-             "re-appended even when the key is already formatted")
+   // Bug #74667
    @Test
    void getConvertKey_alreadyKeyFormatted_returnsUnchanged() {
       // [Path C] idName already contains KEY_DELIMITER → should return unchanged, not re-append

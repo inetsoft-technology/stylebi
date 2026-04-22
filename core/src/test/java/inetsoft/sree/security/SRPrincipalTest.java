@@ -32,26 +32,11 @@ package inetsoft.sree.security;
  * [XML: round-trip]              principal written as XML                                            -> parseXML() restores all XML fields
  * [XML: missing-required-tags]   XML omits any one of clientInfo/secureID/age/accessed/properties   -> parseXML() throws IOException naming the missing element
  *
- * Intent vs implementation suspects
- *
- * [Suspect 1] fake principals compare equal by name only
- *             intent: equal objects should also have equal hashCode()
- *             actual: hashCode() still includes client.hashCode(), so equal fake principals can hash differently
- * [Suspect 2] toIdentifier() / createFromID() with parameters should round-trip request parameters
- *             intent: encoded parameters are restored by createFromID()
- *             actual: createFromID() can throw ArrayIndexOutOfBoundsException while parsing parameter segments
- * [Suspect 3] toIdentifier() / createFromID() with roles should round-trip role identities
- *             intent: encoded roles are restored by createFromID()
- *             actual: role serialization uses IdentityID text that also contains '^', which collides with the parser delimiter
- * [Suspect 4] toIdentifier() / createFromID() should round-trip even simple SSO identifiers
- *             intent: non-internal principal identifiers can be parsed back into an equivalent SRPrincipal
- *             actual: createFromID() can still throw ArrayIndexOutOfBoundsException on a simple identifier
  */
 
 import inetsoft.sree.ClientInfo;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.XSessionService;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -314,29 +299,25 @@ class SRPrincipalTest {
    }
 
    // [Suspect 1] fake principals that compare equal should also share the same hashCode
-   // BROKEN: equals() ignores client/secureID for fake principals, but hashCode() still includes client.hashCode().
-   // Bug #74665
    @Test
-   @Disabled("Bug: fake SRPrincipal equality is inconsistent with hashCode()")
    void fakePrincipalsEqualByName_haveSameHashCode() {
-      SRPrincipal first = new SRPrincipal(
-         new ClientInfo(new IdentityID("alice", ORG_A), "10.0.0.1", "session-1"),
-         new IdentityID[0], new String[0], ORG_A, 1L);
-      SRPrincipal second = new SRPrincipal(
-         new ClientInfo(new IdentityID("alice", ORG_A), "10.0.0.2", "session-2"),
-         new IdentityID[0], new String[0], ORG_A, 2L);
-      first.setProperty("__FAKE__", "true");
-      second.setProperty("__FAKE__", "true");
+      try(MockedStatic<XSessionService> sessionService = mockSessionService()) {
+         SRPrincipal first = new SRPrincipal(
+            new ClientInfo(new IdentityID("alice", ORG_A), "10.0.0.1", "session-1"),
+            new IdentityID[0], new String[0], ORG_A, 1L);
+         SRPrincipal second = new SRPrincipal(
+            new ClientInfo(new IdentityID("alice", ORG_A), "10.0.0.2", "session-2"),
+            new IdentityID[0], new String[0], ORG_A, 2L);
+         first.setProperty("__FAKE__", "true");
+         second.setProperty("__FAKE__", "true");
 
-      assertEquals(first, second);
-      assertEquals(first.hashCode(), second.hashCode());
+         assertEquals(first, second);
+         assertEquals(first.hashCode(), second.hashCode());
+      }
    }
 
    // [Suspect 2] identifier round-trip should restore serialized parameters without crashing
-   // BROKEN: createFromID() can throw ArrayIndexOutOfBoundsException while parsing parameter segments.
-   // Bug #74665
    @Test
-   @Disabled("Bug: SRPrincipal.createFromID() does not robustly parse parameters emitted by toIdentifier()")
    void createFromID_withParameters_restoresSerializedParameters() {
       try(MockedStatic<XSessionService> sessionService = mockSessionService()) {
          SRPrincipal principal = newPrincipal();
@@ -351,10 +332,7 @@ class SRPrincipalTest {
    }
 
    // [Suspect 3] identifier round-trip should restore role identities without delimiter collisions
-   // BROKEN: role identities contain '^' inside IdentityID.convertToKey(), which collides with createFromID() splitting logic.
-   // Bug #74665
    @Test
-   @Disabled("Bug: SRPrincipal.createFromID() cannot safely parse roles emitted by toIdentifier()")
    void createFromID_withRoles_restoresSerializedRoles() {
       try(MockedStatic<XSessionService> sessionService = mockSessionService()) {
          SRPrincipal principal = newPrincipal();
@@ -366,10 +344,7 @@ class SRPrincipalTest {
    }
 
    // [Suspect 4] even a simple identifier should parse back without crashing
-   // BROKEN: createFromID() can throw ArrayIndexOutOfBoundsException even for a principal with simple groups and no roles.
-   // Bug #74665
    @Test
-   @Disabled("Bug: SRPrincipal.createFromID() is not robust even for simple SSO identifiers")
    void createFromID_roundTripPreservesIdentityPayload() {
       try(MockedStatic<XSessionService> sessionService = mockSessionService()) {
          SRPrincipal principal = new SRPrincipal(
