@@ -145,7 +145,7 @@ public interface SVGSupport {
    /** {@code data-level} — nesting depth from {@code TreemapGeometry.getLevel()}; leaf=0, root=highest. */
    String ATTR_LEVEL  = "level";
    /** {@code data-id} — mxCell ID for relation/tree chart nodes, used to match edges to nodes. */
-   String ATTR_ID     = "id";
+   String ATTR_NODE_ID = "id";
    /** {@code data-source} — source node's mxCell ID for relation/tree chart edges. */
    String ATTR_SOURCE = "source";
    /** {@code data-target} — target node's mxCell ID for relation/tree chart edges. */

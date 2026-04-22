@@ -103,7 +103,7 @@ public class RelationVO extends ElementVO {
          Map<String, String> nodeAttrs = new LinkedHashMap<>();
          nodeAttrs.put(SVGSupport.ATTR_ROW, String.valueOf(gobj.getRowIndex()));
          nodeAttrs.put(SVGSupport.ATTR_COL, String.valueOf(gobj.getColIndex()));
-         nodeAttrs.put(SVGSupport.ATTR_ID,  gobj.getMxCell().getId());
+         nodeAttrs.put(SVGSupport.ATTR_NODE_ID, gobj.getMxCell().getId());
          svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_RELATION, nodeAttrs);
       }
 

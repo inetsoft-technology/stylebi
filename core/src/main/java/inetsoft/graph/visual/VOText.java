@@ -281,6 +281,12 @@ public class VOText extends VLabel implements PlotObject {
          Rectangle2D bounds = getBounds();
          VOText textText = (VOText) clone();
          VOText valueText = (VOText) clone();
+         // Sub-texts are split layout artifacts, not independent chart labels — clear the SVG
+         // annotation so each clone doesn't emit its own duplicate annotation group when painted.
+         textText.svgAnnotationClass = null;
+         textText.svgAnnotationAttrs = null;
+         valueText.svgAnnotationClass = null;
+         valueText.svgAnnotationAttrs = null;
          textText.valueText = false;
          textText.setBounds(bounds.getX(), bounds.getY() + bounds.getHeight() / 2,
                             bounds.getWidth(), bounds.getHeight() / 2);

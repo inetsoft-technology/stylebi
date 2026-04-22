@@ -232,6 +232,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
          this.activeRelationNeighbors.push(edge.el);
 
          const neighborId = edge.sourceId === nodeId ? edge.targetId : edge.sourceId;
+         if(neighborId === nodeId) continue; // skip self-loops — hovered node already activated
          const neighborEl = this.relationNodeIdMap.get(neighborId);
          if(neighborEl) {
             neighborEl.classList.add("inetsoft-active");
