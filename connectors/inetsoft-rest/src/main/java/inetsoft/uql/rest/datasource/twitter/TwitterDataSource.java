@@ -155,11 +155,11 @@ public class TwitterDataSource extends OAuthEndpointJsonDataSource<TwitterDataSo
       long expiration = tokens.expiration();
 
       if(expiration <= now) {
-         // fallback when expires_in missing
+         // fallback: expiration missing or already-expired
          expiration = now + TimeUnit.MILLISECONDS.convert(2L, TimeUnit.HOURS);
       }
       else {
-         // buffer against clock skew
+         // clock-skew buffer; tokens.expiration() is an absolute timestamp with no server-side margin
          expiration -= TimeUnit.MILLISECONDS.convert(30L, TimeUnit.SECONDS);
       }
 
