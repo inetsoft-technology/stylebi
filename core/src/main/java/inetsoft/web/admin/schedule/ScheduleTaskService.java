@@ -518,6 +518,10 @@ public class ScheduleTaskService {
             "Unauthorized access to resource \"%s\" by %s", task.getName(), principal));
       }
 
+      // Snapshot the server-side task before applying client changes so that sanitizeConditions
+      // and sanitizeAction can restore any fields the principal is not permitted to change.
+      ScheduleTask originalTask = task.clone();
+
       Set<TimeRange> ranges = new HashSet<>();
 
       for(int i = 0; i < model.conditions().size(); i++) {
@@ -534,15 +538,19 @@ public class ScheduleTaskService {
          task.removeCondition(i);
       }
 
+      sanitizeConditions(task, originalTask, principal);
+
       if(!internalTask) {
          for(int i = 0; i < model.actions().size(); i++) {
-            ScheduleAction scheduleAction = task.getActionCount() > i ? task.getAction(i) : null;
+            ScheduleAction scheduleAction = originalTask.getActionCount() > i ? originalTask.getAction(i) : null;
             ScheduleAction action =
                scheduleService.getActionFromModel(model.actions().get(i), scheduleAction, principal, linkURI);
 
             if(action == null) {
                continue;
             }
+
+            sanitizeAction(action, scheduleAction, principal);
 
             if(action instanceof IndividualAssetBackupAction) {
                IndividualAssetBackupAction backupAction = (IndividualAssetBackupAction) action;
@@ -593,6 +601,163 @@ public class ScheduleTaskService {
       }
 
       return getDialogModel(taskName, principal, em);
+   }
+
+   void sanitizeConditions(ScheduleTask task, ScheduleTask originalTask,
+                           Principal principal)
+   {
+      boolean canSetStartTime = scheduleService.checkPermission(
+         principal, ResourceType.SCHEDULE_OPTION, "startTime");
+      boolean canUseTimeRange = scheduleService.checkPermission(
+         principal, ResourceType.SCHEDULE_OPTION, "timeRange");
+
+      if(canSetStartTime && canUseTimeRange) {
+         return;
+      }
+
+      for(int i = task.getConditionCount() - 1; i >= 0; i--) {
+         if(!(task.getCondition(i) instanceof TimeCondition tc)) {
+            continue;
+         }
+
+         TimeCondition origTc = i < originalTask.getConditionCount() &&
+            originalTask.getCondition(i) instanceof TimeCondition o ? o : null;
+         boolean sameType = origTc != null && origTc.getType() == tc.getType();
+
+         if(!canSetStartTime) {
+            if(tc.getType() == TimeCondition.AT || tc.getType() == TimeCondition.EVERY_HOUR) {
+               // These types are not available without startTime permission.
+               // Restore only if the server had the same type; otherwise discard.
+               if(sameType) {
+                  task.setCondition(i, origTc);
+               }
+               else {
+                  task.removeCondition(i);
+               }
+
+               continue;
+            }
+
+            // For other types, restore time fields only when the type matches.
+            // If the type differs or there is no original, apply defaults.
+            if(sameType) {
+               tc.setHour(origTc.getHour());
+               tc.setMinute(origTc.getMinute());
+               tc.setSecond(origTc.getSecond());
+            }
+            else {
+               tc.setHour(1);
+               tc.setMinute(30);
+               tc.setSecond(0);
+            }
+         }
+
+         if(!canUseTimeRange) {
+            TimeRange origRange = sameType ? origTc.getTimeRange() : null;
+
+            if(!Objects.equals(tc.getTimeRange(), origRange)) {
+               tc.setTimeRange(origRange);
+            }
+         }
+      }
+   }
+
+   void sanitizeAction(ScheduleAction action, ScheduleAction originalAction,
+                       Principal principal)
+   {
+      if(!(action instanceof ViewsheetAction vsa)) {
+         return;
+      }
+
+      boolean canSetNotificationEmail = scheduleService.checkPermission(
+         principal, ResourceType.SCHEDULE_OPTION, "notificationEmail");
+      boolean canSaveToDisk = scheduleService.checkPermission(
+         principal, ResourceType.SCHEDULE_OPTION, "saveToDisk");
+      boolean canDeliverEmail = scheduleService.checkPermission(
+         principal, ResourceType.SCHEDULE_OPTION, "emailDelivery");
+
+      // Only preserve admin-set values when the action targets the same dashboard.
+      // If the sheet changed, treat it as a new action and apply restrictions unconditionally.
+      ViewsheetAction origVsa = originalAction instanceof ViewsheetAction o &&
+         Objects.equals(o.getViewsheet(), vsa.getViewsheet()) ? o : null;
+
+      if(!canSetNotificationEmail) {
+         if(origVsa != null && origVsa.getNotifications() != null &&
+            !origVsa.getNotifications().isEmpty())
+         {
+            vsa.setNotifications(origVsa.getNotifications());
+            vsa.setNotifyError(origVsa.isNotifyError());
+            vsa.setLink(origVsa.isLink());
+         }
+         else {
+            vsa.setNotifications(null);
+            vsa.setNotifyError(false);
+            vsa.setLink(false);
+         }
+      }
+
+      if(!canDeliverEmail) {
+         if(origVsa != null && origVsa.getEmails() != null && !origVsa.getEmails().isEmpty()) {
+            vsa.setEmails(origVsa.getEmails());
+            vsa.setCCAddresses(origVsa.getCCAddresses());
+            vsa.setBCCAddresses(origVsa.getBCCAddresses());
+            vsa.setFrom(origVsa.getFrom());
+            vsa.setSubject(origVsa.getSubject());
+            vsa.setMessage(origVsa.getMessage());
+            vsa.setMessageHtml(origVsa.isMessageHtml());
+            vsa.setFileFormat(origVsa.getFileFormat());
+            vsa.setDeliverLink(origVsa.isDeliverLink());
+            vsa.setMatchLayout(origVsa.isMatchLayout());
+            vsa.setExpandSelections(origVsa.isExpandSelections());
+            vsa.setOnlyDataComponents(origVsa.isOnlyDataComponents());
+            vsa.setExportAllTabbedTables(origVsa.isExportAllTabbedTables());
+            vsa.setEmailCSVConfig(origVsa.getEmailCSVConfig());
+            vsa.setAttachmentName(origVsa.getAttachmentName());
+            vsa.setCompressFile(origVsa.isCompressFile());
+         }
+         else {
+            vsa.setEmails(null);
+            vsa.setCCAddresses(null);
+            vsa.setBCCAddresses(null);
+            vsa.setFrom(null);
+            vsa.setSubject(null);
+            vsa.setMessage(null);
+            vsa.setMessageHtml(false);
+            vsa.setFileFormat(null);
+            vsa.setDeliverLink(false);
+            vsa.setMatchLayout(false);
+            vsa.setExpandSelections(false);
+            vsa.setOnlyDataComponents(false);
+            vsa.setExportAllTabbedTables(false);
+            vsa.setEmailCSVConfig(null);
+            vsa.setAttachmentName(null);
+            vsa.setCompressFile(false);
+         }
+      }
+
+      if(!canSaveToDisk) {
+         for(int fmt : vsa.getSaveFormats()) {
+            vsa.setFilePath(fmt, (ServerPathInfo) null);
+         }
+
+         vsa.setSaveCSVConfig(null);
+         vsa.setSaveToServerMatch(false);
+         vsa.setSaveToServerExpandSelections(false);
+         vsa.setSaveToServerOnlyDataComponents(false);
+         vsa.setSaveExportAllTabbedTables(false);
+
+         if(origVsa != null && origVsa.getSaveFormats().length > 0) {
+            for(Map.Entry<Integer, ServerPathInfo> e : origVsa.getFilePathsMap().entrySet()) {
+               vsa.setFilePath(e.getKey(), e.getValue());
+            }
+
+            vsa.setSaveCSVConfig(origVsa.getSaveCSVConfig());
+            vsa.setSaveToServerMatch(origVsa.isSaveToServerMatch());
+            vsa.setSaveToServerExpandSelections(origVsa.isSaveToServerExpandSelections());
+            vsa.setSaveToServerOnlyDataComponents(origVsa.isSaveToServerOnlyDataComponents());
+            vsa.setSaveExportAllTabbedTables(origVsa.isSaveExportAllTabbedTables());
+         }
+      }
    }
 
    private void renameBackupAction(IndividualAssetBackupAction action, String path, String oid, String nid) {
