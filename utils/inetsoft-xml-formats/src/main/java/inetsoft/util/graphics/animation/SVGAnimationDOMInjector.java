@@ -1583,7 +1583,7 @@ public class SVGAnimationDOMInjector {
          .collect(Collectors.toList());
 
       // cell index → animation style, reused when matching labels.
-      Map<Integer, String> cellStyles = new HashMap<>();
+      List<String> cellStyles = new ArrayList<>(n);
 
       for(int i = 0; i < n; i++) {
          double delay = AnimationConstants.staggerDelay(i, n);
@@ -1591,7 +1591,7 @@ public class SVGAnimationDOMInjector {
             "animation:inetsoft-treemap-fade %.2fs %s %.2fs both",
             AnimationConstants.DURATION, AnimationConstants.EASING, delay);
          applyAnimStyleToChildren(cells.get(i), animStyle);
-         cellStyles.put(i, animStyle);
+         cellStyles.add(animStyle);
       }
 
       // Match external text labels to cells: apply matching animation style so labels fade in
@@ -1646,7 +1646,7 @@ public class SVGAnimationDOMInjector {
          .map(SVGAnimationDOMInjector::annotGroupBounds)
          .collect(Collectors.toList());
 
-      Map<Integer, String> circleStyles = new HashMap<>();
+      List<String> circleStyles = new ArrayList<>(n);
 
       for(int i = 0; i < n; i++) {
          double delay = AnimationConstants.staggerDelay(i, n);
@@ -1654,12 +1654,15 @@ public class SVGAnimationDOMInjector {
             "animation:inetsoft-circle-packing-fade %.2fs %s %.2fs both",
             AnimationConstants.DURATION, AnimationConstants.EASING, delay);
          applyAnimStyleToChildren(circles.get(i), animStyle);
-         circleStyles.put(i, animStyle);
+         circleStyles.add(animStyle);
       }
 
       List<Element> textGroups = new ArrayList<>();
       collectTextGroups(svgRoot, textGroups);
 
+      // nearestCellByCtm picks the containing cell whose centre is closest to the text reference
+      // point. For nested circles (inner inside outer), the inner circle's centre is always
+      // closer to its own label, so nested containment resolves correctly without special casing.
       for(Element textG : textGroups) {
          int idx = nearestCellByCtm(textG, circleBounds);
 
@@ -1701,6 +1704,11 @@ public class SVGAnimationDOMInjector {
          .collect(Collectors.toList());
 
       // Sort node indices by Y-centre ascending (root = topmost = smallest Y in SVG coords).
+      // NOTE: this assumes a vertical (top-to-bottom) tree layout. For horizontal COMPACT_TREE
+      // layouts the level ordering will be approximate (nodes sorted by the width axis instead of
+      // the depth axis), but the animation will still complete correctly — it just won't follow
+      // root-first order on horizontal trees. For force-directed network graph layouts there is
+      // no inherent ordering at all; nodes will stagger in approximate top-to-bottom order.
       List<Integer> order = new ArrayList<>();
 
       for(int i = 0; i < nodes.size(); i++) {
@@ -1715,7 +1723,7 @@ public class SVGAnimationDOMInjector {
       double threshold = Math.max(avgHeight * 0.5, 5.0);
       int[] levelOf = new int[nodes.size()];
       int numLevels = 0;
-      double prevLevelY = Double.MIN_VALUE;
+      double prevLevelY = Double.NEGATIVE_INFINITY;
 
       for(int idx : order) {
          double cy = (bounds.get(idx)[1] + bounds.get(idx)[3]) / 2.0;
@@ -1754,11 +1762,13 @@ public class SVGAnimationDOMInjector {
 
       // Edge animation: each edge fades in with its child node (the end of the edge furthest
       // from the root, i.e. the maximum Y in SVG coordinates).
+      // NOTE: eb[3] (maxY) is the child end only for vertical layouts. For horizontal trees the
+      // child end would be eb[2] (maxX). This is acceptable for the current vertical-only support.
       List<Element> edgeGroups = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_RELATION_EDGE);
 
       for(Element edgeG : edgeGroups) {
          double[] eb = annotGroupBounds(edgeG);
-         double childY = eb[3]; // maxY = child end of the edge in SVG coords
+         double childY = eb[3]; // maxY = child end of the edge in SVG coords (vertical layout)
          int bestLevel = 0;
          double bestDist = Math.abs(childY - levelAvgY[0]);
 
@@ -1795,8 +1805,10 @@ public class SVGAnimationDOMInjector {
          Integer idx = nodeIndexByRow.get(row);
          if(idx != null) {
             double delay = AnimationConstants.staggerDelay(levelOf[idx], numLevels);
-            mergeStyle(labelG, String.format(java.util.Locale.US,
-               "opacity:0;animation:inetsoft-relation-fade %.2fs %s %.2fs both",
+            // Use A2 pattern (apply to children) for consistency with nodes/edges, so the
+            // group's own opacity is never set and hover dim CSS can override without conflict.
+            applyAnimStyleToChildren(labelG, String.format(java.util.Locale.US,
+               "animation:inetsoft-relation-fade %.2fs %s %.2fs both",
                AnimationConstants.DURATION, AnimationConstants.EASING, delay));
          }
       }
@@ -1869,14 +1881,14 @@ public class SVGAnimationDOMInjector {
       }
 
       // arc index → animation style string, used later to match labels.
-      Map<Integer, String> arcStyles = new HashMap<>();
+      List<String> arcStyles = new ArrayList<>(n);
 
       for(int i = 0; i < n; i++) {
          double delay = AnimationConstants.staggerDelay(arcStaggerPos[i], n);
          String style = String.format(java.util.Locale.US,
             "animation:inetsoft-sunburst-fade %.2fs %s %.2fs both",
             AnimationConstants.DURATION, AnimationConstants.EASING, delay);
-         arcStyles.put(i, style);
+         arcStyles.add(style);
          applyAnimStyleToChildren(arcs.get(i), style);
       }
 
@@ -1927,15 +1939,13 @@ public class SVGAnimationDOMInjector {
       }
 
       // Hover tagging: correct nearest-center mismatches by proximity to contained neighbors.
-      final int   WINDOW     = 5;    // DOM neighbors to scan on each side
-      final double GLYPH_DIST = 100.0; // max SVG-unit distance to be considered the same label
       int[] hoverArc = labelArc.clone();
 
       for(int i = 0; i < numText; i++) {
          if(labelContained[i] || labelArc[i] < 0) continue; // already correct or unmatched
-         double bestDist = GLYPH_DIST;
+         double bestDist = AnimationConstants.SUNBURST_GLYPH_MAX_DIST;
          int override = -1;
-         for(int j = Math.max(0, i - WINDOW); j <= Math.min(numText - 1, i + WINDOW); j++) {
+         for(int j = Math.max(0, i - AnimationConstants.SUNBURST_GLYPH_WINDOW); j <= Math.min(numText - 1, i + AnimationConstants.SUNBURST_GLYPH_WINDOW); j++) {
             if(j == i || !labelContained[j] || labelArc[j] < 0) continue;
             double d = Math.hypot(labelTx[j] - labelTx[i], labelTy[j] - labelTy[i]);
             if(d < bestDist) {
@@ -2008,7 +2018,7 @@ public class SVGAnimationDOMInjector {
       }
 
       // cell index → animation style, used to match labels after cell pass.
-      Map<Integer, String> cellStyles = new HashMap<>();
+      List<String> cellStyles = new ArrayList<>(n);
 
       for(int i = 0; i < n; i++) {
          double delay = AnimationConstants.staggerDelay(cellStaggerPos[i], n);
@@ -2016,7 +2026,7 @@ public class SVGAnimationDOMInjector {
             "animation:inetsoft-icicle-fade %.2fs %s %.2fs both",
             AnimationConstants.DURATION, AnimationConstants.EASING, delay);
          applyAnimStyleToChildren(cells.get(i), animStyle);
-         cellStyles.put(i, animStyle);
+         cellStyles.add(animStyle);
       }
 
       // Match label text groups to their cell and apply the same animation style so labels
@@ -2115,7 +2125,7 @@ public class SVGAnimationDOMInjector {
       double ROW_STEP = ROW_RATIO * scale;
 
       // cell index → animation style, reused when matching labels.
-      Map<Integer, String> cellStyles = new HashMap<>();
+      List<String> cellStyles = new ArrayList<>(cells.size());
 
       for(int i = 0; i < cells.size(); i++) {
          double cx = xCenters.get(i);
@@ -2127,7 +2137,7 @@ public class SVGAnimationDOMInjector {
             "animation:inetsoft-mekko-fade %.2fs %s %.2fs both",
             AnimationConstants.DURATION, AnimationConstants.EASING, delay);
          cells.get(i).setAttribute("style", animStyle);
-         cellStyles.put(i, animStyle);
+         cellStyles.add(animStyle);
       }
 
       // Match external text labels to cells: apply matching animation style so labels fade in

@@ -120,6 +120,24 @@ public final class AnimationConstants {
    public static final double PIE_TEXT_DURATION = 0.4;
 
    // -------------------------------------------------------------------------
+   // Sunburst label glyph-matching constants
+   // -------------------------------------------------------------------------
+
+   /**
+    * Number of DOM neighbors to scan on each side when correcting glyph-arc mismatches for
+    * sunburst label hover tagging.  Batik renders each character as a separate glyph group;
+    * glyphs of the same label are always adjacent in DOM order.
+    */
+   public static final int SUNBURST_GLYPH_WINDOW = 5;
+
+   /**
+    * Maximum SVG-unit distance between two glyph reference points for them to be considered
+    * part of the same label.  Glyphs of the same label are always close together; glyphs from
+    * different labels are separated by more than this distance.
+    */
+   public static final double SUNBURST_GLYPH_MAX_DIST = 100.0;
+
+   // -------------------------------------------------------------------------
    // Stagger helper
    // -------------------------------------------------------------------------
 

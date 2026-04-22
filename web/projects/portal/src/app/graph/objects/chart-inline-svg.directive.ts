@@ -216,6 +216,10 @@ export class ChartInlineSvgDirective implements OnDestroy {
       if(glyphs) glyphs.forEach(g => g.classList.remove("inetsoft-active"));
    }
 
+   // Activates neighbor nodes, their connecting edges, and neighbor labels.
+   // The hovered node's own label is activated separately by activateKey() via labelGroupMap,
+   // and cleared by deactivateCurrent(). Neighbor labels pushed into activeRelationNeighbors
+   // are cleared by the activeRelationNeighbors loop in deactivateCurrent().
    private activateRelationNeighbors(nodeEl: Element): void {
       const nodeId = nodeEl.getAttribute("data-id");
       if(!nodeId) return;
@@ -595,6 +599,9 @@ export class ChartInlineSvgDirective implements OnDestroy {
    private uniquifyIds(svg: string): string {
       const uid = `isvg${ChartInlineSvgDirective.idCounter++}`;
       return svg
+         // Lookbehind for '-' is required: \b would also match data-id="..." (word boundary between
+         // '-' and 'i'), rewriting it to data-id="uid-..." while data-source/data-target keep the
+         // original IDs, breaking edge lookup in relationNodeIdMap.
          .replace(/(?<![a-zA-Z0-9_-])id="([^"]+)"/g, `id="${uid}-$1"`)
          .replace(/\burl\(#([^)]+)\)/g, `url(#${uid}-$1)`)
          .replace(/\bhref="#([^"]+)"/g, `href="#${uid}-$1"`)

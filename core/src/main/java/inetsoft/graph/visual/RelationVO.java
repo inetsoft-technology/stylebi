@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import java.awt.*;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -99,11 +100,11 @@ public class RelationVO extends ElementVO {
       SVGSupport svg = SVGSupport.isSVGContext(g) ? SVGSupport.getInstance() : null;
 
       if(svg != null) {
-         svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_RELATION, Map.of(
-            SVGSupport.ATTR_ROW, String.valueOf(gobj.getRowIndex()),
-            SVGSupport.ATTR_COL, String.valueOf(gobj.getColIndex()),
-            SVGSupport.ATTR_ID,  gobj.getMxCell().getId()
-         ));
+         Map<String, String> nodeAttrs = new LinkedHashMap<>();
+         nodeAttrs.put(SVGSupport.ATTR_ROW, String.valueOf(gobj.getRowIndex()));
+         nodeAttrs.put(SVGSupport.ATTR_COL, String.valueOf(gobj.getColIndex()));
+         nodeAttrs.put(SVGSupport.ATTR_ID,  gobj.getMxCell().getId());
+         svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_RELATION, nodeAttrs);
       }
 
       try {
@@ -166,10 +167,10 @@ public class RelationVO extends ElementVO {
       vgraph.addVisual(vtext);
 
       RelationGeometry gobj = (RelationGeometry) getGeometry();
-      vtext.setSvgAnnotation(SVGSupport.ANNOTATION_RELATION_LABEL, Map.of(
-         SVGSupport.ATTR_ROW, String.valueOf(gobj.getRowIndex()),
-         SVGSupport.ATTR_COL, String.valueOf(gobj.getColIndex())
-      ));
+      Map<String, String> labelAttrs = new LinkedHashMap<>();
+      labelAttrs.put(SVGSupport.ATTR_ROW, String.valueOf(gobj.getRowIndex()));
+      labelAttrs.put(SVGSupport.ATTR_COL, String.valueOf(gobj.getColIndex()));
+      vtext.setSvgAnnotation(SVGSupport.ANNOTATION_RELATION_LABEL, labelAttrs);
       RelationElement elem = (RelationElement) gobj.getElement();
 
       Rectangle2D box = getScreenTransform().createTransformedShape(shape).getBounds2D();

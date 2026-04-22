@@ -2410,6 +2410,8 @@ public class VGraphPair {
       else if(hasIcicleVO(graph)) {
          g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_ICICLE);
       }
+      // hasCirclePackingVO and hasTreemapVO both delegate to hasTreemapVOOfType with different
+      // TreemapElement.Type values (CIRCLE vs TREEMAP), so they are mutually exclusive.
       else if(hasCirclePackingVO(graph)) {
          g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_CIRCLE_PACKING);
       }
