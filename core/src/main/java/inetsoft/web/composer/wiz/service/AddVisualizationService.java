@@ -191,10 +191,11 @@ public class AddVisualizationService {
       int offsetX = (int) (xOffset / scale);
       int offsetY = (int) (yOffset / scale);
 
-      // Pass 1: clone every assembly and compute its final name, building vsRenameMap
+      // Pass 1: clone every assembly and compute its final name, building vsConflictRenameMap
       //         so that intra-visualization cross-references can be patched in pass 2.
+      //         (distinct from the outer vsRenameMap which tracks WS base→mirror renames)
       List<VSAssembly> clones = new ArrayList<>();
-      Map<String, String> vsRenameMap = new HashMap<>();
+      Map<String, String> vsConflictRenameMap = new HashMap<>();
 
       for(Assembly a : vizVS.getAssemblies()) {
          if(!(a instanceof VSAssembly srcAssembly)) {
@@ -225,7 +226,7 @@ public class AddVisualizationService {
 
          if(!targetName.equals(originalName)) {
             cloned.getVSAssemblyInfo().setName(targetName);
-            vsRenameMap.put(originalName, targetName);
+            vsConflictRenameMap.put(originalName, targetName);
          }
 
          clones.add(cloned);
@@ -237,7 +238,7 @@ public class AddVisualizationService {
          applyWsRenameToVSAssembly(cloned, wsRenameMap);
 
          // Patch VS-level cross-references (container children, linked/selection assemblies)
-         for(Map.Entry<String, String> e : vsRenameMap.entrySet()) {
+         for(Map.Entry<String, String> e : vsConflictRenameMap.entrySet()) {
             cloned.renameDepended(e.getKey(), e.getValue());
          }
 

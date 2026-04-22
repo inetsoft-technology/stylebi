@@ -211,7 +211,14 @@ public class GenerateWsService {
 
       if(model.getWorksheetId() != null) {
          // Incremental path: merge the new query into the existing worksheet
-         AssetEntry existingEntry = AssetEntry.createAssetEntry(model.getWorksheetId());
+         AssetEntry existingEntry;
+
+         try {
+            existingEntry = AssetEntry.createAssetEntry(model.getWorksheetId());
+         }
+         catch(Exception e) {
+            throw new IllegalArgumentException("Invalid worksheetId: " + model.getWorksheetId(), e);
+         }
          Worksheet dashWS = (Worksheet) viewsheetService.getAssetRepository()
             .getSheet(existingEntry, user, false, AssetContent.ALL);
 
@@ -244,18 +251,18 @@ public class GenerateWsService {
       Assembly[] assemblies = worksheet.getAssemblies();
       int[] heights = new int[assemblies.length];
       int[] widths = new int[assemblies.length];
-      String[] tablas = new String[assemblies.length];
+      String[] tables = new String[assemblies.length];
 
       for(int i = 0; i < assemblies.length; i++) {
          Assembly assembly = assemblies[i];
          heights[i] = 62;
          widths[i] = 150;
-         tablas[i] = assembly.getName();
+         tables[i] = assembly.getName();
       }
 
       builder.heights(heights);
       builder.widths(widths);
-      builder.names(tablas);
+      builder.names(tables);
       layoutGraphService.layoutGraph(worksheet, builder.build());
    }
 
