@@ -26,6 +26,7 @@ import java.util.Objects;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class WorksheetConstructionModel {
    private String name; // ws table name
+   private String worksheetId; // nullable; when set, merge into existing worksheet instead of creating new
    private List<QueryField> fields;
    private List<JoinPath> joinPaths;
    private List<TableSetOperation> tableSetOperations;
@@ -38,6 +39,14 @@ public class WorksheetConstructionModel {
 
    public void setName(String name) {
       this.name = name;
+   }
+
+   public String getWorksheetId() {
+      return worksheetId;
+   }
+
+   public void setWorksheetId(String worksheetId) {
+      this.worksheetId = worksheetId;
    }
 
    public List<QueryField> getFields() {

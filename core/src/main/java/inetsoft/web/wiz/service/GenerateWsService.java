@@ -33,6 +33,7 @@ import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.util.SQLTypes;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.LayoutGraphService;
+import inetsoft.web.composer.ws.WsMergeService;
 import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
 import org.springframework.stereotype.Service;
@@ -45,12 +46,14 @@ public class GenerateWsService {
    public GenerateWsService(ViewsheetService viewsheetService, MetadataApiService metadataApiService,
                             InnerJoinService innerJoinService,
                             LayoutGraphService layoutGraphService,
+                            WsMergeService wsMergeService,
                             ObjectMapper objectMapper)
    {
       this.viewsheetService = viewsheetService;
       this.metadataApiService = metadataApiService;
       this.innerJoinService = innerJoinService;
       this.layoutGraphService = layoutGraphService;
+      this.wsMergeService = wsMergeService;
       this.objectMapper = objectMapper;
    }
 
@@ -198,8 +201,7 @@ public class GenerateWsService {
          throw new RuntimeException("can not generate worksheet");
       }
 
-      worksheet.setPrimaryAssembly(table.getName());
-
+      // Apply conditions and sort to the new table before persisting or merging
       if(model.getFilters() != null) {
          applyCondition(table, model.getFilters());
       }
@@ -207,10 +209,32 @@ public class GenerateWsService {
          applyOrderBy(table, model.getOrderBy());
       }
 
-      layoutGraph(worksheet);
-      AssetEntry assetEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, model.getName(), null);
-      viewsheetService.setWorksheet(worksheet, assetEntry, user, true, true);
-      generateWsResponse.setWsId(assetEntry.toIdentifier());
+      if(model.getWorksheetId() != null) {
+         // Incremental path: merge the new query into the existing worksheet
+         AssetEntry existingEntry = AssetEntry.createAssetEntry(model.getWorksheetId());
+         Worksheet dashWS = (Worksheet) viewsheetService.getAssetRepository()
+            .getSheet(existingEntry, user, false, AssetContent.ALL);
+
+         if(dashWS == null) {
+            throw new IllegalArgumentException("Worksheet not found: " + model.getWorksheetId());
+         }
+
+         String vizSuffix = wsMergeService.computeUniqueSuffix(model.getName(), dashWS);
+         Map<String, String> wsRenameMap = wsMergeService.mergeWorksheet(worksheet, dashWS, vizSuffix, new HashMap<>());
+         String finalTableName = wsRenameMap.getOrDefault(table.getName(), table.getName());
+         dashWS.setPrimaryAssembly(finalTableName);
+         layoutGraph(dashWS);
+         viewsheetService.getAssetRepository().setSheet(existingEntry, dashWS, user, true);
+         generateWsResponse.setWsId(existingEntry.toIdentifier());
+      }
+      else {
+         // New worksheet path
+         worksheet.setPrimaryAssembly(table.getName());
+         layoutGraph(worksheet);
+         AssetEntry assetEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, model.getName(), null);
+         viewsheetService.setWorksheet(worksheet, assetEntry, user, true, true);
+         generateWsResponse.setWsId(assetEntry.toIdentifier());
+      }
 
       return generateWsResponse;
    }
@@ -727,5 +751,6 @@ public class GenerateWsService {
    private final MetadataApiService metadataApiService;
    private final InnerJoinService innerJoinService;
    private final LayoutGraphService layoutGraphService;
+   private final WsMergeService wsMergeService;
    private final ObjectMapper objectMapper;
 }
