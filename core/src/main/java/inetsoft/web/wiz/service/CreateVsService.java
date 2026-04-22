@@ -121,8 +121,14 @@ public class CreateVsService {
             targetVs.syncWizData(vs);
          }
          else {
-            // Incremental: reuse the existing viewsheet; update the base entry if needed.
+            // Incremental: reuse the existing viewsheet; update the base entry only if it differs.
             targetVs = vs;
+         }
+
+         // Snapshot the previous base entry before any mutation so we can restore it on failure.
+         AssetEntry previousBaseEntry = targetVs.getBaseEntry();
+
+         if(!createdRuntimeId && !sourceWs.equals(previousBaseEntry)) {
             targetVs.setBaseEntry(sourceWs);
          }
 
@@ -178,9 +184,10 @@ public class CreateVsService {
             rvs.setViewsheet(previousVs);
 
             if(!createdRuntimeId) {
-               // In incremental mode targetVs == previousVs, so also remove the assembly
-               // that was just added to leave the viewsheet in its original state.
+               // In incremental mode targetVs == previousVs; remove the assembly and restore
+               // the base entry to leave the viewsheet in exactly its pre-call state.
                previousVs.removeAssembly(assembly.getName());
+               previousVs.setBaseEntry(previousBaseEntry);
             }
 
             throw e;
