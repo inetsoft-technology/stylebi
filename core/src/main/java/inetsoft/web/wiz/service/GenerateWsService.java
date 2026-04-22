@@ -33,7 +33,6 @@ import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.util.SQLTypes;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.LayoutGraphService;
-import inetsoft.web.composer.ws.WsMergeService;
 import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
 import org.springframework.stereotype.Service;
@@ -219,16 +218,22 @@ public class GenerateWsService {
          catch(Exception e) {
             throw new IllegalArgumentException("Invalid worksheetId: " + model.getWorksheetId(), e);
          }
-         Worksheet dashWS = (Worksheet) viewsheetService.getAssetRepository()
+         AbstractSheet sheet = viewsheetService.getAssetRepository()
             .getSheet(existingEntry, user, false, AssetContent.ALL);
 
-         if(dashWS == null) {
-            throw new IllegalArgumentException("Worksheet not found: " + model.getWorksheetId());
+         if(!(sheet instanceof Worksheet dashWS)) {
+            throw new IllegalArgumentException(
+               sheet == null
+                  ? "Worksheet not found: " + model.getWorksheetId()
+                  : "worksheetId does not reference a worksheet: " + model.getWorksheetId());
          }
 
          String vizSuffix = wsMergeService.computeUniqueSuffix(model.getName(), dashWS);
          Map<String, String> wsRenameMap = wsMergeService.mergeWorksheet(worksheet, dashWS, vizSuffix, new HashMap<>());
          String finalTableName = wsRenameMap.getOrDefault(table.getName(), table.getName());
+         // By design, the primary assembly always tracks the most recently added query.
+         // Callers (e.g. CreateVsService) bind to the primary assembly name returned in
+         // the response, so downstream VS bindings remain consistent with the last request.
          dashWS.setPrimaryAssembly(finalTableName);
          layoutGraph(dashWS);
          viewsheetService.getAssetRepository().setSheet(existingEntry, dashWS, user, true);

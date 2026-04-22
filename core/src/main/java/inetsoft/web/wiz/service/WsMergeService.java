@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.composer.ws;
+package inetsoft.web.wiz.service;
 
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -176,9 +176,12 @@ public class WsMergeService {
          return; // already promoted in a previous merge
       }
 
-      // Save the original semantics that belong to the first visualization
-      ConditionListWrapper preconds = existingTable.getPreConditionList();
-      ConditionListWrapper postconds = existingTable.getPostConditionList();
+      // Save the original semantics that belong to the first visualization.
+      // Guard against null: freshly constructed tables may return null condition lists.
+      ConditionListWrapper preconds = existingTable.getPreConditionList() != null
+         ? existingTable.getPreConditionList() : new ConditionList();
+      ConditionListWrapper postconds = existingTable.getPostConditionList() != null
+         ? existingTable.getPostConditionList() : new ConditionList();
       AggregateInfo aggr = (AggregateInfo) existingTable.getAggregateInfo().clone();
       ColumnSelection origCols = existingTable.getColumnSelection(true).clone();
 
@@ -234,8 +237,10 @@ public class WsMergeService {
 
       MirrorTableAssembly mirror = new MirrorTableAssembly(dashWS, mirrorName, base);
       mirror.setColumnSelection(vizCols, true);
-      mirror.setPreConditionList((ConditionListWrapper) srcTable.getPreConditionList().clone());
-      mirror.setPostConditionList((ConditionListWrapper) srcTable.getPostConditionList().clone());
+      ConditionListWrapper srcPre = srcTable.getPreConditionList();
+      ConditionListWrapper srcPost = srcTable.getPostConditionList();
+      mirror.setPreConditionList(srcPre != null ? (ConditionListWrapper) srcPre.clone() : new ConditionList());
+      mirror.setPostConditionList(srcPost != null ? (ConditionListWrapper) srcPost.clone() : new ConditionList());
       mirror.setAggregateInfo((AggregateInfo) srcTable.getAggregateInfo().clone());
       mirror.setProperty(PROP_WIZ_MERGED, "true");
       dashWS.addAssembly(mirror);
