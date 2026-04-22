@@ -102,6 +102,12 @@ public interface SVGSupport {
    String ANNOTATION_MEKKO         = "inetsoft-mekko";
    /** CSS class for external text labels matched to marimekko cells. */
    String ANNOTATION_MEKKO_LABEL   = "inetsoft-mekko-label";
+   /** CSS class for relation/tree chart node annotation groups. */
+   String ANNOTATION_RELATION = "inetsoft-relation";
+   /** CSS class for relation/tree chart edge annotation groups. */
+   String ANNOTATION_RELATION_EDGE = "inetsoft-relation-edge";
+   /** CSS class for external text labels matched to relation/tree chart nodes. */
+   String ANNOTATION_RELATION_LABEL = "inetsoft-relation-label";
 
    /** Animation hint for rectangular treemap charts. */
    String ANIMATION_TREEMAP  = "treemap";
@@ -111,6 +117,10 @@ public interface SVGSupport {
    String ANIMATION_ICICLE   = "icicle";
    /** Animation hint for marimekko charts. */
    String ANIMATION_MEKKO    = "mekko";
+   /** Animation hint for circle packing charts. */
+   String ANIMATION_CIRCLE_PACKING = "circle_packing";
+   /** Animation hint for relation/tree charts. */
+   String ANIMATION_RELATION = "relation";
 
    /** {@code data-col} — bar stagger column index (same value for all segments in one column). */
    String ATTR_COL    = "col";
@@ -134,6 +144,12 @@ public interface SVGSupport {
    String ATTR_X      = "x";
    /** {@code data-level} — nesting depth from {@code TreemapGeometry.getLevel()}; leaf=0, root=highest. */
    String ATTR_LEVEL  = "level";
+   /** {@code data-id} — mxCell ID for relation/tree chart nodes, used to match edges to nodes. */
+   String ATTR_ID     = "id";
+   /** {@code data-source} — source node's mxCell ID for relation/tree chart edges. */
+   String ATTR_SOURCE = "source";
+   /** {@code data-target} — target node's mxCell ID for relation/tree chart edges. */
+   String ATTR_TARGET = "target";
 
    /**
     * Redirect all subsequent SVG drawing into a new {@code <g class="cssClass" data-*="...">}

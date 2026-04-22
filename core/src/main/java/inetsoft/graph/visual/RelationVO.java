@@ -26,12 +26,14 @@ import inetsoft.graph.geometry.*;
 import inetsoft.graph.guide.VLabel;
 import inetsoft.graph.internal.DimensionD;
 import inetsoft.graph.internal.GTool;
+import inetsoft.util.graphics.SVGSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
+import java.util.Map;
 
 /**
  * Visualizable object for a relation area.
@@ -94,43 +96,60 @@ public class RelationVO extends ElementVO {
          return;
       }
 
-      Graphics2D g2 = (Graphics2D) g.create();
+      SVGSupport svg = SVGSupport.isSVGContext(g) ? SVGSupport.getInstance() : null;
 
-      GTool.setRenderingHint(g2, false);
-
-      Shape shape = getScreenTransform().createTransformedShape(this.shape);
-      Color borderColor = elem.getBorderColor();
-      GTexture texture = gobj.getTexture(0);
-      Color color = gobj.getColor();
-      Color fillColor = elem.getFillColor();
-      GLine line = gobj.getLine(0);
-
-      color = applyAlpha(color);
-
-      g2.setColor(color);
-
-      // use node fill color to fill if color is not bound.
-      if(fillColor != null && !isColorBound(elem)) {
-         g2.setColor(fillColor);
-         g2.fill(shape);
-         // use the static color for border.
-         borderColor = color;
-      }
-      else if(texture != null) {
-         texture.paint(g2, shape);
-      }
-      // fill color if color is from binding.
-      else {
-         g2.fill(shape);
+      if(svg != null) {
+         svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_RELATION, Map.of(
+            SVGSupport.ATTR_ROW, String.valueOf(gobj.getRowIndex()),
+            SVGSupport.ATTR_COL, String.valueOf(gobj.getColIndex()),
+            SVGSupport.ATTR_ID,  gobj.getMxCell().getId()
+         ));
       }
 
-      if(borderColor != null) {
-         g2.setColor(borderColor);
-         g2.setStroke(line != null ? line.getStroke() : new BasicStroke(1));
-         g2.draw(shape);
-      }
+      try {
+         Graphics2D g2 = (Graphics2D) g.create();
 
-      g2.dispose();
+         GTool.setRenderingHint(g2, false);
+
+         Shape shape = getScreenTransform().createTransformedShape(this.shape);
+         Color borderColor = elem.getBorderColor();
+         GTexture texture = gobj.getTexture(0);
+         Color color = gobj.getColor();
+         Color fillColor = elem.getFillColor();
+         GLine line = gobj.getLine(0);
+
+         color = applyAlpha(color);
+
+         g2.setColor(color);
+
+         // use node fill color to fill if color is not bound.
+         if(fillColor != null && !isColorBound(elem)) {
+            g2.setColor(fillColor);
+            g2.fill(shape);
+            // use the static color for border.
+            borderColor = color;
+         }
+         else if(texture != null) {
+            texture.paint(g2, shape);
+         }
+         // fill color if color is from binding.
+         else {
+            g2.fill(shape);
+         }
+
+         if(borderColor != null) {
+            g2.setColor(borderColor);
+            g2.setStroke(line != null ? line.getStroke() : new BasicStroke(1));
+            g2.draw(shape);
+         }
+
+         g2.dispose();
+      }
+      finally {
+         if(svg != null) {
+            svg.endAnnotationGroup(g);
+         }
+      }
    }
 
    /**
@@ -147,6 +166,10 @@ public class RelationVO extends ElementVO {
       vgraph.addVisual(vtext);
 
       RelationGeometry gobj = (RelationGeometry) getGeometry();
+      vtext.setSvgAnnotation(SVGSupport.ANNOTATION_RELATION_LABEL, Map.of(
+         SVGSupport.ATTR_ROW, String.valueOf(gobj.getRowIndex()),
+         SVGSupport.ATTR_COL, String.valueOf(gobj.getColIndex())
+      ));
       RelationElement elem = (RelationElement) gobj.getElement();
 
       Rectangle2D box = getScreenTransform().createTransformedShape(shape).getBounds2D();
