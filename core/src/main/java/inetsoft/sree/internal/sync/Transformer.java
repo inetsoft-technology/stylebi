@@ -35,9 +35,15 @@ public interface Transformer {
     */
    default void updateFile(Document doc, File file) {
       TransformerFactory transformerFactory = TransformerFactory.newInstance();
-      try { transformerFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, ""); }
+
+      try {
+         transformerFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+      }
       catch(IllegalArgumentException ignored) {}
-      try { transformerFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, ""); }
+
+      try {
+         transformerFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
+      }
       catch(IllegalArgumentException ignored) {}
       javax.xml.transform.Transformer transformer;
 

@@ -26,7 +26,7 @@ jobs:
 
       - name: Run Semgrep
         run: |
-          pip install semgrep --quiet
+          pip install semgrep==1.160.0 --quiet
           semgrep scan \
             --config=p/java \
             --config=p/typescript \
