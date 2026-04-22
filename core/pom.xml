@@ -22,7 +22,7 @@
   <parent>
     <groupId>com.inetsoft.stylebi</groupId>
     <artifactId>inetsoft-stylebi</artifactId>
-    <version>1.1.0-SNAPSHOT</version>
+    <version>1.1.0-beta-1</version>
   </parent>
 
   <artifactId>inetsoft-core</artifactId>
@@ -843,7 +843,7 @@
       <plugin>
         <groupId>com.inetsoft.stylebi.build</groupId>
         <artifactId>antlr2-maven-plugin</artifactId>
-        <version>1.1.0-SNAPSHOT</version>
+        <version>1.1.0-beta-1</version>
         <executions>
           <execution>
             <id>antlr2</id>
@@ -992,8 +992,8 @@
           <quiet>true</quiet>
           <additionalJOption>--allow-script-in-comments</additionalJOption>
           <detectJavaApiLink>true</detectJavaApiLink>
-          <windowtitle>StyleBI API, 1.0.0</windowtitle>
-          <doctitle>StyleBI API, 1.0.0</doctitle>
+          <windowtitle>StyleBI API, 1.1.0</windowtitle>
+          <doctitle>StyleBI API, 1.1.0</doctitle>
           <sourcepath>src/main/java;target/generated-sources/annotations;target/generated-sources/antlr;target/generated-sources/javacc</sourcepath>
           <sourceFileIncludes>
             <include>inetsoft/graph/*.java</include>
