@@ -207,7 +207,14 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
     */
    public static String getNameFromID(String id) {
       String[] parts = Tool.split(id, SEP);
-      return Tool.byteDecode(parts[0]);
+      String name = parts[0];
+      int idx = name.indexOf(SEP2);
+
+      if(idx >= 0) {
+         name = name.substring(0, idx);
+      }
+
+      return Tool.byteDecode(name);
    }
 
    /**

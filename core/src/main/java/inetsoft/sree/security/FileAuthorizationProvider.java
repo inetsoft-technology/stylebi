@@ -288,8 +288,15 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
                                             Tool.equals(pi.getOrganizationID(), oldID.orgID)))
                {
                   if(!removed) {
-                     identities.add(new Permission.PermissionIdentity(newID.name, newID.orgID));
+                     boolean alreadyGranted = identities.stream().anyMatch(
+                        pi -> Tool.equals(pi.getName(), newID.name) &&
+                              Tool.equals(pi.getOrganizationID(), newID.orgID));
+
+                     if(!alreadyGranted) {
+                        identities.add(new Permission.PermissionIdentity(newID.name, newID.orgID));
+                     }
                   }
+
                   perm.setGrants(action, type, identities);
                   changed = true;
                }

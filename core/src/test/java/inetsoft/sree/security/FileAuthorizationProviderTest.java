@@ -33,7 +33,9 @@ package inetsoft.sree.security;
  * [Op: put→null→get/id]  identity entry + put(identity, null)  → get(identity) == null
  * [Event: rename]        grant with oldId + rename event       → grant rewritten to newId
  * [Event: remove]        grant with oldId + remove event       → grant stripped
- * 
+ * [Event: rename/xorg]   rename orgA identity + orgB same-name grant → orgB grant survives unchanged
+ * [Event: remove/xorg]   remove orgA identity + orgB same-name grant → orgB grant survives unchanged
+ *
  */
 
 import inetsoft.storage.KeyValuePair;
@@ -248,6 +250,57 @@ class FileAuthorizationProviderTest {
       Permission stored = provider.getPermission(ResourceType.VIEWSHEET, "sales", ORG_A);
       assertFalse(stored.getGrants(ResourceAction.READ, Identity.USER, ORG_A).stream()
                         .anyMatch(identity -> "alice".equals(identity.getName())));
+   }
+
+   // [Event: rename][Cross-org] renaming orgA identity should not affect same-name grant stored under orgB
+   @Test
+   void authenticationChanged_renameEvent_doesNotTouchSameNameGrantInOtherOrg() throws Exception {
+      FileAuthorizationProvider provider = newProvider();
+      Permission permission = new Permission();
+      IdentityID oldId = new IdentityID("alice", ORG_A);
+      IdentityID newId = new IdentityID("alice-renamed", ORG_A);
+
+      permission.setGrants(ResourceAction.READ, Identity.USER, Set.of(
+         new Permission.PermissionIdentity(oldId),
+         new Permission.PermissionIdentity("alice", ORG_B)
+      ));
+      provider.setPermission(ResourceType.VIEWSHEET, "sales", permission, ORG_A);
+
+      provider.authenticationChanged(new AuthenticationChangeEvent(this, oldId, newId,
+         ORG_A, ORG_A, Identity.USER, false));
+
+      Permission stored = provider.getPermission(ResourceType.VIEWSHEET, "sales", ORG_A);
+      assertTrue(stored.getGrants(ResourceAction.READ, Identity.USER, ORG_A).stream()
+                       .anyMatch(identity -> "alice-renamed".equals(identity.getName())));
+      assertFalse(stored.getGrants(ResourceAction.READ, Identity.USER, ORG_A).stream()
+                        .anyMatch(identity -> "alice".equals(identity.getName())));
+      assertTrue(stored.getGrants(ResourceAction.READ, Identity.USER, ORG_B).stream()
+                       .anyMatch(identity -> "alice".equals(identity.getName())));
+   }
+
+   // [Event: remove/xorg] removing orgA identity must not strip the same-name grant that belongs to orgB
+   // Pre: READ grant for {alice,orgA} and {alice,orgB}; Op: authenticationChanged(remove alice/orgA);
+   // Post: {alice,orgB} grant survives; {alice,orgA} grant is gone
+   @Test
+   void authenticationChanged_removeEvent_doesNotTouchSameNameGrantInOtherOrg() throws Exception {
+      FileAuthorizationProvider provider = newProvider();
+      Permission permission = new Permission();
+      IdentityID oldId = new IdentityID("alice", ORG_A);
+
+      permission.setGrants(ResourceAction.READ, Identity.USER, Set.of(
+         new Permission.PermissionIdentity(oldId),
+         new Permission.PermissionIdentity("alice", ORG_B)
+      ));
+      provider.setPermission(ResourceType.VIEWSHEET, "sales", permission, ORG_A);
+
+      provider.authenticationChanged(new AuthenticationChangeEvent(this, oldId, null,
+         ORG_A, ORG_A, Identity.USER, true));
+
+      Permission stored = provider.getPermission(ResourceType.VIEWSHEET, "sales", ORG_A);
+      assertFalse(stored.getGrants(ResourceAction.READ, Identity.USER, ORG_A).stream()
+                        .anyMatch(pi -> "alice".equals(pi.getName())));
+      assertTrue(stored.getGrants(ResourceAction.READ, Identity.USER, ORG_B).stream()
+                       .anyMatch(pi -> "alice".equals(pi.getName())));
    }
 
    private static FileAuthorizationProvider newProvider() throws Exception {
