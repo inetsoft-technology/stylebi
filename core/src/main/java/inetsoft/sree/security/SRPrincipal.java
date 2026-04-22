@@ -236,11 +236,11 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
             secureId = Long.parseLong(name.substring(index1 + 1, index2));
 
             if(index3 > 0) {
-               addr = name.substring(index2 + 1, index3);
-               session = name.substring(index3 + 1);
+               addr = Tool.byteDecode(name.substring(index2 + 1, index3));
+               session = Tool.byteDecode(name.substring(index3 + 1));
             }
             else {
-               addr = name.substring(index2 + 1);
+               addr = Tool.byteDecode(name.substring(index2 + 1));
             }
          }
          else {
@@ -329,7 +329,7 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
          sb.append(SEP2).append(encodeComponent(getUser().getIPAddress()));
      
          if(getUser().getSession() != null) {
-             sb.append(SEP2).append(encodeComponent(getUser().getSession()));
+            sb.append(SEP2).append(encodeComponent(getUser().getSession()));
          }
      }
 
