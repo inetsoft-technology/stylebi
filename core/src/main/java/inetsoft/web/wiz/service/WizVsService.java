@@ -57,7 +57,7 @@ public class WizVsService {
       boolean createdRuntimeId = false;
 
       if(Tool.isEmptyString(runtimeId)) {
-         Viewsheet.WizInfo wizInfo = new Viewsheet.WizInfo(true, null, null); // isWizVisualization=true, id=null, layoutName=null
+         Viewsheet.WizInfo wizInfo = new Viewsheet.WizInfo(true, null, null);
          runtimeId = viewsheetService.openTemporaryViewsheet(null, null, user, wizInfo);
          createdRuntimeId = true;
       }
@@ -660,6 +660,15 @@ public class WizVsService {
          if(entry == null) {
             throw new IllegalArgumentException("Cannot parse viewsheetIdentifier: " + existingIdentifier);
          }
+
+         String existingPath = entry.getPath();
+
+         if(existingPath == null ||
+            !existingPath.startsWith(VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/"))
+         {
+            throw new IllegalArgumentException(
+               "viewsheetIdentifier points outside the managed visualizations folder: " + existingPath);
+         }
       }
       else {
          IdentityID pId = IdentityID.getIdentityIDFromKey(user.getName());
@@ -667,8 +676,16 @@ public class WizVsService {
             AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER,
             VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH, null);
 
-         if(!engine.containsEntry(folder)) {
-            engine.addFolder(folder, user);
+         try {
+            if(!engine.containsEntry(folder)) {
+               engine.addFolder(folder, user);
+            }
+         }
+         catch(Exception e) {
+            // Folder may have been created concurrently; proceed if it now exists.
+            if(!engine.containsEntry(folder)) {
+               throw e;
+            }
          }
 
          String uuid = UUID.randomUUID().toString();

@@ -18,9 +18,21 @@
 
 package inetsoft.web.wiz.model;
 
+import jakarta.validation.constraints.NotBlank;
+
+/**
+ * Request body for closing a runtime viewsheet.
+ *
+ * <p>{@code runtimeId} must be non-null and non-blank; it is the value returned by
+ * {@code /api/wiz/viewsheet/open}.
+ */
 public class CloseViewsheetRequest {
+   @NotBlank
    private String runtimeId;
 
+   /**
+    * @return the runtime ID of the viewsheet to close; never null or blank
+    */
    public String getRuntimeId() {
       return runtimeId;
    }
