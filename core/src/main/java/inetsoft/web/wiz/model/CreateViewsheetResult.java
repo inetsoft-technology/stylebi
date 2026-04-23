@@ -29,7 +29,7 @@ import java.util.Map;
  * <p>{@code headers} and {@code rows} carry the raw data produced by the assembly
  * (tabular for Table/Crosstab/Chart, single-value row for Gauge/Text).  Both are
  * null when the assembly type produces no extractable data or when data is unavailable.
- * Row data is capped at {@code CreateVsService.MAX_ROWS} rows; when the underlying
+ * Row data is capped at {@code WizVsService.MAX_ROWS} rows; when the underlying
  * dataset exceeds that limit {@code truncated} is set to {@code true}.
  *
  * <p>{@code binding} is a flattened view of the assembly's data binding: all dimensions
@@ -93,12 +93,21 @@ public class CreateViewsheetResult {
       this.assemblyName = assemblyName;
    }
 
+   public String getViewsheetIdentifier() {
+      return viewsheetIdentifier;
+   }
+
+   public void setViewsheetIdentifier(String viewsheetIdentifier) {
+      this.viewsheetIdentifier = viewsheetIdentifier;
+   }
+
    private List<String> headers;
    private List<Map<String, Object>> rows;
    private FlatBinding binding;
    private Boolean truncated;
    private String runtimeId;
    private String assemblyName;
+   private String viewsheetIdentifier;
 
    // -------------------------------------------------------------------------
    // Nested model

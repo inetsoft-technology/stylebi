@@ -232,7 +232,7 @@ public class GenerateWsService {
          Map<String, String> wsRenameMap = wsMergeService.mergeWorksheet(worksheet, dashWS, vizSuffix, new HashMap<>());
          String finalTableName = wsRenameMap.getOrDefault(table.getName(), table.getName());
          // By design, the primary assembly always tracks the most recently added query.
-         // Callers (e.g. CreateVsService) bind to the primary assembly name returned in
+         // Callers (e.g. WizVsService) bind to the primary assembly name returned in
          // the response, so downstream VS bindings remain consistent with the last request.
          dashWS.setPrimaryAssembly(finalTableName);
          layoutGraph(dashWS);
