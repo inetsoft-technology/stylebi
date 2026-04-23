@@ -20,7 +20,7 @@ package inetsoft.web.wiz.controller;
 
 import inetsoft.web.wiz.model.CreateVisualizationModel;
 import inetsoft.web.wiz.model.CreateViewsheetResult;
-import inetsoft.web.wiz.service.CreateVsService;
+import inetsoft.web.wiz.service.WizVsService;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,17 +28,24 @@ import java.security.Principal;
 
 @RestController
 @RequestMapping("/api/wiz")
-public class CreateViewsheetController {
-   public CreateViewsheetController(CreateVsService createVsService) {
-      this.createVsService = createVsService;
+public class WizViewsheetController {
+   public WizViewsheetController(WizVsService wizVsService) {
+      this.wizVsService = wizVsService;
    }
 
    @PostMapping(value = "/viewsheet/create", produces = MediaType.APPLICATION_JSON_VALUE)
    public CreateViewsheetResult createViewsheet(@RequestBody CreateVisualizationModel model,
                                                 Principal user) throws Exception
    {
-      return createVsService.createViewsheet(model, user);
+      return wizVsService.createViewsheet(model, user);
    }
 
-   private final CreateVsService createVsService;
+   @DeleteMapping("/viewsheet")
+   public void deleteViewsheet(@RequestParam("identifier") String identifier,
+                               Principal user) throws Exception
+   {
+      wizVsService.deleteViewsheet(identifier, user);
+   }
+
+   private final WizVsService wizVsService;
 }

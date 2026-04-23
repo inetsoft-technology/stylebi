@@ -18,26 +18,21 @@
 
 package inetsoft.web.wiz.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import jakarta.validation.constraints.NotBlank;
 
-@JsonIgnoreProperties(ignoreUnknown = true)
-public class CreateVisualizationModel {
-   public String getVisualizationType() {
-      return visualizationType;
-   }
+/**
+ * Request body for closing a runtime viewsheet.
+ *
+ * <p>{@code runtimeId} must be non-null and non-blank; it is the value returned by
+ * {@code /api/wiz/viewsheet/open}.
+ */
+public class CloseViewsheetRequest {
+   @NotBlank
+   private String runtimeId;
 
-   public void setVisualizationType(String visualizationType) {
-      this.visualizationType = visualizationType;
-   }
-
-   public VisualizationConfig getConfig() {
-      return config;
-   }
-
-   public void setConfig(VisualizationConfig config) {
-      this.config = config;
-   }
-
+   /**
+    * @return the runtime ID of the viewsheet to close; never null or blank
+    */
    public String getRuntimeId() {
       return runtimeId;
    }
@@ -45,17 +40,4 @@ public class CreateVisualizationModel {
    public void setRuntimeId(String runtimeId) {
       this.runtimeId = runtimeId;
    }
-
-   public String getViewsheetIdentifier() {
-      return viewsheetIdentifier;
-   }
-
-   public void setViewsheetIdentifier(String viewsheetIdentifier) {
-      this.viewsheetIdentifier = viewsheetIdentifier;
-   }
-
-   private String visualizationType;
-   private VisualizationConfig config;
-   private String runtimeId;
-   private String viewsheetIdentifier;
 }
