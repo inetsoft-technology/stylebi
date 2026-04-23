@@ -80,7 +80,7 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
    }
 
    @PostConstruct
-   public void initBean() {
+   private void initBean() {
       if(!initialized) {
          synchronized(this) {
             if(!initialized) {
