@@ -18,25 +18,8 @@
 
 package inetsoft.web.wiz.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-
-@JsonIgnoreProperties(ignoreUnknown = true)
-public class CreateVisualizationModel {
-   public String getVisualizationType() {
-      return visualizationType;
-   }
-
-   public void setVisualizationType(String visualizationType) {
-      this.visualizationType = visualizationType;
-   }
-
-   public VisualizationConfig getConfig() {
-      return config;
-   }
-
-   public void setConfig(VisualizationConfig config) {
-      this.config = config;
-   }
+public class CloseViewsheetRequest {
+   private String runtimeId;
 
    public String getRuntimeId() {
       return runtimeId;
@@ -45,17 +28,4 @@ public class CreateVisualizationModel {
    public void setRuntimeId(String runtimeId) {
       this.runtimeId = runtimeId;
    }
-
-   public String getViewsheetIdentifier() {
-      return viewsheetIdentifier;
-   }
-
-   public void setViewsheetIdentifier(String viewsheetIdentifier) {
-      this.viewsheetIdentifier = viewsheetIdentifier;
-   }
-
-   private String visualizationType;
-   private VisualizationConfig config;
-   private String runtimeId;
-   private String viewsheetIdentifier;
 }

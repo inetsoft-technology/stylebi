@@ -34,7 +34,9 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.util.Tool;
+import inetsoft.web.composer.wiz.service.VisualizationService;
 import inetsoft.web.wiz.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,8 +46,8 @@ import java.security.Principal;
 import java.util.*;
 
 @Service
-public class CreateVsService {
-   public CreateVsService(ViewsheetService viewsheetService, AssetRepository engine) {
+public class WizVsService {
+   public WizVsService(ViewsheetService viewsheetService, AssetRepository engine) {
       this.viewsheetService = viewsheetService;
       this.engine = engine;
    }
@@ -176,6 +178,8 @@ public class CreateVsService {
             if(createdRuntimeId) {
                result.setRuntimeId(runtimeId);
             }
+
+            result.setViewsheetIdentifier(persistViewsheet(targetVs, model.getViewsheetIdentifier(), user));
 
             return result;
          }
@@ -630,6 +634,50 @@ public class CreateVsService {
       info.setAggregateFormula(sbinfo.getAggregateValue());
 
       return new CreateViewsheetResult.FlatBinding(List.of(), List.of(info));
+   }
+
+   /**
+    * Saves the viewsheet to the visualizations root folder.
+    *
+    * <p>If {@code existingIdentifier} is non-empty the viewsheet is written to that exact
+    * entry (overwrite / update).  Otherwise a new UUID-named entry is created under
+    * {@link VisualizationService#VISUALIZATION_ROOT_FOLDER_PATH}.
+    *
+    * @param vs                 the viewsheet to persist
+    * @param existingIdentifier optional identifier returned from a previous call; may be null
+    * @param user               the current user
+    * @return the {@link AssetEntry#toIdentifier() identifier} of the saved entry
+    * @throws Exception if the entry identifier is invalid or the repository save fails
+    */
+   private String persistViewsheet(Viewsheet vs, String existingIdentifier, Principal user)
+      throws Exception
+   {
+      final AssetEntry entry;
+
+      if(!Tool.isEmptyString(existingIdentifier)) {
+         entry = AssetEntry.createAssetEntry(existingIdentifier);
+
+         if(entry == null) {
+            throw new IllegalArgumentException("Cannot parse viewsheetIdentifier: " + existingIdentifier);
+         }
+      }
+      else {
+         IdentityID pId = IdentityID.getIdentityIDFromKey(user.getName());
+         AssetEntry folder = new AssetEntry(
+            AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER,
+            VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH, null);
+
+         if(!engine.containsEntry(folder)) {
+            engine.addFolder(folder, user);
+         }
+
+         String uuid = UUID.randomUUID().toString();
+         String path = VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/" + uuid;
+         entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, path, pId);
+      }
+
+      viewsheetService.setViewsheet(vs, entry, user, true, true);
+      return entry.toIdentifier();
    }
 
    private VSAssembly createAssembly(Viewsheet vs, String type, String name,
@@ -1272,9 +1320,34 @@ public class CreateVsService {
       return DateRangeRef.getDateRangeOption(mappedLevel);
    }
 
+   /**
+    * Deletes the persisted viewsheet identified by the given asset entry identifier.
+    *
+    * @param identifier the identifier returned by a previous {@link #createViewsheet} call
+    * @param user       the current user
+    * @throws IllegalArgumentException if the identifier cannot be parsed
+    * @throws Exception                if the repository removal fails
+    */
+   public void deleteViewsheet(String identifier, Principal user) throws Exception {
+      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+
+      if(entry == null) {
+         throw new IllegalArgumentException("Cannot parse viewsheet identifier: " + identifier);
+      }
+
+      String path = entry.getPath();
+
+      if(path == null || !path.startsWith(VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/")) {
+         throw new IllegalArgumentException(
+            "Viewsheet is not in the managed visualizations folder and cannot be deleted: " + path);
+      }
+
+      engine.removeSheet(entry, user, true);
+   }
+
    private final ViewsheetService viewsheetService;
    private final AssetRepository engine;
 
-   private static final Logger LOG = LoggerFactory.getLogger(CreateVsService.class);
+   private static final Logger LOG = LoggerFactory.getLogger(WizVsService.class);
    static final int MAX_ROWS = 10_000;
 }
