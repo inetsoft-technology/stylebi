@@ -41,6 +41,11 @@ public class ScheduleStatusDao implements AutoCloseable {
       storage = KeyValueStorage.newInstance("scheduleStatus", cluster);
    }
 
+   // test seam: accepts storage directly instead of constructing via cluster
+   ScheduleStatusDao(KeyValueStorage<Status> storage) {
+      this.storage = storage;
+   }
+
    public static ScheduleStatusDao getInstance() {
       return ConfigurationContext.getContext().getSpringBean(ScheduleStatusDao.class);
    }

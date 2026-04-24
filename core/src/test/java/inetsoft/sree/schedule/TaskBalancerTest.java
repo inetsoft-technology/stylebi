@@ -25,6 +25,8 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.test.annotation.DirtiesContext;
@@ -187,7 +189,7 @@ public class TaskBalancerTest {
       // slot 2 (10:00 in 09:00–12:00 at 30-min interval) is free in all existing threads:
       // a new BitSet is appended to represent the occupying hard-coded task
       List<BitSet> slots = new ArrayList<>(Collections.singletonList(new BitSet()));
-      invokeVoid("fillSlots",
+      invoke("fillSlots",
          new Class<?>[] {
             TimeCondition.class, LocalTime.class, LocalTime.class, int.class, List.class
          },
@@ -199,7 +201,7 @@ public class TaskBalancerTest {
       BitSet preoccupied = new BitSet();
       preoccupied.set(2);
       List<BitSet> claimedSlots = new ArrayList<>(Collections.singletonList(preoccupied));
-      invokeVoid("fillSlots",
+      invoke("fillSlots",
          new Class<?>[] {
             TimeCondition.class, LocalTime.class, LocalTime.class, int.class, List.class
          },
@@ -300,7 +302,7 @@ public class TaskBalancerTest {
       TimeRange range = new TimeRange("batch", "09:00:00", "11:00:00", false);
       BitSet slots = new BitSet();
 
-      invokeVoid("updateCondition",
+      invoke("updateCondition",
          new Class<?>[] {
             TimeCondition.class, int.class, int.class, LocalTime.class, BitSet.class,
             TimeRange.class
@@ -407,6 +409,7 @@ public class TaskBalancerTest {
    }
 
    // [Path P] AT conditions are interpreted in the server default time zone, not condition time zone.
+   @Execution(ExecutionMode.SAME_THREAD)
    @Test
    void getStartTime_atCondition_usesSystemDefaultTimeZone() {
       TimeZone original = TimeZone.getDefault();
@@ -432,6 +435,7 @@ public class TaskBalancerTest {
    // [Suspect 1] EVERY_HOUR conditions with non-positive hourlyInterval can loop forever in getSlot().
    @Disabled("Documents a current implementation risk: hourlyInterval <= 0 causes getSlot() to never advance.")
    @Test
+   @Timeout(5)
    void getSlot_everyHourCondition_withNonPositiveInterval_canLoopForever() {
       TimeCondition invalid = TimeCondition.atHours(new int[] { Calendar.MONDAY }, 10, 0, 0);
       invalid.setHourEnd(12);
@@ -486,13 +490,22 @@ public class TaskBalancerTest {
          method.setAccessible(true);
          return (T) method.invoke(taskBalancer, args);
       }
-      catch(Exception e) {
+      catch(InvocationTargetException e) {
+         Throwable cause = e.getCause();
+
+         if(cause instanceof RuntimeException re) {
+            throw re;
+         }
+
+         if(cause instanceof Error err) {
+            throw err;
+         }
+
+         throw new AssertionError("Method threw checked exception: " + methodName, cause);
+      }
+      catch(ReflectiveOperationException e) {
          throw new AssertionError("Failed to invoke method: " + methodName, e);
       }
-   }
-
-   private void invokeVoid(String methodName, Class<?>[] parameterTypes, Object... args) {
-      invoke(methodName, parameterTypes, args);
    }
 
    private void invokeUnchecked(String methodName, Class<?>[] parameterTypes, Object... args) {

@@ -41,15 +41,12 @@ package inetsoft.sree.schedule;
  *  [Lifecycle: close-error] storage.close() throws                                -> DAO propagates the exception
  */
 
-import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.storage.KeyValuePair;
 import inetsoft.storage.KeyValueStorage;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 import org.slf4j.LoggerFactory;
 
 import ch.qos.logback.classic.Level;
@@ -272,13 +269,7 @@ public class ScheduleStatusDaoTest {
    }
 
    private static ScheduleStatusDao newDao(InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage) {
-      Cluster cluster = Mockito.mock(Cluster.class);
-
-      try(MockedStatic<KeyValueStorage> mocked = Mockito.mockStatic(KeyValueStorage.class)) {
-         mocked.when(() -> KeyValueStorage.newInstance("scheduleStatus", cluster))
-            .thenAnswer(invocation -> storage);
-         return new ScheduleStatusDao(cluster);
-      }
+      return new ScheduleStatusDao(storage);
    }
 
    private static void assertStatus(ScheduleStatusDao.Status actual, Scheduler.Status status,
@@ -344,7 +335,7 @@ public class ScheduleStatusDaoTest {
 
       @Override
       public Future<T> rename(String oldKey, String newKey, T value) {
-         T renamedValue = value != null ? value : values.remove(oldKey);
+         T renamedValue = value != null ? value : values.get(oldKey);
          values.remove(oldKey);
          T previous = values.put(newKey, renamedValue);
          return CompletableFuture.completedFuture(previous);
