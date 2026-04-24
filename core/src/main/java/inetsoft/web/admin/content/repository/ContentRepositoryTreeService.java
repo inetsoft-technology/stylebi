@@ -647,10 +647,18 @@ public class ContentRepositoryTreeService {
                  .build());
       }
 
-      boolean wizEntry = node.path() != null &&
+      if(node.path() != null &&
          (node.path().equals(VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH) ||
-          node.path().startsWith(VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/"));
-      boolean readOnly = wizEntry;
+          node.path().startsWith(VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/")))
+      {
+         return Optional.of(ContentRepositoryTreeNode.builder()
+            .from(node)
+            .readOnly(true)
+            .children(children)
+            .build());
+      }
+
+      boolean readOnly = false;
       boolean userRecycleFile = node.owner() != null &&
          node.path().startsWith(RecycleUtils.RECYCLE_BIN_FOLDER);
 
@@ -699,7 +707,7 @@ public class ContentRepositoryTreeService {
          }
       }
 
-      if(readOnly && !userOrDashboardRoot && !wizEntry && (children == null || children.isEmpty())) {
+      if(readOnly && !userOrDashboardRoot && (children == null || children.isEmpty())) {
          return Optional.empty();
       }
 
