@@ -37,6 +37,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 
 import java.io.IOException;
 import java.security.KeyPair;
@@ -77,7 +78,7 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
       HttpServletResponse httpResponse = (HttpServletResponse) response;
 
       // Only process requests to WIZ endpoints
-      if(!hasWizAuthCookie(httpRequest)) {
+      if(!isWizApiRequest(httpRequest)) {
          chain.doFilter(request, response);
          return;
       }
@@ -140,7 +141,7 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
    /**
     * Checks if the request has a wiz_auth cookie.
     */
-   private boolean hasWizAuthCookie(HttpServletRequest request) {
+   private boolean isWizApiRequest(HttpServletRequest request) {
       Cookie[] cookies = request.getCookies();
 
       if(cookies != null) {
@@ -151,7 +152,13 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
          }
       }
 
-      return false;
+      String path = request.getServletPath();
+
+      if(request.getPathInfo() != null) {
+         path += request.getPathInfo();
+      }
+
+      return pathMatcher.match(WIZ_API_PATTERN, path);
    }
 
    /**
@@ -389,6 +396,9 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
    }
 
    private KeyPair ssoKeyPair;
+
+   private final AntPathMatcher pathMatcher = new AntPathMatcher();
+   private static final String WIZ_API_PATTERN = "/api/wiz/**";
 
    private static final String AUTHORIZATION_HEADER = "Authorization";
    private static final String BEARER_PREFIX = "Bearer ";
