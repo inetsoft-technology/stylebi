@@ -47,7 +47,7 @@ import java.util.*;
 /**
  * Filter that authenticates requests from WIZ Service using JWT tokens.
  * <p>
- * This filter intercepts requests to /api/wiz/** endpoints
+ * This filter intercepts requests wiz_auth cookie
  * and validates the JWT token provided in the Authorization header. The token must
  * be signed by StyleBI Server using the SSO RSA key pair.
  * <p>
@@ -77,7 +77,7 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
       HttpServletResponse httpResponse = (HttpServletResponse) response;
 
       // Only process requests to WIZ endpoints
-      if(!isWizApiRequest(httpRequest)) {
+      if(!hasWizAuthCookie(httpRequest)) {
          chain.doFilter(request, response);
          return;
       }
@@ -140,12 +140,12 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
    /**
     * Checks if the request has a wiz_auth cookie.
     */
-   private boolean isWizApiRequest(HttpServletRequest request) {
+   private boolean hasWizAuthCookie(HttpServletRequest request) {
       Cookie[] cookies = request.getCookies();
 
       if(cookies != null) {
          for(Cookie cookie : cookies) {
-            if("wiz_auth".equals(cookie.getName())) {
+            if(WIZ_AUTH_COOKIE.equals(cookie.getName())) {
                return true;
             }
          }
@@ -393,6 +393,7 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
    private static final String AUTHORIZATION_HEADER = "Authorization";
    private static final String BEARER_PREFIX = "Bearer ";
    private static final String WIZ_AUTH_ENABLED_PROPERTY = "wiz.auth.enabled";
+   private static final String WIZ_AUTH_COOKIE = "wiz_auth";
 
    // Valid audiences for WIZ service tokens
    private static final List<String> VALID_AUDIENCES = Arrays.asList(
