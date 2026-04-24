@@ -53,8 +53,9 @@ public abstract class XDimIndex extends XSwappable {
       valid = true;
       completed = false;
       disposed = false;
-      XSwapper.getSwapper().cur = System.currentTimeMillis();
-      accessed = XSwapper.getSwapper().cur;
+      XSwapper s = getSwapper();
+      s.cur = System.currentTimeMillis();
+      accessed = s.cur;
    }
 
    /**
@@ -144,7 +145,7 @@ public abstract class XDimIndex extends XSwappable {
    }
 
    protected void touch() {
-      accessed = XSwapper.getSwapper().cur;
+      accessed = getSwapper().cur;
 
       if(!completed) {
          access();
@@ -156,7 +157,7 @@ public abstract class XDimIndex extends XSwappable {
     */
    protected void access() {
       if(!completed && (channel != null || file != null)) {
-         XSwapper.getSwapper().waitForMemory();
+         getSwapper().waitForMemory();
 
          synchronized(this) {
             SeekableInputStream channel = this.channel;
@@ -196,7 +197,7 @@ public abstract class XDimIndex extends XSwappable {
 
       // invalid? validate it
       if(!valid) {
-         XSwapper.getSwapper().waitForMemory();
+         getSwapper().waitForMemory();
 
          synchronized(this) {
             validate();
@@ -436,7 +437,7 @@ public abstract class XDimIndex extends XSwappable {
          return 0;
       }
 
-      return getAgePriority(XSwapper.getSwapper().cur - accessed, alive * 2L);
+      return getAgePriority(getSwapper().cur - accessed, alive * 2L);
    }
 
    /**

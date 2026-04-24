@@ -55,8 +55,9 @@ public final class XTableFragment extends XSwappable {
 
       this.files = new ArrayList<>();
       this.columns = columns;
-      XSwapper.getSwapper().cur = System.currentTimeMillis();
-      this.iaccessed = XSwapper.getSwapper().cur;
+      XSwapper s = getSwapper();
+      s.cur = System.currentTimeMillis();
+      this.iaccessed = s.cur;
       this.valid = valid;
    }
 
@@ -66,7 +67,7 @@ public final class XTableFragment extends XSwappable {
          return 0;
       }
 
-      return getAgePriority(XSwapper.getSwapper().cur - iaccessed, alive);
+      return getAgePriority(getSwapper().cur - iaccessed, alive);
    }
 
    /**
@@ -396,7 +397,7 @@ public final class XTableFragment extends XSwappable {
     * Called when the columns are used.
     */
    private void access() {
-      iaccessed = XSwapper.getSwapper().cur;
+      iaccessed = getSwapper().cur;
       valid = true; // column access (isNull, get...) will swap in data
    }
 

@@ -152,7 +152,7 @@ public final class XSwappableObjectList<T> implements Serializable {
 
       // wait for memory outside (before) synchronized to avoid deadlock
       if((waitCnt++ & 0x1f) == 0) {
-         XSwapper.getSwapper().waitForMemory();
+         getSwapper().waitForMemory();
       }
 
       return fragments[tidx].getSafely(ridx);
@@ -201,7 +201,7 @@ public final class XSwappableObjectList<T> implements Serializable {
 
       // wait for memory outside (before) synchronized to avoid deadlock
       if((waitCnt++ & 0x1f) == 0) {
-         XSwapper.getSwapper().waitForMemory();
+         getSwapper().waitForMemory();
       }
 
       return fragments[fidx].getArray();
@@ -227,7 +227,7 @@ public final class XSwappableObjectList<T> implements Serializable {
     */
    public int add(Object obj) {
       if((count & BLOCK_SIZE) == 0) {
-         XSwapper.getSwapper().waitForMemory();
+         getSwapper().waitForMemory();
 
          if(fragment != null) {
             fragment.complete();
@@ -442,6 +442,14 @@ public final class XSwappableObjectList<T> implements Serializable {
       private Object[] fragment;
    }
 
+   private XSwapper getSwapper() {
+      if(swapper == null) {
+         swapper = XSwapper.getSwapper();
+      }
+
+      return swapper;
+   }
+
    private static final int BLOCK_BITS = 13;
    private static final int BLOCK_SIZE = 0x1fff;
 
@@ -455,6 +463,7 @@ public final class XSwappableObjectList<T> implements Serializable {
    private Class kryoClass;
    private transient short waitCnt = 0;
    private transient XObjectFragment fragment; // current list fragment
+   private transient XSwapper swapper;
    private transient boolean debug =
       "true".equals(SreeEnv.getProperty("filter.debug", "false"));
    private static final Logger LOG =

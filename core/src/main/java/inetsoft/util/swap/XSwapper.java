@@ -140,13 +140,13 @@ public final class XSwapper {
     * Get memory state at no more than a certain interval.
     */
    public int getMemoryState() {
-      XSwapper s = getSwapper();
       long now = System.currentTimeMillis();
-      if(now - s.stateTS > 200) {
-         s.stateTS = now;
-         s.cachedState = getMemoryState0();
+
+      if(now - stateTS > 200) {
+         stateTS = now;
+         cachedState = getMemoryState0();
       }
-      return s.cachedState;
+      return cachedState;
    }
 
    /**

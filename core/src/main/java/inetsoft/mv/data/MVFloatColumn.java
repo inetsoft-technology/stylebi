@@ -257,7 +257,7 @@ public class MVFloatColumn extends MVDecimalColumn {
       @Override
       public void setValue(int index, double val) {
          if(arr == null) {
-            XSwapper.getSwapper().waitForMemory();
+            getSwapper().waitForMemory();
             arr = new float[size];
          }
 
@@ -285,14 +285,14 @@ public class MVFloatColumn extends MVDecimalColumn {
       }
 
       protected float[] access() {
-         iaccessed = XSwapper.getSwapper().cur;
+         iaccessed = getSwapper().cur;
          float[] arr = this.arr;
 
          if(arr != null) {
             return arr;
          }
 
-         XSwapper.getSwapper().waitForMemory();
+         getSwapper().waitForMemory();
 
          synchronized(this) {
             arr = this.arr;

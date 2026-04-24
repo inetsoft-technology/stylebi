@@ -51,7 +51,7 @@ public class MVIntColumn extends DictDimIndex implements MVMeasureColumn {
          max = max0.intValue();
       }
 
-      XSwapper.getSwapper().waitForMemory();
+      getSwapper().waitForMemory();
       dimbuf.setSize(size, true);
    }
 
@@ -132,7 +132,7 @@ public class MVIntColumn extends DictDimIndex implements MVMeasureColumn {
    @Override
    public final double getValue(int idx) {
       int result = dimbuf.getValue(idx);
-      accessed = XSwapper.getSwapper().cur;
+      accessed = getSwapper().cur;
 
       if(hasMin) {
          if(result == 0) {
