@@ -39,20 +39,14 @@ package inetsoft.sree.security;
  * [Lifecycle: teardown]         multiple providers configured                             -> tearDown delegated to all providers
  * [Event: auth-change]          multiple providers configured                             -> authenticationChanged propagated to all providers
  * [OrgClean: delegate]          mixed provider types in chain                             -> only FileAuthorizationProvider instances receive the call
- *
- * Intent vs implementation suspects
- *
- * [Suspect 1] setPermission(type, identityID, perm, orgID) on a contentInConfig provider
- *             intent: persist in-memory provider changes into the chain configuration, same as the String overload
- *             actual: updates the provider but never calls saveConfiguration()
- * [Suspect 2] removePermission(...) on a contentInConfig provider
- *             intent: persist removal from configuration-backed providers
- *             actual: removes from providers in memory but never calls saveConfiguration()
+ * [Set: identity-existing]      matching identity permission exists in a provider         -> update that provider only, save if contentInConfig
+ * [Set: identity-save-failure]  saveConfiguration I/O failure for identity update         -> wrapped in RuntimeException
+ * [Remove: resource-config-save] resource removal on contentInConfig provider             -> saveConfiguration is called
+ * [Remove: identity-config-save] identity removal on contentInConfig provider             -> saveConfiguration is called
  */
 
 import inetsoft.uql.util.Identity;
 import inetsoft.util.Tuple4;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -390,11 +384,9 @@ class AuthorizationChainTest {
       verifyNoInteractions(otherProvider);
    }
 
-   // [Suspect 1] contentInConfig-backed identity updates should persist chain configuration too
-   // BROKEN: the IdentityID overload mutates the provider but never calls saveConfiguration().
+   // [Set: identity-existing] contentInConfig-backed identity updates persist chain configuration
    // Bug #74662
    @Test
-   @Disabled("Bug: setPermission(ResourceType, IdentityID, Permission, String) never saves contentInConfig providers")
    void setPermission_identityOnConfigBackedProvider_savesConfiguration() {
       AuthorizationProvider provider = mockProvider();
       IdentityID identity = new IdentityID("alice", ORG_A);
@@ -410,11 +402,9 @@ class AuthorizationChainTest {
       assertEquals(1, chain.saveCalls);
    }
 
-   // [Suspect 2] contentInConfig-backed removals should persist chain configuration too
-   // BROKEN: removePermission only delegates to providers and never calls saveConfiguration().
+   // [Remove: resource-config-save] resource removal on contentInConfig provider saves configuration
    // Bug #74662
    @Test
-   @Disabled("Bug: removePermission does not save configuration for contentInConfig providers")
    void removePermission_onConfigBackedProvider_savesConfiguration() {
       AuthorizationProvider provider = mockProvider();
       TestAuthorizationChain chain = newChain(provider);
@@ -422,6 +412,40 @@ class AuthorizationChainTest {
       when(provider.contentInConfig()).thenReturn(true);
 
       chain.removePermission(ResourceType.VIEWSHEET, "/viewsheets/sales", ORG_A);
+
+      assertEquals(1, chain.saveCalls);
+   }
+
+   // [Set: identity-save-failure] saveConfiguration I/O failure for identity update is wrapped in RuntimeException
+   @Test
+   void setPermission_identitySaveFailureWrapsIOException() {
+      AuthorizationProvider provider = mockProvider();
+      IdentityID identity = new IdentityID("alice", ORG_A);
+      Permission existing = new Permission();
+      Permission updated = new Permission();
+      TestAuthorizationChain chain = newChain(provider);
+      IOException failure = new IOException("disk full");
+
+      when(provider.getPermission(ResourceType.SECURITY_USER, identity, ORG_A)).thenReturn(existing);
+      when(provider.contentInConfig()).thenReturn(true);
+      chain.saveFailure = failure;
+
+      RuntimeException thrown = assertThrows(RuntimeException.class,
+         () -> chain.setPermission(ResourceType.SECURITY_USER, identity, updated, ORG_A));
+
+      assertSame(failure, thrown.getCause());
+   }
+
+   // [Remove: identity-config-save] identity removal on contentInConfig provider saves configuration
+   @Test
+   void removePermission_identityOnConfigBackedProvider_savesConfiguration() {
+      AuthorizationProvider provider = mockProvider();
+      IdentityID identity = new IdentityID("alice", ORG_A);
+      TestAuthorizationChain chain = newChain(provider);
+
+      when(provider.contentInConfig()).thenReturn(true);
+
+      chain.removePermission(ResourceType.SECURITY_USER, identity, ORG_A);
 
       assertEquals(1, chain.saveCalls);
    }

@@ -33,22 +33,15 @@ package inetsoft.sree.security;
  * [Op: put→null→get/id]  identity entry + put(identity, null)  → get(identity) == null
  * [Event: rename]        grant with oldId + rename event       → grant rewritten to newId
  * [Event: remove]        grant with oldId + remove event       → grant stripped
+ * [Event: rename/xorg]   rename orgA identity + orgB same-name grant → orgB grant survives unchanged
+ * [Event: remove/xorg]   remove orgA identity + orgB same-name grant → orgB grant survives unchanged
  *
- * Intent vs implementation suspects
- *
- * [Suspect 1] setPermission(identity, null) → intent: remove entry
- *             actual: removePermission(IdentityID) not overridden → no-op in base class
- * [Suspect 2] authenticationChanged(rename) → intent: rewrite grants from oldId to newId
- *             actual: Set<PermissionIdentity>.remove(IdentityID) → equals() never matches
- * [Suspect 3] authenticationChanged(remove) → intent: strip grants for deleted identity
- *             actual: same type mismatch as Suspect 2 → remove(oldID) always returns false
  */
 
 import inetsoft.storage.KeyValuePair;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.Tuple4;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -74,9 +67,9 @@ class FileAuthorizationProviderTest {
       Permission permission = new Permission();
       permission.setUserGrantsForOrg(ResourceAction.READ, Set.of("alice"), ORG_A);
 
-      provider.setPermission(ResourceType.REPORT, "/reports/sales", permission, ORG_A);
+      provider.setPermission(ResourceType.VIEWSHEET, "sales", permission, ORG_A);
 
-      assertSame(permission, provider.getPermission(ResourceType.REPORT, "/reports/sales", ORG_A));
+      assertSame(permission, provider.getPermission(ResourceType.VIEWSHEET, "sales", ORG_A));
    }
 
    // [Op: put→null→get] null permission delegates to removePermission and clears the stored entry
@@ -86,10 +79,10 @@ class FileAuthorizationProviderTest {
       FileAuthorizationProvider provider = newProvider();
       Permission permission = new Permission();
 
-      provider.setPermission(ResourceType.REPORT, "/reports/sales", permission, ORG_A);
-      provider.setPermission(ResourceType.REPORT, "/reports/sales", null, ORG_A);
+      provider.setPermission(ResourceType.VIEWSHEET, "sales", permission, ORG_A);
+      provider.setPermission(ResourceType.VIEWSHEET, "sales", null, ORG_A);
 
-      assertNull(provider.getPermission(ResourceType.REPORT, "/reports/sales", ORG_A));
+      assertNull(provider.getPermission(ResourceType.VIEWSHEET, "sales", ORG_A));
    }
 
    // [Key: identity] IdentityID.convertToKey() is used as the path segment; round-trip returns stored permission
@@ -113,27 +106,27 @@ class FileAuthorizationProviderTest {
       Permission permV1 = new Permission();
       Permission permV2 = new Permission();
 
-      provider.setPermission(ResourceType.REPORT, "/reports/sales", permV1, ORG_A);
-      provider.setPermission(ResourceType.REPORT, "/reports/sales", permV2, ORG_A);
+      provider.setPermission(ResourceType.VIEWSHEET, "sales", permV1, ORG_A);
+      provider.setPermission(ResourceType.VIEWSHEET, "sales", permV2, ORG_A);
 
-      assertSame(permV2, provider.getPermission(ResourceType.REPORT, "/reports/sales", ORG_A));
+      assertSame(permV2, provider.getPermission(ResourceType.VIEWSHEET, "sales", ORG_A));
    }
 
    // [Key: list-resource] stored keys are parsed back into (type, orgId, path, perm) tuples by getPermissions()
-   // Pre: REPORT+orgA and DASHBOARD+orgB stored; Op: list(); Post: both tuples present with correct fields
+   // Pre: VIEWSHEET+orgA and DASHBOARD+orgB stored; Op: list(); Post: both tuples present with correct fields
    @Test
    void getPermissions_parsesStoredEntriesIntoTuples() throws Exception {
       FileAuthorizationProvider provider = newProvider();
-      Permission reportPermission = new Permission();
+      Permission viewsheetPermission = new Permission();
       Permission dashboardPermission = new Permission();
 
-      provider.setPermission(ResourceType.REPORT, "/reports/sales", reportPermission, ORG_A);
+      provider.setPermission(ResourceType.VIEWSHEET, "sales", viewsheetPermission, ORG_A);
       provider.setPermission(ResourceType.DASHBOARD, "/dashboards/finance", dashboardPermission, ORG_B);
 
       List<Tuple4<ResourceType, String, String, Permission>> permissions = provider.getPermissions();
 
-      assertTrue(permissions.contains(new Tuple4<>(ResourceType.REPORT, ORG_A, "/reports/sales",
-                                                   reportPermission)));
+      assertTrue(permissions.contains(new Tuple4<>(ResourceType.VIEWSHEET, ORG_A, "sales",
+                                                   viewsheetPermission)));
       assertTrue(permissions.contains(new Tuple4<>(ResourceType.DASHBOARD, ORG_B,
                                                    "/dashboards/finance", dashboardPermission)));
    }
@@ -164,13 +157,13 @@ class FileAuthorizationProviderTest {
       Permission orgAPermission = new Permission();
       Permission orgBPermission = new Permission();
 
-      provider.setPermission(ResourceType.REPORT, "/reports/a", orgAPermission, ORG_A);
-      provider.setPermission(ResourceType.REPORT, "/reports/b", orgBPermission, ORG_B);
+      provider.setPermission(ResourceType.VIEWSHEET, "a", orgAPermission, ORG_A);
+      provider.setPermission(ResourceType.VIEWSHEET, "b", orgBPermission, ORG_B);
 
       provider.cleanOrganizationFromPermissions(ORG_A);
 
-      assertNull(provider.getPermission(ResourceType.REPORT, "/reports/a", ORG_A));
-      assertSame(orgBPermission, provider.getPermission(ResourceType.REPORT, "/reports/b", ORG_B));
+      assertNull(provider.getPermission(ResourceType.VIEWSHEET, "a", ORG_A));
+      assertSame(orgBPermission, provider.getPermission(ResourceType.VIEWSHEET, "b", ORG_B));
    }
 
    // [Lifecycle: close] tearDown closes the underlying storage and nulls the storage field
@@ -201,7 +194,6 @@ class FileAuthorizationProviderTest {
    //         the call falls through to AbstractAuthorizationProvider's no-op, leaving the entry in storage.
    // Bug #74643
    @Test
-   @Disabled("Bug: FileAuthorizationProvider does not override removePermission(ResourceType, IdentityID, String)")
    void setPermission_identityNullPermission_removesExistingPermission() throws Exception {
       FileAuthorizationProvider provider = newProvider();
       Permission permission = new Permission();
@@ -218,7 +210,6 @@ class FileAuthorizationProviderTest {
    // BROKEN: identities.remove(oldID) compares IdentityID against Set<PermissionIdentity>; equals() never matches, so nothing is rewritten.
    // Bug #74643
    @Test
-   @Disabled("Bug: authenticationChanged compares IdentityID against PermissionIdentity and mutates only a filtered copy")
    void authenticationChanged_renameEvent_updatesStoredPermissionGrants() throws Exception {
       FileAuthorizationProvider provider = newProvider();
       Permission permission = new Permission();
@@ -227,12 +218,12 @@ class FileAuthorizationProviderTest {
 
       permission.setGrants(ResourceAction.READ, Identity.USER,
                            Set.of(new Permission.PermissionIdentity(oldId)));
-      provider.setPermission(ResourceType.REPORT, "/reports/sales", permission, ORG_A);
+      provider.setPermission(ResourceType.VIEWSHEET, "sales", permission, ORG_A);
 
       provider.authenticationChanged(new AuthenticationChangeEvent(this, oldId, newId,
          ORG_A, ORG_A, Identity.USER, false));
 
-      Permission stored = provider.getPermission(ResourceType.REPORT, "/reports/sales", ORG_A);
+      Permission stored = provider.getPermission(ResourceType.VIEWSHEET, "sales", ORG_A);
       assertTrue(stored.getGrants(ResourceAction.READ, Identity.USER, ORG_A).stream()
                        .anyMatch(identity -> "alice-renamed".equals(identity.getName())));
       assertFalse(stored.getGrants(ResourceAction.READ, Identity.USER, ORG_A).stream()
@@ -244,7 +235,6 @@ class FileAuthorizationProviderTest {
    // BROKEN: same IdentityID-vs-PermissionIdentity type mismatch as rename — remove(oldID) always returns false.
    // Bug #74643
    @Test
-   @Disabled("Bug: authenticationChanged compares IdentityID against PermissionIdentity — remove(oldID) always returns false")
    void authenticationChanged_removeEvent_stripsOldIdentityFromGrants() throws Exception {
       FileAuthorizationProvider provider = newProvider();
       Permission permission = new Permission();
@@ -252,14 +242,65 @@ class FileAuthorizationProviderTest {
 
       permission.setGrants(ResourceAction.READ, Identity.USER,
                            Set.of(new Permission.PermissionIdentity(oldId)));
-      provider.setPermission(ResourceType.REPORT, "/reports/sales", permission, ORG_A);
+      provider.setPermission(ResourceType.VIEWSHEET, "sales", permission, ORG_A);
 
       provider.authenticationChanged(new AuthenticationChangeEvent(this, oldId, null,
          ORG_A, ORG_A, Identity.USER, true));
 
-      Permission stored = provider.getPermission(ResourceType.REPORT, "/reports/sales", ORG_A);
+      Permission stored = provider.getPermission(ResourceType.VIEWSHEET, "sales", ORG_A);
       assertFalse(stored.getGrants(ResourceAction.READ, Identity.USER, ORG_A).stream()
                         .anyMatch(identity -> "alice".equals(identity.getName())));
+   }
+
+   // [Event: rename][Cross-org] renaming orgA identity should not affect same-name grant stored under orgB
+   @Test
+   void authenticationChanged_renameEvent_doesNotTouchSameNameGrantInOtherOrg() throws Exception {
+      FileAuthorizationProvider provider = newProvider();
+      Permission permission = new Permission();
+      IdentityID oldId = new IdentityID("alice", ORG_A);
+      IdentityID newId = new IdentityID("alice-renamed", ORG_A);
+
+      permission.setGrants(ResourceAction.READ, Identity.USER, Set.of(
+         new Permission.PermissionIdentity(oldId),
+         new Permission.PermissionIdentity("alice", ORG_B)
+      ));
+      provider.setPermission(ResourceType.VIEWSHEET, "sales", permission, ORG_A);
+
+      provider.authenticationChanged(new AuthenticationChangeEvent(this, oldId, newId,
+         ORG_A, ORG_A, Identity.USER, false));
+
+      Permission stored = provider.getPermission(ResourceType.VIEWSHEET, "sales", ORG_A);
+      assertTrue(stored.getGrants(ResourceAction.READ, Identity.USER, ORG_A).stream()
+                       .anyMatch(identity -> "alice-renamed".equals(identity.getName())));
+      assertFalse(stored.getGrants(ResourceAction.READ, Identity.USER, ORG_A).stream()
+                        .anyMatch(identity -> "alice".equals(identity.getName())));
+      assertTrue(stored.getGrants(ResourceAction.READ, Identity.USER, ORG_B).stream()
+                       .anyMatch(identity -> "alice".equals(identity.getName())));
+   }
+
+   // [Event: remove/xorg] removing orgA identity must not strip the same-name grant that belongs to orgB
+   // Pre: READ grant for {alice,orgA} and {alice,orgB}; Op: authenticationChanged(remove alice/orgA);
+   // Post: {alice,orgB} grant survives; {alice,orgA} grant is gone
+   @Test
+   void authenticationChanged_removeEvent_doesNotTouchSameNameGrantInOtherOrg() throws Exception {
+      FileAuthorizationProvider provider = newProvider();
+      Permission permission = new Permission();
+      IdentityID oldId = new IdentityID("alice", ORG_A);
+
+      permission.setGrants(ResourceAction.READ, Identity.USER, Set.of(
+         new Permission.PermissionIdentity(oldId),
+         new Permission.PermissionIdentity("alice", ORG_B)
+      ));
+      provider.setPermission(ResourceType.VIEWSHEET, "sales", permission, ORG_A);
+
+      provider.authenticationChanged(new AuthenticationChangeEvent(this, oldId, null,
+         ORG_A, ORG_A, Identity.USER, true));
+
+      Permission stored = provider.getPermission(ResourceType.VIEWSHEET, "sales", ORG_A);
+      assertFalse(stored.getGrants(ResourceAction.READ, Identity.USER, ORG_A).stream()
+                        .anyMatch(pi -> "alice".equals(pi.getName())));
+      assertTrue(stored.getGrants(ResourceAction.READ, Identity.USER, ORG_B).stream()
+                       .anyMatch(pi -> "alice".equals(pi.getName())));
    }
 
    private static FileAuthorizationProvider newProvider() throws Exception {
