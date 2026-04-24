@@ -64,54 +64,8 @@ public class WizVsService {
 
       try {
          RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
-
-         if(rvs == null) {
-            throw new IllegalStateException("Runtime Viewsheet not found");
-         }
-
-         Viewsheet vs = rvs.getViewsheet();
-
-         if(vs == null) {
-            throw new IllegalArgumentException("Runtime Viewsheet does not contain a Viewsheet object");
-         }
-
-         if(vs.getWizInfo() == null) {
-            throw new IllegalArgumentException("Runtime Viewsheet does not have WizInfo configured");
-         }
-
-         if(!vs.getWizInfo().isWizVisualization()) {
-            throw new IllegalArgumentException("Runtime Viewsheet is not configured as a Wiz visualization");
-         }
-
-         VisualizationConfig config = model.getConfig();
-         String title = config != null && config.getTitle() != null && !config.getTitle().isEmpty()
-            ? config.getTitle()
-            : "vs_" + System.currentTimeMillis();
-
-         AssetEntry sourceWs = null;
-
-         if(config == null || config.getData() == null || config.getData().getSource() == null) {
-            throw new IllegalArgumentException("Invalid configuration, missing source");
-         }
-
-         try {
-            sourceWs = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, config.getData().getSource(), null);
-         }
-         catch(Exception e) {
-            throw new IllegalArgumentException("Datasource is invalid", e);
-         }
-
-         AbstractSheet sheet = engine.getSheet(sourceWs, user, true, AssetContent.ALL);
-
-         if(!(sheet instanceof Worksheet worksheet)) {
-            throw new IllegalStateException("Cannot find worksheet");
-         }
-
-         WSAssembly primaryAssembly = worksheet.getPrimaryAssembly();
-
-         if(primaryAssembly == null) {
-            throw new IllegalStateException("Worksheet has no primary assembly");
-         }
+         Viewsheet vs = getValidatedViewsheet(rvs);
+         SourceContext ctx = resolveSourceContext(model, user);
 
          // Incremental mode: when runtimeId was supplied by the caller, add the new assembly
          // to the existing viewsheet rather than replacing it wholesale.
@@ -119,7 +73,7 @@ public class WizVsService {
 
          if(createdRuntimeId) {
             // Fresh viewsheet: create a new one bound to the source worksheet.
-            targetVs = new Viewsheet(sourceWs);
+            targetVs = new Viewsheet(ctx.sourceWs());
             targetVs.syncWizData(vs);
          }
          else {
@@ -130,11 +84,13 @@ public class WizVsService {
          // Snapshot the previous base entry before any mutation so we can restore it on failure.
          AssetEntry previousBaseEntry = targetVs.getBaseEntry();
 
-         if(!createdRuntimeId && !sourceWs.equals(previousBaseEntry)) {
-            targetVs.setBaseEntry(sourceWs);
+         if(!createdRuntimeId && !ctx.sourceWs().equals(previousBaseEntry)) {
+            targetVs.setBaseEntry(ctx.sourceWs());
          }
 
-         VSAssembly assembly = createAssembly(targetVs, model.getVisualizationType(), title, config, primaryAssembly.getName());
+         String assemblyName = uniqueAssemblyName(targetVs, ctx.title());
+         VSAssembly assembly = createAssembly(targetVs, model.getVisualizationType(), assemblyName,
+                                              ctx.config(), ctx.primaryAssemblyName());
 
          if(assembly == null) {
             throw new RuntimeException("Unsupported visualization type: " + model.getVisualizationType());
@@ -148,30 +104,7 @@ public class WizVsService {
          rvs.setViewsheet(targetVs);
 
          try {
-            // Execute the assembly view after the viewsheet is set so that dynamic values are
-            // resolved, chart state is initialized, and output assembly values are computed.
-            Optional<ViewsheetSandbox> viewsheetSandbox = rvs.getViewsheetSandbox();
-
-            if(viewsheetSandbox.isEmpty()) {
-               throw new IllegalStateException("ViewsheetSandbox is empty");
-            }
-
-            viewsheetSandbox.get().executeView(assembly.getName(), true);
-            CreateViewsheetResult result;
-
-            if(assembly instanceof ChartVSAssembly) {
-               result = extractChartData(rvs, assembly.getName());
-            }
-            else if(assembly instanceof TableVSAssembly || assembly instanceof CrosstabVSAssembly) {
-               result = extractTableLensData(rvs, assembly.getName());
-            }
-            else if(assembly instanceof OutputVSAssembly) {
-               result = extractOutputAssemblyData(rvs, assembly.getName());
-            }
-            else {
-               result = new CreateViewsheetResult();
-            }
-
+            CreateViewsheetResult result = executeAndExtract(rvs, assembly);
             result.setBinding(collectFlatBinding(assembly));
             result.setAssemblyName(assembly.getName());
 
@@ -199,7 +132,9 @@ public class WizVsService {
       }
       catch(Exception e) {
          if(createdRuntimeId) {
-            try { viewsheetService.closeViewsheet(runtimeId, user); }
+            try {
+               viewsheetService.closeViewsheet(runtimeId, user);
+            }
             catch(Exception ex) {
                LOG.warn("Failed to close temporary viewsheet [{}] during error cleanup: {}", runtimeId, ex.getMessage());
             }
@@ -207,6 +142,195 @@ public class WizVsService {
 
          throw e;
       }
+   }
+
+   /**
+    * Validates the binding configuration by opening a temporary viewsheet, creating the assembly,
+    * and executing the sandbox — without persisting anything.  Throws on any configuration or
+    * execution error; returns normally when the binding is valid.  The temporary runtime
+    * viewsheet is closed immediately after validation completes.
+    *
+    * @param model the visualization model ({@code runtimeId} is ignored; a fresh viewsheet is
+    *              always used)
+    * @param user  the current user
+    */
+   public void validateBinding(CreateVisualizationModel model, Principal user) throws Exception {
+      String runtimeId = buildAndExecuteFresh(model, user);
+
+      try {
+         viewsheetService.closeViewsheet(runtimeId, user);
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to close temporary viewsheet [{}] after binding validation: {}", runtimeId, ex.getMessage());
+      }
+   }
+
+   /**
+    * Opens a fresh temporary runtime viewsheet, creates the assembly described by {@code model},
+    * and executes the sandbox view.  On failure the temporary viewsheet is closed automatically;
+    * on success the caller is responsible for closing it.
+    *
+    * @return the {@code runtimeId} of the temporary viewsheet
+    */
+   private String buildAndExecuteFresh(CreateVisualizationModel model, Principal user)
+      throws Exception
+   {
+      Viewsheet.WizInfo wizInfo = new Viewsheet.WizInfo(true, null, null);
+      String runtimeId = viewsheetService.openTemporaryViewsheet(null, null, user, wizInfo);
+
+      try {
+         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+         Viewsheet vs = getValidatedViewsheet(rvs);
+         SourceContext ctx = resolveSourceContext(model, user);
+
+         Viewsheet targetVs = new Viewsheet(ctx.sourceWs());
+         targetVs.syncWizData(vs);
+
+         VSAssembly assembly = createAssembly(targetVs, model.getVisualizationType(), ctx.title(),
+                                              ctx.config(), ctx.primaryAssemblyName());
+
+         if(assembly == null) {
+            throw new RuntimeException("Unsupported visualization type: " + model.getVisualizationType());
+         }
+
+         targetVs.addAssembly(assembly);
+         assembly.setPrimary(true);
+         rvs.setViewsheet(targetVs);
+
+         executeAndExtract(rvs, assembly);
+
+         return runtimeId;
+      }
+      catch(Exception e) {
+         try {
+            viewsheetService.closeViewsheet(runtimeId, user);
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to close temporary viewsheet [{}] during error cleanup: {}", runtimeId, ex.getMessage());
+         }
+
+         throw e;
+      }
+   }
+
+   /**
+    * Validates the given {@link RuntimeViewsheet} and returns its {@link Viewsheet}.
+    * Throws if the RVS is null, its viewsheet is missing, or WizInfo is not configured.
+    */
+   private Viewsheet getValidatedViewsheet(RuntimeViewsheet rvs) {
+      if(rvs == null) {
+         throw new IllegalStateException("Runtime Viewsheet not found");
+      }
+
+      Viewsheet vs = rvs.getViewsheet();
+
+      if(vs == null) {
+         throw new IllegalArgumentException("Runtime Viewsheet does not contain a Viewsheet object");
+      }
+
+      if(vs.getWizInfo() == null) {
+         throw new IllegalArgumentException("Runtime Viewsheet does not have WizInfo configured");
+      }
+
+      if(!vs.getWizInfo().isWizVisualization()) {
+         throw new IllegalArgumentException("Runtime Viewsheet is not configured as a Wiz visualization");
+      }
+
+      return vs;
+   }
+
+   /**
+    * Parses the visualization config, resolves the source worksheet, and returns a
+    * {@link SourceContext} containing the config, source {@link AssetEntry}, title, and primary
+    * assembly name.  Throws on missing or invalid configuration.
+    */
+   private SourceContext resolveSourceContext(CreateVisualizationModel model, Principal user)
+      throws Exception
+   {
+      VisualizationConfig config = model.getConfig();
+      String title = config != null && config.getTitle() != null && !config.getTitle().isEmpty()
+         ? config.getTitle()
+         : "vs_" + System.currentTimeMillis();
+
+      if(config == null || config.getData() == null || config.getData().getSource() == null) {
+         throw new IllegalArgumentException("Invalid configuration, missing source");
+      }
+
+      AssetEntry sourceWs;
+
+      try {
+         sourceWs = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+                                   config.getData().getSource(), null);
+      }
+      catch(Exception e) {
+         throw new IllegalArgumentException("Datasource is invalid", e);
+      }
+
+      AbstractSheet sheet = engine.getSheet(sourceWs, user, true, AssetContent.ALL);
+
+      if(!(sheet instanceof Worksheet worksheet)) {
+         throw new IllegalStateException("Cannot find worksheet");
+      }
+
+      WSAssembly primaryAssembly = worksheet.getPrimaryAssembly();
+
+      if(primaryAssembly == null) {
+         throw new IllegalStateException("Worksheet has no primary assembly");
+      }
+
+      return new SourceContext(config, sourceWs, primaryAssembly.getName(), title);
+   }
+
+   /**
+    * Executes the sandbox view for {@code assembly} and extracts the result data.
+    * Dispatches to the appropriate extract method based on assembly type.
+    */
+   private CreateViewsheetResult executeAndExtract(RuntimeViewsheet rvs, VSAssembly assembly)
+      throws Exception
+   {
+      Optional<ViewsheetSandbox> viewsheetSandbox = rvs.getViewsheetSandbox();
+
+      if(viewsheetSandbox.isEmpty()) {
+         throw new IllegalStateException("ViewsheetSandbox is empty");
+      }
+
+      viewsheetSandbox.get().executeView(assembly.getName(), true);
+
+      if(assembly instanceof ChartVSAssembly) {
+         return extractChartData(rvs, assembly.getName());
+      }
+      else if(assembly instanceof TableVSAssembly || assembly instanceof CrosstabVSAssembly) {
+         return extractTableLensData(rvs, assembly.getName());
+      }
+      else if(assembly instanceof OutputVSAssembly) {
+         return extractOutputAssemblyData(rvs, assembly.getName());
+      }
+      else {
+         return new CreateViewsheetResult();
+      }
+   }
+
+   private record SourceContext(VisualizationConfig config, AssetEntry sourceWs,
+                                String primaryAssemblyName, String title)
+   {
+   }
+
+   /**
+    * Returns {@code name} if no assembly with that name exists in {@code vs}; otherwise
+    * appends {@code _1}, {@code _2}, … until a free slot is found.
+    */
+   private String uniqueAssemblyName(Viewsheet vs, String name) {
+      if(vs.getAssembly(name) == null) {
+         return name;
+      }
+
+      int i = 1;
+
+      while(vs.getAssembly(name + "_" + i) != null) {
+         i++;
+      }
+
+      return name + "_" + i;
    }
 
    /**
@@ -646,7 +770,9 @@ public class WizVsService {
     * @param vs                 the viewsheet to persist
     * @param existingIdentifier optional identifier returned from a previous call; may be null
     * @param user               the current user
+    *
     * @return the {@link AssetEntry#toIdentifier() identifier} of the saved entry
+    *
     * @throws Exception if the entry identifier is invalid or the repository save fails
     */
    private String persistViewsheet(Viewsheet vs, String existingIdentifier, Principal user)
@@ -1342,8 +1468,9 @@ public class WizVsService {
     *
     * @param identifier the identifier returned by a previous {@link #createViewsheet} call
     * @param user       the current user
+    *
     * @throws IllegalArgumentException if the identifier cannot be parsed
-    * @throws Exception                if the repository removal fails
+    * @throws Exception if the repository removal fails
     */
    public void deleteViewsheet(String identifier, Principal user) throws Exception {
       AssetEntry entry = AssetEntry.createAssetEntry(identifier);
