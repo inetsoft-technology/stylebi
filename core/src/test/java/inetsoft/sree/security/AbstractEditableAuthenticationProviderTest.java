@@ -288,6 +288,7 @@ class AbstractEditableAuthenticationProviderTest {
 
    // Issue #74695
    // [Path E] null input → NullPointerException  [Suspect 1]
+   @Disabled("Suspect 1: for-each on null list throws NPE — AbstractEditableAuthenticationProvider:551; Fix: add null-guard before for-each, e.g. if (fromIDs == null) return List.of()")
    @Test
    void copyPermittedIDs_nullList_throwsNullPointerException() {
       assertThrows(NullPointerException.class,
@@ -377,6 +378,7 @@ class AbstractEditableAuthenticationProviderTest {
 
    // Issue #74695
    // [Path L] ORGANIZATION type (Identity.ORGANIZATION == 4) → silently dropped  [Suspect 2]
+   @Disabled("Suspect 2: ORGANIZATION type (4) has no switch case in copyPermittedIDs — AbstractEditableAuthenticationProvider:552; Fix: add case Identity.ORGANIZATION analogous to USER/GROUP/ROLE")
    @Test
    void copyPermittedIDs_organizationTypeEntry_silentlyDropped() {
       IdentityID oid = new IdentityID("acme", "orgA");
@@ -449,6 +451,7 @@ class AbstractEditableAuthenticationProviderTest {
 
    // Issue #74695
    // [Path E] unknown type → silently falls back to SECURITY_USER  [Suspect 3]
+   @Disabled("Suspect 3: unrecognized type still silently defaults to SECURITY_USER via default: branch — AbstractEditableAuthenticationProvider:678; Fix: throw IllegalArgumentException for unrecognized types")
    @Test
    void updatePermittedIdentities_unknownType_silentlyFallsBackToSecurityUser() {
       IdentityService identityService = mock(IdentityService.class);

@@ -75,6 +75,7 @@ package inetsoft.sree.security;
  */
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.storage.KeyValueStorage;
 import inetsoft.test.*;
 import inetsoft.util.PasswordEncryption;
 import org.junit.jupiter.api.*;
@@ -642,14 +643,22 @@ public class FileAuthenticationProviderTest {
 
    @Test
    void testTearDown() throws Exception {
+      // FileAuthenticationProvider initializes storage lazily via public entry points.
+      provider.getUsers();
+
+      // Capture references before tearDown so isClosed() can be verified afterwards.
+      // All public methods call init() which would re-create storage, so closure
+      // can only be observed on a pre-captured reference.
+      KeyValueStorage<?> userStore  = captureStorage("userStorage");
+      KeyValueStorage<?> groupStore = captureStorage("groupStorage");
+      KeyValueStorage<?> roleStore  = captureStorage("roleStorage");
+
       provider.tearDown();
 
-      // organizationStorage intentionally excluded — it is NOT nulled (Suspect 1; see testTearDown_organizationStorageNotNulled)
-      for(String fieldName : List.of("userStorage", "groupStorage", "roleStorage")) {
-         Field field = FileAuthenticationProvider.class.getDeclaredField(fieldName);
-         field.setAccessible(true);
-         assertNull(field.get(provider), fieldName + " should be null after tearDown");
-      }
+      // organizationStorage intentionally excluded — see testTearDown_organizationStorageNotNulled
+      assertTrue(userStore.isClosed(),  "userStorage should be closed after tearDown");
+      assertTrue(groupStore.isClosed(), "groupStorage should be closed after tearDown");
+      assertTrue(roleStore.isClosed(),  "roleStorage should be closed after tearDown");
    }
 
    @Test
@@ -661,12 +670,13 @@ public class FileAuthenticationProviderTest {
 
    // Issue #74696
    @Test
-   @Disabled("Bug: tearDown() does not close or null organizationStorage")
+   @Disabled("Bug: tearDown() does not close organizationStorage")
    void testTearDown_organizationStorageNotNulled() throws Exception {
+      provider.getUsers();
+
+      KeyValueStorage<?> orgStore = captureStorage("organizationStorage");
       provider.tearDown();
-      Field field = FileAuthenticationProvider.class.getDeclaredField("organizationStorage");
-      field.setAccessible(true);
-      assertNull(field.get(provider), "organizationStorage should be null after tearDown");
+      assertTrue(orgStore.isClosed(), "organizationStorage should be closed after tearDown");
    }
 
    // Issue #74696
@@ -690,6 +700,13 @@ public class FileAuthenticationProviderTest {
       Organization updatedOrg = provider.getOrganization(orgId);
       assertFalse(Arrays.asList(updatedOrg.getMembers()).contains("testUser"),
                   "Organization members should not contain removed user");
+   }
+
+   @SuppressWarnings("unchecked")
+   private KeyValueStorage<?> captureStorage(String fieldName) throws Exception {
+      Field f = FileAuthenticationProvider.class.getDeclaredField(fieldName);
+      f.setAccessible(true);
+      return (KeyValueStorage<?>) f.get(provider);
    }
 
    private FileAuthenticationProvider provider;

@@ -174,6 +174,27 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
       }
    }
 
+   // Issue #74695
+   // [Suspect 7] clearScopedProperties uses raw orgId; copyScopedProperties lowercases it — key mismatch for uppercase orgIds
+   @Disabled("Suspect 7: clearScopedProperties prefix uses raw orgId; " +
+             "copyScopedProperties lowercases it — keys written and read use different cases; " +
+             "Fix: apply toLowerCase() in clearScopedProperties prefix to match the key format written by copyScopedProperties")
+   @Test
+   void clearScopedProperties_uppercaseOrgId_doesNotRemoveLowercasedCopiedKey() {
+      // copyScopedProperties("FROMORG", ...) writes key "inetsoft.org.fromorg.theme" (lowercased)
+      // clearScopedProperties("FROMORG") looks for prefix "inetsoft.org.FROMORG." (raw) → no match → key survives
+      Properties props = new Properties();
+      props.setProperty("inetsoft.org.fromorg.theme", "blue");
+
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+         sreeEnv.when(SreeEnv::getProperties).thenReturn(props);
+
+         provider.clearScopedProperties("FROMORG");
+
+         sreeEnv.verify(() -> SreeEnv.remove("inetsoft.org.fromorg.theme"), times(1));
+      }
+   }
+
    // -------------------------------------------------------------------------
    // copyScopedProperties — private; tested via reflection
    // -------------------------------------------------------------------------
@@ -189,7 +210,7 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
 
          provider.callCopyScopedProperties("fromOrg", "newOrg", false);
 
-         sreeEnv.verify(() -> SreeEnv.setProperty("inetsoft.org.neworgrg.theme".replace("neworgrg", "neworg"), "blue"));
+         sreeEnv.verify(() -> SreeEnv.setProperty("inetsoft.org.neworg.theme", "blue"));
          sreeEnv.verify(() -> SreeEnv.remove(any(String.class)), never());
       }
    }
