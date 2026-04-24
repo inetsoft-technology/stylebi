@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Read(//e/inetsoft/sr14_0/stylebi-session/community/**)",
-      "Bash(./mvnw test *)"
-    ]
-  }
-}
