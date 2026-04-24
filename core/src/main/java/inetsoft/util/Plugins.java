@@ -32,6 +32,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import jakarta.annotation.PostConstruct;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.awt.event.ActionEvent;
@@ -76,6 +77,18 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
 
       this.plugins = new ConcurrentHashMap<>();
       this.blobChangeLock = cluster.getLock(BLOB_CHANGE_LOCK);
+   }
+
+   @PostConstruct
+   public void initBean() {
+      if(!initialized) {
+         synchronized(this) {
+            if(!initialized) {
+               init();
+               initialized = true;
+            }
+         }
+      }
    }
 
    // must be called outside of constructor to avoid infinite recursion
