@@ -57,16 +57,25 @@ package inetsoft.sree.security;
  * [ChangePassword: missing]non-existent user                              → IllegalArgumentException
  * [ChangePassword: null]   null password                                  → NullPointerException
  * [removeGroup(id,false)]  group with no members + removeGroup(id, false) → group removed, no exception
+ * [Lifecycle: close×2]     tearDown() already called + tearDown() again   → no exception, idempotent
  *
  * Intent vs implementation suspects
  *
+ * Issue #74696
  * [Suspect 1] tearDown() → intent: close all 4 storages
  *             actual: organizationStorage omitted from close block → never closed or nulled
  * [Suspect 2] removeGroup(id, false) with member users → intent: safe unlink
- *             actual: processAuthenticationChange sets groups[index] = newID.name but newID is null → NPE
+ *             actual: processAuthenticationChange:740 sets groups[index] = newID.name but newID is null → NPE
+ *             (user-loop at line 740 lacks the null guard that the group-loop has at line 765)
+ * [Suspect 3] removeUser/removeGroup/removeRole → intent: clean up organization member list
+ *             actual: entity is removed from storage before processAuthenticationChange is called,
+ *             so getUser/getGroup/getRole(oldID) always returns null → removeOrganizationMember is dead code;
+ *             org membership cleanup is silently skipped
+ *             (secondary: removeOrganizationMember:932 NPE if org absent; line 933 removes orgID not identity name)
  */
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.storage.KeyValueStorage;
 import inetsoft.test.*;
 import inetsoft.util.PasswordEncryption;
 import org.junit.jupiter.api.*;
@@ -610,6 +619,7 @@ public class FileAuthenticationProviderTest {
       assertNull(provider.getGroup(groupId));
    }
 
+   // Issue #74696
    @Test
    @Disabled("Bug: removeGroup(id, false) throws NullPointerException when users are members — " +
              "processAuthenticationChange attempts groups[index] = newID.name but newID is null")
@@ -633,22 +643,70 @@ public class FileAuthenticationProviderTest {
 
    @Test
    void testTearDown() throws Exception {
+      // FileAuthenticationProvider initializes storage lazily via public entry points.
+      provider.getUsers();
+
+      // Capture references before tearDown so isClosed() can be verified afterwards.
+      // All public methods call init() which would re-create storage, so closure
+      // can only be observed on a pre-captured reference.
+      KeyValueStorage<?> userStore  = captureStorage("userStorage");
+      KeyValueStorage<?> groupStore = captureStorage("groupStorage");
+      KeyValueStorage<?> roleStore  = captureStorage("roleStorage");
+
       provider.tearDown();
 
-      for(String fieldName : List.of("userStorage", "groupStorage", "roleStorage")) {
-         Field field = FileAuthenticationProvider.class.getDeclaredField(fieldName);
-         field.setAccessible(true);
-         assertNull(field.get(provider), fieldName + " should be null after tearDown");
-      }
+      // organizationStorage intentionally excluded — see testTearDown_organizationStorageNotNulled
+      assertTrue(userStore.isClosed(),  "userStorage should be closed after tearDown");
+      assertTrue(groupStore.isClosed(), "groupStorage should be closed after tearDown");
+      assertTrue(roleStore.isClosed(),  "roleStorage should be closed after tearDown");
    }
 
    @Test
-   @Disabled("Bug: tearDown() does not close or null organizationStorage")
-   void testTearDown_organizationStorageNotNulled() throws Exception {
+   void testTearDown_isIdempotent() {
+      // [Lifecycle: close×2] second tearDown call must not throw
       provider.tearDown();
-      Field field = FileAuthenticationProvider.class.getDeclaredField("organizationStorage");
-      field.setAccessible(true);
-      assertNull(field.get(provider), "organizationStorage should be null after tearDown");
+      assertDoesNotThrow(() -> provider.tearDown());
+   }
+
+   // Issue #74696
+   @Test
+   @Disabled("Bug: tearDown() does not close organizationStorage")
+   void testTearDown_organizationStorageNotNulled() throws Exception {
+      provider.getUsers();
+
+      KeyValueStorage<?> orgStore = captureStorage("organizationStorage");
+      provider.tearDown();
+      assertTrue(orgStore.isClosed(), "organizationStorage should be closed after tearDown");
+   }
+
+   // Issue #74696
+   @Test
+   @Disabled("Suspect 3: removeUser/removeGroup/removeRole silently skip org membership cleanup — " +
+             "entity is deleted from storage before processAuthenticationChange is called, so " +
+             "getUser/getGroup/getRole(oldID) returns null; removeOrganizationMember is never reached; " +
+             "Fix: call processAuthenticationChange before removing entity from storage, or pass the " +
+             "membership value directly rather than re-fetching it")
+   void testRemoveUser_orgMembershipNotCleaned() {
+      String orgId = "testOrg";
+      FSOrganization org = new FSOrganization(orgId);
+      org.setName("Test Org");
+      org.setMembers(new String[]{ "testUser" });
+      provider.addOrganization(org);
+
+      IdentityID userId = new IdentityID("testUser", orgId);
+      provider.addUser(new FSUser(userId));
+      provider.removeUser(userId);
+
+      Organization updatedOrg = provider.getOrganization(orgId);
+      assertFalse(Arrays.asList(updatedOrg.getMembers()).contains("testUser"),
+                  "Organization members should not contain removed user");
+   }
+
+   @SuppressWarnings("unchecked")
+   private KeyValueStorage<?> captureStorage(String fieldName) throws Exception {
+      Field f = FileAuthenticationProvider.class.getDeclaredField(fieldName);
+      f.setAccessible(true);
+      return (KeyValueStorage<?>) f.get(provider);
    }
 
    private FileAuthenticationProvider provider;
