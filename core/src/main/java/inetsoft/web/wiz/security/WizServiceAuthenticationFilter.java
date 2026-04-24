@@ -31,12 +31,12 @@ import inetsoft.web.security.AbstractSecurityFilter;
 import inetsoft.web.security.AuthenticatedRequest;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.*;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.util.AntPathMatcher;
 
 import java.io.IOException;
 import java.security.KeyPair;
@@ -138,16 +138,20 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
    }
 
    /**
-    * Checks if the request is for a WIZ API endpoint.
+    * Checks if the request has a wiz_auth cookie.
     */
    private boolean isWizApiRequest(HttpServletRequest request) {
-      String path = request.getServletPath();
+      Cookie[] cookies = request.getCookies();
 
-      if(request.getPathInfo() != null) {
-         path += request.getPathInfo();
+      if(cookies != null) {
+         for(Cookie cookie : cookies) {
+            if("wiz_auth".equals(cookie.getName())) {
+               return true;
+            }
+         }
       }
 
-      return pathMatcher.match(WIZ_API_PATTERN, path);
+      return false;
    }
 
    /**
@@ -385,11 +389,9 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
    }
 
    private KeyPair ssoKeyPair;
-   private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
    private static final String AUTHORIZATION_HEADER = "Authorization";
    private static final String BEARER_PREFIX = "Bearer ";
-   private static final String WIZ_API_PATTERN = "/api/wiz/**";
    private static final String WIZ_AUTH_ENABLED_PROPERTY = "wiz.auth.enabled";
 
    // Valid audiences for WIZ service tokens
