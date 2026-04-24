@@ -615,7 +615,10 @@ public class GenerateWsService {
       XNode tableMetaData = metadataApiService.getTableMetaData(jdbcDatasource, source.getCatalog(), source.getSchema(), selectTable.getName());
 
       if(tableMetaData == null) {
-         throw new RuntimeException("Table:" + table.getName() + " does not exist!");
+         throw new IllegalArgumentException("Table does not exist: " + selectTable.getName() +
+            " (source: " + source.getPath() +
+            ", catalog: " + source.getCatalog() +
+            ", schema: " + source.getSchema() + ")");
       }
 
       String qname = SQLTypes.getSQLTypes(jdbcDatasource).
