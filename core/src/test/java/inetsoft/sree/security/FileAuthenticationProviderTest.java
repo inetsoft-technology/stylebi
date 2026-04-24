@@ -57,13 +57,21 @@ package inetsoft.sree.security;
  * [ChangePassword: missing]non-existent user                              → IllegalArgumentException
  * [ChangePassword: null]   null password                                  → NullPointerException
  * [removeGroup(id,false)]  group with no members + removeGroup(id, false) → group removed, no exception
+ * [Lifecycle: close×2]     tearDown() already called + tearDown() again   → no exception, idempotent
  *
  * Intent vs implementation suspects
  *
+ * Issue #74696
  * [Suspect 1] tearDown() → intent: close all 4 storages
  *             actual: organizationStorage omitted from close block → never closed or nulled
  * [Suspect 2] removeGroup(id, false) with member users → intent: safe unlink
- *             actual: processAuthenticationChange sets groups[index] = newID.name but newID is null → NPE
+ *             actual: processAuthenticationChange:740 sets groups[index] = newID.name but newID is null → NPE
+ *             (user-loop at line 740 lacks the null guard that the group-loop has at line 765)
+ * [Suspect 3] removeUser/removeGroup/removeRole → intent: clean up organization member list
+ *             actual: entity is removed from storage before processAuthenticationChange is called,
+ *             so getUser/getGroup/getRole(oldID) always returns null → removeOrganizationMember is dead code;
+ *             org membership cleanup is silently skipped
+ *             (secondary: removeOrganizationMember:932 NPE if org absent; line 933 removes orgID not identity name)
  */
 
 import inetsoft.sree.SreeEnv;
@@ -610,6 +618,7 @@ public class FileAuthenticationProviderTest {
       assertNull(provider.getGroup(groupId));
    }
 
+   // Issue #74696
    @Test
    @Disabled("Bug: removeGroup(id, false) throws NullPointerException when users are members — " +
              "processAuthenticationChange attempts groups[index] = newID.name but newID is null")
@@ -635,6 +644,7 @@ public class FileAuthenticationProviderTest {
    void testTearDown() throws Exception {
       provider.tearDown();
 
+      // organizationStorage intentionally excluded — it is NOT nulled (Suspect 1; see testTearDown_organizationStorageNotNulled)
       for(String fieldName : List.of("userStorage", "groupStorage", "roleStorage")) {
          Field field = FileAuthenticationProvider.class.getDeclaredField(fieldName);
          field.setAccessible(true);
@@ -643,12 +653,43 @@ public class FileAuthenticationProviderTest {
    }
 
    @Test
+   void testTearDown_isIdempotent() {
+      // [Lifecycle: close×2] second tearDown call must not throw
+      provider.tearDown();
+      assertDoesNotThrow(() -> provider.tearDown());
+   }
+
+   // Issue #74696
+   @Test
    @Disabled("Bug: tearDown() does not close or null organizationStorage")
    void testTearDown_organizationStorageNotNulled() throws Exception {
       provider.tearDown();
       Field field = FileAuthenticationProvider.class.getDeclaredField("organizationStorage");
       field.setAccessible(true);
       assertNull(field.get(provider), "organizationStorage should be null after tearDown");
+   }
+
+   // Issue #74696
+   @Test
+   @Disabled("Suspect 3: removeUser/removeGroup/removeRole silently skip org membership cleanup — " +
+             "entity is deleted from storage before processAuthenticationChange is called, so " +
+             "getUser/getGroup/getRole(oldID) returns null; removeOrganizationMember is never reached; " +
+             "Fix: call processAuthenticationChange before removing entity from storage, or pass the " +
+             "membership value directly rather than re-fetching it")
+   void testRemoveUser_orgMembershipNotCleaned() {
+      String orgId = "testOrg";
+      FSOrganization org = new FSOrganization(orgId);
+      org.setName("Test Org");
+      org.setMembers(new String[]{ "testUser" });
+      provider.addOrganization(org);
+
+      IdentityID userId = new IdentityID("testUser", orgId);
+      provider.addUser(new FSUser(userId));
+      provider.removeUser(userId);
+
+      Organization updatedOrg = provider.getOrganization(orgId);
+      assertFalse(Arrays.asList(updatedOrg.getMembers()).contains("testUser"),
+                  "Organization members should not contain removed user");
    }
 
    private FileAuthenticationProvider provider;
