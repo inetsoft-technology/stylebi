@@ -40,6 +40,13 @@ public class WizViewsheetController {
       return wizVsService.createViewsheet(model, user);
    }
 
+   @PostMapping("/viewsheet/validateBinding")
+   public void validateBinding(@RequestBody CreateVisualizationModel model,
+                               Principal user) throws Exception
+   {
+      wizVsService.validateBinding(model, user);
+   }
+
    @DeleteMapping("/viewsheet")
    public void deleteViewsheet(@RequestParam("identifier") String identifier,
                                Principal user) throws Exception
