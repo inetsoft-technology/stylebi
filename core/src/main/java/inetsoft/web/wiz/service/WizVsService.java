@@ -93,7 +93,7 @@ public class WizVsService {
                                               ctx.config(), ctx.primaryAssemblyName());
 
          if(assembly == null) {
-            throw new RuntimeException("Unsupported visualization type: " + model.getVisualizationType());
+            throw new IllegalArgumentException("Unsupported visualization type: " + model.getVisualizationType());
          }
 
          targetVs.addAssembly(assembly);
@@ -180,6 +180,7 @@ public class WizVsService {
 
       try {
          RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+         // WizInfo is set explicitly above via openTemporaryViewsheet; getValidatedViewsheet will always pass.
          Viewsheet vs = getValidatedViewsheet(rvs);
          SourceContext ctx = resolveSourceContext(model, user);
 
@@ -190,13 +191,14 @@ public class WizVsService {
                                               ctx.config(), ctx.primaryAssemblyName());
 
          if(assembly == null) {
-            throw new RuntimeException("Unsupported visualization type: " + model.getVisualizationType());
+            throw new IllegalArgumentException("Unsupported visualization type: " + model.getVisualizationType());
          }
 
          targetVs.addAssembly(assembly);
          assembly.setPrimary(true);
          rvs.setViewsheet(targetVs);
 
+         // Execute to validate; result is not needed.
          executeAndExtract(rvs, assembly);
 
          return runtimeId;
@@ -248,13 +250,14 @@ public class WizVsService {
       throws Exception
    {
       VisualizationConfig config = model.getConfig();
-      String title = config != null && config.getTitle() != null && !config.getTitle().isEmpty()
-         ? config.getTitle()
-         : "vs_" + System.currentTimeMillis();
 
       if(config == null || config.getData() == null || config.getData().getSource() == null) {
          throw new IllegalArgumentException("Invalid configuration, missing source");
       }
+
+      String title = config.getTitle() != null && !config.getTitle().isEmpty()
+         ? config.getTitle()
+         : "vs_" + System.currentTimeMillis();
 
       AssetEntry sourceWs;
 
