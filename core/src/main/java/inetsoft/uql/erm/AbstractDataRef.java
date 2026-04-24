@@ -222,13 +222,6 @@ public abstract class AbstractDataRef implements DataRef {
     * @param dos the output stream to which to write the OutputStream data.
     */
    protected void writeContents2(DataOutputStream dos) {
-      // for flash side
-      try {
-         dos.writeUTF(toView());
-      }
-      catch (IOException e) {
-         // ignore
-      }
    }
 
    /**

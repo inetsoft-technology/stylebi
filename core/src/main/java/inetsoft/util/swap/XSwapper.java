@@ -850,7 +850,7 @@ public final class XSwapper {
 
    private long cts = System.currentTimeMillis();
    private long scount = 0L;
-   private int cachedState = GOOD_MEM;
+   private volatile int cachedState = GOOD_MEM;
    private volatile long stateTS = 0;
 
    private boolean stopped = false;
