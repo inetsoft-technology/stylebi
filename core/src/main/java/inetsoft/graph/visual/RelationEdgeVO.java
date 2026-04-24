@@ -25,10 +25,12 @@ import inetsoft.graph.geometry.Geometry;
 import inetsoft.graph.geometry.RelationEdgeGeometry;
 import inetsoft.graph.internal.GDefaults;
 import inetsoft.graph.internal.GTool;
+import inetsoft.graph.mxgraph.model.mxCell;
+import inetsoft.util.graphics.SVGSupport;
 
 import java.awt.*;
 import java.awt.geom.Rectangle2D;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.List;
 
 /**
@@ -54,34 +56,54 @@ public class RelationEdgeVO extends ElementVO {
       RelationEdgeGeometry gobj = (RelationEdgeGeometry) getGeometry();
       RelationElement elem = (RelationElement) gobj.getElement();
 
-      Graphics2D g2 = (Graphics2D) g.create();
-      Color color = gobj.getColor(0);
-      GLine line = gobj.getLine(0);
-      double size = gobj.getSize(0);
+      SVGSupport svg = SVGSupport.isSVGContext(g) ? SVGSupport.getInstance() : null;
 
-      color = applyAlpha(color);
-      g2.setColor(color);
-
-      if(line != null) {
-         g2.setStroke(line.getStroke(size));
-      }
-      else {
-         g2.setStroke(new BasicStroke((float) size));
+      if(svg != null) {
+         Map<String, String> edgeAttrs = new LinkedHashMap<>();
+         edgeAttrs.put(SVGSupport.ATTR_ROW, String.valueOf(gobj.getRowIndex()));
+         mxCell cell = gobj.getEdge();
+         if(cell != null && cell.getSource() != null && cell.getTarget() != null) {
+            edgeAttrs.put(SVGSupport.ATTR_SOURCE, cell.getSource().getId());
+            edgeAttrs.put(SVGSupport.ATTR_TARGET, cell.getTarget().getId());
+         }
+         svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_RELATION_EDGE, edgeAttrs);
       }
 
-      if(elem.getAlgorithm() == RelationElement.Algorithm.COMPACT_TREE) {
-         GTool.setRenderingHint(g2, false);
-      }
-      else {
-         GTool.setRenderingHint(g2, true);
-      }
+      try {
+         Graphics2D g2 = (Graphics2D) g.create();
+         Color color = gobj.getColor(0);
+         GLine line = gobj.getLine(0);
+         double size = gobj.getSize(0);
 
-      for(Shape edge : edges) {
-         edge = getScreenTransform().createTransformedShape(edge);
-         g2.draw(edge);
-      }
+         color = applyAlpha(color);
+         g2.setColor(color);
 
-      g2.dispose();
+         if(line != null) {
+            g2.setStroke(line.getStroke(size));
+         }
+         else {
+            g2.setStroke(new BasicStroke((float) size));
+         }
+
+         if(elem.getAlgorithm() == RelationElement.Algorithm.COMPACT_TREE) {
+            GTool.setRenderingHint(g2, false);
+         }
+         else {
+            GTool.setRenderingHint(g2, true);
+         }
+
+         for(Shape edge : edges) {
+            edge = getScreenTransform().createTransformedShape(edge);
+            g2.draw(edge);
+         }
+
+         g2.dispose();
+      }
+      finally {
+         if(svg != null) {
+            svg.endAnnotationGroup(g);
+         }
+      }
    }
 
    @Override

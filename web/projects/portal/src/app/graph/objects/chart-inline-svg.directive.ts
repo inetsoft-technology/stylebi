@@ -58,8 +58,10 @@ export class ChartInlineSvgDirective implements OnDestroy {
     * determines which server-injected hover rule fires when inetsoft-active is toggled.
     */
    private elementGroupMap = new Map<string, Element>();
-   /** Maps "rowIdx-colIdx" to the external text label group paired with that data element. */
-   private labelGroupMap = new Map<string, Element>();
+   /** Maps "rowIdx-colIdx" to all glyph elements of the label paired with that data element.
+    *  Batik renders each character as a separate <g text-rendering> element with the same
+    *  data-row/data-col, so every glyph must be stored and toggled together. */
+   private labelGroupMap = new Map<string, Element[]>();
    /** Key of the currently active element, or null. */
    private _activeKey: string | null = null;
    /** Timer handle for debounced deactivation, so fast inter-bar moves don't flash. */
@@ -68,6 +70,12 @@ export class ChartInlineSvgDirective implements OnDestroy {
    private retryHandle: ReturnType<typeof setTimeout> | null = null;
    /** Timer handle for adding .ready class to the SVG after animation completes. */
    private readyHandle: ReturnType<typeof setTimeout> | null = null;
+   /** Maps mxCell id → node Element for relation/tree charts. */
+   private relationNodeIdMap = new Map<string, Element>();
+   /** Edge connectivity for relation/tree charts: each entry holds the element plus its source/target mxCell IDs. */
+   private relationEdges: Array<{el: Element, sourceId: string, targetId: string}> = [];
+   /** Elements activated as neighbors of the current relation node (cleared on deactivation). */
+   private activeRelationNeighbors: Element[] = [];
    /** Ordered list of area series objects; one entry per (panel, series) pair. */
    private areaSeries: Array<{fillGroup: Element, lineGroup: Element, linePath: SVGGeometryElement}> = [];
    /** Pre-sampled SVG local-coordinate points per series for fast mousemove hit-testing. */
@@ -186,17 +194,63 @@ export class ChartInlineSvgDirective implements OnDestroy {
 
    private activateKey(key: string): void {
       const el = this.elementGroupMap.get(key);
-      if(el) el.classList.add("inetsoft-active");
-      const label = this.labelGroupMap.get(key);
-      if(label) label.classList.add("inetsoft-active");
+      if(el) {
+         el.classList.add("inetsoft-active");
+         if(el.classList.contains("inetsoft-relation")) {
+            this.activateRelationNeighbors(el);
+         }
+      }
+      const glyphs = this.labelGroupMap.get(key);
+      if(glyphs) glyphs.forEach(g => g.classList.add("inetsoft-active"));
    }
 
    private deactivateCurrent(): void {
       if(this._activeKey === null) return;
       const el = this.elementGroupMap.get(this._activeKey);
       if(el) el.classList.remove("inetsoft-active");
-      const label = this.labelGroupMap.get(this._activeKey);
-      if(label) label.classList.remove("inetsoft-active");
+      for(const n of this.activeRelationNeighbors) {
+         n.classList.remove("inetsoft-active");
+      }
+      this.activeRelationNeighbors = [];
+      const glyphs = this.labelGroupMap.get(this._activeKey);
+      if(glyphs) glyphs.forEach(g => g.classList.remove("inetsoft-active"));
+   }
+
+   // Activates neighbor nodes, their connecting edges, and neighbor labels.
+   // The hovered node's own label is activated separately by activateKey() via labelGroupMap,
+   // and cleared by deactivateCurrent(). Neighbor labels pushed into activeRelationNeighbors
+   // are cleared by the activeRelationNeighbors loop in deactivateCurrent().
+   private activateRelationNeighbors(nodeEl: Element): void {
+      const nodeId = nodeEl.getAttribute("data-id");
+      if(!nodeId) return;
+      this.activeRelationNeighbors = [];
+
+      for(const edge of this.relationEdges) {
+         if(edge.sourceId !== nodeId && edge.targetId !== nodeId) continue;
+
+         edge.el.classList.add("inetsoft-active");
+         this.activeRelationNeighbors.push(edge.el);
+
+         const neighborId = edge.sourceId === nodeId ? edge.targetId : edge.sourceId;
+         if(neighborId === nodeId) continue; // skip self-loops — hovered node already activated
+         const neighborEl = this.relationNodeIdMap.get(neighborId);
+         if(neighborEl) {
+            neighborEl.classList.add("inetsoft-active");
+            this.activeRelationNeighbors.push(neighborEl);
+
+            const nRow = neighborEl.getAttribute("data-row");
+            const nCol = neighborEl.getAttribute("data-col");
+            if(nRow != null && nCol != null) {
+               const nGlyphs = this.labelGroupMap.get(`${nRow}-${nCol}`);
+               if(nGlyphs) {
+                  nGlyphs.forEach(g => {
+                     g.classList.add("inetsoft-active");
+                     this.activeRelationNeighbors.push(g);
+                  });
+               }
+            }
+         }
+      }
    }
 
    /**
@@ -254,12 +308,15 @@ export class ChartInlineSvgDirective implements OnDestroy {
 
       this.elementGroupMap.clear();
       this.labelGroupMap.clear();
+      this.relationNodeIdMap.clear();
+      this.relationEdges = [];
+      this.activeRelationNeighbors = [];
       this._activeKey = null;
 
       // Populate the unified element map from all annotated VO groups.
       // Each CSS class corresponds to a different chart type; the CSS class on the stored
       // element determines which server-injected hover rule fires on inetsoft-active toggle.
-      for(const cssClass of [".inetsoft-bar", ".inetsoft-point", ".inetsoft-candle", ".inetsoft-box", ".inetsoft-radar", ".inetsoft-treemap", ".inetsoft-mekko"]) {
+      for(const cssClass of [".inetsoft-bar", ".inetsoft-point", ".inetsoft-candle", ".inetsoft-box", ".inetsoft-radar", ".inetsoft-treemap", ".inetsoft-mekko", ".inetsoft-relation"]) {
          const elements = Array.from(
             this.element.nativeElement.querySelectorAll(cssClass) as NodeListOf<Element>);
 
@@ -302,9 +359,24 @@ export class ChartInlineSvgDirective implements OnDestroy {
          this.element.nativeElement.style.zIndex = "";
       }
 
+      // Build relation connectivity maps so activateKey can highlight connected edges/neighbors.
+      const relationNodes = Array.from(
+         this.element.nativeElement.querySelectorAll(".inetsoft-relation") as NodeListOf<Element>);
+      for(const n of relationNodes) {
+         const nodeId = n.getAttribute("data-id");
+         if(nodeId) this.relationNodeIdMap.set(nodeId, n);
+      }
+      const relationEdgeEls = Array.from(
+         this.element.nativeElement.querySelectorAll(".inetsoft-relation-edge") as NodeListOf<Element>);
+      for(const e of relationEdgeEls) {
+         const src = e.getAttribute("data-source");
+         const tgt = e.getAttribute("data-target");
+         if(src && tgt) this.relationEdges.push({el: e, sourceId: src, targetId: tgt});
+      }
+
       // Build label map from server-annotated label elements for all chart types that have
       // external text groups matched to data elements (bar, treemap/sunburst/icicle, mekko).
-      for(const labelClass of [".inetsoft-bar-label", ".inetsoft-treemap-label", ".inetsoft-mekko-label"]) {
+      for(const labelClass of [".inetsoft-bar-label", ".inetsoft-treemap-label", ".inetsoft-mekko-label", ".inetsoft-relation-label"]) {
          const labels = Array.from(
             this.element.nativeElement.querySelectorAll(labelClass) as NodeListOf<Element>);
 
@@ -313,7 +385,10 @@ export class ChartInlineSvgDirective implements OnDestroy {
             const col = label.getAttribute("data-col");
 
             if(row != null && col != null) {
-               this.labelGroupMap.set(`${row}-${col}`, label);
+               const k = `${row}-${col}`;
+               const arr = this.labelGroupMap.get(k);
+               if(arr) arr.push(label);
+               else this.labelGroupMap.set(k, [label]);
             }
          }
       }
@@ -525,7 +600,10 @@ export class ChartInlineSvgDirective implements OnDestroy {
    private uniquifyIds(svg: string): string {
       const uid = `isvg${ChartInlineSvgDirective.idCounter++}`;
       return svg
-         .replace(/\bid="([^"]+)"/g, `id="${uid}-$1"`)
+         // Lookbehind for '-' is required: \b would also match data-id="..." (word boundary between
+         // '-' and 'i'), rewriting it to data-id="uid-..." while data-source/data-target keep the
+         // original IDs, breaking edge lookup in relationNodeIdMap.
+         .replace(/(?<![a-zA-Z0-9_-])id="([^"]+)"/g, `id="${uid}-$1"`)
          .replace(/\burl\(#([^)]+)\)/g, `url(#${uid}-$1)`)
          .replace(/\bhref="#([^"]+)"/g, `href="#${uid}-$1"`)
          // Batik 1.17 emits xlink:href="#id" for <use> elements (marker/symbol references).

@@ -30,9 +30,11 @@ import inetsoft.graph.geometry.Geometry;
 import inetsoft.graph.guide.VLabel;
 import inetsoft.graph.internal.GDefaults;
 import inetsoft.graph.internal.GTool;
+import inetsoft.util.graphics.SVGSupport;
 
 import java.awt.*;
 import java.awt.geom.Rectangle2D;
+import java.util.Map;
 
 /**
  * This class defines visual text.
@@ -279,6 +281,12 @@ public class VOText extends VLabel implements PlotObject {
          Rectangle2D bounds = getBounds();
          VOText textText = (VOText) clone();
          VOText valueText = (VOText) clone();
+         // Sub-texts are split layout artifacts, not independent chart labels — clear the SVG
+         // annotation so each clone doesn't emit its own duplicate annotation group when painted.
+         textText.svgAnnotationClass = null;
+         textText.svgAnnotationAttrs = null;
+         valueText.svgAnnotationClass = null;
+         valueText.svgAnnotationAttrs = null;
          textText.valueText = false;
          textText.setBounds(bounds.getX(), bounds.getY() + bounds.getHeight() / 2,
                             bounds.getWidth(), bounds.getHeight() / 2);
@@ -291,6 +299,33 @@ public class VOText extends VLabel implements PlotObject {
       return new VOText[] { this };
    }
 
+   /**
+    * Tag this text for SVG annotation grouping when painted in an SVG context.
+    * When set, {@link #paint} wraps all drawing in a {@code <g class="cssClass" data-*="...">}
+    * annotation group so the injector and JS hover logic can identify this label.
+    */
+   public void setSvgAnnotation(String cssClass, Map<String, String> attrs) {
+      this.svgAnnotationClass = cssClass;
+      this.svgAnnotationAttrs = attrs;
+   }
+
+   @Override
+   public void paint(Graphics2D g) {
+      SVGSupport svg = svgAnnotationClass != null && SVGSupport.isSVGContext(g)
+         ? SVGSupport.getInstance() : null;
+      if(svg != null) {
+         svg.beginAnnotationGroup(g, svgAnnotationClass, svgAnnotationAttrs);
+      }
+      try {
+         super.paint(g);
+      }
+      finally {
+         if(svg != null) {
+            svg.endAnnotationGroup(g);
+         }
+      }
+   }
+
    private int cidx;
    private byte placement;
    // measure/dimension name for this point, may be different from the line measure name
@@ -301,4 +336,6 @@ public class VOText extends VLabel implements PlotObject {
    private boolean stacked;
    private boolean valueText;
    private Rectangle2D clipBounds;
+   private String svgAnnotationClass;
+   private Map<String, String> svgAnnotationAttrs;
 }

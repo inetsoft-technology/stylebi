@@ -105,6 +105,14 @@ public class SVGAnimationDOMInjector {
          injectMekkoAnimation(svgRoot, doc);
          animated = true;
       }
+      else if(SVGSupport.ANIMATION_CIRCLE_PACKING.equals(base)) {
+         injectCirclePackingAnimation(svgRoot, doc);
+         animated = true;
+      }
+      else if(SVGSupport.ANIMATION_RELATION.equals(base)) {
+         injectRelationAnimation(svgRoot, doc);
+         animated = true;
+      }
       else {
          boolean fadeOnly = SVGSupport.ANIMATION_FADE.equals(base);
          List<Element> annotBars = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_BAR);
@@ -1575,7 +1583,7 @@ public class SVGAnimationDOMInjector {
          .collect(Collectors.toList());
 
       // cell index → animation style, reused when matching labels.
-      Map<Integer, String> cellStyles = new HashMap<>();
+      List<String> cellStyles = new ArrayList<>(n);
 
       for(int i = 0; i < n; i++) {
          double delay = AnimationConstants.staggerDelay(i, n);
@@ -1583,7 +1591,7 @@ public class SVGAnimationDOMInjector {
             "animation:inetsoft-treemap-fade %.2fs %s %.2fs both",
             AnimationConstants.DURATION, AnimationConstants.EASING, delay);
          applyAnimStyleToChildren(cells.get(i), animStyle);
-         cellStyles.put(i, animStyle);
+         cellStyles.add(animStyle);
       }
 
       // Match external text labels to cells: apply matching animation style so labels fade in
@@ -1600,6 +1608,210 @@ public class SVGAnimationDOMInjector {
          }
       }
 
+   }
+
+   // -------------------------------------------------------------------------
+   // Circle packing animation
+   // -------------------------------------------------------------------------
+
+   /**
+    * Inject staggered fade-in for circle packing charts.
+    *
+    * <p>Circles are sorted by bounding-box area (largest first) so the outermost (most prominent)
+    * circles appear first, with smaller nested circles trailing behind.  Stagger is spread across
+    * {@link AnimationConstants#STAGGER_WINDOW} regardless of circle count.
+    *
+    * <p>Text labels are matched to their nearest circle via CTM containment and receive the same
+    * animation delay so they fade in together with their circle.  Labels are tagged with
+    * {@link SVGSupport#ANNOTATION_TREEMAP_LABEL} so hover dim rules apply to both circles and
+    * their labels simultaneously.
+    */
+   private static void injectCirclePackingAnimation(Element svgRoot, Document doc) {
+      appendStyle(svgRoot, doc,
+         "@keyframes inetsoft-circle-packing-fade{from{opacity:0}to{opacity:1}}");
+
+      List<Element> circles = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_TREEMAP);
+
+      if(circles.isEmpty()) {
+         return;
+      }
+
+      circles.sort(Comparator.comparingDouble((Element g) -> {
+         double[] b = annotGroupBounds(g);
+         return -((b[2] - b[0]) * (b[3] - b[1])); // negative = descending (largest first)
+      }));
+
+      int n = circles.size();
+      List<double[]> circleBounds = circles.stream()
+         .map(SVGAnimationDOMInjector::annotGroupBounds)
+         .collect(Collectors.toList());
+
+      List<String> circleStyles = new ArrayList<>(n);
+
+      for(int i = 0; i < n; i++) {
+         double delay = AnimationConstants.staggerDelay(i, n);
+         String animStyle = String.format(java.util.Locale.US,
+            "animation:inetsoft-circle-packing-fade %.2fs %s %.2fs both",
+            AnimationConstants.DURATION, AnimationConstants.EASING, delay);
+         applyAnimStyleToChildren(circles.get(i), animStyle);
+         circleStyles.add(animStyle);
+      }
+
+      List<Element> textGroups = new ArrayList<>();
+      collectTextGroups(svgRoot, textGroups);
+
+      // nearestCellByCtm picks the containing cell whose centre is closest to the text reference
+      // point. For nested circles (inner inside outer), the inner circle's centre is always
+      // closer to its own label, so nested containment resolves correctly without special casing.
+      for(Element textG : textGroups) {
+         int idx = nearestCellByCtm(textG, circleBounds);
+
+         if(idx >= 0) {
+            mergeStyle(textG, circleStyles.get(idx));
+            tagLabelForHover(textG, circles.get(idx), SVGSupport.ANNOTATION_TREEMAP_LABEL);
+         }
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // Relation / tree chart animation
+   // -------------------------------------------------------------------------
+
+   /**
+    * Inject fade-in animation for relation/tree charts, ordered root-first (top-to-bottom).
+    *
+    * <p>Each {@code inetsoft-relation} annotation group (one per tree node) fades in using
+    * the A2 pattern — animation is applied to inner child elements so the group's own opacity
+    * is never animated and hover dimming works without a {@code .ready} gate.
+    *
+    * <p>Nodes are sorted by their SVG Y-centre (ascending = topmost = root level first) and
+    * clustered into discrete depth bands: consecutive nodes whose Y-centres differ by more than
+    * half the average node height begin a new level.  All nodes in the same band receive the
+    * same stagger delay, so siblings at the same depth appear together.
+    */
+   private static void injectRelationAnimation(Element svgRoot, Document doc) {
+      appendStyle(svgRoot, doc,
+         "@keyframes inetsoft-relation-fade{from{opacity:0}to{opacity:1}}");
+
+      List<Element> nodes = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_RELATION);
+
+      if(nodes.isEmpty()) {
+         return;
+      }
+
+      List<double[]> bounds = nodes.stream()
+         .map(SVGAnimationDOMInjector::annotGroupBounds)
+         .collect(Collectors.toList());
+
+      // Sort node indices by Y-centre ascending (root = topmost = smallest Y in SVG coords).
+      // NOTE: this assumes a vertical (top-to-bottom) tree layout. For horizontal COMPACT_TREE
+      // layouts the level ordering will be approximate (nodes sorted by the width axis instead of
+      // the depth axis), but the animation will still complete correctly — it just won't follow
+      // root-first order on horizontal trees. For force-directed network graph layouts there is
+      // no inherent ordering at all; nodes will stagger in approximate top-to-bottom order.
+      List<Integer> order = new ArrayList<>();
+
+      for(int i = 0; i < nodes.size(); i++) {
+         order.add(i);
+      }
+
+      order.sort(Comparator.comparingDouble(i -> (bounds.get(i)[1] + bounds.get(i)[3]) / 2.0));
+
+      // Cluster into level bands: a gap larger than 50% of the average node height signals
+      // a new level.  Clamp threshold to at least 5px for degenerate single-pixel nodes.
+      double avgHeight = bounds.stream().mapToDouble(b -> b[3] - b[1]).average().orElse(20.0);
+      double threshold = Math.max(avgHeight * 0.5, 5.0);
+      int[] levelOf = new int[nodes.size()];
+      int numLevels = 0;
+      double prevLevelY = Double.NEGATIVE_INFINITY;
+
+      for(int idx : order) {
+         double cy = (bounds.get(idx)[1] + bounds.get(idx)[3]) / 2.0;
+
+         if(numLevels == 0 || cy - prevLevelY > threshold) {
+            prevLevelY = cy;
+            numLevels++;
+         }
+
+         levelOf[idx] = numLevels - 1;
+      }
+
+      // A2 fade staggered by level — root (level 0) appears first, leaves last.
+      for(int i = 0; i < nodes.size(); i++) {
+         double delay = AnimationConstants.staggerDelay(levelOf[i], numLevels);
+         applyAnimStyleToChildren(nodes.get(i), String.format(java.util.Locale.US,
+            "animation:inetsoft-relation-fade %.2fs %s %.2fs both",
+            AnimationConstants.DURATION, AnimationConstants.EASING, delay));
+      }
+
+      // Compute average center-Y for each level band so edges can be matched to levels.
+      double[] levelAvgY = new double[numLevels];
+      int[] levelCount = new int[numLevels];
+
+      for(int i = 0; i < nodes.size(); i++) {
+         double cy = (bounds.get(i)[1] + bounds.get(i)[3]) / 2.0;
+         levelAvgY[levelOf[i]] += cy;
+         levelCount[levelOf[i]]++;
+      }
+
+      for(int l = 0; l < numLevels; l++) {
+         if(levelCount[l] > 0) {
+            levelAvgY[l] /= levelCount[l];
+         }
+      }
+
+      // Edge animation: each edge fades in with its child node (the end of the edge furthest
+      // from the root, i.e. the maximum Y in SVG coordinates).
+      // NOTE: eb[3] (maxY) is the child end only for vertical layouts. For horizontal trees the
+      // child end would be eb[2] (maxX). This is acceptable for the current vertical-only support.
+      List<Element> edgeGroups = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_RELATION_EDGE);
+
+      for(Element edgeG : edgeGroups) {
+         double[] eb = annotGroupBounds(edgeG);
+         double childY = eb[3]; // maxY = child end of the edge in SVG coords (vertical layout)
+         int bestLevel = 0;
+         double bestDist = Math.abs(childY - levelAvgY[0]);
+
+         for(int l = 1; l < numLevels; l++) {
+            double dist = Math.abs(childY - levelAvgY[l]);
+
+            if(dist < bestDist) {
+               bestDist = dist;
+               bestLevel = l;
+            }
+         }
+
+         double delay = AnimationConstants.staggerDelay(bestLevel, numLevels);
+         applyAnimStyleToChildren(edgeG, String.format(java.util.Locale.US,
+            "animation:inetsoft-relation-fade %.2fs %s %.2fs both",
+            AnimationConstants.DURATION, AnimationConstants.EASING, delay));
+      }
+
+      // Label animation: labels are stamped with class="inetsoft-relation-label" and
+      // data-row/data-col directly by RelationVO during rendering, so no geometric matching
+      // is needed — just look them up by data-row and apply the same stagger delay as the
+      // matched node.
+      Map<String, Integer> nodeIndexByRow = new HashMap<>();
+      for(int i = 0; i < nodes.size(); i++) {
+         String row = nodes.get(i).getAttribute("data-" + SVGSupport.ATTR_ROW);
+         if(!row.isEmpty()) {
+            nodeIndexByRow.put(row, i);
+         }
+      }
+
+      List<Element> labelGroups = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_RELATION_LABEL);
+      for(Element labelG : labelGroups) {
+         String row = labelG.getAttribute("data-" + SVGSupport.ATTR_ROW);
+         Integer idx = nodeIndexByRow.get(row);
+         if(idx != null) {
+            double delay = AnimationConstants.staggerDelay(levelOf[idx], numLevels);
+            // Use A2 pattern (apply to children) for consistency with nodes/edges, so the
+            // group's own opacity is never set and hover dim CSS can override without conflict.
+            applyAnimStyleToChildren(labelG, String.format(java.util.Locale.US,
+               "animation:inetsoft-relation-fade %.2fs %s %.2fs both",
+               AnimationConstants.DURATION, AnimationConstants.EASING, delay));
+         }
+      }
    }
 
    // -------------------------------------------------------------------------
@@ -1669,29 +1881,86 @@ public class SVGAnimationDOMInjector {
       }
 
       // arc index → animation style string, used later to match labels.
-      Map<Integer, String> arcStyles = new HashMap<>();
+      List<String> arcStyles = new ArrayList<>(n);
 
       for(int i = 0; i < n; i++) {
          double delay = AnimationConstants.staggerDelay(arcStaggerPos[i], n);
          String style = String.format(java.util.Locale.US,
             "animation:inetsoft-sunburst-fade %.2fs %s %.2fs both",
             AnimationConstants.DURATION, AnimationConstants.EASING, delay);
-         arcStyles.put(i, style);
+         arcStyles.add(style);
          applyAnimStyleToChildren(arcs.get(i), style);
       }
 
-      // Match each label text group to its nearest arc via CTM-based positioning (avoids
-      // bezier glyph path parsing artifacts from annotGroupBounds on text glyphs).
-      // Apply the same animation timing and tag for hover dimming.
+      // Match each label text group to its arc.
+      //
+      // Batik renders rotated text as one <g text-rendering="geometricPrecision"> per glyph.
+      // Most glyphs have their translate point inside the arc's rectangular bbox (containment
+      // match). The LAST glyph's translate sits at the trailing edge of the label and can fall
+      // just outside the bbox, causing nearestCellByCtm to assign it to a different arc via
+      // the nearest-center fallback.
+      //
+      // Strategy:
+      //   1. Match every glyph group individually with nearestCellByCtm — keeps animation delays correct.
+      //   2. For hover tagging only: a glyph that was matched by nearest-center (outside every
+      //      arc bbox) looks for a spatially close glyph in DOM order that WAS matched by
+      //      containment and adopts that arc instead.  Glyphs of one label are within
+      //      GLYPH_DIST SVG units of each other; glyphs from different labels are further apart.
       List<Element> textGroups = new ArrayList<>();
       collectTextGroups(svgRoot, textGroups);
 
-      for(Element textG : textGroups) {
-         int bestIdx = nearestCellByCtm(textG, bounds);
+      int numText = textGroups.size();
+      double[] labelTx = new double[numText];
+      double[] labelTy = new double[numText];
+      int[] labelArc = new int[numText];
+      boolean[] labelContained = new boolean[numText];
+      Arrays.fill(labelArc, -1);
 
-         if(bestIdx >= 0) {
-            mergeStyle(textG, arcStyles.get(bestIdx));
-            tagLabelForHover(textG, arcs.get(bestIdx), SVGSupport.ANNOTATION_TREEMAP_LABEL);
+      for(int i = 0; i < numText; i++) {
+         String tfStr = textGroups.get(i).getAttribute("transform");
+         if(tfStr.isEmpty()) continue;
+         double[] ctm = parseSVGTransform(tfStr);
+         labelTx[i] = ctm[4];
+         labelTy[i] = ctm[5];
+         int idx = nearestCellByCtm(textGroups.get(i), bounds);
+         labelArc[i] = idx;
+         if(idx >= 0) {
+            double[] b = bounds.get(idx);
+            labelContained[i] = labelTx[i] >= b[0] && labelTx[i] <= b[2]
+                                 && labelTy[i] >= b[1] && labelTy[i] <= b[3];
+         }
+      }
+
+      // Apply animation style per-element (unmodified — animation delays are always correct).
+      for(int i = 0; i < numText; i++) {
+         if(labelArc[i] >= 0) {
+            mergeStyle(textGroups.get(i), arcStyles.get(labelArc[i]));
+         }
+      }
+
+      // Hover tagging: correct nearest-center mismatches by proximity to contained neighbors.
+      int[] hoverArc = labelArc.clone();
+
+      for(int i = 0; i < numText; i++) {
+         if(labelContained[i] || labelArc[i] < 0) continue; // already correct or unmatched
+         double bestDist = AnimationConstants.SUNBURST_GLYPH_MAX_DIST;
+         int override = -1;
+         for(int j = Math.max(0, i - AnimationConstants.SUNBURST_GLYPH_WINDOW); j <= Math.min(numText - 1, i + AnimationConstants.SUNBURST_GLYPH_WINDOW); j++) {
+            if(j == i || !labelContained[j] || labelArc[j] < 0) continue;
+            double d = Math.hypot(labelTx[j] - labelTx[i], labelTy[j] - labelTy[i]);
+            if(d < bestDist) {
+               bestDist = d;
+               override = labelArc[j];
+            }
+         }
+         if(override >= 0) {
+            hoverArc[i] = override;
+         }
+      }
+
+      for(int i = 0; i < numText; i++) {
+         if(hoverArc[i] >= 0) {
+            tagLabelForHover(textGroups.get(i), arcs.get(hoverArc[i]), SVGSupport.ANNOTATION_TREEMAP_LABEL);
          }
       }
 
@@ -1749,7 +2018,7 @@ public class SVGAnimationDOMInjector {
       }
 
       // cell index → animation style, used to match labels after cell pass.
-      Map<Integer, String> cellStyles = new HashMap<>();
+      List<String> cellStyles = new ArrayList<>(n);
 
       for(int i = 0; i < n; i++) {
          double delay = AnimationConstants.staggerDelay(cellStaggerPos[i], n);
@@ -1757,7 +2026,7 @@ public class SVGAnimationDOMInjector {
             "animation:inetsoft-icicle-fade %.2fs %s %.2fs both",
             AnimationConstants.DURATION, AnimationConstants.EASING, delay);
          applyAnimStyleToChildren(cells.get(i), animStyle);
-         cellStyles.put(i, animStyle);
+         cellStyles.add(animStyle);
       }
 
       // Match label text groups to their cell and apply the same animation style so labels
@@ -1856,7 +2125,7 @@ public class SVGAnimationDOMInjector {
       double ROW_STEP = ROW_RATIO * scale;
 
       // cell index → animation style, reused when matching labels.
-      Map<Integer, String> cellStyles = new HashMap<>();
+      List<String> cellStyles = new ArrayList<>(cells.size());
 
       for(int i = 0; i < cells.size(); i++) {
          double cx = xCenters.get(i);
@@ -1868,7 +2137,7 @@ public class SVGAnimationDOMInjector {
             "animation:inetsoft-mekko-fade %.2fs %s %.2fs both",
             AnimationConstants.DURATION, AnimationConstants.EASING, delay);
          cells.get(i).setAttribute("style", animStyle);
-         cellStyles.put(i, animStyle);
+         cellStyles.add(animStyle);
       }
 
       // Match external text labels to cells: apply matching animation style so labels fade in
@@ -2358,9 +2627,13 @@ public class SVGAnimationDOMInjector {
          // annotation group itself. The group's own opacity is never animated, so hover dim
          // does not conflict with fill-mode on the inner paths.
          // No .ready gate is needed — bar hover is active immediately on load.
-         ".inetsoft-bar,.inetsoft-bar-label{transition:" + tr + "}" +
+         ".inetsoft-bar,.inetsoft-bar-label,.inetsoft-relation,.inetsoft-relation-edge,.inetsoft-relation-label{transition:" + tr + "}" +
          "svg:has(.inetsoft-bar.inetsoft-active) .inetsoft-bar:not(.inetsoft-active)," +
          "svg:has(.inetsoft-bar.inetsoft-active) .inetsoft-bar-label:not(.inetsoft-active)" +
+         "{opacity:" + dim + "!important}" +
+         "svg:has(.inetsoft-relation.inetsoft-active) .inetsoft-relation:not(.inetsoft-active)," +
+         "svg:has(.inetsoft-relation.inetsoft-active) .inetsoft-relation-edge:not(.inetsoft-active)," +
+         "svg:has(.inetsoft-relation.inetsoft-active) .inetsoft-relation-label:not(.inetsoft-active)" +
          "{opacity:" + dim + "!important}" +
          // A1 chart types: animation is applied directly to the annotation group that is also
          // the hover target. The .ready gate prevents hover dim from conflicting with the

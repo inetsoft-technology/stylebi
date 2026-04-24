@@ -2410,14 +2410,19 @@ public class VGraphPair {
       else if(hasIcicleVO(graph)) {
          g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_ICICLE);
       }
+      // hasCirclePackingVO and hasTreemapVO both delegate to hasTreemapVOOfType with different
+      // TreemapElement.Type values (CIRCLE vs TREEMAP), so they are mutually exclusive.
+      else if(hasCirclePackingVO(graph)) {
+         g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_CIRCLE_PACKING);
+      }
       else if(hasTreemapVO(graph)) {
-         // Note: TreemapElement.Type.CIRCLE (circle-packing charts) is also rendered by
-         // TreemapVO with the inetsoft-treemap annotation class, but has no dedicated
-         // animation hint check here — it receives no entry animation (out of scope).
          g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_TREEMAP);
       }
       else if(hasMekkoVO(graph)) {
          g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_MEKKO);
+      }
+      else if(hasRelationVO(graph)) {
+         g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_RELATION);
       }
       else if(hasBarVO(graph)) {
          String hint = SVGSupport.ANIMATION_GROW;
@@ -2443,6 +2448,10 @@ public class VGraphPair {
       else if(hasPointVO(graph)) {
          g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_POINT);
       }
+   }
+
+   private static boolean hasCirclePackingVO(VGraph graph) {
+      return hasTreemapVOOfType(graph, TreemapElement.Type.CIRCLE);
    }
 
    private static boolean hasTreemapVO(VGraph graph) {
@@ -2482,6 +2491,16 @@ public class VGraphPair {
          Visualizable v = graph.getVisual(i);
          if(v instanceof MekkoVO) return true;
          if(v instanceof GraphVO && hasMekkoVO(((GraphVO) v).getVGraph())) return true;
+      }
+
+      return false;
+   }
+
+   private static boolean hasRelationVO(VGraph graph) {
+      for(int i = 0; i < graph.getVisualCount(); i++) {
+         Visualizable v = graph.getVisual(i);
+         if(v instanceof RelationVO) return true;
+         if(v instanceof GraphVO && hasRelationVO(((GraphVO) v).getVGraph())) return true;
       }
 
       return false;
