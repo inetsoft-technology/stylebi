@@ -38,9 +38,9 @@ import inetsoft.uql.xmla.*;
 import inetsoft.util.*;
 import inetsoft.web.*;
 import inetsoft.web.admin.content.repository.model.LicensedComponents;
-import inetsoft.web.composer.wiz.service.VisualizationService;
 import inetsoft.web.admin.schedule.ScheduleTaskFolderService;
 import inetsoft.web.admin.security.SSOType;
+import inetsoft.web.composer.wiz.service.VisualizationService;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
@@ -647,7 +647,10 @@ public class ContentRepositoryTreeService {
                  .build());
       }
 
-      boolean readOnly = false;
+      boolean wizEntry = node.path() != null &&
+         (node.path().equals(VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH) ||
+          node.path().startsWith(VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/"));
+      boolean readOnly = wizEntry;
       boolean userRecycleFile = node.owner() != null &&
          node.path().startsWith(RecycleUtils.RECYCLE_BIN_FOLDER);
 
@@ -696,7 +699,7 @@ public class ContentRepositoryTreeService {
          }
       }
 
-      if(readOnly && !userOrDashboardRoot && (children == null || children.isEmpty())) {
+      if(readOnly && !userOrDashboardRoot && !wizEntry && (children == null || children.isEmpty())) {
          return Optional.empty();
       }
 
@@ -1040,7 +1043,7 @@ public class ContentRepositoryTreeService {
                icon = "shared-report-icon";
             }
             else if(VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH.equals(entry.getPath())) {
-               name = "Wiz Chats";
+               name = Catalog.getCatalog().getString("Wiz Chats");
                icon = "shared-report-icon";
             }
 
