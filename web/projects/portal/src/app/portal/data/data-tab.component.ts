@@ -15,7 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, OnDestroy, ViewChild } from "@angular/core";
+import { Component, OnDestroy, OnInit, ViewChild } from "@angular/core";
+import { NavigationEnd, Router } from "@angular/router";
 import { Subscription } from "rxjs";
 import {
    AiAssistantService,
@@ -23,25 +24,31 @@ import {
 } from "../../../../../shared/ai-assistant/ai-assistant.service";
 import { RepositoryClientService } from "../../common/repository-client/repository-client.service";
 import { SplitPane } from "../../widget/split-pane/split-pane.component";
+import { AssetItem } from "./model/datasources/database/asset-item";
+import { DataDetailsPaneService } from "./services/data-details-pane.service";
 import { DataPhysicalModelService } from "./services/data-physical-model.service";
 
 @Component({
    selector: "p-data-tab",
    templateUrl: "./data-tab.component.html",
    styleUrls: ["./data-tab.component.scss"],
-   providers: [RepositoryClientService]
+   providers: [RepositoryClientService, DataDetailsPaneService]
 })
-export class DataTabComponent implements OnDestroy {
+export class DataTabComponent implements OnInit, OnDestroy {
    @ViewChild(SplitPane) splitPane: SplitPane;
 
    readonly INIT_TREE_PANE_SIZE = 25;
    treePaneSize: number = this.INIT_TREE_PANE_SIZE;
    treePaneCollapsed: boolean = false;
    private subscription: Subscription;
+   private detailsSubscription: Subscription = Subscription.EMPTY;
    public hiddenCollapsed: boolean = false;
+   selectedFile: AssetItem = null;
 
    constructor(private readonly physicalModelService: DataPhysicalModelService,
-               private aiAssistantSerivice: AiAssistantService)
+               private aiAssistantSerivice: AiAssistantService,
+               private readonly dataDetailsPaneService: DataDetailsPaneService,
+               private readonly router: Router)
    {
       this.aiAssistantSerivice.setContextTypeFieldValue(ContextType.PORTAL_DATA);
       this.subscription = this.physicalModelService.onFullScreen.subscribe((fullScreen: boolean) => {
@@ -51,11 +58,26 @@ export class DataTabComponent implements OnDestroy {
       });
    }
 
+   ngOnInit(): void {
+      this.detailsSubscription = this.dataDetailsPaneService.selectedFile$
+         .subscribe((selectedFile) => this.selectedFile = selectedFile);
+
+      this.subscription.add(this.router.events.subscribe((event) => {
+         if(event instanceof NavigationEnd &&
+            !event.urlAfterRedirects.startsWith("/portal/tab/data/folder"))
+         {
+            this.dataDetailsPaneService.clear();
+         }
+      }));
+   }
+
    ngOnDestroy(): void {
       if(!!this.subscription) {
          this.subscription.unsubscribe();
          this.subscription = null;
       }
+
+      this.detailsSubscription.unsubscribe();
    }
 
    toggleDataTreePane(): void {
@@ -86,5 +108,9 @@ export class DataTabComponent implements OnDestroy {
          this.treePaneCollapsed = true;
          this.treePaneSize = this.INIT_TREE_PANE_SIZE;
       }
+   }
+
+   closeDetailsPane(): void {
+      this.dataDetailsPaneService.clear();
    }
 }

@@ -97,9 +97,9 @@ $modal-lg:        850px !default;
 $primary: $inet-orange;  // use for primary function in the current working area. Also for current focused element in current working area
 $primary-light: $inet-orange-light;
 $primary-dark: $inet-orange-dark;
-$secondary: $inet-blue-dark;  // actionable button/icons background to distinguish from info/status buttons/icons
-$secondary-light: $inet-blue;
-$secondary-dark: #0a3d3b;
+$secondary: #2F7E9E;  // semantic info blue (repositioned from teal #105e5a)
+$secondary-light: #DCEEF5;  // secondary soft surface
+$secondary-dark: #1D5368;  // secondary active/dark
 $success: $inet-green;
 $warning: $inet-yellow;
 $danger: $inet-red-dark;
@@ -107,13 +107,13 @@ $light: $inet-offwhite1;
 $link-color: $inet-yellow-dark;
 
 $component-active-color: $inet-text-dark;
-$table-hover-bg: $hover-bg-blue;
-$table-active-bg: $selected-item-bg-color;
+$table-hover-bg: #ECE9E2;
+$table-active-bg: #E7E2D8;
 $input-btn-focus-width: 1px;
 $input-btn-focus-color: $primary;
 $input-disabled-bg: $inet-gray1;
 $input-border-color: $inet-gray1;
-$dropdown-link-hover-bg: $hover-bg-blue;
+$dropdown-link-hover-bg: #ECE9E2;
 $btn-disabled-opacity: 0.3;
 $action-color: $inet-default-icon-color;
 $action-hover-color: $inet-gray4;
@@ -140,8 +140,11 @@ $sqrt2: 1.41421356;
   // font
   --inet-font-size-base: 13px;
   --inet-font-family: #{inspect($inet-font-name)};
-  --inet-text-color: #212529;
+  --inet-text-color: #35342F;
   --inet-icon-color: #{$inet-default-icon-color};
+  --inet-text-strong-color: #1F1F1B;
+  --inet-text-muted-color: #6A685F;
+  --inet-text-subtle-color: #99958C;
 
   // general colors
   --inet-light-color: #{$inet-text-light};
@@ -162,27 +165,27 @@ $sqrt2: 1.41421356;
   //--inet-panel-border-zero // needs to be set to 0 when panel border is set
 
   --inet-portal-main-panel-bg-color: var(--inet-main-panel-bg-color);
-  --inet-portal-side-panel-bg-color: var(--inet-side-panel-bg-color, #{$inet-offwhite2});
+  --inet-portal-side-panel-bg-color: var(--inet-side-panel-bg-color, #F8F7F4);
 
   --inet-composer-main-panel-bg-color: var(--inet-main-panel-bg-color);
-  --inet-composer-side-panel-bg-color: var(--inet-side-panel-bg-color, white);
+  --inet-composer-side-panel-bg-color: var(--inet-side-panel-bg-color, #F8F7F4);
 
   // hover
-  --inet-hover-primary-bg-color: #{$hover-bg-blue};
-  --inet-hover-secondary-bg-color: #{$inet_gray1};
+  --inet-hover-primary-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-hover-secondary-bg-color: var(--inet-ui-neutral-hover-bg-color);
   --inet-hover-text-color: #{$inet-gray4};
 
   // selected items
-  --inet-selected-item-bg-color: #{$selected-item-bg-color};
+  --inet-selected-item-bg-color: var(--inet-shell-selected-bg-color);
   --inet-selected-item-text-color: #{$selected-item-color};
 
   // navbar/ navigation tabs
   --inet-navbar-text-color: #{$inet-text-light};
-  --inet-navbar-bg-color: #{$top-bar-black};
+  --inet-navbar-bg-color: #4A4845;
   --inet-navbar-selected-border-color: var(--inet-primary-color);
   --inet-navbar-logo-color: var(--inet-primary-color);
   --inet-navbar-home-icon-color: var(--inet-navbar-text-color);
-  --inet-navbar-home-bg-color: var(--inet-primary-color);
+  --inet-navbar-home-bg-color: transparent;
   //--inet-navbar-hover-text-color; // not set by default
   //--inet-navbar-hover-bg-color; // not set by default
 
@@ -197,13 +200,13 @@ $sqrt2: 1.41421356;
   --inet-composer-navbar-hover-bg-color: var(--inet-navbar-hover-bg-color, var(--inet-secondary-color));
 
   --inet-nav-tabs-text-color: var(--inet-text-color);
-  --inet-nav-tabs-bg-color: #{$inet-offwhite4};
+  --inet-nav-tabs-bg-color: #F1EFEA;
   --inet-nav-tabs-selected-border-color: var(--inet-primary-color);
 
   // toolbars
-  --inet-toolbar-bg-color: #{$inet-offwhite1};
+  --inet-toolbar-bg-color: #F1EFEA;
   --inet-vs-toolbar-bg-color: var(--inet-toolbar-bg-color);
-  --inet-repository-tree-toolbar-bg-color: var(--inet-toolbar-bg-color);
+  --inet-repository-tree-toolbar-bg-color: var(--inet-portal-side-panel-bg-color);
 
   // worksheet
   --inet-graph-assembly-bg-color: #{$inet-offwhite1};
@@ -224,7 +227,7 @@ $sqrt2: 1.41421356;
   --inet-ws-table-even-row-bg-color: #f2f2f2;
 
   // other
-  --inet-default-border-color: #{$inet-gray-border};
+  --inet-default-border-color: #D9D5CC;
   --inet-drag-drop-highlight-color: #{$inet-drop-highlight};
   --inet-link-color: #{$link-color};
   --inet-link-hover-color: #272708;
@@ -234,17 +237,17 @@ $sqrt2: 1.41421356;
 
   // bootstrap components
   // -> dialogs/slide outs
-  --inet-dialog-bg-color: var(--inet-main-panel-bg-color);
+  --inet-dialog-bg-color: #FFFFFF;
   --inet-dialog-title-text-transform: none;
-  --inet-dialog-title-font-size: 1.3125rem;
+  --inet-dialog-title-font-size: 14px;
 
   // -> inputs
-  --inet-input-bg-color: transparent;
-  --inet-input-text-color: #495057;
-  --inet-input-border-color: #{$inet-gray-border};
+  --inet-input-bg-color: #FFFFFF;
+  --inet-input-text-color: var(--inet-text-color);
+  --inet-input-border-color: var(--inet-default-border-color);
   --inet-input-focus-text-color: var(--inet-input-text-color);
-  //--inet-input-focus-bg-color // not set by default
-  --inet-input-disabled-bg-color: #{$inet-gray1};
+  --inet-input-focus-bg-color: var(--inet-input-bg-color);
+  --inet-input-disabled-bg-color: #F1EFEA;
   --inet-input-disabled-opacity: 0.5;
 
   // -> poppups/dropdowns
@@ -257,7 +260,7 @@ $sqrt2: 1.41421356;
   // -> tables
   --inet-table-text-color: var(--inet-text-color);
   --inet-table-border-color: var(--inet-default-border-color);
-  --inet-table-heading-text-color: #495057;
+  --inet-table-heading-text-color: var(--inet-text-muted-color);
   //--inet-table-heading-bg-color // not set by default
 
   // -> buttons
@@ -270,20 +273,20 @@ $sqrt2: 1.41421356;
   --inet-button-primary-hover-border-color: var(--inet-primary-color-dark);
 
   // --> secondary
-  --inet-button-secondary-bg-color: var(--inet-secondary-color);
-  --inet-button-secondary-text-color: white;
-  --inet-button-secondary-border-color: var(--inet-secondary-color);
-  --inet-button-secondary-hover-bg-color: var(--inet-secondary-color-dark);
-  --inet-button-secondary-hover-text-color: white;
-  --inet-button-secondary-hover-border-color: var(--inet-secondary-color-dark);
+  --inet-button-secondary-bg-color: transparent;
+  --inet-button-secondary-text-color: var(--inet-ui-neutral-color);
+  --inet-button-secondary-border-color: var(--inet-ui-neutral-border-color);
+  --inet-button-secondary-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-button-secondary-hover-text-color: var(--inet-ui-neutral-hover-color);
+  --inet-button-secondary-hover-border-color: var(--inet-ui-neutral-border-color);
 
   // --> default
   --inet-button-default-bg-color: transparent;
-  --inet-button-default-text-color: var(--inet-secondary-color);
-  --inet-button-default-border-color: var(--inet-secondary-color);
-  --inet-button-default-hover-bg-color: var(--inet-secondary-color);
-  --inet-button-default-hover-text-color: var(--inet-secondary-color-light);
-  --inet-button-default-hover-border-color: var(--inet-secondary-color);
+  --inet-button-default-text-color: var(--inet-ui-neutral-color);
+  --inet-button-default-border-color: transparent;
+  --inet-button-default-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-button-default-hover-text-color: var(--inet-ui-neutral-hover-color);
+  --inet-button-default-hover-border-color: transparent;
 
   // --> light
   --inet-button-light-bg-color: var(--inet-light-color);
@@ -323,6 +326,46 @@ $sqrt2: 1.41421356;
 
   --inet-info-color-light: #d1ecf1;
   --inet-info-color-dark: #0c5460;
+
+  // neutral control family
+  --inet-ui-neutral-color: var(--inet-text-muted-color);
+  --inet-ui-neutral-border-color: var(--inet-default-border-color);
+  --inet-ui-neutral-hover-bg-color: #ECE9E2;
+  --inet-ui-neutral-hover-color: var(--inet-text-color);
+  --inet-shell-selected-bg-color: #E7E2D8;
+
+  // sizing
+  --inet-control-height-sm: 24px;
+  --inet-control-height-md: 30px;
+  --inet-control-height-lg: 36px;
+  --inet-row-height-md: 34px;
+  --inet-tab-height: 32px;
+  --inet-pill-height: 26px;
+
+  // spacing
+  --inet-space-1: 2px;
+  --inet-space-2: 4px;
+  --inet-space-3: 6px;
+  --inet-space-4: 8px;
+  --inet-space-5: 12px;
+  --inet-space-6: 16px;
+  --inet-space-8: 24px;
+
+  // radius
+  --inet-radius-sm: 2px;
+  --inet-radius-md: 3px;
+  --inet-radius-lg: 4px;
+  --inet-radius-xl: 6px;
+  --inet-radius-pill: 999px;
+
+  // elevation
+  --inet-shadow-low: 0 1px 2px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.04);
+  --inet-shadow-medium: 0 2px 4px rgba(0,0,0,.08), 0 1px 6px rgba(0,0,0,.05);
+  --inet-shadow-overlay: 0 8px 16px rgba(0,0,0,.12), 0 4px 14px rgba(0,0,0,.08);
+
+  // focus
+  --inet-focus-ring-width: 2px;
+  --inet-focus-ring-color: rgba(229, 138, 42, 0.28);
 
   // float label default color - not configurable by user - is set to whatever pane it's in
   --inet-float-label-bg-color: var(--inet-main-panel-bg-color);

@@ -18,13 +18,13 @@
 <div #treeContainer class="flex-fixed-container h-100 tree-container"
      [class.vscrollable-always]="scrollY > 0"
      (scroll)="onScroll($event)">
-  <div class="flex-fixed-content content-overflow-all mt-2">
+  <div class="flex-fixed-content content-overflow-all">
     <tree #tree *ngIf="rootNode"
           [root]="rootNode" [showRoot]="false"
           [fillHeight]="true"
           [initSelectedNodesExpanded]="true"
           [selectedNodes]="selectedNodes"
-          [isPortalDataSourcesTree]="true"
+          [isRepositoryTree]="true"
           [draggable]="true"
           [contextmenu]="true"
           [hasMenuFunction]="hasMenuFunction"

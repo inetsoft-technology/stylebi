@@ -40,6 +40,7 @@
   .data-tree-pane {
     overflow: visible;
     flex-shrink: 0;
+    padding-top: 8px;
 
     > p-data-sources-tree-view {
       width: 100%;
@@ -65,5 +66,30 @@
 
   .data-pane {
     overflow-y: hidden;
+    min-width: 0;
+  }
+
+  .data-content-shell {
+    display: flex;
+    height: 100%;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .data-details-pane {
+    width: 320px;
+    min-width: 320px;
+    max-width: 320px;
+    border-right: 1px solid var(--inet-default-border-color);
+    background-color: var(--inet-card-bg-color);
+    overflow: auto;
+  }
+
+  .data-main-pane {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
   }
 }

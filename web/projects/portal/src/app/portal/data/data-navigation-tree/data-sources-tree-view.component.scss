@@ -16,8 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 .tree-container {
-  overflow-y: hide;
-  overflow-x: auto;
+  overflow-y: hidden;
+  overflow-x: hidden;
 
   .vscrollable-always {
     overflow-y: auto;

@@ -239,7 +239,7 @@ body {
 }
 
 .bg-selected {
-  background-color: var(--inet-selected-item-bg-color);
+  background-color: var(--inet-shell-selected-bg-color);
 }
 
 %bg-hover-primary {
@@ -792,8 +792,12 @@ schema-column, edit-join-table-column {
 
 .icon-hover-bg {
   &:not([disabled]):hover {
-    @extend %bg-hover-primary;
+    background-color: rgba(229, 138, 42, 0.12);
   }
+}
+
+.folder-action-toolbar .btn:not([disabled]):not(.disabled):hover {
+  background-color: rgba(229, 138, 42, 0.12);
 }
 
 .img-button {
@@ -899,9 +903,10 @@ schema-column, edit-join-table-column {
 }
 
 .composer-bottom-tabs {
-  @extend .bt-gray;
-  min-height:33px;
+  border-top: 1px solid var(--inet-default-border-color);
+  min-height: var(--inet-tab-height);
   border-bottom: none;
+  background-color: var(--inet-nav-tabs-bg-color);
 }
 
 condition-item-pane {
@@ -912,13 +917,13 @@ condition-item-pane {
 
 .left {
   .slide-out-content-container, .slide-out-toggle-container {
-    @extend .br-gray;
+    border-right: 1px solid var(--inet-default-border-color);
   }
 }
 
 .right {
   .slide-out-content-container, .slide-out-toggle-container {
-    @extend .bl-gray;
+    border-left: 1px solid var(--inet-default-border-color);
   }
 }
 
@@ -932,7 +937,7 @@ binding-editor {
 
 .composer-body {
   .gutter {
-    @extend .bg-white-inet;
+    background-color: var(--inet-composer-side-panel-bg-color);
   }
 
   // for ws detail table
@@ -1076,18 +1081,18 @@ binding-editor {
 
 .portal-navbar {
   padding: 0;
-  height: 52px;
+  height: 44px;
 
   .nav-icon-size {
-    font-size: 24px;
+    font-size: 20px;
   }
 
   .nav-account-icon-size {
-    font-size: 30px;
+    font-size: 24px;
   }
 
   .nav-item {
-    min-width: 42px;
+    min-width: 36px;
   }
 
   .title-bar-logo {
@@ -1115,22 +1120,28 @@ binding-editor {
   &:not([disabled]):hover {
     background-color: var(--inet-hover-secondary-bg-color);
     cursor: pointer;
+  }
 
-    &:not(.bg-node-selected) {
-      border-style: none none none solid;
-      border-color: transparent;
-    }
+  &:not([disabled]):hover:not(.bg-node-selected) {
+    border-left: none !important;
+  }
+
+  &.bl-highlight-primary {
+    border-left: 4px solid transparent;
   }
 }
 
 .bg-node-selected {
-  background-color: var(--inet-selected-item-bg-color);
+  background-color: var(--inet-shell-selected-bg-color);
 }
 
 .bg-portal-node-selected {
-  background-color: transparent;
-  border-style: none none none solid;
-  border-color: var(--inet-primary-color);
+  background-color: var(--inet-shell-selected-bg-color);
+
+  &.txt-primary,
+  .txt-primary {
+    color: var(--inet-text-color);
+  }
 }
 
 .color-picker-palette {
@@ -1169,7 +1180,7 @@ binding-editor {
   }
 
   .popover-header {
-    background-color: $inet-blue;
+    background-color: var(--inet-shell-selected-bg-color);
   }
 
   .popover-body {
@@ -1248,7 +1259,37 @@ binding-editor {
 .portal-navbar {
   background-color: var(--inet-portal-navbar-bg-color);
 
+  .navbar-nav > li {
+    display: flex;
+    align-self: stretch;
+    align-items: stretch;
+
+    > div.nav-item {
+      display: flex;
+      align-items: stretch;
+
+      > a.nav-link {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+    }
+
+    > a.nav-link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  }
+
+  // Normalize all items to 2px bottom border so content height is identical
+  // whether selected or not — keeps icons vertically centered with no shift.
+  .bb-highlight-filler {
+    border-bottom-width: 2px;
+  }
+
   .nav-item.bb-highlight-primary {
+    border-bottom-width: 2px;
     border-bottom-color: var(--inet-navbar-selected-border-color);
   }
 
@@ -1269,10 +1310,15 @@ binding-editor {
 }
 
 .portal-sub-navbar, .composer-bottom-tabs, .schedule-navbar, .vpm-navbar, .viewer-bottom-tabs {
+  border-bottom: 1px solid var(--inet-default-border-color);
   color: var(--inet-nav-tabs-text-color);
-  background-color: var(--inet-nav-tabs-bg-color);
+
+  .bb-highlight-filler {
+    border-bottom-width: 2px;
+  }
 
   .nav-item.bb-highlight-primary {
+    border-bottom-width: 2px;
     border-bottom-color: var(--inet-nav-tabs-selected-border-color);
   }
 
@@ -1287,16 +1333,18 @@ binding-editor {
 
 .composer-body.viewsheet-in-view {
   .gutter-horizontal {
+    background-color: var(--inet-nav-tabs-bg-color);
     &::after {
-      background-color: var(--inet-nav-tabs-bg-color);
+      background-color: transparent;
     }
   }
 }
 
 .composer-body.library-in-view {
   .gutter-horizontal {
+    background-color: var(--inet-nav-tabs-bg-color);
     &::after {
-      background-color: var(--inet-nav-tabs-bg-color);
+      background-color: transparent;
     }
   }
 }
@@ -1338,11 +1386,28 @@ binding-editor {
   }
 }
 
+// Prevent horizontal scroll in left-panel trees. !important beats inline min-width bindings.
+repository-tree .tree-div,
+repository-tree .tree-container,
+p-data-sources-tree-view .tree-div,
+p-data-sources-tree-view .tree-container {
+  min-width: 0 !important;
+}
+
 .repository-tree-toolbar {
+  height: 40px !important;
   background-color: var(--inet-repository-tree-toolbar-bg-color);
 
   &::after {
     background-color: var(--inet-repository-tree-toolbar-bg-color);
+  }
+
+  .search-container .form-control {
+    height: 30px;
+    min-height: 30px;
+    padding-block: 0;
+    padding-inline: 8px;
+    font-size: 13px;
   }
 }
 
@@ -1611,4 +1676,42 @@ wizard-main {
 
 .modal-content-width {
   max-width: $modal-lg - 30px;
+}
+
+.portal-dropdown {
+  --bs-dropdown-link-hover-bg: var(--inet-ui-neutral-hover-bg-color);
+  --bs-dropdown-link-hover-color: var(--inet-text-color);
+  --bs-dropdown-link-active-bg: var(--inet-shell-selected-bg-color);
+  --bs-dropdown-link-active-color: var(--inet-text-color);
+  --bs-dropdown-link-focus-shadow: none;
+  padding: 0; // override dropdown-pane's 5px; items carry their own padding
+  box-shadow: var(--inet-shadow-medium);
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-lg);
+  overflow: hidden;
+
+  &.bt-highlight-primary {
+    border-top: 1px solid var(--inet-default-border-color);
+  }
+
+  .account-user-name {
+    font-size: 13px;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--inet-default-border-color);
+    color: var(--inet-text-muted-color);
+
+    &.bg-darken1 {
+      background-color: transparent;
+    }
+  }
+}
+
+.btn.schedule-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 50%;
 }

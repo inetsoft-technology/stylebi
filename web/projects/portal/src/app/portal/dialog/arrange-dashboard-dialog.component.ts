@@ -65,45 +65,15 @@ export class ArrangeDashboardDialog implements OnInit {
    }
 
    canMoveDown(index: number): boolean {
-      if(index === this.model.dashboards.length - 1) {
-         return false;
-      }
-
-      return this.model.dashboards[index].enabled &&
-         this.model.dashboards[index + 1].enabled;
+      return index < this.model.dashboards.length - 1;
    }
 
    canMoveUp(index: number): boolean {
-      if(index === 0) {
-         return false;
-      }
-
-      return this.model.dashboards[index].enabled &&
-         this.model.dashboards[index - 1].enabled;
+      return index > 0;
    }
 
-   enabledChanged(index: number): void {
-      const dashboard = this.model.dashboards[index];
-      this.model.dashboards.splice(index, 1);
-
-      if(dashboard.enabled) {
-         for(let i = 0; i < this.model.dashboards.length; i++) {
-            if(!this.model.dashboards[i].enabled) {
-               this.model.dashboards.splice(i, 0, dashboard);
-               return;
-            }
-         }
-      }
-      else {
-         for(let i = index; i < this.model.dashboards.length; i++) {
-            if(!this.model.dashboards[i].enabled) {
-               this.model.dashboards.splice(i, 0, dashboard);
-               return;
-            }
-         }
-      }
-
-      this.model.dashboards.push(dashboard);
+   trackDashboard(index: number, dashboard: any): string {
+      return dashboard.name || String(index);
    }
 
    enableAll(): void {

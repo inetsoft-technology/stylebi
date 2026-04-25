@@ -16,28 +16,30 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div class="portal-schedule-task-list">
-  <div class="d-flex align-items-center portal-task-tool-bar">
-    <button class="d-flex btn btn-sm btn-light-no-bg me-1"
-            (click)="changeShowType(!showTasksAsList)"
-            [title]="showTasksAsList ? '_#(schedule.task.toggle.toFolderView)' : '_#(schedule.task.toggle.toListView)'">
-      <i class="menu-sandwich-icon"></i>
-      <span class="visually-hidden">
-        {{showTasksAsList ? "_#(schedule.task.toggle.toFolderView)" : "_#(schedule.task.toggle.toListView)"}}
-      </span>
-    </button>
-    <h6 class="mb-0">_#(Tasks)</h6>
-  </div>
   <div class="portal-task-list-container">
     <div class="portal-task-list-items">
       <split-pane [sizes]="[INIT_TREE_PANE_SIZE, 100 - INIT_TREE_PANE_SIZE]"
                   class="split-pane" [minSize]="0" [snapOffset]="0"
-                  [gutterSize]="1" [fullWidth]="true">
-        <div class="pane data-tree-pane" [style.height.px]="treeHeight">
+                  [gutterSize]="22" (onDragEnd)="splitPaneDragEnd()" [fullWidth]="true">
+        <div class="pane data-tree-pane">
+          <div class="schedule-view-toggle">
+            <button type="button"
+                    class="btn btn-default schedule-view-toggle__button"
+                    (click)="changeShowType(true)">
+              _#(Show as List)
+            </button>
+          </div>
+          <span class="collapse-pane-button icon-size-small" aria-hidden="true"
+                (click)="changeShowType(!showTasksAsList)">
+            <i aria-hidden="true"
+               [class.chevron-circle-arrow-left-icon]="!showTasksAsList"
+               [class.chevron-circle-arrow-right-icon]="showTasksAsList"></i>
+          </span>
           <tree #tree *ngIf="rootNode && !showTasksAsList"
                 [root]="rootNode"
                 [fillHeight]="true"
                 [selectedNodes]="selectedNodes"
-                [isPortalDataSourcesTree]="true"
+                [isRepositoryTree]="true"
                 [initSelectedNodesExpanded]="true"
                 [contextmenu]="true"
                 [hasMenuFunction]="hasMenuFunction()"
@@ -127,7 +129,7 @@
       </split-pane>
     </div>
   </div>
-  <div class="schedule-task-list-actions m-2" [class.disable-actions-fade]="loading">
+  <div class="schedule-task-list-actions" [class.disable-actions-fade]="loading">
     <button type="button" class="btn btn-primary" (click)="newTask()" [disabled]="!isCreateTaskEnabled()">_#(New Task)</button>
     <button type="button" class="btn btn-default ms-2" (click)="loadTasks(true)">_#(Refresh List)</button>
     <button type="button" class="btn btn-default ms-2"

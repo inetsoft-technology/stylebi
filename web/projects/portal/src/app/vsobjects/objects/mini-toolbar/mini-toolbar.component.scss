@@ -26,9 +26,20 @@
     display: flex;
     justify-content: flex-end;
     flex-wrap: nowrap;
+    width: fit-content !important;
+    min-width: unset !important;
+    background-color: #ffffff;
+    border: 1px solid var(--inet-default-border-color);
+    border-radius: var(--inet-radius-xl);
+    overflow: hidden;
 
     button {
-      min-width: 36px; // required for IE
+      min-width: 36px;
+      border: none !important;
+      border-radius: 0 !important;
+      background-color: transparent !important;
+      box-shadow: none !important;
+      margin-left: 0 !important;
 
       i {
         padding-left: 2px;
@@ -57,4 +68,8 @@
 
 .mini-toolbar-button-group {
   pointer-events: all;
+
+  & + .mini-toolbar-button-group {
+    border-left: 1px solid var(--inet-default-border-color);
+  }
 }

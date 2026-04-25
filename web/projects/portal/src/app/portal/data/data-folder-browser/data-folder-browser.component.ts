@@ -82,6 +82,7 @@ import {
    DataSourcesTreeActionsService
 } from "../data-navigation-tree/data-sources-tree-actions.service";
 import { AssetConstants } from "../../../common/data/asset-constants";
+import { DataDetailsPaneService } from "../services/data-details-pane.service";
 
 const FOLDER_URI: string = "../api/data/folders";
 const DATA_URI: string = "../api/data/datasets";
@@ -170,12 +171,16 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
                private zone: NgZone,
                private dragService: DragService,
                private domService: DomService,
-               private dataSourcesTreeActionsService: DataSourcesTreeActionsService)
+               private dataSourcesTreeActionsService: DataSourcesTreeActionsService,
+               private dataDetailsPaneService: DataDetailsPaneService)
    {
       super(clientService, zone, true);
    }
 
    ngOnInit(): void {
+      this.subscriptions.add(this.dataDetailsPaneService.selectedFile$
+         .subscribe((selectedFile) => this.selectedFile = selectedFile));
+
       // subscribe to route parameters and refresh browser content based on current path
       this.routeParamSubscription = this.route.queryParamMap
          .subscribe((params: ParamMap) => {
@@ -216,6 +221,7 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
    ngOnDestroy(): void {
       this.routeParamSubscription.unsubscribe();
       this.subscriptions.unsubscribe();
+      this.dataDetailsPaneService.clear();
    }
 
    getAssemblyName(): string {
@@ -771,6 +777,8 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
       else {
          this.selectedFile = selectedItem;
       }
+
+      this.dataDetailsPaneService.setSelectedFile(this.selectedFile);
    }
 
    private convertToAssetItem(file: WorksheetBrowserInfo): AssetItem {
@@ -837,6 +845,7 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
          let info = this.viewAssets.find(asset =>
             asset.path === this.selectedFile.path && asset.type === this.selectedFile.type);
          this.selectedFile = this.convertToAssetItem(info);
+         this.dataDetailsPaneService.setSelectedFile(this.selectedFile);
       }
    }
 

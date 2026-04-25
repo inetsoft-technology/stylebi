@@ -37,7 +37,8 @@ export const FAKE_ROOT_PATH: string = "_fake_root_";
 
 @Component({
    selector: "move-task-dialog",
-   templateUrl: "move-task-dialog.component.html"
+   templateUrl: "move-task-dialog.component.html",
+   styleUrls: ["move-task-dialog.component.scss"]
 })
 export class MoveTaskDialogComponent implements OnInit {
    @Input() originalPaths: string[] = [];

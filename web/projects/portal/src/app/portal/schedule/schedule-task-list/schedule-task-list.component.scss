@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 :host {
+  display: flex;
   flex-grow: 1;
   flex-direction: column;
   align-items: stretch;
@@ -25,28 +26,30 @@
   overflow: hidden;
 
   .portal-schedule-task-list {
-    height: 100%;
+    flex-grow: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
-
-    .portal-task-tool-bar {
-      flex-grow: 0;
-      flex-shrink: 0;
-      border-bottom: 1px solid var(--inet-default-border-color);
-    }
 
     .portal-task-list-container {
       flex-grow: 1;
       flex-shrink: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
 
       .portal-task-list-items {
-        height: 100%;
         flex-grow: 1;
         flex-shrink: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
 
         .split-pane {
           display: flex;
-          height: 100%;
+          flex-direction: column;
+          flex-grow: 1;
+          min-height: 0;
           width: 100%;
 
           .schedule-task-list-content {
@@ -65,7 +68,6 @@
                 text-align: center;
                 display: flex;
                 flex-direction: column;
-                word-break: break-all;
                 max-height: calc(100% - 16px);
                 border-top: 0;
                 margin: 0;
@@ -74,6 +76,12 @@
                   display: table;
                   width: 100%;
                   border-top: 0;
+                  table-layout: fixed;
+                }
+
+                > thead th {
+                  background-color: var(--inet-toolbar-bg-color);
+                  color: var(--inet-text-color);
                 }
 
                 > tbody {
@@ -85,10 +93,33 @@
                 > tbody tr {
                   display: table;
                   width: 100%;
+                  table-layout: fixed;
+                }
+
+                > tbody tr.selected {
+                  background-color: var(--inet-main-panel-bg-color);
+                  color: var(--inet-text-color);
+                }
+
+                > tbody tr.selected > td {
+                  background-color: var(--inet-main-panel-bg-color);
+                  color: var(--inet-text-color);
+                }
+
+                > thead th,
+                > tbody td {
+                  white-space: nowrap;
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                  vertical-align: middle;
                 }
 
                 .schedule-container {
                   width: 25% !important;
+                }
+
+                .select-container {
+                  width: 48px !important;
                 }
 
                 .disabled-task {
@@ -108,7 +139,6 @@
                 }
 
                 .description-container {
-                  word-break: break-all;
                   width: 20% !important;
                 }
 
@@ -136,10 +166,17 @@
         }
       }
 
-      .schedule-task-list-actions {
-        flex-grow: 0;
-        flex-shrink: 0;
-      }
+    }
+
+    .schedule-task-list-actions {
+      flex-grow: 0;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 0;
+      padding: 12px 16px;
+      border-top: 1px solid var(--inet-default-border-color);
+      background-color: var(--inet-portal-side-panel-bg-color);
     }
   }
 
@@ -164,10 +201,53 @@
     overflow: auto;
   }
 
+  .collapse-pane-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: calc(50% - 50px);
+    height: 100px;
+    width: 22px;
+    right: -22px;
+    z-index: 6;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+
   .data-tree-pane {
     overflow: visible;
-    width: 200px;
+    display: flex;
+    flex-direction: column;
     flex-shrink: 0;
+    background-color: var(--inet-portal-side-panel-bg-color);
+    --inet-float-label-bg-color: var(--inet-portal-side-panel-bg-color);
+    padding-top: 0;
+
+    .schedule-view-toggle {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--inet-default-border-color);
+      background-color: var(--inet-portal-side-panel-bg-color);
+    }
+
+    .schedule-view-toggle__button {
+      min-width: 96px;
+      border-color: var(--inet-default-border-color);
+      background-color: transparent;
+      color: var(--inet-text-color);
+      box-shadow: none;
+      font-weight: 400;
+    }
+
+    > tree {
+      display: block;
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100%;
+    }
 
     > p-data-sources-tree-view {
       width: 100%;
@@ -177,6 +257,7 @@
   .data-pane {
     overflow-y: hidden;
     display: block;
+    padding: 12px;
   }
 
   .btn.schedule-button {

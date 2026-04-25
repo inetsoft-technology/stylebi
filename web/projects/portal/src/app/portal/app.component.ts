@@ -303,7 +303,7 @@ export class PortalAppComponent implements OnInit, OnDestroy {
 
    getDashboardTabTooltip(): string {
       if(this.getTab(PortalTabs.DASHBOARD)) {
-         return "_#(js:Dashboard)";
+         return "_#(js:Pinboard)";
       }
       else {
          return "";

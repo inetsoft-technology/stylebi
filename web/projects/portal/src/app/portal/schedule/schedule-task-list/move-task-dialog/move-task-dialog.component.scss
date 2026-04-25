@@ -15,6 +15,22 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-$repository-tree-toolbar-height: 40px;
-$report-tab-gutter-margin: 16px;
-$report-tab-gutter-width: 6px;
+:host {
+  display: block;
+}
+
+:host ::ng-deep .modal-body {
+  padding: 16px;
+}
+
+:host ::ng-deep .modal-body .container-fluid,
+:host ::ng-deep .modal-body .row,
+:host ::ng-deep .modal-body .col {
+  padding: 0;
+  margin: 0;
+}
+
+:host ::ng-deep .modal-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--inet-default-border-color);
+}

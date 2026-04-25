@@ -107,6 +107,9 @@ export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
       {name: "--inet-font-size-base"},
       {name: "--inet-font-family"},
       {name: "--inet-text-color", color: true},
+      {name: "--inet-text-strong-color", color: true},
+      {name: "--inet-text-muted-color", color: true},
+      {name: "--inet-text-subtle-color", color: true},
       {name: "--inet-icon-color", color: true},
 
       // general colors
@@ -141,11 +144,13 @@ export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
       {name: "--inet-hover-primary-bg-color", color: true},
       {name: "--inet-hover-secondary-bg-color", color: true},
       {name: "--inet-hover-text-color", color: true},
+      {name: "--inet-ui-neutral-hover-bg-color", color: true},
 
       // selected items
       {name: "_#(js:em.presentation.lookAndFeel.css.heading.selItems)", heading: true},
       {name: "--inet-selected-item-bg-color", color: true},
       {name: "--inet-selected-item-text-color", color: true},
+      {name: "--inet-shell-selected-bg-color", color: true},
 
       // navbar
       {name: "_#(js:em.presentation.lookAndFeel.css.heading.navbar)", heading: true},
@@ -210,6 +215,7 @@ export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
       {name: "--inet-ruler-text-color", color: true},
       {name: "--inet-ruler-bg-color", color: true},
       {name: "--inet-ruler-border-color", color: true},
+      {name: "--inet-focus-ring-color", color: true},
 
       // bootstrap components
       // -> dialogs/slide outs

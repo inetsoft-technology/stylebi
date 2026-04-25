@@ -225,16 +225,23 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
       }));
 
       this.subscriptions.add(this.router.events.subscribe(event => {
-         if(event instanceof NavigationEnd && event.url === "/portal/tab/data") {
-            this.selectedNodes = this.rootNode.children.length > 0
-               ? [this.rootNode.children[0]] : [];
-            this.rootNode.children[0].expanded = true;
-            this.selectNode(this.selectedNodes);
+         if(event instanceof NavigationEnd && this.isDefaultDataLandingRoute(event.url)) {
+            this.selectedNodes = [];
          }
       }));
 
       this.subscriptions.add(this.route.queryParamMap
          .subscribe((params: ParamMap) => {
+            const onDataHome = this.isDefaultDataLandingRoute();
+
+            if(onDataHome) {
+               this.initPath = null;
+               this.initScope = null;
+               this.searchView = false;
+               this.selectedNodes = [];
+               return;
+            }
+
             let searchAllNodes = false;
 
             if(this.router.url.startsWith("/portal/tab/data/datasources/datasource/listing")) {
@@ -410,23 +417,43 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
             this.rootNode = root;
             this.loading = false;
             let paneRoot = this.getCurrentRootNode(type);
+            const onDataHome = this.isDefaultDataLandingRoute();
 
-            if(this.selectedNodes) {
+            if(onDataHome) {
+               this.selectedNodes = [];
+               if(this.rootNode.children?.length > 0) {
+                  this.rootNode.children[0].expanded = true;
+               }
+               this.keepExpandedNodes(this.rootNode, paneRoot);
+            }
+            else if(this.selectedNodes) {
                this.selectedNodes = this.updateSelectedNodes(this._oldRootNode, paneRoot);
                this.keepExpandedNodes(this._oldRootNode, this.rootNode);
             }
             else {
                this.initSeletedNodes(this.initPath, this.initScope);
-               this.rootNode.children[0].expanded = true;
+               if(this.rootNode.children?.length > 0) {
+                  this.rootNode.children[0].expanded = true;
+               }
+
                this.keepExpandedNodes(this.rootNode, paneRoot);
             }
 
-            if(this.selectedNodes && this.selectedNodes.length > 0 &&
+            if(!onDataHome && this.selectedNodes && this.selectedNodes.length > 0 &&
                !this.isEditDataSource() && !this.searchView)
             {
                this.selectNode(this.selectedNodes);
             }
          });
+   }
+
+   private isDefaultDataLandingRoute(url: string = this.router.url): boolean {
+      const path = !!url ? url.split("?")[0] : "";
+      const hasPath = this.route.snapshot.queryParamMap.has("path");
+      const hasScope = this.route.snapshot.queryParamMap.has("scope");
+
+      return (path === "/portal/tab/data" || path === "/portal/tab/data/folder") &&
+         !hasPath && !hasScope;
    }
 
    /**

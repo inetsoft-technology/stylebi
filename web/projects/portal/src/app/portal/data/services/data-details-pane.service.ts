@@ -1,4 +1,4 @@
-/*!
+/*
  * This file is part of StyleBI.
  * Copyright (C) 2024  InetSoft Technology
  *
@@ -15,6 +15,27 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-$repository-tree-toolbar-height: 40px;
-$report-tab-gutter-margin: 16px;
-$report-tab-gutter-width: 6px;
+import { Injectable } from "@angular/core";
+import { BehaviorSubject, Observable } from "rxjs";
+import { AssetItem } from "../model/datasources/database/asset-item";
+
+@Injectable()
+export class DataDetailsPaneService {
+   private readonly selectedFileSubject = new BehaviorSubject<AssetItem>(null);
+
+   get selectedFile$(): Observable<AssetItem> {
+      return this.selectedFileSubject.asObservable();
+   }
+
+   get selectedFile(): AssetItem {
+      return this.selectedFileSubject.value;
+   }
+
+   setSelectedFile(selectedFile: AssetItem): void {
+      this.selectedFileSubject.next(selectedFile);
+   }
+
+   clear(): void {
+      this.selectedFileSubject.next(null);
+   }
+}

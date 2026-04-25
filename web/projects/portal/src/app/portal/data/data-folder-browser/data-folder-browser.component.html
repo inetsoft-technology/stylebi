@@ -16,9 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div class="browser-container g-0 h-100 d-flex flex-row justify-content-start">
-  <div class="d-flex flex-column align-items-stretch p-0 h-100"
-       [class.col-12]="!selectedFile"
-       [ngClass]="{'col-6 col-sm-8 col-md-9' : !!selectedFile}">
+  <div class="d-flex flex-column align-items-stretch p-0 h-100 col-12">
     <div class="btn-toolbar folder-action-toolbar bb-gray bg-white2 justify-content-end flex-grow-0 flex-shrink-0" role="toolbar">
       <div class="d-flex align-items-center">
         <div [hidden]="!searchVisible">
@@ -133,12 +131,6 @@
                              (assetsDroped)="assetsDroped($event)">
       </data-folder-list-view>
     </div>
-  </div>
-  <div class="flex h-100 col-6 col-sm-4 col-md-3 p-0" *ngIf="!!selectedFile">
-    <asset-description [selectedFile]="selectedFile"
-                       [isWorksheet]="true"
-                       (onClose)="selectFile(null)">
-    </asset-description>
   </div>
 </div>
 <data-notifications #dataNotifications></data-notifications>

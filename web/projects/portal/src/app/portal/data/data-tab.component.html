@@ -29,6 +29,16 @@
         </span>
   </div>
   <div class="pane data-pane bg-white1">
-    <router-outlet></router-outlet>
+    <div class="data-content-shell">
+      <div class="data-details-pane" *ngIf="selectedFile">
+        <asset-description [selectedFile]="selectedFile"
+                           [isWorksheet]="true"
+                           (onClose)="closeDetailsPane()">
+        </asset-description>
+      </div>
+      <div class="data-main-pane">
+        <router-outlet></router-outlet>
+      </div>
+    </div>
   </div>
 </split-pane>

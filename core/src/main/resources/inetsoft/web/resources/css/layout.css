@@ -26,8 +26,31 @@ body {
     background-attachment: fixed;
 }
 
-.header-band {
+.navbar.header-band {
   background: #424242;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 0 0 24px;
+  box-sizing: border-box;
+  margin-bottom: 0;
+  justify-content: flex-start;
+}
+
+.navbar.header-band .title {
+  font-size: 26px;
+  font-weight: bold;
+  color: #ed711c;
+  line-height: 1;
+  margin: 0;
+}
+
+.navbar.header-band .title2 {
+  color: #ffb17c;
+  font-size: 16px;
+  line-height: 1.2;
+  margin: 0;
 }
 
 .card-container {
@@ -155,23 +178,6 @@ body {
 a > * {
   text-decoration: none;
   color: gray;
-}
-
-.navbar {
-  justify-content: flex-start;
-  margin-bottom: 30px;
-}
-
-.navbar .title {
-  font-size: 26px;
-  font-weight: bold;
-  color: #ed711c;
-}
-
-.navbar  .title2 {
-  color: #ffb17c;
-  font-size: 16px;
-  align-self: flex-end;
 }
 
 .attribution {
