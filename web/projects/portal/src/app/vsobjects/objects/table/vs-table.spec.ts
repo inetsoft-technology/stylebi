@@ -328,6 +328,11 @@ describe("VSTable Unit Tests", () => {
       model.shrink = true;
       (model as any).maxMode = true;
       expect(component.getObjectTop()).toBe(designTop);
+
+      // vsInfo absent: no shift (defensive guard)
+      (model as any).maxMode = false;
+      component.vsInfo = null;
+      expect(component.getObjectTop()).toBe(designTop);
    });
 
    // Bug #9839 ensure row and col selection instantiated to -1, to signal nothing selected.
