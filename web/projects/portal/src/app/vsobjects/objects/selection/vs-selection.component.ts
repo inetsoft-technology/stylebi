@@ -705,8 +705,9 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       this._overlayMouseLeaveUnlisten = null;
       this._overlayWheelUnlisten?.();
       this._overlayWheelUnlisten = null;
-      this._scrollbarMouseLeaveUnlisten?.();
-      this._scrollbarMouseLeaveUnlisten = null;
+      // Clears _scrollbarMouseLeaveUnlisten and the inline width on .selection-list
+      // in one place rather than duplicating that cleanup here.
+      this._hideOverlay();
 
       super.ngOnDestroy();
    }
@@ -776,6 +777,11 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
          // cells: anchor at the right edge of the hovered cell, clamped to the list's right
          // edge (minus scrollbar) so the button stays in bounds for indented tree cells and
          // last-column cells alike.
+         //
+         // labelEl is rendered unconditionally in selection-list-cell.component.html, so
+         // the (measureContentEl && !labelEl) case is unreachable; the else branch's
+         // cell-rect math is the safe fallback if a future template change ever changes
+         // that.
          const measureContentEl = cellElement.querySelector(".selection-list-cell-content");
          const labelEl = cellElement.querySelector(".selection-list-cell-label") as HTMLElement | null;
          let leftCss: number;

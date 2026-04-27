@@ -385,6 +385,9 @@ describe("VSSelection - quick-switch overlay positioner", () => {
       toJSON: () => ({})
    } as DOMRect);
 
+   // Pass labelRect to model a cell whose label has been laid out; omit it to model
+   // the (template-impossible) case where .selection-list-cell-label is missing — used
+   // only by the regression test that pins the fallback contract.
    const makeCell = (rect: DOMRect, hasMeasure: boolean, labelRect?: DOMRect): any => ({
       getBoundingClientRect: () => rect,
       querySelector: (sel: string) => {
@@ -400,9 +403,14 @@ describe("VSSelection - quick-switch overlay positioner", () => {
       }
    });
 
-   const btnLeft = () => setStyleCalls.find(c => c.el === btnEl && c.prop === "left")?.value;
-   const btnRight = () => setStyleCalls.find(c => c.el === btnEl && c.prop === "right")?.value;
-   const listWidth = () => setStyleCalls.find(c => c.el === listEl && c.prop === "width")?.value;
+   // Reverse-find so the helpers return the LAST setStyle write for a given (el, prop) —
+   // that is what the rendered DOM reflects.  find() would silently mask a future
+   // reset-then-set sequence.
+   const lastStyle = (el: any, prop: string) =>
+      [...setStyleCalls].reverse().find(c => c.el === el && c.prop === prop)?.value;
+   const btnLeft = () => lastStyle(btnEl, "left");
+   const btnRight = () => lastStyle(btnEl, "right");
+   const listWidth = () => lastStyle(listEl, "width");
 
    beforeEach(() => {
       setStyleCalls = [];
@@ -512,5 +520,47 @@ describe("VSSelection - quick-switch overlay positioner", () => {
       // width write on something other than the list element (body/row expansion).
       expect(setStyleCalls.find(c => c.prop === "margin-left")).toBeUndefined();
       expect(setStyleCalls.find(c => c.prop === "width" && c.el !== listEl)).toBeUndefined();
+   });
+
+   it("converts viewport coordinates to CSS px when scale != 1", () => {
+      (vsSelection as any).scale = 2;
+      // List at viewport (100, 0), 400x600 viewport px → 200x300 CSS px.
+      listEl.getBoundingClientRect = () => makeRect(100, 0, 400, 600);
+      // Cell at viewport (100, 0), 200x60 viewport px → 100x30 CSS px (non-last column).
+      const cell = makeCell(makeRect(100, 0, 200, 60), false);
+      vsSelection.setQuickSwitchHover(cell, false, () => {});
+
+      // (cellRight 300 - listLeft 100) / scale 2 = 100 CSS px → 100 - btn(24) = 76;
+      // listWidth 200 - 0 - btn(24) = 176; min = 76.
+      expect(btnLeft()).toBe("76px");
+      expect(listWidth()).toBe("200px");
+   });
+
+   it("falls back to cell-rect math when measure content has no labelEl (defensive)", () => {
+      // Template-impossible state: .selection-list-cell-content present, but no
+      // .selection-list-cell-label.  Pins the fallback contract so a future template
+      // change cannot silently regress this case.
+      const cell = makeCell(makeRect(0, 0, 100, 30), true /* hasMeasure */ /* no labelRect */);
+      vsSelection.setQuickSwitchHover(cell, false, () => {});
+
+      // Falls into the else branch: cellRight(100) - btn(24) = 76; min vs 176 = 76.
+      expect(btnLeft()).toBe("76px");
+   });
+
+   it("returns early without writing position styles when the list element is missing", () => {
+      // Stub elementRef to return no .selection-list child.
+      (vsSelection as any).elementRef = {
+         nativeElement: { querySelector: () => null }
+      };
+      const cell = makeCell(makeRect(0, 0, 100, 30), false);
+      vsSelection.setQuickSwitchHover(cell, false, () => {});
+
+      // No left/width writes — the early return fires before measurement.
+      expect(btnLeft()).toBeUndefined();
+      expect(listWidth()).toBeUndefined();
+      // _currentHoverElement is still set by setQuickSwitchHover before the early return,
+      // documenting the contract that the hover state is recorded even when the list
+      // element cannot be located.
+      expect((vsSelection as any)._currentHoverElement).toBe(cell);
    });
 });
