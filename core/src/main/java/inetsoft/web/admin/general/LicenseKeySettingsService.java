@@ -38,7 +38,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 @Service
-public class LicenseKeySettingsService implements MessageListener {
+public class LicenseKeySettingsService {
    @Autowired
    public LicenseKeySettingsService(LicenseManager licenseManager, Cluster cluster,
                                     AuthenticationService authenticationService)
@@ -50,12 +50,13 @@ public class LicenseKeySettingsService implements MessageListener {
 
    @PostConstruct
    public void registerListeners() {
-      cluster.addMessageListener(this);
+      messageListener = this::messageReceived;
+      cluster.addMessageListener(messageListener);
    }
 
    @PreDestroy
    public void unregisterListeners() {
-      cluster.removeMessageListener(this);
+      cluster.removeMessageListener(messageListener);
    }
 
    public LicenseKeySettingsModel getModel() {
@@ -78,7 +79,6 @@ public class LicenseKeySettingsService implements MessageListener {
       authenticationService.reset();
    }
 
-   @Override
    public void messageReceived(MessageEvent event) {
       if(event.getMessage() instanceof ResetLicenseKeyMessage) {
          authenticationService.reset();
@@ -144,4 +144,5 @@ public class LicenseKeySettingsService implements MessageListener {
    private final LicenseManager licenseManager;
    private final Cluster cluster;
    private final AuthenticationService authenticationService;
+   private MessageListener messageListener;
 }
