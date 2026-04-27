@@ -26,6 +26,7 @@ import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.DashboardRegistry;
+import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -71,7 +72,8 @@ public class RepositoryObjectService {
                                   RecycleBin recycleBin,
                                   DependencyHandler dependencyHandler,
                                   RenameTransformHandler renameTransformHandler,
-                                  RepletRegistryManager repletRegistryManager)
+                                  RepletRegistryManager repletRegistryManager,
+                                  DashboardRegistryManager dashboardRegistryManager)
    {
       this.registryManager = registryManager;
       this.treeService = treeService;
@@ -86,6 +88,7 @@ public class RepositoryObjectService {
       this.dependencyHandler = dependencyHandler;
       this.renameTransformHandler = renameTransformHandler;
       this.repletRegistryManager = repletRegistryManager;
+      this.dashboardRegistryManager = dashboardRegistryManager;
    }
 
    public ConnectionStatus deleteNodes(TreeNodeInfo[] nodes, Principal principal, boolean force,
@@ -1222,7 +1225,7 @@ public class RepositoryObjectService {
       else if(type == RepositoryEntry.DASHBOARD) {
          IdentityID principalID = IdentityID.getIdentityIDFromKey(principal.getName());
          String dashboardName = SUtil.isMyDashboard(src) ? SUtil.getUnscopedPath(src) : src;
-         DashboardRegistry userRegistry = DashboardRegistry.getRegistry(principalID);
+         DashboardRegistry userRegistry = dashboardRegistryManager.getRegistry(principalID);
          boolean isOwnDashboard = SUtil.isMyDashboard(src) && userRegistry.getDashboard(dashboardName) != null;
 
          if(!isOwnDashboard &&
@@ -1309,4 +1312,5 @@ public class RepositoryObjectService {
    private final DependencyHandler dependencyHandler;
    private final RenameTransformHandler renameTransformHandler;
    private final RepletRegistryManager repletRegistryManager;
+   private final DashboardRegistryManager dashboardRegistryManager;
 }

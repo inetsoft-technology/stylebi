@@ -45,7 +45,7 @@ class ScheduleTaskServiceSanitizeTest {
 
    @BeforeEach
    void setUp() {
-      service = new ScheduleTaskService(null, null, scheduleService, null, null, null);
+      service = new ScheduleTaskService(null, null, scheduleService, null, null, null, null);
    }
 
    // ── sanitizeConditions ────────────────────────────────────────────────────
