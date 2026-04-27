@@ -59,6 +59,10 @@ public class LibManagerProvider {
    }
 
    public LibManager getManager(String orgID) {
+      if(orgID == null) {
+         return getManager();
+      }
+
       lock.lock();
       try {
          LibManager manager = managers.get(orgID);
