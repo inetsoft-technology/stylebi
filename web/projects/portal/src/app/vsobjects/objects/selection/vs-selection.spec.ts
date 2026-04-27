@@ -366,4 +366,72 @@ describe("VSSelection Test", () => {
       // tabTop(544) - titleHeight(20) - bodyHeight(90) = 434
       expect(fixture.componentInstance.topPosition).toBe(434);
    });
+
+   // Bug #74594 — collapsed dropdown with the search bar enabled must shift up
+   // an extra titleHeight so the search bar (rendered via [hidden], not *ngIf)
+   // doesn't overlap the bottom tab strip.
+   it("should shift collapsed dropdown selection up by an extra titleHeight when search bar is displayed (viewer)", () => {
+      let listModel = createListModel();
+      listModel.dropdown = true;
+      listModel.searchDisplayed = true;
+      listModel.objectFormat.top = 9999;       // stale; must be ignored
+      listModel.titleFormat.height = 20;
+      listModel.containerType = "VSTab";
+      listModel.container = "Tab1";
+
+      let tabModel = Object.assign(
+         { bottomTabs: true },
+         TestUtils.createMockVSObjectModel("VSTab", "Tab1")
+      );
+      tabModel.objectFormat.top = 544;
+
+      contextService.viewer = true;
+      fixture.componentInstance.model = listModel;        // model setter forces hidden=true
+      fixture.componentInstance.vsInfo = { vsObjects: [tabModel] } as any;
+
+      // tabTop(544) - titleHeight(20) - searchBar(20) = 504
+      expect(fixture.componentInstance.topPosition).toBe(504);
+   });
+
+   it("should shift collapsed dropdown selection up by searchBar height in composer when search bar is displayed", () => {
+      let listModel = createListModel();
+      listModel.dropdown = true;
+      listModel.searchDisplayed = true;
+      listModel.titleFormat.height = 20;
+      listModel.containerType = "VSTab";
+      listModel.container = "Tab1";
+
+      let tabModel = Object.assign(
+         { bottomTabs: true },
+         TestUtils.createMockVSObjectModel("VSTab", "Tab1")
+      );
+
+      contextService.viewer = false;
+      fixture.componentInstance.model = listModel;        // model setter forces hidden=true
+      fixture.componentInstance.vsInfo = { vsObjects: [tabModel] } as any;
+
+      // composer returns relative offset: -bodyHeight(0, collapsed) - searchBar(20) = -20
+      expect(fixture.componentInstance.topPosition).toBe(-20);
+   });
+
+   it("should not shift collapsed dropdown selection in composer when search bar is hidden", () => {
+      let listModel = createListModel();
+      listModel.dropdown = true;
+      listModel.searchDisplayed = false;
+      listModel.titleFormat.height = 20;
+      listModel.containerType = "VSTab";
+      listModel.container = "Tab1";
+
+      let tabModel = Object.assign(
+         { bottomTabs: true },
+         TestUtils.createMockVSObjectModel("VSTab", "Tab1")
+      );
+
+      contextService.viewer = false;
+      fixture.componentInstance.model = listModel;        // model setter forces hidden=true
+      fixture.componentInstance.vsInfo = { vsObjects: [tabModel] } as any;
+
+      // composer collapsed-no-search: no shift, fall through to null
+      expect(fixture.componentInstance.topPosition).toBeNull();
+   });
 });

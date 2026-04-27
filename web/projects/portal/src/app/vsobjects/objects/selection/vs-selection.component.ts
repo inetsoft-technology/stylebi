@@ -238,12 +238,16 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
 
       // composer mode: shift up relative to wrapper.
       // non-dropdown case is handled by editable-object-container.getTopPosition()
-      if(!(this.viewer || this.embeddedVS)
-         && this.model.dropdown && !SelectionBaseController.isHidden(this.model)
-         && inBottomTab)
-      {
-         let searchBarHeight = this.model.searchDisplayed ? this.model.titleFormat.height : 0;
-         return -this.getBodyHeight() - searchBarHeight;
+      if(!(this.viewer || this.embeddedVS) && this.model.dropdown && inBottomTab) {
+         const expanded = !SelectionBaseController.isHidden(this.model);
+         const searchBarHeight = this.model.searchDisplayed ? this.model.titleFormat.height : 0;
+
+         // collapsed-with-search still needs an upward shift because the search bar
+         // ([hidden], not *ngIf) renders below the title and would overlap the tab strip.
+         if(expanded || searchBarHeight > 0) {
+            const bodyHeight = expanded ? this.getBodyHeight() : 0;
+            return -bodyHeight - searchBarHeight;
+         }
       }
 
       return null;
