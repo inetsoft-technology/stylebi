@@ -17,20 +17,9 @@
  */
 package inetsoft.sree.portal;
 
-/*
- * reloadThemes(path) — invoked by the storage browser after it deletes a file or directory.
- * The method must remove every theme whose jarPath begins with the deleted path and preserve
- * all others.
- *
- *  [A] exact file path match     → matching theme removed, others kept
- *  [B] directory prefix match    → all themes under that directory removed
- *  [C] no match                  → set unchanged (setCustomThemes still called)
- *  [D] theme with null jarPath   → always preserved (null-safe guard)
- *  [E] empty theme set           → setCustomThemes never called (early-exit guard)
- */
-
 import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.util.DataSpace;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -42,6 +31,7 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+@Tag("core")
 @ExtendWith(MockitoExtension.class)
 class CustomThemesManagerTest {
    @Mock private KeyValueStorageManager keyValueStorageManager;
@@ -107,6 +97,36 @@ class CustomThemesManagerTest {
       assertEquals("no-jar", saved.iterator().next().getId());
    }
 
+   // [F] path-separator boundary — a theme under "portal/themes/" must not be removed when
+   //     the deleted path is "portal/theme" (shares a string prefix but a different directory)
+   @Test
+   void reloadThemes_pathSharesPrefixButDifferentDirectory_doesNotRemoveUnrelatedTheme() {
+      CustomTheme inSimilarDir = theme("t1", "portal/themes/t1.jar");
+      CustomTheme inExactDir   = theme("t2", "portal/theme/t2.jar");
+
+      CustomThemesManager manager = managerWithThemes(inSimilarDir, inExactDir);
+
+      manager.reloadThemes("portal/theme");
+
+      Set<CustomTheme> saved = captureSetCustomThemes(manager);
+      assertEquals(1, saved.size());
+      assertEquals("t1", saved.iterator().next().getId());
+   }
+
+   // removeSelectedTheme is called for each deleted theme but not for preserved ones
+   @Test
+   void reloadThemes_deletedThemes_removeSelectedThemeCalledForDeletedOnly() {
+      CustomTheme deleted = theme("deleted", "portal/theme/deleted.jar");
+      CustomTheme kept    = theme("kept",    "portal/theme/kept.jar");
+
+      CustomThemesManager manager = managerWithThemes(deleted, kept);
+
+      manager.reloadThemes("portal/theme/deleted.jar");
+
+      verify(manager).removeSelectedTheme("deleted");
+      verify(manager, never()).removeSelectedTheme("kept");
+   }
+
    // [E] empty theme set — early exit; setCustomThemes is never invoked
    @Test
    void reloadThemes_emptyThemeSet_doesNotCallSetCustomThemes() {
@@ -133,13 +153,14 @@ class CustomThemesManagerTest {
       CustomThemesManager manager = spy(new CustomThemesManager(keyValueStorageManager, dataSpace));
       Set<CustomTheme> themeSet = new HashSet<>(Arrays.asList(themes));
       doReturn(themeSet).when(manager).getCustomThemes();
-      doNothing().when(manager).setCustomThemes(any());
+      lenient().doNothing().when(manager).setCustomThemes(any());
+      lenient().doNothing().when(manager).removeSelectedTheme(any());
       return manager;
    }
 
-   @SuppressWarnings("unchecked")
    private static Set<CustomTheme> captureSetCustomThemes(CustomThemesManager manager) {
-      ArgumentCaptor<Set> captor = ArgumentCaptor.forClass(Set.class);
+      @SuppressWarnings("unchecked")
+      ArgumentCaptor<Set<CustomTheme>> captor = ArgumentCaptor.forClass((Class) Set.class);
       verify(manager).setCustomThemes(captor.capture());
       return captor.getValue();
    }
