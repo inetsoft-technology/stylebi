@@ -393,8 +393,7 @@ public abstract class AbstractEditableAuthenticationProvider
                themes.add(clone);
             }
             else if(Tool.isEmptyString(theme.getOrgID()) && theme.getOrganizations().contains(fromOrgId)) {
-               // Global themes (Visible to All Organizations) are shared across all orgs —
-               // do not create an org-specific copy. Just propagate the selection to the new org.
+               // Global themes are shared; propagate selection pointer only, no clone.
                themes.stream()
                   .filter(t -> t.getId().equals(theme.getId()))
                   .findFirst()
@@ -402,8 +401,9 @@ public abstract class AbstractEditableAuthenticationProvider
                      if(!original.getOrganizations().contains(toOrgId)) {
                         original.getOrganizations().add(toOrgId);
                      }
+
+                     manager.setOrgSelectedTheme(theme.getId(), toOrgId);
                   });
-               manager.setOrgSelectedTheme(theme.getId(), toOrgId);
             }
          }
          catch(Exception ex) {

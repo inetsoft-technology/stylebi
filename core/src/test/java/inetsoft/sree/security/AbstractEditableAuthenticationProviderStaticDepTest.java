@@ -398,6 +398,7 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          assertNull(saved.getOrgID(), "global theme must remain global (orgID null)");
          assertTrue(saved.getOrganizations().contains("toOrg"), "toOrg must be added to global theme organizations");
          verify(mockManager).setOrgSelectedTheme("global-1", "toOrg");
+         verify(mockManager).setOrgSelectedTheme(null, "fromOrg");
       }
    }
 
@@ -461,7 +462,42 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
 
          Set<CustomTheme> result = captor.getValue();
          assertEquals(1, result.size(), "set size must not change");
+         CustomTheme saved = result.iterator().next();
+         assertFalse(saved.getOrganizations().contains("toOrg"), "toOrg must not be added when global theme not selected for fromOrg");
          verify(mockManager, never()).setOrgSelectedTheme(any(), eq("toOrg"));
+      }
+   }
+
+   // [Path G] global theme already has toOrgId in organizations → idempotent, no duplicate added
+   @Test
+   void copyThemes_globalThemeAlreadyHasToOrg_idempotent() {
+      CustomTheme globalTheme = new CustomTheme();
+      globalTheme.setId("global-1");
+      globalTheme.setOrgID(null);
+      globalTheme.setOrganizations(new ArrayList<>(List.of("fromOrg", "toOrg")));
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
+
+         DataSpace mockDs = mock(DataSpace.class);
+         ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
+
+         CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
+         when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(globalTheme)));
+
+         provider.callCopyThemes("fromOrg", "toOrg", false);
+
+         @SuppressWarnings("unchecked")
+         ArgumentCaptor<Set<CustomTheme>> captor = ArgumentCaptor.forClass(Set.class);
+         verify(mockManager).setCustomThemes(captor.capture());
+
+         Set<CustomTheme> result = captor.getValue();
+         assertEquals(1, result.size(), "global theme must not be cloned");
+         CustomTheme saved = result.iterator().next();
+         assertEquals(1, saved.getOrganizations().stream().filter("toOrg"::equals).count(),
+            "toOrg must appear exactly once (no duplicates)");
+         verify(mockManager).setOrgSelectedTheme("global-1", "toOrg");
       }
    }
 
