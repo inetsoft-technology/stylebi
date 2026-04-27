@@ -22,9 +22,11 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.CheckMissingMVEvent;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.AffinityCallable;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.web.ServiceProxyContext;
 import inetsoft.uql.VariableTable;
@@ -36,9 +38,11 @@ import inetsoft.util.GroupedThread;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.audit.ExecutionRecord;
 import inetsoft.util.log.*;
+import inetsoft.web.ServiceProxyContext;
+import inetsoft.web.messaging.MessageAttributes;
+import inetsoft.web.messaging.MessageContextHolder;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
-import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
-import inetsoft.web.viewsheet.model.RuntimeViewsheetRefServiceProxy;
+import inetsoft.web.viewsheet.model.*;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,23 +58,34 @@ import java.util.*;
 @Component
 public class VSLifecycleService {
    @Autowired
-   public VSLifecycleService(ViewsheetService viewsheetService, AssetRepository assetRepository,
+   public VSLifecycleService(ViewsheetService viewsheetService,
+                             AssetRepository assetRepository,
                              CoreLifecycleService coreLifecycleService,
                              ParameterService parameterService,
-                             VSLifecycleControllerServiceProxy serviceProxy)
+                             VSLifecycleControllerServiceProxy serviceProxy,
+                             LogManager logManager,
+                             XSessionService sessionService,
+                             Cluster cluster,
+                             WorksheetService worksheetService,
+                             RuntimeViewsheetRefService runtimeViewsheetRefService)
    {
       this.viewsheetService = viewsheetService;
       this.assetRepository = assetRepository;
       this.coreLifecycleService = coreLifecycleService;
       this.parameterService = parameterService;
       this.serviceProxy = serviceProxy;
+      this.logManager = logManager;
+      this.sessionService = sessionService;
+      this.cluster = cluster;
+      this.worksheetService = worksheetService;
+      this.runtimeViewsheetRefService = runtimeViewsheetRefService;
    }
 
    public String openViewsheet(OpenViewsheetEvent event, Principal principal, String linkUri)
       throws Exception
    {
       return CommandDispatcher.withDummyDispatcher(principal, dispatcher -> openViewsheet(
-         event, principal, dispatcher, new RuntimeViewsheetRef(new RuntimeViewsheetRefServiceProxy()), null,
+         event, principal, dispatcher, new RuntimeViewsheetRef(new RuntimeViewsheetRefServiceProxy(cluster, worksheetService, runtimeViewsheetRefService)), null,
          linkUri));
    }
 
@@ -187,6 +202,16 @@ public class VSLifecycleService {
          if(runtimeViewsheetManager != null) {
             runtimeViewsheetManager.sheetClosed(principal, runtimeId);
          }
+
+         // Evict the per-runtimeId dispatch state so it doesn't accumulate in long-running
+         // sessions that open and close many viewsheets. (getMessageAttributes returns null
+         // when this is called outside a WebSocket message context, e.g. quota eviction.)
+         MessageAttributes msgAttrs = MessageContextHolder.getMessageAttributes();
+
+         if(msgAttrs != null) {
+            String sessionId = msgAttrs.getHeaderAccessor().getSessionId();
+            CommandDispatcher.removeRuntimeState(sessionId, runtimeId);
+         }
       }
       catch(Exception e) {
          throw new RuntimeException("Failed to close viewsheet", e);
@@ -208,12 +233,12 @@ public class VSLifecycleService {
       entry.setProperty("sync", Boolean.toString(event.isSync()));
 
       String userSessionId = principal == null ?
-         XSessionService.createSessionID(XSessionService.USER, null) :
+         sessionService.createSessionID(XSessionService.USER, null) :
          ((XPrincipal) principal).getSessionID();
       String objectName = entry.getDescription();
       LogUtil.PerformanceLogEntry logEntry = new LogUtil.PerformanceLogEntry(objectName);
       String execSessionId =
-         XSessionService.createSessionID(XSessionService.EXPORE_VIEW, entry.getName());
+         sessionService.createSessionID(XSessionService.EXPORE_VIEW, entry.getName());
       String objectType = ExecutionRecord.OBJECT_TYPE_VIEW;
       String execType = ExecutionRecord.EXEC_TYPE_START;
       Date execTimestamp = new Date(System.currentTimeMillis());
@@ -244,7 +269,7 @@ public class VSLifecycleService {
          entry.setProperty("_device_mobile", Boolean.toString(event.isMobile()));
          entry.setProperty("_device_user_agent", event.getUserAgent());
 
-         if(LogManager.getInstance().isDebugEnabled(LOG.getName())) {
+         if(getLogManager().isDebugEnabled(LOG.getName())) {
             LOG.debug(
                "Browser: userAgent=" + event.getUserAgent() + ", displayWidth=" +
                   event.getWidth() + ", mobile=" + event.isMobile());
@@ -420,10 +445,19 @@ public class VSLifecycleService {
       private final Principal user;
    }
 
+   private LogManager getLogManager() {
+      return logManager;
+   }
+
    private final ViewsheetService viewsheetService;
    private final AssetRepository assetRepository;
    private final CoreLifecycleService coreLifecycleService;
    private final ParameterService parameterService;
    private final VSLifecycleControllerServiceProxy serviceProxy;
+   private final LogManager logManager;
+   private final XSessionService sessionService;
+   private final Cluster cluster;
+   private final WorksheetService worksheetService;
+   private final RuntimeViewsheetRefService runtimeViewsheetRefService;
    private static final Logger LOG = LoggerFactory.getLogger(VSLifecycleService.class);
 }

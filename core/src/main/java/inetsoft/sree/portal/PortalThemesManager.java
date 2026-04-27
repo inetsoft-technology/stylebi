@@ -22,8 +22,13 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.*;
 import inetsoft.util.gui.GuiTool;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 import org.w3c.dom.*;
 
 import javax.xml.xpath.*;
@@ -43,8 +48,41 @@ import java.util.stream.Collectors;
  * @version 8.5, 07/12/2006
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(PortalThemesManager.Reference.class)
+@Service
+@Lazy
 public class PortalThemesManager implements XMLSerializable, AutoCloseable {
+   // For non-Spring environments (tests, non-Spring processes)
+   public PortalThemesManager() {
+      this(null, DataSpace.getDataSpace());
+   }
+
+   @Autowired
+   public PortalThemesManager(Cluster cluster, DataSpace dataSpace) {
+      this.cluster = cluster;
+      this.dataSpace = dataSpace;
+      this.changeListener = e -> {
+         LOG.debug(e.toString());
+
+         // Hold the same distributed lock used by save() so that a concurrent save
+         // on any pod cannot interleave with reset() + loadThemes() on this pod,
+         // and vice versa. The lock's per-thread reentrancy means the nested
+         // save() call inside loadThemes() acquires safely.
+         Lock lock = cluster.getLock(DISTRIBUTED_LOCK_NAME);
+         lock.lock();
+
+         try {
+            reset();
+            loadThemes();
+         }
+         catch(Exception ex) {
+            LOG.error("Failed to load portal themes", ex);
+         }
+         finally {
+            lock.unlock();
+         }
+      };
+   }
+
    /**
     * Help button.
     */
@@ -86,7 +124,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
     * Return a portal themes manager.
     */
    public static synchronized PortalThemesManager getManager() {
-      return SingletonManager.getInstance(PortalThemesManager.class);
+      return ConfigurationContext.getContext().getSpringBean(PortalThemesManager.class);
    }
 
    /**
@@ -493,12 +531,15 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    }
 
    @Override
+   @PreDestroy
    public void close() throws Exception {
       dmgr.clear();
    }
 
    public static void clear() {
-      SingletonManager.reset(PortalThemesManager.class);
+      PortalThemesManager manager = getManager();
+      manager.dmgr.clear();
+      manager.loadThemes();
    }
 
    /**
@@ -507,7 +548,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    public void save() {
       // Ignite reentrant lock is reentrant per thread, so nested calls from the same
       // thread (e.g. changeListener -> loadThemes -> save) acquire safely.
-      Lock lock = Cluster.getInstance().getLock(DISTRIBUTED_LOCK_NAME);
+      Lock lock = cluster.getLock(DISTRIBUTED_LOCK_NAME);
       lock.lock();
 
       try {
@@ -524,7 +565,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
     */
    private void saveUnderLock() {
       String name = SreeEnv.getPath("portal.themes.file", "portalthemes.xml");
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = dataSpace;
 
       try {
          dmgr.removeChangeListener(space, null, name, changeListener);
@@ -904,8 +945,9 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    /**
     * Build up the portal manager by parse a .xml file.
     */
+   @PostConstruct
    public void loadThemes() {
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = dataSpace;
       String name = SreeEnv.getPath("portal.themes.file", "portalthemes.xml");
       boolean saveFile = false;
 
@@ -968,7 +1010,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    }
 
    private void initUserFonts() {
-      for(FontFaceModel fontFace : PortalThemesManager.getManager().getUserFontFaces()) {
+      for(FontFaceModel fontFace : getUserFontFaces()) {
          Font font = GuiTool.getUserFont(fontFace.fontName(), fontFace.getFileNamePrefix());
 
          if(font != null) {
@@ -977,30 +1019,13 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
       }
    }
 
+   private final Cluster cluster;
+   private final DataSpace dataSpace;
+
    /**
     * Data change listener.
     */
-   private final DataChangeListener changeListener = e -> {
-      LOG.debug(e.toString());
-
-      // Hold the same distributed lock used by save() so that a concurrent save
-      // on any pod cannot interleave with reset() + loadThemes() on this pod,
-      // and vice versa. The lock's per-thread reentrancy means the nested
-      // save() call inside loadThemes() acquires safely.
-      Lock lock = Cluster.getInstance().getLock(DISTRIBUTED_LOCK_NAME);
-      lock.lock();
-
-      try {
-         reset();
-         loadThemes();
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to load portal themes", ex);
-      }
-      finally {
-         lock.unlock();
-      }
-   };
+   private final DataChangeListener changeListener;
 
    /**
     * Reset variables before reload.
@@ -1052,32 +1077,4 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    private static final String DISTRIBUTED_LOCK_NAME =
       "inetsoft.sree.portal.PortalThemesManager.save";
 
-   @SingletonManager.ShutdownOrder()
-   public static final class Reference extends SingletonManager.Reference<PortalThemesManager> {
-      @Override
-      public synchronized PortalThemesManager get(Object... parameters) {
-         if(manager == null) {
-            manager = new PortalThemesManager();
-            manager.loadThemes();
-         }
-
-         return manager;
-      }
-
-      @Override
-      public void dispose() {
-         if(manager != null) {
-            try {
-               manager.close();
-            }
-            catch(Exception e) {
-               LOG.warn("Failed to close theme manager", e);
-            }
-
-            manager = null;
-         }
-      }
-
-      private PortalThemesManager manager;
-   }
 }

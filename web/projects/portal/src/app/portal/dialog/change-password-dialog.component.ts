@@ -25,7 +25,8 @@ const CHANGE_PASSWORD_DIALOG_MODEL_URI: string = "../api/portal/change-password-
 
 @Component({
    selector: "change-password-dialog",
-   templateUrl: "change-password-dialog.component.html"
+   templateUrl: "change-password-dialog.component.html",
+   styleUrls: ["change-password-dialog.component.scss"]
 })
 export class ChangePasswordDialog implements OnInit {
    @Output() onCommit: EventEmitter<string> = new EventEmitter<string>();
@@ -33,6 +34,7 @@ export class ChangePasswordDialog implements OnInit {
    formGroup: UntypedFormGroup;
    model: ChangePasswordDialogModel;
    confirmNewPassword: string;
+   showPwd: boolean[] = [false, false, false];
 
    constructor(private modelService: ModelService) {
    }
@@ -53,8 +55,7 @@ export class ChangePasswordDialog implements OnInit {
          oldPassword: new UntypedFormControl(null, Validators.required),
          newPassword: new UntypedFormControl(null, [
             Validators.required,
-            Validators.minLength(8),
-            FormValidators.containsNumberAndLetterOrNonAlphanumeric
+            FormValidators.passwordComplexity
          ]),
          confirmNewPassword: new UntypedFormControl(null, [
             Validators.required
@@ -82,5 +83,9 @@ export class ChangePasswordDialog implements OnInit {
    isValid(): boolean {
       return !!this.model && this.formGroup.valid &&
          this.model.newPassword === this.confirmNewPassword;
+   }
+
+   togglePwd(index: number): void {
+      this.showPwd[index] = !this.showPwd[index];
    }
 }

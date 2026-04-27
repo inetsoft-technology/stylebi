@@ -48,18 +48,22 @@ public class SchedulerMonitoringService
 {
    @Autowired
    public SchedulerMonitoringService(ScheduleManager scheduleManager, DataCycleManager cycleManager,
-                                     SecurityProvider securityProvider, ServerClusterClient client)
+                                     SecurityProvider securityProvider, ServerClusterClient client,
+                                     Cluster cluster, SecurityEngine securityEngine,
+                                     ScheduleClient scheduleClient)
    {
       super(lowAttrs, new String[0], new String[0]);
       this.scheduleManager = scheduleManager;
       this.cycleManager = cycleManager;
       this.securityProvider = securityProvider;
       this.client = client;
+      this.cluster = cluster;
+      this.securityEngine = securityEngine;
+      this.scheduleClient = scheduleClient;
    }
 
    @PostConstruct
    public void addListener() {
-      cluster = Cluster.getInstance();
       cluster.addMessageListener(this);
    }
 
@@ -77,7 +81,7 @@ public class SchedulerMonitoringService
 
    @Override
    public void updateStatus(long timestamp) {
-      String[] scheduleServers = ScheduleClient.getScheduleClient().getScheduleServers();
+      String[] scheduleServers = scheduleClient.getScheduleServers();
 
       // Evict entries for servers no longer in the active set (e.g. after a pod restart
       // in Kubernetes where the scheduler gets a new IP address).
@@ -87,7 +91,7 @@ public class SchedulerMonitoringService
          ScheduleMetrics old = metricsMap.get(server);
 
          try {
-            if(ScheduleClient.getScheduleClient().isReady(server)) {
+            if(scheduleClient.isReady(server)) {
                ServerMetrics serverMetrics = old == null ? null : old.getServerMetrics();
                ScheduleViewsheetsStatus viewsheets = old == null ? null : old.getViewsheets();
                ScheduleQueriesStatus queries = old == null ? null : old.getQueries();
@@ -129,7 +133,7 @@ public class SchedulerMonitoringService
 
       metrics.setCycleCount(getCycleCount());
       metrics.setCycleInfo(getCycleInfo());
-      Date startDate = ScheduleClient.getScheduleStartDate(server);
+      Date startDate = scheduleClient.getScheduleStartDate(server);
       metrics.setStartDate(startDate);
       metrics.setUpTime(startDate == null ? -1L : timestamp - startDate.getTime());
       metrics.setTaskCount(getTaskCount(activities));
@@ -138,10 +142,10 @@ public class SchedulerMonitoringService
       ScheduleViewsheetsStatus newViewsheets = viewsheets;
       ScheduleQueriesStatus newQueries = queries;
 
-      if(ScheduleClient.getScheduleClient().isReady(server)) {
-         newServerMetrics = ScheduleClient.getServerMetrics(serverMetrics, timestamp, address);
-         newViewsheets = ScheduleClient.getViewsheets(viewsheets, server);
-         newQueries = ScheduleClient.getQueries(queries, server);
+      if(scheduleClient.isReady(server)) {
+         newServerMetrics = scheduleClient.getServerMetrics(serverMetrics, timestamp, address);
+         newViewsheets = scheduleClient.getViewsheets(viewsheets, server);
+         newQueries = scheduleClient.getQueries(queries, server);
       }
 
       metrics.setServerMetrics(newServerMetrics);
@@ -241,11 +245,11 @@ public class SchedulerMonitoringService
          return null;
       }
 
-      if(!ScheduleClient.getScheduleClient().isReady()) {
+      if(!scheduleClient.isReady()) {
          return null;
       }
 
-      return ScheduleClient.getScheduleStartDate();
+      return scheduleClient.getScheduleStartDate();
    }
 
    /**
@@ -290,7 +294,7 @@ public class SchedulerMonitoringService
          orgID = OrganizationManager.getInstance().getCurrentOrgID(getSystemPrincipal());
       }
       catch(Exception ex) {
-         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider provider = securityEngine.getSecurityProvider();
          Organization organization =
             provider.getOrganization(OrganizationManager.getInstance().getCurrentOrgID());
 
@@ -335,8 +339,7 @@ public class SchedulerMonitoringService
          return new ScheduleTaskInfo[0];
       }
 
-      ScheduleClient client = ScheduleClient.getScheduleClient();
-      boolean running = client.isReady();
+      boolean running = scheduleClient.isReady();
       String curOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
       Map<String, ScheduleTask> tasks = new HashMap<>();
 
@@ -474,9 +477,7 @@ public class SchedulerMonitoringService
     * @param taskName the task name.
     */
    public void runTask(String taskName) throws Exception {
-      ScheduleClient client = ScheduleClient.getScheduleClient();
-
-      if(!client.isReady()) {
+      if(!scheduleClient.isReady()) {
          throw new Exception(
             Catalog.getCatalog().getString("em.scheduler.notStarted"));
       }
@@ -489,7 +490,7 @@ public class SchedulerMonitoringService
       }
 
       try {
-         client.runNow(taskName);
+         scheduleClient.runNow(taskName);
       }
       catch(Throwable ex) {
          throw new Exception(Catalog.getCatalog().
@@ -506,9 +507,7 @@ public class SchedulerMonitoringService
          return;
       }
 
-      ScheduleClient client = ScheduleClient.getScheduleClient();
-
-      if(!client.isReady()) {
+      if(!scheduleClient.isReady()) {
          throw new Exception(Catalog.getCatalog().
             getString("em.schedule.task.failedStop", taskName));
       }
@@ -521,7 +520,7 @@ public class SchedulerMonitoringService
          }
 
          try {
-            client.stopNow(taskName);
+            scheduleClient.stopNow(taskName);
          }
          catch(Throwable ex) {
             throw new Exception(Catalog.getCatalog().
@@ -597,7 +596,7 @@ public class SchedulerMonitoringService
 
    public Optional<ServerMetrics> getServerMetrics() {
       ScheduleMetrics metrics =
-         client.getMetrics(StatusMetricsType.SERVER_METRICS, Cluster.getInstance().getLocalMember());
+         client.getMetrics(StatusMetricsType.SERVER_METRICS, cluster.getLocalMember());
       return Optional.ofNullable(metrics == null ? null : metrics.getServerMetrics());
    }
 
@@ -641,7 +640,9 @@ public class SchedulerMonitoringService
    private final ScheduleManager scheduleManager;
    private final SecurityProvider securityProvider;
    private final ServerClusterClient client;
-   private Cluster cluster;
+   private final Cluster cluster;
+   private final SecurityEngine securityEngine;
+   private final ScheduleClient scheduleClient;
    private final Map<String, ScheduleMetrics> metricsMap = new ConcurrentHashMap<>();
 
    private static final String VIEWSHEET_HISTORY = "VIEWSHEETHISTORY";

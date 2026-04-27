@@ -53,8 +53,6 @@ import { ViewData } from "../view-data";
 import { Tool } from "../../../../../shared/util/tool";
 import { map, mergeMap } from "rxjs/operators";
 import { ModelService } from "../../widget/services/model.service";
-import { DashboardTabModel } from "../../portal/dashboard/dashboard-tab-model";
-import { DashboardTabService } from "../../portal/services/dashboard-tab.service";
 
 @Component({
    selector: "v-viewer-view",
@@ -73,6 +71,7 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
    principal: string;
    securityEnabled: boolean;
    toolbarPermissions: string[];
+   aiAssistantPermission: boolean = false;
    visible = true;
    fullScreen = false;
    dashboardName: string = null;
@@ -81,7 +80,7 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
    fullScreenId: string;
    tabBarHeight: number = 0;
    hasBaseEntry: boolean = false;
-   dashboardTabModel: DashboardTabModel | null = null;
+   drillTabsTop: boolean = false;
    drillTabsTopPx: number | null = null;
    toolbarVisible: boolean = true;
    public modified: boolean = false;
@@ -94,7 +93,6 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
                private modelService: ModelService,
                private modalService: NgbModal,
                private hideNavService: HideNavService,
-               private dashboardTabService: DashboardTabService,
                private pageTabService: PageTabService,
                private changeRef: ChangeDetectorRef)
    {
@@ -105,16 +103,26 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
          viewData: ViewData
          principalCommand: SetPrincipalCommand
       }) => {
-         this.pageTabService.clearTabs();
-         const tab: TabInfoModel = {
-            id: data.viewData.assetId,
-            label: this.pageTabService.getVSTabLabel(data.viewData.assetId),
-            tooltip: this.pageTabService.getVSTabLabel(data.viewData.assetId),
-            isFocused: true,
-            runtimeId: data.viewData.runtimeId
-         };
+         // If a tab for this asset already exists (e.g. returning from binding editor for a
+         // linked/drilled VS), preserve the existing tabs instead of clearing them.
+         const existingTab = this.pageTabService.tabs.find(tab => tab.id === data.viewData.assetId);
 
-         this.pageTabService.addTab(tab);
+         if(!existingTab) {
+            this.pageTabService.clearTabs();
+            const tab: TabInfoModel = {
+               id: data.viewData.assetId,
+               label: this.pageTabService.getVSTabLabel(data.viewData.assetId),
+               tooltip: this.pageTabService.getVSTabLabel(data.viewData.assetId),
+               isFocused: true,
+               runtimeId: data.viewData.runtimeId
+            };
+            this.pageTabService.addTab(tab);
+         }
+         else {
+            // Returning from binding editor — existingTab may be the root or a linked/drilled VS
+            // tab. Either way, preserve sibling tabs and just update this tab's runtimeId.
+            existingTab.runtimeId = data.viewData.runtimeId;
+         }
 
          this.queryParameters = this.updateQueryParams(data.viewData.queryParameters);
          // getQueryParameters in resolver gets the previous url information
@@ -123,6 +131,8 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
          this.principal = data.principalCommand.principal;
          this.securityEnabled = data.principalCommand.securityEnabled;
          this.toolbarPermissions = data.viewData.toolbarPermissions;
+         this.aiAssistantPermission = data.principalCommand.aiAssistantPermission;
+         this.viewDataService.data.aiAssistantPermission = this.aiAssistantPermission;
          this.inPortal = data.viewData.portal;
          this.inDashboard = data.viewData.dashboard;
          this.fullScreen = data.viewData.fullScreen;
@@ -136,10 +146,10 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
          this.runtimeId = tab.runtimeId;
       }));
 
-      this.subscriptions.add(this.dashboardTabService.getDashboardTabModel()
+      this.subscriptions.add(this.pageTabService.getDrillTabsTop()
          .subscribe({
-            next: data => { this.dashboardTabModel = data; this.updateDrillTabsTopPx(); },
-            error: err => console.error('Failed to load dashboard tab model', err)
+            next: data => { this.drillTabsTop = data; this.updateDrillTabsTopPx(); },
+            error: err => console.error("Failed to load drill tabs top setting", err)
          }));
    }
 
@@ -221,7 +231,12 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
       this.viewDataService.data.linkUri = viewerApp.vsInfo.linkUri;
       this.viewDataService.data.runtimeId = viewerApp.runtimeId;
       this.viewDataService.data.toolbarPermissions = viewerApp.toolbarPermissions;
+      this.viewDataService.data.aiAssistantPermission = this.aiAssistantPermission;
 
+      // Prevent all viewer-apps from closing their server-side sessions on destroy,
+      // not just the active one — otherwise sibling tabs' sessions get explicitly
+      // closed and are expired when returning from the binding editor.
+      this.viewerApps.forEach(app => app.gotoBindingPane = true);
       this.openEditor("Failed to navigate to table editor: ", evt.isMetadata);
    }
 
@@ -241,7 +256,12 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
       this.viewDataService.data.linkUri = viewerApp.vsInfo.linkUri;
       this.viewDataService.data.runtimeId = viewerApp.runtimeId;
       this.viewDataService.data.toolbarPermissions = viewerApp.toolbarPermissions;
+      this.viewDataService.data.aiAssistantPermission = this.aiAssistantPermission;
 
+      // Prevent all viewer-apps from closing their server-side sessions on destroy,
+      // not just the active one — otherwise sibling tabs' sessions get explicitly
+      // closed and are expired when returning from the binding editor.
+      this.viewerApps.forEach(app => app.gotoBindingPane = true);
       this.openEditor("Failed to navigate to chart editor: ", evt.isMetadata);
    }
 
@@ -324,7 +344,7 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
    }
 
    private updateDrillTabsTopPx(): void {
-      if(this.dashboardTabModel?.drillTabsTop) {
+      if(this.drillTabsTop) {
          if(this.toolbarVisible) {
             this.drillTabsTopPx = this.isMobile
                ? ViewConstants.TOOLBAR_HEIGHT_MOBILE_PX

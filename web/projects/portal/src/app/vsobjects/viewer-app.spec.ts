@@ -77,6 +77,7 @@ import { VSBookmarkInfoModel } from "./model/vs-bookmark-info-model";
 import { VSChartService } from "./objects/chart/services/vs-chart.service";
 import { DataTipService } from "./objects/data-tip/data-tip.service";
 import { PopComponentService } from "./objects/data-tip/pop-component.service";
+import { TimerService } from "./objects/data-tip/timer.service";
 import { VSPopComponentDirective } from "./objects/data-tip/vs-pop-component.directive";
 import { MiniToolbarService } from "./objects/mini-toolbar/mini-toolbar.service";
 import { SelectionMobileService } from "./objects/selection/services/selection-mobile.service";
@@ -145,6 +146,7 @@ describe("ViewerApp Unit Tests", () => {
    let assetLoadingService: any;
    let viewContainerRef: any;
    let baseHrefService: any;
+   let timerService: any;
 
    beforeEach(waitForAsync(() => {
       formDataService = {
@@ -241,6 +243,7 @@ describe("ViewerApp Unit Tests", () => {
 
       pageTabService = {
          updateTabLabel: jest.fn(),
+         getDrillTabsTop: jest.fn().mockReturnValue(observableOf(false)),
       };
 
       pagingControlService = {};
@@ -274,6 +277,11 @@ describe("ViewerApp Unit Tests", () => {
       };
       baseHrefService = {
          getBaseHref: jest.fn(),
+      };
+      timerService = {
+         defer: jest.fn((fn) => {
+            fn();
+         })
       };
 
 
@@ -322,7 +330,8 @@ describe("ViewerApp Unit Tests", () => {
             { provide: AssetLoadingService, useValue: assetLoadingService },
             { provide: ViewContainerRef, useValue: viewContainerRef },
             { provide: BaseHrefService, useValue: baseHrefService },
-            AppInfoService
+            AppInfoService,
+            { provide: TimerService, useValue: timerService },
          ],
          declarations: [
             ViewerAppComponent, ActionsContextmenuComponent, InteractContainerDirective,
@@ -370,15 +379,17 @@ describe("ViewerApp Unit Tests", () => {
    it("should remove the vsobject's actions when removing the vsobject", () => {
       const httpClient = TestBed.inject(HttpClient);
       const tooltipConfig = TestBed.inject(NgbTooltipConfig);
+      const currentUserService = { getPortalCurrentUser: jest.fn().mockReturnValue(observableOf(null)) };
       const viewerApp = new ViewerAppComponent(
          viewsheetClientService, null, null, null, null, null, null, null,
          new NgbDatepickerConfig(), null, actionFactory, httpClient, null, formDataService,
          debounceService, scaleService, contextProvider, viewDataService, fullScreenService, router,
          renderer, null, sanitizer, titleService, hyperlinkService, viewerResizeService,
-         firstDayOfWeekService, tooltipConfig, shareService, null,
+         firstDayOfWeekService, TestBed.inject(NgbTooltipConfig), shareService, null,
          richTextService, viewerToolbarMessageService, mobileToolbarService, mockDocument, composerRecentService,
          pageTabService, pagingControlService, selectionMobileService,
-         assetLoadingService, viewContainerRef, baseHrefService);
+         assetLoadingService, viewContainerRef, baseHrefService,
+         currentUserService as any);
       const mockChart = TestUtils.createMockVSChartModel("Mock Chart");
       const mockTable = TestUtils.createMockVSTableModel("Mock Table");
       const mockCrosstab = TestUtils.createMockVSCrosstabModel("Mock Crosstab");
@@ -451,7 +462,7 @@ describe("ViewerApp Unit Tests", () => {
    it("should hide toolbar actions when permissions are set", () => {
       const fixture = TestBed.createComponent(ViewerAppComponent);
       const permissions = [
-         "Previous"
+         "Undo"
       ];
 
       fixture.componentInstance.toolbarPermissions = permissions;

@@ -56,7 +56,8 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
    /**
     * Creates a new instance of {@code BlobIndexedStorage}.
     */
-   public BlobIndexedStorage() {
+   public BlobIndexedStorage(BlobStorageManager blobStorageManager) {
+      this.blobStorageManager = blobStorageManager;
    }
 
    private BlobStorage<Metadata> getMetadataStorage(String orgID) {
@@ -75,8 +76,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       }
 
       String storeID = orgID.toLowerCase() + "__" + "indexedStorage";
-      return SingletonManager.getInstance(BlobStorage.class, storeID,
-                                          true, changeListener);
+      return blobStorageManager.getStorage(storeID, true, changeListener);
    }
    @Override
    public XMLSerializable getXMLSerializable(String key, TransformListener trans) throws Exception {
@@ -328,6 +328,12 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       }
    }
 
+   public String listBlobs(String orgID)  throws IOException {
+      BlobStorage<Metadata> storage = getMetadataStorage(orgID);
+
+      return storage != null ? storage.listBlobs() : null;
+   }
+
    @Override
    public long size() {
       return getMetadataStorage(null).stream()
@@ -392,8 +398,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
 
       for(String orgID : provider.getOrganizationIDs()) {
          String storeID = orgID.toLowerCase() + "__" + "indexedStorage";
-         storages.add(SingletonManager.getInstance(BlobStorage.class, storeID,
-                                             true, changeListener));
+         storages.add(blobStorageManager.getStorage(storeID, true, changeListener));
       }
 
       return storages;
@@ -450,7 +455,11 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
    @Override
    public void migrateStorageData(String oname, String nname) throws Exception {
       int numThreads = Runtime.getRuntime().availableProcessors();
-      ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+      ExecutorService executor = Executors.newFixedThreadPool(numThreads, r -> {
+         Thread t = new Thread(r, "BlobStorageMigrateUser");
+         t.setDaemon(true);
+         return t;
+      });
       Organization currOrg = SecurityEngine.getSecurity().getSecurityProvider()
                               .getOrganization(OrganizationManager.getInstance().getCurrentOrgID());
 
@@ -589,7 +598,11 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       String nId = norg instanceof Organization ? ((Organization) norg).getId() :
          OrganizationManager.getInstance().getCurrentOrgID();
       int numThreads = Runtime.getRuntime().availableProcessors();
-      ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+      ExecutorService executor = Executors.newFixedThreadPool(numThreads, r -> {
+         Thread t = new Thread(r, "BlobStorageMigrateOrg");
+         t.setDaemon(true);
+         return t;
+      });
 
       for(String key : getKeys(null, oId)) {
          final AssetEntry entry = AssetEntry.createAssetEntry(key);
@@ -689,6 +702,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       metadataStorage.deleteBlobStorage();
    }
 
+   private final BlobStorageManager blobStorageManager;
    private Set<String> cachedOrgIDs = new HashSet<>();
    private static final Logger LOG = LoggerFactory.getLogger(BlobIndexedStorage.class);
 

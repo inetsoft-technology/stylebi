@@ -28,9 +28,9 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
@@ -60,7 +60,8 @@ public class SelectionTreePropertyDialogService {
                                              VSSelectionService vsSelectionService,
                                              SelectionDialogService selectionDialogService,
                                              VSAssemblyInfoHandler assemblyInfoHandler,
-                                             DataRefModelFactoryService dataRefService)
+                                             DataRefModelFactoryService dataRefService,
+                                             DataSourceRegistry dataSourceRegistry)
    {
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.vsOutputService = vsOutputService;
@@ -71,6 +72,7 @@ public class SelectionTreePropertyDialogService {
       this.selectionDialogService = selectionDialogService;
       this.assemblyInfoHandler = assemblyInfoHandler;
       this.dataRefService = dataRefService;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -132,8 +134,7 @@ public class SelectionTreePropertyDialogService {
       selectionGeneralPane.setSingleSelection(selectionTreeAssemblyInfo.getSingleSelectionValue());
       selectionGeneralPane.setSuppressBlank(selectionTreeAssemblyInfo.isSuppressBlankValue());
       selectionGeneralPane.setSelectFirstItem(selectionTreeAssemblyInfo.getSelectFirstItemValue());
-      // Quick-switch is not supported for selection trees; the field is intentionally not
-      // populated here because the checkbox is hidden in the UI for trees (*ngIf="!treeModel").
+      selectionGeneralPane.setQuickSwitchAllowed(selectionTreeAssemblyInfo.getQuickSwitchAllowedValue());
 
       if(selectionTreeAssemblyInfo.getSingleSelectionLevels() != null) {
          selectionGeneralPane.setSingleSelectionLevels(
@@ -209,11 +210,12 @@ public class SelectionTreePropertyDialogService {
                                              Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
       RuntimeViewsheet viewsheet;
+      SelectionTreeVSAssembly selectionTreeAssembly;
       SelectionTreeVSAssemblyInfo streeInfo;
 
       try {
          viewsheet = viewsheetService.getViewsheet(runtimeId, principal);
-         SelectionTreeVSAssembly selectionTreeAssembly = (SelectionTreeVSAssembly) viewsheet.getViewsheet().getAssembly(objectId);
+         selectionTreeAssembly = (SelectionTreeVSAssembly) viewsheet.getViewsheet().getAssembly(objectId);
          streeInfo = (SelectionTreeVSAssemblyInfo) Tool.clone(selectionTreeAssembly.getVSAssemblyInfo());
       }
       catch(Exception e) {
@@ -246,14 +248,18 @@ public class SelectionTreePropertyDialogService {
       streeInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
 
       int oldShowType = streeInfo.getShowTypeValue();
-      streeInfo.setShowTypeValue(selectionGeneralPane.getShowType());
+      int newShowType = selectionGeneralPane.getShowType();
+      streeInfo.setShowTypeValue(newShowType);
+      streeInfo.setListHeight(selectionGeneralPane.getListHeight());
 
       Dimension size = viewsheet.getViewsheet().getPixelSize(streeInfo);
 
-      if(streeInfo.getShowTypeValue() == SelectionListVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
+      if(newShowType == SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
+         // uses titleHeight directly rather than getBottomTabChildHeight() because
+         // the else branch handles showType transitions specific to property-apply
          size.height = streeInfo.getTitleHeight();
       }
-      else if(oldShowType != streeInfo.getShowTypeValue()) {
+      else if(oldShowType != newShowType) {
          int minListHeight = streeInfo.getListHeight() * AssetUtil.defh;
 
          if(streeInfo.isTitleVisible()) {
@@ -265,13 +271,27 @@ public class SelectionTreePropertyDialogService {
          }
       }
 
+      VSAssembly container = selectionTreeAssembly.getContainer();
+
+      if(container instanceof TabVSAssembly) {
+         TabVSAssemblyInfo tabInfo =
+            (TabVSAssemblyInfo) container.getVSAssemblyInfo();
+
+         if(tabInfo.getBottomTabsValue() && tabInfo.getPixelOffset() != null
+            && streeInfo.getPixelOffset() != null)
+         {
+            int tabTop = tabInfo.getPixelOffset().y;
+            int x = streeInfo.getPixelOffset().x;
+            streeInfo.setPixelOffset(new Point(x, tabTop - size.height));
+         }
+      }
+
       streeInfo.setListHeight(selectionGeneralPane.getListHeight());
       streeInfo.setSortTypeValue(selectionGeneralPane.getSortType());
       streeInfo.setSubmitOnChangeValue(selectionGeneralPane.isSubmitOnChange());
       streeInfo.setSuppressBlankValue(selectionGeneralPane.isSuppressBlank());
       streeInfo.setSelectFirstItemValue(selectionGeneralPane.isSelectFirstItem());
-      // Quick-switch is not supported for selection trees; always persist as false.
-      streeInfo.setQuickSwitchAllowedValue(false);
+      streeInfo.setQuickSwitchAllowedValue(selectionGeneralPane.isQuickSwitchAllowed());
 
       setAssemblyInfoTables(streeInfo, selectionTreePaneModel);
       setAssemblyInfoDataRefs(streeInfo, selectionTreePaneModel);
@@ -288,7 +308,7 @@ public class SelectionTreePropertyDialogService {
          principal, commandDispatcher);
 
       Viewsheet vs = viewsheet.getViewsheet();
-      SelectionTreeVSAssembly selectionTreeAssembly =
+      selectionTreeAssembly =
          (SelectionTreeVSAssembly) vs.getAssembly(basicGeneralPaneModel.getName());
       streeInfo = (SelectionTreeVSAssemblyInfo) selectionTreeAssembly.getVSAssemblyInfo();
       updateSelection(runtimeId, osingleSelection, osingleLevels, streeInfo, linkUri, principal, commandDispatcher);
@@ -382,9 +402,9 @@ public class SelectionTreePropertyDialogService {
                                               SelectionTreeVSAssemblyInfo oinfo,
                                               SelectionTreeVSAssemblyInfo ninfo)
    {
-      VSModelTrapContext context = new VSModelTrapContext(rvs, true);
+      VSModelTrapContext context = new VSModelTrapContext(rvs, dataSourceRegistry, true);
       context.checkTrap(oinfo, ninfo);
-      DataRef[] refs = context.getGrayedFields();;
+      DataRef[] refs = context.getGrayedFields();
       List<DataRefModel> fields = new ArrayList<>();
 
       for(DataRef ref : refs) {
@@ -538,4 +558,5 @@ public class SelectionTreePropertyDialogService {
    private final SelectionDialogService selectionDialogService;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
    private final DataRefModelFactoryService dataRefService;
+   private final DataSourceRegistry dataSourceRegistry;
 }

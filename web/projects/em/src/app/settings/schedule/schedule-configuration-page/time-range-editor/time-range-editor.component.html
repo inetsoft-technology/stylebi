@@ -44,7 +44,9 @@
         </mat-card>
       </mat-tab>
       <mat-tab *ngIf="permissions?.securityEnabled" label="_#(Security)">
-        <em-resource-permission [model]="permissions" [isTimeRange]=true>
+        <em-resource-permission [model]="permissions" [isTimeRange]=true
+                                [showCopyPaste]="true"
+                                [copyPasteContext]="copyPasteContext">
         </em-resource-permission>
       </mat-tab>
     </mat-tab-group>

@@ -40,7 +40,7 @@ public final class ScheduleLauncher {
     */
    public static void main(String[] args) throws Exception {
       ClassLoader loader = createClassLoader();
-      Class<?> serverClass = loader.loadClass("inetsoft.sree.schedule.ScheduleServer");
+      Class<?> serverClass = loader.loadClass("inetsoft.sree.schedule.ScheduleServerApplication");
       Method mainMethod = serverClass.getDeclaredMethod("main", String[].class);
       Thread.currentThread().setContextClassLoader(loader);
       mainMethod.invoke(null, (Object) args);

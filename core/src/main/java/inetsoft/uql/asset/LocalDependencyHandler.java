@@ -20,6 +20,7 @@ package inetsoft.uql.asset;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.web.dashboard.*;
 import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.erm.vpm.VpmCondition;
 import inetsoft.util.dep.*;
@@ -29,8 +30,6 @@ import inetsoft.report.internal.binding.AssetNamedGroupInfo;
 import inetsoft.report.internal.binding.OrderInfo;
 import inetsoft.report.internal.table.TableHyperlinkAttr;
 import inetsoft.sree.schedule.*;
-import inetsoft.sree.web.dashboard.DashboardRegistry;
-import inetsoft.sree.web.dashboard.VSDashboard;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.internal.FunctionIterator;
 import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
@@ -62,6 +61,10 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public class LocalDependencyHandler implements DependencyHandler {
+   public LocalDependencyHandler(XRepository repository) {
+      this.repository = repository;
+   }
+
    /**
     * The function only fix the dependencies of report/vs, ws is fixed in another method.
     * for report/vs can only dependency by two ways:
@@ -196,7 +199,7 @@ public class LocalDependencyHandler implements DependencyHandler {
    }
 
    private XRepository getXRepository() throws RemoteException {
-      return XFactory.getRepository();
+      return repository;
    }
 
    /**
@@ -318,7 +321,9 @@ public class LocalDependencyHandler implements DependencyHandler {
                  (AssetObject) entry);
       }
 
-      xrep.updateDataSource(dataSource, dsName, false);
+      // Use registry directly to avoid expensive query re-processing in XEngine.updateDataSource()
+      // which causes severe lock contention when many worksheets are processed in parallel
+      DataSourceRegistry.getRegistry().setDataSource(dataSource, null, false, false, false, true);
    }
 
    /**
@@ -389,7 +394,11 @@ public class LocalDependencyHandler implements DependencyHandler {
    @Override
    public void flushDependencyMap() {
       ExecutorService executors = Executors.newFixedThreadPool(
-         Runtime.getRuntime().availableProcessors());
+         Runtime.getRuntime().availableProcessors(), r -> {
+            Thread t = new Thread(r, "FlushDependencyMap");
+            t.setDaemon(true);
+            return t;
+         });
       DependencyStorageService service = DependencyStorageService.getInstance();
 
       for(Map.Entry<String, ?> e : depMap.entrySet()) {
@@ -875,6 +884,23 @@ public class LocalDependencyHandler implements DependencyHandler {
             updateEmbedWSSourceDependency(dep.toIdentifier(), entry, add, cache);
          }
 
+         // Check formula columns for script dependencies in all table assembly types.
+         if(assembly instanceof AbstractTableAssembly tableAssembly) {
+            ColumnSelection columns = tableAssembly.getColumnSelection(false);
+
+            for(int i = 0; i < columns.getAttributeCount(); i++) {
+               DataRef ref = columns.getAttribute(i);
+
+               if(ref instanceof ColumnRef colRef && !colRef.isSQL()) {
+                  DataRef innerRef = colRef.getDataRef();
+
+                  if(innerRef instanceof ExpressionRef exprRef) {
+                     updateScriptDependencies(exprRef.getScriptExpression(), entry, add, cache);
+                  }
+               }
+            }
+         }
+
          SourceInfo source;
          ColumnSelection columnSelection;
 
@@ -1288,7 +1314,7 @@ public class LocalDependencyHandler implements DependencyHandler {
       }
 
       final Vector functions = new Vector();
-      LibManager manager = LibManager.getManager();
+      LibManager manager = LibManagerProvider.getInstance().getManager();
 
       FunctionIterator iterator = new FunctionIterator(script);
       Principal principal = ThreadContext.getContextPrincipal();
@@ -1904,7 +1930,7 @@ public class LocalDependencyHandler implements DependencyHandler {
       AssetEntry entry = new AssetEntry(user == null ? AssetRepository.GLOBAL_SCOPE :
          AssetRepository.USER_SCOPE, AssetEntry.Type.DASHBOARD, name, user);
 
-      VSDashboard dashboard = (VSDashboard) DashboardRegistry.getRegistry(user).getDashboard(name);
+      VSDashboard dashboard = (VSDashboard) DashboardRegistryManager.getInstance().getRegistry(user).getDashboard(name);
       String id = dashboard == null || dashboard.getViewsheet() == null ? null :
          dashboard.getViewsheet().getIdentifier();
 
@@ -2030,7 +2056,7 @@ public class LocalDependencyHandler implements DependencyHandler {
                   AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT, path, null);
             }
             else if(asset instanceof TableStyleAsset) {
-               LibManager manager = LibManager.getManager();
+               LibManager manager = LibManagerProvider.getInstance().getManager();
                String path = asset.getPath();
                XTableStyle style = manager.getTableStyle(path);
 
@@ -2146,5 +2172,6 @@ public class LocalDependencyHandler implements DependencyHandler {
 
    private static final Map<String, RenameTransformObject> depMap =
       Collections.synchronizedMap(new HashMap<>());
+   private final XRepository repository;
    private static final Logger LOG = LoggerFactory.getLogger(LocalDependencyHandler.class);
 }

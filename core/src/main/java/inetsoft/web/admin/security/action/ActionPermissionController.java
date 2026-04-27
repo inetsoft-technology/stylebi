@@ -21,6 +21,7 @@ import inetsoft.sree.security.*;
 import inetsoft.util.*;
 import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.admin.security.ResourcePermissionModel;
+import inetsoft.web.admin.security.ResourcePermissionTableModel;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.security.*;
 import jakarta.annotation.PostConstruct;
@@ -34,10 +35,12 @@ import java.util.*;
 public class ActionPermissionController {
    @Autowired
    public ActionPermissionController(ActionPermissionService actionService,
-                                     ResourcePermissionService permissionService)
+                                     ResourcePermissionService permissionService,
+                                     SecurityEngine securityEngine)
    {
       this.actionService = actionService;
       this.permissionService = permissionService;
+      this.securityEngine = securityEngine;
    }
 
    @PostConstruct
@@ -86,7 +89,7 @@ public class ActionPermissionController {
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -101,7 +104,7 @@ public class ActionPermissionController {
       boolean isOrgAdmin = false;
 
       if(principal != null) {
-         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider provider = securityEngine.getSecurityProvider();
          IdentityID[] roles = provider.getRoles(pId);
          isOrgAdmin = Arrays
             .stream(provider.getAllRoles(roles))
@@ -130,13 +133,27 @@ public class ActionPermissionController {
       ResourceType type = ResourceType.valueOf(typeName);
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
       permissionService
          .setResourcePermissions(path, type, getActionObjectName(typeName, path), permissions, principal);
       return getPermissions(typeName, path, isGrant, principal);
+   }
+
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/actions",
+         actions = ResourceAction.ACCESS
+      )
+   )
+   @PostMapping("/api/em/security/actions/validate-identities")
+   public List<ResourcePermissionTableModel> validateIdentities(
+      @RequestBody List<ResourcePermissionTableModel> identities)
+   {
+      return permissionService.findMissingIdentities(identities);
    }
 
    private String getActionObjectName(String typeName, String path) {
@@ -157,5 +174,6 @@ public class ActionPermissionController {
 
    private final ActionPermissionService actionService;
    private final ResourcePermissionService permissionService;
+   private final SecurityEngine securityEngine;
    private final Map<Resource, EnumSet<ResourceAction>> actions = new HashMap<>();
 }

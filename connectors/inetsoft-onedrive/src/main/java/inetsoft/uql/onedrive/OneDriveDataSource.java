@@ -17,7 +17,7 @@
  */
 package inetsoft.uql.onedrive;
 
-import inetsoft.uql.XFactory;
+import inetsoft.uql.XRepository;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.tabular.oauth.*;
 import inetsoft.util.Tool;
@@ -181,7 +181,7 @@ public class OneDriveDataSource extends TabularDataSource<OneDriveDataSource>  i
 
       if(this.getFullName() != null) {
          try {
-            XFactory.getRepository().updateDataSource(this, getFullName());
+            XRepository.getRepository().updateDataSource(this, getFullName());
          }
          catch(Exception e) {
             LOG.warn("Failed to save data source after refreshing token", e);

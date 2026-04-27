@@ -40,7 +40,7 @@ public class BoundTableHelper {
       XDataModel model = null;
 
       try {
-         XRepository repository = XFactory.getRepository();
+         XRepository repository = XRepository.getRepository();
          model = repository.getDataModel(source.getPrefix());
       }
       catch(RemoteException ex) {

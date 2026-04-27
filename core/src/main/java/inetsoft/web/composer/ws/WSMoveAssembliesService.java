@@ -24,6 +24,7 @@ import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.uql.asset.AbstractWSAssembly;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSMoveAssembliesEvent;
 import inetsoft.web.composer.ws.event.WSRelocateAssembliesEvent;
@@ -36,9 +37,9 @@ import java.security.Principal;
 @ClusterProxy
 public class WSMoveAssembliesService extends WorksheetControllerService {
 
-   public WSMoveAssembliesService(ViewsheetService viewsheetService)
+   public WSMoveAssembliesService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

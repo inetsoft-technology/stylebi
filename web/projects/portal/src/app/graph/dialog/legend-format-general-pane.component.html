@@ -63,13 +63,15 @@
   <fieldset>
     <legend>_#(Symbol)</legend>
     <div class="form-row-float-label row">
-      <div class="col-6 form-floating">
+      <div class="col-6 form-floating" [ngClass]="{'has-error': !form.controls['symbolSize'].valid}">
         <input type="number" class="form-control" id="symbolSize"
-               [ngModelOptions]="{standalone: true}"
-               [(ngModel)]="model.symbolSize"
+               formControlName="symbolSize"
                [min]="6" [max]="50"
                placeholder="_#(Symbol Size)">
         <label for="symbolSize">_#(Symbol Size)</label>
+        <div *ngIf="form.controls['symbolSize']?.errors" class="alert alert-danger">
+          _#(viewer.viewsheet.chart.legend.symbolSize.rangeWarning)
+        </div>
       </div>
     </div>
   </fieldset>

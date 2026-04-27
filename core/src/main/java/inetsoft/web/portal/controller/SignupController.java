@@ -41,8 +41,13 @@ import java.util.Objects;
 
 @Controller
 public class SignupController {
-   public SignupController(UserSignupService userSignupService) {
+   public SignupController(UserSignupService userSignupService,
+                           CustomThemesManager customThemesManager,
+                           PortalThemesManager portalThemesManager)
+   {
       this.userSignupService = userSignupService;
+      this.customThemesManager = customThemesManager;
+      this.portalThemesManager = portalThemesManager;
    }
 
    /**
@@ -52,15 +57,13 @@ public class SignupController {
     */
    @GetMapping("/signup.html")
    public ModelAndView showSignUpPage(HttpServletResponse response, @LinkUri String linkUri) {
-      ModelAndView model = new ModelAndView("signup");;
+      ModelAndView model = new ModelAndView("signup");
 
-      PortalThemesManager manager = PortalThemesManager.getManager();
-      CustomThemesManager themes = CustomThemesManager.getManager();
-      boolean customLogo = manager.hasCustomLogo(OrganizationManager.getInstance().getCurrentOrgID());
+      boolean customLogo = portalThemesManager.hasCustomLogo(OrganizationManager.getInstance().getCurrentOrgID());
 
       model.addObject("customLogo", customLogo);
-      boolean isCustomTheme = !Tool.isEmptyString(themes.getSelectedTheme()) &&
-                              !"default".equals(themes.getSelectedTheme());
+      boolean isCustomTheme = !Tool.isEmptyString(customThemesManager.getSelectedTheme()) &&
+                              !"default".equals(customThemesManager.getSelectedTheme());
       model.addObject("customTheme", isCustomTheme);
 
       boolean googleSignInEnabled = SreeEnv.getBooleanProperty("security.googleSignIn.enabled");
@@ -101,14 +104,12 @@ public class SignupController {
       }
 
       ModelAndView model = new ModelAndView("signupDetail");
-      PortalThemesManager manager = PortalThemesManager.getManager();
-      CustomThemesManager themes = CustomThemesManager.getManager();
-      boolean customLogo = manager.hasCustomLogo(OrganizationManager.getInstance().getCurrentOrgID());
+      boolean customLogo = portalThemesManager.hasCustomLogo(OrganizationManager.getInstance().getCurrentOrgID());
 
       model.addObject("customLogo", customLogo);
       model.addObject("linkUri", linkUri);
-      boolean isCustomTheme = !Tool.isEmptyString(themes.getSelectedTheme()) &&
-         !"default".equals(themes.getSelectedTheme());
+      boolean isCustomTheme = !Tool.isEmptyString(customThemesManager.getSelectedTheme()) &&
+         !"default".equals(customThemesManager.getSelectedTheme());
       model.addObject("customTheme", isCustomTheme);
 
       String header = CacheControl.noCache()
@@ -192,13 +193,12 @@ public class SignupController {
       Object currentEmailCode = session.getAttribute(SIGNUP_EMAIL_CODE);
       Object emailObj = session.getAttribute(SIGNUP_USER_EMAIL);
 
-      if(!(emailObj instanceof String) || !Tool.matchEmail((String) emailObj)) {
+      if(!(emailObj instanceof String email) || !Tool.matchEmail((String) emailObj)) {
          result.setRedirectUri("./signup.html");
 
          return result;
       }
 
-      String email = (String) emailObj;
       result.setEmail(email);
 
       IdentityID userID;
@@ -223,8 +223,7 @@ public class SignupController {
 
       if(!userSignupService.validPassword(password)) {
          result.setSuccess(false);
-         result.setErrorMessage(catalog.getString("signup.password.invalid") + " " +
-            catalog.getString("or") + catalog.getString("signup.password.tooLong"));
+         result.setErrorMessage(catalog.getString("viewer.password.pwdRule"));
 
          return result;
       }
@@ -301,7 +300,7 @@ public class SignupController {
       Object emailObj = session.getAttribute(SIGNUP_USER_EMAIL);
       Object codeTime = session.getAttribute(SIGNUP_EMAIL_CODE_TIME);
 
-      if(session == null || !(emailObj instanceof String) ||
+      if(session == null || !(emailObj instanceof String signupEmail) ||
          session.getAttribute(SIGNUP_EMAIL_CODE) == null ||
          codeTime == null)
       {
@@ -317,7 +316,6 @@ public class SignupController {
          new Date().getTime() - ((Number) codeTime).longValue() >= 60000)
       {
          String code = userSignupService.generateVerificationCode();
-         String signupEmail = (String) emailObj;
 
          try {
             userSignupService.sendEmailVerifyCode(code, signupEmail);
@@ -339,6 +337,9 @@ public class SignupController {
    }
 
    private final UserSignupService userSignupService;
+   private final CustomThemesManager customThemesManager;
+   private final PortalThemesManager portalThemesManager;
+
    private final static String SIGNUP_USER_EMAIL = "SIGNUP_USER_EMAIL";
    private final static String SIGNUP_EMAIL_CODE = "SIGNUP_EMAIL_CODE";
    private final static String SIGNUP_EMAIL_CODE_TIME = "SIGNUP_EMAIL_CODE_TIME";

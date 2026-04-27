@@ -19,6 +19,8 @@
 package inetsoft.web.admin.content.plugins;
 
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.util.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -31,7 +33,8 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.socket.messaging.*;
+import org.springframework.web.socket.messaging.AbstractSubProtocolEvent;
+import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -43,30 +46,45 @@ import java.util.concurrent.TimeUnit;
 @Controller
 public class PluginChangeController {
    @Autowired
-   public PluginChangeController(SimpMessagingTemplate messagingTemplate) {
+   public PluginChangeController(SimpMessagingTemplate messagingTemplate,
+                                 Plugins plugins,
+                                 SecurityEngine securityEngine)
+   {
+      this.securityEngine = securityEngine;
       this.debouncer = new DefaultDebouncer<>();
       this.messagingTemplate = messagingTemplate;
+      this.plugins = plugins;
    }
 
    @PostConstruct
    public void addListeners() {
-      Plugins.getInstance().addActionListener(this.pluginListener);
+      plugins.addActionListener(this.pluginListener);
    }
 
    @PreDestroy
    public void removeListeners() {
-      Plugins.getInstance().removeActionListener(this.pluginListener);
+      plugins.removeActionListener(this.pluginListener);
    }
 
    @SubscribeMapping(CHANGE_TOPIC)
-   public void subscribeToTopic(StompHeaderAccessor header, Principal principal) {
+   public void subscribeToTopic(StompHeaderAccessor header, Principal principal) throws SecurityException {
+      if(!securityEngine.getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "settings/content/drivers-and-plugins", ResourceAction.ACCESS))
+      {
+         // User lacks plugin management access (e.g. Organization Administrator). Silently
+         // ignore the subscription rather than throwing — the portal subscribes to this topic
+         // to refresh driver availability when editing datasources, and an unauthorized user
+         // simply won't receive plugin-change notifications.
+         return;
+      }
+
       final MessageHeaders messageHeaders = header.getMessageHeaders();
       final String sessionId =
          (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
       subscriptions.put(sessionId, principal);
    }
 
-   @EventListener
+   @EventListener(SessionDisconnectEvent.class)
    public void handleDisconnect(SessionDisconnectEvent event) {
       removeSubscription(event);
    }
@@ -96,6 +114,8 @@ public class PluginChangeController {
    private final Map<String, Principal> subscriptions = new ConcurrentHashMap<>();
    private final Debouncer<String> debouncer;
    private final SimpMessagingTemplate messagingTemplate;
+   private final Plugins plugins;
+   private final SecurityEngine securityEngine;
    private static final String CHANGE_TOPIC = "/em-plugin-changed";
    private final ActionListener pluginListener = this::pluginChanged;
 }

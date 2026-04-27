@@ -163,12 +163,12 @@ public class SVGVSExporter extends AbstractVSExporter {
 
    @Override
    protected void writeCheckBox(CheckBoxVSAssembly assembly) {
-      writePicture(assembly);
+      writeInputWithLabel(assembly);
    }
 
    @Override
    protected void writeComboBox(ComboBoxVSAssembly assembly) {
-      writePicture(assembly);
+      writeInputWithLabel(assembly);
    }
 
    @Override
@@ -220,7 +220,7 @@ public class SVGVSExporter extends AbstractVSExporter {
 
    @Override
    protected void writeRadioButton(RadioButtonVSAssembly assembly) {
-      writePicture(assembly);
+      writeInputWithLabel(assembly);
    }
 
    @Override
@@ -237,7 +237,7 @@ public class SVGVSExporter extends AbstractVSExporter {
 
    @Override
    protected void writeSlider(SliderVSAssembly assembly) {
-      writePicture(assembly);
+      writeInputWithLabel(assembly);
    }
 
    @Override
@@ -247,7 +247,7 @@ public class SVGVSExporter extends AbstractVSExporter {
 
    @Override
    protected void writeSpinner(SpinnerVSAssembly assembly) {
-      writePicture(assembly);
+      writeInputWithLabel(assembly);
    }
 
    @Override
@@ -278,9 +278,14 @@ public class SVGVSExporter extends AbstractVSExporter {
 
    @Override
    protected void writeTextInput(TextInputVSAssembly assembly) {
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
       Object value = assembly.getSelectedObject() != null ?
-         ((TextInputVSAssemblyInfo) assembly.getVSAssemblyInfo()).getText() : null;
-      writeText(assembly, value == null ? "" : Tool.getDataString(value, assembly.getDataType()));
+         ((TextInputVSAssemblyInfo) info).getText() : null;
+      String txt = value == null ? "" : Tool.getDataString(value, assembly.getDataType());
+
+      if(!writeTextInputWithLabel(info, txt)) {
+         writeText(assembly, txt);
+      }
    }
 
    @Override
@@ -493,11 +498,13 @@ public class SVGVSExporter extends AbstractVSExporter {
       return rows;
    }
 
-   /**
-    * Write picture.
-    * @param assembly the specified VSAssembly.
-    */
-   private void writePicture(VSAssembly assembly) {
+   @Override
+   protected CoordinateHelper getHelper() {
+      return helper;
+   }
+
+   @Override
+   protected void writePicture(VSAssembly assembly) {
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();
 
       if(info != null) {
@@ -568,6 +575,26 @@ public class SVGVSExporter extends AbstractVSExporter {
 
       if(isMatchLayout() && ExportUtil.annotationIsOuterTable(base, info, helper)) {
          return;
+      }
+
+      // Bug #74471, skip DATA-type annotations on cells truncated by table.output.maxcol/maxrow
+      if(info.getType() == AnnotationVSAssemblyInfo.DATA && base instanceof TableDataVSAssembly) {
+         if(info.getCol() >= VSTableLens.getConfiguredMaxCols()) {
+            return;
+         }
+
+         try {
+            VSTableLens baseLens = box.getVSTableLens(base.getAbsoluteName(), false);
+
+            // SVG caps rendered rows at 500 (see getRegionRowCount); use the same limit here
+            if(baseLens != null && info.getRow() >= Math.min(baseLens.getRowCount(), 500)) {
+               return;
+            }
+         }
+         catch(Exception e) {
+            LOG.debug("Failed to get table lens for annotation row check on '{}'",
+                      base.getAbsoluteName(), e);
+         }
       }
 
       writeAnnotation0(info);

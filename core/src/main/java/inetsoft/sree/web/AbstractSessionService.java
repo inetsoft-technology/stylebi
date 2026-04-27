@@ -22,21 +22,14 @@ import inetsoft.sree.security.*;
 /**
  * Base class for implementations of <tt>SessionLicenseManager</tt>.
  */
-abstract class AbstractSessionService implements SessionLicenseManager, SessionListener {
+abstract class AbstractSessionService implements SessionLicenseManager {
    /**
     * Creates a new instance of <tt>AbstractSessionService</tt>.
     */
    protected AbstractSessionService() {
-      AuthenticationService.getInstance().addSessionListener(this);
    }
 
-   @Override
-   public void loggedIn(SessionEvent event) {
-      // NO-OP
-   }
-
-   @Override
-   public void loggedOut(SessionEvent event) {
+   public void loggedOut(SessionLoggedOutEvent event) {
       if(event.getPrincipal() instanceof SRPrincipal) {
          releaseSession((SRPrincipal) event.getPrincipal());
       }
@@ -44,7 +37,6 @@ abstract class AbstractSessionService implements SessionLicenseManager, SessionL
 
    @Override
    public void dispose() {
-      AuthenticationService.getInstance().removeSessionListener(this);
    }
 
    @Override

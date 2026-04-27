@@ -18,13 +18,18 @@
 package inetsoft.web.admin.cluster;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.web.admin.monitoring.MonitoringDataService;
 import inetsoft.web.cluster.ServerClusterClient;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.*;
 
 @RestController
@@ -32,12 +37,21 @@ public class ClusterController {
 
    @Autowired
    public ClusterController(ClusterService clusterService,
-                            MonitoringDataService monitoringDataService)
+                            MonitoringDataService monitoringDataService,
+                            SecurityEngine securityEngine)
    {
       this.clusterService = clusterService;
       this.monitoringDataService = monitoringDataService;
+      this.securityEngine = securityEngine;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/cluster/get-cluster-nodes")
    public ClusterNodesModel getClusterNodes() {
       Set<String> nodes = "server_cluster".equals(SreeEnv.getProperty("server.type")) ?
@@ -62,27 +76,62 @@ public class ClusterController {
 
    @SubscribeMapping("/monitoring/cluster/report-cluster")
    public List<ReportClusterNodeModel> subscribeClusterStatus(
-      StompHeaderAccessor stompHeaderAccessor)
+      StompHeaderAccessor stompHeaderAccessor, Principal principal)
+      throws SecurityException
    {
+      if(!securityEngine.getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "monitoring/cluster/reportCluster", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to cluster monitoring by user " + principal.getName());
+      }
+
       return monitoringDataService
          .addSubscriber(stompHeaderAccessor, clusterService::getClusterStatus);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/cluster/reportCluster",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/monitoring/cluster/cluster-status")
    public List<ReportClusterNodeModel> getClusterStatus() {
       return clusterService.getClusterStatus();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/cluster/reportCluster",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/monitoring/cluster/cluster-enabled")
    public ClusterEnabledModel getClusterEnabled() {
       return clusterService.getClusterEnabled();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/cluster/reportCluster",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/monitoring/cluster/pause-server")
    public void pauseServer(@RequestBody String[] servers) {
       clusterService.pauseServers(servers);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/cluster/reportCluster",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/monitoring/cluster/resume-server")
    public void resumeServer(@RequestBody String[] servers) {
       clusterService.resumeServers(servers);
@@ -90,4 +139,5 @@ public class ClusterController {
 
    private final ClusterService clusterService;
    private final MonitoringDataService monitoringDataService;
+   private final SecurityEngine securityEngine;
 }

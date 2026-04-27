@@ -36,6 +36,7 @@ import inetsoft.web.admin.general.model.DataSpaceSettingsModel;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -48,12 +49,26 @@ import java.util.concurrent.locks.ReentrantLock;
 
 @Service
 public class DataSpaceSettingsService extends BackupSupport {
+   @Autowired
+   public DataSpaceSettingsService(SecurityEngine securityEngine,
+                                   FileSystemService fileSystemService,
+                                   KeyValueEngine keyValueEngine,
+                                   BlobEngine blobEngine,
+                                   ExternalStorageService externalStorageService)
+   {
+      this.securityEngine = securityEngine;
+      this.fileSystemService = fileSystemService;
+      this.keyValueEngine = keyValueEngine;
+      this.blobEngine = blobEngine;
+      this.externalStorageService = externalStorageService;
+   }
+
    public DataSpaceSettingsModel getModel(Principal principal) throws Exception {
       InetsoftConfig config = InetsoftConfig.getInstance();
 
-      boolean assetWritePermission = SecurityEngine.getSecurity().checkPermission(
+      boolean assetWritePermission = securityEngine.checkPermission(
          principal, ResourceType.SCHEDULE_TASK, InternalScheduledTaskService.ASSET_FILE_BACKUP,
-         ResourceAction.WRITE) && SecurityEngine.getSecurity().checkPermission(
+         ResourceAction.WRITE) && securityEngine.checkPermission(
          principal, ResourceType.EM_COMPONENT, "settings/schedule/tasks",
          ResourceAction.ACCESS);
       String assetName = assetWritePermission ? InternalScheduledTaskService.ASSET_FILE_BACKUP : "";
@@ -66,6 +81,11 @@ public class DataSpaceSettingsService extends BackupSupport {
    }
 
    public static String backup(BackupDataModel model) {
+      return ConfigurationContext.getContext().getSpringBean(DataSpaceSettingsService.class)
+         .doBackup(model);
+   }
+
+   public String doBackup(BackupDataModel model) {
       String status;
       Catalog catalog = Catalog.getCatalog();
       File file = null;
@@ -81,19 +101,17 @@ public class DataSpaceSettingsService extends BackupSupport {
 
          // For the same backup, use the same timestamp
          String stamp = createBackupTimestamp();
-         file = FileSystemService.getInstance().getCacheTempFile("backup", ".zip");
+         file = this.fileSystemService.getCacheTempFile("backup", ".zip");
          boolean mapdbStorage = "mapdb".equals(InetsoftConfig.getInstance().getKeyValue().getType());
 
          try(OutputStream output = new FileOutputStream(file)) {
-            KeyValueEngine keyValueEngine = KeyValueEngine.getInstance();
-            BlobEngine blobEngine = BlobEngine.getInstance();
             StorageTransfer storageTransfer = mapdbStorage ? new ClusterStorageTransfer() :
-               new DirectStorageTransfer(keyValueEngine, blobEngine);
+               new DirectStorageTransfer(this.keyValueEngine, this.blobEngine);
             storageTransfer.exportContents(output);
          }
 
          String path = getBackFile(model != null ? model.dataspace() : null, stamp);
-         ExternalStorageService.getInstance().write(path, file.toPath(), null);
+         this.externalStorageService.write(path, file.toPath(), null);
 
          status = catalog.getString("Success");
          record.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
@@ -119,7 +137,7 @@ public class DataSpaceSettingsService extends BackupSupport {
    /**
     * backup count control by property "asset.backup.count",
     */
-   private static void deleteRedundantBackupFiles() {
+   private void deleteRedundantBackupFiles() {
       String backupCountProp = SreeEnv.getProperty("asset.backup.count");
       int backupCount = -1;
 
@@ -133,8 +151,7 @@ public class DataSpaceSettingsService extends BackupSupport {
          return;
       }
 
-      ExternalStorageService storageService = ExternalStorageService.getInstance();
-      List<String> zips = storageService.listFiles(BACKUP_FOLDER).stream()
+      List<String> zips = this.externalStorageService.listFiles(BACKUP_FOLDER).stream()
          .filter(f -> f.endsWith(".zip") && f.contains(BACKUP_PATH_SPLIT))
          .sorted((z1, z2) -> {
             long z1Time = getTimestamp(z1);
@@ -153,7 +170,7 @@ public class DataSpaceSettingsService extends BackupSupport {
 
       for(int i = 0; i <= deleteCount; i++) {
          try {
-            storageService.delete(BACKUP_FOLDER + File.separator + zips.get(i));
+            this.externalStorageService.delete(BACKUP_FOLDER + File.separator + zips.get(i));
          }
          catch(IOException e) {
             LOG.error("Failed to delete backup file {}", zips.get(i), e);
@@ -185,7 +202,7 @@ public class DataSpaceSettingsService extends BackupSupport {
       return -1;
    }
 
-   private static String getBackFile(String name, String timestamp) {
+   private String getBackFile(String name, String timestamp) {
       name = name == null ? "data" : name;
       int idx = name.indexOf(".zip");
 
@@ -202,11 +219,17 @@ public class DataSpaceSettingsService extends BackupSupport {
       }
 
       name = BACKUP_FOLDER + "/" + name;
-      name = ExternalStorageService.getInstance().getAvailableFile(name, 1);
+      name = this.externalStorageService.getAvailableFile(name, 1);
       return name;
    }
 
    // Backups are in a fixed folder to ensure that we exclude backup files on our second backup.
+   private final SecurityEngine securityEngine;
+   private final FileSystemService fileSystemService;
+   private final KeyValueEngine keyValueEngine;
+   private final BlobEngine blobEngine;
+   private final ExternalStorageService externalStorageService;
+
    private static final String BACKUP_FOLDER = "backup";
    private static final String BACKUP_PATH_SPLIT = "-";
 

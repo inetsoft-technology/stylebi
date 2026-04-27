@@ -134,19 +134,7 @@ import { ComposerToolbarComponent } from "./toolbar/composer-toolbar.component";
 import { ComposerObjectService } from "./vs/composer-object.service";
 import { CloseSheetEvent } from "./vs/event/close-sheet-event";
 import { LayoutUndoRedoEvent } from "./vs/event/layout-undo-redo-event";
-import { WizService } from "./wiz/services/wiz.service";
-import {
-   NewVisualizationDialog,
-   NewVisualizationDialogModel
-} from "./wiz/new-visualization-dialog/new-visualization-dialog.component";
-import {
-   SaveWizVisualizationDialog,
-   SaveWizVisualizationDialogModel
-} from "./wiz/save-wiz-visualization-dialog/save-wiz-visualization-dialog.component";
 import { SaveSheetEvent } from "./ws/socket/save-sheet-event";
-import { DashboardTabModel } from "../../portal/dashboard/dashboard-tab-model";
-import { DashboardTabService } from "../../portal/services/dashboard-tab.service";
-import { WizDashboard } from "../data/vs/wizDashboard";
 
 export enum SidebarTab {
    ASSET_TREE,
@@ -155,8 +143,7 @@ export enum SidebarTab {
    COMPONENTS,
    FORMAT,
    WORKSHEET_COMPOSITE_TABLE_SIDEBAR,
-   REGIONS,
-   VISUALIZATIONS
+   REGIONS
 }
 
 /** Worksheet URIs */
@@ -290,6 +277,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    worksheetPermission: boolean;
    scriptPermission: boolean;
    tableStylePermission: boolean;
+   aiAssistantPermission: boolean;
    grayedOutFields: DataRef[];
    splitPaneCollapsed: boolean = false;
    splitPaneSize: number = this.INIT_SPLIT_PANE_SIZE;
@@ -313,37 +301,32 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    private lastWS: string = null; // last saved ws
    wizardEditMode = false;
    wizardModel: VsWizardModel;
-   wizVisualizationMode = false;
-   currentWizVisualization: WizDashboard = null;
    importDialogOpen = false;
    tabContentEleToChild: ElementRef;
    openedTabs: ComposerTabModel[] = [];
    private _focusedTab: ComposerTabModel;
    private propertyDialogModal: NgbModalRef;
-   dashboardTabModel: DashboardTabModel | null = null;
 
    constructor(private composerObjectService: ComposerObjectService,
-               private resizeHandlerService: ResizeHandlerService,
-               private clipboardService: ClipboardService,
-               private modalService: NgbModal,
-               private modelService: ModelService,
-               private renderer: Renderer2,
-               private hyperLinkService: ShowHyperlinkService,
-               private assetTreeService: AssetTreeService,
-               private uiContextService: UIContextService,
-               private composerClient: ComposerClientService,
-               private composerRecentService: ComposerRecentService,
-               private changeDetectorRef: ChangeDetectorRef,
-               private http: HttpClient,
-               private zone: NgZone,
-               private gettingStartedService: GettingStartedService,
-               private router: Router,
-               private scriptService: ScriptService,
-               private fontService: FontService,
-               private aiAssistantService: AiAssistantService,
-               private aiAssistantDialogService: AiAssistantDialogService,
-               private dashboardTabService: DashboardTabService,
-               private wizService: WizService)
+      private resizeHandlerService: ResizeHandlerService,
+      private clipboardService: ClipboardService,
+      private modalService: NgbModal,
+      private modelService: ModelService,
+      private renderer: Renderer2,
+      private hyperLinkService: ShowHyperlinkService,
+      private assetTreeService: AssetTreeService,
+      private uiContextService: UIContextService,
+      private composerClient: ComposerClientService,
+      private composerRecentService: ComposerRecentService,
+      private changeDetectorRef: ChangeDetectorRef,
+      private http: HttpClient,
+      private zone: NgZone,
+      private gettingStartedService: GettingStartedService,
+      private router: Router,
+      private scriptService: ScriptService,
+      private fontService: FontService,
+      private aiAssistantService: AiAssistantService,
+      private aiAssistantDialogService: AiAssistantDialogService)
    {
       this.aiAssistantService.loadCurrentUser();
       GuiTool.isTouchDevice().then((value: boolean) => {
@@ -393,6 +376,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          this.viewsheetPermission = this.setPrincipalCommand.viewsheetPermission;
          this.scriptPermission = this.setPrincipalCommand.scriptPermission;
          this.tableStylePermission = this.setPrincipalCommand.tableStylePermission;
+         this.aiAssistantPermission = this.setPrincipalCommand.aiAssistantPermission;
+         this.aiAssistantService.aiAssistantVisible = this.setPrincipalCommand.aiAssistantPermission;
 
          if(!this.vsWizard && this.setPrincipalCommand.autoSaveFiles != null &&
             !this.wsWizard && this.worksheetPermission &&
@@ -459,25 +444,6 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          }
       });
 
-      this.subscriptions.add(this.dashboardTabService.getDashboardTabModel()
-         .subscribe({
-            next: data => { this.dashboardTabModel = data; },
-            error: err => console.error("Failed to load dashboard tab model", err)
-         }));
-
-      this.subscriptions.add(this.wizService.showVisualization.subscribe((vs: WizDashboard) => {
-         this.currentWizVisualization = vs;
-         this.wizVisualizationMode = true;
-      }));
-
-      this.subscriptions.add(this.wizService.exitVisualization.subscribe(() => {
-         this.wizVisualizationMode = false;
-         this.currentWizVisualization = null;
-      }));
-
-      this.subscriptions.add(this.wizService.saveVisualization.subscribe((vs: WizDashboard) => {
-         this.saveWizVisualization(vs);
-      }));
    }
 
    // open wizard if requested from portal
@@ -496,10 +462,6 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       setTimeout(() => {
          this.tabContentEleToChild = this.tabContentEle;
       });
-   }
-
-   get showingWiz(): boolean {
-      return this.wizService.showingWiz;
    }
 
    get focusedSheet(): Sheet {
@@ -729,12 +691,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                }
             }
             else {
-               if(sheet.type === "wiz") {
-                  this.selectedTab = SidebarTab.VISUALIZATIONS;
-               }
-               else {
-                  this.selectedTab = SidebarTab.TOOLBOX;
-               }
+               this.selectedTab = SidebarTab.TOOLBOX;
             }
          }
       }
@@ -859,13 +816,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    trackByFn(index: number, tab: ComposerTabModel) {
-      const type = tab?.asset?.type;
-
-      if(type == "viewsheet" || type == "worksheet" || type == "wiz") {
-         return (<Sheet>tab.asset).localId;
-      }
-
-      return (<LibraryAsset>tab.asset).id;
+      return tab?.asset?.type == "viewsheet" || tab?.asset?.type == "worksheet" ?
+         (<Sheet>tab.asset).localId : (<LibraryAsset>tab.asset).id;
    }
 
    closePreview(index: number, hasClosedOnServer: boolean = false): void {
@@ -969,7 +921,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          return;
       }
 
-      if(sheet.isModified() && !forceClose && sheet.type !== "wiz") {
+      if(sheet.isModified() && !forceClose) {
          this.showCloseSheetConfirmMessage(sheet);
       }
       else {
@@ -1678,13 +1630,12 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       }
    }
 
-   openNewViewsheet(baseEntry: AssetEntry, gettingStarted?: boolean, isWiz?: boolean): void {
+   openNewViewsheet(baseEntry: AssetEntry, gettingStarted?: boolean): void {
       if(baseEntry && baseEntry.folder && baseEntry.type === AssetType.FOLDER) {
          baseEntry = null;
       }
 
-      const vs: Viewsheet = isWiz ? new WizDashboard(this.fontService) : new Viewsheet(this.fontService);
-
+      const vs: Viewsheet = new Viewsheet(this.fontService);
       vs.localId = sheetCounter++;
       vs.newSheet = true;
       vs.label = "";
@@ -1746,9 +1697,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                   };
                }
                break;
-            case "wiz":
             case "viewsheet":
-               const vs = type == "wiz" ? new WizDashboard(this.fontService) : new Viewsheet(this.fontService);
+               const vs = new Viewsheet(this.fontService);
                vs.localId = sheetCounter++;
                vs.label = "";
                vs.id = id;
@@ -2056,44 +2006,6 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
             }
          });
 
-   }
-
-   saveWizVisualization(vs: WizDashboard): void {
-      if(!vs.newSheet) {
-         vs.saving = true;
-         this.saveViewsheet0(vs, false, false);
-         return;
-      }
-
-      const modelUri = SAVE_VIEWSHEET_DIALOG_REST_URI + Tool.byteEncode(vs.runtimeId);
-      const entry = createAssetEntry(vs.id);
-      this.defaultFolder = entry ? AssetEntryHelper.getParent(entry) : null;
-      vs.onSave();
-
-      this.modelService.getModel(modelUri).subscribe({
-         next: (data: any) => {
-            const visualizationScope = vs.standaloneVisualization ? "public" : "private";
-            const model: SaveWizVisualizationDialogModel = {
-               ...(<SaveViewsheetDialogModel>data),
-               visualizationScope: visualizationScope
-            };
-
-            const dialog = ComponentTool.showDialog(this.modalService, SaveWizVisualizationDialog,
-               (result: SaveWizVisualizationDialogModel) => {
-                  vs.saving = true;
-                  this.designSaved = true;
-                  result.updateDepend = false;
-                  vs.socketConnection.sendEvent(SAVE_VIEWSHEET_DIALOG_SOCKET_URI, result);
-               });
-            dialog.model = model;
-            dialog.defaultFolder = this.defaultFolder;
-            dialog.runtimeId = vs.runtimeId;
-            dialog.standaloneVisualization = vs.standaloneVisualization;
-         },
-         error: (error: any) => {
-            console.error("Failed to load save viewsheet model: ", error);
-         }
-      });
    }
 
    saveViewsheet(sheet: Viewsheet, close: boolean = false) {
@@ -2421,7 +2333,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    private isSheet(asset: Sheet | LibraryAsset): boolean {
-      return asset?.type == "viewsheet" || asset?.type == "worksheet" ||  asset?.type == "wiz";
+      return asset?.type == "viewsheet" || asset?.type == "worksheet";
    }
 
    private navigateToExisting(index: number, initPreview: boolean = false) {
@@ -2456,7 +2368,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          return;
       }
 
-      if(sheet.type === "viewsheet" || sheet.type === "wiz") {
+      if(sheet.type === "viewsheet") {
          sheet.socketConnection.sendEvent(CLOSE_VIEWSHEET_SOCKET_URI, new CloseSheetEvent(deleteAutosave));
       }
       else if(sheet.type === "worksheet") {
@@ -3140,7 +3052,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
 
    fullViewVisible(): boolean {
       const vs = this.focusedViewsheet;
-      return (vs == null || !vs.bindingEditMode) && !this.wizardEditMode && !this.wizVisualizationMode;
+      return (vs == null || !vs.bindingEditMode) && !this.wizardEditMode;
    }
 
    processPreviewMessageCommand(command: MessageCommand, sheet: Viewsheet): void {
@@ -3165,10 +3077,6 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
 
    asViewsheet(tab: ComposerTabModel): Viewsheet {
       return tab.asset as Viewsheet;
-   }
-
-   asWizDashboard(tab: ComposerTabModel): Viewsheet {
-      return tab.asset as WizDashboard;
    }
 
    asWorksheet(tab: ComposerTabModel): Worksheet {
@@ -3199,7 +3107,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    refreshAiAssistantContext(): void {
       this.aiAssistantService.resetContextMap();
       const contextType = this.focusedSheet ? this.focusedSheet.type : "";
-      this.aiAssistantService.setContextTypeFieldValue(contextType || ContextType.VIEWSHEET);
+      this.aiAssistantService.setContextTypeFieldValue(contextType === "worksheet" ?
+         ContextType.WORKSHEET : ContextType.VIEWSHEET);
 
       if(contextType === "worksheet") {
          this.aiAssistantDialogService.setWorksheetContext(this.focusedSheet as Worksheet);
@@ -3207,35 +3116,5 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       else if(contextType === "viewsheet") {
          this.aiAssistantDialogService.setViewsheetScriptContext(this.focusedSheet as Viewsheet);
       }
-   }
-
-   switchWiz(): void {
-      //Todo
-      if(this._focusedSheet?.type === "wiz") {
-         this.onTabClosed(new ComposerTabModel("wiz", this._focusedSheet));
-      }
-
-      this.wizService.showingWiz = !this.showingWiz;
-   }
-
-   createNewWiz(): void {
-      this.openNewViewsheet(null, false, true);
-   }
-
-   createNewVisualization() {
-      const vs = new WizDashboard(this.fontService);
-      vs.label = "Untitled Visualization";
-
-      ComponentTool.showDialog(this.modalService, NewVisualizationDialog,
-         (model: NewVisualizationDialogModel) => {
-            vs.standaloneVisualization = true;
-            vs.baseEntries = model?.baseEntries;
-            vs.id = "";
-            vs.localId = sheetCounter++;
-            vs.newSheet = true;
-            vs.visualization = true;
-            this.currentWizVisualization = vs;
-            this.wizVisualizationMode = true;
-         }, {});
    }
 }

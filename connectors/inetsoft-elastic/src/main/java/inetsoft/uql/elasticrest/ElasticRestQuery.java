@@ -39,6 +39,7 @@ public class ElasticRestQuery extends TabularQuery {
    }
 
    @Property(label = "URL Suffix")
+   @PropertyEditor(autoSize = true)
    public String getSuffix() {
       return suffix;
    }

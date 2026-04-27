@@ -24,6 +24,7 @@ import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.web.composer.ws.assembly.WSColumnDndProcessor;
 import inetsoft.web.composer.ws.event.WSDragColumnsEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -34,8 +35,8 @@ import java.security.Principal;
 @Service
 @ClusterProxy
 public class DragColumnsService extends WorksheetControllerService {
-   public DragColumnsService(ViewsheetService viewsheetService) {
-      super(viewsheetService);
+   public DragColumnsService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry) {
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

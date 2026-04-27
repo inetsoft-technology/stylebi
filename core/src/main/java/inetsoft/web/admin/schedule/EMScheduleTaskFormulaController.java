@@ -18,8 +18,12 @@
 package inetsoft.web.admin.schedule;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.web.admin.schedule.model.TestTaskParameterExpressionRequest;
 import inetsoft.web.composer.model.TreeNodeModel;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -28,22 +32,50 @@ public class EMScheduleTaskFormulaController {
       this.scheduleTaskFormulaService = scheduleTaskFormulaService;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/parameters/formula/scriptDefinition")
    public ObjectNode getScriptDefinition() throws Exception {
       return scheduleTaskFormulaService.getScriptDefinition();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping(
       value = "/api/em/schedule/parameters/formula/test-script")
    public String testScheduleParameterExpression(@RequestBody TestTaskParameterExpressionRequest script) {
       return scheduleTaskFormulaService.testScheduleParameterExpression(script.expression());
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @RequestMapping(value = "/api/em/schedule/parameters/formula/function", method=RequestMethod.GET)
    public TreeNodeModel getFunctions() {
       return scheduleTaskFormulaService.getFunctions();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/parameters/formula/operationTree")
    public TreeNodeModel getOperationTree() {
       return this.scheduleTaskFormulaService.getOperationTree();

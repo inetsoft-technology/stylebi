@@ -20,17 +20,20 @@ package inetsoft.sree.web.dashboard;
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.security.*;
 import inetsoft.storage.*;
-import inetsoft.uql.util.*;
-import inetsoft.util.SingletonManager;
+import inetsoft.uql.util.DefaultIdentity;
+import inetsoft.uql.util.Identity;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.Tool;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.io.Serializable;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.function.Supplier;
 
 /**
  * A dashboard manager is a manager of dashboard. It is used to read &
@@ -40,14 +43,23 @@ import java.util.function.Supplier;
  * @author InetSoft Technology Corp
  */
 @SuppressWarnings("WeakerAccess")
+@Service
+@Lazy
 public class DashboardManager implements AutoCloseable {
    /**
     * Construct.
     */
-   public DashboardManager() {
+   public DashboardManager(SecurityEngine securityEngine,
+                           DashboardRegistryManager dashboardRegistryManager,
+                           KeyValueStorageManager keyValueStorageManager)
+   {
+      this.securityEngine = securityEngine;
+      this.dashboardRegistryManager = dashboardRegistryManager;
+      this.keyValueStorageManager = keyValueStorageManager;
    }
 
    @Override
+   @PreDestroy
    public synchronized void close() throws Exception {
       getDashboardStorage().close();
    }
@@ -68,7 +80,7 @@ public class DashboardManager implements AutoCloseable {
     * Return a dashboard manager.
     */
    public static DashboardManager getManager() {
-      return SingletonManager.getInstance(DashboardManager.class);
+      return ConfigurationContext.getContext().getSpringBean(DashboardManager.class);
    }
 
    /**
@@ -120,10 +132,10 @@ public class DashboardManager implements AutoCloseable {
       List<String> values = data.getDashboards();
       List<String> list = new ArrayList<>();
       DashboardRegistry uregistry = null;
-      DashboardRegistry gregistry = DashboardRegistry.getRegistry();
+      DashboardRegistry gregistry = dashboardRegistryManager.getRegistry();
 
       if(identity.getType() == Identity.USER) {
-         uregistry = DashboardRegistry.getRegistry(identity.getIdentityID());
+         uregistry = dashboardRegistryManager.getRegistry(identity.getIdentityID());
       }
 
       boolean changed = false;
@@ -163,7 +175,7 @@ public class DashboardManager implements AutoCloseable {
       List<String> values = data == null ? null : data.getDeselected();
 
       List<String> list = new ArrayList<>();
-      DashboardRegistry registry = DashboardRegistry.getRegistry();
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry();
       boolean changed = false;
 
       if(values != null) {
@@ -361,7 +373,7 @@ public class DashboardManager implements AutoCloseable {
       IdentityID[] roles = user.getRoles();
       boolean empty = (groups == null || groups.length == 0) &&
          (roles == null || roles.length == 0);
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
 
       if(provider.isVirtual() || (provider.getUser(userIdentityID) != null && empty)) {
          return getUserDashboards(userIdentityID);
@@ -423,7 +435,7 @@ public class DashboardManager implements AutoCloseable {
     */
    public synchronized String[] getUserDashboards(IdentityID userName) {
       init();
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
       Identity user;
 
       // treat user anonymous as a special role
@@ -477,7 +489,7 @@ public class DashboardManager implements AutoCloseable {
       visitedGroups.add(group.getName());
 
       for(String dashboard : getDashboards(group)) {
-         if(!list.contains(dashboard) && SecurityEngine.getSecurity().checkPermission(
+         if(!list.contains(dashboard) && securityEngine.checkPermission(
             principal, ResourceType.DASHBOARD, dashboard, ResourceAction.ACCESS))
          {
             list.add(dashboard);
@@ -511,7 +523,7 @@ public class DashboardManager implements AutoCloseable {
       visitedRoles.add(role.getIdentityID());
 
       for(String dashboard : getDashboards(role)) {
-         if(!list.contains(dashboard) && SecurityEngine.getSecurity().checkPermission(
+         if(!list.contains(dashboard) && securityEngine.checkPermission(
             principal, ResourceType.DASHBOARD, dashboard, ResourceAction.ACCESS))
          {
             list.add(dashboard);
@@ -675,18 +687,6 @@ public class DashboardManager implements AutoCloseable {
       setDashboards(identity, narr);
    }
 
-   public void addDashboardChangeListener(DashboardChangeListener l) {
-      synchronized(changeListeners) {
-         changeListeners.add(l);
-      }
-   }
-
-   public void removeDashboardChangeListener(DashboardChangeListener l) {
-      synchronized(changeListeners) {
-         changeListeners.remove(l);
-      }
-   }
-
    public void removeDashboardStorage(String orgID) throws Exception {
       getDashboardStorage(orgID).deleteStore().get(1L, TimeUnit.MINUTES);
       getDashboardStorage(orgID).close();
@@ -706,18 +706,6 @@ public class DashboardManager implements AutoCloseable {
       }
    }
 
-   void fireDashboardChanged(DashboardChangeEvent.Type type, String oldName, String newName,
-                             IdentityID user)
-   {
-      DashboardChangeEvent event = new DashboardChangeEvent(this, type, oldName, newName, user);
-
-      synchronized(changeListeners) {
-         for(DashboardChangeListener l : changeListeners) {
-            l.dashboardChanged(event);
-         }
-      }
-   }
-
    private KeyValueStorage<DashboardData> getDashboardStorage() {
       return getDashboardStorage(null);
    }
@@ -728,8 +716,7 @@ public class DashboardManager implements AutoCloseable {
       }
 
       String storeID = orgID.toLowerCase() + "__dashboards";
-      Supplier<LoadDashboardsTask> supplier = () -> new LoadDashboardsTask(storeID);
-      return SingletonManager.getInstance(KeyValueStorage.class, storeID, supplier);
+      return keyValueStorageManager.getStorage(storeID, new LoadDashboardsTask(storeID));
    }
 
    private synchronized void syncUserDashboards() throws Exception {
@@ -786,7 +773,7 @@ public class DashboardManager implements AutoCloseable {
    }
 
    private List<String> syncUserDashboards(Identity user, List<String> selected) throws Exception {
-      DashboardRegistry reg = DashboardRegistry.getRegistry(user.getIdentityID());
+      DashboardRegistry reg = dashboardRegistryManager.getRegistry(user.getIdentityID());
       Set<String> deselected = new HashSet<>(Arrays.asList(getDeselectedDashboards(user)));
       String[] global = getUserDashboards(user);
       List<String> nselected = new ArrayList<>();
@@ -877,8 +864,10 @@ public class DashboardManager implements AutoCloseable {
       return identity.getType() + ":" + identity.getName();
    }
 
+   private final SecurityEngine securityEngine;
+   private final DashboardRegistryManager dashboardRegistryManager;
+   private final KeyValueStorageManager keyValueStorageManager;
    private String orgID = null;
-   private final Set<DashboardChangeListener> changeListeners = new HashSet<>();
    private static final Logger LOG = LoggerFactory.getLogger(DashboardManager.class);
 
    public static final class DashboardData implements Serializable {
@@ -926,7 +915,8 @@ public class DashboardManager implements AutoCloseable {
 
       @Override
       protected void validate(Map<String, DashboardData> map) throws Exception {
-         SecurityProvider security = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider security = ConfigurationContext.getContext()
+            .getSpringBean(SecurityEngine.class).getSecurityProvider();
 
          for(Map.Entry<String, DashboardData> e : map.entrySet()) {
             int index = e.getKey().indexOf(':');

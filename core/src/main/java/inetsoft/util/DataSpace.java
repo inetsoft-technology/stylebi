@@ -20,6 +20,9 @@ package inetsoft.util;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Organization;
 import inetsoft.storage.*;
+import jakarta.annotation.PreDestroy;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,9 +38,19 @@ import java.util.concurrent.ConcurrentSkipListSet;
  * @version 6.1, 06/04/2004
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(DataSpace.Reference.class)
+@Service
 public class DataSpace implements AutoCloseable {
-   public DataSpace(BlobStorage<Metadata> blobStorage) {
+   /**
+    * Spring constructor — obtains the data space blob storage from the manager.
+    *
+    * @param blobStorageManager the blob storage manager.
+    */
+   @Autowired
+   public DataSpace(BlobStorageManager blobStorageManager) {
+      this(blobStorageManager.<Metadata>getStorage("dataSpace", true));
+   }
+
+   private DataSpace(BlobStorage<Metadata> blobStorage) {
       this.blobStorage = blobStorage;
       listeners = new ListenerTree();
 
@@ -51,6 +64,7 @@ public class DataSpace implements AutoCloseable {
    }
 
    @Override
+   @PreDestroy
    public void close() throws Exception {
       dispose();
    }
@@ -59,14 +73,14 @@ public class DataSpace implements AutoCloseable {
     * Get an instance of a DataSpace.
     */
    public static DataSpace getDataSpace() {
-      return SingletonManager.getInstance(DataSpace.class);
+      return ConfigurationContext.getContext().getSpringBean(DataSpace.class);
    }
 
    /**
     * Clear the cached data space.
     */
    public static void clear() {
-      SingletonManager.reset(DataSpace.class);
+      // no-op: DataSpace is a Spring-managed singleton; state is refreshed on demand
    }
 
    /**
@@ -394,6 +408,10 @@ public class DataSpace implements AutoCloseable {
       return false;
    }
 
+   public String listBlobs() throws IOException {
+      return blobStorage.listBlobs();
+   }
+
    /**
     * Retrieve the last modification time of the file.
     *
@@ -716,30 +734,5 @@ public class DataSpace implements AutoCloseable {
          new ConcurrentSkipListSet<>(Comparator.comparing(DataChangeListener::hashCode));
    }
 
-   public static final class Reference extends SingletonManager.Reference<DataSpace> {
-      @Override
-      public DataSpace get(Object... parameters) {
-         if(dataSpace == null) {
-            dataSpace = new DataSpace(
-               SingletonManager.getInstance(BlobStorage.class, "dataSpace", true)
-            );
-
-            if(dataSpace == null) {
-               throw new RuntimeException("Failed to create data space");
-            }
-         }
-
-         return dataSpace;
-      }
-
-      @Override
-      public void dispose() {
-         if(dataSpace != null) {
-            dataSpace.dispose();
-            dataSpace = null;
-         }
-      }
-
-      private DataSpace dataSpace;
-   }
 }
+

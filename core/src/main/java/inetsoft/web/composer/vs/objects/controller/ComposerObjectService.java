@@ -204,7 +204,7 @@ public class ComposerObjectService {
             TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getInfo();
             int ychange = event.getHeight() - originalSize.height;
 
-            if(ychange != 0 && !tabInfo.isBottomTabs()) {
+            if(ychange != 0 && !tabInfo.getBottomTabsValue()) {
                this.updateContainerChildrenYChange(tab, viewsheet, ychange);
             }
          }
@@ -217,7 +217,9 @@ public class ComposerObjectService {
          if(((VSAssembly) assembly).getContainer() instanceof TabVSAssembly tabParent) {
             TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tabParent.getVSAssemblyInfo();
 
-            if(tabInfo.isBottomTabs()) {
+            if(tabInfo.getBottomTabsValue()) {
+               VSAssemblyInfo info2 = ((VSAssembly) assembly).getVSAssemblyInfo();
+               int childH = TabVSAssemblyInfo.getBottomTabChildHeight(info2, size);
                reanchorBottomTabSiblings(tabInfo, tabParent, viewsheet, position.y + size.height);
             }
          }
@@ -282,7 +284,7 @@ public class ComposerObjectService {
          }
 
          VSAssemblyInfo childInfo = childAssembly.getVSAssemblyInfo();
-         int childH = childAssembly.getPixelSize() != null ? childAssembly.getPixelSize().height : 0;
+         int childH = TabVSAssemblyInfo.getBottomTabChildHeight(childInfo, childAssembly.getPixelSize());
 
          if(childH == 0) {
             continue; // no valid size yet; skip
@@ -1107,6 +1109,20 @@ public class ComposerObjectService {
          int ychange = position.y - originalPosition.y;
          boolean moveParent= container != null && !(container instanceof GroupContainerVSAssembly);
 
+
+         TabVSAssembly bottomTab = null;
+
+         if(container instanceof TabVSAssembly) {
+            bottomTab = (TabVSAssembly) container;
+         }
+         else if(assembly instanceof TabVSAssembly) {
+            bottomTab = (TabVSAssembly) assembly;
+         }
+
+         if(bottomTab != null) {
+            ychange = clampYChangeForBottomTabs(viewsheet, bottomTab, ychange);
+         }
+
          if(container instanceof TabVSAssembly) {
             ContainerVSAssemblyInfo containerInfo =
                (ContainerVSAssemblyInfo) container.getVSAssemblyInfo();
@@ -1122,11 +1138,14 @@ public class ComposerObjectService {
             }
          }
          else if(!moveParent) {
+            Point clampedPos = new Point(
+               originalPosition.x + xchange, originalPosition.y + ychange);
+
             if(info.getLayoutPosition() != null) {
-               info.setLayoutPosition(position);
+               info.setLayoutPosition(clampedPos);
             }
 
-            info.setPixelOffset(position);
+            info.setPixelOffset(clampedPos);
          }
 
          moveContainer(viewsheet, moveParent ? container : (ContainerVSAssembly) assembly,
@@ -1139,6 +1158,52 @@ public class ComposerObjectService {
 
          info.setPixelOffset(position);
       }
+   }
+
+   private int clampYChangeForBottomTabs(Viewsheet viewsheet, TabVSAssembly tab,
+                                         int ychange)
+   {
+      if(ychange >= 0) {
+         return ychange;
+      }
+
+      TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getVSAssemblyInfo();
+
+      if(!tabInfo.getBottomTabsValue()) {
+         return ychange;
+      }
+
+      String[] children = tab.getAssemblies();
+
+      if(children == null || children.length == 0) {
+         return ychange;
+      }
+
+      int minChildY = Integer.MAX_VALUE;
+
+      for(String childName : children) {
+         VSAssembly child = viewsheet.getAssembly(childName);
+
+         if(child == null) {
+            continue;
+         }
+
+         VSAssemblyInfo childInfo = child.getVSAssemblyInfo();
+         Point childPos = childInfo.getLayoutPosition() != null
+            ? childInfo.getLayoutPosition()
+            : childInfo.getPixelOffset();
+
+         if(childPos != null) {
+            minChildY = Math.min(minChildY, childPos.y);
+         }
+      }
+
+      if(minChildY == Integer.MAX_VALUE) {
+         return ychange;
+      }
+
+      // minChildY + ychange >= 0  →  ychange >= -minChildY
+      return Math.max(ychange, -minChildY);
    }
 
    private void moveContainer(Viewsheet viewsheet, ContainerVSAssembly container,
@@ -1245,6 +1310,10 @@ public class ComposerObjectService {
       assembly.setEntry(entry);
       assembly.initDefaultFormat();
       viewsheet.addAssembly(assembly);
+      // compute the embedded viewsheet's pixel size from its child assemblies.
+      // addAssembly sets the parent (isEmbedded=true) but doesn't trigger layout,
+      // so info.getPixelSize() stays null and the model falls back to (100, 20).
+      assembly.layout();
 
       rvs.initViewsheet(assembly, false);
 

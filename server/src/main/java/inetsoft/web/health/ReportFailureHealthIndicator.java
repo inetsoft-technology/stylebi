@@ -27,8 +27,9 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class ReportFailureHealthIndicator implements HealthIndicator {
-   public ReportFailureHealthIndicator() {
-      this.service = ReportFailureHealthService.getInstance();
+   public ReportFailureHealthIndicator(ReportFailureHealthService service, StatusDumpService statusDumpService) {
+      this.service = service;
+      this.statusDumpService = statusDumpService;
    }
 
    @Override
@@ -38,7 +39,7 @@ public class ReportFailureHealthIndicator implements HealthIndicator {
       if(status.isExcessiveFailures()) {
          LoggerFactory.getLogger(getClass()).error(
             "ReportFailureHealthIndicator DOWN: failureCount={}", status.getFailureCount());
-         StatusDumpService.getInstance().dumpStatus();
+         statusDumpService.dumpStatus();
          return Health.down().withDetail("failureCount", status.getFailureCount()).build();
       }
 
@@ -46,4 +47,5 @@ public class ReportFailureHealthIndicator implements HealthIndicator {
    }
 
    private final ReportFailureHealthService service;
+   private final StatusDumpService statusDumpService;
 }

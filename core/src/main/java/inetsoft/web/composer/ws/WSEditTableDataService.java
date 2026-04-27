@@ -29,6 +29,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.Catalog;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
@@ -46,10 +47,9 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 @Service
 @ClusterProxy
 public class WSEditTableDataService extends WorksheetControllerService {
-
-   public WSEditTableDataService(ViewsheetService viewsheetService)
-   {
-      super(viewsheetService);
+   public WSEditTableDataService(ViewsheetService viewsheetService, AssetDataCache assetDataCache, DataSourceRegistry dataSourceRegistry) {
+      super(viewsheetService, dataSourceRegistry);
+      this.assetDataCache = assetDataCache;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -163,7 +163,7 @@ public class WSEditTableDataService extends WorksheetControllerService {
                AssetQuerySandbox box = rws.getAssetQuerySandbox();
                int mode = AssetEventUtil.getMode(table);
                DataKey key = AssetDataCache.getCacheKey(table, box, null, mode, true);
-               AssetDataCache.removeCachedData(key);
+               assetDataCache.removeCachedData(key);
                WorksheetEventUtil.clearDataCache(clonedTable, rws.getAssetQuerySandbox());
             }
             catch(Exception ex) {
@@ -235,8 +235,8 @@ public class WSEditTableDataService extends WorksheetControllerService {
       }
    }
 
-   private static final Logger LOG =
-      LoggerFactory.getLogger(WSEditTableDataService.class);
+   private final AssetDataCache assetDataCache;
    private final Map<WSEditTableDataKeyTuple, WSEditTableDataQueue<WSEditTableDataEvent>> queueMap = new HashMap<>();
 
+   private static final Logger LOG = LoggerFactory.getLogger(WSEditTableDataService.class);
 }

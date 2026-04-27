@@ -18,6 +18,7 @@
 package inetsoft.web.viewsheet.service;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.StyleTreeModel;
 import inetsoft.report.style.XTableStyle;
@@ -40,7 +41,11 @@ import java.util.List;
 
 @Service
 public class VSDialogService {
-   public VSDialogService() {
+   public VSDialogService(SecurityEngine securityEngine,
+                          LibManagerProvider libManagerProvider)
+   {
+      this.securityEngine = securityEngine;
+      this.libManagerProvider = libManagerProvider;
    }
 
    public Point getAssemblyPosition(VSAssemblyInfo info, Viewsheet viewsheet) {
@@ -86,7 +91,7 @@ public class VSDialogService {
          if(containerInfo instanceof TabVSAssemblyInfo) {
             Dimension originalSize = containerInfo.getLayoutSize() != null ?
                containerInfo.getLayoutSize() : vs.getPixelSize(containerInfo);
-            if (!((TabVSAssemblyInfo) containerInfo).isBottomTabs()) {
+            if (!((TabVSAssemblyInfo) containerInfo).getBottomTabsValue()) {
                // Top-tabs: children sit below the bar, so a taller bar pushes them down.
                // Bottom-tabs: children sit above the bar, which grows downward — no correction needed.
                ychange += height - originalSize.height;
@@ -164,8 +169,7 @@ public class VSDialogService {
    public TreeNodeModel getStyleTree(RuntimeViewsheet rvs, Principal principal, boolean freehand) {
       Viewsheet viewsheet = rvs.getViewsheet();
       Catalog catalog = Catalog.getCatalog();
-      SecurityEngine securityEngine = SecurityEngine.getSecurity();
-      LibManager mgr = LibManager.getManager(principal);
+      LibManager mgr = libManagerProvider.getManager(principal);
 
       if(viewsheet == null) {
          return TreeNodeModel.builder().build();
@@ -185,8 +189,7 @@ public class VSDialogService {
 
    public TreeNodeModel getStyleTree(Principal principal) throws Exception {
       Catalog catalog = Catalog.getCatalog();
-      SecurityEngine securityEngine = SecurityEngine.getSecurity();
-      LibManager mgr = LibManager.getManager(principal);
+      LibManager mgr = libManagerProvider.getManager(principal);
 
       TreeNodeModel root = TreeNodeModel.builder()
          .label(catalog.getString("Styles"))
@@ -315,6 +318,8 @@ public class VSDialogService {
    }
 
 
+   private final SecurityEngine securityEngine;
+   private final LibManagerProvider libManagerProvider;
    private static final Logger LOG =
       LoggerFactory.getLogger(VSDialogService.class);
 }

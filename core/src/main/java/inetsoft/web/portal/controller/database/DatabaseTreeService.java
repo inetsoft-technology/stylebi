@@ -19,7 +19,7 @@ package inetsoft.web.portal.controller.database;
 
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.XDataSource;
-import inetsoft.uql.XFactory;
+import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.erm.XDataModel;
@@ -46,10 +46,12 @@ import java.util.function.Function;
 public class DatabaseTreeService {
    @Autowired
    public DatabaseTreeService(AssetRepository assetRepository,
-                              DataSourceService datasourceService)
+                              DataSourceService datasourceService,
+                              XRepository repository)
    {
       this.assetRepository = assetRepository;
       this.datasourceService = datasourceService;
+      this.repository = repository;
    }
 
    public boolean isAliasNode(String nodePath) {
@@ -289,7 +291,7 @@ public class DatabaseTreeService {
     * @throws Exception if the repository could not be obtained.
     */
    private XDataModel getDataModel(String database) throws Exception {
-      return XFactory.getRepository().getDataModel(database);
+      return repository.getDataModel(database);
    }
 
    /**
@@ -394,7 +396,7 @@ public class DatabaseTreeService {
          XDataSource jdx = datasourceService.getDataSource(dataModel.getDataSource());
          XAgent agent = XAgent.getAgent(jdx);
          XTypeNode[] cols = agent.getColumns(tableName, jdx,
-            new DefaultMetaDataProvider().getSession());
+            new DefaultMetaDataProvider(repository).getSession());
 
          if(cols != null) {
             for(XTypeNode column : cols) {
@@ -415,6 +417,7 @@ public class DatabaseTreeService {
 
    private final AssetRepository assetRepository;
    private final DataSourceService datasourceService;
+   private final XRepository repository;
    private final static String[] ACCEPT_DATABASE_TABLE_TABLE = {
       "TABLE", "BASE TABLE", "VIEW", "SYNONYM", "MATERIALIZED VIEW", "SYSTEM TABLE",
       "PARTITIONED TABLE"

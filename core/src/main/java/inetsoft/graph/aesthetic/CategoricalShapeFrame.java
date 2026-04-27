@@ -24,17 +24,13 @@ import inetsoft.graph.scale.CategoricalScale;
 import inetsoft.graph.scale.Scale;
 import inetsoft.util.CoreTool;
 import inetsoft.util.DefaultComparator;
+import inetsoft.util.script.JavaScriptEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import inetsoft.util.DefaultComparator;
-import inetsoft.util.script.JavaScriptEngine;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * This class defines a shape frame for categorical values.
@@ -104,6 +100,21 @@ public class CategoricalShapeFrame extends ShapeFrame implements CategoricalFram
       }
 
       createScale(data);
+
+      // Remove shape assignments for values no longer present in the current data.
+      // When a data point is excluded via the chart exclude action, the full dataset is
+      // still passed as a BrushDataSet (so excluded points are rendered dimmed), but
+      // the visual frame is initialized with only the non-excluded data. Without this
+      // cleanup, a user-assigned shape (e.g. an SVGShape) remains in cmap for the
+      // excluded value and is still rendered, while palette-assigned shapes (which are
+      // not pre-assigned in cmap) correctly render nothing for the excluded value.
+      if(!cmap.isEmpty()) {
+         Scale scale = getScale();
+         List<Object> toRemove = cmap.keySet().stream()
+            .filter(k -> Double.isNaN(scale.map(k)))
+            .toList();
+         toRemove.forEach(k -> setShape(k, null));
+      }
    }
 
    /**

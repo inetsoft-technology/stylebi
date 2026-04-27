@@ -22,6 +22,7 @@ import inetsoft.report.TableLens;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.storage.BlobStorage;
+import inetsoft.storage.BlobStorageManager;
 import inetsoft.storage.BlobTransaction;
 import inetsoft.uql.XTable;
 import inetsoft.util.*;
@@ -37,17 +38,16 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipException;
 
-@SingletonManager.Singleton
 public class DistributedTableCacheStore {
    /**
     * Get the distributed table cache store instance
     */
    public static DistributedTableCacheStore getInstance() {
-      return SingletonManager.getInstance(DistributedTableCacheStore.class);
+      return ConfigurationContext.getContext().getSpringBean(DistributedTableCacheStore.class);
    }
 
-   public DistributedTableCacheStore() {
-      Cluster cluster = Cluster.getInstance();
+   public DistributedTableCacheStore(Cluster cluster, BlobStorageManager blobStorageManager) {
+      this.blobStorageManager = blobStorageManager;
       clusterId = cluster.getId();
       storages = new ConcurrentHashMap<>();
 
@@ -143,7 +143,14 @@ public class DistributedTableCacheStore {
             tx.commit();
          }
          catch(IOException ex) {
-            LOG.error("Failed to write to the blob storage: {}", key, ex);
+            // TimeoutException during cluster partition exchange (e.g. pod restart) is transient;
+            // log as WARN since the table will be recomputed on the next cache miss.
+            if(ex.getCause() instanceof java.util.concurrent.TimeoutException) {
+               LOG.warn("Timed out writing to blob storage (cluster rebalancing?): {}", key, ex);
+            }
+            else {
+               LOG.error("Failed to write to the blob storage: {}", key, ex);
+            }
          }
          finally {
             ThreadContext.setContextPrincipal(null);
@@ -176,7 +183,7 @@ public class DistributedTableCacheStore {
          return storages.get(storeID);
       }
       else {
-         BlobStorage<Metadata> storage = SingletonManager.getInstance(BlobStorage.class, storeID, false);
+         BlobStorage<Metadata> storage = blobStorageManager.getStorage(storeID, false);
          storages.put(storeID, storage);
          return storage;
       }
@@ -190,6 +197,7 @@ public class DistributedTableCacheStore {
       return clusterId + "__" + DigestUtils.sha256Hex(dataKey.getValue());
    }
 
+   private final BlobStorageManager blobStorageManager;
    private final String clusterId;
    private final ConcurrentHashMap<String, BlobStorage<Metadata>> storages;
    private final Debouncer<String> debouncer;

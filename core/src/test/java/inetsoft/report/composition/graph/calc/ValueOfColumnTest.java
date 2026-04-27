@@ -19,22 +19,39 @@
 package inetsoft.report.composition.graph.calc;
 
 import inetsoft.graph.data.CalcColumn;
+import inetsoft.report.composition.graph.BrushDataSet;
+import inetsoft.report.composition.graph.VSDataSet;
+import inetsoft.report.filter.CrossFilter;
+import inetsoft.report.filter.CrossTabFilter;
+import inetsoft.graph.data.SortedDataSet;
 import inetsoft.report.composition.graph.*;
 import inetsoft.report.filter.*;
 import inetsoft.report.lens.DefaultTableLens;
+import inetsoft.test.*;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.DatePeriod;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class ValueOfColumnTest {
    private  ValueOfColumn valueOfColumn;
    private VSDataSet vsDataSet;
@@ -214,6 +231,98 @@ public class ValueOfColumnTest {
    }
 
    /**
+    * Regression test for Bug #74542: PREVIOUS_YEAR lookup must not exclude PART_DATE_GROUP
+    * sibling dimensions from the condition. The sibling (QuarterOfYear) is the position
+    * discriminator — without it the lookup always returns the first quarter of the previous
+    * year instead of the matching quarter.
+    */
+   @Test
+   void testPreviousYearKeepsPartDateGroupSiblingInCondition() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS_YEAR);
+      valueOfColumn.setDim("Year(Date)");
+      // innerDim == ndim triggers the sibling-detection branch
+      valueOfColumn.setInnerDim("Year(Date)");
+
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         { "Year(Date)", "QuarterOfYear(Date)", "id" },
+         { toDate("2020-01-01"), 1, 5 },  // 2020 Q1
+         { toDate("2020-01-01"), 2, 3 },  // 2020 Q2
+         { toDate("2020-01-01"), 3, 4 },  // 2020 Q3
+         { toDate("2020-01-01"), 4, 2 },  // 2020 Q4
+         { toDate("2021-01-01"), 1, 4 },  // 2021 Q1
+         { toDate("2021-01-01"), 2, 7 },  // 2021 Q2 ← test row
+         { toDate("2021-01-01"), 3, 8 },  // 2021 Q3
+         { toDate("2021-01-01"), 4, 1 },  // 2021 Q4
+      });
+
+      VSDimensionRef yearVsRef = mock(VSDimensionRef.class);
+      when(yearVsRef.getFullName()).thenReturn("Year(Date)");
+      VSDimensionRef quarterVsRef = mock(VSDimensionRef.class);
+      when(quarterVsRef.getFullName()).thenReturn("QuarterOfYear(Date)");
+      vsDataSet = new VSDataSet(tb, new VSDataRef[] { yearVsRef, quarterVsRef });
+
+      // QuarterOfYear(Date) is a PART_DATE_GROUP sibling of Year(Date)
+      XDimensionRef quarterDimRef = mock(XDimensionRef.class);
+      when(quarterDimRef.getFullName()).thenReturn("QuarterOfYear(Date)");
+      when(quarterDimRef.getDateLevel()).thenReturn(XConstants.QUARTER_OF_YEAR_DATE_GROUP);
+      XDimensionRef yearDimRef = mock(XDimensionRef.class);
+      when(yearDimRef.getFullName()).thenReturn("Year(Date)");
+      when(yearDimRef.getDateLevel()).thenReturn(XConstants.YEAR_DATE_GROUP);
+      valueOfColumn.setDimensions(Arrays.asList(quarterDimRef, yearDimRef));
+
+      // Row 5 = 2021 Q2 (id=7). Correct previous-year value = 2020 Q2 (id=3).
+      // Regression: without the fix, QuarterOfYear is stripped from the condition so the
+      // lookup returns the first row of 2020 (Q1, id=5) instead of Q2 (id=3).
+      Object result = valueOfColumn.calculate(vsDataSet, 5, false, false);
+      assertEquals(3, result);
+   }
+
+   /**
+    * Regression test for Bug #74582: PREVIOUS on a plain string dimension must use the
+    * sorted dataset's router (not the root VSDataSet's router) when data is a DataSetFilter.
+    *
+    * Original data order: C, A, B (intentionally non-alphabetical).
+    * Sorted (chart) order: A, B, C.
+    *
+    * With the bug (root-dataset router, iteration C → A → B):
+    *   getValue("A", -1) = "C" (A is at index 1, previous = C at index 0) → returns id=30 (wrong).
+    * With the fix (sorted-dataset router, iteration A → B → C):
+    *   getValue("A", -1) = INVALID (A is first) → correctly returns INVALID.
+    */
+   @Test
+   void testChangePreviousWithStringDimension_RouterUsesSortedOrder() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS);
+      valueOfColumn.setDim("name");
+      valueOfColumn.setInnerDim("name");
+
+      // Original row order: C=30, A=10, B=20 (intentionally NOT alphabetical)
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         { "name", "id" },
+         { "C", 30 },
+         { "A", 10 },
+         { "B", 20 }
+      });
+
+      VSDimensionRef mockDRef = mock(VSDimensionRef.class);
+      when(mockDRef.getFullName()).thenReturn("name");
+      vsDataSet = new VSDataSet(tb, new VSDataRef[]{ mockDRef });
+
+      // SortedDataSet (forceSort=true) sorts "name" alphabetically: A(id=10), B(id=20), C(id=30)
+      SortedDataSet sortedDataSet = new SortedDataSet(vsDataSet, "name");
+      sortedDataSet.setForceSort(true);
+
+      // Row 0 in sorted order = "A" — first alphabetically, so no previous → INVALID
+      Object result = valueOfColumn.calculate(sortedDataSet, 0, true, false);
+      assertEquals(CalcColumn.INVALID, result);
+
+      // Row 1 in sorted order = "B" — previous in sorted order is "A" (id=10)
+      result = valueOfColumn.calculate(sortedDataSet, 1, false, false);
+      assertEquals(10, result);
+   }
+
+   /**
     * check some basic functions
     */
    @Test
@@ -315,6 +424,182 @@ public class ValueOfColumnTest {
       vsDataSet = new VSDataSet(tableLens, new VSDataRef[] { mockDRef });
 
       return vsDataSet;
+   }
+
+   /**
+    * With FIRST type and dimension set, should return the value at the first
+    * position in that dimension.
+    */
+   @Test
+   void testFirstWithDimension() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.FIRST);
+      valueOfColumn.setDim("name");
+
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"name", "id"},
+         {"a", 100},
+         {"b", 200},
+         {"c", 300}
+      });
+
+      vsDataSet = createVSDataSet(tb, "name");
+
+      // All rows return first dim value = "a" → value 100
+      Object result = valueOfColumn.calculate(vsDataSet, 2, false, false);
+      assertEquals(100, result);
+   }
+
+   /**
+    * With LAST type and dimension set, should return the value at the last
+    * position in that dimension.
+    */
+   @Test
+   void testLastWithDimension() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.LAST);
+      valueOfColumn.setDim("name");
+
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"name", "id"},
+         {"a", 100},
+         {"b", 200},
+         {"c", 300}
+      });
+
+      vsDataSet = createVSDataSet(tb, "name");
+
+      // All rows return last dim value = "c" → value 300
+      Object result = valueOfColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(300, result);
+   }
+
+   /**
+    * With PREVIOUS type and a dimension, the first row (in first dim position)
+    * has no previous → INVALID.
+    */
+   @Test
+   void testPreviousFirstRowInDimIsInvalid() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS);
+      valueOfColumn.setDim("name");
+
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"name", "id"},
+         {"a", 10},
+         {"b", 20}
+      });
+
+      vsDataSet = createVSDataSet(tb, "name");
+
+      // row 0 ("a"): no previous dim value → INVALID
+      Object result = valueOfColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(CalcColumn.INVALID, result);
+
+      // row 1 ("b"): previous dim = "a" → value 10
+      result = valueOfColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(10, result);
+   }
+
+   /**
+    * With NEXT type and a dimension, the last row has no next → INVALID.
+    */
+   @Test
+   void testNextLastRowInDimIsInvalid() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.NEXT);
+      valueOfColumn.setDim("name");
+
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"name", "id"},
+         {"a", 10},
+         {"b", 20}
+      });
+
+      vsDataSet = createVSDataSet(tb, "name");
+
+      // row 0 ("a"): next dim = "b" → value 20
+      Object result = valueOfColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(20, result);
+
+      // row 1 ("b"): no next dim value → INVALID
+      result = valueOfColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(CalcColumn.INVALID, result);
+   }
+
+   /**
+    * Field with null values: PREVIOUS pointing to a null row returns null.
+    */
+   @Test
+   void testPreviousPointingToNullValue() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS);
+      valueOfColumn.setDim("name");
+
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         {"name", "id"},
+         {"a", null},
+         {"b", 50}
+      });
+
+      vsDataSet = createVSDataSet(tb, "name");
+      // row 1's previous dim value is "a" → look up "a" → value is null
+      Object result = valueOfColumn.calculate(vsDataSet, 1, false, false);
+      assertNull(result);
+   }
+
+   /**
+    * Verify complete() clears cache state without throwing.
+    */
+   @Test
+   void testCompleteResetsState() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS);
+      valueOfColumn.setDim("name");
+      // calling complete() before any calculation should not throw
+      valueOfColumn.complete();
+   }
+
+   /**
+    * supportSortByValue returns true for date-based change types and false for others.
+    */
+   @Test
+   void testSupportSortByValue() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.FIRST);
+      assertFalse(valueOfColumn.supportSortByValue());
+
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS);
+      assertFalse(valueOfColumn.supportSortByValue());
+
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS_YEAR);
+      assertTrue(valueOfColumn.supportSortByValue());
+
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS_QUARTER);
+      assertTrue(valueOfColumn.supportSortByValue());
+
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS_MONTH);
+      assertTrue(valueOfColumn.supportSortByValue());
+
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS_WEEK);
+      assertTrue(valueOfColumn.supportSortByValue());
+
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS_RANGE);
+      assertTrue(valueOfColumn.supportSortByValue());
+   }
+
+   /**
+    * Null context or tuplePair returns null from the crosstab path.
+    */
+   @Test
+   void testCalculateWithNullContextReturnsNull() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.FIRST);
+      valueOfColumn.setDim("name");
+
+      Object result = valueOfColumn.calculate((CrossTabFilter.CrosstabDataContext) null,
+         (CrossTabFilter.PairN) null);
+      assertNull(result);
    }
 
    private CrossTabFilter.PairN createCrosstabFilterPairN(Object rowValue, Object colValue) {

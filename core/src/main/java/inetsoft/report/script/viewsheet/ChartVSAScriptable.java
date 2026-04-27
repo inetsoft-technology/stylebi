@@ -325,6 +325,8 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
                   String[].class, ChartVSAssemblyInfo.class, cinfo);
       addProperty("flyOnClick", "isFlyOnClick", "setFlyOnClick",
                   boolean.class, ChartVSAssemblyInfo.class, cinfo);
+      addProperty("tipOnClick", "isTipOnClick", "setTipOnClick",
+                  boolean.class, ChartVSAssemblyInfo.class, cinfo);
       addProperty("separatedStyle", "getChartStyle", "setChartStyle",
                   int.class, ChartVSAssemblyInfo.class, cinfo);
       addProperty("drillEnabled", "isDrillEnabled", "setDrillEnabled",

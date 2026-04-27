@@ -25,7 +25,7 @@ import {
    OnDestroy,
    SimpleChanges
 } from "@angular/core";
-import { Subject } from "rxjs";
+import { of, Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { HttpClient } from "@angular/common/http";
 import { MatSnackBar } from "@angular/material/snack-bar";
@@ -53,6 +53,7 @@ export class ResourcePermissionComponent implements OnInit, OnChanges, OnDestroy
    @Input() copyPasteContext: CopyPasteContext | null = null;
    @Input() ignorePadding: boolean;
    @Input() isTimeRange: boolean = false;
+   @Input() validateIdentitiesUrl: string | null = null;
    @Output() permissionChanged = new EventEmitter<ResourcePermissionTableModel[]>();
    private destroy$ = new Subject<void>();
    tableSelected: boolean = false;
@@ -169,11 +170,16 @@ export class ResourcePermissionComponent implements OnInit, OnChanges, OnDestroy
    }
 
    onTableSelectionChange(selection: ResourcePermissionTableModel[]): void {
-      this.tableSelected = selection.length > 0 && this.model.permissions.length > 0;
+      // Defensive: permissions can be null when "derive permissions from parent" is enabled.
+      // Even though the table is typically hidden in that state, selection-change events may still
+      // fire during change detection / teardown. Treat null as an empty list to avoid crashing.
+      this.tableSelected = selection.length > 0 && (this.model.permissions?.length ?? 0) > 0;
    }
 
-   copyPermissions(): void {
-      this.clipboardService.copy(this.model.permissions, this.model.requiresBoth,
+   copyPermissions(table: PermissionsTableComponent): void {
+      const selected = table.selection.selected;
+      const permissionsToCopy = selected.length > 0 ? selected : this.model.permissions;
+      this.clipboardService.copy(permissionsToCopy, this.model.requiresBoth,
          this.orgDropdownService.getProvider(), this.copyPasteContext);
       this.snackBar.open("_#(js:em.security.permissionsCopied)", null, {
          duration: Tool.SNACKBAR_DURATION
@@ -181,6 +187,77 @@ export class ResourcePermissionComponent implements OnInit, OnChanges, OnDestroy
    }
 
    pastePermissions(): void {
+      if(this.pasteCount === 0) {
+         this.snackBar.open("_#(js:em.security.pastePermissions.incompatible)", null, {
+            duration: Tool.SNACKBAR_DURATION
+         });
+
+         return;
+      }
+
+      const result = this.clipboardService.paste(this.copyPasteContext, this.model.displayActions);
+
+      if(!result) {
+         return;
+      }
+
+      const validate$ = this.validateIdentitiesUrl && result.permissions.length > 0
+         ? this.http.post<ResourcePermissionTableModel[]>(this.validateIdentitiesUrl, result.permissions)
+         : of([] as ResourcePermissionTableModel[]);
+
+      validate$.pipe(takeUntil(this.destroy$)).subscribe({
+         next: missing => {
+         if(missing.length > 0 && missing.length === result.permissions.length) {
+            this.snackBar.open("_#(js:em.security.pastePermissions.allMissing)", null, {
+               duration: Tool.SNACKBAR_DURATION
+            });
+
+            return;
+         }
+
+         let content = "_#(js:em.security.pastePermissions.confirm)";
+
+         if(missing.length > 0) {
+            const names = missing.map(m => m.identityID.name).join(", ");
+            content = "_#(js:em.security.pastePermissions.missingIdentities)\n" + names +
+               "\n\n" + "_#(js:em.security.pastePermissions.confirmWithMissing)";
+         }
+
+         this.dialog.open(MessageDialog, {
+            width: "350px",
+            data: {
+               title: "_#(js:Paste Permissions)",
+               content,
+               type: MessageDialogType.CONFIRMATION
+            }
+         }).afterClosed().pipe(takeUntil(this.destroy$)).subscribe(confirmed => {
+            if(!confirmed) {
+               return;
+            }
+
+            let permissions = result.permissions;
+
+            if(missing.length > 0) {
+               const key = (m: ResourcePermissionTableModel) =>
+                  `${m.identityID.name}:${m.identityID.orgID ?? ""}:${m.type}`;
+               const missingKeys = new Set(missing.map(key));
+               permissions = permissions.filter(p => !missingKeys.has(key(p)));
+            }
+
+            this.model.permissions = permissions;
+            this.model.requiresBoth = result.requiresBoth;
+            this.model.hasOrgEdited = true;
+            this.model.changed = true;
+            this.permissionChanged.emit(this.model.permissions);
+         });
+         },
+         error: () => {
+            this.openPasteConfirmDialog(result);
+         }
+      });
+   }
+
+   private openPasteConfirmDialog(result: { permissions: ResourcePermissionTableModel[]; requiresBoth: boolean }): void {
       this.dialog.open(MessageDialog, {
          width: "350px",
          data: {
@@ -193,15 +270,11 @@ export class ResourcePermissionComponent implements OnInit, OnChanges, OnDestroy
             return;
          }
 
-         const result = this.clipboardService.paste(this.copyPasteContext, this.model.displayActions);
-
-         if(result) {
-            this.model.permissions = result.permissions;
-            this.model.requiresBoth = result.requiresBoth;
-            this.model.hasOrgEdited = true;
-            this.model.changed = true;
-            this.permissionChanged.emit(this.model.permissions);
-         }
+         this.model.permissions = result.permissions;
+         this.model.requiresBoth = result.requiresBoth;
+         this.model.hasOrgEdited = true;
+         this.model.changed = true;
+         this.permissionChanged.emit(this.model.permissions);
       });
    }
 }

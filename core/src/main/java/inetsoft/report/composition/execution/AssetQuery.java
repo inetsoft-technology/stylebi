@@ -697,7 +697,7 @@ public abstract class AssetQuery extends PreAssetQuery {
          }
 
          base = mexecuted || key == null ? null :
-            AssetDataCache.getOrMarkExecutingOrWait(key, touchtime);
+            AssetDataCache.getCache().getOrMarkExecutingOrWait(key, touchtime);
 
          if(AssetDataCache.isDebugData() && !(getTable() instanceof SnapshotEmbeddedTableAssembly)) {
             base = null;
@@ -732,7 +732,7 @@ public abstract class AssetQuery extends PreAssetQuery {
                }
 
                if(key != null) {
-                  base = AssetDataCache.setCachedData(key, base, getTable());
+                  base = AssetDataCache.getCache().setCachedData(key, base, getTable());
                }
             }
             catch(ConfirmException | CancelledException | MVExecutionException ex) {
@@ -843,7 +843,7 @@ public abstract class AssetQuery extends PreAssetQuery {
                }
             }
             finally {
-               AssetDataCache.markExecutingFinished(key);
+               AssetDataCache.getCache().markExecutingFinished(key);
                WSExecution.setAssetQuerySandbox(null);
             }
          }
@@ -3456,7 +3456,7 @@ public abstract class AssetQuery extends PreAssetQuery {
 
       XDataSource dx = query.getDataSource();
       String dname = dx == null ? null : dx.getFullName();
-      XDataModel model = XFactory.getRepository().getDataModel(dname);
+      XDataModel model = XRepository.getRepository().getDataModel(dname);
 
       if(model == null) {
          return false;

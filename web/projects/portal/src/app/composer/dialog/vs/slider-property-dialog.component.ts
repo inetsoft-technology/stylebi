@@ -33,8 +33,9 @@ export class SliderPropertyDialog extends PropertyDialog {
    form: UntypedFormGroup;
    generalTab: string = "slider-property-property-dialog-general-tab";
    scriptTab: string = "slider-property-dialog-script-tab";
-   valid: boolean = true;
-   formValid = () => this.model && this.form && this.form.valid && this.valid;
+   validGeneral: boolean = true;
+   validLabel: boolean = true;
+   formValid = () => this.model && this.form && this.form.valid && this.validGeneral && this.validLabel;
 
    public constructor(protected uiContextService: UIContextService,
                       protected propertyDialogService: PropertyDialogService)
@@ -63,7 +64,11 @@ export class SliderPropertyDialog extends PropertyDialog {
       isApply ? this.onApply.emit(payload) : this.onCommit.emit(this.model);
    }
 
-   onValidChanged(valid: boolean) {
-      this.valid = valid;
+   onGeneralValidChanged(valid: boolean) {
+      this.validGeneral = valid;
+   }
+
+   onLabelValidChanged(valid: boolean) {
+      this.validLabel = valid;
    }
 }

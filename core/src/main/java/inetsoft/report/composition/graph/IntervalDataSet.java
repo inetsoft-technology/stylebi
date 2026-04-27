@@ -48,10 +48,26 @@ public class IntervalDataSet extends TopDataSet {
       // info is still valid. (53628)
       if(this.bcols != getDataSet().getColCount()) {
          this.bcols = getDataSet().getColCount();
+         DataSet ds = getDataSet();
+         // Use all=true so that calc column indices are resolved even when calcvals is
+         // temporarily null (e.g. after removeCalcValues). The indices are based on
+         // getColCount0() which is stable regardless of calcvals state. (74367)
          baseIntervals = intervalCols.stream()
-            .map(pair -> new int[]{ getDataSet().indexOfHeader(pair[0]),
-                                    getDataSet().indexOfHeader(pair[1]) })
+            .map(pair -> new int[]{
+               ds instanceof AbstractDataSet
+                  ? ((AbstractDataSet) ds).indexOfHeader(pair[0], true)
+                  : ds.indexOfHeader(pair[0]),
+               ds instanceof AbstractDataSet
+                  ? ((AbstractDataSet) ds).indexOfHeader(pair[1], true)
+                  : ds.indexOfHeader(pair[1])
+            })
             .collect(Collectors.toList());
+         // bcols changed so getColCount0() result changed; invalidate so getColCount()
+         // recomputes instead of returning a stale value. Also ensures outer
+         // IntervalDataSet wrappers see the correct inner colCount rather than a stale
+         // value, preventing wrong intervalIdx offsets and null data for interval bars.
+         // (74492, 74367)
+         invalidateCachedColCount();
       }
    }
 
@@ -88,14 +104,41 @@ public class IntervalDataSet extends TopDataSet {
    }
 
    @Override
+   public Object getData(String col, int row) {
+      // initColumns() is called here to snapshot bcols/baseIntervals, then the column
+      // index is resolved and used in the same call. This avoids the TOCTOU bug where
+      // AbstractDataSet.getData(String,int) calls indexOfHeader() → getData(int,int) as
+      // two separate invocations: if the base dataset loses a calc column between them,
+      // getData(int,int)'s own initColumns() recomputes a smaller bcols, making the
+      // already-resolved index stale and causing IndexOutOfBoundsException. (74311)
+      initColumns();
+      int cidx = indexOfHeader0(col, false);
+
+      if(cidx < 0) {
+         return null;
+      }
+
+      return getIntervalData(cidx, row);
+   }
+
+   @Override
    public Object getData(int col, int row) {
       initColumns();
+      return getIntervalData(col, row);
+   }
 
+   private Object getIntervalData(int col, int row) {
       if(col < bcols) {
          return getDataSet().getData(col, row);
       }
 
-      int[] baseInterval = baseIntervals.get(col - bcols);
+      int intervalIdx = col - bcols;
+
+      if(intervalIdx >= baseIntervals.size()) {
+         return null;
+      }
+
+      int[] baseInterval = baseIntervals.get(intervalIdx);
 
       if(baseInterval[0] < 0) {
          return null;

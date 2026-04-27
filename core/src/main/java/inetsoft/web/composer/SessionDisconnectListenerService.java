@@ -20,6 +20,7 @@ package inetsoft.web.composer;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.web.session.*;
 import inetsoft.web.viewsheet.service.RuntimeViewsheetManager;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -28,9 +29,14 @@ import org.springframework.stereotype.Service;
 @Lazy(false)
 public class SessionDisconnectListenerService implements MessageListener {
    @Autowired
-   public SessionDisconnectListenerService(RuntimeViewsheetManager runtimeViewsheetManager) {
+   public SessionDisconnectListenerService(RuntimeViewsheetManager runtimeViewsheetManager,
+                                           Cluster cluster) {
       this.runtimeViewsheetManager = runtimeViewsheetManager;
-      Cluster cluster = Cluster.getInstance();
+      this.cluster = cluster;
+   }
+
+   @PostConstruct
+   public void init() {
       cluster.addMessageListener(this);
    }
 
@@ -44,4 +50,5 @@ public class SessionDisconnectListenerService implements MessageListener {
    }
 
    private final RuntimeViewsheetManager runtimeViewsheetManager;
+   private final Cluster cluster;
 }

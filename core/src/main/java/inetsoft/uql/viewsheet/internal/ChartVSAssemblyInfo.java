@@ -1876,6 +1876,14 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          list.addAll(list2);
       }
 
+      if(titleLinkValue != null && VSUtil.isScriptValue(titleLinkValue.getLinkValue())) {
+         list.add(titleLinkValue.getDLink());
+      }
+
+      if(emptyPlotLinkValue != null && VSUtil.isScriptValue(emptyPlotLinkValue.getLinkValue())) {
+         list.add(emptyPlotLinkValue.getDLink());
+      }
+
       return list;
    }
 

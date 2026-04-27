@@ -19,6 +19,8 @@ package inetsoft.web.security;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.AuthenticationService;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import org.apache.commons.lang3.StringUtils;
@@ -27,12 +29,19 @@ import org.slf4j.LoggerFactory;
 import org.springframework.web.util.WebUtils;
 
 import java.io.IOException;
+import java.util.Set;
 import java.util.UUID;
 
 /**
  * Filter that provides CSRF protection using the double submit cookies approach.
  */
 public class CSRFFilter extends AbstractSecurityFilter {
+   public CSRFFilter(SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                     AuthenticationService authenticationService)
+   {
+      super(sessionLicenseServiceProvider, authenticationService);
+   }
+
    @Override
    public void doFilter(ServletRequest request, ServletResponse response,
                         FilterChain filterChain)
@@ -181,17 +190,22 @@ public class CSRFFilter extends AbstractSecurityFilter {
     *         otherwise.
     */
    private boolean isCsrfProtectionRequired(HttpServletRequest request) {
-      return isApi(request) && !isPublicApi(request) && !isApiImage(request) &&
-         !isApiTableExport(request) && !isWizApi(request);
+      if(SAFE_METHODS.contains(request.getMethod().toUpperCase())) {
+         return false;
+      }
+
+      // The assistant proxy path is exempt: the assistant SPA makes JSON fetch calls
+      // without CSRF tokens and the proxy is already protected by StyleBI's session auth.
+      if(isPageRequested(ASSISTANT_PROXY_PATH, request)) {
+         return false;
+      }
+
+      return isApi(request) && !isPublicApi(request) && !isApiImage(request) && !isApiTableExport(request);
    }
 
-   /**
-    * Determines if an HTTP request is for the WIZ API endpoint.
-    * WIZ API uses JWT authentication, so CSRF protection is not needed.
-    */
-   private boolean isWizApi(HttpServletRequest request) {
-      return isPageRequested("/api/wiz/**", request);
-   }
+   private static final String ASSISTANT_PROXY_PATH = "/api/assistant/proxy/**"; // NOSONAR not applicable
+
+   private static final Set<String> SAFE_METHODS = Set.of("GET", "HEAD", "OPTIONS", "TRACE");
 
    private boolean isEnabled() {
       return "true".equals(csrfFilterEnabled.get());

@@ -1598,6 +1598,7 @@ describe("ChartActions", () => {
          zoomed: false,
          hasFlyovers: false,
          flyOnClick: false,
+         dataTipOnClick: false,
          axes: [],
          facets: [],
          legends: [],

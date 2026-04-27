@@ -18,35 +18,24 @@
 
 package inetsoft.storage;
 
-import inetsoft.util.SingletonManager;
-import inetsoft.util.config.BlobConfig;
-import inetsoft.util.config.InetsoftConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.*;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
-@SingletonManager.Singleton(BlobCache.Reference.class)
 public class BlobCache {
-   BlobCache(Path baseDir, BlobEngine engine) {
+   public BlobCache(Path baseDir, BlobEngine engine) {
       this.baseDir = baseDir;
       this.engine = engine;
-   }
-
-   public static BlobCache getInstance() {
-      return SingletonManager.getInstance(BlobCache.class);
    }
 
    public Path get(String storeId, Blob<?> blob) throws IOException {
       String digest = blob.getDigest();
 
       if(digest == null) {
-         throw new IOException("Blob at " + blob.getPath() + " has no digest");
+         throw new IOException("Cannot read directory blob from cache: " + blob.getPath());
       }
 
       return copyToCache(storeId, digest);
@@ -88,6 +77,11 @@ public class BlobCache {
    }
 
    public void put(String storeId, Blob<?> blob, Path tempFile) throws IOException {
+      // Directory blobs have no binary data; writing one to the cache is a caller error.
+      if(blob.getDigest() == null) {
+         throw new IOException("Cannot write directory blob to cache: " + blob.getPath());
+      }
+
       Path path = getPath(storeId, blob, baseDir);
       engine.write(storeId, blob.getDigest(), tempFile);
       if(path.toFile().exists()) {
@@ -104,11 +98,21 @@ public class BlobCache {
    }
 
    public void remove(String storeId, Blob<?> blob) throws IOException {
+      // A null digest indicates a directory blob, which has no corresponding cache file.
+      if(blob.getDigest() == null) {
+         return;
+      }
+
       Path path = getPath(storeId, blob, baseDir);
       remove(storeId, blob.getDigest(), path);
    }
 
    public void remove(String storeId, String digest) throws IOException {
+      // A null digest indicates a directory blob, which has no corresponding cache file.
+      if(digest == null) {
+         return;
+      }
+
       String dir = digest.substring(0, 2);
       String file = digest.substring(2);
       Path path = baseDir.resolve(storeId).resolve(dir).resolve(file);
@@ -132,7 +136,7 @@ public class BlobCache {
 
    private Path getPath(String storeId, Blob<?> blob, Path base) throws IOException {
       if(blob.getDigest() == null) {
-         throw new IOException("The blob at " + blob.getPath() + " is a directory");
+         throw new IOException("Cannot resolve path for directory blob: " + blob.getPath());
       }
 
       return getPath(storeId, blob.getDigest(), base);
@@ -155,46 +159,4 @@ public class BlobCache {
    private final BlobEngine engine;
    private static final Logger LOG = LoggerFactory.getLogger(BlobCache.class);
 
-   public static final class Reference extends SingletonManager.Reference<BlobCache> {
-      @Override
-      public BlobCache get(Object... parameters) {
-         lock.lock();
-
-         try {
-            if(cache == null) {
-               BlobConfig config = InetsoftConfig.getInstance().getBlob();
-               Path baseDir = Paths.get(Objects.requireNonNull(config.getCacheDirectory()));
-               BlobEngine engine = BlobEngine.getInstance();
-               Long maxSize = config.getCacheMaxSize();
-
-               if(maxSize != null && maxSize > 0) {
-                  cache = new BoundedBlobCache(baseDir, engine, maxSize);
-               }
-               else {
-                  cache = new BlobCache(baseDir, engine);
-               }
-            }
-
-            return cache;
-         }
-         finally {
-            lock.unlock();
-         }
-      }
-
-      @Override
-      public void dispose() {
-
-         lock.lock();
-         try {
-            cache = null;
-         }
-         finally {
-            lock.unlock();
-         }
-      }
-
-      private BlobCache cache = null;
-      private final Lock lock = new ReentrantLock();
-   }
 }

@@ -36,6 +36,7 @@ import { FixedDropdownModule } from "../widget/fixed-dropdown/fixed-dropdown.mod
 import { InteractModule } from "../widget/interact/interact.module";
 import { WidgetDirectivesModule } from "../widget/directive/widget-directives.module";
 import { MiniToolbarModule } from "../vsobjects/objects/mini-toolbar/mini-toolbar.module";
+import { AiAssistantModule } from "../../../../shared/ai-assistant/ai-assistant.module";
 
 @NgModule({
    imports: [
@@ -49,7 +50,8 @@ import { MiniToolbarModule } from "../vsobjects/objects/mini-toolbar/mini-toolba
       InteractModule,
       NotificationsModule,
       WidgetDirectivesModule,
-      MiniToolbarModule
+      MiniToolbarModule,
+      AiAssistantModule
    ],
    declarations: [
       CalcTableCellComponent,

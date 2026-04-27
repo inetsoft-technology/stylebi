@@ -97,10 +97,7 @@ public class StyleFont extends Font implements StyleConstants, Cloneable {
     * @param size the point size of the font
     */
    public StyleFont(String name, int style, int size) {
-      super(DEFAULT_FONT_FAMILY.equals(name) ? getDefaultFontFamily() : name,
-            style & AWT_FONT_MASK, size);
-      this.extstyle = style;
-      this.defaultFont = DEFAULT_FONT_FAMILY.equals(name);
+      this(name, style, size, 0, 0, DEFAULT_FONT_FAMILY.equals(name), null);
    }
 
    /**
@@ -127,10 +124,7 @@ public class StyleFont extends Font implements StyleConstants, Cloneable {
     * @param strikeline line styles defined in StyleConstants.
     */
    public StyleFont(String name, int style, int size, int underline, int strikeline) {
-      this(DEFAULT_FONT_FAMILY.equals(name) ? getDefaultFontFamily() : name, style, size);
-      this.underline = underline;
-      this.strikeline = strikeline;
-      this.defaultFont = DEFAULT_FONT_FAMILY.equals(name);
+      this(name, style, size, underline, strikeline, DEFAULT_FONT_FAMILY.equals(name), null);
    }
 
    /**
@@ -138,21 +132,46 @@ public class StyleFont extends Font implements StyleConstants, Cloneable {
     */
    public StyleFont(Font font) {
       this(font.getName(), font.getStyle(), font.getSize(),
-           (font instanceof StyleFont) ?
-           ((StyleFont) font).getUnderlineStyle() : 0,
-           (font instanceof StyleFont) ?
-           ((StyleFont) font).getStrikelineStyle() : 0);
-      this.defaultFont = isDefaultFont(font);
+           (font instanceof StyleFont) ? ((StyleFont) font).getUnderlineStyle() : 0,
+           (font instanceof StyleFont) ? ((StyleFont) font).getStrikelineStyle() : 0,
+           isDefaultFont(font), null);
    }
 
    /**
-    * Create a StyleFont from a font and fontName. Used for user fonts only
+    * Create a StyleFont from a font and fontName. Used for user fonts only.
     */
    public StyleFont(Font font, String fontName) {
+      this(font, font.getStyle(),
+           (font instanceof StyleFont) ? ((StyleFont) font).getUnderlineStyle() : 0,
+           (font instanceof StyleFont) ? ((StyleFont) font).getStrikelineStyle() : 0,
+           isDefaultFont(font), fontName);
+   }
+
+   /**
+    * Primary constructor that initializes all final fields.
+    */
+   private StyleFont(String name, int style, int size, int underline, int strikeline,
+                     boolean defaultFont, String userFontName) {
+      super(DEFAULT_FONT_FAMILY.equals(name) ? getDefaultFontFamily() : name,
+            style & AWT_FONT_MASK, size);
+      this.extstyle = style;
+      this.underline = underline;
+      this.strikeline = strikeline;
+      this.defaultFont = defaultFont;
+      this.userFontName = userFontName;
+   }
+
+   /**
+    * Primary constructor for user fonts that need to preserve the underlying Font.
+    */
+   private StyleFont(Font font, int style, int underline, int strikeline,
+                     boolean defaultFont, String userFontName) {
       super(font);
-      this.name = fontName;
-      this.defaultFont = isDefaultFont(font);
-      this.userFontName = fontName;
+      this.extstyle = style;
+      this.underline = underline;
+      this.strikeline = strikeline;
+      this.defaultFont = defaultFont;
+      this.userFontName = userFontName;
    }
 
    /**
@@ -570,19 +589,19 @@ public class StyleFont extends Font implements StyleConstants, Cloneable {
 
    @Override
    public Font deriveFont(int style) {
-      StyleFont nfont = new StyleFont(getName(), style, getSize(), underline, strikeline);
-      nfont.underline = underline;
-      nfont.strikeline = strikeline;
-      nfont.defaultFont = defaultFont;
+      int newUnderline = underline;
+      int newStrikeline = strikeline;
 
       if((style & UNDERLINE) != 0 && underline == 0) {
-         nfont.underline = StyleConstants.THIN_LINE;
-      }
-      else if((style & STRIKETHROUGH) != 0 && strikeline == 0) {
-         nfont.strikeline = StyleConstants.THIN_LINE;
+         newUnderline = StyleConstants.THIN_LINE;
       }
 
-      return nfont;
+      if((style & STRIKETHROUGH) != 0 && strikeline == 0) {
+         newStrikeline = StyleConstants.THIN_LINE;
+      }
+
+      return new StyleFont(getName(), style, getSize(), newUnderline, newStrikeline,
+                           defaultFont, userFontName);
    }
 
    /**
@@ -592,14 +611,19 @@ public class StyleFont extends Font implements StyleConstants, Cloneable {
     */
    @Override
    public Font deriveFont(float size) {
-      StyleFont nfont = new StyleFont(getName(), getStyle(), (int) (size + 0.5),
-         underline, strikeline);
-      nfont.underline = underline;
-      nfont.strikeline = strikeline;
-      nfont.defaultFont = defaultFont;
-      nfont.pointSize = size;
+      StyleFont font = new StyleFont(getName(), getStyle(), (int) (size + 0.5),
+                                     underline, strikeline, defaultFont, userFontName);
+      font.pointSize = size;
+      return font;
+   }
 
-      return nfont;
+   @Override
+   public String getName() {
+      if(userFontName != null) {
+         return userFontName;
+      }
+
+      return super.getName();
    }
 
    @Override

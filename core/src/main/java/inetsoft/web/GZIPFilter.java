@@ -35,15 +35,21 @@ import java.util.zip.GZIPOutputStream;
  */
 public class GZIPFilter implements Filter {
    public GZIPFilter() {
+      // SreeEnv.getProperty must NOT be called here: this constructor is invoked during Spring
+      // bean creation inside synchronized(singletonObjects). Accessing SreeEnv triggers
+      // LocalKeyValueStorage initialization which submits a cluster task; that task's thread
+      // (GroupedThread) calls LicenseManager.getInstance() which tries to create a lazy Spring
+      // bean and deadlocks on the same singletonObjects lock. Init is done in init() instead.
+   }
+
+   @Override
+   public void init(FilterConfig filterConfig) throws ServletException {
       String str = SreeEnv.getProperty("http.compress.whiteList");
 
       if(str != null) {
          whiteList = Arrays.stream(Tool.split(str, ',')).collect(Collectors.toSet());
       }
-   }
 
-   @Override
-   public void init(FilterConfig filterConfig) throws ServletException {
       final String minCompressionSize = filterConfig.getInitParameter("minCompressionSize");
 
       if(minCompressionSize != null) {
@@ -100,8 +106,9 @@ public class GZIPFilter implements Filter {
     */
    private boolean isCompressibleEndpoint(HttpServletRequest request) {
       String path = request.getServletPath();
-      return !path.contains("/api/public") && !path.endsWith("/xhr_send") &&
-         !path.endsWith("/xhr_streaming") || whiteList.contains(path);
+      return (!path.contains("/api/public") && !path.endsWith("/xhr_send") &&
+         !path.endsWith("/xhr_streaming") &&
+         !path.startsWith("/api/assistant/proxy")) || whiteList.contains(path);
    }
 
    @Override

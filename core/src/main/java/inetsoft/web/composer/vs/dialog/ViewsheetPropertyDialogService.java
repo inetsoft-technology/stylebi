@@ -69,13 +69,20 @@ public class ViewsheetPropertyDialogService {
                                          ViewsheetService viewsheetService,
                                          VSLayoutService layoutService,
                                          ViewsheetSettingsService viewsheetSettingsService,
-                                         VSAssemblyInfoHandler vsAssemblyInfoHandler)
+                                         VSAssemblyInfoHandler vsAssemblyInfoHandler,
+                                         SecurityEngine securityEngine,
+                                         MVManager mvManager,
+                                         LicenseManager licenseManager, DeviceRegistry deviceRegistry)
    {
       this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
       this.layoutService = layoutService;
       this.viewsheetSettingsService = viewsheetSettingsService;
       this.vsAssemblyInfoHandler = vsAssemblyInfoHandler;
+      this.securityEngine = securityEngine;
+      this.mvManager = mvManager;
+      this.licenseManager = licenseManager;
+      this.deviceRegistry = deviceRegistry;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -164,14 +171,13 @@ public class ViewsheetPropertyDialogService {
       screensPane.setBalancePadding(info.isBalancePadding());
 
       AssetRepository assetRepository = viewsheetService.getAssetRepository();
-      boolean enterprise = LicenseManager.getInstance().isEnterprise();
+      boolean enterprise = licenseManager.isEnterprise();
       screensPane.setEditDevicesAllowed((!enterprise || OrganizationManager.getInstance().isSiteAdmin(principal) ||
          OrganizationManager.getInstance().getCurrentOrgID().equals(Organization.getDefaultOrganizationID()))
                                            && assetRepository.checkPermission(
          principal, ResourceType.DEVICE, "*", EnumSet.of(ResourceAction.ACCESS)));
 
-      DeviceRegistry registry = DeviceRegistry.getRegistry();
-      List<DeviceInfo> devices = Arrays.asList(registry.getDevices());
+      List<DeviceInfo> devices = Arrays.asList(deviceRegistry.getDevices());
 
       for(DeviceInfo device : devices) {
          ScreenSizeDialogModel screenSizeDialog = new ScreenSizeDialogModel();
@@ -225,7 +231,7 @@ public class ViewsheetPropertyDialogService {
       vsModel.screensPane(screensPane);
 
       if(OrganizationManager.getInstance().isSiteAdmin(principal) ||
-         !SecurityEngine.getSecurity().isSecurityEnabled() || !SUtil.isMultiTenant())
+         !securityEngine.isSecurityEnabled() || !SUtil.isMultiTenant())
       {
          LocalizationPaneModel localizationPane = new LocalizationPaneModel();
 
@@ -567,8 +573,7 @@ public class ViewsheetPropertyDialogService {
 
       // save the worksheet
       viewsheetService.setWorksheet(ws, entry, principal, true, true);
-      final MVManager manager = MVManager.getManager();
-      final MVDef[] mvs = manager.list(false, def -> rvs.getEntry().toIdentifier().equals(def.getVsId()));
+      final MVDef[] mvs = mvManager.list(false, def -> rvs.getEntry().toIdentifier().equals(def.getVsId()));
       SelectDataSourceDialogModel model = new SelectDataSourceDialogModel();
       model.setDataSource(entry);
       return new ConvertToWorksheetResponseModel(model, mvs.length > 0);
@@ -1557,6 +1562,10 @@ public class ViewsheetPropertyDialogService {
    private final VSLayoutService layoutService;
    private final ViewsheetSettingsService viewsheetSettingsService;
    private final VSAssemblyInfoHandler vsAssemblyInfoHandler;
+   private final SecurityEngine securityEngine;
+   private final MVManager mvManager;
+   private final LicenseManager licenseManager;
+   private final DeviceRegistry deviceRegistry;
 
    private static final double RATIO_INCH_MM = 25.4;
    private static final double RATIO_INCH_POINT = 72;

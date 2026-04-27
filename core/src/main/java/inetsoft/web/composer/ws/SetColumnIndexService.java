@@ -24,6 +24,7 @@ import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSSetColumnIndexEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -34,9 +35,9 @@ import java.security.Principal;
 @ClusterProxy
 public class SetColumnIndexService extends WorksheetControllerService {
 
-   public SetColumnIndexService(ViewsheetService viewsheetService)
+   public SetColumnIndexService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

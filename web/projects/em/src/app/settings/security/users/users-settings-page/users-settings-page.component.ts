@@ -84,6 +84,11 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    public identityEditable = new Subject<boolean>;
    currOrg: string;
    loading: boolean = false;
+   newUserIdentity: IdentityId | null = null;
+
+   get hasIncompleteNewUser(): boolean {
+      return this.newUserIdentity !== null;
+   }
 
    constructor(private http: HttpClient,
                private pageTitle: PageHeaderService,
@@ -139,15 +144,46 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
          return;
       }
 
+      if(this.newUserIdentity) {
+         this.clearIncompleteNewUser(false).subscribe({error: () => {}});
+      }
+
       this.selectedNodes = [];
       this.selectedProvider = provider;
       this.refreshTree(null, null, providerChanged, selectProvider);
    }
 
    selectionChanged(event: SecurityTreeNode[]) {
-      if(this.pageChanged && event.length == 1 &&
-         this.selectedNodes.length >= 1 && this.selectedNodes[0] != event[0])
-      {
+      const navigatingAway = event.length == 1 &&
+         this.selectedNodes.length >= 1 && this.selectedNodes[0] != event[0];
+
+      const isNewUserSelected = this.newUserIdentity != null &&
+         this.selectedNodes.length >= 1 &&
+         this.selectedNodes[0].identityID?.name === this.newUserIdentity.name &&
+         this.selectedNodes[0].identityID?.orgID === this.newUserIdentity.orgID;
+
+      if(navigatingAway && isNewUserSelected) {
+         const ref = this.dialog.open(MessageDialog, {
+            data: {
+               title: "_#(js:em.users.newUser.incompleteTitle)",
+               content: "_#(js:em.users.newUser.incompleteContent)",
+               type: MessageDialogType.CONFIRMATION
+            }
+         });
+
+         ref.afterClosed().subscribe(val => {
+            if(val) {
+               this.clearIncompleteNewUser(true).subscribe({error: () => {}});
+               this.pageChanged = false;
+               this.selectedNodes = event;
+            }
+            else {
+               //Force the security tree view to update its selection
+               this.selectedNodes = this.selectedNodes.splice(0);
+            }
+         });
+      }
+      else if(this.pageChanged && navigatingAway) {
          const ref = this.dialog.open(MessageDialog, {
             data: {
                title: "_#(js:em.settings.userSettingsChanged)",
@@ -173,12 +209,37 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    }
 
    public newUser(parentGroup: string) {
+      if(this.newUserIdentity) {
+         const ref = this.dialog.open(MessageDialog, {
+            data: {
+               title: "_#(js:em.users.newUser.incompleteTitle)",
+               content: "_#(js:em.users.newUser.incompleteContent)",
+               type: MessageDialogType.CONFIRMATION
+            }
+         });
+
+         ref.afterClosed().subscribe(val => {
+            if(val) {
+               this.clearIncompleteNewUser(false).subscribe({
+                  next: () => this.createNewUser(parentGroup),
+                  error: () => {}
+               });
+            }
+         });
+      }
+      else {
+         this.createNewUser(parentGroup);
+      }
+   }
+
+   private createNewUser(parentGroup: string) {
       const uri = "../api/em/security/users/create-user/" + Tool.byteEncodeURLComponent(this.selectedProvider);
       this.http.post<EditUserPaneModel>(uri, {parentGroup})
          .pipe(catchError((error: HttpErrorResponse) => this.errorService.showSnackBar(error)))
          .subscribe(model => {
             if(model) {
                let id: IdentityId = {name: model.name, orgID: model.organization};
+               this.newUserIdentity = id;
                this.refreshTree(id, IdentityType.USER);
             }
          });
@@ -204,16 +265,15 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
       }
    }
 
-   public newOrganization(parentGroup: string) {
+   public newOrganization(event: {parentGroup: string, defaultPassword?: string}) {
       this.loading = true;
       const uri = "../api/em/security/users/create-organization/" + Tool.byteEncodeURLComponent(this.selectedProvider);
-      this.http.post<EditOrganizationPaneModel>(uri, {parentGroup})
+      this.http.post<EditOrganizationPaneModel>(uri, {parentGroup: event.parentGroup, defaultPassword: event.defaultPassword})
          .pipe(catchError((error: HttpErrorResponse) => this.errorService.showSnackBar(error)))
          .subscribe(model => {
             if(model) {
-               let id: IdentityId = {name: model.name, orgID: model.id};
-               this.refreshTree(id, IdentityType.ORGANIZATION);
                this.orgDropDownService.refreshProviders();
+               this.usersService.loadScheduleUsers();
             }
 
             this.loading = false;
@@ -284,7 +344,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
             this.loading = false;
 
             if(orgNameChanged) {
-               this.orgDropdownService.refresh(this.selectedProvider, false);
+               this.orgDropdownService.refresh(this.selectedProvider, false, true);
             }
          });
       }
@@ -295,17 +355,18 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
       const SET_USER_URI = "../api/em/security/users/edit-user/" +
          Tool.byteEncodeURLComponent(this.selectedProvider);
       this.http.post(SET_USER_URI, model).pipe(
-         catchError((error: HttpErrorResponse) => {
-            this.errorService.showSnackBar(error)
-            return of(null);
-         }),
          tap(() => {
             if(this.model.namedUsers && model.oldName != model.name) {
                this.snackBar.open("_#(js:em.security.userNameChangeWarning)", "_#(js:Close)", {duration: Tool.SNACKBAR_DURATION});
             }
 
+            this.newUserIdentity = null;
             let id: IdentityId = {name: model.name, orgID: model.organization};
             this.refreshTree(id, IdentityType.USER);
+         }),
+         catchError((error: HttpErrorResponse) => {
+            this.errorService.showSnackBar(error);
+            return of(null);
          })
       ).subscribe(() => {
          if(logout) {
@@ -314,6 +375,30 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
 
          this.loading = false;
       });
+   }
+
+   deleteNewUser(identity: IdentityId, refreshAfter: boolean = true): Observable<void> {
+      const identities: IdentityModel[] = [{identityID: identity, type: IdentityType.USER}];
+      let provider = Tool.byteEncodeURLComponent(this.selectedProvider);
+      const uri = `../api/em/security/user/delete-identities/${provider}`;
+      return this.http.post<DeleteIdentitiesResponse>(uri, identities).pipe(
+         tap(() => {
+            if(refreshAfter) {
+               this.refreshTree(null, null, false, false);
+            }
+         }),
+         catchError((error: HttpErrorResponse) => {
+            this.errorService.showSnackBar(error);
+            throw error;
+         }),
+         map(() => undefined as void)
+      );
+   }
+
+   clearIncompleteNewUser(refreshAfter: boolean = false): Observable<void> {
+      const identity = this.newUserIdentity;
+      this.newUserIdentity = null;
+      return identity ? this.deleteNewUser(identity, refreshAfter) : of(undefined as void);
    }
 
    public newGroup(parentGroup: string) {
@@ -358,6 +443,13 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
             identityID: node.identityID,
             type: node.type
          });
+
+      if(this.newUserIdentity && identities.some(i =>
+         i.identityID.name === this.newUserIdentity.name &&
+         i.identityID.orgID === this.newUserIdentity.orgID))
+      {
+         this.newUserIdentity = null;
+      }
 
       let provider = Tool.byteEncodeURLComponent(this.selectedProvider);
       const uri = `../api/em/security/user/delete-identities/${provider}`;

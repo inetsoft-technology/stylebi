@@ -24,6 +24,7 @@ import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.web.composer.model.ws.ConcatenationTypeDialogModel;
 import inetsoft.web.composer.model.ws.TableAssemblyOperatorModel;
 import inetsoft.web.composer.ws.WorksheetControllerService;
@@ -36,9 +37,9 @@ import java.security.Principal;
 @ClusterProxy
 public class ConcatentationTypeDialogService extends WorksheetControllerService {
 
-   public ConcatentationTypeDialogService(ViewsheetService viewsheetService)
+   public ConcatentationTypeDialogService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

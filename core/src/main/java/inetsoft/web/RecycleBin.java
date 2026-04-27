@@ -23,10 +23,14 @@ import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.security.*;
 import inetsoft.storage.KeyValuePair;
 import inetsoft.storage.KeyValueStorage;
+import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
@@ -39,11 +43,14 @@ import java.util.stream.Collectors;
 /**
  * Class that encapsulates a recycle bin.
  */
+@Service
+@Lazy
 public class RecycleBin implements XMLSerializable, AutoCloseable {
    /**
     * Creates a new instance of <tt>RecycleBin</tt>.
     */
-   public RecycleBin() {
+   public RecycleBin(KeyValueStorageManager keyValueStorageManager) {
+      this.keyValueStorageManager = keyValueStorageManager;
       getStorage();
    }
 
@@ -53,7 +60,7 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
     * @return the recycle bin.
     */
    public static RecycleBin getRecycleBin() {
-      return SingletonManager.getInstance(RecycleBin.class);
+      return ConfigurationContext.getContext().getSpringBean(RecycleBin.class);
    }
 
    /**
@@ -328,6 +335,7 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
       writer.println("</recycleBin>");
    }
 
+   @PreDestroy
    @Override
    public void close() throws Exception {
       getStorage().close();
@@ -345,9 +353,10 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
          orgID = orgID;
       }
       String storeID = orgID.toLowerCase() + "__" + "recyclebin";
-      return SingletonManager.getInstance(KeyValueStorage.class, storeID);
+      return keyValueStorageManager.getStorage(storeID);
    }
 
+   private final KeyValueStorageManager keyValueStorageManager;
    private static final Logger LOG = LoggerFactory.getLogger(RecycleBin.class);
 
    public static final class Entry implements XMLSerializable, Serializable {
@@ -589,6 +598,14 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
          if((element = Tool.getChildNodeByTagName(tag, "originalUser")) != null) {
             setOriginalUser(IdentityID.getIdentityIDFromKey(Tool.getValue(element)));
          }
+      }
+
+      @Override()
+      public String toString() {
+         return "ReycleBin.Entry{" +
+            "originalUser='" + originalUser + '\'' +
+            ", originalPath='" + originalPath + '\'' +
+            '}';
       }
 
       private String path;

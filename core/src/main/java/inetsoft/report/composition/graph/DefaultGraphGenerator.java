@@ -22,6 +22,7 @@ import inetsoft.graph.coord.*;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.element.GraphElement;
 import inetsoft.graph.scale.*;
+import inetsoft.graph.visual.ElementVO;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.viewsheet.VSDataRef;
@@ -93,6 +94,34 @@ public class DefaultGraphGenerator extends GraphGenerator {
       List measures = ymeasures.size() > 0 ? ymeasures : xmeasures;
       boolean measure = measures.contains(col);
       return measure ? getAxisDescriptor0() : getAxisDescriptor0(ref);
+   }
+
+   /**
+    * Get the axis descriptor for a scale, with axis type context.
+    * When x and y bind the same measure, x axis should use the x ref's own descriptor
+    * to avoid inheriting y-axis-only settings (e.g. labelOnSecondaryAxis).
+    * Y axis intentionally falls through to super, which resolves via getAxisDescriptor(col) →
+    * getAxisDescriptor0() — matching ChartRegionHandler's behavior for non-separated charts.
+    */
+   @Override
+   protected AxisDescriptor getAxisDescriptor(Scale scale, String axisType) {
+      if("x".equals(axisType) && xmeasures.size() > 0 && ymeasures.size() > 0) {
+         String[] fields = scale.getFields();
+
+         for(String field : fields) {
+            String baseName = ElementVO.getBaseName(field);
+
+            if(xmeasures.contains(baseName) && ymeasures.contains(baseName)) {
+               ChartRef xRef = getChartRef(baseName, true, info.getXFields());
+
+               if(xRef instanceof ChartAggregateRef) {
+                  return getAxisDescriptor0(xRef);
+               }
+            }
+         }
+      }
+
+      return super.getAxisDescriptor(scale, axisType);
    }
 
    /**
@@ -250,6 +279,15 @@ public class DefaultGraphGenerator extends GraphGenerator {
                String measure = xmeasures.get(0);
                fixMScale(measure, type0);
                xscale = scales.get(xmeasures.get(0));
+
+               // When x and y bind the same measure, clone xscale so x and y axes
+               // can have independent AxisSpec settings (e.g. labelOnSecondaryAxis). (Bug #74012)
+               // The clone is intentionally not re-inserted into the scales map — it is only
+               // used locally for coordinate construction (fixCoordProperties reads from
+               // rect.getXScale(), not from the map).
+               if(xscale == yscale) {
+                  xscale = xscale.clone();
+               }
             }
             // xdimension contained?
             else if(xdcontained) {
@@ -466,6 +504,16 @@ public class DefaultGraphGenerator extends GraphGenerator {
 
       setupYScale(scale2, desc2, (RectCoord) coord, true);
       ((RectCoord) coord).setYScale2(scale2);
+
+      // Bug #74179: date comparison creates a real secondary axis for change/percent values.
+      // If labelOnSecondaryAxis is also set on the primary axis, both axes compete for the
+      // right side and the primary axis disappears. Ignore the setting when DC created
+      // this secondary axis.
+      if(info instanceof VSChartInfo && ((VSChartInfo) info).isAppliedDateComparison() &&
+         yscale.getAxisSpec() != null)
+      {
+         yscale.getAxisSpec().setLabelOnSecondaryAxis(false);
+      }
 
       // no binding on the primary axis, hide labels (which is meaningless)
       // and share the scale with 2nd y (bug1335514813120)

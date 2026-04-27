@@ -19,6 +19,7 @@ package inetsoft.web.portal.controller.database;
 
 import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.*;
@@ -34,6 +35,8 @@ import inetsoft.web.portal.model.database.events.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 
 import java.io.StringReader;
 import java.rmi.RemoteException;
@@ -50,19 +53,25 @@ public class LogicalModelController {
                                  DataSourceService dataSourceService,
                                  LogicalModelService modelService,
                                  DatasourcesService datasourcesService,
-                                 LogicalModelTreeService treeService)
+                                 LogicalModelTreeService treeService, AssetDataCache assetDataCache)
    {
       this.assetRepository = assetRepository;
       this.dataSourceService = dataSourceService;
       this.modelService = modelService;
       this.datasourcesService = datasourcesService;
       this.treeService = treeService;
+      this.assetDataCache = assetDataCache;
    }
 
    /**
     * Gets the selected logical model.
     * @return the DTO structure logical model
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping(value = "/api/data/logicalmodel/models")
    @ResponseBody
    public LogicalModelDefinition getModel(@RequestParam("database") String database,
@@ -83,6 +92,11 @@ public class LogicalModelController {
     * @return the logical model if successful
     * @throws Exception if an error prevents the model from being created
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/data/logicalmodel/models")
    @ResponseBody
    @ResponseStatus(HttpStatus.CREATED)
@@ -106,6 +120,11 @@ public class LogicalModelController {
     * @return the logical model if successful
     * @throws Exception if an error prevents the model from being created
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/data/logicalmodel/extended")
    @ResponseBody
    @ResponseStatus(HttpStatus.CREATED)
@@ -126,6 +145,11 @@ public class LogicalModelController {
     * @return the logical model
     * @throws Exception if failed to update the logical model
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PutMapping("/api/data/logicalmodel/models")
    @ResponseBody
    public LogicalModelDefinition updateModel(@RequestBody EditLogicalModelEvent event,
@@ -136,7 +160,7 @@ public class LogicalModelController {
       String folder = model != null ? model.getFolder() : null;
       LogicalModelDefinition newModel = modelService.updateModel(
          event.getDatabase(), folder, event.getName(), model, event.getParent(), principal);
-      AssetDataCache.removeCacheDependence(event.getDatabase());
+      assetDataCache.removeCacheDependence(event.getDatabase());
 
       return newModel;
    }
@@ -146,6 +170,11 @@ public class LogicalModelController {
     * @return the list of tables.
     * @throws Exception if the model could not be obtained.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/data/logicalModel/tables/nodes")
    public TreeNodeModel getPhysicalModelTablesTree(@RequestBody GetModelEvent event)
       throws Exception
@@ -159,6 +188,11 @@ public class LogicalModelController {
     * Checks if expression SQL Query is valid
     * @return the error response string
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @RequestMapping(
       value = "/api/data/logicalModel/attribute/expression",
       method = RequestMethod.POST
@@ -206,6 +240,11 @@ public class LogicalModelController {
       return null;
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("/api/data/logicalModel/checkDuplicate")
    public boolean checkLogicalModelDuplicate(@RequestParam("database") String database,
                                              @RequestParam("name") String name)
@@ -214,6 +253,11 @@ public class LogicalModelController {
       return dataSourceService.isUniqueModelName(database, name);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("/api/data/logicalModel/extended/checkDuplicate")
    public boolean checkExtendedModelDuplicate(@RequestParam("database") String database,
                                               @RequestParam("physicalModel") String physicalModel,
@@ -229,6 +273,11 @@ public class LogicalModelController {
     * @param event   rename model event.
     * @throws Exception if the model could not be renamed.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PutMapping("/api/data/logicalmodel/rename")
    @ResponseBody
    public void renameModel(@RequestBody RenameModelEvent event, Principal principal)
@@ -245,6 +294,11 @@ public class LogicalModelController {
     * @param name       the model name
     * @throws Exception if the model could not be removed
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @DeleteMapping("/api/data/logicalmodel/models")
    @ResponseBody
    public void removeModel(@RequestParam("database") String database,
@@ -257,6 +311,11 @@ public class LogicalModelController {
       modelService.removeModel(database, folder, name, parent, principal);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("/api/data/logicalmodel/permission/editable")
    public boolean getLogicalModelEditable(@RequestParam("database") String database,
                                           @RequestParam("name") String name,
@@ -274,6 +333,11 @@ public class LogicalModelController {
     * @param format the FormatInfo
     * @return the formatted string
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/data/logicalModel/attribute/format")
    @ResponseBody
    public String getFormatString(@RequestBody AttributeFormatInfoModel format) {
@@ -283,6 +347,11 @@ public class LogicalModelController {
       return xFormat.toString();
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("/api/data/logicalModel/vs/autoDrill-parameters")
    public String[] getViewsheetParameters(@RequestParam("assetId") String assetId,
                                           Principal principal)
@@ -301,6 +370,11 @@ public class LogicalModelController {
          .toArray(String[]::new);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("/api/data/logicalmodel/settings")
    public LogicalModelSettings getLMHierarchyEnableProperty(@RequestParam("ds") String ds)
       throws RemoteException
@@ -320,6 +394,11 @@ public class LogicalModelController {
     * Checks if target entities/attributes have outer dependencies.
     * @return the dependencies exception string
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @RequestMapping(
       value = "/api/data/logicalmodel/checkOuterDependencies",
       method = RequestMethod.POST
@@ -417,4 +496,5 @@ public class LogicalModelController {
    private final LogicalModelService modelService;
    private final DatasourcesService datasourcesService;
    private final LogicalModelTreeService treeService;
+   private final AssetDataCache assetDataCache;
 }

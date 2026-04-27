@@ -17,7 +17,7 @@
  */
 package inetsoft.report.composition.execution;
 
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.AbstractSheet;
 import inetsoft.uql.asset.Worksheet;
@@ -25,6 +25,11 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -38,7 +43,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * AssetQuerySandbox carrying a controlled VariableTable is injected into the
  * sandbox via reflection to avoid the full viewsheet init cycle.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
+@Tag("core")
 class ApplyParameterToInputTest {
 
    private ViewsheetSandbox sandbox;
@@ -186,6 +195,41 @@ class ApplyParameterToInputTest {
       invoke(assembly);
 
       assertArrayEquals(new Object[]{"solo"}, assembly.getSelectedObjects());
+   }
+
+   // ── Variable-bound assembly (Bug #74184) ──────────────────────────────────
+   // When an assembly is bound to a worksheet variable (tableName = "$(varName)"),
+   // passParams sends the parameter under the variable name, not the assembly name.
+   // applyParameterToInput must fall back to the variable name so the combobox is
+   // seeded correctly when drilling down.
+
+   @Test
+   void variableBoundSingleInputGetsValueFromVariableName() throws Exception {
+      variableTable.put("var1", "drillValue");
+      ComboBoxVSAssembly assembly = new ComboBoxVSAssembly();
+      assembly.getVSAssemblyInfo().setName("ComboBox1");
+      assembly.setVariable(true);
+      assembly.setTableName("$(var1)");
+
+      invoke(assembly);
+
+      assertEquals("drillValue", assembly.getSelectedObject());
+   }
+
+   @Test
+   void variableBoundSingleInputAssemblyNameTakesPrecedenceOverVariableName() throws Exception {
+      // If the parameter is also present under the assembly name, the assembly-name
+      // match takes priority (existing behaviour for non-variable-bound assemblies).
+      variableTable.put("ComboBox1", "byAssemblyName");
+      variableTable.put("var1", "byVariableName");
+      ComboBoxVSAssembly assembly = new ComboBoxVSAssembly();
+      assembly.getVSAssemblyInfo().setName("ComboBox1");
+      assembly.setVariable(true);
+      assembly.setTableName("$(var1)");
+
+      invoke(assembly);
+
+      assertEquals("byAssemblyName", assembly.getSelectedObject());
    }
 
    @Test

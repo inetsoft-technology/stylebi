@@ -15,24 +15,36 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { TimerService } from "../../../vsobjects/objects/data-tip/timer.service";
 import { TableUnpivotDialog } from "./table-unpivot-dialog.component";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 describe("Table Unpivot Dialog Tests", () => {
    let fixture: ComponentFixture<TableUnpivotDialog>;
+   let timerService: any;
 
    beforeEach(() => {
+      timerService = {
+         defer: jest.fn((fn) => {
+            fn();
+         })
+      };
+
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule,
          ],
          declarations: [
             TableUnpivotDialog, EnterSubmitDirective, ModalHeaderComponent
+         ],
+         providers: [
+            { provide: TimerService, useValue: timerService },
          ],
          schemas: [NO_ERRORS_SCHEMA]
       });

@@ -554,14 +554,28 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
             if((this.viewer || this.embeddedVS) && !(<VSSelectionBaseModel> obj).maxMode
                && obj.containerType !== "VSSelectionContainer")
             {
-               if(this.isAtBottom(i, true) && (<VSSelectionBaseModel> obj).dropdown &&
-                  !SelectionBaseController.isHidden(<VSSelectionBaseModel> obj))
+               const bottomTab = VSUtil.getBottomTabContainer(obj, this.vsInfo?.vsObjects);
+               const inBottomTab = !!bottomTab;
+               const selModel = <VSSelectionBaseModel> obj;
+
+               if(this.isAtBottom(i, true) && selModel.dropdown &&
+                  !SelectionBaseController.isHidden(selModel) &&
+                  !inBottomTab)
                {
-                  let bodyHeight = this.getSelectionBodyHeight(<VSSelectionBaseModel> obj);
+                  let bodyHeight = this.getSelectionBodyHeight(selModel);
                   let popDown = this.containerBounds?.height - obj?.objectFormat?.top -
-                     (<VSSelectionBaseModel> obj)?.titleFormat?.height - bodyHeight > 0;
+                     selModel?.titleFormat?.height - bodyHeight > 0;
 
                   return popDown ? obj?.objectFormat?.top : obj?.objectFormat?.top - bodyHeight;
+               }
+               else if(selModel.dropdown && inBottomTab) {
+                  // applies whether the dropdown is collapsed or expanded; the collapsed
+                  // case is critical because it's where objectFormat.top would be stale
+                  // when bottomTabs is toggled via script.
+                  const expanded = !SelectionBaseController.isHidden(selModel);
+                  return VSUtil.computeBottomTabSelectionTop(
+                     bottomTab.objectFormat.top, selModel.titleFormat.height,
+                     expanded, this.getSelectionBodyHeight(selModel), selModel.searchDisplayed);
                }
                else {
                   return obj?.objectFormat?.top;
@@ -583,6 +597,24 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
             else {
                return null;
             }
+         }
+      }
+      else if(obj.objectType === "VSCalendar") {
+         if(top && (this.viewer || this.embeddedVS)
+            && VSUtil.isInBottomTabContainer(obj, this.vsInfo?.vsObjects))
+         {
+            const borderExcess = Tool.getMarginSize(obj?.objectFormat?.border?.bottom)
+               + Tool.getMarginSize(obj?.objectFormat?.border?.top);
+
+            if((<any> obj).dropdownCalendar) {
+               if((<any> obj).calendarsShown) {
+                  return obj?.objectFormat?.top - VSUtil.CALENDAR_BODY_HEIGHT - borderExcess;
+               }
+
+               return obj?.objectFormat?.top - borderExcess;
+            }
+
+            return obj?.objectFormat?.top - borderExcess;
          }
       }
 

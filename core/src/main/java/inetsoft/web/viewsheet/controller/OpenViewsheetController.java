@@ -59,6 +59,7 @@ public class OpenViewsheetController {
                                   LicenseService licenseService,
                                   OpenViewsheetServiceProxy serviceProxy,
                                   ViewsheetService viewsheetService,
+                                  SecurityEngine securityEngine,
                                   WizViewsheetServiceProxy wizViewsheetServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
@@ -67,6 +68,7 @@ public class OpenViewsheetController {
       this.licenseService = licenseService;
       this.serviceProxy = serviceProxy;
       this.viewsheetService = viewsheetService;
+      this.securityEngine = securityEngine;
       this.wizViewsheetServiceProxy = wizViewsheetServiceProxy;
    }
 
@@ -133,8 +135,8 @@ public class OpenViewsheetController {
       throws Exception
    {
       if(!event.isViewer() &&
-         !SecurityEngine.getSecurity().checkPermission(principal,
-                                                       ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS))
+         !securityEngine.checkPermission(principal,
+                                         ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS))
       {
          throw new MessageException(Catalog.getCatalog().getString(
             "composer.dashboard.authorization.permissionDenied"));
@@ -151,14 +153,11 @@ public class OpenViewsheetController {
       boolean existing = event.getRuntimeViewsheetId() != null;
       String id = null;
       AssetEntry wizCopyEntry = null;
-
       try {
          if(event.isWizVisualization()) {
             AssetEntry entry = AssetEntry.createAssetEntry(event.getEntryId());
-
             if(entry != null && !WizUtil.isWizCopyEntry(entry)) {
                wizCopyEntry = WizUtil.copyViewsheetForWiz(entry, false, principal);
-
                if(wizCopyEntry != null) {
                   event.setEntryId(wizCopyEntry.toIdentifier());
                }
@@ -194,7 +193,6 @@ public class OpenViewsheetController {
          if(event.isNewSheet()) {
             commandDispatcher.sendCommand(new VSDependencyChangedCommand(true));
          }
-
          if(event.isWizVisualization()) {
             wizViewsheetServiceProxy.updateWizSheetByCopyVisualization(event.getWizSheetRuntimeId(), event.getEntryId(), principal);
          }
@@ -206,12 +204,12 @@ public class OpenViewsheetController {
          throw ex;
       }
    }
-
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final RuntimeViewsheetManager runtimeViewsheetManager;
    private final VSLifecycleService vsLifecycleService;
    private final LicenseService licenseService;
    private final OpenViewsheetServiceProxy serviceProxy;
    private final ViewsheetService viewsheetService;
+   private final SecurityEngine securityEngine;
    private final WizViewsheetServiceProxy wizViewsheetServiceProxy;
 }

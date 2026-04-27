@@ -41,9 +41,11 @@ import java.util.*;
 public class GroupingAssemblyDialogController extends WorksheetController {
 
    public GroupingAssemblyDialogController(AssetRepository assetRepository,
-                                           GroupingAssemblyDialogServiceProxy dialogServiceProxy) {
+                                           GroupingAssemblyDialogServiceProxy dialogServiceProxy,
+                                           SecurityEngine securityEngine) {
       this.assetRepository = assetRepository;
       this.dialogServiceProxy = dialogServiceProxy;
+      this.securityEngine = securityEngine;
    }
 
    @RequestMapping(
@@ -75,7 +77,7 @@ public class GroupingAssemblyDialogController extends WorksheetController {
       AssetEntry[] children = assetRepository
          .getEntries(expandedEntry, principal, ResourceAction.READ, selector);
 
-      boolean sqlEnabled = SecurityEngine.getSecurity().checkPermission(
+      boolean sqlEnabled = securityEngine.checkPermission(
          principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS);
 
       for(AssetEntry ae : children) {
@@ -106,7 +108,7 @@ public class GroupingAssemblyDialogController extends WorksheetController {
 
    private AssetRepository assetRepository;
    private Catalog catalog = Catalog.getCatalog();
-
    private GroupingAssemblyDialogServiceProxy dialogServiceProxy;
+   private final SecurityEngine securityEngine;
 
 }

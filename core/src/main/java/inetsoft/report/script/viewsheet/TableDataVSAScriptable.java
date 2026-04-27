@@ -249,6 +249,9 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
             if(table.moreRows(0)) {
                row = 0;
             }
+            else {
+               return Undefined.instance;
+            }
          }
 
          return getTableArray().get(row, this);
@@ -411,6 +414,8 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
       addProperty("flyoverViews", "getFlyoverViews", "setFlyoverViews",
                   String[].class, info.getClass(), info);
       addProperty("flyOnClick", "isFlyOnClick", "setFlyOnClick", boolean.class,
+                  info.getClass(), info);
+      addProperty("tipOnClick", "isTipOnClick", "setTipOnClick", boolean.class,
                   info.getClass(), info);
       addProperty("keepRowHeightOnPrint", "isKeepRowHeightOnPrint", "setKeepRowHeightOnPrint",
                   boolean.class, info.getClass(), info);

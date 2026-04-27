@@ -18,6 +18,8 @@
 package inetsoft.web.cluster;
 
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.AuthenticationService;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import inetsoft.web.security.AbstractSecurityFilter;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,6 +29,12 @@ import org.springframework.util.StringUtils;
 import java.io.IOException;
 
 public class PauseClusterFilter extends AbstractSecurityFilter {
+   public PauseClusterFilter(SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                             AuthenticationService authenticationService)
+   {
+      super(sessionLicenseServiceProvider, authenticationService);
+   }
+
    @Override
    public void init(FilterConfig filterConfig) {
    }

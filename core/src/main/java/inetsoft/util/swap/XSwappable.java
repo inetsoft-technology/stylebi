@@ -101,7 +101,7 @@ public abstract class XSwappable implements Serializable {
    }
 
    private void initPrefix() {
-      this.prefix = XSwapper.getPrefix();
+      this.prefix = XSwapper.getSwapper().getPrefix();
    }
 
    /**
@@ -143,7 +143,7 @@ public abstract class XSwappable implements Serializable {
     * This method should be called when the object is ready to be swapped.
     */
    public void complete() {
-      XSwapper.register(this);
+      XSwapper.getSwapper().register(this);
    }
 
    @Override
@@ -165,7 +165,7 @@ public abstract class XSwappable implements Serializable {
       public PriorityComparator() {
          super();
 
-         ts = XSwapper.cur;
+         ts = XSwapper.getSwapper().cur;
       }
 
       @Override

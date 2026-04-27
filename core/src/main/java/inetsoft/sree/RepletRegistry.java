@@ -17,28 +17,26 @@
  */
 package inetsoft.sree;
 
-import inetsoft.report.internal.Util;
 import inetsoft.report.PropertyChangeEvent;
-import inetsoft.sree.internal.*;
-import inetsoft.sree.security.*;
+import inetsoft.report.internal.Util;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.Organization;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.w3c.dom.*;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 import org.xml.sax.Attributes;
 import org.xml.sax.helpers.DefaultHandler;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
 import java.beans.PropertyChangeListener;
 import java.io.*;
 import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * RepletRegistry handles registration of replets. It loads the registration
@@ -47,7 +45,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * @author InetSoft Technology Corp
  * @version 7.0
  */
-@SingletonManager.Singleton(RepletRegistry.Reference.class)
 public class RepletRegistry implements Serializable {
    /**
     * Add replet event.
@@ -87,362 +84,6 @@ public class RepletRegistry implements Serializable {
     * Rename folder alias event.
     */
    static final String RENAME_FOLDER_ALIAS_EVENT = "rename_folder_alias";
-   /**
-    * Return a replet registry instance.
-    */
-   public static RepletRegistry getRegistry() throws Exception {
-      return getRegistry(OrganizationManager.getInstance().getCurrentOrgID());
-   }
-
-   private static String getRegistryKey(String user, String orgID) {
-      if(user == null) {
-         if(orgID == null) {
-            orgID = OrganizationManager.getInstance().getCurrentOrgID();
-         }
-
-         return GLOBAL_REPOSITORY + orgID;
-      }
-
-      return user;
-   }
-
-   /**
-    * Return a replet registry instance. If userName is not null
-    * the returned registry will represent the user's "My Reports"
-    * folder.
-    */
-   public static RepletRegistry getRegistry(IdentityID userName) throws Exception {
-      return getRegistry(userName, true);
-   }
-
-   /**
-    * Return a replet registry instance. If userName is not null
-    * the returned registry will represent the user's "My Reports"
-    * folder.
-    */
-   public static RepletRegistry getRegistry(String orgID) throws Exception {
-      return getRegistry(orgID, true);
-   }
-
-   /**
-    * Return a replet registry instance. If userName is not null
-    * the returned registry will represent the user's "My Reports"
-    * folder.
-    */
-   public static RepletRegistry getRegistry(String orgID, boolean create) throws Exception {
-      try {
-         String key = getRegistryKey(null, orgID);
-         ResourceCache<String, RepletRegistry> registryCache = getRegistryCache();
-
-         // @by stephenwebster, For Bug #29146
-         // During shutdown, do not re-initialize the replet registry.
-         if(!create && !registryCache.contains(key)) {
-            return null;
-         }
-
-         return SingletonManager.getInstance(RepletRegistry.class, key, create);
-      }
-      catch(Exception ex) {
-         if(create) {
-            LOG.error("Failed to get registry", ex);
-         }
-
-         throw ex;
-      }
-   }
-
-
-   /**
-    * Return a replet registry instance. If userName is not null
-    * the returned registry will represent the user's "My Reports"
-    * folder.
-    */
-   public static RepletRegistry getRegistry(IdentityID userName, boolean create) throws Exception {
-      try {
-         String key = getRegistryKey(userName == null ? null : userName.convertToKey(), null);
-         ResourceCache<String, RepletRegistry> registryCache = getRegistryCache();
-
-         // @by stephenwebster, For Bug #29146
-         // During shutdown, do not re-initialize the replet registry.
-         if(!create && !registryCache.contains(key)) {
-            return null;
-         }
-
-         return SingletonManager.getInstance(RepletRegistry.class, key, create);
-      }
-      catch(Exception ex) {
-         if(create) {
-            LOG.error("Failed to get registry", ex);
-         }
-
-         throw ex;
-      }
-   }
-
-   /**
-    * Remove a user.
-    *
-    * @param identityID the name of the specified user.
-    */
-   public static synchronized void removeUser(IdentityID identityID) {
-      try {
-         RepletRegistry registry = getRegistryCache().remove(identityID.convertToKey());
-
-         if(registry != null) {
-            registry.dmgr.clear();
-         }
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to remove user from registry: " + identityID, ex);
-      }
-
-      // dangerous operation requires verification
-      String path = "portal" + File.separator + identityID.getOrgID() + File.separator + identityID.getName();
-      DataSpace space = DataSpace.getDataSpace();
-      space.delete(null, path);
-   }
-
-   /**
-    * Rename a user.
-    *
-    * @param oID the old name of the specified user.
-    * @param nID the new name of the specified user.
-    */
-   public static synchronized void renameUser(IdentityID oID, IdentityID nID) {
-      try {
-         RepletRegistry registry = getRegistryCache().remove(oID.convertToKey());
-
-         if(registry != null) {
-            registry.dmgr.clear();
-         }
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to rename user from " + oID + " to " + nID, ex);
-      }
-
-      // dangerous operation requires verification
-      String opath = "portal" + File.separator + oID.orgID + File.separator + oID.name;
-      String npath = "portal" + File.separator + nID.orgID + File.separator + nID.name;
-      DataSpace space = DataSpace.getDataSpace();
-
-      if(space.exists("portal", oID.orgID + File.separator + oID.name)) {
-         space.rename(opath, npath);
-      }
-
-      // for archive reports
-      String oapath = npath + File.separator + oID.convertToKey() + "_archive_";
-
-      if(space.exists(null, oapath)) {
-         String napath = npath + File.separator + nID.convertToKey() + "_archive_";
-         space.rename(oapath, napath);
-      }
-   }
-
-   /**
-    * Copy a user.
-    *
-    * @param oID the old name of the specified user.
-    * @param nID the new name of the specified user.
-    */
-   public static synchronized void copyUser(IdentityID oID, IdentityID nID) throws Exception {
-      String opath = "portal" + File.separator + oID.orgID + File.separator + oID.name;
-      String npath = "portal" + File.separator + nID.orgID + File.separator + nID.name;
-      DataSpace space = DataSpace.getDataSpace();
-
-      if(space.exists("portal", oID.orgID + File.separator + oID.name)) {
-         space.copy(opath, npath);
-      }
-
-      // for archive reports
-      String oapath = npath + File.separator + oID.convertToKey() + "_archive_";
-
-      if(space.exists(null, oapath)) {
-         String napath = npath + File.separator + nID.convertToKey() + "_archive_";
-         space.copy(oapath, napath);
-      }
-
-      RepletRegistry.changeOrgID(oID, oID.getOrgID(), nID.getOrgID(), true);
-   }
-
-   /**
-    * Move registry contents from one orgID to another.
-    *
-    * @param id the name of the specified user.
-    * @param oOrgID the orgID to change from.
-    * @param nOrgID the orgID to change to.
-    */
-   public static synchronized void changeOrgID(IdentityID id, String oOrgID, String nOrgID, boolean clone) {
-      try {
-         RepletRegistry oldRegistry;
-         RepletRegistry newRegistry;
-
-         if(id != null) {
-            oldRegistry = getRegistryCache().get(getRegistryKey(id.convertToKey(), null));
-
-            if(oldRegistry == null || !oldRegistry.registryFileExist()) {
-               return;
-            }
-
-            newRegistry = getRegistryCache().get(
-               getRegistryKey(new IdentityID(id.getName(), nOrgID).convertToKey(), null));
-         }
-         else {
-            oldRegistry = getRegistryCache().get(getRegistryKey(null, oOrgID));
-            newRegistry = getRegistryCache().get(getRegistryKey(null, nOrgID));
-         }
-
-         //Bug #70909, in the case of matching orgID, old and new are same object, updating is extraneous
-         //clearing will lose newRegistry too, so only put and clear if different objects to prevent loss of data
-         if(oldRegistry != newRegistry) {
-            Hashtable<String, String> oldFolderMap = oldRegistry.getFolderMap();
-            Hashtable<String, String> newFolderMap = newRegistry.getFolderMap();
-            newFolderMap.putAll(oldFolderMap);
-
-            Hashtable<String, FolderContext> oldFolderContextMap = oldRegistry.getFolderContextmap();
-            Hashtable<String, FolderContext> newFolderContextMap = newRegistry.getFolderContextmap();
-            newFolderContextMap.putAll(oldFolderContextMap);
-
-            if(!clone && oldRegistry instanceof UserRepletRegistry) {
-               removeUser(id);
-            }
-
-            newRegistry.save();
-         }
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to move private folders from " + oOrgID + " to " + nOrgID, ex);
-      }
-   }
-
-   /**
-    * Clear the cached registry. The next call to getRegistry()
-    * will reload the registry file. This should only be called by the
-    * admin, otherwise it may cause a synchronization problem.
-    */
-   public static void clear() {
-      clear(null);
-   }
-
-   /**
-    * Clear the cached registry. The next call to getRegistry()
-    * will reload the registry file. This should only be called by the
-    * admin, otherwise it may cause a synchronization problem.
-    */
-   public static synchronized void clear(String user) {
-      clearCacheByKey(getRegistryKey(user, null));
-   }
-
-   public static synchronized void clearOrgCache(String orgID) {
-      clearCacheByKey(getRegistryKey(null, orgID));
-
-      // clear user scope cache.
-      String suffix = IdentityID.KEY_DELIMITER + orgID;
-      ResourceCache cache = getRegistryCache();
-      Set<String> keys = cache.getKeys();
-      keys.stream()
-         .filter(key -> key != null && key.endsWith(suffix))
-         .forEach(key -> clear(key));
-   }
-
-   private static void clearCacheByKey(String cacheKey) {
-      try {
-         RepletRegistry registry = getRegistryCache().remove(cacheKey);
-
-         if(registry != null) {
-            registry.dmgr.clear();
-         }
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to clear registry cache for: " + cacheKey, ex);
-      }
-   }
-
-   /**
-    * Convert the old storage file to new.
-    */
-   private static void isolateOrgRegistryFiles() {
-      if(RepletRegistry.converted) {
-         return;
-      }
-
-      synchronized(RepletRegistry.CONVERT_LOCK) {
-         if(RepletRegistry.converted) {
-            return;
-         }
-
-         String configRegistryPath = getConfigRegistryPath();
-         DataSpace space = DataSpace.getDataSpace();
-
-         if(!space.exists(null, configRegistryPath)) {
-            converted = true;
-            return;
-         }
-
-         Map<String, Document> orgDocMap = new HashMap<>();
-         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-
-         try {
-            DocumentBuilder docBuilder = factory.newDocumentBuilder();
-            Document document;
-
-            try(InputStream inputStream = space.getInputStream(null, configRegistryPath)) {
-               document = Tool.parseXML(inputStream);
-            }
-
-            if(document == null) {
-               RepletRegistry.converted = true;
-               return;
-            }
-
-            Element documentElement = document.getDocumentElement();
-            NodeList childNodes = Tool.getChildNodesByTagName(documentElement, "Replet");
-
-            for(int i = 0; i < childNodes.getLength(); i++) {
-               Node childNode = childNodes.item(i);
-
-               if(childNode instanceof Element element) {
-                  String orgID = element.getAttribute("orgID");
-
-                  if(Tool.isEmptyString(orgID)) {
-                     orgID = Organization.getDefaultOrganizationID();
-                  }
-
-                  Document orgDoc =
-                     orgDocMap.computeIfAbsent(orgID, (key) -> {
-                        Document doc = docBuilder.newDocument();
-                        Element registryDoc = doc.createElement("Registry");
-                        Element versionDoc = doc.createElement("Version");
-                        versionDoc.setTextContent(FileVersions.REPOSITORY);
-                        registryDoc.appendChild(versionDoc);
-                        doc.appendChild(registryDoc);
-
-                        return doc;
-                     });
-
-                  childNode = orgDoc.importNode(childNode, true);
-                  orgDoc.getDocumentElement().appendChild(childNode);
-               }
-            }
-
-            for(String org : orgDocMap.keySet()) {
-               Document orgDoc = orgDocMap.get(org);
-               space.withOutputStream(org, configRegistryPath,
-                                      out -> XMLTool.write(orgDoc, out));
-            }
-         }
-         catch(Exception e) {
-            throw new RuntimeException("Can not isolate RepletRegistry", e);
-         }
-
-         RepletRegistry.converted = true;
-      }
-   }
-
-   private static String getConfigRegistryPath() {
-      String path = SreeEnv.getProperty("replet.repository.file");
-      int index = path.lastIndexOf(';');
-      return index >= 0 ? path.substring(index + 1) : path;
-   }
 
    /**
     * Create a new registry.
@@ -502,7 +143,7 @@ public class RepletRegistry implements Serializable {
       fireEventToListeners(listeners, evt, name);
 
       synchronized(this.listeners) {
-         listeners = new Vector<>(globalListeners);
+         listeners = new Vector<>(getGlobalListeners());
       }
 
       fireEventToListeners(listeners, evt, name);
@@ -744,7 +385,7 @@ public class RepletRegistry implements Serializable {
     */
    private synchronized boolean addFolder(String folder, boolean transaction, boolean fireEvent)
    {
-      if(folder == null || folder.equals("")) {
+      if(folder == null || folder.isEmpty()) {
          return false;
       }
 
@@ -833,7 +474,6 @@ public class RepletRegistry implements Serializable {
     *
     * @param oldFolderName old folder name.
     * @param newFolderName new folder name.
-    * @return true if change successfully, error message if not.
     */
    public String changeFolder(String oldFolderName, String newFolderName) {
       return changeFolder(oldFolderName, newFolderName, null);
@@ -844,7 +484,6 @@ public class RepletRegistry implements Serializable {
     *
     * @param oldFolderName old folder name.
     * @param newFolderName new folder name.
-    * @return true if change successfully, error message if not.
     */
    public synchronized String changeFolder(String oldFolderName, String newFolderName, Principal principal) {
       Catalog catalog = Catalog.getCatalog();
@@ -865,8 +504,7 @@ public class RepletRegistry implements Serializable {
          return catalog.getString("common.repletRegistry.folderExist", newFolderName);
       }
 
-      //todo
-      if(SUtil.isDefaultVSGloballyVisible(principal) && principal != null && principal != null &&
+      if(SUtil.isDefaultVSGloballyVisible(principal) && principal != null &&
          !Tool.equals(((XPrincipal) principal).getOrgId(), Organization.getDefaultOrganizationID()) &&
          !getFolderMap().contains(oldFolderName) &&
          getFolderMap().contains(oldFolderName)) {
@@ -880,7 +518,7 @@ public class RepletRegistry implements Serializable {
       for(String oname : all) {
          if(oname.equals(oldFolderName) || oname.startsWith(oprefix)) {
             String nname = newFolderName + oname.substring(oldFolderName.length());
-            renameFolder(oname, nname, principal, oname.equals(oldFolderName));
+            renameFolder(oname, nname, oname.equals(oldFolderName));
             changed = true;
          }
       }
@@ -895,9 +533,7 @@ public class RepletRegistry implements Serializable {
    /**
     * Rename folder.
     */
-   private synchronized void renameFolder(String ofolder, String nfolder, Principal principal,
-                                          boolean transaction)
-   {
+   private synchronized void renameFolder(String ofolder, String nfolder, boolean transaction) {
       getFolderMap().remove(ofolder);
       getFolderMap().put(nfolder, nfolder);
       FolderContext context = getFolderContextmap().get(ofolder);
@@ -1015,9 +651,7 @@ public class RepletRegistry implements Serializable {
          getFolderContextmap().put(name, context);
       }
 
-      if(context != null) {
-         context.addFavoritesUser(principal);
-      }
+      context.addFavoritesUser(principal);
    }
 
    public void deleteFolderFavoritesUser(String name, String principal) {
@@ -1186,7 +820,7 @@ public class RepletRegistry implements Serializable {
       }
    }
 
-   private synchronized Hashtable<String, String> getFolderMap() {
+   synchronized Hashtable<String, String> getFolderMap() {
       if(!folders.containsKey(Tool.MY_DASHBOARD)) {
          folders.put(Tool.MY_DASHBOARD, Tool.MY_DASHBOARD);
       }
@@ -1198,7 +832,7 @@ public class RepletRegistry implements Serializable {
       return folders;
    }
 
-   private synchronized Hashtable<String, FolderContext> getFolderContextmap() {
+   synchronized Hashtable<String, FolderContext> getFolderContextmap() {
      if(!foldercontextmap.containsKey(Tool.MY_DASHBOARD)) {
         foldercontextmap.put(Tool.MY_DASHBOARD, new FolderContext(Tool.MY_DASHBOARD));
      }
@@ -1206,49 +840,8 @@ public class RepletRegistry implements Serializable {
       return foldercontextmap;
    }
 
-   //Todo
-   public static void copyFolderContextMap(String oOID, String nOID) throws Exception {
-      RepletRegistry oldRegistry = getRegistry(oOID);
-      RepletRegistry newRegistry = getRegistry(nOID);
-      Hashtable<String, FolderContext> otable = oldRegistry.getFolderContextmap();
-      Hashtable<String, FolderContext> ntable = newRegistry.getFolderContextmap();
-
-      otable.forEach((key, value) -> {
-         FolderContext ncontext = new FolderContext(value.getName(), value.getDescription(),
-            value.getAlias());
-         ntable.put(key, ncontext);
-      });
-   }
-
-   private static ResourceCache<String, RepletRegistry> getRegistryCache() {
-      ResourceCache<String, RepletRegistry> cache;
-      REGISTRY_CACHE_LOCK.readLock().lock();
-
-      try {
-         cache = ConfigurationContext.getContext().get(REGISTRY_CACHE_KEY);
-      }
-      finally {
-         REGISTRY_CACHE_LOCK.readLock().unlock();
-      }
-
-      if(cache == null) {
-         REGISTRY_CACHE_LOCK.writeLock().lock();
-
-         try {
-            cache = ConfigurationContext.getContext().get(REGISTRY_CACHE_KEY);
-
-            if(cache == null) {
-               cache = new RepletRegistryCache();
-
-               ConfigurationContext.getContext().put(REGISTRY_CACHE_KEY, cache);
-            }
-         }
-         finally {
-            REGISTRY_CACHE_LOCK.writeLock().unlock();
-         }
-      }
-
-      return cache;
+   static Vector<WeakReference<PropertyChangeListener>> getGlobalListeners() {
+      return ConfigurationContext.getContext().computeIfAbsent(GLOBAL_LISTENERS, k -> new Vector<>());
    }
 
    /**
@@ -1278,44 +871,9 @@ public class RepletRegistry implements Serializable {
    };
 
    /**
-    * remove global property change listener .
-    */
-   public static void removeGlobalPropertyChangeListener(PropertyChangeListener listener) {
-      synchronized(globalListeners) {
-         for(int i = globalListeners.size() - 1; i >= 0; i--) {
-            WeakReference<PropertyChangeListener> ref = globalListeners.get(i);
-            PropertyChangeListener obj = ref.get();
-
-            if(listener.equals(obj)) {
-               globalListeners.remove(i);
-               return;
-            }
-         }
-      }
-   }
-
-   /**
-    * Add global property change listener to listen the all user replet changed.
-    */
-   public static void addGlobalPropertyChangeListener(PropertyChangeListener listener) {
-      synchronized(globalListeners) {
-         for(WeakReference<PropertyChangeListener> ref : globalListeners) {
-            PropertyChangeListener obj = ref.get();
-
-            if(listener.equals(obj)) {
-               return;
-            }
-         }
-
-         WeakReference<PropertyChangeListener> ref = new WeakReference<>(listener);
-         globalListeners.add(ref);
-      }
-   }
-
-   /**
     * User replet registry.
     */
-   private final static class UserRepletRegistry extends RepletRegistry {
+   final static class UserRepletRegistry extends RepletRegistry {
       UserRepletRegistry(String user) throws Exception {
          super(user == null ? null : IdentityID.getIdentityIDFromKey(user).getOrgID());
          this.user = user;
@@ -1323,7 +881,7 @@ public class RepletRegistry implements Serializable {
       }
 
       @Override
-      protected void init() throws Exception {
+      protected void init() {
          // ignore until user is assigned
       }
 
@@ -1443,67 +1001,13 @@ public class RepletRegistry implements Serializable {
       private final String user;
    }
 
-   private static class RepletRegistryCache extends ResourceCache<String, RepletRegistry> {
-      public RepletRegistryCache() {
-         super(50);
-      }
-
-      @Override
-      public RepletRegistry get(String key) throws Exception {
-         boolean exists = contains(key);
-         RepletRegistry registry = super.get(key);
-
-         // @by larryl, the getRepletRepository() can't be called in create.
-         // It may in turn call getRepletRegistry() again, and causes two
-         // instances of RepletRegistry to be created for the same key
-         if(!exists) {
-            AnalyticRepository engine = SUtil.getRepletRepository();
-
-            if(engine instanceof PropertyChangeListener) {
-               registry.addPropertyChangeListener(
-                  (PropertyChangeListener) engine);
-            }
-         }
-         else if(!registry.loaded) {
-            DataSpace space = DataSpace.getDataSpace();
-            String repfile = registry.getRegistryPath();
-
-            if(space.exists(null, repfile)) {
-               registry.reload();
-            }
-         }
-
-         return registry;
-      }
-
-      @Override
-      public RepletRegistry create(String key) throws Exception {
-         RepletRegistry registry;
-
-         if(key.startsWith(GLOBAL_REPOSITORY)) {
-            registry = new RepletRegistry(key.substring(GLOBAL_REPOSITORY.length()));
-         }
-         else {
-            registry = new UserRepletRegistry(key);
-         }
-
-         return registry;
-      }
-
-      @Override
-      protected void processRemoved(RepletRegistry value) {
-         // avoid memory leak
-         value.dmgr.clear();
-      }
-   }
-
    class XMLHandler extends DefaultHandler {
       @Override
       public void characters(char[] ch, int start, int length) {
          String str = new String(ch, start, length);
 
          if(context != null && !"\n".equals(str)) {
-            if(buffer.length() != 0) {
+            if(!buffer.isEmpty()) {
                cdatabuf.append(str);
             }
             else {
@@ -1517,9 +1021,7 @@ public class RepletRegistry implements Serializable {
       @Override
       public void startElement(String uri, String localName, String ename, Attributes attrs) {
          if("Replet".equals(ename)) {
-            boolean isReplet = "Replet".equals(ename);
-
-            if(isReplet && !isValidRepletNode(attrs)) {
+            if(!isValidRepletNode(attrs)) {
                return;
             }
 
@@ -1553,19 +1055,19 @@ public class RepletRegistry implements Serializable {
                getFolderMap().put(pfolder, pfolder);
             }
          }
-         else if("Request".equals(ename) || buffer.length() != 0) {
+         else if("Request".equals(ename) || !buffer.isEmpty()) {
             put(ename, attrs, true);
          }
       }
 
       @Override
       public void endElement(String uri, String localName, String name) {
-         if(cdatabuf.length() > 0) {
+         if(!cdatabuf.isEmpty()) {
             buffer.append("<![CDATA[").append(cdatabuf).append("]]>");
             cdatabuf.setLength(0);
          }
 
-         if(context != null && ("Request".equals(name) || buffer.length() > 0)) {
+         if(context != null && ("Request".equals(name) || !buffer.isEmpty())) {
             put(name, null, false);
 
             if("Request".equals(name)) {
@@ -1610,32 +1112,8 @@ public class RepletRegistry implements Serializable {
       private final ArrayList<RepletRequest> list = new ArrayList<>();
    }
 
-   public static final class Reference extends SingletonManager.Reference<RepletRegistry> {
-      @Override
-      public RepletRegistry get(Object ... parameters) {
-         isolateOrgRegistryFiles();
-         ResourceCache<String, RepletRegistry> registryCache = getRegistryCache();
-         boolean create = parameters.length < 2 || (Boolean) parameters[1];
-
-         try {
-            return registryCache.get((String) parameters[0]);
-         }
-         catch(Exception e) {
-            if(create) {
-               LOG.error("Failed to create replet registry: " + parameters[0], e);
-            }
-
-            return null;
-         }
-      }
-
-      @Override
-      public void dispose() {
-      }
-   }
-
    private boolean noMyreports = false; // true to disable My Reports
-   private String orgID;
+   private final String orgID;
    // folder names -> folder name
    protected Hashtable<String, String> folders = new Hashtable<>();
    // folder name -> a context of a folder
@@ -1644,15 +1122,7 @@ public class RepletRegistry implements Serializable {
    protected DataChangeListenerManager dmgr = new DataChangeListenerManager();
    protected long date = -2L; // last modified
    protected boolean loaded;
-   private static boolean converted = false;
 
-   private static final String GLOBAL_REPOSITORY = "__ADMIN__";
-
+   static final String GLOBAL_LISTENERS = RepletRegistry.class.getName() + ".globalListeners";
    private static final Logger LOG = LoggerFactory.getLogger(RepletRegistry.class);
-
-   private static final ReadWriteLock REGISTRY_CACHE_LOCK = new ReentrantReadWriteLock();
-   private static final Object CONVERT_LOCK = new Object();
-   private static final String REGISTRY_CACHE_KEY =
-      RepletRegistry.class.getName() + ".registryCache";
-   private static Vector<WeakReference<PropertyChangeListener>> globalListeners = new Vector<>();
 }

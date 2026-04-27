@@ -39,6 +39,7 @@ import inetsoft.uql.erm.AbstractModelTrapContext.TrapInfo;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
@@ -71,11 +72,13 @@ public class VSAssemblyInfoHandler {
    @Autowired
    public VSAssemblyInfoHandler(CoreLifecycleService coreLifecycleService,
                                 DataRefModelFactoryService dataRefService,
-                                ParameterService parameterService)
+                                ParameterService parameterService,
+                                DataSourceRegistry dataSourceRegistry)
    {
       this.coreLifecycleService = coreLifecycleService;
       this.dataRefService = dataRefService;
       this.parameterService = parameterService;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    public void apply(RuntimeViewsheet rvs, VSAssemblyInfo info, ViewsheetService engine)
@@ -232,7 +235,7 @@ public class VSAssemblyInfoHandler {
             }
 
             if(checkTrap && assembly instanceof DataVSAssembly) {
-               VSModelTrapContext context = new VSModelTrapContext(rvs, true);
+               VSModelTrapContext context = new VSModelTrapContext(rvs, dataSourceRegistry, true);
                TrapInfo trapInfo = context.isCheckTrap()
                   ? context.checkTrap(oinfo, assembly.getVSAssemblyInfo())
                   : null ;
@@ -394,7 +397,7 @@ public class VSAssemblyInfoHandler {
    public void checkTrap(VSAssemblyInfo oinfo, VSAssemblyInfo ninfo,
       BindingModel oldModel, CommandDispatcher command, RuntimeViewsheet rvs)
    {
-      VSModelTrapContext context = new VSModelTrapContext(rvs, true);
+      VSModelTrapContext context = new VSModelTrapContext(rvs, dataSourceRegistry, true);
       boolean required = context.isCheckTrap();
       boolean contains = required &&
          context.checkTrap(oinfo, ninfo).showWarning();
@@ -415,7 +418,7 @@ public class VSAssemblyInfoHandler {
    }
 
    public DataRefModel[] getGrayedOutFields(RuntimeViewsheet rvs, boolean initAgg) {
-      VSModelTrapContext context = new VSModelTrapContext(rvs, initAgg);
+      VSModelTrapContext context = new VSModelTrapContext(rvs, dataSourceRegistry, initAgg);
       boolean required = context.isCheckTrap();
 
       if(!required || rvs.getViewsheet() == null) {
@@ -1456,4 +1459,5 @@ public class VSAssemblyInfoHandler {
    private final CoreLifecycleService coreLifecycleService;
    private final DataRefModelFactoryService dataRefService;
    private final ParameterService parameterService;
+   private final DataSourceRegistry dataSourceRegistry;
 }

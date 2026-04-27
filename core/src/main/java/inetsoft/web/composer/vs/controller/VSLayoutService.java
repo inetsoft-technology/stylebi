@@ -35,8 +35,7 @@ import inetsoft.web.composer.vs.command.ChangeCurrentLayoutCommand;
 import inetsoft.web.composer.vs.event.AddVSLayoutObjectEvent;
 import inetsoft.web.viewsheet.command.UpdateLayoutUndoStateCommand;
 import inetsoft.web.viewsheet.command.UpdateUndoStateCommand;
-import inetsoft.web.viewsheet.model.VSObjectModel;
-import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
+import inetsoft.web.viewsheet.model.*;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -417,19 +416,41 @@ public class VSLayoutService {
       }
 
       VSObjectModel objectModel = null;
+      boolean isBottomTabs = false;
 
       if(assembly != null) {
          assembly.getInfo().setVisible(true);
          rvs.getViewsheet().getLayoutInfo().getPrintLayout();
+
+         // sync dValue on the clone so VSTabModel (which reads dValue in
+         // composer mode) is consistent with the positioning logic
+         if(assembly instanceof TabVSAssembly tabAssembly) {
+            TabVSAssemblyInfo tabInfoClone =
+               (TabVSAssemblyInfo) tabAssembly.getInfo();
+            isBottomTabs = tabInfoClone.isBottomTabs();
+            tabInfoClone.setBottomTabsValue(isBottomTabs);
+         }
+
          objectModel = objectModelService.createModel(assembly, rvs);
 
          if(assembly instanceof TabVSAssembly ||
             assembly instanceof GroupContainerVSAssembly)
          {
-            // get child assemblies of layout object to render them only within the
-            // layout object and not as editable layout objects
             getChildAssemblies((ContainerVSAssembly) assembly, rvs,
                                childModels, objectModelService);
+
+            // for bottom tabs, position children at the visual top of the
+            // layout area (the stored position is the visual top)
+            if(isBottomTabs) {
+               Point layoutPos = assemblyLayout.getPosition();
+
+               for(VSObjectModel childModel : childModels) {
+                  VSFormatModel fmt = childModel.getObjectFormat();
+                  fmt.setPositions(
+                     layoutPos.x, layoutPos.y,
+                     fmt.getWidth(), fmt.getHeight());
+               }
+            }
          }
       }
 

@@ -53,6 +53,7 @@ export class SecurityActionsPermissionsComponent {
    }
 
    protected readonly copyPasteContext = COPY_PASTE_CONTEXT_SECURITY_ACTIONS;
+   readonly validateIdentitiesUrl = "../api/em/security/actions/validate-identities";
    tableModel: ResourcePermissionModel;
    readonly actionsStyle = { "margin-bottom": "12px" };
    private originalModel: ResourcePermissionModel;

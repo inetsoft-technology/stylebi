@@ -201,7 +201,7 @@ import { ViewerResizeService } from "./util/viewer-resize.service";
 import { VSUtil } from "./util/vs-util";
 import { VsToolbarButtonDirective } from "./vs-toolbar-button.directive";
 import { BaseHrefService } from "../common/services/base-href.service";
-import { DashboardTabModel } from "../portal/dashboard/dashboard-tab-model";
+import { CurrentUserService } from "../../../../shared/util/current-user.service";
 
 declare const window: any;
 declare var globalPostParams: { [name: string]: string[] } | null;
@@ -354,15 +354,6 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    @Input() globalLoadingIndicator: boolean = false;
    @Input() embedViewer: boolean = false;
    @Input() viewerOffsetFunc: () => { x: number, y: number, width: number, height: number, scrollLeft: number, scrollTop: number };
-   @Input()
-   get dashboardTabModel(): DashboardTabModel | null {
-      return this._dashboardTabModel;
-   }
-
-   set dashboardTabModel(value: DashboardTabModel | null) {
-      this._dashboardTabModel = value;
-      this.updateTabPositions();
-   }
    @Output() onAnnotationChanged = new EventEmitter<boolean>();
    @Output() runtimeIdChange = new EventEmitter<string>();
    @Output() socket = new EventEmitter<ViewsheetClientService>();
@@ -455,6 +446,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    private initing: boolean = true;
    private serverUpdateIntervalId: any;
    private _active: boolean = true;
+   private _vsConnectionInitialized: boolean = false;
+   private _destroyed: boolean = false;
    private loadingEventCount: number = 0;
    private closeProgressSubject: Subject<any> = new Subject();
    public vsInfo: ViewsheetInfo = new ViewsheetInfo([], null, null, null, this.getOrgId());
@@ -504,7 +497,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    isDefaultOrgAsset: boolean = false;
    private intersectionObserver: IntersectionObserver;
    private _tabsHeight: number = 0;
-   private _dashboardTabModel: DashboardTabModel | null = null;
+   drillTabsTop: boolean = false;
 
    constructor(public viewsheetClient: ViewsheetClientService,
                private stompClientService: StompClientService,
@@ -546,7 +539,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                private miniToolbarService: MiniToolbarService,
                private assetLoadingService: AssetLoadingService,
                private viewContainerRef: ViewContainerRef,
-               private baseHrefService: BaseHrefService)
+               private baseHrefService: BaseHrefService,
+               private currentUserService: CurrentUserService)
    {
       super(viewsheetClient, zone, true);
       tooltipConfig.tooltipClass = "top-tooltip";
@@ -566,7 +560,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       ngbDatepickerConfig.maxDate = {year: 2099, month: 12, day: 31};
       this.embed = this.contextProvider.embed;
 
-      this.http.get<string>("../api/em/navbar/organization").subscribe((org)=>{this.currOrgID = org;});
+      this.subscriptions.add(this.currentUserService.getPortalCurrentUser().subscribe(user => this.currOrgID = user?.name?.orgID ?? null));
    }
 
    getAssemblyName(): string {
@@ -615,6 +609,12 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          this.viewsheetClient.sendEvent(TOUCH_ASSET_URI, event);
       }));
 
+      this.subscriptions.add(this.pageTabService.getDrillTabsTop().subscribe(
+         value => {
+            this.drillTabsTop = value;
+            this.updateTabPositions();
+         }));
+
       this.subscriptions.add(this.fullScreenService.fullScreenChange.subscribe(
          () => this.onFullScreenChange()));
 
@@ -657,7 +657,61 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    ngAfterViewInit(): void {
-      // Do not know the size of the viewsheet pane until after view is init
+      // Force a single check to populate @ViewChild refs (e.g. viewerRoot) when the component
+      // is created while the change detector is detached (inactive tab). This can produce
+      // ExpressionChangedAfterItHasBeenCheckedError in dev mode but is harmless in production.
+      if(!this.viewerRoot) {
+         this.changeDetectorRef.detectChanges();
+      }
+
+      // Do not know the size of the viewsheet pane until after view is init.
+      // If inactive at creation time, defer opening until the tab becomes active so the VS is
+      // opened with the correct viewport size rather than 0x0.
+      if(this._active) {
+         this.initViewsheetConnection();
+      }
+
+      if(this.viewerRoot?.nativeElement) {
+         this.zone.runOutsideAngular(() => {
+            new ResizeSensor(this.viewerRoot.nativeElement, () => {
+               this.onViewerRootResizeEvent();
+            });
+         });
+      }
+
+      this.dataTipService.viewerOffsetFunc = this.setDataTipOffsets.bind(this);
+      this.popComponentService.viewerOffsetFunc = this.setDataTipOffsets.bind(this);
+      this.popComponentService.getComponentModelFunc = this.getComponentModel.bind(this);
+
+      if(this.embed) {
+         this.handleDataTipPopComponentChanges();
+         const overlayContainer = document.getElementById("inetsoft-viewer-overlay");
+
+         if(overlayContainer) {
+            this.dialogService.container = overlayContainer;
+         }
+      }
+
+      // Feed to trigger scroll viewport sizing when the root is visible.
+      this.intersectionObserver = new IntersectionObserver((entries) => {
+         entries.forEach(entry => {
+            if(entry.isIntersecting) {
+               this.updateScrollViewport();
+            }
+         });
+      }, { root: null, rootMargin: "0px", threshold: 0.5});
+      if(this.viewerRoot?.nativeElement) {
+         this.intersectionObserver.observe(this.viewerRoot.nativeElement);
+      }
+   }
+
+   private initViewsheetConnection(): void {
+      if(this._vsConnectionInitialized) {
+         return;
+      }
+
+      this._vsConnectionInitialized = true;
+
       if(this.preview && this.runtimeId) {
          this.viewsheetClient.connect();
          this.viewsheetClient.beforeDestroy = () => this.beforeDestroy();
@@ -686,39 +740,6 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       else {
          console.error("The runtime or asset identifier must be provided");
       }
-
-      if(this.viewerRoot?.nativeElement) {
-         this.zone.runOutsideAngular(() => {
-            new ResizeSensor(this.viewerRoot.nativeElement, () => {
-               this.onViewerRootResizeEvent();
-            });
-         });
-      }
-
-      this.dataTipService.viewerOffsetFunc = this.setDataTipOffsets.bind(this);
-      this.popComponentService.viewerOffsetFunc = this.setDataTipOffsets.bind(this);
-      this.popComponentService.getComponentModelFunc = this.getComponentModel.bind(this);
-
-      if(this.embed) {
-         this.handleDataTipPopComponentChanges();
-         const overlayContainer = document.getElementById("inetsoft-viewer-overlay");
-
-         if(overlayContainer) {
-            this.dialogService.container = overlayContainer;
-         }
-      }
-
-      // Feed to trigger scroll viewport sizing when the root is visible. For example, if the
-      // application is in an iframe in a Bootstrap tab component, the viewport rect will not be
-      // initialized until the tab is switched and the root element is actually visible.
-      this.intersectionObserver = new IntersectionObserver((entries) => {
-         entries.forEach(entry => {
-            if(entry.isIntersecting) {
-               this.updateScrollViewport();
-            }
-         });
-      }, { root: null, rootMargin: "0px", threshold: 0.5});
-      this.intersectionObserver.observe(this.viewerRoot.nativeElement);
    }
 
    ngAfterContentInit(): void {
@@ -730,6 +751,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    ngOnDestroy(): void {
+      this._destroyed = true;
+
       // for some reason dialogService is not destroyed (angular 5)
       this.dialogService.ngOnDestroy();
 
@@ -768,6 +791,16 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          }
          else {
             this.changeDetectorRef.reattach();
+
+            // If the viewer-app was created while inactive, initialize the viewsheet connection now that we have
+            // the correct viewport dimensions.
+            if(!this._vsConnectionInitialized) {
+               setTimeout(() => {
+                  if(!this._destroyed) {
+                     this.initViewsheetConnection();
+                  }
+               }, 0);
+            }
          }
 
          // update preview viewsheet when it is changed to focused sheet,
@@ -1040,14 +1073,14 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       if(event.ctrlKey || event.metaKey) {
          // ctrl-z
          if(event.keyCode == 90 &&
-            !this.isPermissionForbidden("PageNavigation", "Previous") &&
+            !this.isPermissionForbidden("PageNavigation", "Undo") &&
             this.undoEnabled)
          {
             this.previousPage();
          }
          // ctrl-y
          else if(event.keyCode == 89 &&
-            !this.isPermissionForbidden("PageNavigation", "Next") &&
+            !this.isPermissionForbidden("PageNavigation", "Redo") &&
             this.redoEnabled)
          {
             this.nextPage();
@@ -3406,7 +3439,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             // when drillTabsTop is true the bar is at the top and the viewsheet body's
             // topPx already accounts for it, so do not add it again.
             const pageTabBar = document.querySelector(".page-tab-bar");
-            const pageTabBarHeight = (!!pageTabBar && !this.dashboardTabModel?.drillTabsTop)
+            const pageTabBarHeight = (!!pageTabBar && !this.drillTabsTop)
                ? pageTabBar.getBoundingClientRect().height : 0;
 
             const message = {
@@ -3655,7 +3688,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    isPreviousPageVisible(): boolean {
-      return !this.isPermissionForbidden("PageNavigation", "Previous");
+      return !this.isPermissionForbidden("PageNavigation", "Undo");
    }
 
    isPreviousPageDisabled(): boolean {
@@ -3663,7 +3696,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    isNextPageVisible(): boolean {
-      return !this.isPermissionForbidden("PageNavigation", "Next");
+      return !this.isPermissionForbidden("PageNavigation", "Redo");
    }
 
    isNextPageDisabled(): boolean {
@@ -3804,13 +3837,13 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
       this.viewerToolbarMessageService.refreshButtonDefinitions([
          {
-            name: "_#(js:Previous Page)",
+            name: "_#(js:Undo)",
             visible: toolbarVisible && this.isPreviousPageVisible(),
             disabled: this.isPreviousPageDisabled(),
             action: () => this.previousPage()
          },
          {
-            name: "_#(js:Next Page)",
+            name: "_#(js:Redo)",
             visible: toolbarVisible && this.isNextPageVisible(),
             disabled: false,
             action: () => this.nextPage()
@@ -4049,16 +4082,16 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       const actions: AssemblyAction[] = [
          {
             id: () => "mobile previous page)",
-            label: () => "_#(js:Previous Page)",
-            icon: () => "arrow-left-circle-outline-icon",
+            label: () => "_#(js:Undo)",
+            icon: () => "undo-icon",
             visible: () => this.isPreviousPageVisible(),
             enabled: () => !this.isPreviousPageDisabled(),
             action: () => this.previousPage(),
          },
          {
             id: () => "mobile next page",
-            label: () => "_#(js:Next Page)",
-            icon: () => "arrow-right-circle-outline-icon",
+            label: () => "_#(js:Redo)",
+            icon: () => "redo-icon",
             visible: () => this.isNextPageVisible(),
             enabled: () => !this.isNextPageDisabled(),
             action: () => this.nextPage(),
@@ -4272,19 +4305,19 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    private updateTabPositions(): void {
-      if(this.dashboardTabModel?.drillTabsTop) {
+      if(this.drillTabsTop) {
          if(this.toolbarVisible) {
             const offset = this.mobileDevice
                ? ViewConstants.TOOLBAR_HEIGHT_MOBILE_PX
                : ViewConstants.TOOLBAR_HEIGHT_PX;
-            this.topPx = this.tabsHeight + offset + 'px';
+            this.topPx = this.tabsHeight + offset + "px";
          } else {
-            this.topPx = this.tabsHeight + 'px';
+            this.topPx = this.tabsHeight + "px";
          }
-         this.bottomPx = '0px';
+         this.bottomPx = "0px";
       } else {
          this.topPx = null;
-         this.bottomPx = this.tabsHeight + 'px';
+         this.bottomPx = this.tabsHeight + "px";
       }
    }
 }

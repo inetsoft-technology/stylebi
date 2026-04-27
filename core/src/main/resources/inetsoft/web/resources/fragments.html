@@ -1,0 +1,89 @@
+<!--
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2024  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+<!doctype html>
+<html lang="en">
+<head><title>Fragments</title></head>
+<body>
+
+<!-- ── Navbar ─────────────────────────────────────────────────────────────
+     logoSrc: URL for the portal logo image.
+     Pass 'portal/logo' for relative-path templates (login, signup),
+     or ${linkUri + 'portal/logo'} for absolute-URI templates (restricted).
+     ──────────────────────────────────────────────────────────────────── -->
+<div class="d-flex align-items-center bg-navbar-top"
+     data-th-fragment="navbar(logoSrc)"
+     data-th-switch="${customLogo}">
+  <img class="custom-logo" src="portal/logo" data-th-src="${logoSrc}" data-th-case="${true}">
+  <th-block data-th-case="*">
+    <i class="inetsoft-logo inetsoft-icon icon-size-logo txt-primary"></i>
+    <span class="inetsoft-logo txt-light"> InetSoft </span>
+  </th-block>
+</div>
+
+<!-- ── Background decoration ──────────────────────────────────────────────
+     Six concentric arcs emanating from the bottom-right focal point.
+     viewBox: 1000 × 700 reference units (SVG stretches to fill the panel).
+     All arcs are centred at (1000, 700) = bottom-right corner.
+     sweep-flag=1 → clockwise in SVG coords → arcs curve through the
+     upper-left quadrant, fading in opacity with distance.
+     Stroke colour uses --inet-primary-color so custom themes apply here.
+     ──────────────────────────────────────────────────────────────────── -->
+<div class="login-right" aria-hidden="true" data-th-fragment="login-background">
+  <div class="dot-grid"></div>
+  <svg viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid slice"
+       xmlns="http://www.w3.org/2000/svg">
+    <!-- r=200 -->
+    <path class="radar-arc" d="M 800 700 A 200 200 0 0 1 1000 500"
+          stroke-width="1.4" stroke-opacity="0.50"/>
+    <!-- r=350 -->
+    <path class="radar-arc" d="M 650 700 A 350 350 0 0 1 1000 350"
+          stroke-width="1.3" stroke-opacity="0.40"/>
+    <!-- r=500 -->
+    <path class="radar-arc" d="M 500 700 A 500 500 0 0 1 1000 200"
+          stroke-width="1.2" stroke-opacity="0.30"/>
+    <!-- r=650  (exits near top edge) -->
+    <path class="radar-arc" d="M 350 700 A 650 650 0 0 1 1000 50"
+          stroke-width="1.1" stroke-opacity="0.22"/>
+    <!-- r=765  (clips at top: x≈704) -->
+    <path class="radar-arc" d="M 235 700 A 765 765 0 0 1 704 0"
+          stroke-width="1.0" stroke-opacity="0.15"/>
+    <!-- r=880  (clips at top: x≈484) -->
+    <path class="radar-arc" d="M 120 700 A 880 880 0 0 1 484 0"
+          stroke-width="0.9" stroke-opacity="0.09"/>
+  </svg>
+</div>
+
+<!-- ── Loading indicator ───────────────────────────────────────────────────
+     spinnerLabel: accessible aria-label, e.g. 'Signing in…' or 'Loading…'
+     JS adds/removes the "loading" class to show/hide the overlay.
+     ──────────────────────────────────────────────────────────────────── -->
+<div class="loading-indicator" role="status"
+     data-th-attr="aria-label=${spinnerLabel}"
+     data-th-fragment="loading-spinner(spinnerLabel)">
+  <div class="ln-loading-content">
+    <!-- M3 indeterminate circular progress; circumference for r=22: 2π×22 ≈ 138.2 -->
+    <svg class="ln-spinner" viewBox="0 0 56 56" fill="none"
+         xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle class="ln-spinner__track" cx="28" cy="28" r="22"/>
+      <circle class="ln-spinner__arc"   cx="28" cy="28" r="22"/>
+    </svg>
+  </div>
+</div>
+
+</body>
+</html>

@@ -22,6 +22,7 @@ import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.graph.VGraph;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.internal.DimensionD;
+import inetsoft.graph.internal.GDefaults;
 import inetsoft.report.*;
 import inetsoft.report.composition.RegionTableLens;
 import inetsoft.report.composition.VSTableLens;
@@ -41,6 +42,7 @@ import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.report.lens.DefaultTextLens;
 import inetsoft.report.painter.ImagePainter;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.uql.asset.AbstractSheet;
 import inetsoft.uql.asset.Assembly;
@@ -62,8 +64,8 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.lang.reflect.Field;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -73,8 +75,13 @@ import java.util.stream.Collectors;
  * @author InetSoft Technology Corp
  */
 public class VsToReportConverter {
-   public VsToReportConverter(ViewsheetSandbox box) {
+   public VsToReportConverter(ViewsheetSandbox box, LibManagerProvider libManagerProvider, Cluster cluster, FileSystemService fileSystemService, DataSpace dataSpace) {
       this.box = box;
+      this.libManagerProvider = libManagerProvider;
+      this.cluster = cluster;
+      this.fileSystemService = fileSystemService;
+      this.dataSpace = dataSpace;
+      this.report = new TabularSheet(libManagerProvider, cluster);
    }
 
    /**
@@ -86,7 +93,7 @@ public class VsToReportConverter {
       playout = layoutinfo.getPrintLayout();
 
       if(playout == null) {
-         return new TabularSheet();
+         return new TabularSheet(libManagerProvider, cluster);
       }
 
       TableDataPath dataPath = new TableDataPath(-1, TableDataPath.OBJECT);
@@ -270,7 +277,7 @@ public class VsToReportConverter {
     */
    private TabularSheet createReportSheet(PrintLayout playout) {
       PrintInfo pinfo = playout.getPrintInfo();
-      TabularSheet report = new TabularSheet();
+      TabularSheet report = new TabularSheet(libManagerProvider, cluster);
       report.setPageSize(getInchSize(pinfo, playout.isHorizontalScreen()));
       Margin margin = pinfo.getMargin();
       report.setMargin(margin);
@@ -607,6 +614,27 @@ public class VsToReportConverter {
             }
 
             copyTableRColumnWidth2((TableDataVSAssembly) assembly, box.getViewsheet(), lens);
+
+            // Bug #74000, apply table.output.maxcol limit in print layout (same as web display).
+            // Must be applied BEFORE getRegionTableLens(), which captures column count at
+            // construction time in its own ccount field, bypassing VSTableLens.maxCols.
+            if(lens != null) {
+               int ccount = lens.getColCount();
+               String maxColProp = SreeEnv.getProperty("table.output.maxcol");
+               int maxCols = 500;
+
+               try {
+                  maxCols = Math.min(Integer.parseInt(maxColProp), 500);
+                  maxCols = Math.max(maxCols, 1);
+               }
+               catch(NumberFormatException ignored) {
+               }
+
+               if(ccount > maxCols) {
+                  lens.setMaxCols(maxCols);
+               }
+            }
+
             lens = getRegionTableLens(lens, (TableDataVSAssembly) assembly);
             addTable((TableDataVSAssembly) assembly, lens, sectionName);
             break;
@@ -639,31 +667,28 @@ public class VsToReportConverter {
                sectionName);
             break;
          case AbstractSheet.SLIDER_ASSET:
+            addImageElement(assembly, sectionName, addInputLabel(assembly, sectionName));
+            break;
          case AbstractSheet.SPINNER_ASSET:
-            text = ((NumericRangeVSAssemblyInfo) info).getValueLabel() + "";
-            addTextBoxElement(assembly, text, sectionName);
+            addImageElement(assembly, sectionName, addInputLabel(assembly, sectionName));
             break;
          case AbstractSheet.COMBOBOX_ASSET:
-            ComboBoxVSAssemblyInfo cinfo = (ComboBoxVSAssemblyInfo) info;
-            String label = cinfo.getSelectedLabel();
-            // for editable combobox, if the input value isn't in the dropdown
-            // list, then need use getSelectedObject to get the selected value.
-            label = label == null ? cinfo.getSelectedObject() + "" : label;
-            addTextBoxElement(assembly, label, sectionName);
+            addImageElement(assembly, sectionName, addInputLabel(assembly, sectionName));
             break;
          case AbstractSheet.RADIOBUTTON_ASSET:
-            addRadioButton((RadioButtonVSAssembly) assembly, sectionName);
+            addRadioButton((RadioButtonVSAssembly) assembly, sectionName,
+                           addInputLabel(assembly, sectionName));
             break;
          case AbstractSheet.CHECKBOX_ASSET:
-            addCheckBox((CheckBoxVSAssembly) assembly, sectionName);
+            addCheckBox((CheckBoxVSAssembly) assembly, sectionName,
+                        addInputLabel(assembly, sectionName));
             break;
          case AbstractSheet.TEXTINPUT_ASSET:
+            Rectangle textInputBounds = addInputLabel(assembly, sectionName);
             Object value = ((TextInputVSAssemblyInfo) info).getValue();
-
             if(value != null) {
-               addTextBoxElement(assembly, value + "", sectionName);
+               addTextBoxElement0(info, null, value + "", textInputBounds, sectionName);
             }
-
             break;
          case AbstractSheet.SUBMIT_ASSET:
             text = ((SubmitVSAssemblyInfo) info).getLabelName();
@@ -754,15 +779,22 @@ public class VsToReportConverter {
          final Rectangle assemblybounds = getPixelBounds(assembly);
          int y = assemblybounds.y;
          int height = assemblybounds.height;
-         int currPage = getPageNumber(y, pheight);
 
          if(assembly instanceof TabVSAssembly) {
             String name = ((TabVSAssembly) assembly).getSelected();
             Viewsheet vs = assembly.getViewsheet();
             VSAssembly selected = vs.getAssembly(name);
-            Rectangle sub = getPixelBounds(selected);
-            height = sub.y + sub.height - y;
+
+            if(selected != null) {
+               Rectangle sub = getPixelBounds(selected);
+               int topY = Math.min(y, sub.y);
+               int bottomY = Math.max(y + assemblybounds.height, sub.y + sub.height);
+               y = topY;
+               height = bottomY - topY;
+            }
          }
+
+         int currPage = getPageNumber(y, pheight);
 
          if(assembly instanceof LineVSAssembly) {
             height += 5;
@@ -773,6 +805,7 @@ public class VsToReportConverter {
             SectionElementDef filler = createReportSection();
             getSectionContent(filler).setHeight(y / 72f);
             addSection(filler, new Rectangle(0, 0, pwidth, y));
+            fillerSectionIds.add(filler.getID());
             bounds = new Rectangle(0, 0, pwidth, y + height);
          }
 
@@ -812,6 +845,7 @@ public class VsToReportConverter {
                int fillh = y - bounds.y - bounds.height;
                getSectionContent(filler).setHeight(fillh / 72f);
                addSection(filler, new Rectangle(0, bounds.y + bounds.height, pwidth, fillh));
+               fillerSectionIds.add(filler.getID());
             }
 
             innersection = createReportSection();
@@ -1382,6 +1416,12 @@ public class VsToReportConverter {
             def.setBorders(tborders);
          }
 
+         Hyperlink titleLink = cinfo.getTitleLinkValue();
+
+         if(titleLink != null) {
+            def.setHyperlink(titleLink);
+         }
+
          cinfo.setLayoutPosition(new Point(cbounds.x, cbounds.y + theight));
          cinfo.setLayoutSize(new Dimension(cbounds.width, cbounds.height - theight));
          cbounds = getPixelBounds(assembly);
@@ -1418,6 +1458,12 @@ public class VsToReportConverter {
       if(data instanceof VSDataSet) {
          TableLens table = ((VSDataSet) data).getTable();
          chartelem.setData(table);
+      }
+
+      Hyperlink emptyPlotLink = cinfo.getEmptyPlotLinkValue();
+
+      if(emptyPlotLink != null) {
+         chartelem.setEmptyPlotHyperlink(emptyPlotLink);
       }
    }
 
@@ -1689,6 +1735,136 @@ public class VsToReportConverter {
    }
 
    /**
+    * Add a label text box for input assemblies that have a visible LabelInfo.
+    * The label is placed at the appropriate edge of the assembly bounds based
+    * on the label position (left, right, top, bottom).
+    * @return the content bounds — the assembly bounds minus the space occupied by the label.
+    */
+   private Rectangle addInputLabel(VSAssembly assembly, String sectionName) {
+      VSAssemblyInfo info = (VSAssemblyInfo) assembly.getInfo();
+      Rectangle bounds = getPixelBounds(assembly);
+
+      if(!(info instanceof InputVSAssemblyInfo)) {
+         return bounds;
+      }
+
+      LabelInfo labelInfo = ((InputVSAssemblyInfo) info).getLabelInfo();
+
+      if(labelInfo == null || !labelInfo.isLabelVisible()) {
+         return bounds;
+      }
+
+      String labelText = labelInfo.getLabelText();
+
+      if(labelText == null || labelText.isEmpty()) {
+         return bounds;
+      }
+
+      String position = labelInfo.getLabelPosition();
+      int labelH = Math.round(AssetUtil.defh * scalefont);
+
+      DefaultTextLens textlens = new DefaultTextLens(labelText);
+      TextBoxElementDef textbox = new TextBoxElementDef(report, textlens);
+
+      VSCompositeFormat labelFormat = labelInfo.getLabelFormat();
+      applyFormat(textbox, labelFormat, null, info, false);
+      textbox.setZIndex(info.getZIndex());
+      textbox.setBorders(new Insets(0, 0, 0, 0));
+      textbox.setBorder(StyleConstants.NO_BORDER);
+
+      Font fn = textbox.getFont();
+
+      if(fn == null) {
+         fn = GDefaults.DEFAULT_TEXT_FONT;
+      }
+
+      int labelW = (int) Common.stringWidth(labelText, fn) + 6;
+
+      Rectangle labelBounds;
+      Rectangle contentBounds;
+
+      switch(position) {
+         case LabelInfo.TOP:
+            labelBounds = new Rectangle(bounds.x, bounds.y, bounds.width, labelH);
+            contentBounds = new Rectangle(bounds.x, bounds.y + labelH, bounds.width, bounds.height - labelH);
+            break;
+         case LabelInfo.BOTTOM:
+            labelBounds = new Rectangle(bounds.x, bounds.y + bounds.height - labelH,
+                                        bounds.width, labelH);
+            contentBounds = new Rectangle(bounds.x, bounds.y, bounds.width, bounds.height - labelH);
+            break;
+         case LabelInfo.RIGHT:
+            labelBounds = new Rectangle(bounds.x + bounds.width - labelW,
+                                        bounds.y, labelW, bounds.height);
+            contentBounds = new Rectangle(bounds.x, bounds.y, bounds.width - labelW, bounds.height);
+            break;
+         case LabelInfo.LEFT:
+         default:
+            labelBounds = new Rectangle(bounds.x, bounds.y, labelW, bounds.height);
+            contentBounds = new Rectangle(bounds.x + labelW, bounds.y, bounds.width - labelW, bounds.height);
+            break;
+      }
+
+      // When the component's layout bounds are too small to split between widget and label,
+      // extend the label beyond the component's allocated bounds and use the full bounds for the widget.
+      if(contentBounds.height <= 0) {
+         switch(position) {
+            case LabelInfo.TOP:
+               // For a TOP label, try to place the label in the section that covers the space
+               // immediately above the widget (bounds.y - labelH .. bounds.y). This is typically
+               // the filler section created to preserve vertical spacing before the first assembly.
+               // Returning early skips the addElement0 call below so the label is not double-added.
+               if(bounds.y >= labelH) {
+                  String aboveSection = findSectionContaining(bounds.y - 1);
+
+                  if(aboveSection != null) {
+                     Rectangle topLabelBounds =
+                        new Rectangle(bounds.x, bounds.y - labelH, bounds.width, labelH);
+                     expandSectionForLabel(aboveSection, topLabelBounds);
+                     addElement0(topLabelBounds, textbox, aboveSection);
+                     return new Rectangle(bounds.x, bounds.y, bounds.width, bounds.height);
+                  }
+               }
+
+               // No filler section found above to absorb the label; fall back to overlapping
+               // the label with the widget at the same bounds. The label will likely be covered
+               // by the opaque widget image (the original bug), but there is no safe alternative.
+               labelBounds = new Rectangle(bounds.x, bounds.y, bounds.width, labelH);
+               break;
+            case LabelInfo.BOTTOM:
+               labelBounds = new Rectangle(bounds.x, bounds.y + bounds.height, bounds.width, labelH);
+               expandSectionForLabel(sectionName, labelBounds);
+               break;
+            default:
+               break;
+         }
+
+         contentBounds = new Rectangle(bounds.x, bounds.y, bounds.width, bounds.height);
+      }
+
+      if(contentBounds.width <= 0) {
+         switch(position) {
+            case LabelInfo.LEFT:
+               // Places label to the left of the widget. If bounds.x is near 0 the label
+               // will have a negative x-coordinate and be clipped; this is an inherent
+               // limitation of a component sized too narrow to contain its own label.
+               labelBounds = new Rectangle(bounds.x - labelW, bounds.y, labelW, bounds.height);
+               break;
+            case LabelInfo.RIGHT:
+               labelBounds = new Rectangle(bounds.x + bounds.width, bounds.y, labelW, bounds.height);
+               break;
+            default:
+               break;
+         }
+
+         contentBounds = new Rectangle(bounds.x, bounds.y, bounds.width, bounds.height);
+      }
+
+      addElement0(labelBounds, textbox, sectionName);
+      return contentBounds;
+   }
+
+   /**
     * Create a TextBoxElement and add to fixed position in the report section.
     * @param assembly textbox elem should use same bounds with this assembly.
     * @param text content of the textbox element.
@@ -1827,8 +2003,11 @@ public class VsToReportConverter {
          }
       }
 
-      int align = !isTitle && info instanceof SelectionBaseVSAssemblyInfo ? objfmt.getAlignment() :
-         detailfmt != null ? detailfmt.getAlignment() : objfmt.getAlignment();
+      int defaultAlign = StyleConstants.H_LEFT | StyleConstants.V_TOP;
+      int align = !isTitle && info instanceof SelectionBaseVSAssemblyInfo && objfmt != null
+         ? objfmt.getAlignment()
+         : detailfmt != null ? detailfmt.getAlignment()
+         : objfmt != null ? objfmt.getAlignment() : defaultAlign;
       elem.setTextAlignment(align);
       elem.setBorders(borders);
       elem.setBorderColor(bcolor);
@@ -1907,17 +2086,17 @@ public class VsToReportConverter {
     * the report section.
     */
    private void addRadioButton(RadioButtonVSAssembly assembly,
-                               String sectionName)
+                               String sectionName, Rectangle contentBounds)
    {
       RadioButtonVSAssemblyInfo info = (RadioButtonVSAssemblyInfo) assembly.getInfo();
-      Rectangle bounds = getPixelBounds(assembly);
+      Rectangle bounds = new Rectangle(contentBounds);
       String text = info.getSelectedLabel();
       text = text == null ? "" : text.trim();
       int titleH = 0;
 
       if(info.isTitleVisible()) {
-         Rectangle content = createTitle(assembly, sectionName, text.length() == 0);
-         titleH = bounds.height - content.height;
+         createTitle(assembly, sectionName, text.length() == 0);
+         titleH = getTitleHeight(assembly, text.length() == 0);
          bounds.y += titleH / 3;
          bounds.height -= titleH / 3;
       }
@@ -1942,16 +2121,18 @@ public class VsToReportConverter {
     * Convert vs checkbox to report textbox and add to fixed position in
     * the report section.
     */
-   private void addCheckBox(CheckBoxVSAssembly assembly, String sectionName) {
+   private void addCheckBox(CheckBoxVSAssembly assembly, String sectionName,
+                            Rectangle contentBounds)
+   {
       CheckBoxVSAssemblyInfo cinfo = (CheckBoxVSAssemblyInfo) assembly.getInfo();
-      Rectangle bounds = getPixelBounds(assembly);
+      Rectangle bounds = new Rectangle(contentBounds);
       String[] selectedLabels = cinfo.getSelectedLabels();
       boolean noselected = selectedLabels == null || selectedLabels.length == 0;
       int titleH = 0;
 
       if(cinfo.isTitleVisible()) {
-         Rectangle content = createTitle(assembly, sectionName, noselected);
-         titleH = bounds.height - content.height;
+         createTitle(assembly, sectionName, noselected);
+         titleH = getTitleHeight(assembly, noselected);
          bounds.y += titleH / 3;
          bounds.height -= titleH / 3;
       }
@@ -2090,12 +2271,9 @@ public class VsToReportConverter {
                   final String dir = SreeEnv.getProperty("html.image.directory");
 
                   if(!Tool.isEmptyString(dir)) {
-                     final String imagePath =
-                        FileSystemService.getInstance().getPath(dir, name).toString();
+                     final String imagePath = fileSystemService.getPath(dir, name).toString();
 
-                     try(final InputStream stream =
-                            DataSpace.getDataSpace().getInputStream(null, imagePath))
-                     {
+                     try(final InputStream stream = dataSpace.getInputStream(null, imagePath)) {
                         svg = new byte[stream.available()];
                         stream.read(svg);
                      }
@@ -2190,7 +2368,7 @@ public class VsToReportConverter {
                   LOG.warn("Failed to write modified SVG to temp file", e);
                }
 
-               FileSystemService.getInstance().remove(tempFile, 10 * 60000);
+               fileSystemService.remove(tempFile, 10 * 60000);
             }
             catch(Exception ex) {
                LOG.debug("Failed to create temp file: " + ex, ex);
@@ -2231,6 +2409,18 @@ public class VsToReportConverter {
     * fixed position in the report section.
     */
    private void addImageElement(VSAssembly assembly, String sectionName) {
+      addImageElement(assembly, sectionName, getPixelBounds(assembly));
+   }
+
+   /**
+    * Convert vs imageable assembly to report painter element and add to
+    * fixed position in the report section, rendering the image within
+    * contentBounds (which may be smaller than the full assembly bounds when
+    * an input label occupies part of the space).
+    */
+   private void addImageElement(VSAssembly assembly, String sectionName,
+                                Rectangle contentBounds)
+   {
       try {
          VSAssemblyInfo info = assembly.getVSAssemblyInfo();
          Viewsheet vs = info.getViewsheet();
@@ -2238,6 +2428,15 @@ public class VsToReportConverter {
          VSObject obj = null;
 
          switch(type) {
+         case AbstractSheet.SLIDER_ASSET:
+            obj = new VSSlider(vs);
+            break;
+         case AbstractSheet.SPINNER_ASSET:
+            obj = new VSSpinner(vs);
+            break;
+         case AbstractSheet.COMBOBOX_ASSET:
+            obj = new VSComboBox(vs);
+            break;
          case AbstractSheet.GAUGE_ASSET:
             obj = VSGauge.getGauge(((GaugeVSAssemblyInfo) info).getFace());
             break;
@@ -2271,23 +2470,31 @@ public class VsToReportConverter {
             obj.setAssemblyInfo(info);
 
             if(obj instanceof VSFloatable) {
-               Rectangle bounds = getPixelBounds(assembly);
-
                if(obj instanceof VSGauge) {
                   ((VSGauge) obj).setDrawbg(false);
                }
 
-               Dimension size = new Dimension(bounds.width, bounds.height);
-               obj.setPixelSize(size);
-               img = (BufferedImage) ((VSFloatable) obj).getImage(false);
+               if(contentBounds.width > 0 && contentBounds.height > 0) {
+                  Dimension size = new Dimension(contentBounds.width, contentBounds.height);
+                  obj.setPixelSize(size);
+                  img = (BufferedImage) ((VSFloatable) obj).getImage(false);
+
+                  if(img == null) {
+                     LOG.warn("Image rendering returned null for {} '{}' (size={}x{})",
+                              assembly.getClass().getSimpleName(), assembly.getName(),
+                              contentBounds.width, contentBounds.height);
+                  }
+               }
             }
 
-            addPainterElement(img, assembly, sectionName);
+            if(img != null) {
+               addPainterElement(img, assembly, sectionName, contentBounds);
+            }
          }
       }
       catch(Exception ex) {
-         LOG.error(
-            "Failed to convert imageable assembly to report painter", ex);
+         LOG.error("Failed to render {} '{}' in print layout",
+                   assembly.getClass().getSimpleName(), assembly.getName(), ex);
       }
    }
 
@@ -2478,6 +2685,16 @@ public class VsToReportConverter {
       PainterElementDef painterElem = new PainterElementDef(report, painter);
       processHyperlink(assembly, painterElem);
       addElement(assembly, painterElem, sectionname);
+   }
+
+   private void addPainterElement(BufferedImage image, VSAssembly assembly,
+                                  String sectionname, Rectangle contentBounds)
+   {
+      ImagePainter painter = new ImagePainter(image);
+      PainterElementDef painterElem = new PainterElementDef(report, painter);
+      processHyperlink(assembly, painterElem);
+      painterElem.setZIndex(assembly.getZIndex());
+      addElement0(contentBounds, painterElem, sectionname);
    }
 
    /**
@@ -2747,6 +2964,56 @@ public class VsToReportConverter {
       return null;
    }
 
+   /**
+    * Find the ID of the filler section (one of the empty spacing sections created by
+    * {@link #createReportSections} to preserve vertical gaps between assemblies) whose
+    * absolute-pixel bounds contain the given y-coordinate.
+    * Returns {@code null} if no filler section covers that position.
+    * Content sections (those holding assembly elements) are intentionally excluded to
+    * prevent a label from being placed inside another assembly's section.
+    */
+   private String findSectionContaining(int absoluteY) {
+      for(LayoutSection layout : contentSections) {
+         if(!fillerSectionIds.contains(layout.section.getID())) {
+            continue;
+         }
+
+         int sectionTop = layout.bounds.y;
+         int sectionBottom = layout.bounds.y + layout.bounds.height;
+
+         // Sections are abutted with a half-open interval [sectionTop, sectionBottom).
+         // Use (absoluteY < sectionBottom) rather than (<=) to match this convention.
+         if(absoluteY >= sectionTop && absoluteY < sectionBottom) {
+            return layout.section.getID();
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Expand the section height if the given label bounds extend below the section's
+    * current allocated area. Called when a label must be placed outside the component's
+    * own layout bounds.
+    */
+   private void expandSectionForLabel(String sectionName, Rectangle labelBounds) {
+      int labelBottom = labelBounds.y + labelBounds.height;
+
+      for(LayoutSection layout : contentSections) {
+         if(sectionName.equals(layout.section.getID())) {
+            int sectionBottom = layout.bounds.y + layout.bounds.height;
+
+            if(labelBottom > sectionBottom) {
+               int newHeightPixels = labelBottom - layout.bounds.y;
+               layout.bounds.height = newHeightPixels;
+               getSectionContent(layout.section).setHeight(newHeightPixels / 72f);
+            }
+
+            return;
+         }
+      }
+   }
+
    private void addPageBreakElement() {
       PageBreakElementDef pageBreak = new PageBreakElementDef(report);
       report.addElement(0, 0, pageBreak);
@@ -2760,7 +3027,9 @@ public class VsToReportConverter {
    private void setSectionBounds(String name, int height) {
       for(LayoutSection layout : contentSections) {
          if(name.equals(layout.section.getID())) {
-            getSectionContent(layout.section).setHeight(height);
+            // Only update the pixel-bounds record used for coordinate offsetting.
+            // The caller always follows with setHeight(bounds.height / 72f)
+            // to set the section's rendered height in inches.
             layout.bounds.height = height;
          }
       }
@@ -2826,13 +3095,20 @@ public class VsToReportConverter {
 
       return psize;
    }
+
+   private final LibManagerProvider libManagerProvider;
+   private final Cluster cluster;
+   private final FileSystemService fileSystemService;
+   private final DataSpace dataSpace;
    private int zindex = 0;
    private float scalefont = 1;
    private PrintLayout playout = null;
    private ViewsheetSandbox box = null;
-   private TabularSheet report = new TabularSheet();
+   private TabularSheet report;
    // sections used to hold content elements
    private List<LayoutSection> contentSections = new ArrayList<>();
+   // IDs of filler sections (empty spacing sections, not bound to any assembly)
+   private Set<String> fillerSectionIds = new HashSet<>();
    private SectionElementDef headerSection = null; // section of header.
    private SectionElementDef footerSection = null; // section of footer.
    private static HashMap<String, PrintLayout> tempLayouts = new HashMap<>();

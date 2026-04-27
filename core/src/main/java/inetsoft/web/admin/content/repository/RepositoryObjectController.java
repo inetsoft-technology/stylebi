@@ -19,15 +19,16 @@ package inetsoft.web.admin.content.repository;
 
 import inetsoft.report.internal.Util;
 import inetsoft.sree.RepositoryEntry;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.Resource;
+import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.util.MessageException;
+import inetsoft.util.*;
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.security.ConnectionStatus;
 import inetsoft.web.admin.security.ResourcePermissionModel;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -43,6 +44,13 @@ public class RepositoryObjectController {
       this.permissionService = permissionService;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("api/em/content/repository/tree/node/permission")
    public ResourcePermissionModel getResourcePermission(@DecodeParam("path") String path,
                                                         @RequestParam("type") String type,
@@ -54,6 +62,13 @@ public class RepositoryObjectController {
                                              principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("api/em/content/repository/tree/node/permission")
    public void setResourcePermission(@DecodeParam("path") String path,
                                      @RequestParam("type") String type,
@@ -64,6 +79,14 @@ public class RepositoryObjectController {
       int resourceType = Integer.parseInt(type);
       Resource resource = permissionService.getRepositoryResourceType(resourceType, path);
       String fullPath = Util.getObjectFullPath(resourceType, path, principal);
+
+      if(!SecurityEngine.getSecurity().checkPermission(
+         principal, resource.getType(), resource.getPath(), ResourceAction.ADMIN))
+      {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", path));
+      }
+
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       AssetEntry entry = new AssetEntry(
          AssetRepository.COMPONENT_SCOPE, Integer.parseInt(type), path, pId);
@@ -75,6 +98,13 @@ public class RepositoryObjectController {
          resource.getPath(), resource.getType(), fullPath, model, principal, tableStyleFolder);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/settings/content/repository/folder/add/")
    public ContentRepositoryTreeNode addFolder(@RequestBody NewRepositoryFolderRequest parentInfo,
                          @RequestParam("isWorksheetFolder") boolean isWorksheetFolder,
@@ -87,6 +117,13 @@ public class RepositoryObjectController {
    /**
     * Delete the selected repository entry
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("api/em/content/repository/tree/delete")
    public ConnectionStatus deleteRepositoryEntry(@RequestBody DeleteTreeNodesRequest deleteRequest,
                                                  Principal principal) throws MessageException
@@ -98,6 +135,13 @@ public class RepositoryObjectController {
    /**
     * Move/copy the selected repository entry
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("api/em/content/repository/tree/move")
    public void moveFile(@RequestBody MoveCopyTreeNodesRequest request,
                                      Principal principal)

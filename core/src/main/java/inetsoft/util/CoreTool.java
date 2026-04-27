@@ -2246,7 +2246,7 @@ public class CoreTool {
    // the user's needs
    private static boolean hasCollator = false;
    private static Collator getCollator() {
-      if (!hasCollator) {
+      if(!hasCollator) {
          String collatorName;
 
          if((collatorName = SreeEnv.getProperty("sree.collator")) != null) {
@@ -2256,13 +2256,21 @@ public class CoreTool {
             catch(Exception e) {
                //Collator does not exist, collator stays equal to null
             }
+
+            hasCollator = true;
+         }
+         else if(Locale.getDefault().getLanguage().equals("en")) {
+            hasCollator = true;
          }
          else {
-            collator = Locale.getDefault().getLanguage().equals("en") ? null :
-                    Collator_CN.getCollator();
-         }
+            // Defer caching until Collator_CN's background map load completes so
+            // we don't permanently store the fallback Collator.getInstance().
+            collator = Collator_CN.getCollator();
 
-         hasCollator = true;
+            if(Collator_CN.isMapLoaded()) {
+               hasCollator = true;
+            }
+         }
       }
       return collator;
    }

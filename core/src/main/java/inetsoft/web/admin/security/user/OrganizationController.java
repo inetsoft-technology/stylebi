@@ -24,7 +24,8 @@ import inetsoft.web.admin.security.AuthenticationProviderService;
 import inetsoft.web.admin.security.IdentityService;
 import inetsoft.web.factory.DecodePathVariable;
 import inetsoft.web.security.*;
-import inetsoft.web.viewsheet.*;
+import inetsoft.web.viewsheet.AuditObjectName;
+import inetsoft.web.viewsheet.AuditUser;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,35 +40,50 @@ public class OrganizationController {
    @Autowired
    public OrganizationController(UserTreeService userTreeService,
                                  IdentityService identityService,
-                                 AuthenticationProviderService authenticationProviderService)
+                                 AuthenticationProviderService authenticationProviderService,
+                                 SecurityEngine securityEngine)
    {
       this.userTreeService = userTreeService;
       this.identityService = identityService;
       this.authenticationProviderService = authenticationProviderService;
+      this.securityEngine = securityEngine;
    }
 
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/security/users/create-organization/{provider}")
    public EditOrganizationPaneModel createOrganization(Principal principal,
                                        @DecodePathVariable("provider") String provider,
                                        @RequestBody CreateEntityRequest createRequest)
    {
       String copyFromOrgID = createRequest.parentGroup();
+      String defaultPassword = createRequest.defaultPassword();
 
       if(copyFromOrgID != null && !Tool.isEmptyString(copyFromOrgID)) {
-         return userTreeService.createOrganization(copyFromOrgID, provider, null, null, principal);
+         return userTreeService.createOrganization(copyFromOrgID, provider, null, null, principal, defaultPassword);
       }
       else {
-         return userTreeService.createOrganization(null, provider, null, null, principal);
+         return userTreeService.createOrganization(null, provider, null, null, principal, null);
       }
    }
 
    @GetMapping("/api/em/security/providers/{provider}/organization/{organization}/")
-   @Secured(
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      ),
       @RequiredPermission(
          resourceType = ResourceType.SECURITY_ORGANIZATION,
          actions = ResourceAction.ADMIN)
-   )
+   })
    public EditOrganizationPaneModel getOrganization(@DecodePathVariable("provider") String provider,
                                     @PermissionPath @DecodePathVariable("organization") String organizationId,
                                     Principal principal)
@@ -76,6 +92,7 @@ public class OrganizationController {
       return userTreeService.getOrganizationModel(provider, identityID, principal, false, null);
    }
 
+   // No @Secured: non-site-admins are scoped to their own org below, so no data is leaked.
    @GetMapping("/api/em/security/users/get-all-organization-names/")
    public List<String> getAllOrganizationNames(Principal principal)
    {
@@ -83,19 +100,22 @@ public class OrganizationController {
          return new ArrayList<>();
       }
 
-      return Arrays.stream(SecurityEngine.getSecurity().getSecurityProvider().getOrganizationNames()).toList();
-   }
-
-   @GetMapping("/api/em/security/users/get-all-organization-ids/")
-   public List<String> getAllOrganizationIDs(Principal principal)
-   {
-      if(!SUtil.isMultiTenant()) {
-         return new ArrayList<>();
+      if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
+         String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+         String orgName = securityEngine.getSecurityProvider().getOrgNameFromID(orgID);
+         return orgName != null ? List.of(orgName) : new ArrayList<>();
       }
 
-      return Arrays.stream(SecurityEngine.getSecurity().getSecurityProvider().getOrganizationIDs()).toList();
+      return Arrays.stream(securityEngine.getSecurityProvider().getOrganizationNames()).toList();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/security/users/get-all-organizations")
    public List<IdentityID> getAllOrganizationIdentityIDs(@RequestParam("name") String name,
                                                          Principal principal)
@@ -106,12 +126,23 @@ public class OrganizationController {
 
       AuthenticationProvider provider = authenticationProviderService.getProviderByName(name);
 
+      if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
+         String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+         String orgName = provider.getOrgNameFromID(orgID);
+         return orgName != null ? List.of(new IdentityID(orgName, orgID)) : new ArrayList<>();
+      }
+
       return Arrays.stream(provider.getOrganizationIDs())
          .map(id -> new IdentityID(provider.getOrgNameFromID(id), id)).toList();
    }
 
    @GetMapping("/api/em/security/users/get-organization-detail-string/{orgID}")
    @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      ),
       @RequiredPermission(
          resourceType = ResourceType.SECURITY_ORGANIZATION,
          actions = ResourceAction.ADMIN
@@ -126,6 +157,11 @@ public class OrganizationController {
    @PostMapping("/api/em/security/users/edit-organization/{provider}")
    @Secured({
       @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
          resourceType = ResourceType.SECURITY_ORGANIZATION,
          actions = ResourceAction.ADMIN
       )
@@ -137,7 +173,7 @@ public class OrganizationController {
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -158,5 +194,6 @@ public class OrganizationController {
    private final UserTreeService userTreeService;
    private final IdentityService identityService;
    private final AuthenticationProviderService authenticationProviderService;
+   private final SecurityEngine securityEngine;
    private static final Logger LOG = LoggerFactory.getLogger(OrganizationController.class);
 }

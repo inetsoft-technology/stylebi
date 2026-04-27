@@ -18,12 +18,14 @@
 package inetsoft.web.admin.deploy;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.*;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.web.dashboard.DashboardRegistry;
+import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.*;
@@ -32,12 +34,13 @@ import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.dep.*;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeService;
-import inetsoft.web.admin.content.repository.RepletRegistryManager;
+import inetsoft.web.admin.content.repository.RepletRegistryService;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.security.auth.MissingResourceException;
 import inetsoft.web.viewsheet.DatasourceIgnoreGlobalShare;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -53,11 +56,24 @@ import java.util.zip.GZIPInputStream;
 
 @Service
 public class DeployService {
+   @Autowired
    public DeployService(ContentRepositoryTreeService contentRepositoryTreeService,
-                        SecurityEngine securityEngine)
+                        SecurityEngine securityEngine,
+                        DataSourceRegistry dataSourceRegistry,
+                        IndexedStorage indexedStorage, DeployManagerService deployManagerService,
+                        DashboardRegistryManager dashboardRegistryManager,
+                        LibManagerProvider libManagerProvider,
+                        FileSystemService fileSystemService, RepletRegistryService registryManager)
    {
       this.contentRepositoryTreeService = contentRepositoryTreeService;
       this.securityEngine = securityEngine;
+      this.dataSourceRegistry = dataSourceRegistry;
+      this.indexedStorage = indexedStorage;
+      this.deployManagerService = deployManagerService;
+      this.dashboardRegistryManager = dashboardRegistryManager;
+      this.libManagerProvider = libManagerProvider;
+      this.fileSystemService = fileSystemService;
+      this.registryManager = registryManager;
    }
 
    public ImportJarProperties setJarFile(String fpath, boolean gzipped) throws Exception {
@@ -65,7 +81,7 @@ public class DeployService {
          throw new Exception(Catalog.getCatalog().getString("em.replet.uploadFile.noFile"));
       }
 
-      File file = FileSystemService.getInstance().getFile(fpath);
+      File file = fileSystemService.getFile(fpath);
       InputStream in = new BufferedInputStream(new FileInputStream(file));
 
       if(gzipped) {
@@ -121,7 +137,7 @@ public class DeployService {
                .dateFormat(Tool.getDateFormatPattern())
                .user(entry.getUser());
 
-            if(!SecurityEngine.getSecurity().isSecurityEnabled() &&
+            if(!securityEngine.isSecurityEnabled() &&
                (Tool.equals(entry.getType(), WSAutoSaveAsset.AUTOSAVEWS) ||
                Tool.equals(entry.getType(), VSAutoSaveAsset.AUTOSAVEVS)))
             {
@@ -135,7 +151,7 @@ public class DeployService {
                XAsset asset = DeployUtil.createAsset(entry);
 
                if(asset instanceof FolderChangeableAsset) {
-                  XAsset changeRootFolderAsset = DeployManagerService.getChangeRootFolderAsset(asset,
+                  XAsset changeRootFolderAsset = deployManagerService.getChangeRootFolderAsset(asset,
                      targetFolderInfo.getTargetFolder(), null, importCommonPrefix,
                      true, helper.getDependencies(asset), changedMap, true);
 
@@ -183,7 +199,7 @@ public class DeployService {
                XAsset asset = DeployUtil.getAsset(dependentAssets.get(i));
 
                if(asset instanceof FolderChangeableAsset || asset instanceof XQueryAsset) {
-                  XAsset changeRootFolderAsset = DeployManagerService.getChangeRootFolderAsset(asset,
+                  XAsset changeRootFolderAsset = deployManagerService.getChangeRootFolderAsset(asset,
                      targetFolderInfo.getTargetFolder(), null, importCommonPrefix,
                      true, helper.getDependencies(asset), changedMap, true);
 
@@ -401,7 +417,7 @@ public class DeployService {
          }
       }
 
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
       boolean noUsers = users.isEmpty() ||
          users.size() == 1 &&
          users.stream().anyMatch(id -> id != null && ("anonymous".equals(id.getName()) || "_NULL_".equals(id.getName()))) ||
@@ -412,7 +428,7 @@ public class DeployService {
             // if auto save has administrator, support import auto save assets.
             // if no security, only can login em by admin.
          }
-         else if(!noUsers && !SecurityEngine.getSecurity().isSecurityEnabled()) {
+         else if(!noUsers && !securityEngine.isSecurityEnabled()) {
             throw new Exception(
                Catalog.getCatalog().getString("em.import.userNoSecurity"));
          }
@@ -434,7 +450,8 @@ public class DeployService {
          ActionRecord.ACTION_NAME_IMPORT, null, null);
       AnalyticRepository repository = SUtil.getRepletRepository();
 
-      if(repository instanceof RepletEngine) {
+      if(repository.isWrapperFor(RepletEngine.class)) {
+         RepletEngine engine = repository.unwrap(RepletEngine.class);
          List<String> list = new ArrayList<>(ignoreUserAssets);
          List<String> privateSembeddedData = info.getJarInfo().getDependeciesMap().get("privateSembeddedData");
 
@@ -442,7 +459,7 @@ public class DeployService {
             list.addAll(privateSembeddedData);
          }
 
-         List<String> failedAssets = ((RepletEngine) repository).importAssets(
+         List<String> failedAssets = engine.importAssets(
             overwriting, info.getProperties().fileOrders(), info, false, principal, ignoreList,
             targetFolderInfo, actionRecord, list);
          return ImportAssetResponse.builder()
@@ -504,7 +521,7 @@ public class DeployService {
          }
 
          if(targetFolderAsset == null) {
-            final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+            final DataSourceRegistry registry = dataSourceRegistry;
 
             if(registry.getDataSourceFolder(targetFolder) != null) {
                targetFolderAsset = new AssetEntry(AssetRepository.QUERY_SCOPE,
@@ -594,7 +611,7 @@ public class DeployService {
       throws Exception
    {
       String filePath = properties.zipFilePath();
-      File file = FileSystemService.getInstance().getFile(filePath);
+      File file = fileSystemService.getFile(filePath);
 
       try(InputStream in = new FileInputStream(file)) {
          fn.accept(in);
@@ -670,8 +687,8 @@ public class DeployService {
       try {
          AnalyticRepository repository = SUtil.getRepletRepository();
 
-         if(repository instanceof RepletEngine) {
-            ((RepletEngine) repository).importAssets(data, replace);
+         if(repository.isWrapperFor(RepletEngine.class)) {
+            repository.unwrap(RepletEngine.class).importAssets(data, replace);
          }
       }
       catch(Exception e) {
@@ -927,7 +944,7 @@ public class DeployService {
 
          if(assetType != null && isEntityPermitted(entity, assetType, principal)) {
             XAsset xAsset = SUtil.getXAsset(assetType,
-               RepletRegistryManager.splitMyReportPath(entity.path()), entity.user());
+                                            RepletRegistryService.splitMyReportPath(entity.path()), entity.user());
             Long lastModifiedTime = entity.lastModifiedTime();
 
             if(entity.type() == RepositoryEntry.VIEWSHEET) {
@@ -991,7 +1008,7 @@ public class DeployService {
             principal, ResourceType.ASSET, unscopedPath, ResourceAction.ADMIN);
       }
       else if(xasset.getUser() != null) {
-         return principal.getName().equals(xasset.getUser().convertToKey()) || SecurityEngine.getSecurity().checkPermission(
+         return principal.getName().equals(xasset.getUser().convertToKey()) || securityEngine.checkPermission(
             principal, ResourceType.SECURITY_USER, xasset.getUser(), ResourceAction.ADMIN);
       }
       else {
@@ -1106,7 +1123,7 @@ public class DeployService {
    }
 
    private Stream<XAsset> getTableStyleAssets(String folder) {
-      LibManager manager = LibManager.getManager();
+      LibManager manager = libManagerProvider.getManager();
       Stream<XAsset> assets = Arrays.stream(manager.getTableStyles(folder))
          .map(XTableStyle::getName)
          .map(n -> new TableStyleAsset(n.replaceAll(LibManager.SEPARATOR, "/")));
@@ -1211,8 +1228,6 @@ public class DeployService {
       Pattern pattern = Pattern.compile(convertToReg(assetPath));
 
       try {
-         final IndexedStorage indexedStorage = IndexedStorage.getIndexedStorage();
-
          assets = indexedStorage.getKeys(Objects::nonNull)
             .stream()
             .map(AssetEntry::createAssetEntry)
@@ -1267,7 +1282,7 @@ public class DeployService {
    }
 
    private List<XAsset> searchDashboards(AssetSearchOptions opts) {
-      DashboardRegistry registry = DashboardRegistry.getRegistry(opts.user);
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry(opts.user);
       Pattern pattern = Pattern.compile(convertToReg(opts.path));
       List<XAsset> assets = new ArrayList<>();
 
@@ -1287,7 +1302,7 @@ public class DeployService {
    private XAsset getModelXAsset(AssetEntry entry) {
       AssetEntry.Type type = entry.getType();
       String path = entry.getPath();
-      DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      DataSourceRegistry registry = dataSourceRegistry;
       String[] dsNames = registry.getDataSourceFullNames();
 
       if(type == AssetEntry.Type.LOGIC_MODEL ||
@@ -1478,6 +1493,12 @@ public class DeployService {
    private static final String USER_ASSET_PATTERN = "/user/([^/]+)/([^/]+)/(.+)";
    private final ContentRepositoryTreeService contentRepositoryTreeService;
    private final SecurityEngine securityEngine;
-   private final RepletRegistryManager registryManager = new RepletRegistryManager();
+   private final DataSourceRegistry dataSourceRegistry;
+   private final IndexedStorage indexedStorage;
+   private final DeployManagerService deployManagerService;
+   private final DashboardRegistryManager dashboardRegistryManager;
+   private final LibManagerProvider libManagerProvider;
+   private final FileSystemService fileSystemService;
+   private final RepletRegistryService registryManager;
    private static final Logger LOG = LoggerFactory.getLogger(DeployService.class);
 }

@@ -51,8 +51,9 @@ import java.util.stream.Collectors;
 @Component
 public class VSTreeHandler {
    @Autowired
-   public VSTreeHandler(VSChartHandler chartHandler) {
+   public VSTreeHandler(VSChartHandler chartHandler, SecurityEngine securityEngine) {
       this.chartHandler = chartHandler;
+      this.securityEngine = securityEngine;
    }
 
    /**
@@ -447,7 +448,7 @@ public class VSTreeHandler {
          .collect(Collectors.toList());
 
       boolean calculatedFieldPermission =
-         SecurityEngine.getSecurity().checkPermission(
+         securityEngine.checkPermission(
             user, ResourceType.VIEWSHEET_CALCULATED_FIELD, "*", ResourceAction.ACCESS);
 
       return TreeNodeModel.builder()
@@ -761,4 +762,5 @@ public class VSTreeHandler {
 
    private static final String LOCAL_STR = "localStr";
    private final VSChartHandler chartHandler;
+   private final SecurityEngine securityEngine;
 }

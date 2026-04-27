@@ -140,12 +140,14 @@ public class ConfigureMojo extends AbstractMojo {
       try(URLClassLoader loader = getDependencyClassloader()) {
          String configDir = configDirectory.getAbsolutePath();
 
-         if(backupFile != null && backupFile.exists()) {
-            restoreBackup(loader, configDir);
-         }
+         try(AutoCloseable storageContext = getStorageContext(loader, configDir)) {
+            if(backupFile != null && backupFile.exists()) {
+               restoreBackup(loader, storageContext);
+            }
 
-         if(properties != null && !properties.isEmpty()) {
-            try(AutoCloseable propertiesService = getPropertiesService(loader, configDir)) {
+            if(properties != null && !properties.isEmpty()) {
+               Object propertiesService = getPropertiesService(loader, storageContext);
+
                for(String prop : properties.stringPropertyNames()) {
                   putProperty(loader, propertiesService, prop, properties.getProperty(prop));
                }
@@ -164,18 +166,15 @@ public class ConfigureMojo extends AbstractMojo {
                   }
                }
             }
-            catch(Exception e) {
-               getLog().warn("Failed to close properties service", e);
-            }
-         }
 
-         List<File> plugins = project.getArtifacts().stream()
-            .filter(this::isPluginFile)
-            .map(Artifact::getFile)
-            .filter(Objects::nonNull)
-            .toList();
+            List<File> plugins = project.getArtifacts().stream()
+               .filter(this::isPluginFile)
+               .map(Artifact::getFile)
+               .filter(Objects::nonNull)
+               .toList();
 
-         try(AutoCloseable storageService = getStorageService(loader, configDir)) {
+            Object storageService = getStorageService(loader, storageContext);
+
             for(File file : plugins) {
                installPlugin(loader, storageService, file);
             }
@@ -205,17 +204,16 @@ public class ConfigureMojo extends AbstractMojo {
       }
    }
 
-   private void restoreBackup(ClassLoader loader, String configDir)
+   private void restoreBackup(ClassLoader loader, Object storageContext)
       throws MojoExecutionException
    {
       ClassLoader oldLoader = Thread.currentThread().getContextClassLoader();
       Thread.currentThread().setContextClassLoader(loader);
 
       try {
-         try(AutoCloseable storageService = getStorageService(loader, configDir)) {
-            Method method = storageService.getClass().getMethod("restore", File.class);
-            method.invoke(storageService, backupFile);
-         }
+         Object storageService = getStorageService(loader, storageContext);
+         Method method = storageService.getClass().getMethod("restore", File.class);
+         method.invoke(storageService, backupFile);
       }
       catch(Exception e) {
          throw new MojoExecutionException("Failed to restore storage backup", e);
@@ -225,16 +223,34 @@ public class ConfigureMojo extends AbstractMojo {
       }
    }
 
-   private AutoCloseable getStorageService(ClassLoader loader, String configDir)
+   private AutoCloseable getStorageContext(ClassLoader loader, String configDir)
       throws MojoExecutionException
    {
       ClassLoader oldLoader = Thread.currentThread().getContextClassLoader();
       Thread.currentThread().setContextClassLoader(loader);
 
       try {
-         Class<?> storageClass = loader.loadClass("inetsoft.setup.StorageService");
-         Constructor<?> cstr = storageClass.getConstructor(String.class);
+         Class<?> contextClass = loader.loadClass("inetsoft.setup.StorageContext");
+         Constructor<?> cstr = contextClass.getConstructor(String.class);
          return (AutoCloseable) cstr.newInstance(configDir);
+      }
+      catch(Exception e) {
+         throw new MojoExecutionException("Failed to get storage context", e);
+      }
+      finally {
+         Thread.currentThread().setContextClassLoader(oldLoader);
+      }
+   }
+
+   private Object getStorageService(ClassLoader loader, Object storageContext)
+      throws MojoExecutionException
+   {
+      ClassLoader oldLoader = Thread.currentThread().getContextClassLoader();
+      Thread.currentThread().setContextClassLoader(loader);
+
+      try {
+         Method method = storageContext.getClass().getDeclaredMethod("getStorageService");
+         return method.invoke(storageContext);
       }
       catch(Exception e) {
          throw new MojoExecutionException("Failed to get storage service", e);
@@ -244,34 +260,15 @@ public class ConfigureMojo extends AbstractMojo {
       }
    }
 
-   private AutoCloseable getPropertiesService(ClassLoader loader, String configDir)
+   private Object getPropertiesService(ClassLoader loader, Object storageContext)
       throws MojoExecutionException
    {
       ClassLoader oldLoader = Thread.currentThread().getContextClassLoader();
       Thread.currentThread().setContextClassLoader(loader);
 
       try {
-         Class<?> clazz = loader.loadClass("inetsoft.setup.PropertiesService");
-         Constructor<?> cstr = clazz.getConstructor(String.class);
-         return (AutoCloseable) cstr.newInstance(configDir);
-      }
-      catch(Exception e) {
-         throw new MojoExecutionException("Failed to get properties service", e);
-      }
-      finally {
-         Thread.currentThread().setContextClassLoader(oldLoader);
-      }
-   }
-
-   private AutoCloseable getStorageService(ClassLoader loader, Object setupService,
-                                           String configDir) throws MojoExecutionException
-   {
-      ClassLoader oldLoader = Thread.currentThread().getContextClassLoader();
-      Thread.currentThread().setContextClassLoader(loader);
-
-      try {
-         Method method = setupService.getClass().getMethod("getStorageService", String.class);
-         return (AutoCloseable) method.invoke(setupService, configDir);
+         Method method = storageContext.getClass().getDeclaredMethod("getPropertiesService");
+         return method.invoke(storageContext);
       }
       catch(Exception e) {
          throw new MojoExecutionException("Failed to get storage service", e);

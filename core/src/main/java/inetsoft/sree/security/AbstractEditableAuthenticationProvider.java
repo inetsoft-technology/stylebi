@@ -21,12 +21,13 @@ import inetsoft.mv.fs.FSService;
 import inetsoft.mv.fs.internal.AbstractFileSystem;
 import inetsoft.mv.fs.internal.DefaultBlockSystem;
 import inetsoft.mv.mr.XJobPool;
-import inetsoft.sree.RepletRegistry;
-import inetsoft.sree.SreeEnv;
+import inetsoft.sree.*;
+import inetsoft.sree.internal.AnalyticEngine;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.portal.*;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.web.dashboard.DashboardRegistry;
+import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.uql.util.AbstractIdentity;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
@@ -95,9 +96,21 @@ public abstract class AbstractEditableAuthenticationProvider
     */
    @Override
    public void copyOrganization(Organization fromOrganization, String newOrgID, IdentityService identityService,
-                                IdentityThemeService themeService, Principal principal, boolean replace)
+                                IdentityThemeService themeService,
+                                DashboardRegistryManager dashboardRegistryManager,
+                                DataCycleManager dataCycleManager,
+                                Principal principal, boolean replace)
    {
-      copyOrganization(fromOrganization, null, newOrgID, null, identityService, themeService, principal, replace);
+      copyOrganization(fromOrganization, null, newOrgID, null, identityService, themeService, dashboardRegistryManager, dataCycleManager, principal, replace);
+   }
+
+   @Override
+   public void copyOrganization(Organization fromOrganization, String newOrgID, IdentityService identityService,
+                                IdentityThemeService themeService, DashboardRegistryManager dashboardRegistryManager,
+                                DataCycleManager dataCycleManager, Principal principal, boolean replace,
+                                String defaultPassword)
+   {
+      copyOrganizationInternal(fromOrganization, null, newOrgID, null, identityService, themeService, dashboardRegistryManager, dataCycleManager, principal, replace, defaultPassword);
    }
 
    /**
@@ -110,7 +123,19 @@ public abstract class AbstractEditableAuthenticationProvider
    public void copyOrganization(Organization fromOrganization, Organization editedNewOrganization,
                                 String newOrgID, String newOrgName,
                                 IdentityService identityService, IdentityThemeService themeService,
+                                DashboardRegistryManager dashboardRegistryManager,
+                                DataCycleManager dataCycleManager,
                                 Principal principal, boolean replace)
+   {
+      copyOrganizationInternal(fromOrganization, editedNewOrganization, newOrgID, newOrgName,
+                               identityService, themeService, dashboardRegistryManager, dataCycleManager, principal, replace, null);
+   }
+
+   private void copyOrganizationInternal(Organization fromOrganization, Organization editedNewOrganization,
+                                         String newOrgID, String newOrgName,
+                                         IdentityService identityService, IdentityThemeService themeService,
+                                         DashboardRegistryManager dashboardRegistryManager,
+                                         DataCycleManager dataCycleManager, Principal principal, boolean replace, String defaultPassword)
    {
       FSOrganization newOrg = new FSOrganization(newOrgID);
       newOrg.setName(newOrgName == null ? newOrgID : newOrgName);
@@ -123,7 +148,7 @@ public abstract class AbstractEditableAuthenticationProvider
 
       if(replace) {
          clearScopedProperties(fromOrgId);
-         DashboardRegistry.clear(fromOrganization.getIdentityID());
+         dashboardRegistryManager.clear(fromOrganization.getIdentityID());
          identityService.updateOrgProperties(fromOrgId, newOrgID);
          identityService.updateAutoSaveFiles(fromOrganization, newOrg, principal);
          identityService.updateTaskSaveFiles(fromOrganization, newOrg);
@@ -169,7 +194,7 @@ public abstract class AbstractEditableAuthenticationProvider
 
       for(IdentityID userID : getUsers()) {
          if(getUser(userID).getOrganizationID().equals(fromOrgId)) {
-            IdentityID newID = copyUserToOrganization(userID, newOrgID, fromOrgId, identityService, principal);
+            IdentityID newID = copyUserToOrganization(userID, newOrgID, fromOrgId, identityService, principal, defaultPassword);
 
             if(newID != null && !newID.name.isEmpty()) {
                addedMembers.add(newID);
@@ -245,7 +270,7 @@ public abstract class AbstractEditableAuthenticationProvider
       }
 
       try {
-         DataCycleManager.getDataCycleManager().migrateDataCycles(fromOrganization, newOrg, replace);
+         dataCycleManager.migrateDataCycles(fromOrganization, newOrg, replace);
          ScheduleManager.getScheduleManager().reloadExtensions(newOrgID);
       }
       catch(Exception e) {
@@ -261,7 +286,7 @@ public abstract class AbstractEditableAuthenticationProvider
          XJobPool.resetOrgCache(fromOrgId);
          manager.removeCSSEntry(fromOrgId);
          manager.save();
-         RepletRegistry.clearOrgCache(fromOrgId);
+         RepletRegistryManager.getInstance().clearOrgCache(fromOrgId);
 
          try{
             identityService.updateRepletRegistry(fromOrgId, null);
@@ -306,6 +331,7 @@ public abstract class AbstractEditableAuthenticationProvider
             {
                CustomTheme clone = (CustomTheme) theme.clone();
                clone.setOrgID(toOrgId);
+               clone.setId(UUID.randomUUID().toString().replace("-", ""));
 
                String originalID = clone.getId();
                int i = 1;
@@ -454,6 +480,13 @@ public abstract class AbstractEditableAuthenticationProvider
             if(replace) {
                SreeEnv.remove(pName);
             }
+
+            try {
+               SreeEnv.save();
+            }
+            catch(IOException e) {
+               LOG.error("Unable to save properties to new organization", e);
+            }
          }
       }
 
@@ -569,7 +602,7 @@ public abstract class AbstractEditableAuthenticationProvider
       }
    }
 
-   private IdentityID copyUserToOrganization(IdentityID memberID, String orgID, String fromOrgID, IdentityService identityService, Principal principal) {
+   private IdentityID copyUserToOrganization(IdentityID memberID, String orgID, String fromOrgID, IdentityService identityService, Principal principal, String defaultPassword) {
       User fromUser = getUser(memberID);
 
       if(fromUser != null) {
@@ -582,9 +615,17 @@ public abstract class AbstractEditableAuthenticationProvider
          newUser.setActive(fromUser.isActive());
          newUser.setRoles(copyIdentityRoles(fromUser, orgID));
          newUser.setOrganization(orgID);
-         HashedPassword hash = Tool.hash("success123", "bcrypt");
-         newUser.setPassword(hash.getHash());
-         newUser.setPasswordAlgorithm(hash.getAlgorithm());
+
+         if(defaultPassword != null) {
+            HashedPassword hash = Tool.hash(defaultPassword, "bcrypt");
+            newUser.setPassword(hash.getHash());
+            newUser.setPasswordAlgorithm(hash.getAlgorithm());
+         }
+         else {
+            // Rename path: preserve the existing user's password hash rather than resetting it
+            newUser.setPassword(fromUser.getPassword());
+            newUser.setPasswordAlgorithm(fromUser.getPasswordAlgorithm());
+         }
 
          updatePermittedIdentities(Identity.USER, identityService, principal, memberID, newID, orgID, fromOrgID);
          addUser(newUser);

@@ -99,5 +99,14 @@ export class ChartPlotOptionsPaneComponent implements OnInit {
              FormValidators.isFloat()]
          ));
       }
+
+      if(this.model.barCornerRadiusVisible) {
+         this.form.addControl("barCornerRadius", new UntypedFormControl(
+            {value: this.model.barCornerRadius},
+            [control => control.value != null && !(control.value >= 0 && control.value <= 0.5)
+             ? { barCornerRadiusRange: true } : null,
+             FormValidators.isFloat()]
+         ));
+      }
    }
 }

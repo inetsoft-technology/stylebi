@@ -87,7 +87,7 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
    @Input() containsSheet: boolean;
    @Input() tableDataAssemblies: string[] = [];
    @Input() hasPrintLayout: boolean = false;
-   @Input() bookmarks: VSBookmarkInfoModel[];
+   @Input() bookmarks: VSBookmarkInfoModel[] = [];
    @Input() bookmarkList: String[] = [];
    @Input() selectedBookmark: VSBookmarkInfoModel;
    @Input() set highlights(values: ScheduleAlertModel[]) {

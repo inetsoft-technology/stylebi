@@ -85,7 +85,8 @@ public class DataSpaceProtocolResolver implements ProtocolResolver {
 
       @Override
       public boolean isReadable() {
-         return exists();
+         String path = dataSpace.getPath(dir, file);
+         return exists() && path != null && !dataSpace.isDirectory(path);
       }
 
       @Override

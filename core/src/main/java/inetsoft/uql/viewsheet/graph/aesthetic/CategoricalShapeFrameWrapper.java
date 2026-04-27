@@ -77,6 +77,12 @@ public class CategoricalShapeFrameWrapper extends ShapeFrameWrapper {
       if(index < frame.getShapeCount()) {
          setChanged(isChanged() || !Tool.equals(getID(frame.getShape(index)), shape));
          frame.setShape(index, getGShape(shape));
+         // Clear the value→shape cache (cmap) so syncShapes() will rebuild it from the
+         // updated palette. Without this, old cmap entries from a previous render are
+         // treated as user-static assignments and block the new palette shape from showing
+         // in the composer preview. The portal is unaffected because it always deserializes
+         // with an empty cmap (cmap is not persisted to XML). (74195)
+         frame.clearStatic();
       }
    }
 

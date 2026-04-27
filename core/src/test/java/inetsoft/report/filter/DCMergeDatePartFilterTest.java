@@ -21,17 +21,27 @@ package inetsoft.report.filter;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.report.lens.DataSetTable;
-import inetsoft.test.TestSerializeUtils;
+import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.Collections;
 
 import static inetsoft.test.XTableUtil.date;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class DCMergeDatePartFilterTest {
    @Test
    public void testSerialize() throws Exception {

@@ -31,8 +31,6 @@ import {
 } from "@ng-bootstrap/ng-bootstrap";
 import { MonitoringDataService } from "../../../../em/src/app/monitoring/monitoring-data.service";
 import { AiAssistantModule } from "../../../../shared/ai-assistant/ai-assistant.module";
-import { WizPortalModule } from "../../../../shared/wiz-portal/wiz-portal.module";
-import { AiAssistantService } from "../../../../shared/ai-assistant/ai-assistant.service";
 import { CkeditorWrapperModule } from "../../../../shared/ckeditor-wrapper/ckeditor-wrapper.module";
 import { ScheduleTaskNamesService } from "../../../../shared/schedule/schedule-task-names.service";
 import { PORTAL, ScheduleUsersService } from "../../../../shared/schedule/schedule-users.service";
@@ -360,7 +358,6 @@ import { PortalTabsService } from "./services/portal-tabs.service";
       SimpleTableModule,
       CkeditorWrapperModule,
       AiAssistantModule,
-      WizPortalModule
    ],
    bootstrap: [
       PortalAppComponent
@@ -395,8 +392,7 @@ import { PortalTabsService } from "./services/portal-tabs.service";
          provide: CodemirrorService,
          useClass: DefaultCodemirrorService
       },
-      DataQueryModelService,
-      AiAssistantService,
+      DataQueryModelService
    ]
 })
 export class PortalAppModule {

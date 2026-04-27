@@ -51,7 +51,6 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
             }
          }
 
-         clientCount.decrementAndGet();
       }
    }
 
@@ -113,7 +112,7 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
       // cleaned up by the lazy cleanup task when no clients remain for the grace period.
       long newCount = clientCount.decrementAndGet();
 
-      if(newCount <= 0) {
+      if(newCount == 0) {
          // Record when the count became zero for lazy cleanup
          zeroSince.set(System.currentTimeMillis());
       }
@@ -146,7 +145,12 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
 
          if(count <= 0 && zeroTs > 0 && (now - zeroTs) > CLEANUP_GRACE_PERIOD_MS) {
             LOG.info("Cleaning up unused database security service: {}", prefix);
-            destroyService();
+            // Run on a separate thread to avoid deadlock: cancel() calls awaitTermination()
+            // on this executor, but this task is still running on it waiting for
+            // undeploySingletonService() to return — which triggers cancel() synchronously.
+            Thread t = new Thread(this::destroyService, "DatabaseSecurityCleanup-" + prefix);
+            t.setDaemon(true);
+            t.start();
          }
       }
       catch(Exception e) {
@@ -476,6 +480,6 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
 
    // Grace period before cleaning up a service with no active clients (5 minutes)
    private static final long CLEANUP_GRACE_PERIOD_MS = 5 * 60 * 1000L;
-   // How often to check for cleanup (5 minute)
+   // How often to check for cleanup (5 minutes)
    private static final long CLEANUP_CHECK_INTERVAL_MS = 5 * 60 * 1000L;
 }

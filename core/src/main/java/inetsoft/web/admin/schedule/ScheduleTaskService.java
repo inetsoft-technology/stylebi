@@ -66,7 +66,8 @@ public class ScheduleTaskService {
                               ScheduleService scheduleService,
                               ScheduleConditionService scheduleConditionService,
                               SecurityProvider securityProvider,
-                              ScheduleTaskFolderService scheduleTaskFolderService)
+                              ScheduleTaskFolderService scheduleTaskFolderService,
+                              SecurityEngine securityEngine)
    {
       this.analyticRepository = analyticRepository;
       this.scheduleManager = scheduleManager;
@@ -74,6 +75,7 @@ public class ScheduleTaskService {
       this.scheduleConditionService = scheduleConditionService;
       this.securityProvider = securityProvider;
       this.scheduleTaskFolderService = scheduleTaskFolderService;
+      this.securityEngine = securityEngine;
    }
 
    public ScheduleTaskDialogModel getNewTaskDialogModel(PortalNewTaskRequest model,
@@ -266,7 +268,6 @@ public class ScheduleTaskService {
       }
 
       try {
-         SecurityEngine securityEngine = SecurityEngine.getSecurity();
 
          if(securityEngine.checkPermission(principal, ResourceType.SECURITY_USER,
                                            task.getOwner(), ResourceAction.ADMIN))
@@ -369,13 +370,6 @@ public class ScheduleTaskService {
    }
 
    public TaskActionPaneModel getTaskActions(@RequestParam("name") String taskName,
-                                             Principal principal)
-      throws Exception
-   {
-      return getTaskActions(taskName, principal, false);
-   }
-
-   public TaskActionPaneModel getTaskActions(@RequestParam("name") String taskName,
                                              Principal principal, boolean em)
       throws Exception
    {
@@ -474,7 +468,7 @@ public class ScheduleTaskService {
          .saveFileFormats(getSaveFormats(principal))
          .vsSaveFileFormats(getVSSaveFormats())
          .serverLocations(scheduleService.getServerLocations(catalog))
-         .expandEnabled(SecurityEngine.getSecurity().checkPermission(
+         .expandEnabled(securityEngine.checkPermission(
             principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ScheduleExpandComponents",
             ResourceAction.READ))
          .mailHistoryEnabled(historyEnabled)
@@ -540,6 +534,17 @@ public class ScheduleTaskService {
             owner = getIdentityId(model.options().owner(), principal);
          }
 
+         ScheduleTask existingTask = scheduleManager.getScheduleTask(Tool.byteDecode(oldTaskName));
+
+         if(existingTask == null) {
+            throw new Exception(catalog.getString("em.scheduler.taskNotFound", oldTaskName));
+         }
+
+         if(!canDeleteTask(existingTask, principal)) {
+            throw new inetsoft.sree.security.SecurityException(String.format(
+               "Unauthorized access to resource \"%s\" by %s", oldTaskName, principal));
+         }
+
          taskName = scheduleService.updateTaskName(oldTaskName, taskName, owner, principal);
          task = scheduleManager.getScheduleTask(taskName) == null ? null :
             scheduleManager.getScheduleTask(taskName).clone();
@@ -547,6 +552,11 @@ public class ScheduleTaskService {
 
       if(task == null) {
          throw new Exception(catalog.getString("em.scheduler.taskNotFound", taskName));
+      }
+
+      if(internalTask && !canDeleteInternalTask(task, principal)) {
+         throw new inetsoft.sree.security.SecurityException(String.format(
+            "Unauthorized access to resource \"%s\" by %s", task.getName(), principal));
       }
 
       Set<TimeRange> ranges = new HashSet<>();
@@ -585,7 +595,7 @@ public class ScheduleTaskService {
 
                if((!vsAction.isMatchLayout() || vsAction.isExpandSelections() ||
                   vsAction.isOnlyDataComponents()) &&
-                  !SecurityEngine.getSecurity().checkPermission(principal,
+                  !securityEngine.checkPermission(principal,
                   ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ScheduleExpandComponents",
                   ResourceAction.READ))
                {
@@ -655,30 +665,6 @@ public class ScheduleTaskService {
       }
    }
 
-
-   public void setOptions(@RequestBody TaskOptionsPaneModel model,
-                          @RequestParam("name") String taskName,
-                          @RequestParam("oldTaskName") String oldTaskName,
-                          Principal principal)
-      throws Exception
-   {
-      Catalog catalog = Catalog.getCatalog(principal);
-
-      if(taskName == null || "".equals(taskName)) {
-         throw new Exception(catalog.getString("em.scheduler.emptyTaskName"));
-      }
-
-      IdentityID owner = getIdentityId(model.owner(), principal);
-      taskName = scheduleService.updateTaskName(oldTaskName, taskName, owner, principal);
-      ScheduleTask task = scheduleManager.getScheduleTask(taskName);
-
-      if(task == null) {
-         task = new ScheduleTask();
-      }
-
-      setTaskOptions(model, task, principal);
-      scheduleService.saveTask(taskName, task, principal);
-   }
 
    public DistributionModel getWeekDistribution(Principal principal) throws Exception {
       ScheduleTaskList tasks = scheduleService.getScheduleTaskList("", "", principal);
@@ -1035,7 +1021,7 @@ public class ScheduleTaskService {
 
 //      if(SUtil.isAdmin(principal)) {
 //         model.adminName(Optional.ofNullable(principal.getName()));
-//         SecurityEngine security = SecurityEngine.getSecurity();
+//         SecurityEngine security = securityEngine;
 //         owners = security.getUsers();
 //
 //         Tool.qsort(owners, true);
@@ -1337,6 +1323,7 @@ public class ScheduleTaskService {
    private final ScheduleConditionService scheduleConditionService;
    private final SecurityProvider securityProvider;
    private final ScheduleTaskFolderService scheduleTaskFolderService;
+   private final SecurityEngine securityEngine;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(ScheduleTaskService.class);

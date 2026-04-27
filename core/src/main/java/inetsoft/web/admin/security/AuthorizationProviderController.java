@@ -18,8 +18,9 @@
 package inetsoft.web.admin.security;
 
 import inetsoft.report.internal.Util;
-import inetsoft.sree.security.AuthorizationChain;
-import inetsoft.sree.security.AuthorizationProvider;
+import inetsoft.sree.security.*;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -34,21 +35,49 @@ public class AuthorizationProviderController {
       this.authorizationProviderService = authorizationProviderService;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/security/configured-authorization-providers")
    public SecurityProviderStatusList getConfiguredAuthorizationProviders() {
       return authorizationProviderService.getProviderListModel();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/security/get-authorization-provider/{providerName}")
    public AuthorizationProviderModel getAuthorizationProvider(@PathVariable("providerName") String providerName) {
       return authorizationProviderService.getAuthorizationProvider(providerName);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/security/add-authorization-provider")
    public void addAuthorizationProvider(@RequestBody AuthorizationProviderModel model, Principal principal) throws Exception {
       authorizationProviderService.addAuthorizationProvider(model, model.providerName(), principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/security/edit-authorization-provider/{providerName}")
    public void editAuthorizationProvider(@PathVariable("providerName") String providerName,
                                          @RequestBody AuthorizationProviderModel model, Principal principal) throws Exception
@@ -56,6 +85,13 @@ public class AuthorizationProviderController {
       authorizationProviderService.editAuthorizationProvider(providerName, model, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @DeleteMapping("/api/em/security/remove-authorization-provider/{index}")
    public void removeAuthorizationProvider(@PathVariable("index") int index, Principal principal) throws Exception {
       AuthorizationChain chain = authorizationProviderService.getAuthorizationChain()
@@ -66,18 +102,42 @@ public class AuthorizationProviderController {
       authorizationProviderService.removeAuthorizationProvider(index, providerName, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/security/reorder-authorization-providers")
-   public void reorderAuthorizationProviders(@RequestBody ProviderListReorderModel reorderModel) throws Exception {
+   public void reorderAuthorizationProviders(@RequestBody ProviderListReorderModel reorderModel,
+                                             Principal principal) throws Exception
+   {
       authorizationProviderService.reorderAuthorizationProviders(reorderModel);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/security/clear-authorization-provider/{index}")
-   public SecurityProviderStatus clearAuthorizationProviderCache(@PathVariable("index") int index)
+   public SecurityProviderStatus clearAuthorizationProviderCache(@PathVariable("index") int index,
+                                                                 Principal principal)
       throws Exception
    {
       return authorizationProviderService.clearAuthorizationProviderCache(index);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/provider",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/security/copy-authorization-provider/{providerName}")
    public SecurityProviderStatus copyAuthorizationProviderCache(@PathVariable("providerName") String providerName,
                                                                 Principal principal)

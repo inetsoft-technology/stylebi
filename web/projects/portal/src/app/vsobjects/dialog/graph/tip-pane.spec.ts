@@ -42,6 +42,7 @@ let createModel: () => TipPaneModel = () => {
       alpha: "100",
       flyOverViews: [],
       flyOnClick: false,
+      tipOnClick: false,
       popComponents: [],
       flyoverComponents: [],
       dataViewEnabled: true,

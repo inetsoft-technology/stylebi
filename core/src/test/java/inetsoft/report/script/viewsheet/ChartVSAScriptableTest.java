@@ -18,7 +18,6 @@
 
 package inetsoft.report.script.viewsheet;
 
-import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.graph.EGraph;
 import inetsoft.graph.GraphConstants;
 import inetsoft.graph.data.DefaultDataSet;
@@ -28,25 +27,34 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.region.ChartConstants;
 import inetsoft.report.script.*;
+import inetsoft.uql.viewsheet.graph.PlotDescriptor;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
-import org.mockito.Mock;
+import org.junit.jupiter.api.Tag;
 import org.mozilla.javascript.ScriptableObject;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
-import java.security.Principal;
-import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome(importResources = "ChartVSAScriptableTest.vso")
+@Tag("core")
+@Tag("integration")
 public class ChartVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox;
    private ChartVSAScriptable chartVSAScriptable, chartVSAScriptable1;
@@ -93,6 +101,39 @@ public class ChartVSAScriptableTest {
       assert chartVSAScriptable.get("singleStyle", null) instanceof VSChartArray;
       // Assert that the "dateComparisonEnabled" property is of type Boolean
       assert chartVSAScriptable.get("dateComparisonEnabled", null) instanceof Boolean;
+   }
+
+   @Test
+   void testBarCornerRadiusScriptProperty() {
+      chartVSAScriptable.addProperties();
+      PlotDescriptor plot = chartVSAScriptable.getRTChartDescriptor().getPlotDescriptor();
+
+      chartVSAScriptable.put("barCornerRadius", null, 0.4);
+      assertEquals(0.4, plot.getBarCornerRadius(), 0.001);
+      assertEquals(0.4, (double) chartVSAScriptable.get("barCornerRadius", null), 0.001);
+
+      // clamped to 0 for negative values
+      chartVSAScriptable.put("barCornerRadius", null, -0.1);
+      assertEquals(0, plot.getBarCornerRadius(), 0.001);
+
+      // clamped to 0.5 for values exceeding max
+      chartVSAScriptable.put("barCornerRadius", null, 0.8);
+      assertEquals(0.5, plot.getBarCornerRadius(), 0.001);
+
+      // boundary values
+      chartVSAScriptable.put("barCornerRadius", null, 0.0);
+      assertEquals(0.0, plot.getBarCornerRadius(), 0.001);
+
+      chartVSAScriptable.put("barCornerRadius", null, 0.5);
+      assertEquals(0.5, plot.getBarCornerRadius(), 0.001);
+
+      chartVSAScriptable.put("barRoundAllCorners", null, true);
+      assertTrue(plot.isBarRoundAllCorners());
+      assertTrue((boolean) chartVSAScriptable.get("barRoundAllCorners", null));
+
+      chartVSAScriptable.put("barRoundAllCorners", null, false);
+      assertFalse(plot.isBarRoundAllCorners());
+      assertFalse((boolean) chartVSAScriptable.get("barRoundAllCorners", null));
    }
 
    @Test
@@ -180,7 +221,7 @@ public class ChartVSAScriptableTest {
       chartVSAScriptable.setTipView("this is a tip view");
       assertEquals("this is a tip view", chartVSAScriptable.getTipView());
 
-      assertEquals(142, chartVSAScriptable.getIds().length);
+      assertEquals(145, chartVSAScriptable.getIds().length);
    }
 
    /**
@@ -335,11 +376,6 @@ public class ChartVSAScriptableTest {
    public static final String ASSET_ID = "1^128^__NULL__^ChartVSAScriptableTest";
 
    @RegisterExtension
-   @Order(1)
-   ControllersExtension controllers = new ControllersExtension();
-
-   @RegisterExtension
-   @Order(2)
    RuntimeViewsheetExtension viewsheetResource =
-      new RuntimeViewsheetExtension(createOpenViewsheetEvent(), controllers);
+      new RuntimeViewsheetExtension(createOpenViewsheetEvent());
 }

@@ -30,8 +30,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class ClusterHealthIndicator implements HealthIndicator {
-   public ClusterHealthIndicator() {
-      this.service = ClusterHealthService.getInstance();
+   public ClusterHealthIndicator(ClusterHealthService service) {
+      this.service = service;
    }
 
    @Override

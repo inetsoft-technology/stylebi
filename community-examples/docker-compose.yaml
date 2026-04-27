@@ -48,8 +48,9 @@ services:
       - "inetsoft_files:/var/lib/inetsoft/files"
     environment:
       # initialize storage with these properties
-      # the password for the "admin" user
-      INETSOFT_ADMIN_PASSWORD: "admin"
+      # the password for the "admin" user - Required: set INETSOFT_ADMIN_PASSWORD in your shell environment before running docker compose.
+      # The password must be at least 8 characters and include uppercase, lowercase, digit, and special character.
+      INETSOFT_ADMIN_PASSWORD: "${INETSOFT_ADMIN_PASSWORD}"
       # set the cluster mode flag, required when using Docker (server.type property)
       INETSOFTENV_SERVER_TYPE: "server_cluster"
       # Additional application properties, like the mail server can be added here

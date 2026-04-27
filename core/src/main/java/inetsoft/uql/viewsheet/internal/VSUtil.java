@@ -8807,7 +8807,7 @@ public final class VSUtil {
    public static boolean switchToHostOrgForGlobalShareAsset(String sheetRuntimeId,
                                                          Principal principal)
    {
-      ViewsheetService service = SingletonManager.getInstance(ViewsheetService.class);
+      ViewsheetService service = ViewsheetService.getInstance();
       return service.switchToHostOrgForGlobalShareAsset(sheetRuntimeId, principal);
    }
 

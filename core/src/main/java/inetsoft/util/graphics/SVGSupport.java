@@ -88,6 +88,8 @@ public interface SVGSupport {
 
    SVGTransformer createSVGTransformer(URL url) throws IOException;
 
+   SVGTransformer createSVGTransformer(InputStream input) throws IOException;
+
    void fixPNG(Document document);
 
    BufferedImage generateBufferedImage(InputStream input, int width, int height, String theme,

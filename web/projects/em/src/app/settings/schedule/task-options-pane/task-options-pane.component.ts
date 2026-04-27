@@ -39,6 +39,7 @@ import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { IdentityIdWithLabel } from "../../security/users/idenity-id-with-label";
 import { KEY_DELIMITER, IdentityId } from "../../security/users/identity-id";
 import { DateTimeService } from "../task-condition-pane/date-time.service";
+import { TimeZoneValue } from "../task-condition-pane/time-zone-select/time-zone-select-component";
 import { ExecuteAsDialogComponent } from "./execute-as-dialog.component";
 
 export interface TaskOptionChanges {
@@ -99,7 +100,8 @@ export class TaskOptionsPane {
          this.optionsForm.get("taskEnabled").setValue(this.model.enabled || false);
          this.optionsForm.get("deleteIfNotScheduledToRun").setValue(this.model.deleteIfNotScheduledToRun || false);
          this.optionsForm.get("description").setValue(this.model.description);
-         this.optionsForm.get("timeZone").setValue(this.model.timeZone);
+         // empty label: TaskOptionsPaneModel doesn't persist timeZoneLabel; duplicate IDs share offsets
+         this.optionsForm.get("timeZone").setValue({ timeZoneId: this.model.timeZone, timeZoneLabel: "" } as TimeZoneValue);
          this.optionsForm.get("locale").setValue(this.model.locale || TaskOptionsPane.DEFAULT_LOCALE);
          this.optionsForm.get("owner").setValue(this.model.owner);
          const idName: string = this.model.idName || this._model.owner;
@@ -144,7 +146,7 @@ export class TaskOptionsPane {
             startDate: [new Date()],
             endDate: [new Date()],
             description: [null],
-            timeZone: [null],
+            timeZone: [{ timeZoneId: "", timeZoneLabel: "" } as TimeZoneValue],
             locale: [TaskOptionsPane.DEFAULT_LOCALE],
             owner: [null, [Validators.required, this.validUser]],
             executeAs: [null]
@@ -198,9 +200,10 @@ export class TaskOptionsPane {
    }
 
    fireModelChanged(): void {
+      const tzValue = this.optionsForm.get("timeZone").value as TimeZoneValue;
       this.model.enabled = !!this.optionsForm.get("taskEnabled").value;
       this.model.deleteIfNotScheduledToRun = !!this.optionsForm.get("deleteIfNotScheduledToRun").value;
-      this.model.timeZone = this.optionsForm.get("timeZone").value;
+      this.model.timeZone = tzValue?.timeZoneId || "";
       let date: Date = this.optionsForm.get("startDate").value;
       this.model.startFrom = date ? DateTypeFormatter.convertToOtherTimeZone(date.getTime(),
          this.model.timeZone, this.timeZoneOptions) : 0;
@@ -208,7 +211,6 @@ export class TaskOptionsPane {
       this.model.stopOn = date ? DateTypeFormatter.convertToOtherTimeZone(date.getTime(),
          this.model.timeZone, this.timeZoneOptions) : 0;
       this.model.description = this.optionsForm.get("description").value;
-      this.model.timeZone = this.optionsForm.get("timeZone").value;
       const locale = this.optionsForm.get("locale").value;
       this.model.locale = locale === TaskOptionsPane.DEFAULT_LOCALE ? null : locale;
       this.model.owner = this.optionsForm.get("owner").value;

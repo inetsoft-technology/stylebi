@@ -15,94 +15,225 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-/* Component Defaults */
-.vs-range-slider {
-   position: relative;
-   vertical-align: top;
+
+// ─── M3 Expressive Range Slider design tokens ─────────────────────────────────
+// Mirrors the tokens used by binding/widget/slider.component for a consistent
+// compact look. Override on :host or any ancestor to retheme.
+:host {
+  // ── Geometry ──────────────────────────────────────────────────────────────
+  --slider-track-height: 12px;
+  --slider-handle-pressed-width: 2px;   // pressed / dragging pill width
+  --slider-handle-resting-width: 4px;   // resting pill width — squishes on drag
+  --slider-handle-height: 28px;
+  --slider-handle-gap: 6px;
+  --slider-track-overhang: 12px;        // visual extension past first/last tick
+  --slider-gap: 10px;                   // spacing between track bottom and value label
+  --slider-state-layer-size: 40px;
+
+  // ── Track colors ──────────────────────────────────────────────────────────
+  --slider-active-track-color: #9e9e9e;
+  --slider-inactive-track-color: #e0e0e0;
+
+  // ── Handle ────────────────────────────────────────────────────────────────
+  --slider-handle-color: #9e9e9e;
+  --slider-handle-shadow: 0 1px 2px rgba(0, 0, 0, 0.30),
+                          0 1px 3px 1px rgba(0, 0, 0, 0.15);
+
+  // ── State-layer opacities ─────────────────────────────────────────────────
+  --slider-hover-state-opacity: 0.08;
+  --slider-pressed-state-opacity: 0.12;
+
+  // ── Tick dots ─────────────────────────────────────────────────────────────
+  --slider-tick-size: 4px;
+  --slider-tick-color: rgba(0, 0, 0, 0.38);
 }
 
-.vs-range-slider .range-slider {
-   position: relative;
-   top: 13px;
-   height: 9px;
-   left: 0px;
-   border-radius: 2px;
-   background-image: url('../../../assets/default/timeslider/track.png');
+// ─── Structural containers ────────────────────────────────────────────────────
+
+.range-slider-container {
+  position: relative;
+  // Height accommodates: handle (28px) + gap (10px) + label (~14px) below.
+  // Wrapper is at 20px so the full content block is visually centred.
+  height: 52px;
+  overflow: visible;
+  vertical-align: top;
+  text-align: left;
 }
 
-.vs-range-slider .range-line {
-   position: absolute;
-   top: 13px;
-   height: 8px;
-   z-index: 3;
+.unselectable-canvas {
+  position: relative;
+  z-index: 5;
+  -moz-user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
 }
 
-.vs-range-slider .range-slider-handle {
-   position: absolute;
-   cursor: default;
-   width: 14px;
-   height: 16px;
-   top: -4px;
-   background-repeat: no-repeat;
-   z-index: 4;
-   background-image:url('../../../assets/default/timeslider/button_up.png');
+// wrapper top = 20px — track centre line, chosen to visually centre the full
+// content block (handle + label) within the 52px container.
+.wrapper {
+  position: absolute;
+  top: 20px;
+  left: 0;
+  right: 0;
 }
 
-.vs-range-slider .range-slider-left-handle {
-   left: -7px;
+// ─── Inactive track ───────────────────────────────────────────────────────────
+
+.slider-track {
+  position: absolute;
+  top: calc(-1 * var(--slider-track-height) / 2);
+  height: var(--slider-track-height);
+  width: 100%;
+  background-color: var(--slider-inactive-track-color);
+  pointer-events: none;
+  overflow: visible;
+
+  // Left overhang cap
+  &::before {
+    content: '';
+    position: absolute;
+    right: 100%;
+    top: 0;
+    width: var(--slider-track-overhang);
+    height: 100%;
+    background-color: var(--slider-inactive-track-color);
+    border-radius: calc(var(--slider-track-height) / 2) 0 0 calc(var(--slider-track-height) / 2);
+  }
+
+  // Right overhang cap
+  &::after {
+    content: '';
+    position: absolute;
+    left: 100%;
+    top: 0;
+    width: var(--slider-track-overhang);
+    height: 100%;
+    background-color: var(--slider-inactive-track-color);
+    border-radius: 0 calc(var(--slider-track-height) / 2) calc(var(--slider-track-height) / 2) 0;
+  }
 }
 
-.vs-range-slider .range-slider-right-handle {
-   right: -7px;
+// ─── Active (filled) track — spans between the two handles ────────────────────
+
+.slider-tracked {
+  position: absolute;
+  top: calc(-1 * var(--slider-track-height) / 2);
+  height: var(--slider-track-height);
+  background-color: var(--slider-active-track-color);
+  cursor: grab;
+  z-index: 2;
+
+  &.is-dragging,
+  &:active {
+    cursor: grabbing;
+  }
 }
 
-.vs-range-slider .thumb-middle {
-   left: 3px;
-   top: 0px;
-   height: 9px;
-   background-image:url('../../../assets/default/timeslider/thumb_middle_up.png');
+// ─── Handle / thumb ───────────────────────────────────────────────────────────
+//
+//   .slider-handle — gap container (28px tall, grab area)
+//     ::before — state-layer ring (hover / pressed halo)
+//     ::after  — visible pill (squishes to pressed width while dragging)
+
+$handle-container-resting: calc(var(--slider-handle-resting-width) + 2 * var(--slider-handle-gap));
+$handle-container-pressed: calc(var(--slider-handle-pressed-width) + 2 * var(--slider-handle-gap));
+
+.slider-handle {
+  position: absolute;
+  top: calc(-1 * var(--slider-handle-height) / 2);
+  height: var(--slider-handle-height);
+  width: $handle-container-resting;
+  margin-left: calc(-1 * #{$handle-container-resting} / 2);
+  cursor: grab;
+  z-index: 3;
+  border-radius: calc(#{$handle-container-resting} / 2);
+  transition: width 150ms cubic-bezier(0.2, 0, 0, 1),
+              margin-left 150ms cubic-bezier(0.2, 0, 0, 1),
+              border-radius 150ms cubic-bezier(0.2, 0, 0, 1);
+
+  // ── State-layer ring (::before) ───────────────────────────────────────────
+  &::before {
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+    width: var(--slider-state-layer-size);
+    height: var(--slider-state-layer-size);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: var(--slider-handle-color);
+    opacity: 0;
+    transition: opacity 200ms;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  // ── Visible pill (::after) ────────────────────────────────────────────────
+  &::after {
+    content: '';
+    position: absolute;
+    width: var(--slider-handle-resting-width);
+    height: var(--slider-handle-height);
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--slider-handle-color);
+    border-radius: calc(var(--slider-handle-resting-width) / 2);
+    box-shadow: var(--slider-handle-shadow);
+    z-index: 1;
+    transition: width 150ms cubic-bezier(0.2, 0, 0, 1),
+                border-radius 150ms cubic-bezier(0.2, 0, 0, 1);
+  }
 }
 
-.vs-range-slider .range-value {
-   position: absolute;
-   overflow: hidden;
-   text-overflow: ellipsis;
-   top: 23px;
-   width: 70px;
-   line-height: 1;
-   text-decoration: inherit;
+// ── Dragging / pressed — squish to pressed width ──────────────────────────────
+
+.slider-handle.is-dragging,
+.range-slider-container .slider-handle:active {
+  width: $handle-container-pressed;
+  margin-left: calc(-1 * #{$handle-container-pressed} / 2);
+  border-radius: calc(#{$handle-container-pressed} / 2);
+  cursor: grabbing;
+
+  &::after {
+    width: var(--slider-handle-pressed-width);
+    border-radius: calc(var(--slider-handle-pressed-width) / 2);
+  }
+
+  &::before {
+    opacity: var(--slider-pressed-state-opacity);
+  }
 }
 
-.vs-range-slider .range-left {
-   left: -1px;
-   text-align: left;
+// ── Hover state layer ─────────────────────────────────────────────────────────
+
+.range-slider-container .slider-handle:not(.is-dragging):hover::before {
+  opacity: var(--slider-hover-state-opacity);
 }
 
-.vs-range-slider .range-right {
-   right: -1px;
-   text-align: right;
+// ─── Tick marks ───────────────────────────────────────────────────────────────
+
+.slider-tick {
+  position: absolute;
+  top: calc(-1 * var(--slider-tick-size) / 2);
+  transform: translateX(-50%);
+  width: var(--slider-tick-size);
+  height: var(--slider-tick-size);
+  border-radius: 50%;
+  background-color: var(--slider-tick-color);
+  font-size: 0;
+  z-index: 1;
+  pointer-events: none;
 }
 
-.vs-range-slider .current-value {
-   position: absolute;
-   overflow: hidden;
-   text-overflow: ellipsis;
-   width: 80px;
-   height: 16px;
-   line-height: 1;
-   top: 0.2px;
-   text-align: center;
-}
+// ─── Value label ─────────────────────────────────────────────────────────────
+// Centred on the midpoint between the two handles via [style.left.px] + translateX(-50%).
 
-.vs-range-slider .tick {
-   position: absolute;
-   width: 10px;
-   left: 0px;
-   top: 18px;
-   z-index: 1;
-   color: rgb(0, 0, 0);
-   font-size: 5px;
-   font-weight: bold;
-   font-style: normal;
-   text-align: left;
+.slider-value {
+  position: absolute;
+  top: calc(var(--slider-track-height) / 2 + var(--slider-gap));
+  transform: translateX(-50%);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 4;
 }

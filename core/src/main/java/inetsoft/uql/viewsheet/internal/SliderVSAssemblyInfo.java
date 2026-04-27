@@ -43,7 +43,7 @@ public class SliderVSAssemblyInfo extends NumericRangeVSAssemblyInfo {
    public SliderVSAssemblyInfo() {
       super();
 
-      setPixelSize(new Dimension(2 * AssetUtil.defw, 2 * AssetUtil.defh));
+      setPixelSize(new Dimension(2 * AssetUtil.defw, 3 * AssetUtil.defh));
    }
 
    /**

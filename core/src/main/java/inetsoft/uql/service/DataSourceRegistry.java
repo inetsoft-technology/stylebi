@@ -31,11 +31,13 @@ import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.util.*;
 import inetsoft.uql.xmla.Domain;
 import inetsoft.util.*;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.event.EventListener;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
-import org.xml.sax.SAXParseException;
 
 import java.beans.PropertyChangeListener;
 import java.io.Serializable;
@@ -57,23 +59,28 @@ import java.util.concurrent.locks.ReentrantLock;
  * @version 7.0
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(DataSourceRegistry.Reference.class)
 public class DataSourceRegistry implements MessageListener {
    /**
     * Get data source registry.
     * @return data source registry if any, null otherwise.
     */
    public static DataSourceRegistry getRegistry() {
-      return SingletonManager.getInstance(DataSourceRegistry.class);
+      return ConfigurationContext.getContext().getSpringBean(DataSourceRegistry.class);
    }
 
    /**
     * Constructor.
     */
-   public DataSourceRegistry() throws Exception {
-      indexedStorage = initIndexedStorage();
+   public DataSourceRegistry(IndexedStorage indexedStorage, Config uqlConfig, Cluster cluster) throws Exception {
+      this.indexedStorage = indexedStorage;
+      this.uqlConfig = uqlConfig;
+      this.cluster = cluster;
+   }
+
+   @PostConstruct
+   public void setListeners() {
       initLastModified();
-      indexedStorage.addStorageRefreshListener(DataSourceRegistry.this::fireEvent);
+      indexedStorage.addStorageRefreshListener(this::fireEvent);
 
       // @by stephenwebster, For Align Kpital.
       // Using getRoot() here is problematic since the getObject method caches
@@ -84,7 +91,13 @@ public class DataSourceRegistry implements MessageListener {
       // initRoot method.  I have modified initRoot to return a boolean value
       // to indicate whether the root was setup or not.
       // This init method has been moved to the authentication service on login.
-      Cluster.getInstance().addMessageListener(this);
+      cluster.addMessageListener(this);
+   }
+
+   @PreDestroy
+   public void shutdown() {
+      cluster.removeMessageListener(this);
+      indexedStorage.removeStorageRefreshListener(this::fireEvent);
    }
 
    /**
@@ -1100,15 +1113,6 @@ public class DataSourceRegistry implements MessageListener {
       }
    }
 
-   private XRepository getXRepository() {
-      try {
-         return XFactory.getRepository();
-      }
-      catch(Exception ex) {
-         throw new RuntimeException("Failed to get xrepository ", ex);
-      }
-   }
-
    /**
     * Add a data model object to the repository.
     * @param dx the specified data model object.
@@ -1709,6 +1713,11 @@ public class DataSourceRegistry implements MessageListener {
       return result.toArray(new AssetEntry[0]);
    }
 
+   @EventListener(PluginRemovedEvent.class)
+   public void onPluginRemoved(PluginRemovedEvent event) {
+      clearCache();
+   }
+
    public void clearCache() {
       cachemap.clear();
       clearCache2(null);
@@ -1743,7 +1752,7 @@ public class DataSourceRegistry implements MessageListener {
          String type = source.getType();
          supported = true;
 
-         if(type != null && Config.getDataSourceClass(type) == null) {
+         if(type != null && uqlConfig.getDataSourceClass(type) == null) {
             supported = false;
          }
 
@@ -1962,6 +1971,8 @@ public class DataSourceRegistry implements MessageListener {
    private final List<PropertyChangeListener> refreshedListeners = Collections.synchronizedList(new ArrayList<>());
    private final List<PropertyChangeListener> modifiedListeners = Collections.synchronizedList(new ArrayList<>());
    private final IndexedStorage indexedStorage;
+   private final Config uqlConfig;
+   private final Cluster cluster;
    private final Map<Object, CachedObject> cachemap = new ConcurrentHashMap<>();
    private final Map<String, Map<String, List<String>>> allFolders = new ConcurrentHashMap<>();
    private final Map<String, Map<String, List<String>>> allDataSources = new ConcurrentHashMap<>();
@@ -1981,36 +1992,4 @@ public class DataSourceRegistry implements MessageListener {
       DataSourceRegistry::matchesDataSourceFilter;
    public static ThreadLocal<Boolean> IGNORE_GLOBAL_SHARE = ThreadLocal.withInitial(() -> false);
 
-   public static final class Reference // NOSONAR this is an inner class that is only referenced in the annotation
-      extends SingletonManager.Reference<DataSourceRegistry>
-   {
-      @Override
-      public synchronized DataSourceRegistry get(Object... parameters) {
-         if(registry == null) {
-            try {
-               registry = new DataSourceRegistry();
-            }
-            catch(SAXParseException e) {
-               LOG.error(
-                  "Parsing error: line {} column {}, {}",
-                  e.getLineNumber(), e.getColumnNumber(), e.getMessage());
-            }
-            catch(Exception e) {
-               LOG.error("Failed to load data source registry file", e);
-            }
-         }
-
-         return registry;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(registry != null) {
-            Cluster.getInstance().removeMessageListener(registry);
-            registry = null;
-         }
-      }
-
-      private DataSourceRegistry registry;
-   }
 }

@@ -37,6 +37,7 @@ import inetsoft.uql.asset.internal.AssemblyInfo;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.schema.XValueNode;
 import inetsoft.uql.script.VariableScriptable;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XTableTableNode;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
@@ -78,7 +79,6 @@ public class VSObjectPropertyService {
     * Creates a new instance of <tt>VSObjectPropertyController</tt>.
     *
     * @param coreLifecycleService CoreLifecycleService instance
-    * @param viewsheetService
     */
    @Autowired
    public VSObjectPropertyService(
@@ -86,19 +86,19 @@ public class VSObjectPropertyService {
       VSColumnHandler vsColumnHandler,
       VSObjectTreeService vsObjectTreeService,
       VSAssemblyInfoHandler infoHander,
-      ViewsheetService viewsheetService,
       VSWizardTemporaryInfoService temporaryInfoService,
       VSCompositionService vsCompositionService,
-      SharedFilterService sharedFilterService)
+      SharedFilterService sharedFilterService,
+      DataSourceRegistry dataSourceRegistry)
    {
       this.coreLifecycleService = coreLifecycleService;
       this.vsColumnHandler = vsColumnHandler;
       this.vsObjectTreeService = vsObjectTreeService;
       this.infoHander = infoHander;
-      this.viewsheetService = viewsheetService;
       this.temporaryInfoService = temporaryInfoService;
       this.vsCompositionService = vsCompositionService;
       this.sharedFilterService = sharedFilterService;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    public void editObjectProperty(RuntimeViewsheet rvs, VSAssemblyInfo info, String oldName,
@@ -244,7 +244,7 @@ public class VSObjectPropertyService {
 
       AbstractVSAssembly assembly = (AbstractVSAssembly) vsAssembly;
       VSAssemblyInfo oinfo = assembly.getVSAssemblyInfo().clone();
-      VSModelTrapContext context = new VSModelTrapContext(rvs);
+      VSModelTrapContext context = new VSModelTrapContext(rvs, dataSourceRegistry);
       AbstractModelTrapContext.TrapInfo tinfo = context.isCheckTrap() ?
          context.checkTrap(oinfo, info) : null;
 
@@ -333,6 +333,24 @@ public class VSObjectPropertyService {
       hint = assembly.setVSAssemblyInfo(info);
       // if script contains binding change, re-process data
       hint = assembly instanceof SelectionVSAssembly ? (hint | hintScript) : hint;
+
+      // reposition this child in the bottom-tab container when a label
+      // property change alters its effective height. setVSAssemblyInfo uses
+      // copyInfo (not reference storage), so we modify the assembly's own info.
+      if(assembly instanceof InputVSAssembly &&
+         assembly.getContainer() instanceof TabVSAssembly tabContainer)
+      {
+         TabVSAssemblyInfo tabInfo =
+            (TabVSAssemblyInfo) tabContainer.getVSAssemblyInfo();
+
+         // post-setVSAssemblyInfo the assembly info has no rValues, so
+         // runtime-aware accessors in getBottomTabChildHeight are equivalent
+         // to design-time ones here
+         if(tabInfo.getBottomTabsValue() && inputLabelHeightChanged(oinfo, info)) {
+            TabVSAssemblyInfo.repositionChildForBottomTabs(
+               tabInfo, assembly.getVSAssemblyInfo(), assembly.getPixelSize());
+         }
+      }
 
       /* TODO some logic relevant to hyperlink dialog  charts, decide if need to keep when implementing chart property change
       boolean viewOnly = "true".equals(get("viewOnly"));
@@ -810,6 +828,8 @@ public class VSObjectPropertyService {
 
          if(box.isPresent()) {
             box.get().resetRuntime();
+            // prevent applyParameterToInput() from overwriting input values after rename
+            box.get().markParametersApplied();
             commandDispatcher.sendCommand(containerName, new RenameVSObjectCommand(oldName, newName));
             renameChildAssemblies(oldNames, newName, vs);
             ViewsheetScope scope = box.get().getScope();
@@ -2012,6 +2032,37 @@ public class VSObjectPropertyService {
       }
    }
 
+   /**
+    * Check if label properties that affect vertical height changed between old and new info.
+    * Compares design-time values only, since this is called from the composer property dialog
+    * where only design-time values are modified. Runtime script changes are handled separately.
+    */
+   private boolean inputLabelHeightChanged(VSAssemblyInfo oldInfo, VSAssemblyInfo newInfo) {
+      if(!(oldInfo instanceof InputVSAssemblyInfo oldInput) ||
+         !(newInfo instanceof InputVSAssemblyInfo newInput))
+      {
+         return false;
+      }
+
+      LabelInfo oldLabel = oldInput.getLabelInfo();
+      LabelInfo newLabel = newInput.getLabelInfo();
+
+      if(oldLabel == null && newLabel == null) {
+         return false;
+      }
+
+      if(oldLabel == null || newLabel == null) {
+         return true;
+      }
+
+      return oldLabel.getLabelVisibleValue() != newLabel.getLabelVisibleValue() ||
+         !Objects.equals(oldLabel.getLabelPositionValue(), newLabel.getLabelPositionValue()) ||
+         oldLabel.getLabelGapValue() != newLabel.getLabelGapValue() ||
+         !Objects.equals(
+            oldLabel.getLabelFormat() == null ? null : oldLabel.getLabelFormat().getFont(),
+            newLabel.getLabelFormat() == null ? null : newLabel.getLabelFormat().getFont());
+   }
+
    private void setAssemblyPrimary(RuntimeViewsheet rvs, String name, boolean primary,
                                   CommandDispatcher commandDispatcher) throws Exception
    {
@@ -2172,16 +2223,14 @@ public class VSObjectPropertyService {
       }
    }
 
-
    private final CoreLifecycleService coreLifecycleService;
    private final VSColumnHandler vsColumnHandler;
    private final VSObjectTreeService vsObjectTreeService;
    private final VSAssemblyInfoHandler infoHander;
-   private final ViewsheetService viewsheetService;
    private final VSWizardTemporaryInfoService temporaryInfoService;
    private final VSCompositionService vsCompositionService;
    private final SharedFilterService sharedFilterService;
-   private final static String VIEWSHEET_FLAG = Catalog.getCatalog().getString("Current viewsheet");
+   private final DataSourceRegistry dataSourceRegistry;
 
    private final Logger LOG = LoggerFactory.getLogger(VSObjectPropertyService.class);
 }

@@ -27,7 +27,6 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -45,9 +44,8 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          return;
       }
 
-      storage = SingletonManager.getInstance(KeyValueStorage.class,
-                                   "defaultSecurityPermissions",
-                                   (Supplier<LoadPermissionsTask>) LoadPermissionsTask::new);
+      storage = KeyValueStorageManager.getInstance().getStorage(
+         "defaultSecurityPermissions", new LoadPermissionsTask());
 
       isolatePermissionForOrg();
    }
@@ -216,6 +214,19 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
       }
    }
 
+   @Override
+   public void removePermission(ResourceType type, IdentityID identityID, String orgID) {
+      init();
+      orgID = getResourceOrgID(orgID);
+
+      try {
+         storage.remove(getResourceKey(type, identityID.convertToKey(), orgID)).get(10L, TimeUnit.SECONDS);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to remove permission from {} {}", type, identityID, e);
+      }
+   }
+
    public void cleanOrganizationFromPermissions(String orgId) {
       for(Tuple4<ResourceType, String, String, Permission> permissionSet : getPermissions()) {
          String resourceOrgID = permissionSet.getSecond();
@@ -271,10 +282,21 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
             boolean changed = false;
 
             for(ResourceAction action : ResourceAction.values()) {
-               Set<Permission.PermissionIdentity> identities = perm.getGrants(action, type);
+               Set<Permission.PermissionIdentity> identities = perm.getGrants(action, type, null);
 
-               if(identities.remove(oldID) && !removed) {
-                  identities.add(new Permission.PermissionIdentity(newID.name, newID.orgID));
+               if(identities.removeIf(pi -> Tool.equals(pi.getName(), oldID.name) &&
+                                            Tool.equals(pi.getOrganizationID(), oldID.orgID)))
+               {
+                  if(!removed) {
+                     boolean alreadyGranted = identities.stream().anyMatch(
+                        pi -> Tool.equals(pi.getName(), newID.name) &&
+                              Tool.equals(pi.getOrganizationID(), newID.orgID));
+
+                     if(!alreadyGranted) {
+                        identities.add(new Permission.PermissionIdentity(newID.name, newID.orgID));
+                     }
+                  }
+
                   perm.setGrants(action, type, identities);
                   changed = true;
                }

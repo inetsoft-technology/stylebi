@@ -251,26 +251,7 @@ public class TextSpec implements Cloneable, Serializable {
       try {
          TextSpec spec = (TextSpec) super.clone();
 
-         /*
-         if(font != null) {
-            try {
-               // for StyleFont
-               Method func = font.getClass().getMethod("clone", new Class[0]);
-
-               if(func != null) {
-                  spec.font = (Font) func.invoke(font, new Object[0]);
-               }
-            }
-            catch(Exception ex) {
-               // ignore, font doesn't have clone
-            }
-         }
-         */
-         // the reflection was done to avoid dependency to StyleFont
-         // but could have a performance hit
-         if(font instanceof StyleFont) {
-            font = (Font) ((StyleFont) font).clone();
-         }
+         // StyleFont is immutable after construction, no need to clone
 
          if(this.colormap != null) {
             spec.colormap = new Object2ObjectOpenHashMap<>(this.colormap);

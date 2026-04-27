@@ -240,6 +240,15 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
       return this.model;
    }
 
+   public updateModel(model: T): void {
+      this.model = model;
+      this.assemblyToolbarActions = null;
+      this.assemblyMenuActions = null;
+      this.assemblyClickAction = null;
+      this.assemblyScriptAction = null;
+      this.initedActions = false;
+   }
+
    /**
     * Determines if the action is visible. Actions can be individually turned on/off
     * through the script.

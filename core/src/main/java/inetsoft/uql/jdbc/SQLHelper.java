@@ -274,7 +274,7 @@ public class SQLHelper implements KeywordProvider {
          return dx.getRuntimeProductName();
       }
 
-      String type = Config.getJDBCType(dx.getDriver());
+      String type = Config.getConfig().getJDBCType(dx.getDriver());
 
       // @by stephenwebster, For bug1424967241696
       // This is an exceptional case.  Many of the features of SQL Server or
@@ -307,7 +307,7 @@ public class SQLHelper implements KeywordProvider {
             XNode node = null;
 
             try {
-               XRepository repository = XFactory.getRepository();
+               XRepository repository = XRepository.getRepository();
                Object session = repository.bind(System.getProperty("user.name"));
                XNode mtype = new XNode();
                mtype.setAttribute("type", "scalar");
@@ -567,7 +567,7 @@ public class SQLHelper implements KeywordProvider {
                 "oracle".equals(sqlHelperType)) ||
                 "derby".equals(sqlHelperType))
             {
-               XRepository repository = XFactory.getRepository();
+               XRepository repository = XRepository.getRepository();
                Object session = repository.bind(System.getProperty("user.name"));
                XNode mtype = new XNode();
                mtype.setAttribute("type", "scalar");
@@ -3430,7 +3430,7 @@ public class SQLHelper implements KeywordProvider {
             };
          }
 
-         name = tpart ? XUtil.quoteNameSegment(name, true, this, checkSpecial)
+         name = (tpart && name.indexOf('.') < 0) ? XUtil.quoteNameSegment(name, true, this, checkSpecial)
             : XUtil.quoteName(name, this);
       }
 

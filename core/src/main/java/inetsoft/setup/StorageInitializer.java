@@ -24,6 +24,7 @@ import ch.qos.logback.core.Appender;
 import ch.qos.logback.core.ConsoleAppender;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.ignite.IgniteCluster;
 import inetsoft.sree.security.*;
 import inetsoft.storage.LoadKeyValueTask;
 import inetsoft.util.*;
@@ -31,25 +32,25 @@ import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.config.SecretsConfig;
 import inetsoft.util.log.LogUtil;
 import inetsoft.util.log.logback.AuditLogFilter;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.*;
+import org.springframework.context.support.AbstractApplicationContext;
 import picocli.CommandLine;
 
 import java.io.*;
-import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.file.*;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 
 /**
  * Class that performs basic initialization of a new storage.
  */
 @CommandLine.Command(
-   name = "init-storage", mixinStandardHelpOptions = true, version = "init-storage 14.0",
+   name = "init-storage", mixinStandardHelpOptions = true, version = "init-storage 1.2",
    description = "Initializes storage for a StyleBI instance"
 )
 public class StorageInitializer implements Callable<Integer> {
@@ -90,8 +91,11 @@ public class StorageInitializer implements Callable<Integer> {
     * @param args the command line arguments.
     */
    public static void main(String[] args) {
+      Instant startTime = Instant.now();
       System.setProperty("inetsoftStorageInitializing", "true");
       int exitCode = new CommandLine(new StorageInitializer()).execute(args);
+      Instant endTime = Instant.now();
+      System.out.println("Initialization completed in " + Duration.between(startTime, endTime));
       System.exit(exitCode);
    }
 
@@ -106,18 +110,34 @@ public class StorageInitializer implements Callable<Integer> {
 
       SetupExtension.Context context = new SetupExtension.Context(
          initialized, configDirectory, pluginsDirectory, filesDirectory, assetsDirectory,
-         scriptsDirectory);
-      List<SetupExtension> extensions = new ArrayList<>();
-      ServiceLoader.load(SetupExtension.class).forEach(extensions::add);
-      System.err.println("LOADED EXTENSIONS: " + extensions);
-      context = applyExtensions(context, extensions, "start", (c, e) -> e.start(c));
-      System.err.println("UPDATED CONTEXT: " + context);
+         scriptsDirectory, new HashMap<>());
 
-      context = setProperties(context, extensions);
-      context = installPlugins(context, extensions);
-      context = configureSecurity(context, extensions);
-      context = importFiles(context, extensions);
-      context = importAssets(context, extensions);
+      try {
+         List<SetupExtension> extensions = new ArrayList<>();
+         ServiceLoader.load(SetupExtension.class).forEach(extensions::add);
+         context = applyExtensions(context, extensions, SetupExtension.Phase.START, (c, e) -> e.start(c));
+
+         context = setProperties(context, extensions);
+         context = installPlugins(context, extensions);
+         context = configureSecurity(context, extensions);
+         context = importFiles(context, extensions);
+         context = importAssets(context, extensions);
+         reloadClusterPlugins(context);
+      }
+      finally {
+         for(Object value : context.attributes().values()) {
+            if(value instanceof AutoCloseable closeable) {
+               try {
+                  closeable.close();
+               }
+               catch(Exception e) {
+                  System.err.println("Failed to close context attribute");
+                  //noinspection CallToPrintStackTrace
+                  e.printStackTrace();
+               }
+            }
+         }
+      }
 
       if(!initialized) {
          setInitialized();
@@ -162,23 +182,23 @@ public class StorageInitializer implements Callable<Integer> {
          }
       }
 
-      return applyExtensions(context, extensions, "afterPropertiesSet", (c, e) -> e.afterPropertiesSet(c));
+      return applyExtensions(context, extensions, SetupExtension.Phase.AFTER_PROPERTIES_SET, (c, e) -> e.afterPropertiesSet(c));
    }
 
    private SetupExtension.Context installPlugins(SetupExtension.Context context,
                                                  List<SetupExtension> extensions)
       throws Exception
    {
-      installPlugins(new File("/usr/local/inetsoft/plugins"));
+      installPlugins(new File("/usr/local/inetsoft/plugins"), context);
 
       if(context.pluginsDirectory() != null && context.pluginsDirectory().isDirectory()) {
-         installPlugins(context.pluginsDirectory());
+         installPlugins(context.pluginsDirectory(), context);
       }
 
-      return applyExtensions(context, extensions, "afterPluginsInstalled", (c, e) -> e.afterPluginsInstalled(c));
+      return applyExtensions(context, extensions, SetupExtension.Phase.AFTER_PLUGINS_INSTALLED, (c, e) -> e.afterPluginsInstalled(c));
    }
 
-   private void installPlugins(File directory) throws Exception {
+   private void installPlugins(File directory, SetupExtension.Context context) throws Exception {
       File[] files = directory.listFiles(this::isPluginFile);
 
       if(files != null && files.length > 0) {
@@ -188,10 +208,7 @@ public class StorageInitializer implements Callable<Integer> {
             }
          }
 
-         // send a message to reload the plugins from the kv store
-         Cluster.getInstance().submit("plugins",
-                                      new LoadKeyValueTask<>("plugins", true))
-            .get(5L, TimeUnit.MINUTES);
+         context.attributes().put("pluginsInstalled", true);
       }
    }
 
@@ -212,19 +229,18 @@ public class StorageInitializer implements Callable<Integer> {
       throws Exception
    {
       if(!context.initialized()) {
-         String password = System.getenv("INETSOFT_ADMIN_PASSWORD");
+         String password = AdminCredentialUtil.getRequiredAdminPassword();
+         HashedPassword hash = getPasswordEncryption().hash(password, "bcrypt", null, false);
+         FSUser user =
+            new FSUser(new IdentityID("admin", Organization.getDefaultOrganizationID()));
+         user.setPassword(hash.getHash());
+         user.setPasswordAlgorithm(hash.getAlgorithm());
+         user.setPasswordSalt(null);
+         user.setAppendPasswordSalt(false);
+         user.setRoles(new IdentityID[]{ new IdentityID("Administrator", null) });
+         Path temp = Files.createTempFile("virtual_security", ".xml");
 
-         if(!StringUtils.isEmpty(password)) {
-            HashedPassword hash = getPasswordEncryption().hash(password, "bcrypt", null, false);
-            FSUser user =
-               new FSUser(new IdentityID("admin", Organization.getDefaultOrganizationID()));
-            user.setPassword(hash.getHash());
-            user.setPasswordAlgorithm(hash.getAlgorithm());
-            user.setPasswordSalt(null);
-            user.setAppendPasswordSalt(false);
-            user.setRoles(new IdentityID[]{ new IdentityID("Administrator", null) });
-            Path temp = Files.createTempFile("virtual_security", ".xml");
-
+         try {
             try(PrintWriter writer = new PrintWriter(Files.newBufferedWriter(temp, StandardCharsets.UTF_8))) {
                writer.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
                writer.println("<virtualSecurityProvider>");
@@ -235,12 +251,13 @@ public class StorageInitializer implements Callable<Integer> {
             try(StorageService service = new StorageService(configDirectory.getAbsolutePath())) {
                service.write("virtual_security.xml", temp.toFile());
             }
-
-            Files.delete(temp);
+         }
+         finally {
+            Files.deleteIfExists(temp);
          }
       }
 
-      return applyExtensions(context, extensions, "afterSecurityConfigured", (c, e) -> e.afterSecurityConfigured(c));
+      return applyExtensions(context, extensions, SetupExtension.Phase.AFTER_SECURITY_CONFIGURED, (c, e) -> e.afterSecurityConfigured(c));
    }
 
    private PasswordEncryption getPasswordEncryption() {
@@ -276,7 +293,7 @@ public class StorageInitializer implements Callable<Integer> {
          }
       }
 
-      return applyExtensions(context, extensions, "afterFilesImported", (c, e) -> e.afterFilesImported(c));
+      return applyExtensions(context, extensions, SetupExtension.Phase.AFTER_FILES_IMPORTED, (c, e) -> e.afterFilesImported(c));
    }
 
    private void importFiles(StorageService service, File root, File file) throws IOException {
@@ -299,88 +316,18 @@ public class StorageInitializer implements Callable<Integer> {
                                                List<SetupExtension> extensions)
    {
       if(!context.initialized()) {
-         try {
-            Class.forName("inetsoft.enterprise.client.ClientFactory");
-         }
-         catch(ClassNotFoundException ignore) {
-            // only supported in enterprise
-            return context;
-         }
-
-         if(context.assetsDirectory() != null && context.assetsDirectory().isDirectory()) {
-            File[] files = context.assetsDirectory().listFiles(
-               pathname -> pathname.isFile() && pathname.getName().toLowerCase().endsWith(".zip"));
-
-            if(files != null && files.length > 0) {
-               try(AutoCloseable client = openClient()) {
-                  Object fileService = getFileService(client);
-
-                  for(File file : files) {
-                     importAssets(fileService, file);
-                  }
-               }
-               catch(Exception e) {
-                  throw new RuntimeException(
-                     "Failed to import assets from '" + context.assetsDirectory().getAbsolutePath() + "'", e);
-               }
-            }
-         }
+         context = applyExtensions(context, extensions, SetupExtension.Phase.INSTALL_ASSETS, (c, e) -> e.installAssets(c));
       }
 
-      return applyExtensions(context, extensions, "afterAssetsInstalled", (c, e) -> e.afterAssetsInstalled(c));
-   }
-
-   private AutoCloseable openClient() {
-      try {
-         Class<?> clientFactoryClass = Class.forName("inetsoft.enterprise.client.ClientFactory");
-         Object clientFactory = clientFactoryClass.getConstructor().newInstance();
-         Method method = clientFactoryClass.getDeclaredMethod(
-            "createLocalClient", String.class, IdentityID.class, String.class);
-         String path = configDirectory.getAbsolutePath();
-         IdentityID username = new IdentityID("admin", Organization.getDefaultOrganizationID());
-         String password = System.getenv("INETSOFT_ADMIN_PASSWORD");
-
-         if(password == null) {
-            password = "admin";
-         }
-
-         return (AutoCloseable) method.invoke(clientFactory, path, username, password);
-      }
-      catch(Exception e) {
-         throw new RuntimeException("Failed to create local client", e);
-      }
-   }
-
-   private Object getFileService(Object client) {
-      try {
-         Class<?> clazz = client.getClass();
-         Method method = clazz.getMethod("getFileService");
-         return method.invoke(client);
-      }
-      catch(Exception e) {
-         throw new RuntimeException("Failed to get file service", e);
-      }
-   }
-
-   private void importAssets(Object fileService, File zipFile) {
-      try {
-         Class<?> clazz = fileService.getClass();
-         Method method = clazz.getDeclaredMethod(
-            "importAssets", String.class, List.class, boolean.class);
-         method.invoke(fileService, zipFile.getAbsolutePath(), Collections.emptyList(), true);
-         System.out.println("Imported assets from " + zipFile.getAbsolutePath());
-      }
-      catch(Exception e) {
-         throw new RuntimeException("Failed to import assets from " + zipFile.getAbsolutePath(), e);
-      }
+      return applyExtensions(context, extensions, SetupExtension.Phase.AFTER_ASSETS_INSTALLED, (c, e) -> e.afterAssetsInstalled(c));
    }
 
    private SetupExtension.Context applyExtensions(
-      SetupExtension.Context context, List<SetupExtension> extensions, String phase,
+      SetupExtension.Context context, List<SetupExtension> extensions, SetupExtension.Phase phase,
       BiFunction<SetupExtension.Context, SetupExtension, SetupExtension.Context> fn)
    {
       return extensions.stream()
-         .peek(e -> System.out.println("Applying extension " + phase + ": " + e.getClass().getName()))
+         .peek(e -> System.out.println("Applying extension " + phase.getPhase() + ": " + e.getClass().getName()))
          .reduce(context, fn, (c1, c2) -> c2);
    }
 
@@ -439,5 +386,43 @@ public class StorageInitializer implements Callable<Integer> {
       appender.addAppender(ref);
       appender.start();
       return appender;
+   }
+
+   private void reloadClusterPlugins(SetupExtension.Context context) {
+      if(Boolean.TRUE.equals(context.attributes().get("pluginsInstalled"))) {
+         // send a message to reload the plugins from the kv store
+         String home = context.configDirectory().getAbsolutePath();
+         System.setProperty("sree.home", home);
+         ConfigurationContext configContext = ConfigurationContext.getContext();
+         configContext.setHome(home);
+
+         try {
+            InetsoftConfig.bootstrap();
+
+            try(AbstractApplicationContext applicationContext = new AnnotationConfigApplicationContext(ClusterConfig.class)) {
+               configContext.setApplicationContext(applicationContext);
+               Cluster.getInstance().submit("plugins", new LoadKeyValueTask<>("plugins", true));
+               context.attributes().put("pluginsInstalled", false);
+            }
+         }
+         finally {
+            configContext.setApplicationContext(null);
+            InetsoftConfig.BOOTSTRAP_INSTANCE = null;
+         }
+      }
+   }
+
+   @Configuration
+   private static class ClusterConfig {
+      @Bean
+      public InetsoftConfig inetsoftConfig() {
+         return InetsoftConfig.BOOTSTRAP_INSTANCE;
+      }
+
+      @Bean
+      public Cluster cluster(InetsoftConfig config) {
+         // todo use client mode
+         return new IgniteCluster();
+      }
    }
 }

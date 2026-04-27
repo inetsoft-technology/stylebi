@@ -19,22 +19,21 @@ package inetsoft.report.internal;
 
 import inetsoft.report.*;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
-import inetsoft.report.internal.binding.*;
+import inetsoft.report.internal.binding.SourceAttr;
 import inetsoft.report.lens.DefaultTableLens;
-import inetsoft.sree.SreeEnv;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.*;
-import inetsoft.uql.schema.*;
-import inetsoft.util.*;
+import inetsoft.uql.schema.XTypeNode;
+import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.util.XSessionService;
+import inetsoft.util.Catalog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.ref.SoftReference;
 import java.rmi.RemoteException;
 import java.security.Principal;
-import java.util.*;
 
 /**
  * A special XSessionManager for design time. It does not execute the
@@ -44,27 +43,14 @@ import java.util.*;
  * @version 5.1, 9/20/2003
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(DesignSession.Reference.class)
 public class DesignSession extends XSessionManager {
    /**
-    * Get design session.
-    */
-   public static DesignSession getDesignSession() throws RemoteException {
-      return SingletonManager.getInstance(DesignSession.class);
-   }
-
-   /**
     * Create a design session manager.
     */
-   public DesignSession() throws RemoteException {
-      super();
-   }
-
-   /**
-    * Create a design session manager.
-    */
-   public DesignSession(XDataService service, Object session) {
-      super(service, session);
+   public DesignSession(XDataService dataService, XSessionService sessionService,
+                        DataSourceRegistry dataSourceRegistry) throws RemoteException
+   {
+      super(dataService, sessionService, dataSourceRegistry);
    }
 
    /**
@@ -161,34 +147,4 @@ public class DesignSession extends XSessionManager {
    private static final Logger LOG =
       LoggerFactory.getLogger(DesignSession.class);
 
-   public static final class Reference
-      extends SingletonManager.Reference<DesignSession>
-   {
-      @Override
-      public synchronized DesignSession get(Object ... parameters) {
-         if(session == null) {
-            try {
-               session = new DesignSession();
-               session.bind(System.getProperty("user.name"));
-            }
-            catch(RemoteException ex) {
-               LOG.error("Failed to bind design session and add " +
-                     "query refresh listener", ex);
-               throw new RuntimeException("Failed to bind design session", ex);
-            }
-         }
-
-         return session;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(session != null) {
-            session.tearDown();
-            session = null;
-         }
-      }
-
-      private DesignSession session;
-   }
 }

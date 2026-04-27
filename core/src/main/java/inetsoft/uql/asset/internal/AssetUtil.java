@@ -459,7 +459,7 @@ public class AssetUtil {
         type == SourceInfo.DATASOURCE || type == (SourceInfo.DATASOURCE | SourceInfo.CUBE))
       {
          String name = source.getPrefix();
-         XRepository repository = XFactory.getRepository();
+         XRepository repository = XRepository.getRepository();
          return repository.getDataSource(name);
       }
       else {
@@ -486,7 +486,7 @@ public class AssetUtil {
          return new UserVariable[0];
       }
 
-      XDataService service = XFactory.getDataService();
+      XDataService service = XRepository.getRepository();
       Object session = service.bind(System.getProperty("user.name"));
       UserVariable[] vars = new UserVariable[0];
       int type = source.getType();
@@ -2296,7 +2296,7 @@ public class AssetUtil {
       }
 
       try {
-         XRepository repository = XFactory.getRepository();
+         XRepository repository = XRepository.getRepository();
          XDomain domain = repository.getDomain(prefix);
 
          if(domain == null) {
@@ -2417,7 +2417,7 @@ public class AssetUtil {
       }
 
       if(rep == null) {
-         rep = (AssetRepository) SingletonManager.getInstance(AnalyticRepository.class);
+         rep = AnalyticRepository.getInstance().unwrap(AssetRepository.class);
       }
 
       return rep;

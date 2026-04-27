@@ -18,6 +18,7 @@
 package inetsoft.web.composer;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.SecurityEngine;
@@ -63,17 +64,32 @@ public class AssetTreeRefreshController {
       this.messagingTemplate = messagingTemplate;
    }
 
+   @Autowired
+   public void setSecurityEngine(SecurityEngine securityEngine) {
+      this.securityEngine = securityEngine;
+   }
+
+   @Autowired
+   public void setDataSourceRegistry(DataSourceRegistry dataSourceRegistry) {
+      this.dataSourceRegistry = dataSourceRegistry;
+   }
+
+   @Autowired
+   public void setLibManagerProvider(LibManagerProvider libManagerProvider) {
+      this.libManagerProvider = libManagerProvider;
+   }
+
    @PostConstruct
    public void addListeners() {
       assetRepository.addAssetChangeListener(listener);
-      DataSourceRegistry.getRegistry().addRefreshedListener(this::dataSourceRefreshed);
+      dataSourceRegistry.addRefreshedListener(this::dataSourceRefreshed);
       AssetRepository runtimeAssetRepository = AssetUtil.getAssetRepository(false);
 
       if(runtimeAssetRepository != null && runtimeAssetRepository != assetRepository) {
          runtimeAssetRepository.addAssetChangeListener(listener);
       }
 
-      for(String orgId : SecurityEngine.getSecurity().getOrganizations()) {
+      for(String orgId : securityEngine.getOrganizations()) {
          addLibManagerListener(orgId);
       }
    }
@@ -82,14 +98,14 @@ public class AssetTreeRefreshController {
    public void preDestroy() {
       try {
          assetRepository.removeAssetChangeListener(listener);
-         DataSourceRegistry.getRegistry().removeRefreshedListener(this::dataSourceRefreshed);
+         dataSourceRegistry.removeRefreshedListener(this::dataSourceRefreshed);
          AssetRepository runtimeAssetRepository = AssetUtil.getAssetRepository(false);
 
          if(runtimeAssetRepository != null && runtimeAssetRepository != assetRepository) {
             runtimeAssetRepository.removeAssetChangeListener(listener);
          }
 
-         for(String orgId : SecurityEngine.getSecurity().getOrganizations()) {
+         for(String orgId : securityEngine.getOrganizations()) {
             removeLibManagerListener(orgId);
          }
 
@@ -113,7 +129,7 @@ public class AssetTreeRefreshController {
       }
    }
 
-   @EventListener
+   @EventListener(SessionDisconnectEvent.class)
    public void handleDisconnect(SessionDisconnectEvent event) {
       removeSubscription(event);
    }
@@ -180,18 +196,21 @@ public class AssetTreeRefreshController {
 
    private void addLibManagerListener(String orgId) {
       if(!libManagerListenerOrgs.contains(orgId)) {
-         LibManager.getManager(orgId).addActionListener(libraryListener);
+         libManagerProvider.getManager(orgId).addActionListener(libraryListener);
          libManagerListenerOrgs.add(orgId);
       }
    }
 
    private void removeLibManagerListener(String orgId) {
-      LibManager.getManager(orgId).removeActionListener(libraryListener);
+      libManagerProvider.getManager(orgId).removeActionListener(libraryListener);
       libManagerListenerOrgs.remove(orgId);
    }
 
    private AssetRepository assetRepository;
    private SimpMessagingTemplate messagingTemplate;
+   private SecurityEngine securityEngine;
+   private DataSourceRegistry dataSourceRegistry;
+   private LibManagerProvider libManagerProvider;
    private final Map<String, Principal> subscriptions = new ConcurrentHashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(AssetTreeRefreshController.class);
 

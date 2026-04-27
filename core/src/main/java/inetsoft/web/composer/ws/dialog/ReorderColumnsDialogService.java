@@ -28,6 +28,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.ColumnInfo;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.*;
 import inetsoft.web.binding.drm.AbstractDataRefModel;
 import inetsoft.web.binding.drm.ColumnRefModel;
@@ -49,9 +50,10 @@ import java.util.stream.IntStream;
 public class ReorderColumnsDialogService extends WorksheetControllerService {
 
    public ReorderColumnsDialogService(ViewsheetService viewsheetService,
-                                      DataRefModelFactoryService dataRefModelFactoryService)
+                                      DataRefModelFactoryService dataRefModelFactoryService,
+                                      DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
       this.dataRefModelFactoryService = dataRefModelFactoryService;
    }
 

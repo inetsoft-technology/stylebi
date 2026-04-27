@@ -22,9 +22,9 @@
          <i class="submit-icon icon-size-small btn-icon" aria-hidden="true"></i>
       </button>
    </div>
-   <div style="display:table;width:100%;padding-left:20px;padding-right:20px;">
-      <div style="display:table;padding:10px;">
-         <div style="display:table-row;width:100%;">
+   <div style="display:table;width:100%;">
+      <div style="display:table;">
+         <div class="slider-container">
             <range-slider *ngIf="!singleValue" [model]="sliderOptions"
                           (sliderChanged)="sliderChanged($event)">
             </range-slider>

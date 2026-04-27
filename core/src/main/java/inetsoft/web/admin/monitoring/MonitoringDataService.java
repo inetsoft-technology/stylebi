@@ -65,7 +65,7 @@ public class MonitoringDataService extends BaseSubscribeChangeHandler {
    /**
     * On disconnect remove all subscribers for the given session.
     */
-   @EventListener
+   @EventListener(SessionDisconnectEvent.class)
    public void handleDisconnect(SessionDisconnectEvent event) {
       super.handleDisconnect(event);
    }

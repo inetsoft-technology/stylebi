@@ -57,15 +57,15 @@ export class ScheduleConfigurationPageComponent implements OnInit {
    constructor(private http: HttpClient,
       private pageTitle: PageHeaderService,
       private dialog: MatDialog) {
+   }
+
+   ngOnInit(): void {
+      this.pageTitle.title = "_#(js:Scheduler Settings)";
       this.http.get(SCHEDULE_CONFIGURATION_URL)
          .subscribe((model: ScheduleConfigurationModel) => {
             this.model = model;
             this.resetModel = Tool.clone(this.model);
          });
-   }
-
-   ngOnInit(): void {
-      this.pageTitle.title = "_#(js:Scheduler Settings)";
    }
 
    onConfigurationChange(config: ScheduleConfiguration) {

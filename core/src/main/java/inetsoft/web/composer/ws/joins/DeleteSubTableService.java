@@ -23,6 +23,7 @@ import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.Catalog;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
@@ -37,9 +38,9 @@ import java.security.Principal;
 @ClusterProxy
 public class DeleteSubTableService extends WorksheetControllerService {
 
-   public DeleteSubTableService(ViewsheetService viewsheetService)
+   public DeleteSubTableService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

@@ -33,8 +33,7 @@ import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.handler.*;
 import inetsoft.web.binding.model.*;
-import inetsoft.web.binding.model.graph.ChartGeoRefModel;
-import inetsoft.web.binding.model.graph.MapFeatureModel;
+import inetsoft.web.binding.model.graph.*;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.binding.service.graph.ChartRefModelFactoryService;
 import inetsoft.web.binding.service.graph.aesthetic.VisualFrameModelFactoryService;
@@ -74,8 +73,48 @@ public class VSChartBindingService {
       RuntimeViewsheet rvs = engine.getViewsheet(Tool.byteDecode(vsId), principal);
       Viewsheet viewsheet = rvs.getViewsheet();
       ChartVSAssembly assembly = (ChartVSAssembly) viewsheet.getAssembly(assemblyName);
+      BindingModel model = bindingService.createModel(assembly);
 
-      return bindingService.createModel(assembly);
+      // 3D chart types are removed from the UI. When a saved 3D chart is opened for
+      // editing, fall back to the equivalent non-3D type so the user can edit it. The
+      // runtime continues to honour the original 3D type until the user applies a change.
+      // (74475)
+      if(model instanceof ChartBindingModel) {
+         ChartBindingModel cmodel = (ChartBindingModel) model;
+         cmodel.setChartType(GraphTypes.downgrade3DChartType(cmodel.getChartType()));
+         cmodel.setRTChartType(GraphTypes.downgrade3DChartType(cmodel.getRTChartType()));
+
+         // Also downgrade per-aggregate types for multi-style charts. (74475)
+         if(cmodel.isMultiStyles() && cmodel.getYFields() != null) {
+            for(ChartRefModel ref : cmodel.getYFields()) {
+               if(ref instanceof ChartAggregateRefModel aggr) {
+                  aggr.setChartType(GraphTypes.downgrade3DChartType(aggr.getChartType()));
+                  aggr.setRTChartType(GraphTypes.downgrade3DChartType(aggr.getRTChartType()));
+               }
+            }
+         }
+      }
+
+      return model;
+   }
+
+   /**
+    * Convert a 3D chart type to its non-3D equivalent for the binding editor. (74475)
+    */
+   private static int downgrade3DChartType(int type) {
+      if(type == GraphTypes.CHART_3D_BAR) {
+         return GraphTypes.CHART_BAR;
+      }
+
+      if(type == GraphTypes.CHART_3D_BAR_STACK) {
+         return GraphTypes.CHART_BAR_STACK;
+      }
+
+      if(type == GraphTypes.CHART_3D_PIE) {
+         return GraphTypes.CHART_PIE;
+      }
+
+      return type;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

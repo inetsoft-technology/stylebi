@@ -38,13 +38,12 @@ public class ComposerClientController {
 
    @SubscribeMapping(COMMANDS_TOPIC)
    public void subscribe(SimpMessageHeaderAccessor headerAccessor) {
-      composerClientService.setSessionID(() -> new String[]{
+      composerClientService.setSessionID(
          headerAccessor.getSessionAttributes().get("HTTP.SESSION.ID").toString(),
-         headerAccessor.getSessionId()
-      });
+         headerAccessor.getSessionId());
    }
 
-   @EventListener
+   @EventListener(SessionDisconnectEvent.class)
    public void handleDisconnect(SessionDisconnectEvent event) {
       removeSubscription(event);
    }

@@ -18,18 +18,13 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.report.internal.Util;
-import inetsoft.sree.RepletRegistry;
-import inetsoft.sree.RepositoryEntry;
+import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
-import inetsoft.uql.asset.ConfirmException;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.RecycleBin;
-import inetsoft.web.RecycleUtils;
-import inetsoft.web.admin.content.repository.model.SetRepositoryFolderTableModel;
-import inetsoft.web.admin.security.ConnectionStatus;
 import inetsoft.web.admin.security.ResourcePermissionModel;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -44,10 +39,17 @@ import java.util.stream.Collectors;
 @Service
 public class RepositoryFolderService {
    @Autowired
-   public RepositoryFolderService(ResourcePermissionService permissionService,
-                                  ContentRepositoryTreeService treeService) {
+   public RepositoryFolderService(RepletRegistryService registryManager,
+                                  ResourcePermissionService permissionService,
+                                  ContentRepositoryTreeService treeService,
+                                  RecycleBin recycleBin,
+                                  RepletRegistryManager repletRegistryManager)
+   {
+      this.registryManager = registryManager;
       this.permissionService = permissionService;
       this.treeService = treeService;
+      this.recycleBin = recycleBin;
+      this.repletRegistryManager = repletRegistryManager;
    }
 
    public RepositoryFolderSettingsModel getSettings(String path, boolean isWorksheetFolder,
@@ -55,7 +57,9 @@ public class RepositoryFolderService {
       throws Exception
    {
       owner = owner != null && owner.name.length() > 0 ? owner : null;
-      RepletRegistry registry = RepletRegistry.getRegistry(owner);
+      ResourceType resourceType = isWorksheetFolder ? ResourceType.ASSET : ResourceType.REPORT;
+      registryManager.checkPermission(path, resourceType, ResourceAction.ADMIN, principal);
+      RepletRegistry registry = repletRegistryManager.getRegistry(owner);
       String folderName = "/".equals(path) ? "/" : registryManager.getName(path);
       int idx = path.lastIndexOf(folderName);
       String parentFolder = idx == 0 ? "/" : path.substring(0, idx - 1);
@@ -142,7 +146,7 @@ public class RepositoryFolderService {
          }
       }
 
-      registryManager.checkPermission(oldPath, resourceType, ResourceAction.WRITE, principal);
+      registryManager.checkPermission(oldPath, resourceType, ResourceAction.ADMIN, principal);
       final boolean replace = model.replace();
       IdentityID userTo = getUserFromFolder(newPath);
 
@@ -205,6 +209,10 @@ public class RepositoryFolderService {
                permissionService.updateResourcePermissions(oldPath, newPath, resourceType);
             }
 
+            if(!hasPermission(newPath, resourceType, ResourceAction.ADMIN, principal)) {
+               return null;
+            }
+
             return getSettings(newPath, true, owner, principal);
          }
          finally {
@@ -221,10 +229,10 @@ public class RepositoryFolderService {
                                                      model.permissionTableModel(), principal);
          }
       }
-      catch(RepletRegistryManager.DuplicateNameException e) {
+      catch(RepletRegistryService.DuplicateNameException e) {
          LOG.warn(Catalog.getCatalog().getString("em.viewsheet.duplicateName"));
       }
-      catch(RepletRegistryManager.RenameFailedException e) {
+      catch(RepletRegistryService.RenameFailedException e) {
          LOG.warn(e.getMessage());
       }
       finally {
@@ -233,91 +241,11 @@ public class RepositoryFolderService {
          }
       }
 
-      return getSettings(newPath, false, owner, principal);
-   }
-
-   public ConnectionStatus deleteRepositoryFolderSettings(IdentityID owner, boolean force,
-                                              SetRepositoryFolderTableModel tableModel,
-                                              Principal principal)
-      throws Exception
-   {
-      if(tableModel.table() == null) {
+      if(!hasPermission(newPath, resourceType, ResourceAction.ADMIN, principal)) {
          return null;
       }
 
-      owner = owner != null && owner.name.length() > 0 ? owner : null;
-      RecycleBin recycleBin = RecycleBin.getRecycleBin();
-      RepletRegistry registry = RepletRegistry.getRegistry(owner);
-      boolean ismy = owner != null;
-      List<String> errors = new ArrayList<>();
-      StringBuilder confirmMessage = new StringBuilder();
-      boolean needConfirm = false;
-
-      for(String replet : tableModel.table()) {
-         try {
-            if(replet != null) {
-               boolean isFolder = replet.startsWith(catalog.getString("Folder"));
-               replet = (ismy ? Tool.MY_DASHBOARD : "") +
-                  replet.substring(ismy ? replet.indexOf("/") : replet.indexOf(": ") + 2);
-
-               if(isFolder) {
-                  String worksheets = "Worksheets";
-                  int index = replet.indexOf(worksheets);
-
-                  if(index >= 0) {
-                     String folderPath = replet.substring(index + worksheets.length() + 1);
-
-                     if(RecycleUtils.isInRecycleBin(folderPath)) {
-                        registryManager.removeWorksheetFolder(folderPath, owner, force, principal);
-                        recycleBin.removeEntry(folderPath);
-                     }
-                     else {
-                        String wsFolderPath = owner != null ?
-                           treeService.getUnscopedPath(folderPath) : folderPath;
-                        RecycleUtils.moveAssetFolderToRecycleBin(wsFolderPath, owner, principal, recycleBin, false);
-                     }
-                  }
-                  else {
-                     for(String folderPath : registry.getAllFolders()) {
-                        if(replet.equals(folderPath)) {
-                           checkPermission(folderPath, ResourceType.REPORT, ResourceAction.READ, principal);
-
-                           if(RecycleUtils.isInRecycleBin(folderPath)) {
-                              if(!registry.removeFolder(folderPath)) {
-                                 errors.add(folderPath);
-                              }
-                           }
-                           else {
-                              RecycleUtils.moveRepositoryFolderToRecycleBin(folderPath, folderPath, owner, principal, recycleBin);
-                           }
-
-                           break;
-                        }
-                     }
-                  }
-               }
-            }
-         }
-         catch(ConfirmException confirmException) {
-            confirmMessage.append(confirmException.getMessage()).append(" ");
-         }
-         catch(MessageException msgException) {
-            throw msgException;
-         }
-      }
-
-      registry.save();
-
-      if(errors.size() > 0) {
-         String[] errs = errors.toArray(new String[0]);
-         LOG.error(Catalog.getCatalog().getString("em.registry.deleteRepletsError", arrayToString(errs, ",")));
-      }
-
-      if(!confirmMessage.toString().isEmpty()) {
-         return new ConnectionStatus(confirmMessage.toString());
-      }
-
-      return null;
+      return getSettings(newPath, false, owner, principal);
    }
 
    /**
@@ -397,9 +325,11 @@ public class RepositoryFolderService {
       return buffer.toString();
    }
 
-   private final RepletRegistryManager registryManager = new RepletRegistryManager();
+   private final RepletRegistryService registryManager;
    private final ResourcePermissionService permissionService;
    private final ContentRepositoryTreeService treeService;
+   private final RecycleBin recycleBin;
+   private final RepletRegistryManager repletRegistryManager;
    private final Catalog catalog = Catalog.getCatalog();
    private static final Logger LOG = LoggerFactory.getLogger(RepositoryFolderService.class);
 }

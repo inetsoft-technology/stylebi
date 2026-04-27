@@ -66,6 +66,11 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
     */
    public static final int DROPDOWN_SHOW_TYPE = 2;
 
+   public static final int DEFAULT_CALENDAR_ROW_HEIGHT = 18;
+   public static final int DEFAULT_CALENDAR_ROWS = 9;
+   public static final int DEFAULT_CALENDAR_HEIGHT =
+      DEFAULT_CALENDAR_ROWS * DEFAULT_CALENDAR_ROW_HEIGHT;
+
    /**
     * Constructor.
     */
@@ -73,7 +78,7 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
       super();
 
       dates = new String[0];
-      setPixelSize(new Dimension(300, 200));
+      setPixelSize(new Dimension(300, 300));
    }
 
    /**
@@ -81,8 +86,9 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
     */
    @Override
    public void initDefaultFormat() {
-      setFormatInfo((FormatInfo) normalDefault.clone());
+      setFormatInfo(normalDefault.clone());
       setCSSDefaults();
+      titleInfo.setTitleHeightValue(36);
    }
 
    /**
@@ -1350,13 +1356,14 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
       }
 
       Dimension pixel = runtimePixelSize == null ? getPixelSize() : runtimePixelSize;
-      runtimePixelSize = pixel = pixel == null ? new Dimension(3 * 70, 9 * 18) : pixel;
+      runtimePixelSize = pixel = pixel == null ?
+         new Dimension(3 * 70, DEFAULT_CALENDAR_HEIGHT) : pixel;
 
       if(modeSValid && !(getViewMode() + "").equals(modeValue.getDValue())) {
          if(getViewMode() == DOUBLE_CALENDAR_MODE  &&
             getShowType() == DROPDOWN_SHOW_TYPE)
          {
-            runtimePixelSize = new Dimension(pixel.width, 18);
+            runtimePixelSize = new Dimension(pixel.width, DEFAULT_CALENDAR_ROW_HEIGHT);
          }
          else if(getViewMode() == DOUBLE_CALENDAR_MODE  &&
             getShowType() == CALENDAR_SHOW_TYPE)
@@ -1366,7 +1373,7 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
          else if(getViewMode() == SINGLE_CALENDAR_MODE &&
             getShowType() == DROPDOWN_SHOW_TYPE)
          {
-            runtimePixelSize = new Dimension(pixel.width / 2, 18);
+            runtimePixelSize = new Dimension(pixel.width / 2, DEFAULT_CALENDAR_ROW_HEIGHT);
          }
          else if(getViewMode() == SINGLE_CALENDAR_MODE &&
             getShowType() == CALENDAR_SHOW_TYPE)
@@ -1376,10 +1383,10 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
       }
 
       if(getShowType() == DROPDOWN_SHOW_TYPE) {
-         runtimePixelSize = new Dimension(runtimePixelSize.width, 18);
+         runtimePixelSize = new Dimension(runtimePixelSize.width, DEFAULT_CALENDAR_ROW_HEIGHT);
       }
       else if(getShowType() == CALENDAR_SHOW_TYPE) {
-         runtimePixelSize = new Dimension(runtimePixelSize.width, 9 * 18);
+         runtimePixelSize = new Dimension(runtimePixelSize.width, DEFAULT_CALENDAR_HEIGHT);
       }
 
       setPixelSize(runtimePixelSize);
@@ -1410,6 +1417,7 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
       format.getDefaultFormat().setBordersValue(borders);
       format.getDefaultFormat().setBorderColorsValue(bcolors);
       format.getDefaultFormat().setFontValue(getDefaultFont(Font.BOLD, 10));
+      format.getDefaultFormat().setRoundCornerValue(10);
       format.getCSSFormat().setCSSType(CSSConstants.CALENDAR);
       tformat.getDefaultFormat().setFontValue(getDefaultFont(Font.BOLD, 11));
       tformat.getDefaultFormat().setBordersValue(new Insets(0, 0, StyleConstants.THIN_LINE, 0));
@@ -1440,6 +1448,7 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
 
       VSCompositeFormat monthFormat = new VSCompositeFormat();
       monthFormat.getCSSFormat().setCSSType(CSSConstants.CALENDAR_DAYS);
+      monthFormat.getDefaultFormat().setAlignmentValue(StyleConstants.H_CENTER | StyleConstants.V_CENTER);
       normalDefault.setFormat(CALENDAR_MONTH_PATH, monthFormat);
 
       format = new VSCompositeFormat();

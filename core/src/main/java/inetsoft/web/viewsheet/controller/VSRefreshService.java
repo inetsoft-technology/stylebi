@@ -36,11 +36,9 @@ import inetsoft.util.ThreadContext;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.audit.ExecutionRecord;
 import inetsoft.util.log.LogUtil;
-import inetsoft.web.binding.handler.VSChartDataHandler;
 import inetsoft.web.composer.vs.VSObjectTreeNode;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
-import inetsoft.web.composer.wiz.service.VisualizationService;
 import inetsoft.web.embed.EmbedAssemblyInfo;
 import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
@@ -68,17 +66,15 @@ public class VSRefreshService {
                            ViewsheetService viewsheetService,
                            VSObjectTreeService vsObjectTreeService,
                            VSBookmarkService vsBookmarkService,
-                           VSChartDataHandler chartDataHandler,
                            ParameterService parameterService,
-                           VisualizationService visualizationService)
+                           XSessionService sessionService)
    {
       this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
       this.vsObjectTreeService = vsObjectTreeService;
       this.vsBookmarkService = vsBookmarkService;
-      this.chartDataHandler = chartDataHandler;
       this.parameterService = parameterService;
-      this.visualizationService = visualizationService;
+      this.sessionService = sessionService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -94,7 +90,6 @@ public class VSRefreshService {
 
       Viewsheet vs = rvs.getViewsheet();
       VSAssembly assembly = vs.getAssembly(event.getAssemblyName());
-
       // In embed mode the client needs the linkUri from SetViewsheetInfoCommand to
       // construct chart image URLs (getAssemblyImage). Without it, the chart area
       // renders but image tiles cannot be loaded.
@@ -158,13 +153,13 @@ public class VSRefreshService {
 
       AssetEntry entry = rvs.getEntry();
       String userSessionId = principal == null ?
-         XSessionService.createSessionID(XSessionService.USER, null) :
+         sessionService.createSessionID(XSessionService.USER, null) :
          ((XPrincipal) principal).getSessionID();
       String objectName = entry != null ? entry.getDescription() : null;
       LogUtil.PerformanceLogEntry logEntry = new LogUtil.PerformanceLogEntry(objectName);
       String execSessionId =
-         XSessionService.createSessionID(XSessionService.EXPORE_VIEW,
-                                         entry != null ? entry.getName() : null);
+         sessionService.createSessionID(XSessionService.EXPORE_VIEW,
+                                        entry != null ? entry.getName() : null);
       String objectType = ExecutionRecord.OBJECT_TYPE_VIEW;
       String execType = ExecutionRecord.EXEC_TYPE_START;
       Date execTimestamp = new Date(System.currentTimeMillis());
@@ -275,7 +270,6 @@ public class VSRefreshService {
          // being refreshed so we can prevent these errors from being
          // propogated to the end users.
          box.get().setRefreshing(true);
-
          if(wizMaxModeSize != null) {
             WizUtil.prepareMaxMode(box.get().getViewsheet(), wizMaxModeSize);
          }
@@ -332,8 +326,6 @@ public class VSRefreshService {
             PopulateVSObjectTreeCommand treeCommand = new PopulateVSObjectTreeCommand(tree);
             commandDispatcher.sendCommand(treeCommand);
          }
-
-         visualizationService.sendDetailsCommandIfWiz(vs, commandDispatcher);
       }
       finally {
          box.get().setRefreshing(false);
@@ -343,7 +335,6 @@ public class VSRefreshService {
 
    /**
     * Check if need refresh.
-    *
     * @return <tt>true</tt> if Refresh/unRefresh.
     */
    private boolean isShareFilterNeedRefresh(RuntimeViewsheet rvs) {
@@ -386,9 +377,7 @@ public class VSRefreshService {
 
    /**
     * Check if Embedded VS need refresh.
-    *
     * @param rvs runtime viewsheet
-    *
     * @return <tt>true</tt> if Refresh/unRefresh.
     */
    private boolean isEmbeddedVSNeedRefresh(RuntimeViewsheet rvs) throws Exception {
@@ -416,12 +405,10 @@ public class VSRefreshService {
 
    /**
     * Refresh the assembly and reset dependencies.
-    *
-    * @param rvs        runtime viewsheet.
-    * @param assembly   vs assembly.
+    * @param rvs runtime viewsheet.
+    * @param assembly vs assembly.
     * @param linkUri
     * @param dispatcher
-    *
     * @throws Exception
     */
    private void refreshAssemblyAndDependencies(RuntimeViewsheet rvs, VSAssembly assembly,
@@ -495,7 +482,6 @@ public class VSRefreshService {
 
    /**
     * Update the undo state.
-    *
     * @param rvs
     * @param dispatcher
     */
@@ -543,9 +529,8 @@ public class VSRefreshService {
    private final ViewsheetService viewsheetService;
    private final VSObjectTreeService vsObjectTreeService;
    private final VSBookmarkService vsBookmarkService;
-   private final VSChartDataHandler chartDataHandler;
    private final ParameterService parameterService;
-   private final VisualizationService visualizationService;
+   private final XSessionService sessionService;
    private final ConcurrentMap<String, Boolean> pending = new ConcurrentHashMap<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(VSRefreshService.class);

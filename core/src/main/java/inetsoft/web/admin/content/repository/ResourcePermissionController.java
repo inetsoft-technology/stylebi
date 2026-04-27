@@ -19,9 +19,13 @@ package inetsoft.web.admin.content.repository;
 
 import inetsoft.report.internal.Util;
 import inetsoft.sree.RepositoryEntry;
+import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.*;
 import inetsoft.util.*;
 import inetsoft.web.admin.security.ResourcePermissionModel;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,28 +34,47 @@ import java.security.Principal;
 @RestController
 public class ResourcePermissionController {
    @Autowired
-   public ResourcePermissionController(ResourcePermissionService service) {
+   public ResourcePermissionController(ResourcePermissionService service,
+                                       SecurityEngine securityEngine)
+   {
       this.resourcePermissionService = service;
+      this.securityEngine = securityEngine;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/permission")
    public ResourcePermissionModel getRepositoryEntryPermissions(@RequestParam("path") String path,
                                                                 @RequestParam("type") int type,
                                                                 Principal principal)
+      throws Exception
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
       Resource resource = resourcePermissionService.getRepositoryResourceType(type, path);
+      checkPermission(resource, path, principal, ResourceAction.READ);
       boolean tableStyleFolder = type == (RepositoryEntry.FOLDER | RepositoryEntry.TABLE_STYLE);
       return this.resourcePermissionService.getTableModel(
          resource.getPath(), resource.getType(),
          ResourcePermissionService.ADMIN_ACTIONS, principal, tableStyleFolder);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/permission")
    public void setRepositoryEntryPermissions(@RequestParam("path") String path,
                                              @RequestParam("type") int type,
@@ -60,11 +83,35 @@ public class ResourcePermissionController {
       throws Exception
    {
       Resource resource = resourcePermissionService.getRepositoryResourceType(type, path);
+      checkPermission(resource, path, principal, ResourceAction.WRITE);
       String fullPath = Util.getObjectFullPath(type, path, principal);
       boolean tableStyleFolder = (type & (RepositoryEntry.FOLDER | RepositoryEntry.TABLE_STYLE)) != 0;
       this.resourcePermissionService.setResourcePermissions(
          resource.getPath(), resource.getType(), fullPath, permissionModel, principal, tableStyleFolder);
    }
 
+   private void checkPermission(Resource resource, String path, Principal principal,
+                                ResourceAction scheduleTaskAction)
+      throws Exception
+   {
+      boolean allowed;
+
+      if(resource.getType() == ResourceType.SCHEDULE_TASK) {
+         ScheduleTask task = ScheduleManager.getScheduleManager().getScheduleTask(path);
+         allowed = task != null &&
+            ScheduleManager.hasTaskPermission(task.getOwner(), principal, scheduleTaskAction);
+      }
+      else {
+         allowed = SecurityEngine.getSecurity().checkPermission(
+            principal, resource.getType(), resource.getPath(), ResourceAction.ADMIN);
+      }
+
+      if(!allowed) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", path));
+      }
+   }
+
    private final ResourcePermissionService resourcePermissionService;
+   private final SecurityEngine securityEngine;
 }

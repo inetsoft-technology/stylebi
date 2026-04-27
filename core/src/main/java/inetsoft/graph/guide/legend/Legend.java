@@ -420,21 +420,23 @@ public abstract class Legend extends BoundedContainer {
       double y = bounds.getY();
       double w = bounds.getWidth();
       double h = bounds.getHeight();
-      double gap = 10;
 
-      double bandW = w - gap * 2;
-      double bandH = h * band.getPreferredHeight() / getPreferredHeight();
-      double bandX = x + gap;
+      double bandW = w - BAND_GAP * 2;
+      double preferredLabelH = Math.max(
+         (minLabel == null) ? 0 : minLabel.getPreferredHeight(),
+         (maxLabel == null) ? 0 : maxLabel.getPreferredHeight());
+      double titleH = (title != null) ? title.getSize().getHeight() : 0;
+      double bandH = Math.max(0, Math.min(
+         h * band.getPreferredHeight() / getPreferredHeight(),
+         h - preferredLabelH - titleH - 2 * GAP));
+      double bandX = x + BAND_GAP;
       double bandY = y + h - GAP - bandH;
 
       if(title != null) {
-         bandY -= title.getSize().getHeight();
+         bandY -= titleH;
       }
 
-      double labelH = Math.max(
-         (minLabel == null) ? 0 : minLabel.getPreferredHeight(),
-         (maxLabel == null) ? 0 : maxLabel.getPreferredHeight());
-      labelH = Math.min(h - bandH, labelH);
+      double labelH = Math.min(h - bandH, preferredLabelH);
       double minLabelW = minLabel == null ? 0 : minLabel.getPreferredWidth();
       double maxLabelW = maxLabel == null ? 0 : maxLabel.getPreferredWidth();
 
@@ -1162,6 +1164,7 @@ public abstract class Legend extends BoundedContainer {
    }
 
    private static final int GAP = 4;
+   private static final int BAND_GAP = 10; // horizontal margin on each side of gradient band
    private static final int TITLE_LEFT_PADDING = 2;
    private static final int TITLE_RIGHT_PADDING = 1;
    private static final int ITEM_LEFT_PADDING = TITLE_LEFT_PADDING;

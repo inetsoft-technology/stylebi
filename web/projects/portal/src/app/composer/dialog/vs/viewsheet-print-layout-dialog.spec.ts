@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -60,9 +61,11 @@ describe("Viewsheet print layout dialog Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
+            HttpClientTestingModule,
             ReactiveFormsModule,
             FormsModule,
             NgbDropdownModule,
+            HttpClientTestingModule,
          ],
          declarations: [
             ViewsheetPrintLayoutDialog, EnterSubmitDirective, StandardDialogComponent,

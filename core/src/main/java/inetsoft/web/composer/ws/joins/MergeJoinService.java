@@ -25,6 +25,7 @@ import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.web.composer.ws.TableModeService;
@@ -42,8 +43,8 @@ import java.security.Principal;
 @ClusterProxy
 public class MergeJoinService extends WorksheetControllerService {
 
-   public MergeJoinService(ViewsheetService viewsheetService) {
-      super(viewsheetService);
+   public MergeJoinService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry) {
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

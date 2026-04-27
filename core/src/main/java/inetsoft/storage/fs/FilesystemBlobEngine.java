@@ -22,8 +22,9 @@ import inetsoft.util.Tool;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.*;
+import java.util.stream.Stream;
 import java.util.Set;
 
 /**
@@ -134,6 +135,17 @@ public class FilesystemBlobEngine implements BlobEngine {
       catch(Exception e) {
          LoggerFactory.getLogger(FilesystemBlobEngine.class)
             .error("Failed to delete BlobEngine Storage folders: ", e);
+      }
+   }
+
+   @Override
+   public void list(String id, PrintWriter writer) throws IOException {
+      Path storagePath = base.resolve(id);
+
+      try (Stream<Path> paths = Files.walk(storagePath)) {
+         paths.filter(Files::isRegularFile)
+            .map(base::relativize)
+            .forEach(writer::println);
       }
    }
 

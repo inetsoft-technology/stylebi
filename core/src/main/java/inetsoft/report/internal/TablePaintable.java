@@ -1153,8 +1153,23 @@ public class TablePaintable extends BasePaintable {
                            row, col);
 
                         if(!paintNotationText(g, info, bounds)) {
+                           // Bug #74150: info.bounds.height doesn't include line spacing,
+                           // but paintText clips to it. Adjust height to prevent clipping.
+                           // Bug #73491: also extend the paint clip by the cell padding so
+                           // that float precision in font-height calculations (Math.ceil in
+                           // calculateRowHeight vs fractional values in processText) cannot
+                           // push the last wrapped line past the 0.1F clip threshold in
+                           // paintText.
+                           Bounds textBounds = new Bounds(info.bounds);
+                           textBounds.height += Math.max(0, info.lines.size() - 1) *
+                              elem.getSpacing();
+
+                           if(padding != null) {
+                              textBounds.height += padding.top + padding.bottom;
+                           }
+
                            Common.paintText(g, info.text, info.lines, bounds,
-                                            info.bounds, false, info.lineoff,
+                                            textBounds, false, info.lineoff,
                                             elem.getSpacing(), true);
                         }
 
@@ -2772,6 +2787,16 @@ public class TablePaintable extends BasePaintable {
       // clone it, to make sure the original bounds will not be changed,
       // so export ppt will not lost data
       bounds = applyPadding(new Bounds(bounds));
+
+      // applyPadding reduces bounds.height by padding.top + padding.bottom, but
+      // the row height was calculated to fit exactly the text content (without
+      // padding overhead). This makes bounds.height < text preferred height,
+      // causing paintText to skip the last line at its 0.1F clip threshold.
+      // Restore the vertical padding so text can use the full row height.
+      // The horizontal padding and y-offset are still applied. (Bug #73491)
+      if(padding != null) {
+         bounds.height += padding.top + padding.bottom;
+      }
 
       // cclip same as bounds for check pre page clipped string
       // fix bug1319747791263

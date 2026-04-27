@@ -481,4 +481,30 @@ public interface AssetRepository {
     * fire change event for globally visible default org assets on property change
     */
    void fireExposeDefaultOrgPropertyChange();
+
+   /**
+    * Returns {@code true} if this repository is a wrapper for the given interface.
+    *
+    * @param iface the interface to check.
+    * @return {@code true} if this repository wraps {@code iface}.
+    */
+   default boolean isWrapperFor(Class<?> iface) {
+      return false;
+   }
+
+   /**
+    * Unwraps this repository to the given interface.
+    *
+    * @param iface the interface to unwrap to.
+    * @param <T>   the type of the interface.
+    * @return the unwrapped instance.
+    * @throws IllegalArgumentException if this repository is not a wrapper for {@code iface}.
+    */
+   default <T> T unwrap(Class<T> iface) {
+      if(iface.isInstance(this)) {
+         return iface.cast(this);
+      }
+
+      throw new IllegalArgumentException("Not a wrapper for " + iface.getName());
+   }
 }

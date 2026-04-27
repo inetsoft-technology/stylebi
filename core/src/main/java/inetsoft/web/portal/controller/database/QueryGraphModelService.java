@@ -52,11 +52,13 @@ public class QueryGraphModelService {
    @Autowired
    public QueryGraphModelService(RuntimeQueryService runtimeQueryService,
                                  DataSourceService dataSourceService,
-                                 QueryManagerService queryService)
+                                 QueryManagerService queryService,
+                                 DataSourceRegistry dataSourceRegistry)
    {
       this.runtimeQueryService = runtimeQueryService;
       this.dataSourceService = dataSourceService;
       this.queryService = queryService;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    public JoinGraphModel getQueryGraphModel(String runtimeID, TableJoinInfo joinInfo,
@@ -670,8 +672,7 @@ public class QueryGraphModelService {
    public TableNode getTableNode(AssetEntry entry, String database)
       throws Exception
    {
-      DataSourceRegistry registry = DataSourceRegistry.getRegistry();
-      JDBCDataSource xds = (JDBCDataSource) registry.getDataSource(database);
+      JDBCDataSource xds = (JDBCDataSource) dataSourceRegistry.getDataSource(database);
       String name = entry.getProperty("source");
       SQLTypes sqlTypes = SQLTypes.getSQLTypes(xds);
       XNode node = sqlTypes.getQualifiedTableNode(
@@ -941,6 +942,7 @@ public class QueryGraphModelService {
    private final RuntimeQueryService runtimeQueryService;
    private final DataSourceService dataSourceService;
    private final QueryManagerService queryService;
+   private final DataSourceRegistry dataSourceRegistry;
    private static final int JOIN_EDIT_PANE_TABLE_PADDING_TOP = 15;
    private static final int JOIN_EDIT_PANE_TABLE_PADDING_LEFT = 30;
    private static final int JOIN_EDIT_PANE_TABLE_SPACE = 180;

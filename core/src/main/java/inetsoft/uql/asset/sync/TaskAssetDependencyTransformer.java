@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;
 
 import java.rmi.RemoteException;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -118,10 +119,7 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
       }
 
       for(RenameInfo info : infos) {
-         if(info.isReplet()) {
-            renameRepletAction(doc, info);
-         }
-         else if(info.isViewsheet()) {
+         if(info.isViewsheet()) {
             renameViewsheetAction(doc, info);
          }
 
@@ -444,14 +442,16 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
          newPath = getModelPath0(info, false);
       }
       else if(info.isLogicalModel() && info.isFolder()) {
-         path = info.getOldPath();
-         newPath = info.getNewPath();
+         path = toModelAssetPath(info.getOldPath(), info.getOldName());
+         newPath = toModelAssetPath(info.getNewPath(), info.getNewName());
       }
       else if(info.isPartition() && info.isSource()) {
          path = getPartitionPath(info.getOldName(), info.getModelFolder());
          newPath = getPartitionPath(info.getNewName(), info.getModelFolder());
       }
       else if(info.isPartition() && info.isFolder()) {
+         // Partition folder rename paths are already in ID format (set directly by
+         // DatabaseModelBrowserService), so no conversion is needed here.
          path = info.getOldPath();
          newPath = info.getNewPath();
       }
@@ -482,6 +482,10 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
          }
          catch(Exception ignore){
          }
+      }
+
+      if(path == null) {
+         return;
       }
 
       String assetExpression = getAssetExpression(path, type, user, info);
@@ -561,25 +565,6 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
       }
    }
 
-   private void renameRepletAction(Element doc, RenameInfo info) {
-      NodeList childNodes = getChildNodes(doc,
-         "//Task/Action[@replet='" + info.getOldName() + "']");
-
-      if(childNodes == null) {
-         return;
-      }
-
-      for(int i = 0; i < childNodes.getLength(); i++) {
-         Element item = (Element) childNodes.item(i);
-
-         if(item == null) {
-            continue;
-         }
-
-         item.setAttribute("replet", info.getNewName());
-      }
-   }
-
    /**
     * Save assets.
     * @param storage
@@ -590,6 +575,60 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
       synchronized(storage) {
          storage.putDocument(identifier, doc, ScheduleTask.class.getName(), task.getOrgID());
       }
+   }
+
+   /**
+    * Converts a logical model path to the XAsset ID format "database^__^folder^name"
+    * used in backup action XML.
+    *
+    * Handles two input formats:
+    * - Slash format "database/folder/name" (produced by RepositoryObjectService for EM moves)
+    * - ID format already containing "^" (produced by DatabaseModelBrowserService for portal moves)
+    *
+    * Special case: the portal always prepends DATAMODEL_FOLDER_SPLITER even for root-level
+    * models, producing "database^__^name" instead of the correct "database^name". This case
+    * is detected and corrected.
+    */
+   String toModelAssetPath(String rawPath, String modelFolder) {
+      if(rawPath == null) {
+         return rawPath;
+      }
+
+      if(rawPath.contains(XUtil.DATAMODEL_PATH_SPLITER)) {
+         // The portal builds paths with DATAMODEL_FOLDER_SPLITER even for root-level models,
+         // producing "database^__^name" instead of the correct "database^name". Detect and fix.
+         int folderSpliterIdx = rawPath.indexOf(XUtil.DATAMODEL_FOLDER_SPLITER);
+
+         if(folderSpliterIdx != -1) {
+            String afterSpliter = rawPath.substring(
+               folderSpliterIdx + XUtil.DATAMODEL_FOLDER_SPLITER.length());
+
+            if(!afterSpliter.contains(XUtil.DATAMODEL_PATH_SPLITER)) {
+               // "database^__^name" → "database^name"
+               return rawPath.substring(0, folderSpliterIdx) +
+                  XUtil.DATAMODEL_PATH_SPLITER + afterSpliter;
+            }
+         }
+
+         return rawPath;
+      }
+
+      String[] parts = rawPath.split("/");
+
+      if(parts.length < 2) {
+         return rawPath;
+      }
+
+      String modelName = parts[parts.length - 1];
+
+      if(Tool.isEmptyString(modelFolder)) {
+         String database = String.join("/", Arrays.copyOf(parts, parts.length - 1));
+         return database + XUtil.DATAMODEL_PATH_SPLITER + modelName;
+      }
+
+      String database = String.join("/", Arrays.copyOf(parts, parts.length - 2));
+      return database + XUtil.DATAMODEL_FOLDER_SPLITER + modelFolder +
+         XUtil.DATAMODEL_PATH_SPLITER + modelName;
    }
 
    private String getModelPath(RenameInfo info, boolean old) {

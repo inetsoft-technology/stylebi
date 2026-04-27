@@ -53,7 +53,11 @@ public class ConcurrentSessionClusterService extends AbstractSessionService {
       this.maxSessions = maxSessions;
       this.logoutAfterFail = logoutAfterFail;
       LicenseUpdater updater = new LicenseUpdater();
-      this.runner = Executors.newSingleThreadScheduledExecutor();
+      this.runner = Executors.newSingleThreadScheduledExecutor(r -> {
+         Thread t = new Thread(r, "ConcurrentSessionLicenseUpdater");
+         t.setDaemon(true);
+         return t;
+      });
 
       // Background thread which refreshes heartbeat timestamps in the distributed
       // map and removes entries from nodes that have stopped heartbeating.

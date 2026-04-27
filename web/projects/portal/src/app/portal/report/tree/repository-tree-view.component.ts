@@ -39,6 +39,7 @@ import { RepositoryTreeComponent } from "../../../widget/repository-tree/reposit
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { ReportTabModel } from "../report-tab-model";
 import { Tool } from "../../../../../../shared/util/tool";
+import { CurrentUserService } from "../../../../../../shared/util/current-user.service";
 
 const SEARCH_URI = "../api/portal/tree/search";
 const GET_PORTAL_TREE_FOLDER = "../api/portal/tree";
@@ -99,11 +100,10 @@ export class RepositoryTreeViewComponent implements OnInit, AfterViewInit, OnDes
 
    constructor(private http: HttpClient, private modal: NgbModal,
                private pageTabService: PageTabService,
-               private changeDetectorRef: ChangeDetectorRef)
+               private changeDetectorRef: ChangeDetectorRef,
+               private currentUserService: CurrentUserService)
    {
-      this.http.get<string>("../api/em/navbar/organization").subscribe((org)=>{
-         this.currOrgID = org;
-      });
+      this.subscriptions.add(this.currentUserService.getPortalCurrentUser().subscribe(user => this.currOrgID = user?.name?.orgID ?? null));
 
       this.subscriptions.add(this.pageTabService.onRefreshPage.subscribe((tab: TabInfoModel) => {
          let entry = createAssetEntry(tab.id);

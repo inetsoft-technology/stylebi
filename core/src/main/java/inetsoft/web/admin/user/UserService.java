@@ -52,7 +52,8 @@ public class UserService
                       ServerClusterClient client, SecurityEngine securityEngine,
                       SecurityProvider securityProvider,
                       MonitoringDataService monitoringDataService,
-                      IgniteSessionRepository sessionRepository)
+                      IgniteSessionRepository sessionRepository,
+                      Cluster cluster)
    {
       super(lowAttrs, medAttrs, highAttrs);
       this.viewsheetService = viewsheetService;
@@ -61,19 +62,17 @@ public class UserService
       this.securityProvider = securityProvider;
       this.monitoringDataService = monitoringDataService;
       this.sessionRepository = sessionRepository;
+      this.cluster = cluster;
    }
 
    @PostConstruct
    public void addListener() {
-      cluster = Cluster.getInstance();
       cluster.addMessageListener(this);
    }
 
    @PreDestroy
    public void removeListener() {
-      if(cluster != null) {
-         cluster.removeMessageListener(this);
-      }
+      cluster.removeMessageListener(this);
    }
 
    @Override
@@ -94,7 +93,13 @@ public class UserService
          sessions = getSessionInfo();
       }
       catch(Exception e) {
-         LOG.warn("Failed to update user status", e);
+         if(isCacheStoppedException(e)) {
+            LOG.debug("Cache stopped, skipping user status update", e);
+         }
+         else {
+            LOG.warn("Failed to update user status", e);
+         }
+
          sessions = Collections.emptyList();
       }
 
@@ -102,7 +107,13 @@ public class UserService
          topUsers = calculateTopNUsers();
       }
       catch(Exception e) {
-         LOG.warn("Failed to update user status", e);
+         if(isCacheStoppedException(e)) {
+            LOG.debug("Cache stopped, skipping user status update", e);
+         }
+         else {
+            LOG.warn("Failed to update user status", e);
+         }
+
          topUsers = Collections.emptyList();
       }
 
@@ -175,7 +186,7 @@ public class UserService
    {
       boolean lastAccessEnabled = isLevelQualified("lastAccess");
       String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
 
       return getModelData(address, u -> u.sessions().stream()
          .filter(i -> i.user() != null)
@@ -225,7 +236,7 @@ public class UserService
    }
 
    private boolean isIdentityMising(IdentityID name, Function<SecurityProvider, IdentityID[]> fn) {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
 
       if(provider != null) {
          for(IdentityID identity : fn.apply(provider)) {
@@ -253,7 +264,7 @@ public class UserService
    }
 
    private SecurityEngine getSecurityEngine() {
-      return SecurityEngine.getSecurity();
+      return securityEngine;
    }
 
    /**
@@ -399,7 +410,17 @@ public class UserService
    private final SecurityProvider securityProvider;
    private final MonitoringDataService monitoringDataService;
    private final IgniteSessionRepository sessionRepository;
-   private Cluster cluster;
+   private final Cluster cluster;
+
+   private static boolean isCacheStoppedException(Throwable t) {
+      for(Throwable cause = t; cause != null; cause = cause.getCause()) {
+         if("CacheStoppedException".equals(cause.getClass().getSimpleName())) {
+            return true;
+         }
+      }
+
+      return false;
+   }
 
    private static final String[] lowAttrs = {"sessionCount", "sessionInfo", "quotaInfo"};
    private static final String[] medAttrs = {"lastAccess"};

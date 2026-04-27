@@ -2249,7 +2249,7 @@ public class CSSDictionary {
    private final Map<String, Set<String>> idMap = new HashMap<>();
    private final Map<String, Set<String>> classMap = new HashMap<>();
 
-   private CascadingStyleSheet css;
+   private volatile CascadingStyleSheet css;
    private String cssDir;
    private String cssFile;
    private final List<String> otherFiles;

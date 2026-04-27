@@ -163,7 +163,7 @@ public class SUtil {
     * Try getting replet engine.
     */
    public static RepletEngine getRepletEngine(AnalyticRepository rep) {
-      return rep instanceof RepletEngine ? (RepletEngine) rep : null;
+      return rep != null && rep.isWrapperFor(RepletEngine.class) ? rep.unwrap(RepletEngine.class) : null;
    }
 
    /**
@@ -179,7 +179,7 @@ public class SUtil {
     * @return the repository.
     */
    public static AnalyticRepository getRepletRepository() {
-      return SingletonManager.getInstance(AnalyticRepository.class);
+      return AnalyticRepository.getInstance();
    }
 
    /**
@@ -442,7 +442,7 @@ public class SUtil {
          "vs.bookmark.button"
       };
       static final String[] VSTOOLBAR_ELEMENT_ID = {
-         "Previous", "Next", "Edit", "Refresh", "Email", "Social Sharing", "Schedule",
+         "Undo", "Redo", "Edit", "Refresh", "Email", "Social Sharing", "Schedule",
          "Export", "Import", "Print", "Zoom", "Full Screen", "Close", "Bookmark"};
    }
 
@@ -1802,7 +1802,7 @@ public class SUtil {
       try {
          boolean isMyReport = isMyReport(path);
          user = isMyReport ? user : null;
-         RepletRegistry registry = RepletRegistry.getRegistry(user);
+         RepletRegistry registry = RepletRegistryManager.getInstance().getRegistry(user);
          boolean result = registry != null && registry.isFolder(path);
 
          if(type == RepositoryEntry.VIEWSHEET) {
@@ -1973,10 +1973,10 @@ public class SUtil {
 
       try {
          if(principal != null && path.startsWith(MY_REPORT)) {
-            registry = RepletRegistry.getRegistry(IdentityID.getIdentityIDFromKey(principal.getName()));
+            registry = RepletRegistryManager.getInstance().getRegistry(IdentityID.getIdentityIDFromKey(principal.getName()));
          }
 
-         dregistry = RepletRegistry.getRegistry();
+         dregistry = RepletRegistryManager.getInstance().getRegistry();
       }
       catch(Exception ex) {
          LOG.error("Failed to get replet registry for localization", ex);
@@ -3168,8 +3168,20 @@ public class SUtil {
 
    public static IdentityID getOwnerForNewTask(IdentityID user) {
       OrganizationManager organizationManager = OrganizationManager.getInstance();
-      String currOrgId = user != null && !Tool.isEmptyString(user.getOrgID()) ?
-         user.getOrgID() : organizationManager.getCurrentOrgID();
+      // Prefer the OrganizationContextHolder org (set when a site admin creates tasks for another
+      // org) over the user's own org, so the task owner belongs to the target organization.
+      String contextOrgId = OrganizationContextHolder.getCurrentOrgId();
+      String currOrgId;
+
+      if(!Tool.isEmptyString(contextOrgId)) {
+         currOrgId = contextOrgId;
+      }
+      else if(user != null && !Tool.isEmptyString(user.getOrgID())) {
+         currOrgId = user.getOrgID();
+      }
+      else {
+         currOrgId = organizationManager.getCurrentOrgID();
+      }
 
       if(user != null && !Tool.equals(user.getOrgID(), currOrgId)) {
          SecurityEngine security = SecurityEngine.getSecurity();

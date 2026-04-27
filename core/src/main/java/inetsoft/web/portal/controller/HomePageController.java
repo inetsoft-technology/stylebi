@@ -52,9 +52,13 @@ import java.util.stream.Collectors;
 @Controller
 public class HomePageController {
    @Autowired
-   public HomePageController(DataSpace dataSpace) {
+   public HomePageController(DataSpace dataSpace, SecurityEngine securityEngine,
+                             CustomThemesManager customThemesManager)
+   {
       this.dataSpace = dataSpace;
+      this.securityEngine = securityEngine;
       this.webAssetsExist = dataSpace.isDirectory("web-assets");
+      this.customThemesManager = customThemesManager;
    }
 
    @GetMapping({
@@ -82,7 +86,7 @@ public class HomePageController {
 
       if(OrganizationManager.getInstance().getCurrentOrgID() != null) {
          String orgId = OrganizationManager.getInstance().getCurrentOrgID();
-         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider provider = securityEngine.getSecurityProvider();
 
          if(provider.getOrganization(orgId) != null &&
             !Tool.isEmptyString(provider.getOrganization(orgId).getTheme()) &&
@@ -92,22 +96,23 @@ public class HomePageController {
          }
       }
 
-      CustomThemesManager themes = CustomThemesManager.getManager();
       String customLoadingText = SreeEnv.getProperty("portal.customLoadingText").replaceAll("\\s", " ");
       ModelAndView model = new ModelAndView("app/index");
       model.addObject("linkUri", linkUri);
-      model.addObject("customTheme", themes.isCustomThemeApplied() || hasOrgTheme);
-      model.addObject("scriptThemeCssPath", themes.getScriptThemeCssPath(true));
+      model.addObject("customTheme", customThemesManager.isCustomThemeApplied() || hasOrgTheme);
+      model.addObject("scriptThemeCssPath", customThemesManager.getScriptThemeCssPath(true));
       model.addObject("customLoadingText", customLoadingText);
+      model.addObject("customLoadingLogo", SreeEnv.getProperty("portal.customLoadingLogo"));
+      model.addObject("customCss", SreeEnv.getProperty("portal.customCss"));
 
       addAdditionalStyles(model, linkUri);
       addAdditionalScripts(model, linkUri);
-      addChatAppScript(model);
       addDataSpaceTags(model, linkUri);
       addOpenGraphTags(model, linkUri, request.getRequestURI(), request.getHeader("User-Agent"));
 
       return model;
    }
+
 
    @PostMapping({"/app/portal/**", "/app/viewer/**", "/app/reportviewer/**"})
    public ModelAndView postHomePage(HttpServletRequest request, HttpServletResponse response,
@@ -223,31 +228,6 @@ public class HomePageController {
    private void addAdditionalScripts(ModelAndView model, String linkUri) {
       addAdditionalTags(
          model, "additionalScripts", SreeEnv.getProperty("portal.additional.scripts"), linkUri);
-   }
-
-   /**
-    * When {@code chat.app.server.url} is configured, injects the AI assistant web component
-    * script so that the {@code <ai-assistant>} custom element is available in the portal.
-    * The script is served by the assistant-client at
-    * {@code {chatAppServerUrl}/web-component/ai-assistant.umd.js}.
-    */
-   @SuppressWarnings("unchecked")
-   private void addChatAppScript(ModelAndView model) {
-      String chatAppUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_SERVER_URL);
-
-      if(chatAppUrl == null || chatAppUrl.trim().isEmpty()) {
-         return;
-      }
-
-      chatAppUrl = chatAppUrl.trim();
-
-      if(chatAppUrl.endsWith("/")) {
-         chatAppUrl = chatAppUrl.substring(0, chatAppUrl.length() - 1);
-      }
-
-      List<String> scripts = (List<String>) model.getModel()
-         .computeIfAbsent("additionalScripts", k -> new ArrayList<>());
-      scripts.add(chatAppUrl + "/web-component/ai-assistant.umd.js");
    }
 
    private void addDataSpaceTags(ModelAndView model, String linkUrl) {
@@ -394,6 +374,8 @@ public class HomePageController {
 
 
    private final DataSpace dataSpace;
+   private final SecurityEngine securityEngine;
+   private final CustomThemesManager customThemesManager;
    private final boolean webAssetsExist;
    private final Lock imageLock = new ReentrantLock();
    private volatile OpenGraphImage cachedImage;

@@ -20,9 +20,11 @@ package inetsoft.mv;
 import inetsoft.report.composition.WorksheetWrapper;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.storage.BlobStorage;
+import inetsoft.storage.BlobStorageManager;
 import inetsoft.storage.BlobTransaction;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.util.*;
+import jakarta.annotation.PreDestroy;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
@@ -30,12 +32,13 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 
 public class MVWorksheetStorage implements AutoCloseable {
-   public MVWorksheetStorage() {
+   public MVWorksheetStorage(BlobStorageManager blobStorageManager) {
+      this.blobStorageManager = blobStorageManager;
       transformListener = new SheetTransformListener();
    }
 
    public static MVWorksheetStorage getInstance() {
-      return SingletonManager.getInstance(MVWorksheetStorage.class);
+      return ConfigurationContext.getContext().getSpringBean(MVWorksheetStorage.class);
    }
 
    public Worksheet getWorksheet(String path, String orgID) throws Exception {
@@ -78,6 +81,7 @@ public class MVWorksheetStorage implements AutoCloseable {
       getStorage().delete(path);
    }
 
+   @PreDestroy
    @Override
    public void close() throws Exception {
       getStorage().close();
@@ -89,9 +93,10 @@ public class MVWorksheetStorage implements AutoCloseable {
 
    private BlobStorage<Metadata> getStorage(String orgID) {
       String storeID =  Tool.buildString(orgID.toLowerCase(), "__", "mvws");
-      return SingletonManager.getInstance(BlobStorage.class, storeID, false);
+      return blobStorageManager.getStorage(storeID, false);
    }
 
+   private final BlobStorageManager blobStorageManager;
    private final TransformListener transformListener;
 
    public static final class Metadata implements Serializable {

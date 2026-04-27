@@ -17,17 +17,22 @@
  */
 package inetsoft.uql.asset;
 
+import inetsoft.report.TableDataPath;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.Organization;
 import inetsoft.sree.security.OrganizationManager;
-import inetsoft.uql.ColumnSelection;
-import inetsoft.uql.XTable;
-import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.*;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.table.*;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.*;
+import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.groovy.io.StringBuilderWriter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
 import java.io.*;
 import java.lang.ref.Reference;
@@ -41,13 +46,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.jar.JarOutputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
-
-import org.apache.commons.codec.digest.DigestUtils;
-import org.apache.groovy.io.StringBuilderWriter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
 
 /**
  * Embedded table assembly for snapshot, mainly deal with large data.
@@ -396,6 +394,32 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
          }
 
          writer.println("</headers>");
+
+         Map<TableDataPath, XMetaInfo> metaMap = stable.getXMetaInfoMap();
+
+         if(!metaMap.isEmpty()) {
+            writer.println("<metaInfos>");
+
+            for(Map.Entry<TableDataPath, XMetaInfo> entry : metaMap.entrySet()) {
+               XMetaInfo minfo = entry.getValue();
+
+               if(minfo != null && !minfo.isXFormatInfoEmpty()) {
+                  TableDataPath path = entry.getKey();
+                  String[] pathArr = path.getPath();
+
+                  if(pathArr != null && pathArr.length > 0) {
+                     writer.print("<metaInfo header=\"");
+                     writer.print(Tool.escape(pathArr[0]));
+                     writer.println("\">");
+                     minfo.writeXML(writer);
+                     writer.println("</metaInfo>");
+                  }
+               }
+            }
+
+            writer.println("</metaInfos>");
+         }
+
          writer.println("</sembeddedData>");
       }
       catch(Exception exc) {
@@ -595,6 +619,25 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
 
          if(realType != null && columnRef != null) {
             columnRef.setDataType(realType);
+         }
+      }
+
+      Element mnode = Tool.getChildNodeByTagName(delem, "metaInfos");
+
+      if(mnode != null) {
+         NodeList mnodes = Tool.getChildNodesByTagName(mnode, "metaInfo");
+         metaInfoMap = new HashMap<>();
+
+         for(int i = 0; i < mnodes.getLength(); i++) {
+            Element node = (Element) mnodes.item(i);
+            String header = Tool.getAttribute(node, "header");
+            Element minfoElem = Tool.getChildNodeByTagName(node, "XMetaInfo");
+
+            if(header != null && minfoElem != null) {
+               XMetaInfo minfo = new XMetaInfo();
+               minfo.parseXML(minfoElem);
+               metaInfoMap.put(header, minfo);
+            }
          }
       }
    }
@@ -841,6 +884,13 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
 
                stable.init(xcreators);
                stable.initFragments(tables, headers, rowCnt, dataPaths);
+
+               if(metaInfoMap != null) {
+                  for(Map.Entry<String, XMetaInfo> entry : metaInfoMap.entrySet()) {
+                     stable.setXMetaInfo(entry.getKey(), entry.getValue());
+                  }
+               }
+
                originalSTable = stable;
                this.stable = stable;
                SnapshotEmbeddedTableDataCache.getInstance().set(cacheKey, stable);
@@ -936,6 +986,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
    private String[] dataPaths = null;
    private Set<String[]> dataPathsPendingDelete = new HashSet<>();
    private Map<String, String> dataPathsLoadVersion = new HashMap<>();
+   private Map<String, XMetaInfo> metaInfoMap = null;
    private long dataTS = 0;
    private boolean fileDirty = false;
    private boolean deleted = false;

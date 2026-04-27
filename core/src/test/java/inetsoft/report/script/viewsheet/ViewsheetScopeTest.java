@@ -27,8 +27,14 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -45,16 +51,16 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome(importResources = "ViewsheetScopeTest.vso")
+@Tag("core")
+@Tag("integration")
 public class ViewsheetScopeTest {
    @RegisterExtension
-   @Order(1)
-   ControllersExtension controllers = new ControllersExtension();
-
-   @RegisterExtension
-   @Order(2)
    RuntimeViewsheetExtension viewsheetResource =
-      new RuntimeViewsheetExtension(createOpenViewsheetEvent(), controllers);
+      new RuntimeViewsheetExtension(createOpenViewsheetEvent());
 
    private ViewsheetScope viewsheetScope;
    private ViewsheetSandbox sandbox;

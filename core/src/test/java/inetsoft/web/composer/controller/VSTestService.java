@@ -30,22 +30,23 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.*;
-import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
-import inetsoft.web.viewsheet.service.LinkUri;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.RequestParam;
 
 import java.security.Principal;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 
 @Service
 @ClusterProxy
+@Tag("core")
 public class VSTestService {
    public VSTestService(ViewsheetService viewsheetService) {
       this.viewsheetService = viewsheetService;

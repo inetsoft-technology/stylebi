@@ -53,8 +53,8 @@ public abstract class XDimIndex extends XSwappable {
       valid = true;
       completed = false;
       disposed = false;
-      XSwapper.cur = System.currentTimeMillis();
-      accessed = XSwapper.cur;
+      XSwapper.getSwapper().cur = System.currentTimeMillis();
+      accessed = XSwapper.getSwapper().cur;
    }
 
    /**
@@ -144,7 +144,7 @@ public abstract class XDimIndex extends XSwappable {
    }
 
    protected void touch() {
-      accessed = XSwapper.cur;
+      accessed = XSwapper.getSwapper().cur;
 
       if(!completed) {
          access();
@@ -436,7 +436,7 @@ public abstract class XDimIndex extends XSwappable {
          return 0;
       }
 
-      return getAgePriority(XSwapper.cur - accessed, alive * 2L);
+      return getAgePriority(XSwapper.getSwapper().cur - accessed, alive * 2L);
    }
 
    /**

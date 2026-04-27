@@ -38,6 +38,7 @@ import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.script.VariableScriptable;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.*;
@@ -148,7 +149,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       this.pairs = new SoftHashMap<>(0);
       this.metarep = new TableMetaDataRepository();
       this.user = user;
-      this.rid = boxRid != null ? boxRid : XSessionService.createSessionID(XSessionService.VIEWSHEET, null);
+      this.rid = boxRid != null ? boxRid : XSessionService.getService().createSessionID(XSessionService.VIEWSHEET, null);
       this.parentVsIds = parentVsIds;
       setViewsheet(vs, true);
 
@@ -414,6 +415,19 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
+    * Marks hyperlink parameters as already applied to input assemblies, preventing
+    * applyParameterToInput() from overwriting restored assembly values during the
+    * reset(initing=true) call that follows an undo/redo checkpoint restore.
+    * Must be called after resetRuntime() since that method clears the flag.
+    * (Bug #74220 — Feature #72693 introduced applyParameterToInput which is
+    *  re-triggered on every reset(initing=true), including after undo/redo.)
+    */
+   public void markParametersApplied() {
+      parametersApplied = true;
+      parametersAppliedAssemblies.clear();
+   }
+
+   /**
     * Get the viewsheet in this sandbox.
     * @return the viewsheet contained in this sandbox.
     */
@@ -663,7 +677,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // cancel executing queries
       cancelAllQueries();
       // cancel pending queries
-      AssetDataCache.cancel(rid, !wizard);
+      AssetDataCache.getCache().cancel(rid, !wizard);
    }
 
    /**
@@ -3971,7 +3985,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                   edata.setObject(row, col, cdata);
                   // if the embedded table is changed by input, any cached data
                   // depending on it should be cleared
-                  AssetDataCache.removeCacheDependence(eassembly);
+                  AssetDataCache.getCache().removeCacheDependence(eassembly);
                   removeInputProcessed(eassembly.getAssemblyEntry(), clist);
                }
             }
@@ -4037,7 +4051,24 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       String name = iassembly.getName();
 
       if(!vt.contains(name)) {
-         return;
+         // When the assembly is bound to a variable, passParams sends the parameter under
+         // the variable name rather than the assembly name. Fall back to looking up the
+         // variable that this assembly controls, using the same extraction logic as
+         // refreshVariable().
+         String tname = iassembly.getTableName();
+         boolean isVarExtracted = iassembly.isVariable() && tname != null &&
+            !tname.isEmpty() && tname.startsWith("$(");
+
+         if(isVarExtracted) {
+            tname = tname.substring(2, tname.length() - 1);
+         }
+
+         if(isVarExtracted && tname != null && !tname.isEmpty() && vt.contains(tname)) {
+            name = tname;
+         }
+         else {
+            return;
+         }
       }
 
       // Dependency chains can cause refreshVariable() to be called more than once for
@@ -4115,7 +4146,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       if(iassembly instanceof ComboBoxVSAssembly comboBox) {
          ComboBoxVSAssemblyInfo comboBoxInfo = (ComboBoxVSAssemblyInfo) comboBox.getVSAssemblyInfo();
 
-         if(comboBoxInfo.isQueryDateFormat()) {
+         if(comboBoxInfo.isQueryDateFormat() && (XSchema.DATE.equals(comboBoxInfo.getDataType()) ||
+            XSchema.TIME_INSTANT.equals(comboBoxInfo.getDataType()))) {
             vt.putFormat(varName, comboBoxInfo.getDateFormatPattern());
          }
          else {
@@ -4903,6 +4935,20 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
          executeScript(assembly);
 
+         // reposition input child in bottom-tab container after script may
+         // have changed label properties (visible, position, gap, font)
+         if(assembly instanceof InputVSAssembly &&
+            assembly.getContainer() instanceof TabVSAssembly tabContainer)
+         {
+            TabVSAssemblyInfo tabInfo =
+               (TabVSAssemblyInfo) tabContainer.getVSAssemblyInfo();
+
+            if(tabInfo.isBottomTabs()) {
+               TabVSAssemblyInfo.repositionChildForBottomTabs(
+                  tabInfo, assembly.getVSAssemblyInfo(), assembly.getPixelSize());
+            }
+         }
+
          // by yanie: bug1412619712845
          // updateHighlight after script execution to make sure the value set
          // via script can be used in highlight in time.
@@ -5351,7 +5397,17 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
 
          name = name.substring(index + 1);
-         return box.getData(name, initial, type);
+         // Release outer sandbox locks during sub-sandbox data fetch to prevent blocking
+         // background threads (e.g. TableMetaDataRepository.shrink) that need a read lock.
+         // The outer sandbox's state is not mutated during a sub-sandbox data fetch, so it
+         // is safe to release outer locks here. This mirrors the pattern in doExecuteData(). (74129)
+         try {
+            unlockAll();
+            return box.getData(name, initial, type);
+         }
+         finally {
+            restoreLocks();
+         }
       }
 
       if(disposed) {
@@ -5971,7 +6027,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       Object result;
 
+      // query.getData() submits to the AssetData thread pool and blocks in Processor.join()
+      // until the query completes. If the caller (e.g. refreshViewsheet) holds the sandbox
+      // write lock, that write lock is held for the full duration of the data fetch — blocking
+      // background threads (e.g. TableMetaDataRepository.shrink) from acquiring a read lock.
+      // Assembly mutations have already been done above under lockWrite(); the data fetch
+      // itself does not mutate assembly state, so it is safe to release outer locks here.
+      // This mirrors the same pattern used in getVGraphPair() for chart init. (74001)
       try {
+         thisLock.unlockAll();
+
          if(assembly instanceof ListInputVSAssembly ||
             assembly instanceof TableVSAssembly &&
                ((TableVSAssemblyInfo) assembly.getInfo()).isForm())
@@ -5989,6 +6054,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
       finally {
          getVariableTable().remove("_FORM_");
+         thisLock.restoreLocks();
       }
 
       return result;
@@ -6526,11 +6592,21 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          ViewsheetSandbox box = getSandbox(name.substring(0, index));
          name = name.substring(index + 1);
 
-         if(disposed) {
+         if(disposed || box == null) {
             return null;
          }
 
-         return box.getVGraphPair(name, init, maxsize, export, scaleFont, forceExpand, ignoreSize);
+         // Release outer sandbox locks during sub-sandbox graph computation to prevent blocking
+         // background threads (e.g. TableMetaDataRepository.shrink) that need a read lock.
+         // The outer sandbox's state is not mutated during a sub-sandbox graph fetch, so it
+         // is safe to release outer locks here. This mirrors the pattern in doExecuteData(). (74129)
+         try {
+            unlockAll();
+            return box.getVGraphPair(name, init, maxsize, export, scaleFont, forceExpand, ignoreSize);
+         }
+         finally {
+            restoreLocks();
+         }
       }
 
       if(disposed) {
@@ -6639,7 +6715,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                   }
                }
             }
-            else if(init) {
+            else if(init || !pair.isCompleted()) {
                // wait for pair to finish initialization, otherwise it may not be usable
                // after returned.
                // unlock all locks to prevent deadlock since initGraph() will call getData()
@@ -7344,7 +7420,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                table.setProperty("metadata", "true");
             }
 
-            TableLens data = AssetDataCache.getData(rid, table, wbox, null, mode,
+            TableLens data = AssetDataCache.getCache().getData(rid, table, wbox, null, mode,
                                                     true, getTouchTimestamp(), queryMgr);
             final TableMetaData metadata;
 
@@ -7638,6 +7714,30 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // see above
       if(!AssetDataCache.isProcessorThread()) {
          thisLock.unlockRead();
+      }
+   }
+
+   /**
+    * Temporarily release all held locks. Must be paired with restoreLocks().
+    * Use when calling long-running operations (e.g. getData()) while a write lock is held,
+    * to prevent blocking background threads that need a read lock.
+    *
+    * <p>Not safe for re-entrant use: if a nested call to unlockAll() occurs on the
+    * same thread before restoreLocks() is called, the outer saved state will be lost.</p>
+    */
+   public void unlockAll() {
+      if(!AssetDataCache.isProcessorThread()) {
+         thisLock.unlockAll();
+      }
+   }
+
+   /**
+    * Restore locks previously released by {@link #unlockAll()}.
+    * Must be called on the same thread that called unlockAll().
+    */
+   public void restoreLocks() {
+      if(!AssetDataCache.isProcessorThread()) {
+         thisLock.restoreLocks();
       }
    }
 

@@ -36,6 +36,7 @@ import { FormInputService } from "../../util/form-input.service";
 import { AppErrorMessage } from "../app-error-message.component";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { PopComponentService } from "../data-tip/pop-component.service";
+import { TimerService } from "../data-tip/timer.service";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSTextInput } from "./vs-text-input.component";
 
@@ -65,6 +66,7 @@ describe("VS Text Input Component Unit Test", () => {
    let debounceService: any;
    let dataTipService: any;
    let firstDayOfWeekService: any;
+   let timerService: any;
 
    beforeEach(waitForAsync(() => {
       const viewsheetClientService = {};
@@ -73,6 +75,11 @@ describe("VS Text Input Component Unit Test", () => {
       const contextProvider = {};
       firstDayOfWeekService = { getFirstDay: jest.fn() };
       firstDayOfWeekService.getFirstDay.mockImplementation(() => observableOf({}));
+      timerService = {
+         defer: jest.fn((fn) => {
+            fn();
+         })
+      };
 
       TestBed.configureTestingModule({
          imports: [ ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule ],
@@ -88,7 +95,8 @@ describe("VS Text Input Component Unit Test", () => {
             { provide: ViewsheetClientService, useValue: viewsheetClientService },
             { provide: DebounceService, useValue: debounceService },
             { provide: DataTipService, useValue: dataTipService },
-            { provide: FirstDayOfWeekService, useValue: firstDayOfWeekService }
+            { provide: FirstDayOfWeekService, useValue: firstDayOfWeekService },
+            { provide: TimerService, useValue: timerService },
          ],
       });
       TestBed.compileComponents();

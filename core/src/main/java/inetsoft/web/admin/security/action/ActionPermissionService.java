@@ -40,8 +40,15 @@ import org.springframework.stereotype.Component;
 @Component
 public class ActionPermissionService {
    @Autowired
-   public ActionPermissionService(ComponentAuthorizationService componentService) {
+   public ActionPermissionService(ComponentAuthorizationService componentService,
+                                  SecurityEngine securityEngine,
+                                  LicenseManager licenseManager,
+                                  PortalThemesManager portalThemesManager)
+   {
       this.componentService = componentService;
+      this.securityEngine = securityEngine;
+      this.licenseManager = licenseManager;
+      this.portalThemesManager = portalThemesManager;
    }
 
    public ActionTreeNode getActionTree(Principal principal) {
@@ -49,7 +56,7 @@ public class ActionPermissionService {
 
       if(SUtil.isMultiTenant()) {
          if(principal != null) {
-            SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+            SecurityProvider provider = securityEngine.getSecurityProvider();
             List<IdentityID> roles = new ArrayList<>(Arrays.stream(provider.getRoles(IdentityID.getIdentityIDFromKey(principal.getName()))).toList());
             roles.addAll(Arrays.stream(((XPrincipal)principal).getRoles()).toList());
             isOrgAdmin = Arrays
@@ -173,7 +180,7 @@ public class ActionPermissionService {
 
       if(principal != null) {
          if(OrganizationManager.getInstance().isSiteAdmin(principal) ||
-            !LicenseManager.getInstance().isEnterprise() || !SUtil.isMultiTenant())
+            !licenseManager.isEnterprise() || !SUtil.isMultiTenant())
          {
             root.addFilteredChildren(ActionTreeNode.builder()
                                         .label(catalog.getString("Upload Drivers"))
@@ -194,6 +201,15 @@ public class ActionPermissionService {
               .grant(false)
               .actions(EnumSet.of(ResourceAction.ACCESS))
               .build());
+
+      root.addFilteredChildren(ActionTreeNode.builder()
+                          .label(catalog.getString("AI Assistant"))
+                          .resource("*")
+                          .folder(false)
+                          .type(ResourceType.AI_ASSISTANT)
+                          .grant(true)
+                          .actions(EnumSet.of(ResourceAction.ACCESS))
+                          .build());
 
       root.addFilteredChildren(ActionTreeNode.builder()
                           .label(catalog.getString("Cross Join"))
@@ -347,7 +363,7 @@ public class ActionPermissionService {
          .label(catalog.getString("Portal Tabs"))
          .folder(true)
          .actions(EnumSet.noneOf(ResourceAction.class));
-      PortalThemesManager manager = PortalThemesManager.getManager();
+      PortalThemesManager manager = portalThemesManager;
 
       for(int i = 0; i < manager.getPortalTabsCount(); i++) {
          PortalTab tab = manager.getPortalTab(i);
@@ -534,7 +550,7 @@ public class ActionPermissionService {
                                           ViewComponent component, String path, boolean isOrgAdmin,
                                           Principal principal)
    {
-      boolean enterprise = LicenseManager.getInstance().isEnterprise();
+      boolean enterprise = licenseManager.isEnterprise();
       boolean isSiteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
       component.children().values().stream()
          .filter(ViewComponent::available)
@@ -550,7 +566,7 @@ public class ActionPermissionService {
    }
 
    private boolean isEMActionVisible(ViewComponent c, String path, boolean isSiteAdmin) {
-      if(!LicenseManager.getInstance().isEnterprise() && Tool.equals("auditing", c.name()) ||
+      if(!licenseManager.isEnterprise() && Tool.equals("auditing", c.name()) ||
          !SUtil.isMultiTenant() && Tool.equals("org-settings", c.name()))
       {
          return false;
@@ -718,13 +734,13 @@ public class ActionPermissionService {
          .actions(EnumSet.noneOf(ResourceAction.class));
 
       builder.addFilteredChildren(getChartNode(catalog, null,
-         "Bar", "Bar", "3D Bar", "Interval"));
+         "Bar", "Bar", "Interval"));
       builder.addFilteredChildren(getChartNode(catalog, null,
          "Line", "Line", "Step Line", "Jump Line"));
       builder.addFilteredChildren(getChartNode(catalog, null,
          "Area", "Area", "Step Area"));
       builder.addFilteredChildren(getChartNode(catalog, null,
-         "Pie", "Pie", "3D Pie", "Donut"));
+         "Pie", "Pie", "Donut"));
       builder.addFilteredChildren(getChartNode(catalog, null,
          "Radar", "Radar", "Filled Radar"));
       builder.addFilteredChildren(getChartNode(catalog, null,
@@ -804,8 +820,11 @@ public class ActionPermissionService {
 
    public static final Map<String, String[]> orgAdminExclusionFragments = Map.of(
       "settings/presentation/settings",
-               new String[]{"look-and-feel", "font-mapping", "welcome-page", "login-banner"}
+               new String[]{"look-and-feel", "font-mapping", "welcome-page", "login-banner", "ai-integration"}
       );
 
    private final ComponentAuthorizationService componentService;
+   private final SecurityEngine securityEngine;
+   private final LicenseManager licenseManager;
+   private final PortalThemesManager portalThemesManager;
 }

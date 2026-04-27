@@ -114,6 +114,18 @@ public class ChartPlotOptionsPaneModel implements Serializable {
       this.wordCloud = GraphTypeUtil.isWordCloud(info);
       this.fillGapWithDashVisible = isFillGapWithDashVisible(info, plotDesc);
       this.pieRatio = plotDesc.getPieRatio() > 0 ? plotDesc.getPieRatio() : null;
+      this.barCornerRadius = plotDesc.getBarCornerRadius() > 0
+         ? plotDesc.getBarCornerRadius() : null;
+      this.barCornerRadiusVisible = GraphTypeUtil.checkType(info, ctype ->
+         (GraphTypes.isBar(ctype) || GraphTypes.isInterval(ctype)) && !GraphTypes.is3DBar(ctype) &&
+         !GraphTypes.isPareto(ctype) && !GraphTypes.isWaterfall(ctype) &&
+         !GraphTypes.isFunnel(ctype));
+      // "Round All Corners" is hidden for interval charts — both ends are always rounded
+      this.barRoundAllCornersVisible = GraphTypeUtil.checkType(info, ctype ->
+         GraphTypes.isBar(ctype) && !GraphTypes.is3DBar(ctype) &&
+         !GraphTypes.isPareto(ctype) && !GraphTypes.isWaterfall(ctype) &&
+         !GraphTypes.isFunnel(ctype) && !GraphTypes.isInterval(ctype));
+      this.barRoundAllCorners = plotDesc.isBarRoundAllCorners();
 
       try {
          if(MapInfo.MAPBOX.equals(SreeEnv.getProperty("webmap.service"))) {
@@ -186,6 +198,22 @@ public class ChartPlotOptionsPaneModel implements Serializable {
       plotDesc.setIncludeParentLabels(includeParentLabels);
       plotDesc.setApplyAestheticsToSource(applyAestheticsToSource);
       plotDesc.setPieRatio(pieRatio != null ? pieRatio : 0);
+      plotDesc.setBarCornerRadius(barCornerRadius != null ? barCornerRadius : 0);
+      // Re-derive from info rather than trusting the client-supplied barRoundAllCornersVisible field.
+      boolean roundAllCornersVisible = GraphTypeUtil.checkType(info, ctype ->
+         GraphTypes.isBar(ctype) && !GraphTypes.is3DBar(ctype) &&
+         !GraphTypes.isPareto(ctype) && !GraphTypes.isWaterfall(ctype) &&
+         !GraphTypes.isFunnel(ctype) && !GraphTypes.isInterval(ctype));
+      if(roundAllCornersVisible) {
+         plotDesc.setBarRoundAllCorners(barRoundAllCorners);
+      }
+      else if(GraphTypeUtil.checkType(info, GraphTypes::isInterval)) {
+         // Interval charts always round all corners in GraphGenerator; persist the invariant.
+         plotDesc.setBarRoundAllCorners(true);
+      }
+      else {
+         plotDesc.setBarRoundAllCorners(false);
+      }
       plotDesc.setOneLine(oneLine);
    }
 
@@ -882,6 +910,38 @@ public class ChartPlotOptionsPaneModel implements Serializable {
       this.pieRatio = pieRatio;
    }
 
+   public Double getBarCornerRadius() {
+      return barCornerRadius;
+   }
+
+   public void setBarCornerRadius(Double barCornerRadius) {
+      this.barCornerRadius = barCornerRadius;
+   }
+
+   public boolean isBarCornerRadiusVisible() {
+      return barCornerRadiusVisible;
+   }
+
+   public void setBarCornerRadiusVisible(boolean barCornerRadiusVisible) {
+      this.barCornerRadiusVisible = barCornerRadiusVisible;
+   }
+
+   public boolean isBarRoundAllCorners() {
+      return barRoundAllCorners;
+   }
+
+   public void setBarRoundAllCorners(boolean barRoundAllCorners) {
+      this.barRoundAllCorners = barRoundAllCorners;
+   }
+
+   public boolean isBarRoundAllCornersVisible() {
+      return barRoundAllCornersVisible;
+   }
+
+   public void setBarRoundAllCornersVisible(boolean barRoundAllCornersVisible) {
+      this.barRoundAllCornersVisible = barRoundAllCornersVisible;
+   }
+
    public boolean isOneLine() {
       return oneLine;
    }
@@ -952,6 +1012,10 @@ public class ChartPlotOptionsPaneModel implements Serializable {
    private boolean wordCloud = false;
    private Double wordCloudFontScale;
    private Double pieRatio;
+   private Double barCornerRadius;
+   private boolean barCornerRadiusVisible;
+   private boolean barRoundAllCornersVisible;
+   private boolean barRoundAllCorners;
    private boolean oneLine;
    private final static Logger LOG = LoggerFactory.getLogger(ChartPlotOptionsPaneModel.class);
 }

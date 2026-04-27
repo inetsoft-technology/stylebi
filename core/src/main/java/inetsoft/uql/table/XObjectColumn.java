@@ -17,19 +17,18 @@
  */
 package inetsoft.uql.table;
 
+import com.esotericsoftware.kryo.kryo5.Kryo;
+import com.esotericsoftware.kryo.kryo5.io.Input;
+import com.esotericsoftware.kryo.kryo5.io.Output;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.graphics.ImageWrapper;
 import inetsoft.util.swap.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.io.*;
 import java.nio.ByteBuffer;
-
-import com.esotericsoftware.kryo.kryo5.Kryo;
-import com.esotericsoftware.kryo.kryo5.io.Input;
-import com.esotericsoftware.kryo.kryo5.io.Output;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * XObjectColumn, maintains the meta information and data of one object column.
@@ -508,6 +507,11 @@ public final class XObjectColumn extends AbstractTableColumn {
       }
       catch(Exception ex) {
          LOG.error("Failed to read data", ex);
+         // Ensure arr is never null even if deserialization fails (e.g. old Kryo4 data
+         // in imported VSO files), so access() does not return null and cause NPE. (74483)
+         if(this.arr == null) {
+            this.arr = new Object[pos];
+         }
       }
    }
 
@@ -558,6 +562,11 @@ public final class XObjectColumn extends AbstractTableColumn {
             if(arr == null) {
                load();
                arr = this.arr;
+
+               // load() may not set arr (e.g. swapsize == 0). Defend against NPE. (74483)
+               if(arr == null) {
+                  arr = this.arr = new Object[pos];
+               }
             }
          }
       }

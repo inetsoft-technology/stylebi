@@ -138,6 +138,8 @@ export class VsWizardComponent extends CommandProcessor implements OnInit, OnDes
    source: AssetEntry;
    private confirmExpiredDisplayed: boolean = false;
 
+   @Input() aiAssistantPermission: boolean = false;
+
    @Input() set model(m: VsWizardModel) {
       if(m && !m.editMode) {
          m.editMode = m.oinfo.editMode;

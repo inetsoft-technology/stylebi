@@ -21,6 +21,8 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.*;
 import inetsoft.web.adhoc.DecodeParam;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,13 +33,22 @@ public class RepositoryViewsheetController {
    @Autowired
    public RepositoryViewsheetController(SheetService sheetService,
                                         ContentRepositoryTreeService treeService,
-                                        ResourcePermissionService permissionService)
+                                        ResourcePermissionService permissionService,
+                                        SecurityEngine securityEngine)
    {
       this.sheetService = sheetService;
       this.treeService = treeService;
       this.permissionService = permissionService;
+      this.securityEngine = securityEngine;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/viewsheet")
    public RepositorySheetSettingsModel getViewsheetSettings(
       @DecodeParam("path") String path,
@@ -48,17 +59,27 @@ public class RepositoryViewsheetController {
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
       int scope = treeService.getAssetScope(path);
-      path = treeService.getUnscopedPath(path);
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
+      path = treeService.getUnscopedPath(path);
+
+      treeService.checkSheetPermission(scope, ownerID, path, ResourceType.REPORT, principal);
+
       final AssetEntry entry = new AssetEntry(scope, AssetEntry.Type.VIEWSHEET, path, ownerID);
       return sheetService.getSheetSettings(entry, ResourceType.REPORT, timeZone, owner, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/viewsheet")
    public RepositorySheetSettingsModel setViewsheetSettings(
       @DecodeParam("path") String path,
@@ -69,6 +90,9 @@ public class RepositoryViewsheetController {
       int scope = treeService.getAssetScope(path);
       path = treeService.getUnscopedPath(path);
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
+
+      treeService.checkSheetPermission(scope, ownerID, path, ResourceType.REPORT, principal);
+
       final AssetEntry oldEntry = new AssetEntry(scope, AssetEntry.Type.VIEWSHEET, path, ownerID);
       final AssetEntry newEntry =
          sheetService.setSheetSettings(oldEntry.toIdentifier(), principal, model);
@@ -84,4 +108,5 @@ public class RepositoryViewsheetController {
    private final SheetService sheetService;
    private final ContentRepositoryTreeService treeService;
    private final ResourcePermissionService permissionService;
+   private final SecurityEngine securityEngine;
 }

@@ -611,6 +611,15 @@ public class ChartElementDef extends PainterElementDef
       }
    }
 
+   /**
+    * Set the fallback element-level hyperlink used when the plot is empty
+    * (no rendered visuals). Unlike {@link #setHyperlink(Hyperlink)}, this
+    * does not propagate to chart data refs.
+    */
+   public void setEmptyPlotHyperlink(Hyperlink link) {
+      super.setHyperlink(link);
+   }
+
    public void setChartStyle(int value) {
       if(!getChartInfo().isMultiStyles()) {
          if(getChartStyle() != value) {
@@ -705,6 +714,14 @@ public class ChartElementDef extends PainterElementDef
    */
    public void setVGraph(VGraph vgraph) {
       this.vgraph = vgraph;
+   }
+
+   /**
+    * Get the VGraph set via {@link #setVGraph(VGraph)} for vs-converted reports.
+    * May be null when the element is not produced from a vs chart.
+    */
+   public VGraph getVGraph() {
+      return vgraph;
    }
 
    @Override

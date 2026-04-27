@@ -20,8 +20,7 @@ package inetsoft.sree.internal;
 import inetsoft.mv.MVDef;
 import inetsoft.mv.MVManager;
 import inetsoft.report.internal.Util;
-import inetsoft.sree.RepletRegistry;
-import inetsoft.sree.SreeEnv;
+import inetsoft.sree.*;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
@@ -30,10 +29,15 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.apache.commons.lang3.StringUtils;
 import org.owasp.encoder.Encode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 import org.w3c.dom.*;
 
 import java.beans.PropertyChangeEvent;
@@ -50,7 +54,8 @@ import java.util.function.Consumer;
  * @since 7.0
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(DataCycleManager.Reference.class)
+@Service
+@Lazy
 public class DataCycleManager
    implements ScheduleExt, PropertyChangeListener, StorageRefreshListener, AutoCloseable
 {
@@ -60,13 +65,24 @@ public class DataCycleManager
    public static final String TASK_PREFIX = "DataCycle Task: ";
 
    /**
-    * Creates a new instance of DataCycleManager.
+    * Spring constructor — ScheduleManager and IndexedStorage are injected, ensuring correct
+    * initialization order without requiring the distributed INIT_LOCK.
     */
-   public DataCycleManager() {
-      ScheduleManager.getScheduleManager().addScheduleExt(this);
-      loadOldConfig();
+   @Autowired
+   public DataCycleManager(ScheduleManager scheduleManager, IndexedStorage indexedStorage,
+                           SecurityEngine securityEngine, Cluster cluster, MVManager mvManager,
+                           DataSpace dataSpace, RepletRegistryManager repletRegistryManager)
+   {
+      this.scheduleManager = scheduleManager;
+      this.indexedStorage = indexedStorage;
+      this.securityEngine = securityEngine;
+      this.cluster = cluster;
+      this.mvManager = mvManager;
+      this.dataSpace = dataSpace;
+      this.repletRegistryManager = repletRegistryManager;
+      scheduleManager.addScheduleExt(this);
       init();
-      IndexedStorage.getIndexedStorage().addStorageRefreshListener(this);
+      indexedStorage.addStorageRefreshListener(this);
    }
 
    /**
@@ -75,12 +91,33 @@ public class DataCycleManager
     * @return the DataCycleManager instance.
     */
    public static DataCycleManager getDataCycleManager() {
-      return SingletonManager.getInstance(DataCycleManager.class);
+      return ConfigurationContext.getContext().getSpringBean(DataCycleManager.class);
    }
 
+   /**
+    * Spring post-construction: finalize initialization that requires ScheduleManager and
+    * RepletRegistry to be fully operational. In the non-Spring path this is done by
+    * Reference.get() after acquiring INIT_LOCK.
+    */
+   @PostConstruct
+   public void initAfterCreate() {
+      loadOldConfig();
+      getScheduleManager().initialize();
+
+      try {
+         repletRegistryManager.getRegistry().addPropertyChangeListener(this);
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to add property change listener to replet registry", ex);
+      }
+
+      mvManager.addPropertyChangeListener(this);
+   }
+
+   @PreDestroy
    @Override
    public void close() throws Exception {
-      IndexedStorage.getIndexedStorage().removeStorageRefreshListener(this);
+      getIndexedStorage().removeStorageRefreshListener(this);
    }
 
    /**
@@ -231,10 +268,10 @@ public class DataCycleManager
             return;
          }
 
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
       List<ScheduleTask> tasks = new ArrayList<>();
 
-      for(String orgId : SecurityEngine.getSecurity().getSecurityProvider().getOrganizationIDs()) {
+      for(String orgId : securityEngine.getSecurityProvider().getOrganizationIDs()) {
          Set<String> assetIds = storage.getKeys(key -> {
             AssetEntry entry = AssetEntry.createAssetEntry(key);
             return entry != null && entry.getType() == AssetEntry.Type.DATA_CYCLE;
@@ -309,7 +346,7 @@ public class DataCycleManager
       }
 
       if(reloadExtensions) {
-         ScheduleManager.getScheduleManager().reloadExtensions(currOrgID);
+         getScheduleManager().reloadExtensions(currOrgID);
       }
    }
 
@@ -319,7 +356,7 @@ public class DataCycleManager
    private void generateMVActions(ScheduleTask task, String cycle, List<ScheduleTask> tasks,
                                   String orgId)
    {
-      MVManager manager = MVManager.getManager();
+      MVManager manager = mvManager;
       MVDef[] mvs = null;
 
       if(orgId == null) {
@@ -362,7 +399,7 @@ public class DataCycleManager
    }
 
    private String[] getNewOrgIds(String oldId, String newId) {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
       List<String> orgIds = new ArrayList<>();
 
       for(String orgId : provider.getOrganizationIDs()) {
@@ -385,7 +422,7 @@ public class DataCycleManager
     */
    @Override
    public boolean setEnable(String name, String orgId, boolean enable) {
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
       String entry = getCycleEntry(name, orgId).toIdentifier();
 
       if(storage.contains(entry, orgId)) {
@@ -407,7 +444,7 @@ public class DataCycleManager
     */
    @Override
    public boolean isEnable(String name, String orgId) {
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
       String entry = getCycleEntry(name, orgId).toIdentifier();
 
       if(storage.contains(entry, orgId)) {
@@ -432,7 +469,6 @@ public class DataCycleManager
    }
 
    private void loadOldConfig() {
-      Cluster cluster = Cluster.getInstance();
       Lock lock = cluster.getLock(getClass().getName() + ".loadOldConfig");
       lock.lock();
 
@@ -442,20 +478,19 @@ public class DataCycleManager
          }
 
          String afile = SreeEnv.getProperty("cycle.file");
-         DataSpace space = DataSpace.getDataSpace();
 
-         if(!space.exists(null, afile)) {
+         if(!dataSpace.exists(null, afile)) {
             return;
          }
 
          Document doc;
 
-         try(InputStream fis = space.getInputStream(null, afile)) {
+         try(InputStream fis = dataSpace.getInputStream(null, afile)) {
             doc = Tool.parseXML(fis);
          }
 
-         IndexedStorage storage = IndexedStorage.getIndexedStorage();
-         space.rename(afile, "cycle.xml.old");
+         IndexedStorage storage = getIndexedStorage();
+         dataSpace.rename(afile, "cycle.xml.old");
 
          Element dcycleNode = (Element) doc.getElementsByTagName("dcycle").item(0);
          setDefaultCycle(Tool.getValue(dcycleNode));
@@ -520,7 +555,7 @@ public class DataCycleManager
             asset.setConditions(conds);
             asset.setInfo(cycleInfo);
 
-            IndexedStorage.getIndexedStorage()
+            getIndexedStorage()
                .putXMLSerializable(getCycleEntry(name, orgId).toIdentifier(), asset);
          }
       }
@@ -559,7 +594,7 @@ public class DataCycleManager
     * Add condition to specified data cycle.
     */
    public void addCondition(String name, String orgId, ScheduleCondition sc) {
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
       String entry = getCycleEntry(name, orgId).toIdentifier();
       DataCycleAsset asset;
 
@@ -594,7 +629,7 @@ public class DataCycleManager
     * Set conditions to specified data cycle.
     */
    public void setConditions(String name, String orgId, Vector<ScheduleCondition> conds) {
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
       String entry = getCycleEntry(name, orgId).toIdentifier();
       DataCycleAsset asset;
 
@@ -630,7 +665,7 @@ public class DataCycleManager
     * Remove the data cycle with specified name from the data cycle map.
     */
    public void removeDataCycle(String name, String orgId) {
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
       String entry = getCycleEntry(name, orgId).toIdentifier();
 
       if(storage.contains(entry, orgId)) {
@@ -651,9 +686,8 @@ public class DataCycleManager
          return false;
       }
 
-      MVManager manager = MVManager.getManager();
       String orgid = OrganizationManager.getInstance().getCurrentOrgID();
-      MVDef[] mvs = manager.list(false);
+      MVDef[] mvs = mvManager.list(false);
 
       for(MVDef mv : mvs) {
          if(cycle.equals(mv.getCycle()) && orgid.equals(mv.getEntry().getOrgID())) {
@@ -691,7 +725,7 @@ public class DataCycleManager
    private Set<DataCycleId> getDataCycleIds() {
       Set<DataCycleId> ids = new HashSet<>();
 
-      for(String orgId : SecurityEngine.getSecurity().getOrganizations()) {
+      for(String orgId : securityEngine.getOrganizations()) {
          ids.addAll(getDataCycleIds(orgId));
       }
 
@@ -699,7 +733,7 @@ public class DataCycleManager
    }
 
    private Set<DataCycleId> getDataCycleIds(String orgId) {
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
       Set<DataCycleId> ids = new HashSet<>();
       Set<String> assetIds = storage.getKeys(key -> {
          AssetEntry entry = AssetEntry.createAssetEntry(key);
@@ -719,7 +753,7 @@ public class DataCycleManager
     * Get the time conditions of the specified data cycle.
     */
    public Vector<ScheduleCondition> getConditions(String name, String orgId) {
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
       String entry = getCycleEntry(name, orgId).toIdentifier();
 
       if(storage.contains(entry, orgId)) {
@@ -773,7 +807,7 @@ public class DataCycleManager
     * Get the specified cycle info.
     */
    public CycleInfo getCycleInfo(String name, String orgId) {
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
       String entry = getCycleEntry(name, orgId).toIdentifier();
 
       if(storage.contains(entry, orgId)) {
@@ -793,7 +827,7 @@ public class DataCycleManager
     * Set cycle info for a cycle.
     */
    public void setCycleInfo(String name, String orgId, CycleInfo cycleInfo) {
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
       String entry = getCycleEntry(name, orgId).toIdentifier();
 
       try {
@@ -823,7 +857,7 @@ public class DataCycleManager
    public void migrateDataCycles(Organization oorg, Organization norg, boolean replace)
       throws Exception
    {
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
       Set<DataCycleId> oldIds = getDataCycleIds(oorg.getId());
       boolean idChanged = !Tool.equals(oorg.getId(), norg.getId());
 
@@ -917,7 +951,7 @@ public class DataCycleManager
    }
 
    public void clearDataCycles(String orgId) {
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      IndexedStorage storage = getIndexedStorage();
 
       for(DataCycleId id : getDataCycleIds(orgId)) {
          String entry = getCycleEntry(id.name(), id.orgId()).toIdentifier();
@@ -933,7 +967,7 @@ public class DataCycleManager
     */
    public void refresh() {
       init();
-      MVManager.getManager().setDefaultCycle(getDefaultCycle());
+      mvManager.setDefaultCycle(getDefaultCycle());
    }
 
    /**
@@ -995,6 +1029,21 @@ public class DataCycleManager
       }
    }
 
+   private ScheduleManager getScheduleManager() {
+      return scheduleManager;
+   }
+
+   private IndexedStorage getIndexedStorage() {
+      return indexedStorage;
+   }
+
+   private final ScheduleManager scheduleManager;
+   private final IndexedStorage indexedStorage;
+   private final SecurityEngine securityEngine;
+   private final Cluster cluster;
+   private final MVManager mvManager;
+   private final DataSpace dataSpace;
+   private final RepletRegistryManager repletRegistryManager;
    private final Map<String, Boolean> orgPregeneratedTaskLoadedStatus = new ConcurrentHashMap<>();
    private final Map<String, Vector<ScheduleTask>> pregeneratedTasksMap = new HashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(DataCycleManager.class);
@@ -1371,46 +1420,4 @@ public class DataCycleManager
 
    public record DataCycleId(String name, String orgId) {}
 
-   public static final class Reference
-      extends SingletonManager.Reference<DataCycleManager>
-   {
-      @Override
-      public DataCycleManager get(Object... parameters) {
-         // prevent deadlock caused by scheduler manager and replet engine initialization
-         SingletonManager.getInstance(ScheduleManager.class);
-
-         if(manager == null) {
-            Lock lock = Cluster.getInstance().getLock(Scheduler.INIT_LOCK);
-            lock.lock();
-
-            try {
-               if(manager == null) {
-                  manager = new DataCycleManager();
-                  ScheduleManager.getScheduleManager().initialize();
-
-                  try {
-                     RepletRegistry.getRegistry().addPropertyChangeListener(manager);
-                  }
-                  catch(Exception ex) {
-                     LOG.error("Failed to add property change listener to replet registry", ex);
-                  }
-
-                  MVManager.getManager().addPropertyChangeListener(manager);
-               }
-            }
-            finally {
-               lock.unlock();
-            }
-         }
-
-         return manager;
-      }
-
-      @Override
-      public void dispose() {
-         manager = null;
-      }
-
-      private DataCycleManager manager;
-   }
 }

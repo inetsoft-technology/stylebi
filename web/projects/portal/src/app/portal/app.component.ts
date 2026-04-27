@@ -115,6 +115,8 @@ export class PortalAppComponent implements OnInit, OnDestroy {
 
       if(document.body.className.indexOf("app-loaded") == -1) {
          document.body.className += " app-loaded";
+         const splash = document.querySelector<HTMLElement>(".loading-splash");
+         splash?.addEventListener("transitionend", () => splash.style.display = "none", { once: true });
       }
 
       this.route
@@ -140,6 +142,7 @@ export class PortalAppComponent implements OnInit, OnDestroy {
          .subscribe((model) => {
             this.model = model;
             this.portalModelService.model = model;
+            this.aiAssistantService.aiAssistantVisible = model.aiAssistantVisible;
             this.updateAccessibility();
             this.checkDefaultTab();
 
@@ -371,6 +374,22 @@ export class PortalAppComponent implements OnInit, OnDestroy {
                bc.postMessage("wsWizard");
             }
 
+            ComponentTool.showMessageDialog(this.modalService, "_#(js:Confirm)",
+               "_#(js:composer.tabAlreadyOpened)");
+         }
+      });
+   }
+
+   launchComposer(): void {
+      if(!this.openComposerEnabled) {
+         return;
+      }
+
+      this.openComposerService.composerOpen.subscribe(open => {
+         if(!open) {
+            window.open("composer", "_blank");
+         }
+         else {
             ComponentTool.showMessageDialog(this.modalService, "_#(js:Confirm)",
                "_#(js:composer.tabAlreadyOpened)");
          }

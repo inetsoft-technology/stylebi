@@ -100,7 +100,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in bindin
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -108,7 +108,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in bindin
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -116,7 +116,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in bindin
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -170,7 +170,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in bindin
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -686,7 +686,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in bindin
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -694,7 +694,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in bindin
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -702,7 +702,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in bindin
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -756,7 +756,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in bindin
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1272,7 +1272,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in compos
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1280,7 +1280,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in compos
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1288,7 +1288,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in compos
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1342,7 +1342,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in compos
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1858,7 +1858,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in compos
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1866,7 +1866,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in compos
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1874,7 +1874,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in compos
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1928,7 +1928,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in compos
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2444,7 +2444,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in compos
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2452,7 +2452,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in compos
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2460,7 +2460,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in compos
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2514,7 +2514,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in compos
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -3030,7 +3030,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in compos
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -3038,7 +3038,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in compos
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -3046,7 +3046,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in compos
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -3100,7 +3100,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in compos
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -3616,7 +3616,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in compos
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -3624,7 +3624,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in compos
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -3632,7 +3632,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in compos
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -3686,7 +3686,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in compos
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -4202,7 +4202,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in previe
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -4210,7 +4210,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in previe
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -4218,7 +4218,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in previe
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -4272,7 +4272,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in previe
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -4788,7 +4788,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -4796,7 +4796,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -4804,7 +4804,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -4858,7 +4858,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -5374,7 +5374,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -5382,7 +5382,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -5390,7 +5390,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -5444,7 +5444,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -5960,7 +5960,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -5968,7 +5968,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -5976,7 +5976,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -6030,7 +6030,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -6546,7 +6546,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -6554,7 +6554,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -6562,7 +6562,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -6616,7 +6616,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -7132,7 +7132,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -7140,7 +7140,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -7148,7 +7148,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -7202,7 +7202,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -7718,7 +7718,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -7726,7 +7726,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -7734,7 +7734,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -7788,7 +7788,7 @@ exports[`ChartActions check status of menu actions and toolbar actions in viewer
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],

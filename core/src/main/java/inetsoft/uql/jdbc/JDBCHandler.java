@@ -19,13 +19,13 @@ package inetsoft.uql.jdbc;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.report.XSessionManager;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.uql.jdbc.util.*;
 import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.*;
@@ -1654,7 +1654,7 @@ public class JDBCHandler extends XHandler {
    public XNode getRootMetaData(JDBCDataSource dataSource, String queryType, String additional)
       throws Exception
    {
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       Object session = System.getProperty("user.name");
       XSessionManager.getSessionManager().bind(session);
 
@@ -2457,7 +2457,7 @@ public class JDBCHandler extends XHandler {
     * @return the table, view, and procedure list.
     */
    private XNode getTableViewProcedureList() throws Exception {
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       Object session = System.getProperty("user.name");
       XSessionManager.getSessionManager().bind(session);
 
@@ -3532,7 +3532,7 @@ public class JDBCHandler extends XHandler {
          }
       }
 
-      DataSource ds = getConnectionPoolFactory().getConnectionPool(xds, user);
+      DataSource ds = ConnectionPoolFactory.getInstance().getConnectionPool(xds, user);
 
       // ds.getConnection(userName, password) is not supported for HikariDataSource
       if(userName == null || ds instanceof HikariDataSource) {
@@ -3792,89 +3792,7 @@ public class JDBCHandler extends XHandler {
    public static DataSource getConnectionPool(JDBCDataSource jdbcDataSource,
                                               Principal principal)
    {
-      return getConnectionPoolFactory().getConnectionPool(jdbcDataSource, principal);
-   }
-
-   /**
-    * Gets the connection pool factory.
-    *
-    * @return the connection pool factory.
-    */
-   public static ConnectionPoolFactory getConnectionPoolFactory() {
-      ConnectionPoolFactory factory;
-      POOL_LOCK.readLock().lock();
-
-      try {
-         factory = ConfigurationContext.getContext().get(POOL_KEY);
-      }
-      finally {
-         POOL_LOCK.readLock().unlock();
-      }
-
-      if(factory == null) {
-         POOL_LOCK.writeLock().lock();
-
-         try {
-            factory = ConfigurationContext.getContext().get(POOL_KEY);
-
-            if(factory == null) {
-               String className = SreeEnv.getProperty(
-                  "inetsoft.uql.jdbc.ConnectionPoolFactory");
-
-               if(className != null) {
-                  try {
-                     factory = (ConnectionPoolFactory)
-                        Class.forName(className).newInstance();
-                  }
-                  catch(Exception e) {
-                     LOG.warn("Failed to instantiate custom connection pool factory: " +
-                        className, e);
-                  }
-               }
-
-               if(factory == null) {
-                  className = SreeEnv.getProperty("jdbc.connection.pool");
-
-                  if(className != null && !className.isEmpty() && !className.equals("false")) {
-                     if("inetsoft.uql.jdbc.TomcatConnectionPool".equals(className)) {
-                        factory = new JNDIConnectionPoolFactory(
-                           JNDIConnectionPoolFactory.Type.TOMCAT);
-                     }
-                     else if("inetsoft.uql.jdbc.WebLogicConnectionPool".equals(className)) {
-                        factory = new JNDIConnectionPoolFactory(
-                           JNDIConnectionPoolFactory.Type.WEBLOGIC);
-                     }
-                     else if("inetsoft.uql.jdbc.WebSphereConnectionPool".equals(className)) {
-                        factory = new JNDIConnectionPoolFactory(
-                           JNDIConnectionPoolFactory.Type.WEBSPHERE);
-                     }
-                     else {
-                        LOG.warn(
-                           "Deprecated connection pool implementation being used");
-
-                        try {
-                           factory = new LegacyConnectionPoolFactory();
-                        }
-                        catch(Exception e) {
-                           LOG.warn("Failed to instantiate legacy connection pool factory", e);
-                        }
-                     }
-                  }
-
-                  if(factory == null) {
-                     factory = new DefaultConnectionPoolFactory();
-                  }
-               }
-            }
-
-            ConfigurationContext.getContext().put(POOL_KEY, factory);
-         }
-         finally {
-            POOL_LOCK.writeLock().unlock();
-         }
-      }
-
-      return factory;
+      return ConnectionPoolFactory.getInstance().getConnectionPool(jdbcDataSource, principal);
    }
 
    public static final String REFRESH_META_DATA = "refreshMetaData";

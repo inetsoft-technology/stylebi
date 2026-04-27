@@ -42,6 +42,7 @@ describe("Chart service test", () => {
          zoomed: false,
          hasFlyovers: false,
          flyOnClick: false,
+         dataTipOnClick: false,
          axes: [],
          facets: [],
          legends: [],

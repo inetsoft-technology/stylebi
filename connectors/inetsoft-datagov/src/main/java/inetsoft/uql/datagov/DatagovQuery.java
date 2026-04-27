@@ -43,6 +43,7 @@ public class DatagovQuery extends TabularQuery {
     * @return the URL suffix.
     */
    @Property(label = "URL Suffix")
+   @PropertyEditor(autoSize = true)
    public String getSuffix() {
       return suffix;
    }

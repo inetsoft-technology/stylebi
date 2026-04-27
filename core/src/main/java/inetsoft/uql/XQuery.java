@@ -375,6 +375,10 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
     * is not saved as part of the query definition.
     */
    public void setProperty(String name, Object val) {
+      if(propmap == null) {
+         propmap = new HashMap<>();
+      }
+
       propmap.put(name, val);
    }
 
@@ -382,14 +386,14 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
     * Get a property value.
     */
    public Object getProperty(String name) {
-      return propmap.get(name);
+      return propmap == null ? null : propmap.get(name);
    }
 
    /**
     * Get a set of property keys
     */
    public Set<String> getPropertyKeys() {
-      return propmap.keySet();
+      return propmap == null ? Collections.emptySet() : propmap.keySet();
    }
 
    /**
@@ -876,7 +880,7 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
          nquery.datasource = datasource == null ? null : (XDataSource) datasource.clone();
          nquery.orgId = orgId;
          nquery.varmap = new ConcurrentHashMap<>(varmap);
-         nquery.propmap = (HashMap<String, Object>) propmap.clone();
+         nquery.propmap = propmap == null ? new HashMap<>() : (HashMap<String, Object>) propmap.clone();
          nquery.dependencies = new HashSet<>(dependencies);
 
          return nquery;

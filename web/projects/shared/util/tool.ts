@@ -53,6 +53,7 @@ export namespace Tool {
    export const USERS_REPORTS = "Users' Reports";
    export const MY_DASHBOARDS = "My Dashboards";
    export const SNACKBAR_DURATION = 5000;
+   export const SNACKBAR_DURATION_SHORT = 2000;
    export const USER_SUFFIX = "(User)";
    export const GROUP_SUFFIX = "(Group)";
 
@@ -606,7 +607,7 @@ export namespace Tool {
             const cost = source[i - 1] === target[j - 1] ? 0 : 1;
             dist[i][j] = Math.min(Math.min(dist[i - 1][j] + 1, dist[i][j - 1] + 1), dist[i - 1][j - 1] + cost);
 
-            if(i > 1 && j > 1 && source[i - 1] === target[j - 2] && source[1 - 2] === target[j - 1]) {
+            if(i > 1 && j > 1 && source[i - 1] === target[j - 2] && source[i - 2] === target[j - 1]) {
                dist[i][j] = Math.min(dist[i][j], dist[i - 2][j - 2] + cost);
             }
          }

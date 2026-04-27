@@ -17,11 +17,9 @@
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
-import { MatCardModule } from "@angular/material/card";
-import { MatTableModule } from "@angular/material/table";
-import { MatToolbarModule } from "@angular/material/toolbar";
 import { of as observableOf } from "rxjs";
 import { FavoritesService } from "../favorites/favorites.service";
+import { MaterialTestingModule } from "../testing/material-testing.module";
 import { ManageFavoritesComponent } from "./manage-favorites.component";
 
 describe("ManageFavoritesComponent", () => {
@@ -36,9 +34,7 @@ describe("ManageFavoritesComponent", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            MatCardModule,
-            MatTableModule,
-            MatToolbarModule
+            MaterialTestingModule
          ],
          declarations: [
             ManageFavoritesComponent

@@ -50,23 +50,28 @@ public class SessionConnectionService {
    @Autowired
    public SessionConnectionService(IgniteSessionRepository sessionRepository,
                                    AuthenticationService authenticationService,
-                                   ApplicationEventPublisher eventPublisher)
+                                   ApplicationEventPublisher eventPublisher,
+                                   NodeProtectionService nodeProtectionService,
+                                   SecurityEngine securityEngine,
+                                   Cluster cluster)
    {
       this.sessionRepository = sessionRepository;
       this.authenticationService = authenticationService;
       this.eventPublisher = eventPublisher;
+      this.nodeProtectionService = nodeProtectionService;
+      this.securityEngine = securityEngine;
+      this.cluster = cluster;
    }
 
    @PostConstruct
    public void addSessionListener() {
-      SecurityEngine.getSecurity().addAuthenticationChangeListener(authenticationChangeListener);
-      cluster = Cluster.getInstance();
+      securityEngine.addAuthenticationChangeListener(authenticationChangeListener);
       cluster.addMessageListener(listener);
    }
 
    @PreDestroy
    public void removeSessionListener() {
-      SecurityEngine.getSecurity().removeAuthenticationChangeListener(authenticationChangeListener);
+      securityEngine.removeAuthenticationChangeListener(authenticationChangeListener);
    }
 
    public void webSocketConnected(WebSocketSession session) {
@@ -104,7 +109,7 @@ public class SessionConnectionService {
          }
       }
    }
-   
+
    private void messageReceived(MessageEvent event) {
       if(event.getMessage() instanceof SessionExpiredEvent sessionExpiredEvent) {
          onSessionExpiredEvent(sessionExpiredEvent);
@@ -125,20 +130,22 @@ public class SessionConnectionService {
                principal != null && !XPrincipal.ANONYMOUS.equals(principal.getName());
             // don't redirect if already coming from the logout filter
             boolean fromLogout = Boolean.TRUE.equals(event.getLoggedOutAttribute());
+            // don't redirect to login if security is not enabled - allow to reconnect
+            boolean securityEnabled = SecurityEngine.getSecurity().isSecurityEnabled();
 
             // redirect to login page if not anonymous, otherwise, allow to reconnect
             CloseStatus status;
 
-            if(!fromLogout && authenticated) {
+            if(!fromLogout && authenticated && securityEnabled) {
                // redirect to the login page with session timeout message
                status = new CloseStatus(4002, "Session timeout");
             }
-            else if(authenticated) {
+            else if(fromLogout && authenticated) {
                // redirect to the login page without the session timeout message
                status = new CloseStatus(4001, "Logged out");
             }
             else {
-               // allow to reconnect if anonymous
+               // allow to reconnect if anonymous or if security is not enabled
                status = CloseStatus.NORMAL;
             }
 
@@ -158,6 +165,33 @@ public class SessionConnectionService {
                   }
                }
             }
+         }
+      }
+   }
+
+   public void closeAllSessions() {
+      List<WebSocketSession> toClose = new ArrayList<>();
+
+      synchronized(httpSessions) {
+         for(WebSocketSessionRef ref : webSocketSessions.values()) {
+            WebSocketSession wsSession = ref.getSession();
+
+            if(wsSession != null) {
+               toClose.add(wsSession);
+            }
+         }
+
+         webSocketSessions.clear();
+         httpSessions.clear();
+         nodeProtectionService.updateNodeProtection(false);
+      }
+
+      for(WebSocketSession wsSession : toClose) {
+         try {
+            wsSession.close(CloseStatus.GOING_AWAY);
+         }
+         catch(IOException e) {
+            LOG.warn("Failed to close websocket connection on shutdown", e);
          }
       }
    }
@@ -186,7 +220,7 @@ public class SessionConnectionService {
 
    private void authenticationChanged(AuthenticationChangeEvent event) {
       if(event.getType() == Identity.ORGANIZATION) {
-         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider provider = securityEngine.getSecurityProvider();
          String oldOrgName = event.getOldID() == null ? null : event.getOldID().name;
          String newOrgName = event.getNewID() == null ? null : event.getNewID().name;
          String oldOrgId = event.getOldOrgID();
@@ -222,9 +256,11 @@ public class SessionConnectionService {
       }
    }
 
-   private Cluster cluster;
+   private final Cluster cluster;
+   private final SecurityEngine securityEngine;
    private final MessageListener listener = this::messageReceived;
    private final AuthenticationService authenticationService;
+   private final NodeProtectionService nodeProtectionService;
    private final IgniteSessionRepository sessionRepository;
    private final ApplicationEventPublisher eventPublisher;
    private final Map<String, WebSocketSessionRef> webSocketSessions = new HashMap<>();

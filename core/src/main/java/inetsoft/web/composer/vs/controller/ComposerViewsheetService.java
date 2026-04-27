@@ -36,7 +36,6 @@ import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.AnnotationVSUtil;
 import inetsoft.uql.viewsheet.internal.VSUtil;
-import inetsoft.uql.viewsheet.internal.WizUtil;
 import inetsoft.uql.viewsheet.vslayout.AbstractLayout;
 import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
 import inetsoft.util.*;
@@ -48,7 +47,6 @@ import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.*;
 import inetsoft.web.composer.vs.event.CloseSheetEvent;
 import inetsoft.web.composer.vs.event.NewViewsheetEvent;
-import inetsoft.web.composer.wiz.service.VisualizationService;
 import inetsoft.web.composer.ws.event.SaveSheetEvent;
 import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.controller.VSRefreshController;
@@ -60,7 +58,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
-import java.util.*;
+import java.util.List;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -73,7 +72,7 @@ public class ComposerViewsheetService {
                                       VSLayoutService vsLayoutService,
                                       VSObjectModelFactoryService objectModelService,
                                       VSCompositionService vsCompositionService,
-                                      VisualizationService visualizationService)
+                                      MVManager mvManager, XSessionService sessionService)
    {
       this.runtimeViewsheetManager = runtimeViewsheetManager;
       this.coreLifecycleService = coreLifecycleService;
@@ -83,7 +82,8 @@ public class ComposerViewsheetService {
       this.vsLayoutService = vsLayoutService;
       this.objectModelService = objectModelService;
       this.vsCompositionService = vsCompositionService;
-      this.visualizationService = visualizationService;
+      this.mvManager = mvManager;
+      this.sessionService = sessionService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -94,7 +94,7 @@ public class ComposerViewsheetService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       String execSessionId =
-         XSessionService.createSessionID(XSessionService.EXPORE_VIEW, rvs.getEntry().getName());
+         sessionService.createSessionID(XSessionService.EXPORE_VIEW, rvs.getEntry().getName());
       rvs.setExecSessionID(execSessionId);
       rvs.setSocketSessionId(commandDispatcher.getSessionId());
       rvs.setSocketUserName(commandDispatcher.getUserName());
@@ -115,8 +115,6 @@ public class ComposerViewsheetService {
       VSObjectTreeNode tree = vsObjectTreeService.getObjectTree(rvs);
       PopulateVSObjectTreeCommand treeCommand = new PopulateVSObjectTreeCommand(tree);
       commandDispatcher.sendCommand(treeCommand);
-      visualizationService.sendDetailsCommandIfWiz(rvs.getViewsheet(), commandDispatcher);
-
       return null;
    }
 
@@ -141,9 +139,8 @@ public class ComposerViewsheetService {
             rvs.setProperty("mvconfirmed", "true");
          }
 
-         WizUtil.saveWizSheet(rvs, principal, entry,
-            () -> vsService.setViewsheet(rvs.getViewsheet(), entry, principal, true,
-                                         !event.isUpdateDepend()));
+         vsService.setViewsheet(rvs.getViewsheet(), entry, principal, true,
+                                !event.isUpdateDepend());
 
          if(event.isUpdateDepend()) {
             vsService.renameDep(rvs.getID());
@@ -253,7 +250,7 @@ public class ComposerViewsheetService {
 
          // For auditing
          String userSessionID = principal == null ?
-            XSessionService.createSessionID(XSessionService.USER, null) :
+            sessionService.createSessionID(XSessionService.USER, null) :
             ((XPrincipal) principal).getSessionID();
          AssetEntry entry = rvs.getEntry();
          boolean sharedDashboard = VSUtil.isDefaultVSGloballyViewsheet(entry, principal);
@@ -265,7 +262,7 @@ public class ComposerViewsheetService {
 
             String objectName = entry.getDescription();
             LogUtil.PerformanceLogEntry logEntry = new LogUtil.PerformanceLogEntry(objectName);
-            String execSessionID = XSessionService.createSessionID(
+            String execSessionID = sessionService.createSessionID(
                XSessionService.EXPORE_VIEW, entry.getName());
             String objectType = ExecutionRecord.OBJECT_TYPE_VIEW;
             String execType = ExecutionRecord.EXEC_TYPE_START;
@@ -504,7 +501,7 @@ public class ComposerViewsheetService {
       }
 
       try {
-         if(MVManager.getManager().containsMV(entry)) {
+         if(mvManager.containsMV(entry)) {
             // mv is not enabled? don't warn user the message, but set the
             // status to warn
             return Catalog.getCatalog().getString("vs.mv.exist");
@@ -529,7 +526,7 @@ public class ComposerViewsheetService {
          return null;
       }
 
-      MVManager mgr = MVManager.getManager();
+      MVManager mgr = mvManager;
       boolean required = "true".equals(SreeEnv.getProperty("mv.required"));
       boolean metadata = "true".equals(SreeEnv.getProperty("mv.metadata"));
       AssetEntry entry = AssetEntry.createAssetEntry(event.getEntryId());
@@ -675,6 +672,7 @@ public class ComposerViewsheetService {
    private final VSLayoutService vsLayoutService;
    private final VSObjectModelFactoryService objectModelService;
    private final VSCompositionService vsCompositionService;
-   private final VisualizationService visualizationService;
+   private final MVManager mvManager;
+   private final XSessionService sessionService;
    private final Logger LOG = LoggerFactory.getLogger(ComposerViewsheetService.class);
 }

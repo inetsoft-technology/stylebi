@@ -38,12 +38,13 @@
           <em-theme-css-view #cssView
             [theme]="theme"
             [isSiteAdmin]="isSiteAdmin"
+            [isMultiTenant]="isMultiTenant"
             (themeCssChanged)="onThemeCssChanged($event)"
             ></em-theme-css-view>
         </mat-tab>
       </mat-tab-group>
       <ng-container em-editor-panel-actions>
-        <button [disabled]="!isSiteAdmin && theme?.global" mat-button *ngIf="selectedTab === 1" (click)="clearCss()">_#(Clear)</button>
+        <button [disabled]="!isSiteAdmin && theme?.global && isMultiTenant" mat-button *ngIf="selectedTab === 1" (click)="clearCss()">_#(Clear)</button>
       </ng-container>
     </em-editor-panel>
   </div>

@@ -51,10 +51,12 @@ public class ImportXLSController {
     */
    @Autowired
    public ImportXLSController(RuntimeViewsheetRef runtimeViewsheetRef,
-                              ImportXLSControllerServiceProxy importXLSControllerServiceProxy)
+                              ImportXLSControllerServiceProxy importXLSControllerServiceProxy,
+                              FileSystemService fileSystemService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.importXLSControllerServiceProxy = importXLSControllerServiceProxy;
+      this.fileSystemService = fileSystemService;
    }
 
    /**
@@ -78,8 +80,12 @@ public class ImportXLSController {
          return;
       }
 
+      // Whitelist type to the only two valid values; reject anything else.
+      if(!"xls".equals(type) && !"xlsx".equals(type)) {
+         return;
+      }
+
       id = id.replace('/', '_');
-      FileSystemService fileSystemService = FileSystemService.getInstance();
 
       String key = "/" + ImportXLSControllerService.class.getName() + "_" + Tool.encodeURL(id) + "_" + type;
       Path path = CacheFS.getPath("tempStorage", key);
@@ -114,4 +120,5 @@ public class ImportXLSController {
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final ImportXLSControllerServiceProxy importXLSControllerServiceProxy;
+   private final FileSystemService fileSystemService;
 }

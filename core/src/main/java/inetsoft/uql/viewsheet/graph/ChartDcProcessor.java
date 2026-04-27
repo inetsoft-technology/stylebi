@@ -17,7 +17,6 @@
  */
 package inetsoft.uql.viewsheet.graph;
 
-import inetsoft.util.data.CommonKVModel;
 import inetsoft.graph.aesthetic.*;
 import inetsoft.report.composition.graph.*;
 import inetsoft.report.composition.graph.calc.ValueOfCalc;
@@ -32,11 +31,12 @@ import inetsoft.uql.viewsheet.graph.aesthetic.SizeFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.StaticColorFrameWrapper;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
+import inetsoft.util.data.CommonKVModel;
 import org.apache.commons.lang3.ArrayUtils;
 
 import java.awt.*;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.stream.Stream;
 
 public class ChartDcProcessor {
@@ -787,8 +787,8 @@ public class ChartDcProcessor {
    }
 
    private void syncAestheticRefs(AestheticRef newRef, AestheticRef oldRef) {
-      if(oldRef != null && newRef != null) {
-         newRef.setLegendDescriptor(oldRef.getLegendDescriptor());
+      if(oldRef != null && newRef != null && oldRef.getLegendDescriptor() != null) {
+         newRef.setLegendDescriptor((LegendDescriptor) oldRef.getLegendDescriptor().clone());
       }
    }
 

@@ -38,7 +38,6 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 public class ScheduleCycleService {
@@ -88,10 +87,6 @@ public class ScheduleCycleService {
       String label = index != -1 ? cycleName.substring(index + 1) : cycleName;
       String zoneName = Calendar.getInstance().getTimeZone().getDisplayName();
 
-      List<String> conditions = dataCycleManager.getConditions(cycleName, orgId).stream()
-         .map(ScheduleCondition::toString)
-         .collect(Collectors.toList());
-
       boolean noDefaultTime = "false".equals(SreeEnv.getProperty("schedule.condition.taskDefaultTime"));
       final ResourcePermissionModel tableModel = permissionService.getTableModel(
          getCyclePermissionID(cycleName, orgId), ResourceType.SCHEDULE_CYCLE, EnumSet.of(ResourceAction.ACCESS), principal);
@@ -131,9 +126,13 @@ public class ScheduleCycleService {
       }
 
       TaskConditionPaneModel.Builder builder = TaskConditionPaneModel.builder();
-      dataCycleManager.getConditions(cycleName, orgId).stream()
-         .map(condition -> scheduleConditionService.getConditionModel(condition, principal))
-         .forEach(builder::addConditions);
+      Vector<ScheduleCondition> conds = dataCycleManager.getConditions(cycleName, orgId);
+
+      if(conds != null) {
+         conds.stream()
+            .map(condition -> scheduleConditionService.getConditionModel(condition, principal))
+            .forEach(builder::addConditions);
+      }
 
       String timeProp = SreeEnv.getProperty("format.time");
 
@@ -235,6 +234,13 @@ public class ScheduleCycleService {
                }
             }
 
+            // Copy old permission to the new name before removing it, so that the renamed
+            // cycle retains its original permissions. Non-admin users are filtered out of the
+            // permission model returned to the client, so relying solely on the submitted model
+            // would lose their access grants.
+            Permission oldPermission =
+               securityEngine.getPermission(ResourceType.SCHEDULE_CYCLE, getCyclePermissionID(oldName, orgId));
+            securityEngine.setPermission(ResourceType.SCHEDULE_CYCLE, getCyclePermissionID(newName, orgId), oldPermission);
             removeCyclePermission(oldName, orgId);
          }
          else if(newName == null || "".equals(newName)) {
@@ -264,8 +270,7 @@ public class ScheduleCycleService {
          dataCycleManager.setCycleInfo(newName, orgId, cycleInfo);
          dataCycleManager.save();
 
-         if(model.permissionModel() != null &&
-            (model.permissionModel().changed() || !newName.equals(oldName))) {
+         if(model.permissionModel() != null && model.permissionModel().changed()) {
             permissionService.setResourcePermissions(getCyclePermissionID(newName, orgId), ResourceType.SCHEDULE_CYCLE,
                                                      model.permissionModel(), principal);
          }

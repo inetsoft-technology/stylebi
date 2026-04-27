@@ -855,7 +855,7 @@ public class HttpServiceRequest implements ServiceRequest {
          while((read = input.read(bytes)) >= 0) {
             if(file == null && length + read > 1024 * 1024) {
                // cache posts longer than 1M to file
-               file = FileSystemService.getInstance().getCacheFile(XSwapper.getPrefix() + ".tdat");
+               file = FileSystemService.getInstance().getCacheFile(XSwapper.getSwapper().getPrefix() + ".tdat");
                file.deleteOnExit();
 
                OutputStream foutput = new FileOutputStream(file);

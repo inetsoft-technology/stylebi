@@ -23,7 +23,6 @@ import { MatSnackBar } from "@angular/material/snack-bar";
 import { NavigationEnd, Router } from "@angular/router";
 import { Observable, Subject, Subscription, throwError } from "rxjs";
 import { catchError, concatMap, filter, map, takeUntil, tap } from "rxjs/operators";
-import { AiAssistantDialogComponent } from "../../../../shared/ai-assistant/ai-assistant-dialog.component";
 import { AiAssistantService } from "../../../../shared/ai-assistant/ai-assistant.service";
 import { AppInfoService } from "../../../../shared/util/app-info.service";
 import { LogoutService } from "../../../../shared/util/logout.service";
@@ -187,6 +186,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
       this.http.get("../api/em/navbar/get-navbar-model").subscribe((result: EmNavbarModel) => {
          this.model = result;
          this.logoutService.setLogoutUrl(this.model.logoutUrl);
+         this.aiAssistantService.aiAssistantVisible = result.aiAssistantVisible;
       });
 
       this.logoutService.inGracePeriod
@@ -241,12 +241,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
    }
 
    showAiAssistantDialog(): void {
-      this.dialog.open(AiAssistantDialogComponent, {
-         width: "1300px",
-         height: "850px",
-         disableClose: false,
-         panelClass: "ai-assistant-container"
-      });
+      this.aiAssistantService.panelOpen = true;
    }
 
    private setFavorite(route: string, favorite: boolean): void {

@@ -22,6 +22,7 @@ import inetsoft.report.internal.paging.PageGroup;
 import inetsoft.uql.table.XTableColumn;
 import inetsoft.uql.table.XTableFragment;
 import inetsoft.util.swap.*;
+import inetsoft.web.admin.monitoring.MonitorLevelService;
 import io.micrometer.core.instrument.*;
 import io.micrometer.core.instrument.binder.BaseUnits;
 import io.micrometer.core.instrument.binder.MeterBinder;
@@ -33,7 +34,7 @@ import org.springframework.stereotype.Component;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
-public class CacheMeterService implements XSwappableMonitor, MeterBinder {
+public class CacheMeterService extends MonitorLevelService implements XSwappableMonitor, MeterBinder {
    private Counter sheetHits;
    private Counter sheetMisses;
    private Counter sheetRead;
@@ -47,6 +48,15 @@ public class CacheMeterService implements XSwappableMonitor, MeterBinder {
    private final AtomicInteger sheetDisk = new AtomicInteger(0);
    private final AtomicInteger dataMemory = new AtomicInteger(0);
    private final AtomicInteger dataDisk = new AtomicInteger(0);
+
+   private static final String[] HIGH_ATTRS = { HITS, MISSES };
+   private static final String[] MED_ATTRS = { READ, WRITTEN };
+   private static final String[] LOW_ATTRS = { TYPE, LOCATION, COUNT };
+
+   public CacheMeterService(XSwapper swapper) {
+      super(LOW_ATTRS, MED_ATTRS, HIGH_ATTRS);
+      this.swapper = swapper;
+   }
 
    @Override
    public void bindTo(MeterRegistry registry) {
@@ -127,12 +137,12 @@ public class CacheMeterService implements XSwappableMonitor, MeterBinder {
 
    @PostConstruct
    public void registerMonitor() {
-      XSwapper.registerMonitor(this);
+      swapper.registerMonitor(this);
    }
 
    @PreDestroy
    public void deregisterMonitor() {
-      XSwapper.deregisterMonitor(this);
+      swapper.deregisterMonitor(this);
    }
 
    @Scheduled(fixedRate = 5000L, initialDelay = 0L)
@@ -142,7 +152,7 @@ public class CacheMeterService implements XSwappableMonitor, MeterBinder {
       int dataMemoryCount = 0;
       int dataDiskCount = 0;
 
-      for(XSwappable swap : XSwapper.getAllSwappables()) {
+      for(XSwappable swap : swapper.getAllSwappables()) {
          if(swap instanceof PageGroup group) {
             if(group.isSwappable()) {
                if(group.isValid()) {
@@ -238,8 +248,5 @@ public class CacheMeterService implements XSwappableMonitor, MeterBinder {
       }
    }
 
-   @Override
-   public boolean isLevelQualified(String attr) {
-      return true;
-   }
+   private final XSwapper swapper;
 }

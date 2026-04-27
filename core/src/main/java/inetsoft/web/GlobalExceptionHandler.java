@@ -85,6 +85,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
       return CLIENT_ABORT_EXCEPTIONS.contains(className);
    }
 
+   public static boolean isCacheStoppedException(Throwable e) {
+      while(e != null) {
+         if(CACHE_STOPPED_EXCEPTION.equals(e.getClass().getName())) {
+            return true;
+         }
+
+         e = e.getCause();
+      }
+
+      return false;
+   }
+
+   private static final String CACHE_STOPPED_EXCEPTION =
+      "org.apache.ignite.internal.processors.cache.CacheStoppedException";
    private static final Set<String> CLIENT_ABORT_EXCEPTIONS = new HashSet<>(
       Arrays.asList("org.apache.catalina.connector.ClientAbortException",
                     "org.eclipse.jetty.io.EofException"));

@@ -70,20 +70,46 @@ public class VSSpinner extends VSFloatable {
 
       int upH = (h + 1) / 2;
       int downH = h + 1 - upH; // make sure no rounding error
-      Image upImg = getTheme().getImage("s|NumericStepper", "upArrowUpSkin",
-                                        -1, upH);
-      Image dnImg = getTheme().getImage("s|NumericStepper", "downArrowUpSkin",
-                                        -1, downH);
-      int imgW = upImg.getWidth(null);
+      FlexTheme theme = getTheme();
 
-      drawString(g2, 0, 0, w - imgW, h, label, format);
+      Image upImg = theme != null
+         ? theme.getImage("s|NumericStepper", "upArrowUpSkin", -1, upH) : null;
+      Image dnImg = theme != null
+         ? theme.getImage("s|NumericStepper", "downArrowUpSkin", -1, downH) : null;
 
-      g2.setColor(Color.lightGray);
-      // right edge should be covered by the images
-      //Bug #31348. if start with (0,0), the top and left border will be hidden when export png.
-      g2.drawRect(1, 1, w - imgW / 2, h - 2);
-      g2.drawImage(upImg, w - imgW, 0, null);
-      g2.drawImage(dnImg, w - imgW, upH, null);
+      if(upImg != null && dnImg != null) {
+         int imgW = upImg.getWidth(null);
+         drawString(g2, 0, 0, w - imgW, h, label, format);
+         g2.setColor(Color.lightGray);
+         // right edge should be covered by the images
+         //Bug #31348. if start with (0,0), the top and left border will be hidden when export png.
+         g2.drawRect(1, 1, w - imgW / 2, h - 2);
+         g2.drawImage(upImg, w - imgW, 0, null);
+         g2.drawImage(dnImg, w - imgW, upH, null);
+      }
+      else {
+         // Fallback when theme images are unavailable: draw a simple bordered text box
+         int arrowW = Math.max(12, h / 2);
+         drawString(g2, 0, 0, Math.max(0, w - arrowW), h, label, format);
+         g2.setColor(Color.lightGray);
+         g2.drawRect(1, 1, Math.max(0, w - arrowW / 2), h - 2);
+         // Vertical divider between text and arrow column
+         g2.drawLine(w - arrowW, 1, w - arrowW, h - 1);
+         // Up triangle — center apex on the arrow column (round to nearest pixel)
+         int cx = w - (arrowW + 1) / 2;
+         int midY = h / 2;
+         g2.setColor(new Color(80, 80, 80));
+         g2.fillPolygon(
+            new int[]{cx, w - arrowW + 2, w - 2},
+            new int[]{2, midY - 1, midY - 1},
+            3);
+         // Down triangle
+         g2.fillPolygon(
+            new int[]{cx, w - arrowW + 2, w - 2},
+            new int[]{h - 3, midY + 1, midY + 1},
+            3);
+      }
+
       g2.dispose();
    }
 }

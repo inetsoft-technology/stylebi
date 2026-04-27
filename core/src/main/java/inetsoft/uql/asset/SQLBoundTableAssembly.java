@@ -116,7 +116,7 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
 
       try {
          AssetRepository rep = AssetUtil.getAssetRepository(false);
-         XDataService service = XFactory.getDataService();
+         XDataService service = XRepository.getRepository();
          UserVariable[] params = service.getQueryParameters(rep.getSession(),
             query, true);
 
@@ -173,7 +173,7 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
 
             Principal principal = ThreadContext.getContextPrincipal();
             String userName = principal == null ? null : principal.getName();
-            JDBCUtil.fixUniformSQLInfo(uniformSQL, XFactory.getRepository(), userName, ds);
+            JDBCUtil.fixUniformSQLInfo(uniformSQL, XRepository.getRepository(), userName, ds);
          }
       }
    }
@@ -302,7 +302,7 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
 
       try {
          AssetRepository rep = AssetUtil.getAssetRepository(false);
-         XDataService service = XFactory.getDataService();
+         XDataService service = XRepository.getRepository();
          JDBCQuery query = getSQLBoundTableInfo().getQuery();
 
          if(query != null) {
@@ -341,7 +341,7 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
 
       try {
          AssetRepository rep = AssetUtil.getAssetRepository(false);
-         XDataService service = XFactory.getDataService();
+         XDataService service = XRepository.getRepository();
          UserVariable[] vars = service.getQueryParameters(rep.getSession(),
                                                           getSQLBoundTableInfo().getQuery(),
                                                           true);

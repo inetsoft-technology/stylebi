@@ -27,6 +27,7 @@ import { ContextProvider } from "../../context-provider.service";
 })
 export class CollapseToggleButton {
    @Input() public collapsed = false;
+   @Input() public flipped = false;
 
    @Input()
    public set actionNames(actionNames: string[]) {

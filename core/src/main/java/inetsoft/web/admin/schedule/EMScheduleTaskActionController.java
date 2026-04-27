@@ -111,76 +111,6 @@ public class EMScheduleTaskActionController {
    }
 
    /**
-    * Gets a table of scheduled tasks.
-    *
-    * @param taskName  the name of the task
-    * @param index     the index of the action
-    * @param principal the user
-    *
-    * @return the action model
-    *
-    * @throws Exception if could not get task or action
-    */
-   @GetMapping("/api/em/schedule/task/action")
-   public ScheduleActionModel getTaskAction(@RequestParam("name") String taskName,
-                                            @RequestParam("index") int index,
-                                            Principal principal)
-      throws Exception
-   {
-      return actionService.getTaskAction(taskName, index, principal, true);
-   }
-
-   /**
-    * Removes an action from the task.
-    *
-    * @param taskName  the name of the task
-    * @param items     the indexes of the actions to remove (in reverse sort)
-    * @param principal the user
-    *
-    * @throws Exception if could not get task or actions
-    */
-   @GetMapping("/api/em/schedule/task/action/delete")
-   public void deleteTaskActions(@RequestParam("name") String taskName,
-                                 @RequestParam("owner") String taskOwner,
-                                 @RequestBody int[] items,
-                                 Principal principal)
-      throws Exception
-   {
-      actionService.deleteTaskActions(taskName, taskOwner, items, principal);
-   }
-
-   /**
-    * Saves the specified schedule task action
-    *
-    * @param taskName  the name of the task
-    * @param index     the index of the action
-    * @param principal the user
-    *
-    * @throws Exception if could not get task or action
-    */
-   @PostMapping("/api/em/schedule/task/action")
-   public TaskActionListModel saveTaskAction(@RequestParam("name") String taskName,
-                                             @RequestParam("oldTaskName") String oldTaskName,
-                                             @RequestParam("owner") String owner,
-                                             @RequestParam("index") int index,
-                                             @RequestBody ScheduleActionModel model,
-                                             @LinkUri String linkURI,
-                                             Principal principal)
-      throws Exception
-   {
-      IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
-      ScheduleActionModel[] taskActionList = actionService.saveTaskAction(
-         taskName, oldTaskName, ownerID, index, model, linkURI, principal, true);
-
-      return TaskActionListModel.builder()
-         .actionList(Arrays.stream(taskActionList)
-                        .map(ScheduleActionModel::label)
-                        .toArray(String[]::new))
-         .build();
-
-   }
-
-   /**
     * Get the bookmarks of a specific sheet.
     *
     * @param id        the id of the viewsheet.
@@ -188,6 +118,13 @@ public class EMScheduleTaskActionController {
     *
     * @return the list of bookmarks.
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/task/action/bookmarks")
    public BookmarkListModel getBookmarks(@DecodeParam("id") String id, Principal principal) {
       return BookmarkListModel.builder()
@@ -203,6 +140,13 @@ public class EMScheduleTaskActionController {
     *
     * @return the list of bookmarks.
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/task/action/hasPrintLayout")
    public boolean hasPrintLayout(@DecodeParam("id") String id, Principal principal)
       throws Exception
@@ -225,6 +169,13 @@ public class EMScheduleTaskActionController {
     *
     * @throws Exception if could not get report or dashboard
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/task/action/viewsheet/highlights")
    public HighlightListModel getViewsheetHighlights(@DecodeParam("id") String identifier,
                                                     Principal principal)
@@ -250,6 +201,13 @@ public class EMScheduleTaskActionController {
     *
     * @throws Exception if could not get report or dashboard
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/task/action/viewsheet/parameters")
    public ViewsheetParametersModel getViewsheetParameters(@DecodeParam("id") String identifier,
                                                           Principal principal)
@@ -275,6 +233,13 @@ public class EMScheduleTaskActionController {
     *
     * @throws Exception if could not get report or dashboard
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/task/action/viewsheet/tableDataAssemblies")
    public List<String> getViewsheetTableDataAssemblies(
       @DecodeParam("id") String identifier,
@@ -283,11 +248,25 @@ public class EMScheduleTaskActionController {
       return emActionService.getViewsheetTableDataAssemblies(identifier, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/task/action/viewsheet/folders")
    public ViewsheetTreeListModel getViewsheetFolders(Principal principal) throws Exception {
       return actionService.getViewsheetTree(principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/task/action/viewsheets")
    public Map<String, String> getViewsheets(Principal principal) throws Exception {
       return actionService.getViewsheets(principal);

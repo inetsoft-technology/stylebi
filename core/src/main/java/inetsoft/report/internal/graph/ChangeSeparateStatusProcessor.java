@@ -20,6 +20,7 @@ package inetsoft.report.internal.graph;
 import inetsoft.report.StyleFont;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.util.Tool;
 
 import java.awt.*;
 import java.util.List;
@@ -66,6 +67,16 @@ public class ChangeSeparateStatusProcessor extends ChangeChartProcessor {
                info.setAxisDescriptor(yfield.getAxisDescriptor());
             }
          }
+
+         // Sync the updated axis descriptors from design-time refs to the existing RT
+         // refs, so that getRTRefsWithDescriptors() propagates the updated descriptors
+         // to new RT clones instead of copying stale ones from the old RT refs. (Bug 74013)
+         // Note: Do not clear RT refs here — clearing them causes getRTXFields()/
+         // getRTYFields() to fall back to design-time refs, so any chart style set from
+         // script while RT refs are empty would modify design-time chartType directly
+         // instead of the RT clone, permanently corrupting the saved chart type. (Bug 74255)
+         syncAxisDescriptors(info.getRTYFields(), info.getYFields());
+         syncAxisDescriptors(info.getRTXFields(), info.getXFields());
       }
 
       if(multiChanged) {
@@ -252,9 +263,29 @@ public class ChangeSeparateStatusProcessor extends ChangeChartProcessor {
    }
 
    /**
+    * Copy the axis descriptor from each design-time ref to the matching RT ref.
+    * This ensures that getRTRefsWithDescriptors() will propagate updated axis
+    * descriptors (modified by fixAxisProperties) to new RT clones, rather than
+    * copying stale descriptors from the old RT refs.
+    *
+    * @param rtRefs    The runtime refs whose axis descriptors should be updated.
+    * @param designRefs The design-time refs that hold the updated axis descriptors.
+    */
+   private void syncAxisDescriptors(ChartRef[] rtRefs, ChartRef[] designRefs) {
+      for(ChartRef rtRef : rtRefs) {
+         for(ChartRef designRef : designRefs) {
+            if(Tool.equals(rtRef.getFullName(), designRef.getFullName())) {
+               rtRef.setAxisDescriptor(designRef.getAxisDescriptor());
+               break;
+            }
+         }
+      }
+   }
+
+   /**
     * Copy axis attributes from source descriptor to target descriptor.
-    * Only color, font, and rotation are copied.  Format is intentionally
-    * omitted.
+    * Only color, font, rotation, and positioning are copied.  Format is
+    * intentionally omitted.
     *
     * @param axisDesc The descriptor to set the new information on.
     * @param sourceDesc The descriptor which contains the source information.
@@ -287,6 +318,7 @@ public class ChangeSeparateStatusProcessor extends ChangeChartProcessor {
       axisDesc.setMaximum(sourceDesc.getMaximum());
       axisDesc.setIncrement(sourceDesc.getIncrement());
       axisDesc.setMinorIncrement(sourceDesc.getMinorIncrement());
+      axisDesc.setLabelOnSecondaryAxis(sourceDesc.isLabelOnSecondaryAxis());
    }
 
    /**
@@ -294,7 +326,8 @@ public class ChangeSeparateStatusProcessor extends ChangeChartProcessor {
     */
    private Font convertFont(Font font) {
       if(font instanceof StyleFont) {
-         return (Font) ((StyleFont) font).clone();
+         // StyleFont is immutable after construction, no need to clone
+         return font;
       }
       else {
          return new Font(font.getName(), font.getStyle(), font.getSize());

@@ -559,7 +559,7 @@ public class BrowseDataController {
 
          if(srcinfo.getType() == SourceInfo.MODEL) {
             try {
-               XRepository rep = XFactory.getRepository();
+               XRepository rep = XRepository.getRepository();
                XDataModel model = rep.getDataModel(srcinfo.getPrefix());
                XLogicalModel lmodel = model.getLogicalModel(srcinfo.getSource(), user);
                DataRef ref = column.getDataRef();
@@ -666,7 +666,7 @@ public class BrowseDataController {
     */
    private BrowseDataModel executeByDataSource(Principal principal) {
       try {
-         XRepository repository = XFactory.getRepository();
+         XRepository repository = XRepository.getRepository();
          JDBCDataSource xds = (JDBCDataSource) repository.getDataSource(dataSource);
          String tableName = column.getEntity();
          String columnName = column.getAttribute();
@@ -674,7 +674,7 @@ public class BrowseDataController {
          query.setDataSource(xds);
          VariableTable vars = new VariableTable();
          vars.put("user", principal.getName());
-         XDataService service = XFactory.getDataService();
+         XDataService service = XRepository.getRepository();
          Object session = service.bind(System.getProperty("user.name"));
          XNode result = XAgent.getAgent(xds).getQueryData(query, tableName, columnName,
                                                           vars, session, principal);
@@ -763,7 +763,7 @@ public class BrowseDataController {
       }
 
       try {
-         XRepository repository = XFactory.getRepository();
+         XRepository repository = XRepository.getRepository();
          XDataSource xds =  repository.getDataSource(source);
 
          if(xds instanceof JDBCDataSource &&

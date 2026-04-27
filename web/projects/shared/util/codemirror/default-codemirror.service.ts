@@ -34,27 +34,25 @@ import "codemirror/mode/sql/sql";
 import "codemirror/mode/groovy/groovy";
 import * as ECMASCRIPT_DEFS from "tern/defs/ecmascript.json";
 import { Injectable } from "@angular/core";
-import { CodemirrorService } from "./codemirror.service";
-
-type TokenType = "keyword" | "comment" | null;
+import { CodemirrorService, TokenType } from "./codemirror.service";
 
 @Injectable({
    providedIn: "root"
 })
 export class DefaultCodemirrorService extends CodemirrorService {
-   createTernServer(options: any): any {
+   createTernServer(options: object): object {
       return new CodeMirror.TernServer(options);
    }
 
-   getEcmaScriptDefs(): any[] {
+   getEcmaScriptDefs(): object[] {
       return [ECMASCRIPT_DEFS["default"]];
    }
 
-   createCodeMirrorInstance(element: any, config: any) {
+   createCodeMirrorInstance(element: HTMLTextAreaElement, config: CodeMirror.EditorConfiguration): CodeMirror.Editor {
       return CodeMirror.fromTextArea(element, config);
    }
 
-   public hasToken(cm: any, tokenType: TokenType, value: string): boolean {
+   public hasToken(cm: CodeMirror.Editor, tokenType: TokenType, value: string): boolean {
       const doc = cm.getDoc();
 
       for(let i = 0; i < doc.lineCount(); i++) {
@@ -66,7 +64,7 @@ export class DefaultCodemirrorService extends CodemirrorService {
       return false;
    }
 
-   private findReturnInLine(cm, line: number, tokenType: TokenType, value: string): boolean {
+   private findReturnInLine(cm: CodeMirror.Editor, line: number, tokenType: TokenType, value: string): boolean {
       let end = 0;
 
       while(true) {

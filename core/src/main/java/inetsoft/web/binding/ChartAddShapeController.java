@@ -18,17 +18,23 @@
 package inetsoft.web.binding;
 
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.uql.viewsheet.graph.aesthetic.ImageShapes;
 import inetsoft.util.DataSpace;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.dataspace.DataSpaceContentSettingsService;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.ByteArrayInputStream;
 import java.io.OutputStream;
@@ -39,16 +45,30 @@ import java.security.Principal;
 @RestController
 public class ChartAddShapeController {
    @Autowired
-   public ChartAddShapeController(DataSpaceContentSettingsService dataSpaceContentSettingsService) {
+   public ChartAddShapeController(DataSpaceContentSettingsService dataSpaceContentSettingsService,
+                                  DataSpace dataSpace)
+   {
       this.dataSpaceContentSettingsService = dataSpaceContentSettingsService;
+      this.dataSpace = dataSpace;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.VIEWSHEET,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/chart/shape/upload")
    public boolean uploadShape(@RequestParam("file") MultipartFile[] files, Principal principal) throws Exception {
       String folder = ImageShapes.getShapesDirectory();
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = this.dataSpace;
 
       for(MultipartFile file : files) {
+         if(file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Upload failed: file is empty");
+         }
+
          String fileName = file.getOriginalFilename();
          byte[] fileData = file.getBytes();
          ActionRecord actionRecord = SUtil.getActionRecord(
@@ -62,6 +82,7 @@ public class ChartAddShapeController {
 
             tx.commit();
             dataSpaceContentSettingsService.updateFolder(folder);
+            ImageShapes.clearShapes();
          }
          catch(Throwable e) {
             LOG.error("Failed to write shape: " + fileName, e);
@@ -78,5 +99,6 @@ public class ChartAddShapeController {
    }
 
    private final DataSpaceContentSettingsService dataSpaceContentSettingsService;
+   private final DataSpace dataSpace;
    private static final Logger LOG = LoggerFactory.getLogger(ChartAddShapeController.class);
 }

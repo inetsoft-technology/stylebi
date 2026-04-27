@@ -39,6 +39,7 @@ import inetsoft.report.gui.viewsheet.cylinder.VSCylinder;
 import inetsoft.report.gui.viewsheet.gauge.VSGauge;
 import inetsoft.report.gui.viewsheet.slidingscale.VSSlidingScale;
 import inetsoft.report.gui.viewsheet.thermometer.VSThermometer;
+import inetsoft.report.internal.Common;
 import inetsoft.report.internal.ParameterTool;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.TableHighlightAttr.HighlightTableLens;
@@ -52,6 +53,7 @@ import inetsoft.report.painter.PresenterPainter;
 import inetsoft.report.script.viewsheet.ChartVSAScriptable;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -139,7 +141,7 @@ public abstract class AbstractVSExporter implements VSExporter {
          exporter = OfficeExporterFactory.getInstance().createPowerpointExporter(stream);
       }
       else if(type == FileFormatInfo.EXPORT_TYPE_PDF) {
-         exporter = new PDFVSExporter(stream);
+         exporter = new PDFVSExporter(LibManagerProvider.getInstance(), Cluster.getInstance(), FileSystemService.getInstance(), DataSpace.getDataSpace(), stream);
          ((PDFVSExporter) exporter).setPrintOnOpen(print);
       }
       else if(type == FileFormatInfo.EXPORT_TYPE_PNG) {
@@ -836,6 +838,24 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
+    * Apply table.output.maxcol limit to a VSTableLens before wrapping in RegionTableLens.
+    * Must be called before getRegionTableLens(), which captures column count at construction time.
+    */
+   private void applyMaxColsLimit(VSTableLens lens, String assemblyName) {
+      if(lens == null) {
+         return;
+      }
+
+      int maxCols = VSTableLens.getConfiguredMaxCols();
+
+      if(lens.getColCount() > maxCols) {
+         LOG.warn("Table '{}' column count {} exceeds table.output.maxcol limit {}, truncating export.",
+            assemblyName, lens.getColCount(), maxCols);
+         lens.setMaxCols(maxCols);
+      }
+   }
+
+   /**
     * Get the region table lens.
     * @param data the specified table lens.
     * @param table the specified table data assembly.
@@ -1109,11 +1129,12 @@ public abstract class AbstractVSExporter implements VSExporter {
          ExecutionRecord executionRecord = null;
 
          if(log) {
+            XSessionService sessionService = XSessionService.getService();
             String userSessionID = box.getUser() == null ?
-                                   XSessionService.createSessionID(XSessionService.USER, null) :
+                                   sessionService.createSessionID(XSessionService.USER, null) :
                                    ((XPrincipal) box.getUser()).getSessionID();
             String objectName = entry.getDescription();
-            String execSessionID = XSessionService.createSessionID(
+            String execSessionID = sessionService.createSessionID(
                XSessionService.EXPORE_VIEW, entry.getName());
             String objectType = ExecutionRecord.OBJECT_TYPE_VIEW;
             String execType = ExecutionRecord.EXEC_TYPE_START;
@@ -1297,16 +1318,22 @@ public abstract class AbstractVSExporter implements VSExporter {
                case AbstractSheet.TABLE_VIEW_ASSET:
                case AbstractSheet.EMBEDDEDTABLE_VIEW_ASSET:
                   lens = box.getVSTableLens(name, false, 1);
+                  // Bug #74374, apply table.output.maxcol limit before getRegionTableLens(),
+                  // which captures column count at construction time in its own ccount field,
+                  // bypassing VSTableLens.maxCols. Same fix pattern as VsToReportConverter (Bug #74000).
+                  applyMaxColsLimit(lens, assembly.getName());
                   lens = getRegionTableLens(lens, (TableVSAssembly) assembly, box);
                   writeTable((TableVSAssembly) assembly, lens);
                   break;
                case AbstractSheet.CROSSTAB_ASSET:
                   lens = box.getVSTableLens(name, false, 1);
+                  applyMaxColsLimit(lens, assembly.getName());
                   lens = getRegionTableLens(lens, (CrosstabVSAssembly) assembly, box);
                   writeCrosstab((CrosstabVSAssembly) assembly, lens);
                   break;
                case AbstractSheet.FORMULA_TABLE_ASSET:
                   lens = box.getVSTableLens(name, false, 1);
+                  applyMaxColsLimit(lens, assembly.getName());
                   lens = getRegionTableLens(lens, (CalcTableVSAssembly) assembly, box);
                   writeCalcTable((CalcTableVSAssembly) assembly, lens);
                   break;
@@ -1341,6 +1368,12 @@ public abstract class AbstractVSExporter implements VSExporter {
                      titleInfo.setFormatInfo(info.getFormatInfo());
                      titleInfo.setPadding(info.getTitlePadding());
                      titleInfo.setZIndex(info.getZIndex());
+
+                     Hyperlink titleLink = info.getTitleLinkValue();
+
+                     if(titleLink != null) {
+                        titleInfo.setHyperlink(titleLink);
+                     }
                   }
 
                   VGraphPair pair = box.getVGraphPair(name, true, null, true, 1);
@@ -1348,26 +1381,45 @@ public abstract class AbstractVSExporter implements VSExporter {
                   boolean imgOnly = exportChartAsImage(chart);
                   data = data == null && pair != null ? pair.getData() : data;
 
+                  VGraph graph = null;
+
                   if(data != null && !(data.getRowCount() <= 0 && data.getColCount() <= 0)) {
-                     VGraph graph = !isMatchLayout() && supportChartSlices() ?
+                     graph = !isMatchLayout() && supportChartSlices() ?
                         pair.getExpandedVGraph() : pair.getRealSizeVGraph();
+                  }
 
-                     if(graph != null) {
-                        Rectangle2D bounds = graph.getBounds();
-                        // chart not included in onlyDataComponents. (59989)
-                        boolean needSlice = !isMatchLayout() && !isOnlyDataComponents() &&
-                           bounds.getWidth() * bounds.getHeight() > EXPORT_SIZE * EXPORT_SIZE;
+                  Hyperlink emptyPlotLink = info.getEmptyPlotLinkValue();
 
-                        if(!needSlice) {
-                           writeChart(chart, graph, data, imgOnly);
-                        }
-                        else {
-                           writeSliceChart(chart, data, pair, isMatchLayout(), imgOnly);
-                        }
+                  // emit before writeChart so per-region links overlay on top
+                  if(emptyPlotLink != null) {
+                     int titleHeight = info.isTitleVisible() ? info.getTitleHeight() : 0;
+                     Insets padding = info.getPadding();
+                     Insets2D border = getBorderOffset(info.getFormat());
+                     Rectangle2D chartBounds = new Rectangle2D.Double(
+                        pos.x + padding.left + border.left,
+                        pos.y + padding.top + border.top + titleHeight,
+                        size.width - padding.left - padding.right - border.left - border.right,
+                        size.height - padding.top - padding.bottom - border.top - border.bottom - titleHeight);
+                     writeEmptyPlotHyperlink(new Hyperlink.Ref(emptyPlotLink), graph, chartBounds);
+                  }
+
+                  if(graph != null) {
+                     Rectangle2D bounds = graph.getBounds();
+                     // chart not included in onlyDataComponents. (59989)
+                     boolean needSlice = !isMatchLayout() && !isOnlyDataComponents() &&
+                        bounds.getWidth() * bounds.getHeight() > EXPORT_SIZE * EXPORT_SIZE;
+
+                     if(!needSlice) {
+                        writeChart(chart, graph, data, imgOnly);
+                     }
+                     else {
+                        writeSliceChart(chart, data, pair, isMatchLayout(), imgOnly);
                      }
                   }
 
                   if(titleObj != null) {
+                     titleObj.setViewsheet(assembly.getViewsheet());
+                     prepareAssembly(titleObj);
                      writeText(titleObj);
                   }
 
@@ -2182,11 +2234,11 @@ public abstract class AbstractVSExporter implements VSExporter {
       Color ocolor = g2.getBackground();
       g2.scale(scale, scale);
       g2.translate((int) bounds.getX(), (int) bounds.getY());
+      final int titleHeight = getTitleHeight(info);
+      final Insets2D border = getBorderOffset(info.getFormat());
       chart.paint(g2);
 
-      final int titleHeight = getTitleHeight(info);
       g2.translate(info.getPadding().left, info.getPadding().top + titleHeight);
-      final Insets2D border = getBorderOffset(info.getFormat());
       g2.translate(border.left, border.top);
       g2.setColor(ocolor);
 
@@ -3398,6 +3450,22 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
+    * Emit the empty-plot hyperlink. The link should be registered on the plot
+    * rectangle only (not the axes or legends). Default is a no-op; subclasses
+    * override.
+    *
+    * @param ref          the hyperlink reference
+    * @param vgraph       the rendered VGraph; use {@code vgraph.getPlotBounds()}
+    *                     (graph-local coords) to derive the actual plot rectangle
+    * @param chartBounds  on-page chart rectangle excluding title, padding and border
+    */
+   protected void writeEmptyPlotHyperlink(Hyperlink.Ref ref, VGraph vgraph,
+                                          Rectangle2D chartBounds)
+   {
+      // subclasses override to emit the link
+   }
+
+   /**
     * Add dimension hyperlink.
     * @param refs refs
     * @param links hyperlinks
@@ -3587,6 +3655,458 @@ public abstract class AbstractVSExporter implements VSExporter {
       }
 
       return ftype;
+   }
+
+   /**
+    * Get the coordinate helper for this exporter. Returns null by default;
+    * subclasses with a coordinate helper should override.
+    */
+   protected CoordinateHelper getHelper() {
+      return null;
+   }
+
+   /**
+    * Write an input assembly, rendering the label text and widget image
+    * at split bounds. Falls back to writePicture() when no label is visible.
+    * Subclasses must override writePicture() and may override this method
+    * for format-specific rendering (e.g. HTML).
+    */
+   protected void writeInputWithLabel(VSAssembly assembly) {
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+
+      if(info == null) {
+         return;
+      }
+
+      if(!hasVisibleLabel(info)) {
+         writePicture(assembly);
+         return;
+      }
+
+      CoordinateHelper helper = getHelper();
+
+      if(helper == null) {
+         return;
+      }
+
+      InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
+      LabelInfo labelInfo = inputInfo.getLabelInfo();
+      Rectangle2D fullBounds = expandBoundsForLabel(helper.getBounds(info), labelInfo);
+      Rectangle2D[] bounds = splitInputBounds(fullBounds, labelInfo);
+      Rectangle2D labelBounds = bounds[0];
+      Rectangle2D widgetBounds = bounds[1];
+
+      // Draw the assembly background and border around the full area (label + widget).
+      // In the browser the outer wrapper element carries the assembly format (background,
+      // border, round corner), so both the label and the widget share one visual boundary.
+      helper.drawTextBox(fullBounds, fullBounds, info.getFormat(), null, null, null, false);
+
+      // Draw the label text with its own label-specific format.
+      helper.drawTextBox(labelBounds, getLabelFormat(labelInfo), labelInfo.getLabelText());
+
+      if(isZeroSize(widgetBounds)) {
+         return;
+      }
+
+      Dimension widgetSize = new Dimension(
+         (int) Math.round(widgetBounds.getWidth()),
+         (int) Math.round(widgetBounds.getHeight()));
+
+      // Render the widget without the assembly background/border — they were drawn above
+      // around the full (label + widget) bounds so the widget image must not repeat them.
+      BufferedImage img = getInputImageNoAssemblyStyle(assembly, info, widgetSize);
+
+      if(img != null) {
+         helper.drawImage(img, widgetBounds);
+      }
+      else {
+         LOG.warn("No image for input assembly: {}", assembly.getAbsoluteName());
+      }
+   }
+
+   /**
+    * Render a widget image with the assembly-level background and borders suppressed.
+    * Used by {@link #writeInputWithLabel} which draws those styles around the full
+    * (label + widget) bounds instead.
+    *
+    * <p>Both the runtime value (rValue) and the design-time value (dValue) must be
+    * cleared for the suppression to take effect:
+    * <ul>
+    *   <li>{@code ClazzHolder.getRValue()} (used by borders) falls back to dValue
+    *       when rValue is null, so setting rValue to null alone leaves the border
+    *       visible.</li>
+    *   <li>{@code DynamicValue.getRValue()} (used by background) auto-assigns dValue
+    *       to rValue when rValue is null and dValue is a literal string, so setting
+    *       rValue to null alone allows dValue to re-appear on the next read.</li>
+    * </ul>
+    */
+   private BufferedImage getInputImageNoAssemblyStyle(VSAssembly assembly,
+      VSAssemblyInfo info, Dimension widgetSize)
+   {
+      VSCompositeFormat fmt = info.getFormat();
+
+      if(fmt == null) {
+         return getInputImage(assembly, widgetSize);
+      }
+
+      VSFormat udf = fmt.getUserDefinedFormat();
+      Color savedBg = udf.getBackground();
+      boolean savedBgDefined = udf.isBackgroundDefined();
+      String savedBgValue = udf.getBackgroundValue();
+      boolean savedBgValDefined = udf.isBackgroundValueDefined();
+      Insets savedBorders = udf.getBorders();
+      boolean savedBordersDefined = udf.isBordersDefined();
+      Insets savedBordersValue = udf.getBordersValue();
+      boolean savedBordersValDefined = udf.isBordersValueDefined();
+
+      // Clear both rValue and dValue so neither ClazzHolder nor DynamicValue
+      // can resurrect the original value during widget image rendering.
+      udf.setBackground(null);
+      udf.setBackgroundValue(null);
+      udf.setBorders(null);
+      udf.setBordersValue(null);
+
+      try {
+         return getInputImage(assembly, widgetSize);
+      }
+      finally {
+         udf.setBackground(savedBg, savedBgDefined);
+         udf.setBackgroundValue(savedBgValue, savedBgValDefined);
+         udf.setBorders(savedBorders, savedBordersDefined);
+         udf.setBordersValue(savedBordersValue, savedBordersValDefined);
+      }
+   }
+
+   /**
+    * Write an assembly as a picture. Subclasses should override.
+    */
+   protected void writePicture(VSAssembly assembly) {
+      // no-op, overridden in subclasses
+   }
+
+   /**
+    * Draw the input label and render the widget text at the split bounds.
+    * @return true if the label was drawn and widget text rendered, false otherwise.
+    */
+   protected boolean writeTextInputWithLabel(VSAssemblyInfo info, String txt) {
+      Rectangle2D widgetBounds = writeInputLabelText(info);
+
+      if(widgetBounds == null) {
+         return false;
+      }
+
+      if(isZeroSize(widgetBounds)) {
+         LOG.warn("Widget bounds too small for text input: {}", info.getAbsoluteName());
+         return true;
+      }
+
+      getHelper().drawTextBox(widgetBounds, widgetBounds, getTextFormat(info),
+         txt, null, info.getPadding(), false);
+      return true;
+   }
+
+   /**
+    * Draw the input label via the coordinate helper if visible.
+    * @return the widget-only bounds if a label was drawn, null otherwise.
+    * @see HTMLVSExporter#writeInputLabel — HTML variant using Writer
+    */
+   protected Rectangle2D writeInputLabelText(VSAssemblyInfo info) {
+      if(!hasVisibleLabel(info)) {
+         return null;
+      }
+
+      CoordinateHelper helper = getHelper();
+
+      if(helper == null) {
+         return null;
+      }
+
+      InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
+      LabelInfo labelInfo = inputInfo.getLabelInfo();
+      Rectangle2D fullBounds = expandBoundsForLabel(helper.getBounds(info), labelInfo);
+
+      Rectangle2D[] bounds = splitInputBounds(fullBounds, labelInfo);
+      helper.drawTextBox(bounds[0], getLabelFormat(labelInfo),
+         labelInfo.getLabelText());
+
+      return bounds[1];
+   }
+
+   /**
+    * Check if an assembly has a visible, non-empty input label.
+    */
+   protected static boolean hasVisibleLabel(VSAssemblyInfo info) {
+      if(!(info instanceof InputVSAssemblyInfo)) {
+         return false;
+      }
+
+      LabelInfo labelInfo = ((InputVSAssemblyInfo) info).getLabelInfo();
+      return labelInfo != null && labelInfo.isLabelVisible() &&
+         labelInfo.getLabelText() != null && !labelInfo.getLabelText().isEmpty();
+   }
+
+   /**
+    * Check if bounds have zero or negative width/height.
+    */
+   protected static boolean isZeroSize(Rectangle2D bounds) {
+      return bounds.getWidth() <= 0 || bounds.getHeight() <= 0;
+   }
+
+   /**
+    * Get the font to use for rendering an input label.
+    */
+   protected static Font getLabelFont(LabelInfo labelInfo) {
+      VSCompositeFormat fmt = labelInfo.getLabelFormat();
+
+      if(fmt != null && fmt.getFont() != null) {
+         return fmt.getFont();
+      }
+
+      return GDefaults.DEFAULT_TEXT_FONT;
+   }
+
+   /**
+    * Get the label format, returning a default if null.
+    */
+   protected static VSCompositeFormat getLabelFormat(LabelInfo labelInfo) {
+      VSCompositeFormat fmt = labelInfo.getLabelFormat();
+      return fmt != null ? fmt : new VSCompositeFormat();
+   }
+
+   /**
+    * Split the full assembly bounds into label and widget regions.
+    * @return [labelBounds, widgetBounds]
+    */
+   protected static Rectangle2D[] splitInputBounds(Rectangle2D fullBounds,
+      LabelInfo labelInfo)
+   {
+      double x = fullBounds.getX();
+      double y = fullBounds.getY();
+      double fullW = fullBounds.getWidth();
+      double fullH = fullBounds.getHeight();
+
+      int[] dims = getLabelDimensions(labelInfo);
+      int labelW = dims[0];
+      int labelH = dims[1];
+      int gap = Math.max(0, labelInfo.getLabelGap());
+
+      Rectangle2D labelBounds;
+      Rectangle2D widgetBounds;
+
+      switch(labelInfo.getLabelPosition()) {
+      case LabelInfo.TOP:
+         labelBounds = new Rectangle2D.Double(x, y, fullW, labelH);
+         widgetBounds = new Rectangle2D.Double(x, y + labelH + gap, fullW,
+            Math.max(0, fullH - labelH - gap));
+         break;
+      case LabelInfo.BOTTOM:
+         labelBounds = new Rectangle2D.Double(x, y + fullH - labelH, fullW, labelH);
+         widgetBounds = new Rectangle2D.Double(x, y, fullW,
+            Math.max(0, fullH - labelH - gap));
+         break;
+      case LabelInfo.RIGHT:
+         // Center the label text vertically relative to the widget height,
+         // matching the Angular preview which uses flexbox vertical centering.
+         labelBounds = new Rectangle2D.Double(x + fullW - labelW,
+            y + Math.max(0, (fullH - labelH) / 2.0), labelW, labelH);
+         widgetBounds = new Rectangle2D.Double(x, y,
+            Math.max(0, fullW - labelW - gap), fullH);
+         break;
+      case LabelInfo.LEFT:
+      default:
+         // Center the label text vertically relative to the widget height,
+         // matching the Angular preview which uses flexbox vertical centering.
+         labelBounds = new Rectangle2D.Double(x, y + Math.max(0, (fullH - labelH) / 2.0),
+            labelW, labelH);
+         widgetBounds = new Rectangle2D.Double(x + labelW + gap, y,
+            Math.max(0, fullW - labelW - gap), fullH);
+         break;
+      }
+
+      return new Rectangle2D[] { labelBounds, widgetBounds };
+   }
+
+   /**
+    * Expand assembly bounds to include label + gap space for top/bottom labels.
+    * Left/right labels squeeze within the existing pixelSize on the frontend
+    * (via flex-shrink), so no expansion is needed for those positions.
+    */
+   protected static Rectangle2D expandBoundsForLabel(Rectangle2D bounds,
+      LabelInfo labelInfo)
+   {
+      String pos = labelInfo.getLabelPosition();
+
+      if(!LabelInfo.TOP.equals(pos) && !LabelInfo.BOTTOM.equals(pos)) {
+         return bounds;
+      }
+
+      int[] dims = getLabelDimensions(labelInfo);
+      int gap = Math.max(0, labelInfo.getLabelGap());
+
+      // both TOP and BOTTOM add height: the label sits outside the widget area
+      return new Rectangle2D.Double(
+         bounds.getX(), bounds.getY(),
+         bounds.getWidth(), bounds.getHeight() + dims[1] + gap);
+   }
+
+   /**
+    * Adjust the export page size to account for input labels that extend
+    * beyond the stored pixelSize. Mirrors the filtering logic in
+    * Viewsheet.getPreferredBounds() to skip invisible/container assemblies.
+    */
+   public static Dimension adjustSizeForInputLabels(Viewsheet vs,
+      Dimension size)
+   {
+      int maxW = size.width;
+      int maxH = size.height;
+
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(!(assembly instanceof VSAssembly vsAssembly)) {
+            continue;
+         }
+
+         if(!vsAssembly.isVisible()) {
+            continue;
+         }
+
+         String name = vsAssembly.getAbsoluteName();
+
+         // skip float/popup/tip-view, embedded non-primary, and selection
+         // container children to match Viewsheet.getPreferredBounds()
+         if(VSUtil.isPopComponent(name, vs) || VSUtil.isTipView(name, vs)) {
+            continue;
+         }
+
+         if(vs.isEmbedded() && !isAssemblyPrimary(vsAssembly)) {
+            continue;
+         }
+
+         if(vsAssembly.getContainer() instanceof CurrentSelectionVSAssembly) {
+            continue;
+         }
+
+         VSAssemblyInfo info = vsAssembly.getVSAssemblyInfo();
+
+         if(!hasVisibleLabel(info)) {
+            continue;
+         }
+
+         InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
+         LabelInfo labelInfo = inputInfo.getLabelInfo();
+
+         Dimension asmSize = info.getLayoutSize();
+         Point pos = info.getLayoutPosition();
+
+         if(asmSize == null) {
+            asmSize = vs.getPixelSize(info);
+         }
+
+         if(pos == null) {
+            pos = vs.getPixelPosition(info);
+         }
+
+         // skip off-screen assemblies (hidden data tips)
+         if(pos.y < 0 && -pos.y > asmSize.height ||
+            pos.x < 0 && -pos.x > asmSize.width)
+         {
+            continue;
+         }
+
+         Rectangle2D expanded = expandBoundsForLabel(
+            new Rectangle2D.Double(pos.x, pos.y, asmSize.width, asmSize.height),
+            labelInfo);
+
+         maxW = Math.max(maxW, (int) Math.ceil(expanded.getMaxX()));
+         maxH = Math.max(maxH, (int) Math.ceil(expanded.getMaxY()));
+      }
+
+      return new Dimension(maxW, maxH);
+   }
+
+   private static boolean isAssemblyPrimary(VSAssembly assembly) {
+      if(!assembly.isPrimary()) {
+         return false;
+      }
+
+      VSAssembly container = assembly.getContainer();
+      return container == null || isAssemblyPrimary(container);
+   }
+
+   /**
+    * Split an input assembly's pixel bounds into [labelBounds, widgetBounds].
+    * Returns null if the assembly has no visible label.
+    * The returned bounds are in the viewsheet pixel coordinate space.
+    */
+   protected static Rectangle2D[] splitInputPixelBounds(VSAssemblyInfo info, Viewsheet vs) {
+      if(!hasVisibleLabel(info)) {
+         return null;
+      }
+
+      InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
+      LabelInfo labelInfo = inputInfo.getLabelInfo();
+      Dimension size = info.getLayoutSize() != null ? info.getLayoutSize() : vs.getPixelSize(info);
+      Point pos = info.getLayoutPosition() != null ? info.getLayoutPosition() : vs.getPixelPosition(info);
+      Rectangle2D pixelBounds = new Rectangle2D.Double(pos.x, pos.y, size.width, size.height);
+      Rectangle2D fullBounds = expandBoundsForLabel(pixelBounds, labelInfo);
+      return splitInputBounds(fullBounds, labelInfo);
+   }
+
+   /**
+    * Get [width, height] for the label, matching VsToReportConverter.addInputLabel().
+    */
+   private static int[] getLabelDimensions(LabelInfo labelInfo) {
+      Font font = getLabelFont(labelInfo);
+      int labelW = (int) Common.stringWidth(labelInfo.getLabelText(), font) + 6;
+      int labelH = AssetUtil.defh;
+      return new int[] { labelW, labelH };
+   }
+
+   /**
+    * Get image of an input assembly at a specific widget size,
+    * excluding the label area.
+    */
+   protected BufferedImage getInputImage(VSAssembly assembly,
+      Dimension widgetSize)
+   {
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+      Viewsheet vs = info.getViewsheet();
+      int type = assembly.getAssemblyType();
+      VSObject obj = null;
+
+      switch(type) {
+      case AbstractSheet.RADIOBUTTON_ASSET:
+         obj = new VSRadioButton(vs);
+         break;
+      case AbstractSheet.CHECKBOX_ASSET:
+         obj = new VSCheckBox(vs);
+         break;
+      case AbstractSheet.COMBOBOX_ASSET:
+         obj = new VSComboBox(vs);
+         break;
+      case AbstractSheet.SLIDER_ASSET:
+         obj = new VSSlider(vs);
+         break;
+      case AbstractSheet.SPINNER_ASSET:
+         obj = new VSSpinner(vs);
+         break;
+      default:
+         return null;
+      }
+
+      obj.setViewsheet(vs);
+      obj.setTheme(theme);
+      obj.setAssemblyInfo(info);
+      obj.setPixelSize(widgetSize);
+      // resetTimeSliderSize not needed: none of the above types are time sliders
+
+      if(obj instanceof VSFloatable) {
+         return (BufferedImage) ((VSFloatable) obj).getImage(true);
+      }
+      else if(obj instanceof VSCompound) {
+         return (BufferedImage) ((VSCompound) obj).getImage();
+      }
+
+      return null;
    }
 
    // viewsheet name --> map, map: insert row/column place --> insert number

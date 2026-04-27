@@ -17,6 +17,8 @@
  */
 package inetsoft.sree.security;
 
+import inetsoft.sree.internal.DataCycleManager;
+import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.web.admin.security.IdentityService;
 import inetsoft.web.admin.security.user.IdentityThemeService;
 
@@ -65,7 +67,32 @@ public interface EditableAuthenticationProvider extends AuthenticationProvider {
     * @param newOrgName the organization name of the newly created org
     */
    void copyOrganization(Organization fromOrganization, String newOrgName, IdentityService identityService,
-                         IdentityThemeService themeService, Principal principal, boolean replace);
+                         IdentityThemeService themeService,
+                         DashboardRegistryManager dashboardRegistryManager,
+                         DataCycleManager dataCycleManager,
+                         Principal principal, boolean replace);
+
+   /**
+    * copy one organization's details and save new Organization, using the given default password for cloned users.
+    *
+    * @param fromOrganization the organization to copy from.
+    * @param newOrgName       the organization name of the newly created org
+    * @param defaultPassword  the default password to assign to cloned users
+    *
+    * @implNote This default implementation throws {@link UnsupportedOperationException}.
+    *           Providers that extend {@link AbstractEditableAuthenticationProvider} inherit a correct
+    *           implementation automatically. Custom providers that implement this interface directly
+    *           <strong>must</strong> override this method; failing to do so will cause org-clone
+    *           requests to fail fast rather than silently assign incorrect passwords to cloned users.
+    */
+   default void copyOrganization(Organization fromOrganization, String newOrgName, IdentityService identityService,
+                                  IdentityThemeService themeService, DashboardRegistryManager dashboardREgistryManager, DataCycleManager dataCycleManager, Principal principal, boolean replace,
+                                  String defaultPassword)
+   {
+      throw new UnsupportedOperationException(
+         getClass().getName() + " does not implement copyOrganization with defaultPassword. " +
+         "Override this method or extend AbstractEditableAuthenticationProvider.");
+   }
 
    /**
     * copy one organization's details and save new Organization
@@ -77,7 +104,10 @@ public interface EditableAuthenticationProvider extends AuthenticationProvider {
     */
    void copyOrganization(Organization fromOrganization, Organization editedNewOrganization,
                          String newOrgId, String newOrgName, IdentityService identityService,
-                         IdentityThemeService themeService, Principal principal, boolean replace);
+                         IdentityThemeService themeService,
+                         DashboardRegistryManager dashboardRegistryManager,
+                         DataCycleManager dataCycleManager, Principal principal,
+                         boolean replace);
 
    /**
     * Set user.

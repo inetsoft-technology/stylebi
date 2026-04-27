@@ -50,17 +50,18 @@ class DatabaseAuthenticationCache implements AutoCloseable {
             try {
                Cluster cluster = Cluster.getInstance();
                String prefix = "DatabaseSecurity:" + provider.getProviderName();
-               DatabaseAuthenticationCacheService svc = cluster.getSingletonService(
-                  prefix, DatabaseAuthenticationCacheService.class,
-                  () -> new DatabaseAuthenticationCacheServiceImpl(provider.getProviderName()));
-               svc.connect();
                this.lists = cluster.getReplicatedMap(prefix + ".lists");
                this.orgNames = cluster.getReplicatedMap(prefix + ".orgNames");
                this.orgMembers = cluster.getReplicatedMap(prefix + ".orgMembers");
                this.groupUsers = cluster.getReplicatedMap(prefix + ".groupUsers");
                this.userRoles = cluster.getReplicatedMap(prefix + ".userRoles");
                this.userEmails = cluster.getReplicatedMap(prefix + ".userEmails");
-               this.service = svc;
+               // Set service last to avoid race condition - other threads check service != null
+               // as a fast-path to skip initialization, so all fields must be set before service
+               this.service = cluster.getSingletonService(
+                  prefix, DatabaseAuthenticationCacheService.class,
+                  () -> new DatabaseAuthenticationCacheServiceImpl(provider.getProviderName()));
+               service.connect();
             }
             catch(Exception ex) {
                service = null;
@@ -312,8 +313,22 @@ class DatabaseAuthenticationCache implements AutoCloseable {
     * Checks if the exception indicates that the Ignite service was not found.
     */
    private boolean isServiceNotFoundError(IgniteException e) {
-      String message = e.getMessage();
-      return message != null && message.contains("Failed to find deployed service");
+      for(Throwable t = e; t != null; t = t.getCause()) {
+         // GridServiceNotFoundException (org.apache.ignite.internal) is the typed signal;
+         // check by simple name to avoid a hard dependency on Ignite's internal API.
+         if("GridServiceNotFoundException".equals(t.getClass().getSimpleName())) {
+            return true;
+         }
+
+         // Fall back to message text in case the wrapping changes across Ignite versions.
+         String message = t.getMessage();
+
+         if(message != null && message.contains("Failed to find deployed service")) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**

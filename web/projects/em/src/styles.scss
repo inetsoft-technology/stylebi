@@ -274,6 +274,18 @@ $brush-cursor-path: '~/../../portal/src/assets/cursor/brushcursor.gif';
   word-break: break-word;
 }
 
-.ai-assistant-container .mat-mdc-dialog-surface {
-  padding: 0 !important;
+#assistant-root {
+  .MuiListItemText-root span,
+  .MuiTypography-root,
+  .MuiDrawer-paper,
+  .MuiPaper-root {
+    font-size: 13px !important;
+  }
+
+  .chat-item.MuiListItemButton-root {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+    min-height: 36px !important;
+  }
 }
+

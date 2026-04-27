@@ -27,12 +27,21 @@ import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome(importResources = { "EmbeddedVS1.zip", "ExpRefVS.zip" })
+@Tag("core")
+@Tag("integration")
 public class DistributedTableCacheKeyTest {
    @Test
    void testEmbeddedTable() throws Exception {
@@ -112,17 +121,13 @@ public class DistributedTableCacheKeyTest {
 
    @RegisterExtension
    @Order(1)
-   ControllersExtension controllers = new ControllersExtension();
-
-   @RegisterExtension
-   @Order(2)
    RuntimeViewsheetExtension vs1Resource =
-      new RuntimeViewsheetExtension(createOpenViewsheetEvent(VS1_ASSET_ID), controllers);
+      new RuntimeViewsheetExtension(createOpenViewsheetEvent(VS1_ASSET_ID));
 
    @RegisterExtension
    @Order(2)
    RuntimeViewsheetExtension vs2Resource =
-      new RuntimeViewsheetExtension(createOpenViewsheetEvent(VS2_ASSET_ID), controllers);
+      new RuntimeViewsheetExtension(createOpenViewsheetEvent(VS2_ASSET_ID));
 
    private static final String VS1_ASSET_ID = "1^128^__NULL__^EmbeddedVS1^host-org";
    private static final String VS2_ASSET_ID = "1^128^__NULL__^ExpRefVS^host-org";

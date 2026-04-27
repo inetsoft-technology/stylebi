@@ -60,8 +60,8 @@ import org.slf4j.LoggerFactory;
 import java.awt.*;
 import java.awt.geom.Dimension2D;
 import java.text.*;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -248,6 +248,13 @@ public abstract class GraphGenerator {
       this.vs = chart.getViewsheet();
       VSAssembly assembly = vs == null ? null : vs.getAssembly(chart.getName());
       this.cubeType = assembly == null ? null : VSAQuery.getCubeType(assembly);
+      // True for full-data renders (regular or brushed). False for filtered renders such as data
+      // tip and flyover, which set TipConditionList on the assembly before execution. Used to
+      // prevent a depleted CategoricalShapeFrame cmap from being written to the shared context.
+      // adata != null means brushing is active; getBrushDataSet merges all rows so the shape frame
+      // cmap will not be depleted even if a tip condition is also present.
+      final boolean hasFullData = adata != null ||
+         assembly == null || assembly.getTipConditionList() == null;
 
       xdims = new ArrayList<>();
       xmeasures = new ArrayList<>();
@@ -333,8 +340,10 @@ public abstract class GraphGenerator {
 
          // create shape frame
          shpstrategy = new VSShapeFrameStrategy(info);
+         // Pass hasFullData=false for filtered renders (data tip / flyover) so that a depleted
+         // CategoricalShapeFrame cmap is not written back to the shared context.
          shpvisitor = new VSFrameVisitor(info, fdata, shpstrategy, global,
-            vdata, cubeType, vsrc, sourceType, getFrameInitializer());
+            vdata, cubeType, vsrc, sourceType, hasFullData, getFrameInitializer());
          // create texture frame
          tstrategy = new VSTextureFrameStrategy(info);
          tvisitor = new VSFrameVisitor(info, fdata, tstrategy, global, vdata,
@@ -1645,6 +1654,10 @@ public abstract class GraphGenerator {
 
                gspec.setTextSpec(legend.getTextSpec());
                GraphUtil.setLegendSpec(gspec, legends);
+               // Bug #74360: propagate symbolSize to the guide frame so that
+               // "Symbol Size" set on a DC chart legend (CompositeVisualFrame)
+               // is actually applied to the rendered legend.
+               gspec.setSymbolSize(legend.getSymbolSize());
             }
          }
 
@@ -2105,7 +2118,13 @@ public abstract class GraphGenerator {
                      .filter(f -> f.startsWith(BrushDataSet.ALL_HEADER_PREFIX))
                      .toArray(String[]::new);
                   range.removeAllStackFields();
-                  range.addStackFields(allFields);
+                  // Only add the first alldata field (e.g., __all__Sum(Total)) as the stacked
+                  // group. Adding both __all__Sum(Total) and __all__Sum(Total@Total) would
+                  // double-count since they hold equal per-state values, making scale_max 2x
+                  // the correct total and causing a half-circle chart. (74234)
+                  if(allFields.length > 0) {
+                     range.addStackFields(allFields[0]);
+                  }
                }
             }
 
@@ -2294,7 +2313,7 @@ public abstract class GraphGenerator {
             }
 
             AxisDescriptor axisD = getAxisDescriptor(scale, null);
-            setupAxisSpec(axis, axisD, scale.getFields(), false);
+            setupAxisSpec(axis, axisD, scale.getFields(), false, scale instanceof LinearScale);
 
             if(scale instanceof TimeScale) {
                ((TimeScale) scale).setIncrement(axisD.getIncrement());
@@ -2333,7 +2352,7 @@ public abstract class GraphGenerator {
             boolean isY = scale instanceof LinearScale;
             AxisSpec axis = createAxisSpec(axisD, plotdesc, flds, scale, false, true, !isY);
 
-            setupAxisSpec(axis, axisD, scale.getFields(), false);
+            setupAxisSpec(axis, axisD, scale.getFields(), false, isY);
 
             if(axisD.isNoNull()) {
                scale.setScaleOption(scale.getScaleOption() | Scale.NO_NULL);
@@ -2482,7 +2501,9 @@ public abstract class GraphGenerator {
    }
 
    // set AxisSpec from axis descriptor
-   protected void setupAxisSpec(AxisSpec axis, AxisDescriptor axisD, String[] flds, boolean secondary) {
+   protected void setupAxisSpec(AxisSpec axis, AxisDescriptor axisD, String[] flds, boolean secondary,
+                                boolean linear)
+   {
       CompositeTextFormat format = getAxisLabelFormat(axisD, flds, secondary);
       // should only use the first field's default format (e.g. date comparison %change&value)
       String fld = flds.length > 0 ? flds[0] : null;
@@ -2501,7 +2522,11 @@ public abstract class GraphGenerator {
       axis.setTextFrame(axisD.getTextFrame());
       axis.setTruncate(axisD.isTruncate());
       axis.setLabelGap(axisD.getLabelGap());
-      axis.setLabelOnSecondaryAxis(axisD.isLabelOnSecondaryAxis());
+      // Bug #74171: pareto uses the right y-axis for its percentage scale, so
+      // labelOnSecondaryAxis would hide the primary measure axis. Ignore the setting for
+      // measure (linear) axes only; dimension axes on y are not affected. (Bug #74191)
+      axis.setLabelOnSecondaryAxis(axisD.isLabelOnSecondaryAxis() &&
+                                   !(GraphTypes.isPareto(info.getChartType()) && linear));
    }
 
    private void assignAxisCSS(AxisDescriptor axisDesc, String axis) {
@@ -2659,7 +2684,7 @@ public abstract class GraphGenerator {
          spec.setMaxLabelSpacing(continous ? 3 : 2);
       }
 
-      setupAxisSpec(spec, xdesc, flds, secondary);
+      setupAxisSpec(spec, xdesc, flds, secondary, scale instanceof LinearScale);
       addHighlightToAxis(spec, flds);
 
       return spec;
@@ -3707,6 +3732,9 @@ public abstract class GraphGenerator {
       else if(GraphTypes.isInterval(chartType)) {
          IntervalElement elem = new IntervalElement();
          elem.setZeroHeight(1);
+         elem.setCornerRadius(desc.getPlotDescriptor().getBarCornerRadius());
+         // Both ends are value ends (no fixed zero anchor), so always round all corners.
+         elem.setRoundAllCorners(true);
          elements.add(elem);
       }
       else if(GraphTypes.isScatteredContour(chartType)) {
@@ -3719,6 +3747,8 @@ public abstract class GraphGenerator {
             element.setStackNegative(false);
          }
 
+         element.setCornerRadius(desc.getPlotDescriptor().getBarCornerRadius());
+         element.setRoundAllCorners(desc.getPlotDescriptor().isBarRoundAllCorners());
          elements.add(element);
       }
 

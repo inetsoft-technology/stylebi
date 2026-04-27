@@ -40,6 +40,7 @@ import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.uql.viewsheet.vslayout.ViewsheetLayout;
@@ -94,7 +95,9 @@ public class CoreLifecycleService {
       VSLayoutService vsLayoutService, ParameterService parameterService,
       VSCompositionService vsCompositionService,
       DataRefModelFactoryService dataRefModelFactoryService,
-      RuntimeViewsheetRef runtimeViewsheetRef, ApplicationEventPublisher eventPublisher)
+      RuntimeViewsheetRef runtimeViewsheetRef, ApplicationEventPublisher eventPublisher,
+      LicenseManager licenseManager, SecurityEngine securityEngine, Cluster cluster,
+      DataSourceRegistry dataSourceRegistry)
    {
       this.objectModelService = objectModelService;
       this.viewsheetService = viewsheetService;
@@ -104,6 +107,10 @@ public class CoreLifecycleService {
       this.dataRefModelFactoryService = dataRefModelFactoryService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.eventPublisher = eventPublisher;
+      this.licenseManager = licenseManager;
+      this.securityEngine = securityEngine;
+      this.cluster = cluster;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    public ProcessSheetResult openViewsheet(ViewsheetService engine,
@@ -263,8 +270,6 @@ public class CoreLifecycleService {
          else {
             infoMap.put("viewsheetBackground", Tool.getVSCSSBgColorHexString());
          }
-
-         LicenseManager licenseManager = LicenseManager.getInstance();
 
          if(licenseManager.isElasticLicense() && licenseManager.getElasticRemainingHours() == 0) {
             infoMap.put("hasWatermark", true);
@@ -2393,114 +2398,112 @@ public class CoreLifecycleService {
       Set<String> permissions = new HashSet<>();
 
       if(rvs.isRuntime()) {
-         final SecurityEngine engine = SecurityEngine.getSecurity();
-
          if(Boolean.parseBoolean(SreeEnv.getProperty("Viewsheet Toolbar Hidden"))) {
             permissions.add("Toolbar");
          }
 
-         if(!engine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "AddBookmark", ResourceAction.READ)) {
+         if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "AddBookmark", ResourceAction.READ)) {
             permissions.add("AddBookmark");
          }
 
-         if(!engine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "BrowserBookmark", ResourceAction.READ)) {
+         if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "BrowserBookmark", ResourceAction.READ)) {
             permissions.add("BrowserBookmark");
          }
 
-         if(!engine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Print", ResourceAction.READ)) {
+         if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Print", ResourceAction.READ)) {
             permissions.add("PrintVS");
          }
 
-         if(!engine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "SaveSnapshot", ResourceAction.READ)) {
+         if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "SaveSnapshot", ResourceAction.READ)) {
             permissions.add("SaveSnapshot");
          }
 
-         if(!engine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "HOME", ResourceAction.READ)) {
+         if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "HOME", ResourceAction.READ)) {
             permissions.add("Home");
          }
 
-         if(!engine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "PageNavigation", ResourceAction.READ)) {
+         if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "PageNavigation", ResourceAction.READ)) {
             permissions.add("PageNavigation");
          }
 
-         if(!engine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Edit", ResourceAction.READ) ||
-            !engine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS))
+         if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Edit", ResourceAction.READ) ||
+            !securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS))
          {
             permissions.add("Edit");
          }
 
-         if(!engine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Export", ResourceAction.READ)) {
+         if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Export", ResourceAction.READ)) {
             permissions.add("ExportVS");
          }
 
-         if(!engine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Import", ResourceAction.READ) ||
+         if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Import", ResourceAction.READ) ||
             !FormUtil.containsForm(rvs.getViewsheet(), true))
          {
             permissions.add("ImportXLS");
          }
 
-         if(!engine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Zoom In", ResourceAction.READ)) {
+         if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Zoom In", ResourceAction.READ)) {
             permissions.add("Zoom In");
          }
 
-         if(!engine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Zoom Out", ResourceAction.READ)) {
+         if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Zoom Out", ResourceAction.READ)) {
             permissions.add("Zoom Out");
          }
 
-         if(!engine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Email", ResourceAction.READ)) {
+         if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Email", ResourceAction.READ)) {
             permissions.add("Email");
          }
 
-         if(!engine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Schedule", ResourceAction.READ) ||
-            !engine.checkPermission(user, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS) ||
-            !engine.checkPermission(user, ResourceType.SCHEDULE_TASK_FOLDER, "/", ResourceAction.READ) ||
+         if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Schedule", ResourceAction.READ) ||
+            !securityEngine.checkPermission(user, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS) ||
+            !securityEngine.checkPermission(user, ResourceType.SCHEDULE_TASK_FOLDER, "/", ResourceAction.READ) ||
             VSUtil.hideActionsForHostAssets(rvs.getEntry(), user))
          {
             permissions.add("Schedule");
          }
 
-         if(!engine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Refresh", ResourceAction.READ)) {
+         if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Refresh", ResourceAction.READ)) {
             permissions.add("Refresh");
          }
 
          String entryPath = rvs.getEntry().getScope() == AssetRepository.USER_SCOPE ?
             Tool.MY_DASHBOARD + "/" + rvs.getEntry().getPath() : rvs.getEntry().getPath();
 
-         if(!engine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Social Sharing", ResourceAction.READ) ||
-            !(engine.checkPermission(user, ResourceType.REPORT, entryPath, ResourceAction.SHARE) ||
+         if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Social Sharing", ResourceAction.READ) ||
+            !(securityEngine.checkPermission(user, ResourceType.REPORT, entryPath, ResourceAction.SHARE) ||
                VSUtil.isDefaultVSGloballyViewsheet(rvs.getEntry(), user)))
          {
             permissions.add("Social Sharing");
          }
 
-         if(!engine.checkPermission(user, ResourceType.VIEWSHEET_ACTION, "Bookmark", ResourceAction.READ)) {
+         if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_ACTION, "Bookmark", ResourceAction.READ)) {
             permissions.add("AllBookmark");
          }
 
-         if(!engine.checkPermission(user, ResourceType.VIEWSHEET_ACTION, "OpenBookmark", ResourceAction.READ)) {
+         if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_ACTION, "OpenBookmark", ResourceAction.READ)) {
             permissions.add("OpenBookmark");
          }
 
-         if(!engine.checkPermission(user, ResourceType.VIEWSHEET_ACTION, "ShareBookmark", ResourceAction.READ)) {
+         if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_ACTION, "ShareBookmark", ResourceAction.READ)) {
             permissions.add("ShareBookmark");
          }
 
-         if(!engine.checkPermission(user, ResourceType.VIEWSHEET_ACTION, "ShareToAll", ResourceAction.READ)) {
+         if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_ACTION, "ShareToAll", ResourceAction.READ)) {
             permissions.add("ShareToAll");
          }
 
-         if(!engine.checkPermission(user, ResourceType.PORTAL_TAB, "Report", ResourceAction.READ)) {
+         if(!securityEngine.checkPermission(user, ResourceType.PORTAL_TAB, "Report", ResourceAction.READ)) {
             permissions.add("PortalRepository");
          }
 
-         if(engine.checkPermission(user, ResourceType.REPORT, rvs.getEntry().getPath(),
+         if(securityEngine.checkPermission(user, ResourceType.REPORT, rvs.getEntry().getPath(),
                                    ResourceAction.WRITE))
          {
             permissions.add("Viewsheet_Write");
          }
 
          boolean profiling = user instanceof XPrincipal xUser && xUser.isProfiling() &&
-            SecurityEngine.getSecurity().checkPermission(user, ResourceType.PROFILE, "*", ResourceAction.ACCESS);
+            securityEngine.checkPermission(user, ResourceType.PROFILE, "*", ResourceAction.ACCESS);
 
          if(profiling) {
             permissions.add("Profiling");
@@ -2751,7 +2754,7 @@ public class CoreLifecycleService {
                                                 CommandDispatcher dispatcher, Principal user)
       throws Exception
    {
-      Cluster cluster = Cluster.getInstance();
+      Cluster cluster = this.cluster;
 
       if(viewsheetService.isLocal(id)) {
          return doHandleOpenedSheet(
@@ -3041,7 +3044,7 @@ public class CoreLifecycleService {
             dispatcher.sendCommand(command);
          }
 
-         VSModelTrapContext context = new VSModelTrapContext(rvs, true);
+         VSModelTrapContext context = new VSModelTrapContext(rvs, dataSourceRegistry, true);
 
          if(context.isCheckTrap()) {
             context.checkTrap(null, null);
@@ -3280,10 +3283,15 @@ public class CoreLifecycleService {
    private final ViewsheetService viewsheetService;
    private final VSLayoutService vsLayoutService;
    private final ParameterService parameterService;
+
    private final VSCompositionService vsCompositionService;
    private final DataRefModelFactoryService dataRefModelFactoryService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final ApplicationEventPublisher eventPublisher;
+   private final LicenseManager licenseManager;
+   private final SecurityEngine securityEngine;
+   private final Cluster cluster;
+   private final DataSourceRegistry dataSourceRegistry;
    private static final Logger LOG = LoggerFactory.getLogger(CoreLifecycleService.class);
 
    /**

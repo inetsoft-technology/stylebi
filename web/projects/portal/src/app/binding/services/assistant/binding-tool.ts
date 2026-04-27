@@ -77,7 +77,6 @@ const ALL_DATE_LEVEL_MAP: Map<number, string> = new Map<number, string>([
 const CHART_TYPE_MAP: Map<any, string> = new Map([
    [GraphTypes.CHART_AUTO, "Auto"],
    [GraphTypes.CHART_BAR, "Bar"],
-   [GraphTypes.CHART_3D_BAR, "3D Bar"],
    [GraphTypes.CHART_LINE, "Line"],
    [GraphTypes.CHART_STEP, "Step Line"],
    [GraphTypes.CHART_STEP_STACK, "Stack Step Line"],
@@ -88,7 +87,6 @@ const CHART_TYPE_MAP: Map<any, string> = new Map([
    [GraphTypes.CHART_POINT, "Point"],
    [GraphTypes.CHART_POINT_STACK, "Stack Point"],
    [GraphTypes.CHART_BAR_STACK, "Stack Bar"],
-   [GraphTypes.CHART_3D_BAR_STACK, "3D Stack Bar"],
    [GraphTypes.CHART_LINE_STACK, "Stack Line"],
    [GraphTypes.CHART_AREA_STACK, "Stack Area"],
    [GraphTypes.CHART_PIE, "Pie"],
@@ -97,7 +95,6 @@ const CHART_TYPE_MAP: Map<any, string> = new Map([
    [GraphTypes.CHART_SUNBURST, "Sunburst"],
    [GraphTypes.CHART_CIRCLE_PACKING, "Circle Packing"],
    [GraphTypes.CHART_ICICLE, "Icicle"],
-   [GraphTypes.CHART_3D_PIE, "3D Pie"],
    [GraphTypes.CHART_RADAR, "Radar"],
    [GraphTypes.CHART_FILL_RADAR, "Filled Radar"],
    [GraphTypes.CHART_STOCK, "Stock"],

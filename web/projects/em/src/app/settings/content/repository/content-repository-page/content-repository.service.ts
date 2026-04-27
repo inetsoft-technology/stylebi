@@ -86,6 +86,9 @@ import { RepositoryEntryHelper, RepositoryFolderMeta } from "../../../../../../.
 import {
    ScheduleTaskFolderEditorModel
 } from "../repository-schedule-task-folder-settings-page/schedule-task-folder-editor-model";
+import {
+   ScheduleTaskFolderSettingsModel
+} from "../repository-schedule-task-folder-settings-page/schedule-task-folder-settings-model";
 import { ScriptSettingsModel } from "../repository-script-settings-page/script-settings.model";
 import {
    RepositoryScriptEditorModel
@@ -114,7 +117,7 @@ export class ContentRepositoryService implements OnDestroy {
    private _selectedNodes = new BehaviorSubject<RepositoryFlatNode[]>([]);
    private deleteNodesSubscription = this.getDeleteNodesSubscription();
    private loading = new BehaviorSubject<boolean>(false);
-   private _needRefreshAfterDelete = new Subject<any>();
+   private _needRefreshAfterDelete = new Subject<void>();
 
    public needRefreshAfterDelete() {
       return this._needRefreshAfterDelete.asObservable();
@@ -433,7 +436,7 @@ export class ContentRepositoryService implements OnDestroy {
          const params = new HttpParams().set("path", data.path);
          const uri = "../api/em/settings/content/repository/scheduleTaskFolder";
 
-         return this.http.get<ScheduleTaskFolderEditorModel>(uri, { params })
+         return this.http.get<ScheduleTaskFolderSettingsModel>(uri, { params })
             .pipe(
                catchError((error) => {
                   if(!!error.error && error.error.type === "MessageException") {

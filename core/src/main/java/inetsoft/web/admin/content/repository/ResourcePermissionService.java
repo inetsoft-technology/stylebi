@@ -17,7 +17,7 @@
  */
 package inetsoft.web.admin.content.repository;
 
-import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.SreeEnv;
@@ -45,10 +45,14 @@ import java.util.stream.Collectors;
 public class ResourcePermissionService {
    @Autowired
    public ResourcePermissionService(SecurityProvider securityProvider,
-                                    SecurityEngine securityEngine)
+                                    SecurityEngine securityEngine,
+                                    LibManagerProvider libManagerProvider,
+                                    DataSourceRegistry dataSourceRegistry)
    {
       this.securityProvider = securityProvider;
       this.securityEngine = securityEngine;
+      this.libManagerProvider = libManagerProvider;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    public ResourcePermissionModel getTableModel(String path, ResourceType type,
@@ -179,7 +183,7 @@ public class ResourcePermissionService {
                                                                      Principal principal,
                                                                      boolean tableStyleFolder)
    {
-      String resourcePath = getPermissionResourcePath(path, resourceType, tableStyleFolder);
+      String resourcePath = getPermissionResourcePath(path, resourceType, tableStyleFolder, libManagerProvider, dataSourceRegistry);
       Permission permission =
          securityProvider.getAuthorizationProvider().getPermission(resourceType, resourcePath);
 
@@ -191,17 +195,18 @@ public class ResourcePermissionService {
    }
 
    public static String getPermissionResourcePath(String path, ResourceType resourceType,
-                                                  boolean tableStyleFolder)
+                                                  boolean tableStyleFolder, LibManagerProvider libManagerProvider,
+                                                  DataSourceRegistry dataSourceRegistry)
    {
       if(path == null || resourceType == null) {
          return path;
       }
 
       if(resourceType == ResourceType.DATA_SOURCE) {
-         return getDataSourceResourceName(path);
+         return getDataSourceResourceName(path, dataSourceRegistry);
       }
       else if(!tableStyleFolder && ResourceType.TABLE_STYLE == resourceType) {
-         XTableStyle tableStyle = LibManager.getManager().getTableStyle(path);
+         XTableStyle tableStyle = libManagerProvider.getManager().getTableStyle(path);
          return tableStyle == null ? path : tableStyle.getID();
       }
 
@@ -213,14 +218,13 @@ public class ResourcePermissionService {
     *
     * @param path         path of resource
     * @param resourceType type of resource
-    * @param principal    current principal
     *
     * @return the set of organizations that use parent inheritance on the resource
     */
    private boolean hasOrgEditedPerm(String path, ResourceType resourceType, boolean tableStyleFolder)
    {
       String resourcePath =
-         getPermissionResourcePath(path, resourceType, tableStyleFolder);
+         getPermissionResourcePath(path, resourceType, tableStyleFolder, libManagerProvider, dataSourceRegistry);
       Permission permission =
          securityProvider.getAuthorizationProvider().getPermission(resourceType, resourcePath);
 
@@ -342,7 +346,7 @@ public class ResourcePermissionService {
          }
       }
 
-      String resourcePath = getPermissionResourcePath(path, resourceType, tableStyleFolder);
+      String resourcePath = getPermissionResourcePath(path, resourceType, tableStyleFolder, libManagerProvider, dataSourceRegistry);
       SreeEnv.setProperty("permission.andCondition", String.valueOf(tableModel.requiresBoth()), true);
       SreeEnv.save();
 
@@ -516,7 +520,7 @@ public class ResourcePermissionService {
          break;
       case RepositoryEntry.DATA_SOURCE:
          type = ResourceType.DATA_SOURCE;
-         resourcePath = getDataSourceResourceName(resourcePath);
+         resourcePath = getDataSourceResourceName(resourcePath, dataSourceRegistry);
          break;
       case RepositoryEntry.PARTITION:
       case RepositoryEntry.PARTITION | RepositoryEntry.FOLDER:
@@ -600,7 +604,7 @@ public class ResourcePermissionService {
          return false;
       }
 
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
 
       String orgId = OrganizationManager.getInstance().getCurrentOrgID();
 
@@ -628,7 +632,7 @@ public class ResourcePermissionService {
       try {
          ThreadContext.setContextPrincipal(principal);
          // Only show users from the same organization and site admins (if permission allows)
-         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider provider = securityEngine.getSecurityProvider();
          String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
          String org = Arrays.stream(provider.getOrganizationIDs())
             .map(provider::getOrganization)
@@ -868,10 +872,10 @@ public class ResourcePermissionService {
       return permissions;
    }
 
-   public static String getDataSourceResourceName(String resourcePath) {
+   public static String getDataSourceResourceName(String resourcePath, DataSourceRegistry dataSourceRegistry) {
       if(resourcePath.contains("/")) {
          // may be additional connection
-         for(String ds : DataSourceRegistry.getRegistry().getDataSourceFullNames()) {
+         for(String ds : dataSourceRegistry.getDataSourceFullNames()) {
             if(resourcePath.startsWith(ds + "/")) {
                resourcePath = ds + "::" + resourcePath.substring(ds.length() + 1);
                break;
@@ -975,6 +979,46 @@ public class ResourcePermissionService {
       return path.substring(0, index) + "::" + path.substring(index + 1);
    }
 
+   /**
+    * Checks which identities from the given list do not exist in the current organization.
+    *
+    * @param identities the identities to validate.
+    *
+    * @return the list of identities that were not found.
+    */
+   public List<ResourcePermissionTableModel> findMissingIdentities(
+      List<ResourcePermissionTableModel> identities)
+   {
+      AuthenticationProvider provider = securityProvider.getAuthenticationProvider();
+      List<ResourcePermissionTableModel> missing = new ArrayList<>();
+
+      for(ResourcePermissionTableModel identity : identities) {
+         IdentityID id = identity.identityID();
+
+         boolean exists = switch(identity.type()) {
+            case USER -> provider.getUser(id) != null;
+            case GROUP -> provider.getGroup(id) != null;
+            case ROLE -> provider.getRole(id) != null;
+            case ORGANIZATION -> {
+               String orgId = id.getOrgID();
+
+               if(orgId == null) {
+                  orgId = provider.getOrgIdFromName(id.getName());
+               }
+
+               yield orgId != null && provider.getOrganization(orgId) != null;
+            }
+            default -> true;
+         };
+
+         if(!exists) {
+            missing.add(identity);
+         }
+      }
+
+      return missing;
+   }
+
    static final EnumSet<ResourceAction> ADMIN_ACTIONS = EnumSet.of(
       ResourceAction.READ, ResourceAction.WRITE, ResourceAction.DELETE, ResourceAction.ADMIN);
    static final EnumSet<ResourceAction> ADMIN_SHARE_ACTIONS = EnumSet.of(
@@ -984,4 +1028,6 @@ public class ResourcePermissionService {
    private final Catalog catalog = Catalog.getCatalog();
    private final SecurityEngine securityEngine;
    private final SecurityProvider securityProvider;
+   private final LibManagerProvider libManagerProvider;
+   private final DataSourceRegistry dataSourceRegistry;
 }

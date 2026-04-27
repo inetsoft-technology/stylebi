@@ -62,6 +62,12 @@ public class ComboBoxVSAScriptable extends InputVSAScriptable {
 
       addProperty("maxDate", "getMaxDate", "setMaxDate",
                   Timestamp.class, info.getClass(), info);
+
+      addProperty("queryDateFormat", "isQueryDateFormat", "setQueryDateFormat",
+                  boolean.class, info.getClass(), info);
+
+      addProperty("dateFormatPattern", "getDateFormatPattern", "setDateFormatPattern",
+                  String.class, info.getClass(), info);
    }
 
    /**

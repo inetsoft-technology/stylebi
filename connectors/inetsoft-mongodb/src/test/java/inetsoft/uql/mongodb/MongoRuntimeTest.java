@@ -19,12 +19,14 @@ package inetsoft.uql.mongodb;
 
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.credential.*;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationContext;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.containers.wait.strategy.Wait;
@@ -41,6 +43,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Integration tests for <tt>MongoRuntime</tt>.
@@ -62,11 +65,17 @@ class MongoRuntimeTest {
    @BeforeAll
    static void attachLogConsumer() {
       container.followOutput(new Slf4jLogConsumer(LOG));
-      MockedStatic<CredentialService> mockedCredentialService = Mockito.mockStatic(CredentialService.class);
-      mockedCredentialService.when(() -> CredentialService.newCredential(CredentialType.PASSWORD))
-         .thenReturn(mock(LocalPasswordCredential.class));
-      mockedCredentialService.when(() -> CredentialService.newCredential(CredentialType.PASSWORD, false))
-         .thenReturn(mock(LocalPasswordCredential.class));
+      CredentialService credentialService = mock(CredentialService.class);
+      when(credentialService.createCredential(CredentialType.PASSWORD)).thenReturn(mock(LocalPasswordCredential.class));
+      when(credentialService.createCredential(CredentialType.PASSWORD, false)).thenReturn(mock(LocalPasswordCredential.class));
+      ApplicationContext context = mock(ApplicationContext.class);
+      when(context.getBean(CredentialService.class)).thenReturn(credentialService);
+      ConfigurationContext.getContext().setApplicationContext(context);
+   }
+
+   @AfterAll
+   static void resetContext() {
+      ConfigurationContext.getContext().setApplicationContext(null);
    }
 
    @Test

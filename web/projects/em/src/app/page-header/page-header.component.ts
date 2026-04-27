@@ -27,7 +27,6 @@ import {
 import { Router } from "@angular/router";
 import { BehaviorSubject, Subscription } from "rxjs";
 import { debounceTime, distinctUntilChanged } from "rxjs/operators";
-import { ScheduleUsersService } from "../../../../shared/schedule/schedule-users.service";
 import { AppInfoService } from "../../../../shared/util/app-info.service";
 import { CustomRouteReuseStrategy } from "../custom-route-reuse-strategy";
 import { OrganizationDropdownService } from "../navbar/organization-dropdown.service";
@@ -64,7 +63,6 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
                private router: Router,
                private http: HttpClient,
                private appInfoService: AppInfoService,
-               private usersService: ScheduleUsersService,
                private ngZone: NgZone)
    {
    }
@@ -74,10 +72,11 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
       this.refreshModel(this.currentProvider);
 
       if(this.refreshSubscription == null) {
-         this.refreshSubscription = this.orgDropdownService.onRefresh.subscribe((res) => {
-            this.currentProvider = res.provider;
-            this.refreshModel(this.currentProvider, res.providerChanged);
-         });
+         this.refreshSubscription = this.orgDropdownService.onRefresh.pipe(debounceTime(100))
+            .subscribe((res) => {
+               this.currentProvider = res.provider;
+               this.refreshModel(this.currentProvider, res.providerChanged, res.renameOnly);
+            });
       }
 
       this.subscriptions.add(this.appInfoService.isEnterprise().subscribe((isEnterprise) => {
@@ -101,7 +100,7 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
       );
    }
 
-   private refreshModel(currentProvider: string, providerChanged?: boolean): void {
+   private refreshModel(currentProvider: string, providerChanged?: boolean, renameOnly?: boolean): void {
       const params = new HttpParams()
          .set("provider", !!currentProvider ? currentProvider : "")
          .set("providerChanged", !!providerChanged ? providerChanged : "false");
@@ -113,10 +112,11 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
             this.currentProvider = result.providerName;
             this.pageTitle.currentOrgId = result.currOrgID;
 
-            if(oldOrg != null && this.model != null && this.model.currOrgID != oldOrg) {
+            if(!renameOnly && oldOrg != null && this.model != null && this.model.currOrgID != oldOrg) {
+               // Notify of an externally-detected org change (e.g. changed from another session or admin action).
+               this.orgDropdownService.notifyOrgChange();
                let currRoute = this.router.url;
                this.routeToPath(currRoute);
-               this.usersService.loadScheduleUsers();
             }
 
             this.initSearchResults();
@@ -147,9 +147,10 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
 
       this.http.post("../api/em/pageheader/organization", this.model)
          .subscribe(() => {
+            // Notify of the user-initiated org change before routing, so clipboard is cleared immediately.
+            this.orgDropdownService.notifyOrgChange();
             let currRoute = this.router.url;
             this.routeToPath(currRoute);
-            this.usersService.loadScheduleUsers();
          });
    }
 

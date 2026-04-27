@@ -60,18 +60,23 @@ public class PortalController {
    public PortalController(SecurityEngine securityEngine,
                            AnalyticRepository analyticRepository,
                            ComposerClientService composerClientService,
-                           AISettingsService aiSettingsService)
+                           AISettingsService aiSettingsService,
+                           LicenseManager licenseManager,
+                           DashboardManager dashboardManager,
+                           PortalThemesManager portalThemesManager)
    {
       this.securityEngine = securityEngine;
       this.analyticRepository = analyticRepository;
       this.composerClientService = composerClientService;
       this.aiSettingsService = aiSettingsService;
+      this.licenseManager = licenseManager;
+      this.dashboardManager = dashboardManager;
+      this.portalThemesManager = portalThemesManager;
    }
 
    @GetMapping("/api/portal/get-portal-model")
    public PortalModel getUserPortal(Principal principal, @LinkUri String linkUri) throws Exception {
-      PortalThemesManager manager = PortalThemesManager.getManager();
-      DashboardManager dashboards = DashboardManager.getManager();
+      PortalThemesManager manager = portalThemesManager;
       boolean accessible = "true".equalsIgnoreCase(SreeEnv.getProperty("accessibility.enabled"));
       String logoutUrl = SreeEnv.getProperty("sso.logout.url");
       String homeLink = SreeEnv.getProperty("portal.home.link", "..");
@@ -88,11 +93,9 @@ public class PortalController {
       }
 
       boolean porfile =
-         SecurityEngine
-            .getSecurity().checkPermission(principal, ResourceType.PROFILE, "*", ResourceAction.ACCESS);
+         securityEngine.checkPermission(principal, ResourceType.PROFILE, "*", ResourceAction.ACCESS);
 
       boolean profiling = porfile && ((XPrincipal) principal).isProfiling();
-      LicenseManager licenseManager = LicenseManager.getInstance();
       boolean elasticLicenseExhausted = false;
 
       if(licenseManager.isElasticLicense() && licenseManager.getElasticRemainingHours() == 0) {
@@ -110,11 +113,13 @@ public class PortalController {
       }
 
       PortalCreationPermisisons creationModel = refreshPortalCreationPermissions(principal);
-      boolean aiAssistantVisible = aiSettingsService.isAiAssistantVisible();
+      boolean aiAssistantVisible = aiSettingsService.isAiAssistantVisible() &&
+         securityEngine.checkPermission(principal, ResourceType.AI_ASSISTANT, "*", ResourceAction.ACCESS);
 
       return PortalModel.builder()
          .currentUser(getCurrentUser(principal))
          .helpVisible(manager.isButtonVisible(PortalThemesManager.HELP_BUTTON))
+         .aiAssistantVisible(aiAssistantVisible)
          .aiAssistantVisible(aiAssistantVisible)
          .preferencesVisible(manager.isButtonVisible(PortalThemesManager.PREFERENCES_BUTTON))
          .logoutVisible(manager.isButtonVisible(PortalThemesManager.LOGOUT_BUTTON))
@@ -127,7 +132,7 @@ public class PortalController {
          .helpURL(Tool.getHelpBaseURL())
          .logoutUrl(logoutUrl)
          .accessible(accessible)
-         .hasDashboards(dashboards.getDashboards(new User(pId), false).length > 0)
+         .hasDashboards(dashboardManager.getDashboards(new User(pId), false).length > 0)
          .title(getPageTitle(principal))
          .newDatasourceEnabled(creationModel.newDatasourceEnabled())
          .newWorksheetEnabled(creationModel.newWorksheetEnabled())
@@ -221,7 +226,7 @@ public class PortalController {
 
    @GetMapping("/api/portal/get-portal-tabs")
    public List<PortalTabModel> getPortalTabs(Principal principal) throws Exception {
-      PortalThemesManager manager = PortalThemesManager.getManager();
+      PortalThemesManager manager = portalThemesManager;
       List<PortalTabModel> portalTabModels = new ArrayList<>();
 
       for(int i = 0; i < manager.getPortalTabsCount(); i++) {
@@ -333,5 +338,8 @@ public class PortalController {
    private final AnalyticRepository analyticRepository;
    private final ComposerClientService composerClientService;
    private final AISettingsService aiSettingsService;
+   private final LicenseManager licenseManager;
+   private final DashboardManager dashboardManager;
+   private final PortalThemesManager portalThemesManager;
    private static final Logger LOG = LoggerFactory.getLogger(PortalController.class);
 }

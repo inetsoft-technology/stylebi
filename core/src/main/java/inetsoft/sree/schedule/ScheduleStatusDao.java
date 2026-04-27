@@ -17,10 +17,15 @@
  */
 package inetsoft.sree.schedule;
 
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.storage.KeyValueStorage;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
+import jakarta.annotation.PreDestroy;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -30,16 +35,25 @@ import java.util.concurrent.*;
  * Class that provides access to persistent schedule task status data.
  * @since 12.2
  */
+@Service
+@Lazy
 public class ScheduleStatusDao implements AutoCloseable {
-   public ScheduleStatusDao() {
-      storage = KeyValueStorage.newInstance("scheduleStatus");
+   @Autowired
+   public ScheduleStatusDao(Cluster cluster) {
+      storage = KeyValueStorage.newInstance("scheduleStatus", cluster);
+   }
+
+   // test seam: accepts storage directly instead of constructing via cluster
+   ScheduleStatusDao(KeyValueStorage<Status> storage) {
+      this.storage = storage;
    }
 
    public static ScheduleStatusDao getInstance() {
-      return SingletonManager.getInstance(ScheduleStatusDao.class);
+      return ConfigurationContext.getContext().getSpringBean(ScheduleStatusDao.class);
    }
 
    @Override
+   @PreDestroy
    public void close() throws Exception {
       storage.close();
    }

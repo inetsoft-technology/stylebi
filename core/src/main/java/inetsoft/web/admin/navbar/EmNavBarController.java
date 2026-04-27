@@ -37,15 +37,21 @@ import java.security.Principal;
 @RestController
 public class EmNavBarController {
    @Autowired
-   public EmNavBarController(AISettingsService aiSettingsService) {
+   public EmNavBarController(AISettingsService aiSettingsService,
+                              LicenseManager licenseManager,
+                              PortalThemesManager portalThemesManager,
+                              SecurityEngine securityEngine)
+   {
       this.aiSettingsService = aiSettingsService;
+      this.licenseManager = licenseManager;
+      this.portalThemesManager = portalThemesManager;
+      this.securityEngine = securityEngine;
    }
 
    @GetMapping("/api/em/navbar/get-navbar-model")
    public EmNavBarModel getNavBarModel(Principal principal) throws Exception {
       String logoutUri = SreeEnv.getProperty("sso.logout.url");
-      PortalThemesManager manager = PortalThemesManager.getManager();
-      boolean enterprise = LicenseManager.getInstance().isEnterprise();
+      boolean enterprise = licenseManager.isEnterprise();
 
       if(!SSOType.NONE.getName().equals(SreeEnv.getProperty("sso.protocol.type")) &&
          !StringUtils.isEmpty(logoutUri))
@@ -63,7 +69,6 @@ public class EmNavBarController {
 
       boolean ssoUser = principal instanceof XPrincipal &&
       !"true".equals(((XPrincipal) principal).getProperty("__internal__"));
-      LicenseManager licenseManager = LicenseManager.getInstance();
       boolean elasticLicenseExhausted = false;
 
       if(licenseManager.isElasticLicense() && licenseManager.getElasticRemainingHours() == 0) {
@@ -81,10 +86,12 @@ public class EmNavBarController {
       }
 
       String homeLink = SreeEnv.getProperty("em.home.link", "..");
-      boolean aiAssistantVisible = aiSettingsService.isAiAssistantVisible();
+      boolean aiAssistantVisible = aiSettingsService.isAiAssistantVisible() &&
+         securityEngine.checkPermission(
+            principal, ResourceType.AI_ASSISTANT, "*", ResourceAction.ACCESS);
 
       return new EmNavBarModel(logoutUri,
-                               manager.hasCustomLogo(OrganizationManager.getInstance().getCurrentOrgID()),
+                               portalThemesManager.hasCustomLogo(OrganizationManager.getInstance().getCurrentOrgID()),
                                enterprise, ssoUser, elasticLicenseExhausted, homeLink,
                                aiAssistantVisible);
    }
@@ -106,7 +113,6 @@ public class EmNavBarController {
 
    @GetMapping("/api/em/navbar/isSiteAdmin")
    public boolean isSiteAdmin(Principal principal) {
-      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       return OrganizationManager.getInstance().isSiteAdmin(principal);
    }
 
@@ -117,5 +123,8 @@ public class EmNavBarController {
    }
 
    private final AISettingsService aiSettingsService;
-   private static String DEFAULT_LOGOUT_URI = "../logout?fromEm=true";
+   private final LicenseManager licenseManager;
+   private final PortalThemesManager portalThemesManager;
+   private final SecurityEngine securityEngine;
+   private static final String DEFAULT_LOGOUT_URI = "../logout?fromEm=true";
 }

@@ -283,7 +283,8 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             type == ResourceType.MATERIALIZATION ||
             type == ResourceType.CHART_TYPE_FOLDER ||
             type == ResourceType.WORKSHEET_EXPRESSION_COLUMN ||
-            type == ResourceType.VIEWSHEET_CALCULATED_FIELD)
+            type == ResourceType.VIEWSHEET_CALCULATED_FIELD ||
+            type == ResourceType.AI_ASSISTANT)
          {
             return true;
          }

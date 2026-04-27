@@ -19,8 +19,8 @@ package inetsoft.util;
 
 import com.sun.jna.Platform;
 import inetsoft.report.internal.license.LicenseManager;
-import inetsoft.sree.security.*;
-import inetsoft.uql.XPrincipal;
+import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.affinity.AffinitySupport;
 import inetsoft.util.audit.*;
 import inetsoft.util.log.LogContext;
@@ -145,7 +145,7 @@ public class GroupedThread extends Thread {
    @Override
    public final void run() {
       // update the affinity for every thread we create (POSIX)
-      if(!Platform.isWindows() && !Platform.isMac() && LicenseManager.getInstance().isAffinitySet())
+      if(!Platform.isWindows() && !Platform.isMac() && LicenseManager.isAffinityEnabledSafe())
       {
          final AffinitySupport affinitySupport = AffinitySupport.FACTORY.getInstance();
 
@@ -226,7 +226,7 @@ public class GroupedThread extends Thread {
       try {
          LogContext.setUser(user);
       }
-      catch(SingletonManager.ResurrectException ignore) {
+      catch(ShutdownException ignore) {
          // server is shutting down, ignore
       }
    }

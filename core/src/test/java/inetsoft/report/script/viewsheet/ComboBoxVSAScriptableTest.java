@@ -19,18 +19,29 @@
 package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.test.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.ComboBoxVSAssemblyInfo;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class ComboBoxVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox ;
    private ComboBoxVSAScriptable comboBoxVSAScriptable;
@@ -68,12 +79,18 @@ public class ComboBoxVSAScriptableTest {
    void testGet() {
       assertEquals(false,
                    comboBoxVSAScriptable.get("serverTimeZone", comboBoxVSAScriptable));
+      assertEquals(false,
+                   comboBoxVSAScriptable.get("queryDateFormat", comboBoxVSAScriptable));
+      assertEquals("yyyy-MM-dd",
+                   comboBoxVSAScriptable.get("dateFormatPattern", comboBoxVSAScriptable));
    }
 
    @Test
    void testHas() {
       assertFalse(comboBoxVSAScriptable.has("property1", comboBoxVSAScriptable));
       assertTrue(comboBoxVSAScriptable.has("serverTimeZone", comboBoxVSAScriptable));
+      assertTrue(comboBoxVSAScriptable.has("queryDateFormat", comboBoxVSAScriptable));
+      assertTrue(comboBoxVSAScriptable.has("dateFormatPattern", comboBoxVSAScriptable));
    }
 
    @Test
@@ -81,6 +98,26 @@ public class ComboBoxVSAScriptableTest {
       comboBoxVSAScriptable.addProperties();
       assertEquals(false,
                    comboBoxVSAScriptable.get("serverTimeZone", comboBoxVSAScriptable));
+   }
+
+   @Test
+   void testGetSetQueryDateFormat() {
+      assertEquals(false,
+                   comboBoxVSAScriptable.get("queryDateFormat", comboBoxVSAScriptable));
+      comboBoxVSAScriptable.put("queryDateFormat", comboBoxVSAScriptable, true);
+      assertEquals(true,
+                   comboBoxVSAScriptable.get("queryDateFormat", comboBoxVSAScriptable));
+      assertTrue(comboBoxVSAssemblyInfo.isQueryDateFormat());
+   }
+
+   @Test
+   void testGetSetDateFormatPattern() {
+      assertEquals("yyyy-MM-dd",
+                   comboBoxVSAScriptable.get("dateFormatPattern", comboBoxVSAScriptable));
+      comboBoxVSAScriptable.put("dateFormatPattern", comboBoxVSAScriptable, "MM/dd/yyyy");
+      assertEquals("MM/dd/yyyy",
+                   comboBoxVSAScriptable.get("dateFormatPattern", comboBoxVSAScriptable));
+      assertEquals("MM/dd/yyyy", comboBoxVSAssemblyInfo.getDateFormatPattern());
    }
 
    @Test

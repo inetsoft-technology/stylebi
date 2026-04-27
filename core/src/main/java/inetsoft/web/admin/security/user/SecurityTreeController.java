@@ -19,9 +19,12 @@ package inetsoft.web.admin.security.user;
 
 import inetsoft.sree.security.*;
 import inetsoft.uql.util.Identity;
-import inetsoft.util.*;
+import inetsoft.util.Catalog;
+import inetsoft.util.InvalidOrgException;
 import inetsoft.web.admin.security.AuthenticationProviderService;
 import inetsoft.web.factory.DecodePathVariable;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,12 +34,21 @@ import java.security.Principal;
 public class SecurityTreeController {
    @Autowired
    public SecurityTreeController(AuthenticationProviderService service,
-                                 IdentityThemeService themeService)
+                                 IdentityThemeService themeService,
+                                 SecurityEngine securityEngine)
    {
       this.service = service;
       this.themeService = themeService;
+      this.securityEngine = securityEngine;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/security/providers/{provider}/identities/{type}")
    public GetIdentityNameResponse getIdentities(@DecodePathVariable("provider") String providerName,
                                                 @PathVariable("type") int type,
@@ -46,7 +58,7 @@ public class SecurityTreeController {
 
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -66,6 +78,13 @@ public class SecurityTreeController {
       return new GetIdentityNameResponse.Builder().identityNames(identityNames).build();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/security/themes")
    public IdentityThemeList getThemes() {
       return themeService.getThemes();
@@ -73,4 +92,5 @@ public class SecurityTreeController {
 
    private final AuthenticationProviderService service;
    private final IdentityThemeService themeService;
+   private final SecurityEngine securityEngine;
 }

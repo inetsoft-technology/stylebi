@@ -285,7 +285,7 @@ public class MVFloatColumn extends MVDecimalColumn {
       }
 
       protected float[] access() {
-         iaccessed = XSwapper.cur;
+         iaccessed = XSwapper.getSwapper().cur;
          float[] arr = this.arr;
 
          if(arr != null) {

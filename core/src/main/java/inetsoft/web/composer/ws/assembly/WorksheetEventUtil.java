@@ -1165,8 +1165,8 @@ public class WorksheetEventUtil {
          AssetQuerySandbox.LIVE_MODE, true);
       DataKey key2 = AssetDataCache.getCacheKey(table, box, null,
          AssetQuerySandbox.RUNTIME_MODE, true);
-      AssetDataCache.removeCachedData(key1);
-      AssetDataCache.removeCachedData(key2);
+      AssetDataCache.getCache().removeCachedData(key1);
+      AssetDataCache.getCache().removeCachedData(key2);
       AssetQueryCacheNormalizer.clearCache(table, box);
    }
 

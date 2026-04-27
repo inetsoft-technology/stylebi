@@ -17,23 +17,26 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Injectable, OnDestroy } from "@angular/core";
-import { interval, Subject } from "rxjs";
-import { takeUntil, throttle } from "rxjs/operators";
+import { EMPTY, interval, Observable, of, Subject } from "rxjs";
+import { catchError, map, shareReplay, switchMap, takeUntil, throttle } from "rxjs/operators";
 import { SsoHeartbeatModel } from "./sso-heartbeat-model";
 import { SsoHeartbeatService } from "./sso-heartbeat.service";
 
 @Injectable({
    providedIn: "root"
 })
-export class SsoHeartbeatDispatcherService implements OnDestroy{
+export class SsoHeartbeatDispatcherService implements OnDestroy {
 
-   private heartbeatUrl;
+   private readonly heartbeatUrl$: Observable<string | null> =
+      this.http.get<SsoHeartbeatModel>("../api/sso-heartbeat-model").pipe(
+         map(m => m.url),
+         catchError(() => of(null as string | null)),
+         shareReplay(1)
+      );
+
    private destroy$ = new Subject<void>();
 
    constructor(private http: HttpClient, private service: SsoHeartbeatService) {
-      this.http.get<SsoHeartbeatModel>("../api/sso-heartbeat-model").subscribe(model => {
-         this.heartbeatUrl = model.url;
-      });
    }
 
    ngOnDestroy(): void {
@@ -42,20 +45,18 @@ export class SsoHeartbeatDispatcherService implements OnDestroy{
    }
 
    dispatch(): void {
-      this.service.heartbeats
-         .pipe(
-            takeUntil(this.destroy$),
-            throttle(() => interval(30000))
-         )
-         .subscribe(() => this.sendHeartbeat());
+      this.service.heartbeats.pipe(
+         takeUntil(this.destroy$),
+         throttle(() => interval(30000)),
+         switchMap(() => this.heartbeatUrl$)
+      ).subscribe(url => this.sendHeartbeat(url));
    }
 
-   private sendHeartbeat(): void {
-      if(this.heartbeatUrl) {
-         this.http.get(this.heartbeatUrl, { withCredentials: true }).subscribe(
-            () => {},
-            error => console.warn("Failed to send SSO heartbeat.\n", error)
-         );
+   private sendHeartbeat(url: string | null): void {
+      if(url) {
+         this.http.get(url, { withCredentials: true }).pipe(
+            catchError(err => { console.error("Failed to send SSO heartbeat.\n", err); return EMPTY; })
+         ).subscribe();
       }
    }
 }

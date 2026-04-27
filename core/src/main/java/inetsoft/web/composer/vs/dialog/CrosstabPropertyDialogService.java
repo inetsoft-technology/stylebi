@@ -33,8 +33,10 @@ import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
 import inetsoft.web.viewsheet.command.MessageCommand;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.VSDialogService;
 import org.springframework.stereotype.Service;
+
 import java.awt.*;
 import java.security.Principal;
 import java.util.*;
@@ -112,7 +114,6 @@ public class CrosstabPropertyDialogService {
       basicGeneralPaneModel.setObjectNames(this.vsObjectPropertyService.getObjectNames(
          vs, crosstabAssemblyInfo.getAbsoluteName()));
 
-      TableViewStylePaneController styleController = new TableViewStylePaneController();
       tableStylePaneModel.setTableStyle(crosstabAssemblyInfo.getTableStyleValue());
       tableStylePaneModel.setStyleTree(dialogService.getStyleTree(rvs, principal, false));
 

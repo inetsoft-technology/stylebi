@@ -20,10 +20,15 @@ package inetsoft.util.cachefs;
 
 import inetsoft.storage.BlobStorage;
 import inetsoft.storage.BlobTransaction;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import org.apache.commons.io.IOUtils;
 import org.bouncycastle.util.Arrays;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -39,7 +44,11 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
+@Tag("core")
 public class CacheFileSystemTests {
    @Test
    void getPathCreatesCachePath() {

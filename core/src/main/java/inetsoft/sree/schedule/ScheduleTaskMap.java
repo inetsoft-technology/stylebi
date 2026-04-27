@@ -90,8 +90,7 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
          }
       }
       catch(Exception e) {
-         throw new RuntimeException(
-            "Failed to load schedule task: " + identifier, e);
+         LOG.error("Failed to load schedule task, skipping: {}", identifier, e);
       }
 
       return task;

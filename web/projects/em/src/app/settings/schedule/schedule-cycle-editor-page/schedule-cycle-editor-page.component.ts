@@ -36,6 +36,7 @@ import { MessageDialog, MessageDialogType } from "../../../common/util/message-d
 import { HttpErrorResponse } from "@angular/common/http";
 import { Tool } from "../../../../../../shared/util/tool";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
+import { COPY_PASTE_CONTEXT_SCHEDULE } from "../../security/resource-permission/copy-paste-context";
 import { Subscription } from "rxjs";
 
 const GET_DATA_CYCLE_DIALOG_MODEL_URI = "../api/em/schedule/cycle-dialog-model/";
@@ -65,7 +66,9 @@ export class ScheduleCycleEditorPageComponent implements OnInit, OnDestroy {
    taskChanged: boolean = false;
    valueChangesSubscription = Subscription.EMPTY;
 
+   protected readonly copyPasteContext = COPY_PASTE_CONTEXT_SCHEDULE;
    private nextConditionId: number = 0;
+   private readonly COPY_OF_PREFIX = "_#(js:Copy of) ";
 
    get valid(): boolean {
       return this.conditionsValid && this.optionsValid && this.name && this.name.valid && this.taskChanged;
@@ -107,6 +110,21 @@ export class ScheduleCycleEditorPageComponent implements OnInit, OnDestroy {
                this.model.timeZoneOptions, null);
             this.originalModel = Tool.clone(model);
             this.updateList();
+         },
+         (error: HttpErrorResponse) => {
+            if(error.error?.message) {
+               this.dialog.open(MessageDialog, {
+                  width: "500px",
+                  data: {
+                     title: "_#(js:Error)",
+                     content: error.error.message,
+                     type: MessageDialogType.ERROR
+                  }
+               }).afterClosed().subscribe(() => this.close());
+            }
+            else {
+               this.close();
+            }
          });
    }
 
@@ -156,6 +174,26 @@ export class ScheduleCycleEditorPageComponent implements OnInit, OnDestroy {
    addCondition(): void {
       this.appendCondition(true);
       this.selectedConditionIndex = this.conditionItems.length - 1;
+   }
+
+   copyCondition(): void {
+      if(this.selectedConditionIndex < 0 || !this.condition) {
+         return;
+      }
+
+      const copy: ScheduleConditionModel = Tool.clone(this.condition);
+      let baseLabel = copy.label || "_#(js:New Condition)";
+
+      while(baseLabel.startsWith(this.COPY_OF_PREFIX)) {
+         baseLabel = baseLabel.slice(this.COPY_OF_PREFIX.length);
+      }
+
+      copy.label = this.COPY_OF_PREFIX + baseLabel;
+      this.model.conditionPaneModel.conditions.push(copy);
+      const item = new TaskItem(`condition-${this.nextConditionId++}`, copy.label);
+      this.conditionItems.push(item);
+      this.selectedConditionIndex = this.conditionItems.length - 1;
+      this.taskChanged = true;
    }
 
    deleteConditions(): void {

@@ -53,9 +53,7 @@
               "node_modules/tern/lib/def.js",
               "node_modules/tern/lib/comment.js",
               "node_modules/tern/lib/infer.js",
-              "node_modules/@inetsoft-technology/ai-assistant/dist/web-component/ai-assistant.umd.js",
-              "node_modules/@inetsoft-technology/stylebi-wiz-portal/dist/web-component/stylebi-wiz-portal.umd.cjs",
-              "node_modules/@inetsoft-technology/stylebi-wiz-ai-chat/dist/web-component/stylebi-wiz-ai-chat.umd.cjs"
+              "node_modules/@inetsoft-technology/ai-assistant/dist/web-component/ai-assistant.umd.js"
             ]
           },
           "configurations": {
@@ -113,6 +111,9 @@
             ],
             "setupFiles": [
               "jest-canvas-mock"
+            ],
+            "testPathIgnorePatterns": [
+              "\\.tl\\.spec\\.ts$"
             ]
           }
         },
@@ -174,8 +175,7 @@
               "node_modules/tern/lib/def.js",
               "node_modules/tern/lib/comment.js",
               "node_modules/tern/lib/infer.js",
-              "node_modules/@inetsoft-technology/ai-assistant/dist/web-component/ai-assistant.umd.js",
-              "node_modules/@inetsoft-technology/stylebi-wiz-portal/dist/web-component/stylebi-wiz-portal.umd.cjs"
+              "node_modules/@inetsoft-technology/ai-assistant/dist/web-component/ai-assistant.umd.js"
             ]
           },
           "configurations": {
@@ -233,6 +233,9 @@
             ],
             "setupFiles": [
               "jest-canvas-mock"
+            ],
+            "testPathIgnorePatterns": [
+              "\\.tl\\.spec\\.ts$"
             ]
           }
         },

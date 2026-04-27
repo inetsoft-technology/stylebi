@@ -18,7 +18,6 @@
 package inetsoft.web.composer.tablestyle;
 
 import inetsoft.report.*;
-import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
@@ -39,8 +38,11 @@ import java.util.ArrayList;
 @RestController
 public class TableStyleController {
    @Autowired
-   public TableStyleController(TableStyleService tableStyleService) {
+   public TableStyleController(TableStyleService tableStyleService,
+                               LibManagerProvider libManagerProvider)
+   {
       this.tableStyleService = tableStyleService;
+      this.libManagerProvider = libManagerProvider;
    }
 
    @GetMapping("/api/composer/table-style/new")
@@ -66,7 +68,7 @@ public class TableStyleController {
    public CSSTableStyleModel getCSSTableStyleModel(@RequestBody TableStyleFormatModel model,
                                                    @RequestParam("styleId") String styleId)
    {
-      LibManager manager = LibManager.getManager();
+      LibManager manager = libManagerProvider.getManager();
       TableLens lens = tableStyleService.getTableModel();
       XTableStyle style = null;
 
@@ -88,7 +90,7 @@ public class TableStyleController {
    public TableStyleModel openTableStyle(@RequestParam("id") String id,
                                          @RequestParam("styleId") String styleId)
    {
-      LibManager manager = LibManager.getManager();
+      LibManager manager = libManagerProvider.getManager();
       XTableStyle style = manager.getTableStyle(styleId);
       style.setTable(tableStyleService.getTableModel());
       tableStyleService.initTableStyle(style);
@@ -114,7 +116,7 @@ public class TableStyleController {
          return;
       }
 
-      LibManager manager = LibManager.getManager(principal);
+      LibManager manager = libManagerProvider.getManager(principal);
       TableStyleFormatModel styleFormat = tableStyleModel.getStyleFormat();
 
       if(tableStyleModel.getStyleId() == null) {
@@ -205,7 +207,7 @@ public class TableStyleController {
       XTableStyle style = null;
 
       try {
-         LibManager manager = LibManager.getManager(principal);
+         LibManager manager = libManagerProvider.getManager(principal);
          style = manager.getTableStyle(styleName);
          String styleId = style == null ? manager.getNextStyleID(name) : style.getID();
          style = new XTableStyle(tableStyleService.getTableModel());
@@ -278,4 +280,5 @@ public class TableStyleController {
    }
 
    private final TableStyleService tableStyleService;
+   private final LibManagerProvider libManagerProvider;
 }

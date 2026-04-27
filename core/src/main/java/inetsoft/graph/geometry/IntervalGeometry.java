@@ -135,9 +135,69 @@ public class IntervalGeometry extends ElementGeometry {
       tuple = null;
    }
 
+   /**
+    * Check if this is the outermost (farthest from baseline) segment in its stack.
+    */
+   public boolean isStackOutermost() {
+      return stackOutermost;
+   }
+
+   /**
+    * Set whether this is the outermost segment in its stack.
+    */
+   public void setStackOutermost(boolean stackOutermost) {
+      this.stackOutermost = stackOutermost;
+   }
+
+   /**
+    * Check if this is the innermost (closest to baseline) segment in its stack.
+    */
+   public boolean isStackInnermost() {
+      return stackInnermost;
+   }
+
+   /**
+    * Set whether this is the innermost segment in its stack.
+    */
+   public void setStackInnermost(boolean stackInnermost) {
+      this.stackInnermost = stackInnermost;
+   }
+
+   /**
+    * Get the total interval sum for all segments in this stack.
+    */
+   public double getTotalStackInterval() {
+      return totalStackInterval;
+   }
+
+   /**
+    * Set the total interval sum for all segments in this stack.
+    */
+   public void setTotalStackInterval(double totalStackInterval) {
+      this.totalStackInterval = totalStackInterval;
+   }
+
+   /**
+    * Get the cumulative interval from the innermost segment through this one (inclusive).
+    */
+   public double getCumulativeStackInterval() {
+      return cumulativeStackInterval;
+   }
+
+   /**
+    * Set the cumulative interval from the innermost segment through this one (inclusive).
+    */
+   public void setCumulativeStackInterval(double cumulativeStackInterval) {
+      this.cumulativeStackInterval = cumulativeStackInterval;
+   }
+
    private double[] tuple;
    private double interval = 0;
    private int ridx; // row index
    private int subridx; // sub row index
    private short cidx; // root col
+   private boolean stackOutermost = false;
+   private boolean stackInnermost = false;
+   private double totalStackInterval = 0;
+   private double cumulativeStackInterval = 0;
 }

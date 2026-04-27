@@ -110,6 +110,7 @@ export class PermissionsTableComponent implements OnChanges, AfterViewInit, Sele
          this.matTableDataSource.paginator = this.paginator;
          this.sortData(this.sort);
          this.selection.clear();
+         this.tableSelectionChanged.emit(this.selection.selected);
       }
 
       if(changes.displayActions && this.displayActions) {

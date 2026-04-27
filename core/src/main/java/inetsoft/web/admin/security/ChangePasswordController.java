@@ -47,6 +47,7 @@ public class ChangePasswordController {
 
    @PutMapping("/api/em/currentuser/password")
    public void changePassword(@RequestBody ChangePasswordRequest request, Principal principal) {
+      IdentityService.validatePasswordStrength(request.password());
       AuthenticationProvider authc = getAuthenticationProvider(principal);
 
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());

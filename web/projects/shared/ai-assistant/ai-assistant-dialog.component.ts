@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { Component } from "@angular/core";
+import { Component, OnDestroy, OnInit } from "@angular/core";
+import { Subscription } from "rxjs";
 import { AiAssistantService } from "./ai-assistant.service";
 
 @Component({
@@ -24,19 +25,35 @@ import { AiAssistantService } from "./ai-assistant.service";
   templateUrl: "./ai-assistant-dialog.component.html",
   styleUrls: ["./ai-assistant-dialog.component.scss"]
 })
-export class AiAssistantDialogComponent {
+export class AiAssistantDialogComponent implements OnInit, OnDestroy {
+   userEmail: string = "";
    context: string = "";
    newChat: boolean = false;
+   theme: string | null = null;
+   private contextSub: Subscription | null = null;
 
-   // Use getters so Angular re-evaluates on each change-detection cycle.
+   get userId(): string { return this.aiAssistantService.userId; }
    get chatAppServerUrl(): string { return this.aiAssistantService.chatAppServerUrl; }
    get styleBIUrl(): string { return this.aiAssistantService.styleBIUrl; }
-   get userId(): string { return this.aiAssistantService.userId; }
-   get userEmail(): string { return this.aiAssistantService.email; }
+   get chatAppTitle(): string | null { return this.aiAssistantService.chatAppTitle; }
+   get chatAppVendorName(): string | null { return this.aiAssistantService.chatAppVendorName; }
+   get chatAppLogoUrl(): string | null { return this.aiAssistantService.chatAppLogoUrl; }
 
    constructor(private aiAssistantService: AiAssistantService) {
+      this.userEmail = this.aiAssistantService.email;
       this.context = this.aiAssistantService.getFullContext();
       this.newChat = this.aiAssistantService.createNewChat;
+      this.theme = this.aiAssistantService.getThemeConfig();
       this.aiAssistantService.resetNewChat();
+   }
+
+   ngOnInit(): void {
+      this.contextSub = this.aiAssistantService.contextChange$.subscribe(() => {
+         this.context = this.aiAssistantService.getFullContext();
+      });
+   }
+
+   ngOnDestroy(): void {
+      this.contextSub?.unsubscribe();
    }
 }

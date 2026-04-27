@@ -19,12 +19,25 @@
 package inetsoft.report.script;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
+import inetsoft.test.*;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
 import org.mozilla.javascript.Scriptable;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, LibManagerTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class LibScriptableTest {
    private LibScriptable libScriptable;
    private Scriptable mockScriptable;
@@ -32,7 +45,7 @@ public class LibScriptableTest {
    @Test
    void testGetFun() {
       mockScriptable = mock(Scriptable.class);
-      LibManager manager = LibManager.getManager();
+      LibManager manager = LibManagerProvider.getInstance().getManager();
       manager.setScript("script1", "function testFunc() { return 'Hello, World!'; }");
       libScriptable = new LibScriptable(mockScriptable);
 

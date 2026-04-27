@@ -17,4 +17,5 @@
  */
 export interface CreateEntityRequest {
    parentGroup: string;
+   defaultPassword?: string;
 }

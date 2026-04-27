@@ -17,11 +17,12 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Injectable, OnDestroy } from "@angular/core";
-import { Subject, Subscription } from "rxjs";
+import { Observable, Subject, Subscription } from "rxjs";
 import { map } from "rxjs/operators";
 import { CurrentUser } from "../../../../portal/src/app/portal/current-user";
 import { StompClientConnection } from "../../../../shared/stomp/stomp-client-connection";
 import { StompClientService } from "../../../../shared/stomp/stomp-client.service";
+import { CurrentUserService } from "../../../../shared/util/current-user.service";
 import {
    SecurityProviderStatus,
    SecurityProviderStatusList
@@ -33,12 +34,15 @@ import {
 export class OrganizationDropdownService implements OnDestroy  {
    private provider: string;
    private refreshSubject: Subject<any>;
+   private orgChangeSubject = new Subject<void>();
    private connection: StompClientConnection;
    private subscription = new Subscription();
    public authenticationProviders: string[];
    currentUser: CurrentUser;
 
-   constructor(private http: HttpClient, private stompClient: StompClientService) {
+   constructor(private http: HttpClient, private stompClient: StompClientService,
+               private currentUserService: CurrentUserService)
+   {
       this.refreshSubject = new Subject<any>();
 
       this.stompClient.connect("../vs-events", true).subscribe(connection => {
@@ -48,10 +52,10 @@ export class OrganizationDropdownService implements OnDestroy  {
             (message) => this.loadAuthenticationProviders()));
       });
 
-      this.http.get<CurrentUser>("../api/em/security/get-current-user").subscribe(userModel => {
+      this.subscription.add(this.currentUserService.getEmCurrentUser().subscribe(userModel => {
          this.currentUser = userModel;
          this.loadAuthenticationProviders();
-      });
+      }));
    }
 
    get loginUserName(): string {
@@ -71,6 +75,17 @@ export class OrganizationDropdownService implements OnDestroy  {
    }
 
    private loadAuthenticationProviders(): void {
+      if(!this.isSystemAdmin()) {
+         this.http.get<SecurityProviderStatus>("../api/em/security/get-current-authentication-provider")
+            .subscribe(securityProvider => {
+               const currProvider = securityProvider != null ? securityProvider.name : "";
+               this.authenticationProviders = currProvider ? [currProvider] : [];
+               this.refresh(currProvider, false);
+            });
+
+         return;
+      }
+
       this.http.get<SecurityProviderStatusList>("../api/em/security/configured-authentication-providers")
          .pipe(
             map((list: SecurityProviderStatusList) => list.providers.map(p => p.name))
@@ -81,29 +96,14 @@ export class OrganizationDropdownService implements OnDestroy  {
             if(providers && providers.length > 0) {
                const provider = this.provider;
 
-               if(provider == null && !this.isSystemAdmin()) {
-                  this.http.get<SecurityProviderStatus>("../api/em/security/get-current-authentication-provider")
-                     .subscribe(securityProvider => {
-                        let currprovider = securityProvider != null ? securityProvider.name : "";
-
-                        if(providers.includes(currprovider)) {
-                           this.refresh(currprovider, false);
-                        }
-                        else {
-                           this.refresh(providers[0], false);
-                        }
-                     });
+               if(!provider) {
+                  this.refresh(providers[0], false);
+               }
+               else if(providers.includes(provider)) {
+                  this.refresh(provider, false);
                }
                else {
-                  if(!provider) {
-                     this.refresh(providers[0], false);
-                  }
-                  else if(providers.includes(provider)) {
-                     this.refresh(provider, false);
-                  }
-                  else {
-                     this.refresh(providers[0], true);
-                  }
+                  this.refresh(providers[0], true);
                }
             }
          });
@@ -113,13 +113,21 @@ export class OrganizationDropdownService implements OnDestroy  {
       return this.refreshSubject;
    }
 
+   public get onOrgChange(): Observable<void> {
+      return this.orgChangeSubject.asObservable();
+   }
+
+   public notifyOrgChange(): void {
+      this.orgChangeSubject.next();
+   }
+
    refreshProviders(): void {
       this.loadAuthenticationProviders();
    }
 
-   public refresh(provider?: string, providerChanged?: boolean) {
+   public refresh(provider?: string, providerChanged?: boolean, renameOnly?: boolean) {
       this.provider = provider;
-      this.refreshSubject.next({provider : provider, providerChanged: providerChanged});
+      this.refreshSubject.next({provider: provider, providerChanged: providerChanged, renameOnly: renameOnly});
    }
 
    public setProvider(providerName: string): void {
@@ -135,5 +143,7 @@ export class OrganizationDropdownService implements OnDestroy  {
          this.refreshSubject.unsubscribe();
          this.refreshSubject = null;
       }
+
+      this.orgChangeSubject.complete();
    }
 }

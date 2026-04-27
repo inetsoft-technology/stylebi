@@ -31,7 +31,7 @@ docker compose logs -f server
 ```
 To install the latest Experimental nightly build, modify the .env file in the extracted folder to utilize the URL for the `Experimental nightly build`, before running the docker commands.
 
-Once the server has started, you can press `Ctrl-C` to stop tailing the log. Open http://localhost:8080 in your browser to access the application. The Enterprise Manager can be accessed with the initial username "admin" and password "admin". 
+Once the server has started, you can press `Ctrl-C` to stop tailing the log. Open http://localhost:8080 in your browser to access the application. The Enterprise Manager can be accessed with the username "admin" and the password set via the `INETSOFT_ADMIN_PASSWORD` environment variable.
 
 ### Import Example Datasets
 To import example datasets that are useful for learning StyleBI, import the examples.zip in the extracted folder into your environment.  See [Import Assets](https://www.inetsoft.com/docs/stylebi/InetSoftUserDocumentation/1.0.0/administration/ImportExportAssets.html#ImportAssets)  for instructions on how to do this. See the [StyleBI Documentation](https://www.inetsoft.com/docs/stylebi) for complete information on how to manage the server and how to create Dashboards.

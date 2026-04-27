@@ -39,7 +39,7 @@ import java.util.Date;
  */
 public abstract class AbstractTableColumn implements XTableColumn, XSerializable {
    protected AbstractTableColumn() {
-      monitor = XSwapper.getMonitor();
+      monitor = XSwapper.getSwapper().getMonitor();
       swapInfo = "Created at " + new Date();
 
       if(monitor != null) {

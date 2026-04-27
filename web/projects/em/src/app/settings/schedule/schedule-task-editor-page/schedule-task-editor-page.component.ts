@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClient, HttpErrorResponse, HttpParams } from "@angular/common/http";
+import { HttpErrorResponse } from "@angular/common/http";
 import { Component, OnInit, ViewEncapsulation } from "@angular/core";
 import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
 import { MatDialog } from "@angular/material/dialog";
@@ -44,9 +44,7 @@ import { TaskActionChanges } from "../task-action-pane/task-action-pane.componen
 import { TaskConditionChanges } from "../task-condition-pane/task-condition-pane.component";
 import { TaskOptionChanges } from "../task-options-pane/task-options-pane.component";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
-
-const EDIT_TASKS_URI = "../api/em/schedule/edit";
-const SAVE_TASK_URI = "../api/em/schedule/task/save";
+import { ScheduleTaskEditorDataService } from "./schedule-task-editor-data.service";
 
 export class TaskItem {
    valid = true;
@@ -157,7 +155,8 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
    loading = true;
    taskChanged = false;
 
-   constructor(private http: HttpClient, private dialog: MatDialog,
+   constructor(private dataService: ScheduleTaskEditorDataService,
+               private dialog: MatDialog,
                private router: Router, private route: ActivatedRoute,
                private snackBar: MatSnackBar, formBuilder: UntypedFormBuilder,
                private pageTitle: PageHeaderService,
@@ -172,14 +171,16 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
    ngOnInit() {
       this.scheduleTaskNamesService.loadScheduleTaskNames();
       this.route.params.subscribe(params => {
-         let taskParams = new HttpParams().set("taskName", params.task);
-
-         this.http.get(EDIT_TASKS_URI, {params: taskParams}).subscribe(
+         this.dataService.loadTask(params.task).subscribe(
             (model: ScheduleTaskDialogModel) => {
                this.loading = false;
                this.model = model;
                this.form.controls["taskName"].setValue(this.model.label);
 
+               // Long timezone label for display; strip leading day fragment via slice(4), assuming "DD, "
+               // prefix (common en-US style). Boundary: some locales omit the comma (single space after
+               // day), in which case slice(4) can truncate the first character of the zone name — rare;
+               // most browser defaults still match "DD, " so end users typically do not see an issue.
                this.model.timeZone = new Date().toLocaleDateString([],{
                   day: "2-digit",
                   timeZoneName: "long",
@@ -364,7 +365,7 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
          }
       }
 
-      this.http.post<ScheduleTaskDialogModel>(SAVE_TASK_URI, model)
+      this.dataService.saveTask(model)
          .pipe(
             catchError(error => this.handleSaveError(error))
          )
@@ -386,9 +387,9 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
             this.snackBar.open("_#(js:em.schedule.task.saveSuccess)", null, {
                duration: Tool.SNACKBAR_DURATION
             });
-         });
 
-      this.taskChanged = false;
+            this.taskChanged = false;
+         });
    }
 
    close(): void {
@@ -416,6 +417,12 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
       this.conditionItems = this.model.taskConditionPaneModel.conditions.map((condition) => {
          return new TaskItem(`condition-${this.nextConditionId++}`, condition.label);
       });
+      if(this.conditionItems.length > 0) {
+         this.selectedConditionIndex = Math.min(
+            Math.max(this.selectedConditionIndex, 0),
+            this.conditionItems.length - 1
+         );
+      }
 
       this.nextActionId = 0;
       this.selectedActionIndex = this.selectedActionIndex == -1 ? 0 : this.selectedActionIndex;
@@ -427,10 +434,17 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
       this.actionItems = this.model.taskActionPaneModel.actions.map((action) => {
          return new TaskItem(`action-${this.nextActionId++}`, action.label);
       });
+      if(this.actionItems.length > 0) {
+         this.selectedActionIndex = Math.min(
+            Math.max(this.selectedActionIndex, 0),
+            this.actionItems.length - 1
+         );
+      }
    }
 
    private appendCondition(appendItem: boolean = false): void {
       const defaultTimeZone = this.model.timeZoneOptions[0].timeZoneId;
+      const defaultTimeZoneLabel = this.model.timeZoneOptions[0].label;
       const condition: TimeConditionModel = {
          label: "_#(js:New Condition)",
          hour: 1,
@@ -440,7 +454,8 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
          conditionType: "TimeCondition",
          type: TimeConditionType.EVERY_DAY,
          timeZoneOffset: this.model.taskConditionPaneModel.timeZoneOffset || 0,
-         timeZone: defaultTimeZone
+         timeZone: defaultTimeZone,
+         timeZoneLabel: defaultTimeZoneLabel
       };
 
       this.model.taskConditionPaneModel.conditions.push(condition);

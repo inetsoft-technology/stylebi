@@ -35,9 +35,12 @@ import inetsoft.util.*;
 import inetsoft.util.script.ExpressionFailedException;
 import inetsoft.web.admin.monitoring.MonitorLevelService;
 import inetsoft.web.composer.model.BrowseDataModel;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.beans.PropertyChangeListener;
 import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
@@ -56,7 +59,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * @version 9.1
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(XSessionManager.Reference.class)
 public class XSessionManager {
    /**
     * Cached data hint.
@@ -68,38 +70,68 @@ public class XSessionManager {
     * session. The bind() method does not need to be called.
     */
    public static XSessionManager getSessionManager() {
-      return SingletonManager.getInstance(XSessionManager.class);
+      return ConfigurationContext.getContext().getSpringBean(XSessionManager.class);
    }
 
    /**
-    * Clears the cached session manager.
+    * Clears the query cache on the singleton session manager.
     */
    public static void clear() {
-      SingletonManager.reset(XSessionManager.class);
-   }
-
-   /**
-    * Restarts the session manager.
-    */
-   public static void restart() {
-      clear();
-      getSessionManager();
+      getSessionManager().clearCache();
    }
 
    /**
     * Create a session manager with specific key.
     */
-   public XSessionManager() throws RemoteException {
-      service = XFactory.getDataService();
+   public XSessionManager(XDataService dataService, XSessionService sessionService,
+                          DataSourceRegistry dataSourceRegistry) throws RemoteException
+   {
+      service = dataService;
+      xSessionService = sessionService;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    /**
-    * Create a session manager from a data service and session. The session
-    * should be the object returned by the service.bind() call.
+    * Initializes cache settings, registers DataSourceRegistry listeners, and binds the session.
     */
-   public XSessionManager(XDataService service, Object session) {
-      this.service = service;
-      this.session = session;
+   @PostConstruct
+   public void initAfterCreate() throws RemoteException {
+      String prop = SreeEnv.getProperty("query.cache.limit");
+
+      if(prop != null) {
+         dataCache.setLimit(Integer.parseInt(prop));
+      }
+
+      prop = SreeEnv.getProperty("query.cache.timeout");
+
+      if(prop != null) {
+         dataCache.setTimeout(Long.parseLong(prop));
+      }
+
+      prop = SreeEnv.getProperty("query.cache.data");
+
+      if(prop == null) {
+         setCacheData(true);
+         dataCache.setTimeout(30000);
+      }
+      else {
+         setCacheData(prop.equalsIgnoreCase("true"));
+      }
+
+      dataSourceRegistry.addRefreshedListener(refreshedListener);
+      dataSourceRegistry.addModifiedListener(modifiedListener);
+
+      bind(System.getProperty("user.name"));
+   }
+
+   /**
+    * Removes DataSourceRegistry listeners and tears down the session.
+    */
+   @PreDestroy
+   public void destroyInstance() {
+      dataSourceRegistry.removeRefreshedListener(refreshedListener);
+      dataSourceRegistry.removeModifiedListener(modifiedListener);
+      tearDown();
    }
 
    /**
@@ -741,7 +773,7 @@ public class XSessionManager {
       }
 
       String asset = infos.size() > 0 ? infos.get(0) : null;
-      String queryId = XSessionService.createSessionID(XSessionService.QUERY, queryName);
+      String queryId = xSessionService.createSessionID(XSessionService.QUERY, queryName);
       infos.add(1, queryId);
       QueryInfo qinfo = new QueryInfo(queryId,
          "Thread" + Thread.currentThread().getId(), queryName, user, asset, 0, new Date());
@@ -897,86 +929,29 @@ public class XSessionManager {
    private final Map<ReportSheet, String> executemap = new ConcurrentHashMap<>();
    private final DataCache<String, CEntry> dataCache = new DataCache<>();
    private boolean useCache = false;
+   private final XSessionService xSessionService;
+   private final DataSourceRegistry dataSourceRegistry;
    private static final Set<QueryExecutionListener> queryExecutionListeners = new HashSet<>();
+
+   private final PropertyChangeListener refreshedListener = evt -> {
+      try {
+         clearCache();
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to clear the cache after the data source registry was refreshed", ex);
+      }
+   };
+
+   private final PropertyChangeListener modifiedListener = evt -> {
+      try {
+         clearCache();
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to clear the cache after the data source registry was modified", ex);
+      }
+   };
 
    private static final Logger LOG =
       LoggerFactory.getLogger(XSessionManager.class);
 
-   public static final class Reference
-      extends SingletonManager.Reference<XSessionManager>
-   {
-      @Override
-      public synchronized XSessionManager get(Object ... parameters) {
-         if(manager == null) {
-            try {
-               manager = new XSessionManager();
-               String prop = SreeEnv.getProperty("query.cache.limit");
-
-               if(prop != null) {
-                  manager.dataCache.setLimit(Integer.parseInt(prop));
-               }
-
-               prop = SreeEnv.getProperty("query.cache.timeout");
-
-               if(prop != null) {
-                  manager.dataCache.setTimeout(Long.parseLong(prop));
-               }
-
-               prop = SreeEnv.getProperty("query.cache.data");
-
-               // @by larryl, defaults to cache with short timeout so at least a
-               // query used multiple times in one report is cached
-               if(prop == null) {
-                  manager.setCacheData(true);
-                  manager.dataCache.setTimeout(30000);
-               }
-               else {
-                  manager.setCacheData(prop.equalsIgnoreCase("true"));
-               }
-
-               DataSourceRegistry.getRegistry().addRefreshedListener(
-                  evt -> {
-                     try {
-                        XSessionManager.getSessionManager().clearCache();
-                     }
-                     catch(Exception ex) {
-                        LOG.warn("Failed to clear the cache " +
-                           "after the data source registry was refreshed", ex);
-                     }
-                  }
-               );
-
-               DataSourceRegistry.getRegistry().addModifiedListener(
-                  evt -> {
-                     try {
-                        XSessionManager.getSessionManager().clearCache();
-                     }
-                     catch(Exception ex) {
-                        LOG.warn("Failed to clear the cache " +
-                           "after the data source registry was modified", ex);
-                     }
-                  }
-               );
-
-               manager.bind(System.getProperty("user.name"));
-            }
-            catch(Exception ex) {
-               LOG.error("Failed to initialize the session manager", ex);
-               throw new RuntimeException("Failed to initialize the session manager", ex);
-            }
-         }
-
-         return manager;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(manager != null) {
-            manager.tearDown();
-            manager = null;
-         }
-      }
-
-      private XSessionManager manager;
-   }
 }

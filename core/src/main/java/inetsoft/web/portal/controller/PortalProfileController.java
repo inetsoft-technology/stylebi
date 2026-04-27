@@ -37,9 +37,7 @@ import inetsoft.util.Catalog;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.graphics.SVGSupport;
 import inetsoft.util.log.LogContext;
-import inetsoft.util.profile.Profile;
 import inetsoft.util.profile.ProfileInfo;
-import inetsoft.web.composer.vs.dialog.PropertyDialogServiceProxy;
 import inetsoft.web.reportviewer.HandleExceptions;
 import inetsoft.web.reportviewer.model.ProfileTableDataEvent;
 import inetsoft.web.viewsheet.model.PreviewTableCellModel;
@@ -57,20 +55,20 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.text.SimpleDateFormat;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
 
 @RestController
 public class PortalProfileController {
-   private final PropertyDialogServiceProxy propertyDialogServiceProxy;
-
    @Autowired
-   public PortalProfileController(PortalProfileServiceProxy portalProfileServiceProxy, PropertyDialogServiceProxy propertyDialogServiceProxy) {
+   public PortalProfileController(PortalProfileServiceProxy portalProfileServiceProxy,
+                                  CustomThemesManager customThemesManager)
+   {
       this.portalProfileServiceProxy = portalProfileServiceProxy;
-      this.propertyDialogServiceProxy = propertyDialogServiceProxy;
+      this.customThemesManager = customThemesManager;
    }
 
    @GetMapping("/api/portal/profile/group-by")
@@ -96,7 +94,7 @@ public class PortalProfileController {
                                        .distinct()
                                        .sorted()
                                        .map(c -> new GroupByField(getContextLabel(c, catalog), c.name()))
-                                       .collect(Collectors.toList()));
+                                       .toList());
          }
       }
 
@@ -270,7 +268,7 @@ public class PortalProfileController {
          .flatMap(r -> r.getContexts().stream())
          .distinct()
          .sorted()
-         .collect(Collectors.toList());
+         .toList();
 
       SimpleDateFormat formatter = new SimpleDateFormat("HH:mm:ss:SSS");
       formatter.setTimeZone(TimeZone.getTimeZone(timeZone));
@@ -303,8 +301,7 @@ public class PortalProfileController {
    }
 
    private Object stripOrganization(Object obj) {
-      if(obj instanceof String) {
-         String fullID = (String) obj;
+      if(obj instanceof String fullID) {
          int idx = fullID.lastIndexOf("^");
 
          if(idx > 0) {
@@ -316,24 +313,16 @@ public class PortalProfileController {
    }
 
    private String getContextLabel(LogContext context, Catalog catalog) {
-      switch(context) {
-      case DASHBOARD:
-         return catalog.getString("asset.type.VIEWSHEET");
-      case QUERY:
-         return catalog.getString("asset.type.XQUERY");
-      case MODEL:
-         return catalog.getString("asset.type.XLOGICALMODEL");
-      case WORKSHEET:
-         return catalog.getString("asset.type.WORKSHEET");
-      case SCHEDULE_TASK:
-         return catalog.getString("asset.type.SCHEDULETASK");
-      case ASSEMBLY:
-         return catalog.getString("Component");
-      case TABLE:
-         return catalog.getString("Table");
-      default:
-         return context.name();
-      }
+      return switch(context) {
+         case DASHBOARD -> catalog.getString("asset.type.VIEWSHEET");
+         case QUERY -> catalog.getString("asset.type.XQUERY");
+         case MODEL -> catalog.getString("asset.type.XLOGICALMODEL");
+         case WORKSHEET -> catalog.getString("asset.type.WORKSHEET");
+         case SCHEDULE_TASK -> catalog.getString("asset.type.SCHEDULETASK");
+         case ASSEMBLY -> catalog.getString("Component");
+         case TABLE -> catalog.getString("Table");
+         default -> context.name();
+      };
    }
 
    private void addSummaryData(Map<String, Long> map, String cycle, long spendTime) {
@@ -420,7 +409,7 @@ public class PortalProfileController {
          return null;
       }
 
-      boolean dark = CustomThemesManager.getManager().isEMDarkTheme();
+      boolean dark = customThemesManager.isEMDarkTheme();
       Color fgColor = dark ? Color.lightGray : GDefaults.DEFAULT_TEXT_COLOR;
       Color bgColor = dark ? new Color(0x424242) : Color.WHITE;
       Color titleColor = dark ? Color.lightGray : GDefaults.DEFAULT_TITLE_COLOR;
@@ -517,6 +506,7 @@ public class PortalProfileController {
    private static final Logger LOG = LoggerFactory.getLogger(PortalProfileController.class);
 
    private final PortalProfileServiceProxy portalProfileServiceProxy;
+   private final CustomThemesManager customThemesManager;
 
    public static final class GroupByField {
       @SuppressWarnings("unused")

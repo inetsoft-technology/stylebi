@@ -201,7 +201,7 @@ public class XMetaInfo implements XMLSerializable, Serializable, Cloneable {
    public String toString(boolean full) {
       StringBuilder buf = new StringBuilder();
       buf.append("XMetaInfo");
-      buf.append(super.hashCode());
+      buf.append(hashCode());
       buf.append("[");
 
       if(dinfo != null) {

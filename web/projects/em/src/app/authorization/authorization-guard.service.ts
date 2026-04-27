@@ -44,7 +44,9 @@ export const authorizationGuard: CanActivateFn = (next: ActivatedRouteSnapshot, 
 
          if(!allowed) {
             // find first permitted child and redirect to that
-            const redirect = Object.keys(p).find(name => p[name] === true && name != "notification");
+            // "notification" and "distribution" are API-only permission keys with no Angular route; skip them
+            const redirect = Object.keys(p).find(
+               name => p[name] === true && name != "notification" && name != "distribution");
 
             if(redirect) {
                //force orgAdmin redirect to a page that is not external logs

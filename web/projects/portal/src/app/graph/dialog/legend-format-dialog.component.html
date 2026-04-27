@@ -43,7 +43,7 @@
   <div [ngbNavOutlet]="nav"></div>
 </div>
 <div class="modal-footer">
-  <apply-button (onApply)="apply($event)"></apply-button>
+  <apply-button [disabled]="!form.valid" (onApply)="apply($event)"></apply-button>
   <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">_#(Cancel)</button>
-  <button type="button" class="btn btn-primary" (click)="ok()">_#(OK)</button>
+  <button type="button" class="btn btn-primary" [disabled]="!form.valid" (click)="ok()">_#(OK)</button>
 </div>

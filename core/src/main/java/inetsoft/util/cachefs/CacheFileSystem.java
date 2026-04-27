@@ -19,7 +19,7 @@
 package inetsoft.util.cachefs;
 
 import inetsoft.storage.BlobStorage;
-import inetsoft.util.SingletonManager;
+import inetsoft.storage.BlobStorageManager;
 
 import java.io.IOException;
 import java.net.URI;
@@ -32,7 +32,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class CacheFileSystem extends FileSystem {
-   @SuppressWarnings("unchecked")
    CacheFileSystem(CacheFileSystemProvider provider, URI uri, PathService pathService,
                    String storeId)
    {
@@ -40,7 +39,7 @@ public class CacheFileSystem extends FileSystem {
       this.uri = uri;
       this.pathService = pathService;
       this.storeId = storeId;
-      this.storage = SingletonManager.getInstance(BlobStorage.class, storeId, true);
+      this.storage = BlobStorageManager.getInstance().getStorage(storeId, true);
 
       if(!storage.exists("/")) {
          CacheMetadata metadata = new CacheMetadata(System.currentTimeMillis());

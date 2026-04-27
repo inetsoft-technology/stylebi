@@ -36,6 +36,7 @@ import { VSCrosstabModel } from "../model/vs-crosstab-model";
 import { VSObjectModel } from "../model/vs-object-model";
 import { VSSelectionBaseModel } from "../model/vs-selection-base-model";
 import { VSSelectionContainerModel } from "../model/vs-selection-container-model";
+import { VSTabModel } from "../model/vs-tab-model";
 import { VSTableModel } from "../model/vs-table-model";
 import { DropdownOptions } from "../../widget/fixed-dropdown/dropdown-options";
 import { ActionsContextmenuComponent } from "../../widget/fixed-dropdown/actions-contextmenu.component";
@@ -579,5 +580,46 @@ export namespace VSUtil {
       }
 
       contextmenu.actions = actions;
+   }
+
+   // calendar row height (px) × body rows, matching CalendarVSAssemblyInfo.java
+   export const CALENDAR_ROW_HEIGHT = 18;
+   export const CALENDAR_BODY_ROWS = 8;
+   export const CALENDAR_BODY_HEIGHT = CALENDAR_ROW_HEIGHT * CALENDAR_BODY_ROWS;
+
+   export function isInBottomTabContainer(obj: VSObjectModel, vsObjects: VSObjectModel[]): boolean {
+      return !!getBottomTabContainer(obj, vsObjects);
+   }
+
+   export function getBottomTabContainer(obj: VSObjectModel,
+                                          vsObjects: VSObjectModel[] | undefined): VSTabModel | null
+   {
+      if(obj.containerType !== "VSTab" || !obj.container) {
+         return null;
+      }
+
+      const parentTab = vsObjects?.find(o => o.absoluteName === obj.container) as VSTabModel;
+      return parentTab && parentTab.bottomTabs === true ? parentTab : null;
+   }
+
+   /**
+    * Compute Y for a dropdown selection flush with the top of a bottom-tabs tab bar.
+    * Derives position from the parent tab's top rather than the selection's own
+    * objectFormat.top, which may be stale when bottomTabs is toggled via script
+    * (child pixelOffset refreshes aren't guaranteed to reach the client).
+    *
+    * - collapsed (expanded=false): title sits directly above the tab bar; this
+    *   branch also covers the script-stale case, anchoring the title correctly
+    *   regardless of the selection's own (possibly stale) objectFormat.top.
+    * - expanded: wrapper shifts further up by bodyHeight (+ searchBarHeight) so the
+    *   body pops above the title.
+    */
+   export function computeBottomTabSelectionTop(tabTop: number, titleHeight: number,
+                                                expanded: boolean, bodyHeight: number,
+                                                searchDisplayed: boolean): number {
+      const body = expanded ? bodyHeight : 0;
+      // selection's search bar height matches the title bar height
+      const searchBar = expanded && searchDisplayed ? titleHeight : 0;
+      return tabTop - titleHeight - body - searchBar;
    }
 }

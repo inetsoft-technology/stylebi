@@ -30,6 +30,7 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.XQuery;
 import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.TabularTableAssembly;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSAssemblyEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -40,9 +41,9 @@ import java.security.Principal;
 @ClusterProxy
 public class WSQueryService extends WorksheetControllerService {
 
-   public WSQueryService(ViewsheetService viewsheetService)
-   {
-      super(viewsheetService);
+   public WSQueryService(ViewsheetService viewsheetService, AssetDataCache assetDataCache, DataSourceRegistry dataSourceRegistry) {
+      super(viewsheetService, dataSourceRegistry);
+      this.assetDataCache = assetDataCache;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -64,7 +65,7 @@ public class WSQueryService extends WorksheetControllerService {
          box.resetTableLens(table.getName(), mode);
          DataKey key = AssetDataCache.getCacheKey(
             table, box, null, WorksheetEventUtil.getMode(table), true);
-         AssetDataCache.getCache().remove(key);
+         assetDataCache.remove(key);
          AssetQueryCacheNormalizer.clearCache(table, box);
          TableAssembly clone = (TableAssembly) table.clone();
          AssetQuery query = AssetQuery.createAssetQuery(
@@ -125,4 +126,5 @@ public class WSQueryService extends WorksheetControllerService {
       return null;
    }
 
+   private final AssetDataCache assetDataCache;
 }

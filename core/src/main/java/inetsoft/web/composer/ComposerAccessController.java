@@ -19,11 +19,11 @@ package inetsoft.web.composer;
 
 import inetsoft.report.internal.LicenseException;
 import inetsoft.sree.security.*;
-import inetsoft.sree.web.SessionLicenseManager;
-import inetsoft.sree.web.SessionLicenseService;
+import inetsoft.sree.web.*;
 import inetsoft.web.composer.model.ComposerAccessModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -31,6 +31,14 @@ import java.security.Principal;
 
 @RestController
 public class ComposerAccessController {
+   @Autowired
+   public ComposerAccessController(SecurityEngine securityEngine,
+                                   SessionLicenseServiceProvider sessionLicenseServiceProvider)
+   {
+      this.securityEngine = securityEngine;
+      this.sessionLicenseServiceProvider = sessionLicenseServiceProvider;
+   }
+
    @GetMapping("/api/composerAccessCheck")
    public ComposerAccessModel checkComposerAccess(Principal principal) {
       return ComposerAccessModel.builder()
@@ -40,7 +48,7 @@ public class ComposerAccessController {
    }
 
    private boolean isLicensed(Principal principal) {
-      SessionLicenseManager manager = SessionLicenseService.getViewerLicenseService();
+      SessionLicenseManager manager = sessionLicenseServiceProvider.getViewerLicenseService();
 
       if(manager != null) {
          try {
@@ -58,10 +66,9 @@ public class ComposerAccessController {
 
    private boolean isPermitted(Principal principal) {
       try {
-         SecurityEngine engine = SecurityEngine.getSecurity();
-         return engine.checkPermission(
+         return securityEngine.checkPermission(
                principal, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS) ||
-            engine.checkPermission(
+            securityEngine.checkPermission(
                principal, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS);
       }
       catch(Exception e) {
@@ -69,6 +76,9 @@ public class ComposerAccessController {
          return false;
       }
    }
+
+   private final SecurityEngine securityEngine;
+   private final SessionLicenseServiceProvider sessionLicenseServiceProvider;
 
    private static final Logger LOG = LoggerFactory.getLogger(ComposerAccessController.class);
 }

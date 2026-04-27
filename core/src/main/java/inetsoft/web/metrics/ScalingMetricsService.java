@@ -18,8 +18,11 @@
 
 package inetsoft.web.metrics;
 
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.config.MetricsConfig;
+import inetsoft.util.swap.XSwapper;
 import inetsoft.web.session.IgniteSessionRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -32,8 +35,11 @@ import java.util.concurrent.*;
 @Component
 @Lazy(false)
 public class ScalingMetricsService {
-   public ScalingMetricsService(IgniteSessionRepository sessionRepository) {
+   public ScalingMetricsService(IgniteSessionRepository sessionRepository, ScheduleClient scheduleClient, Cluster cluster, XSwapper swapper) {
       this.sessionRepository = sessionRepository;
+      this.scheduleClient = scheduleClient;
+      this.cluster = cluster;
+      this.swapper = swapper;
    }
 
    @PostConstruct
@@ -47,9 +53,9 @@ public class ScalingMetricsService {
       jvmMemory = new JvmMemoryScalingMetric(movingAverage, movingAverageCount);
       systemCpu = new SystemCpuScalingMetric(movingAverage, movingAverageCount);
       systemMemory = new SystemMemoryScalingMetric(movingAverage, movingAverageCount);
-      scheduler = new SchedulerScalingMetric(movingAverage, movingAverageCount);
-      cacheSwapMemory = new CacheSwapMemoryScalingMetric(movingAverage, movingAverageCount);
-      cacheSwapWait = new CacheSwapWaitScalingMetric(movingAverage, movingAverageCount);
+      scheduler = new SchedulerScalingMetric(scheduleClient, movingAverage, movingAverageCount);
+      cacheSwapMemory = new CacheSwapMemoryScalingMetric(movingAverage, movingAverageCount, swapper);
+      cacheSwapWait = new CacheSwapWaitScalingMetric(movingAverage, movingAverageCount, swapper);
       activeSession = new ActiveSessionScalingMetric(sessionRepository);
 
       if(config == null) {
@@ -94,7 +100,7 @@ public class ScalingMetricsService {
              ServiceLoader.load(ScalingMetricPublisherFactory.class))
          {
             if(factory.isSupported(config)) {
-               publisher = factory.createMetricPublisher(config);
+               publisher = factory.createMetricPublisher(config, cluster);
                break;
             }
          }
@@ -209,6 +215,9 @@ public class ScalingMetricsService {
    }
 
    private final IgniteSessionRepository sessionRepository;
+   private final ScheduleClient scheduleClient;
+   private final Cluster cluster;
+   private final XSwapper swapper;
    private JvmCpuScalingMetric jvmCpu;
    private JvmMemoryScalingMetric jvmMemory;
    private SystemCpuScalingMetric systemCpu;

@@ -26,7 +26,10 @@ import inetsoft.graph.coord.Coordinate;
 import inetsoft.graph.coord.GeoCoord;
 import inetsoft.graph.data.BoxDataSet;
 import inetsoft.graph.element.GraphElement;
+import inetsoft.graph.element.IntervalElement;
+import inetsoft.graph.geometry.ElementGeometry;
 import inetsoft.graph.geometry.Geometry;
+import inetsoft.graph.geometry.IntervalGeometry;
 import inetsoft.graph.geometry.ParaboxPointGeometry;
 import inetsoft.graph.internal.Donut;
 import inetsoft.graph.internal.GTool;
@@ -1321,6 +1324,11 @@ public class GraphBuilder {
       }
 
       int[] selectRows = null;
+      Double cornerRadius = null;
+      Integer barDirection = null;
+      Double stackDimension = null;
+      Double outerEdgeOffset = null;
+      Double innerEdgeOffset = null;
 
       if(childArea instanceof VisualObjectArea) {
          Visualizable vobj = childArea.getVisualizable();
@@ -1330,6 +1338,63 @@ public class GraphBuilder {
 
             if(gobj instanceof ParaboxPointGeometry) {
                selectRows = ((ParaboxPointGeometry) gobj).getRowIndexes();
+            }
+         }
+
+         if(vobj instanceof BarVO) {
+            BarVO barVO = (BarVO) vobj;
+            IntervalGeometry geom = (IntervalGeometry) barVO.getGeometry();
+            IntervalElement elem = (IntervalElement) ((ElementGeometry) geom).getElement();
+            double r = elem.getCornerRadius();
+
+            if(r > 0 && !(barVO instanceof Bar3DVO)) {
+               boolean stdOrientation = GTool.isHorizontal(barVO.getScreenTransform());
+               boolean neg = barVO.isNegative();
+               // Y-down direction (frontend canvas coords, inverted from BarVO Y-up)
+               int outerDir = stdOrientation ? (neg ? 1 : 0) : (neg ? 3 : 2);
+
+               if(!elem.isStack()) {
+                  cornerRadius = r;
+
+                  if(!elem.isRoundAllCorners()) {
+                     barDirection = outerDir;
+                  }
+               }
+               else {
+                  double totalStackInterval = geom.getTotalStackInterval();
+
+                  if(totalStackInterval > 0 && geom.getInterval() != 0) {
+                     Rectangle2D barBounds = barVO.getPreRoundingBounds();
+                     double segDim = stdOrientation
+                        ? barBounds.getHeight() : barBounds.getWidth();
+                     double barWidth = stdOrientation
+                        ? barBounds.getWidth() : barBounds.getHeight();
+
+                     BarVO.ArcZoneInfo zones = BarVO.computeArcZones(
+                        geom, r, barWidth, segDim, elem.isRoundAllCorners());
+
+                     if(zones.inOuterArcZone() || zones.inInnerArcZone()) {
+                        cornerRadius = r;
+                        stackDimension = zones.stackDim();
+                        barDirection = outerDir;
+
+                        if(geom.isStackOutermost() && geom.isStackInnermost()
+                           && elem.isRoundAllCorners())
+                        {
+                           barDirection = null; // single segment, all corners
+                        }
+                        else {
+                           if(zones.inOuterArcZone()) {
+                              outerEdgeOffset = zones.distFromOuter();
+                           }
+
+                           if(zones.inInnerArcZone()) {
+                              innerEdgeOffset = zones.distFromInner();
+                           }
+                        }
+                     }
+                  }
+               }
             }
          }
       }
@@ -1362,6 +1427,11 @@ public class GraphBuilder {
          .legendItemIdx(legendItemIndex < 0 ? null : legendItemIndex)
          .period(isPeriod ? true : null)
          .selectRows(selectRows)
+         .cornerRadius(cornerRadius)
+         .barDirection(barDirection)
+         .stackDimension(stackDimension)
+         .outerEdgeOffset(outerEdgeOffset)
+         .innerEdgeOffset(innerEdgeOffset)
          .build();
    }
 

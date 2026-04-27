@@ -18,6 +18,8 @@
 
 import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
+import { BehaviorSubject, Observable, of, Subject } from "rxjs";
+import { catchError, map, take, timeout } from "rxjs/operators";
 import { convertToKey } from "../../em/src/app/settings/security/users/identity-id";
 import { BindingModel } from "../../portal/src/app/binding/data/binding-model";
 import { ChartBindingModel } from "../../portal/src/app/binding/data/chart/chart-binding-model";
@@ -31,11 +33,8 @@ import {
 import { getChartBindingContext } from "../../portal/src/app/binding/services/assistant/chart-context-helper";
 import { getCrosstabBindingContext } from "../../portal/src/app/binding/services/assistant/crosstab-context-helper";
 import { CalcTableLayout } from "../../portal/src/app/common/data/tablelayout/calc-table-layout";
-import { CurrentUser } from "../../portal/src/app/portal/current-user";
 import { VSObjectModel } from "../../portal/src/app/vsobjects/model/vs-object-model";
-
-const PORTAL_CURRENT_USER_URI: string = "../api/portal/get-current-user";
-const EM_CURRENT_USER_URI: string = "../api/em/security/get-current-user";
+import { CurrentUserService } from "../util/current-user.service";
 
 export enum ContextType {
    VIEWSHEET = "dashboard",
@@ -46,10 +45,7 @@ export enum ContextType {
    TABLE = "table",
    PORTAL_DATA = "portal",
    EM = "em",
-   VIEWSHEET_SCRIPT = "viewsheetScript",
    WORKSHEET_SCRIPT = "worksheetScript",
-   CHART_SCRIPT = "chartScript",
-   CROSSTAB_SCRIPT = "crosstabScript",
    DASHBOARD_PORTAL = "dashboardPortal",
    SCHEDULE_TASK = "scheduleTask"
 }
@@ -60,27 +56,138 @@ export enum ContextType {
 export class AiAssistantService {
    chatAppServerUrl: string = "";
    styleBIUrl: string = "";
+   chatAppTitle: string | null = null;
+   chatAppVendorName: string | null = null;
+   chatAppLogoUrl: string | null = null;
+   private _panelOpen$ = new BehaviorSubject<boolean>(false);
+   readonly panelOpen$ = this._panelOpen$.asObservable();
+   private _contextChange$ = new Subject<void>();
+   readonly contextChange$ = this._contextChange$.asObservable();
+   get panelOpen(): boolean { return this._panelOpen$.value; }
+   set panelOpen(v: boolean) { this._panelOpen$.next(v); }
    aiAssistantVisible: boolean = false;
    userId: string = "";
    email: string = "";
+   private webComponentScriptPromise: Promise<void> | null = null;
    calcTableCellBindings: { [key: string]: CellBindingInfo } = {};
    calcTableAggregates: string[] = [];
    private contextMap: Record<string, string> = {};
    private _lastBindingObject: string = "";
    private _newChatFromBinding: boolean = false;
 
-   constructor(private http: HttpClient) {
-      this.http.get("../api/assistant/get-chat-app-server-url").subscribe((url: string) => {
+   // Caches the server-URL fetch so loadWebComponentScript() can await it even when
+   // the Angular app has not yet processed the HTTP response before the component
+   // tree is ready.
+   private readonly _serverUrlLoaded: Promise<void>;
+
+   constructor(private http: HttpClient, private currentUserService: CurrentUserService) {
+      // TODO: replace .toPromise() with firstValueFrom() when upgrading to RxJS 7+
+      this._serverUrlLoaded = this.http.get<string>("../api/assistant/get-chat-app-server-url").pipe(
+         catchError(() => of("")),
+         take(1)
+      ).toPromise().then((url: string) => {
          this.chatAppServerUrl = url || "";
       });
 
-      this.http.get("../api/assistant/get-stylebi-url").subscribe((url: string) => {
+      this.http.get("../api/assistant/get-stylebi-url").pipe(
+         catchError(() => of(""))
+      ).subscribe((url: string) => {
          this.styleBIUrl = url || "";
       });
 
-      this.http.get<boolean>("../api/assistant/ai-assistant-visible").subscribe((visible: boolean) => {
-         this.aiAssistantVisible = visible;
+   }
+
+   refreshBranding(): Promise<void> {
+      // TODO: replace .toPromise() with firstValueFrom() when upgrading to RxJS 7+
+      return this.http.get<{title: string, vendorName: string, logoUrl: string}>(
+         "../api/assistant/get-branding").pipe(
+         catchError(() => of(null)),
+         take(1)
+      ).toPromise().then(branding => {
+         if(branding) {
+            this.chatAppTitle = branding.title || null;
+            this.chatAppVendorName = branding.vendorName || null;
+            this.chatAppLogoUrl = branding.logoUrl || null;
+         }
       });
+   }
+
+   /**
+    * Reads the key StyleBI CSS custom properties from the document root and returns
+    * them as a JSON string suitable for passing to the ai-assistant web component's
+    * theme attribute so the component can apply them inside its shadow DOM.
+    */
+   getThemeConfig(): string | null {
+      const style = getComputedStyle(document.documentElement);
+      const vars = [
+         "--inet-primary-color",
+         "--inet-text-color",
+         "--inet-navbar-bg-color",
+         "--inet-navbar-text-color",
+         "--inet-main-panel-bg-color",
+      ];
+      const theme: Record<string, string> = {};
+
+      for(const v of vars) {
+         const val = style.getPropertyValue(v).trim();
+
+         if(val) {
+            theme[v] = val;
+         }
+      }
+
+      return Object.keys(theme).length > 0 ? JSON.stringify(theme) : null;
+   }
+
+   /**
+    * Dynamically loads the AI assistant web component script. Safe to call multiple times —
+    * concurrent calls share the same in-flight promise. Returns a promise that resolves when
+    * the script loads or rejects on error. The cached promise is cleared on error to allow
+    * a retry on the next panel open.
+    */
+   loadWebComponentScript(): Promise<void> {
+      // If the element was already registered (e.g. by the @inetsoft-technology/ai-assistant
+      // npm package imported elsewhere in the app), skip loading the external UMD bundle to
+      // avoid a double-registration NotSupportedError.
+      if(customElements.get("ai-assistant")) {
+         return Promise.resolve();
+      }
+
+      if(this.webComponentScriptPromise) {
+         return this.webComponentScriptPromise;
+      }
+
+      this.webComponentScriptPromise = this._serverUrlLoaded.then(() => {
+         const base = this.chatAppServerUrl ? this.chatAppServerUrl.replace(/\/$/, "") : "";
+
+         if(!base) {
+            return Promise.reject(new Error("AI assistant URL not configured"));
+         }
+
+         return new Promise<void>((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = base + "/web-component/ai-assistant.umd.js";
+            script.onload = () => resolve();
+            script.onerror = () => {
+               document.head.removeChild(script); // remove so a retry appends a fresh element
+               reject(new Error("Failed to load AI assistant web component"));
+            };
+            document.head.appendChild(script);
+         });
+      }).catch(err => {
+         this.webComponentScriptPromise = null;
+         return Promise.reject(err);
+      });
+
+      return this.webComponentScriptPromise;
+   }
+
+   checkHealth(): Observable<boolean> {
+      return this.http.get<boolean>("../api/assistant/health").pipe(
+         timeout(5000),
+         map(online => online === true),
+         catchError(() => of(false))
+      );
    }
 
    set lastBindingObject(value: string) {
@@ -98,18 +205,27 @@ export class AiAssistantService {
 
    resetContextMap(): void {
       this.contextMap = {};
+      this._contextChange$.next();
    }
 
    loadCurrentUser(em: boolean = false): void {
-      const uri = em ? EM_CURRENT_USER_URI : PORTAL_CURRENT_USER_URI;
-      this.http.get(uri).subscribe((model: CurrentUser) => {
+      const user$ = em
+         ? this.currentUserService.getEmCurrentUser()
+         : this.currentUserService.getPortalCurrentUser();
+
+      user$.subscribe(model => {
          this.userId = convertToKey(model.name);
          this.email = model.email?.length > 0 ? model.email[0] : "";
       });
    }
 
    setContextField(key: string, value: string) {
+      if(this.contextMap[key] === value) {
+         return;
+      }
+
       this.contextMap[key] = value;
+      this._contextChange$.next();
    }
 
    getContextField(key: string): string {
@@ -118,6 +234,7 @@ export class AiAssistantService {
 
    removeContextField(key: string) {
       delete this.contextMap[key];
+      this._contextChange$.next();
    }
 
    getFullContext(): string {

@@ -418,6 +418,10 @@ public class FormatPainterService {
       formatModel.setImage(assembly instanceof ImageVSAssembly);
       formatModel.setDecimalFmts(ExtendedDecimalFormat.getSuffix().toArray(new String[0]));
 
+      if(dataPath.getType() == TableDataPath.INPUT_LABEL) {
+         formatModel.setBorderDisabled(true);
+      }
+
       SetCurrentFormatCommand command = new SetCurrentFormatCommand(formatModel);
       commandDispatcher.sendCommand(command);
       //For vs binding pane, set the command to assembly editor.
@@ -611,6 +615,26 @@ public class FormatPainterService {
                dataPath = new TableDataPath(-1, TableDataPath.OBJECT);
                changeFormat(formatInfo, event.getFormat(), event.getOrigFormat(),
                             dataPath, event.isReset(), event.isCopyFormat());
+
+               // When setting format on the whole input assembly, also apply to the label
+               if(info instanceof InputVSAssemblyInfo) {
+                  LabelInfo labelInfo = ((InputVSAssemblyInfo) info).getLabelInfo();
+
+                  if(labelInfo != null) {
+                     changeLabelFormat(labelInfo, event.getFormat(), event.getOrigFormat(),
+                                       event.isReset(), event.isCopyFormat());
+                  }
+               }
+
+               // When setting format on the whole input assembly, also apply to the label
+               if(info instanceof InputVSAssemblyInfo) {
+                  LabelInfo labelInfo = ((InputVSAssemblyInfo) info).getLabelInfo();
+
+                  if(labelInfo != null) {
+                     changeLabelFormat(labelInfo, event.getFormat(), event.getOrigFormat(),
+                                       event.isReset(), event.isCopyFormat());
+                  }
+               }
 
                if(isFormattedStringColumn(event, assembly, dataPath)) {
                   Tool.addUserMessage(new UserMessage(
@@ -986,6 +1010,13 @@ public class FormatPainterService {
       }
 
       setUserFormat(format, model, origFormat, reset, copyFormat);
+
+      // Labels shouldn't have their own border - clear any border that may have been applied
+      VSFormat userFormat = format.getUserDefinedFormat();
+      userFormat.setBorderDefined(false);
+      userFormat.setBordersValue(null, false);
+      userFormat.setBorderColors(null, false);
+      userFormat.setRoundCornerValue(0, false);
 
       VSCSSFormat cssFormat = format.getCSSFormat();
 

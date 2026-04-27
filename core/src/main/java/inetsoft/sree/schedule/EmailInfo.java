@@ -20,7 +20,6 @@ package inetsoft.sree.schedule;
 import com.fasterxml.jackson.databind.JsonNode;
 import inetsoft.report.io.csv.CSVConfig;
 import inetsoft.sree.internal.HttpXMLSerializable;
-import inetsoft.uql.asset.SourceInfo;
 import inetsoft.util.PasswordEncryption;
 import inetsoft.util.Tool;
 import org.w3c.dom.Element;
@@ -165,48 +164,6 @@ class EmailInfo implements Cloneable, Serializable, HttpXMLSerializable {
    }
 
    /**
-    * Set email binding query.
-    */
-   public void setQuery(SourceInfo query) {
-      this.query = query;
-   }
-
-   /**
-    * Get the email binding query.
-    */
-   public SourceInfo getQuery() {
-      return query;
-   }
-
-   /**
-    * Set email user column.
-    */
-   public void setUserColumn(String userColumn) {
-      this.userColumn = userColumn;
-   }
-
-   /**
-    * Get the email user column.
-    */
-   public String getUserColumn() {
-      return userColumn;
-   }
-
-   /**
-    * Set email column in the query.
-    */
-   public void setEmailColumn(String emailColumn) {
-      this.emailColumn = emailColumn;
-   }
-
-   /**
-    * Get email column in the query.
-    */
-   public String getEmailColumn() {
-      return emailColumn;
-   }
-
-   /**
     * Write itself to a xml file
     */
    @Override
@@ -263,7 +220,7 @@ class EmailInfo implements Cloneable, Serializable, HttpXMLSerializable {
 
       String message = getMessage();
 
-      if(message != null) {
+      if(messageHtml || message != null) {
          writer.print(" messageHtml=\"" + Boolean.toString(messageHtml) + "\"");
       }
 
@@ -282,24 +239,10 @@ class EmailInfo implements Cloneable, Serializable, HttpXMLSerializable {
          writer.print(" subject=\"" + byteEncode(subject) + "\"");
       }
 
-      if(userColumn != null) {
-         writer.print(" userColumn=\"" + byteEncode(Tool.escape(userColumn)) +
-            "\"");
-      }
-
-      if(emailColumn != null) {
-         writer.print(" emailColumn=\"" + byteEncode(Tool.escape(emailColumn)) +
-            "\"");
-      }
-
       writer.println(">");
 
       if(message != null) {
-         writer.print("<message><![CDATA[" + byteEncode(message) + "]]></message>");
-      }
-
-      if(query != null) {
-         query.writeXML(writer);
+         writer.println("<message><![CDATA[" + message.replace("]]>", "]]]]><![CDATA[>") + "]]></message>");
       }
 
       if(getFileFormat() != null && getFileFormat().equals("CSV") && getCSVConfig() != null) {
@@ -344,15 +287,13 @@ class EmailInfo implements Cloneable, Serializable, HttpXMLSerializable {
          password = byteDecode(Tool.decryptPassword(password));
       }
 
-      // Try to read message from child element first (new format),
-      // fall back to attribute for backward compatibility (old format)
       Element messageNode = Tool.getChildNodeByTagName(tag, "message");
 
       if(messageNode != null) {
-         message = byteDecode(Tool.getValue(messageNode));
+         message = Tool.getValue(messageNode);
       }
       else {
-         // Backward compatibility: read from attribute
+         // legacy: message was stored as an XML attribute before being moved to a child element
          message = tag.getAttribute("message");
          message = byteDecode(message);
       }
@@ -365,33 +306,7 @@ class EmailInfo implements Cloneable, Serializable, HttpXMLSerializable {
       subject = tag.getAttribute("subject");
       subject = byteDecode(subject);
 
-      if(tag.hasAttribute("userColumn")) {
-         userColumn = tag.getAttribute("userColumn");
-         userColumn = byteDecode(userColumn);
-      }
-      else {
-         userColumn = null;
-      }
-
-      if(tag.hasAttribute("emailColumn")) {
-         emailColumn = tag.getAttribute("emailColumn");
-         emailColumn = byteDecode(emailColumn);
-      }
-      else {
-         emailColumn = null;
-      }
-
-      Element node = Tool.getChildNodeByTagName(tag, "sourceInfo");
-
-      if(node != null) {
-         if(query == null) {
-            query = new SourceInfo();
-         }
-
-         query.parseXML(node);
-      }
-
-      node = Tool.getChildNodeByTagName(tag, "CSVConfig");
+      Element node = Tool.getChildNodeByTagName(tag, "CSVConfig");
 
       if(node != null) {
          if(csvConfig == null) {
@@ -613,9 +528,6 @@ class EmailInfo implements Cloneable, Serializable, HttpXMLSerializable {
    private boolean messageHtml = false;
    private String attachmentName = null;
    private String subject = null;
-   private String userColumn = null;
-   private String emailColumn = null;
-   private SourceInfo query = null;
    private transient boolean encoding = false;
 
    // Indicates whether the file is to be zipped up

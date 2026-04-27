@@ -24,6 +24,7 @@ import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.uql.asset.MirrorAssembly;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSAssemblyEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -34,8 +35,8 @@ import java.security.Principal;
 @Service
 @ClusterProxy
 public class MirrorAutoUpdateService extends WorksheetControllerService {
-   public MirrorAutoUpdateService(ViewsheetService viewsheetService) {
-      super(viewsheetService);
+   public MirrorAutoUpdateService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry) {
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

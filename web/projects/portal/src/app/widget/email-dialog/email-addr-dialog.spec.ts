@@ -24,6 +24,7 @@ import { of as observableOf } from "rxjs";
 import { IdentityTreeComponent } from "../identity-tree/identity-tree.component";
 import { DragService } from "../services/drag.service";
 import { ModelService } from "../services/model.service";
+import { CurrentUserService } from "../../../../../shared/util/current-user.service";
 import { ShuffleListComponent } from "../shuffle-list/shuffle-list.component";
 import { TreeNodeComponent } from "../tree/tree-node.component";
 import { TreeSearchPipe } from "../tree/tree-search.pipe";
@@ -63,11 +64,12 @@ describe("Email Addr Dialog Unit Test", () => {
    let emailAddrDialog: EmailAddrDialog;
 
    let changeDetectorRef = { detectChanges: jest.fn() };
-   let modelService = { getModel: jest.fn(), getCurrentOrganization: jest.fn() };
+   let modelService = { getModel: jest.fn() };
+   let currentUserService = { getPortalCurrentUser: jest.fn() };
    let dragService = { reset: jest.fn(), put: jest.fn() };
    beforeEach(() => {
       modelService.getModel.mockImplementation(() => observableOf([]));
-      modelService.getCurrentOrganization.mockImplementation(() => observableOf());
+      currentUserService.getPortalCurrentUser.mockImplementation(() => observableOf(null));
       TestBed.configureTestingModule({
          imports: [
             FormsModule, ReactiveFormsModule, NgbModule
@@ -80,6 +82,9 @@ describe("Email Addr Dialog Unit Test", () => {
          },
          {
             provide: ModelService, useValue: modelService
+         },
+         {
+            provide: CurrentUserService, useValue: currentUserService
          },
          {
             provide: DragService, useValue: dragService

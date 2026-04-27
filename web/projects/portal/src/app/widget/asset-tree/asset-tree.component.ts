@@ -15,7 +15,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClient } from "@angular/common/http";
 import {
    ChangeDetectionStrategy,
    ChangeDetectorRef,
@@ -32,7 +31,7 @@ import {
    ViewChild
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { forkJoin, merge as observableMerge, Observable, throwError } from "rxjs";
+import { merge as observableMerge, Observable, Subscription, throwError } from "rxjs";
 import { catchError, finalize, map } from "rxjs/operators";
 import { AssetEntry } from "../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../shared/data/asset-type";
@@ -52,6 +51,7 @@ import { LoadAssetTreeNodesEvent } from "./load-asset-tree-nodes-event";
 import { LoadAssetTreeNodesValidator } from "./load-asset-tree-nodes-validator";
 import { VirtualScrollTreeComponent } from "../tree/virtual-scroll-tree/virtual-scroll-tree.component";
 import { TreeTool } from "../../common/util/tree-tool";
+import { CurrentUserService } from "../../../../../shared/util/current-user.service";
 
 const isDataSource = (node: TreeNodeModel) => {
    const entry = node.data as AssetEntry;
@@ -126,7 +126,7 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    };
    private loadDataSourcesAfterLoadRoot;
    private currOrgID: string = "";
-   private organizations: string[];
+   private subscriptions = new Subscription();
 
    get searchMode(): boolean {
       return this.root != this.activeRoot;
@@ -137,22 +137,18 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
                private assetClientService: AssetClientService,
                private modalService: NgbModal,
                private debounceService: DebounceService,
-               private zone: NgZone, private http: HttpClient)
+               private zone: NgZone,
+               private currentUserService: CurrentUserService)
    {
    }
 
    ngOnInit() {
       this.setupAssetClientService();
 
-      //Use forkJoin to wait for multiple HTTP requests to complete simultaneously.
-      forkJoin({
-         org: this.http.get<string>("../api/em/navbar/organization"),
-         orgIDList: this.http.get<string[]>("../api/em/security/users/get-all-organization-ids/")
-      }).subscribe(({ org, orgIDList }) => {
-            this.currOrgID = org;
-            this.organizations = orgIDList;
-            this.loadAssetTree();
-         });
+      this.subscriptions.add(this.currentUserService.getPortalCurrentUser().subscribe((user) => {
+         this.currOrgID = user?.name?.orgID ?? "";
+         this.loadAssetTree();
+      }));
    }
 
    loadAssetTree() {
@@ -226,6 +222,7 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
 
    ngOnDestroy() {
       this.assetClientService.disconnect();
+      this.subscriptions.unsubscribe();
    }
 
    ngOnChanges(changes: SimpleChanges): void {
@@ -293,13 +290,6 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    }
 
    private handleAssetChangeEvent(event: AssetChangeEvent) {
-      //check asset's organization and only refresh if this organization is changed
-      let eventOrgID = event.newIdentifier?.split("^").pop();
-
-      if(this.organizations?.includes(eventOrgID) && !(this.currOrgID == eventOrgID)) {
-         return;
-      }
-
       if(event.parentEntry == null) {
          this.refreshFromRoot();
          return;

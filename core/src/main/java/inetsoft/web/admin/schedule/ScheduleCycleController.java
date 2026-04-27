@@ -17,10 +17,14 @@
  */
 package inetsoft.web.admin.schedule;
 
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.web.admin.monitoring.MonitoringDataService;
 import inetsoft.web.admin.schedule.model.DataCycleListModel;
 import inetsoft.web.admin.schedule.model.ScheduleCycleDialogModel;
 import inetsoft.web.factory.DecodePathVariable;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -35,16 +39,26 @@ import java.security.Principal;
 public class ScheduleCycleController {
    @Autowired
    ScheduleCycleController(ScheduleCycleService scheduleCycleService,
-                           MonitoringDataService monitoringDataService)
+                           MonitoringDataService monitoringDataService,
+                           SecurityEngine securityEngine)
    {
       this.scheduleCycleService = scheduleCycleService;
       this.monitoringDataService = monitoringDataService;
+      this.securityEngine = securityEngine;
    }
 
    @SubscribeMapping("/schedule/cycles/get-cycle-names")
    public DataCycleListModel subscribeToDataCycleNames(StompHeaderAccessor stompHeaderAccessor,
                                                        Principal principal)
+      throws SecurityException
    {
+      if(!securityEngine.getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "settings/schedule/cycles", ResourceAction.ACCESS))
+      {
+         throw new SecurityException(
+            "Unauthorized access to schedule cycles by user " + principal.getName());
+      }
+
       return this.monitoringDataService.addSubscriber(stompHeaderAccessor, () -> {
          try {
             return this.scheduleCycleService.getCycleInfos(principal);
@@ -55,6 +69,13 @@ public class ScheduleCycleController {
       });
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/cycles",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/cycle-dialog-model/{cycleName}")
    public ScheduleCycleDialogModel getDataCycleDialogModel(@PathVariable("cycleName") String cycleName,
                                                            Principal principal)
@@ -63,12 +84,26 @@ public class ScheduleCycleController {
       return this.scheduleCycleService.getDialogModel(cycleName, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/cycles",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/add-cycle/{timeZoneId}")
    public DataCycleInfo addDataCycle(@DecodePathVariable("timeZoneId") String timeZoneId, Principal principal) {
       String newCycleName = this.scheduleCycleService.addDataCycle(principal, timeZoneId);
       return new DataCycleInfo(newCycleName);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/cycles",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/schedule/edit-cycle")
    public ScheduleCycleDialogModel editDataCycle(@RequestBody ScheduleCycleDialogModel model,
                                                  Principal principal)
@@ -78,6 +113,13 @@ public class ScheduleCycleController {
       return getDataCycleDialogModel(model.label(), principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/cycles",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/schedule/cycles/remove-cycles")
    public void removeDataCycles(@RequestBody DataCycleListModel model,
                                 Principal principal)
@@ -94,4 +136,5 @@ public class ScheduleCycleController {
 
    private final ScheduleCycleService scheduleCycleService;
    private final MonitoringDataService monitoringDataService;
+   private final SecurityEngine securityEngine;
 }

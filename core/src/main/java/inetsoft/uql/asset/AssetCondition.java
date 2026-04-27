@@ -104,6 +104,21 @@ public class AssetCondition extends Condition implements AssetObject {
             SubQueryValue sub = (SubQueryValue) val;
             sub.renameDepended(oname, nname, ws);
          }
+         else if(val instanceof UserVariable) {
+            UserVariable var = (UserVariable) val;
+
+            if(Tool.equals(var.getName(), oname)) {
+               var.setName(nname);
+            }
+         }
+         else if(isVariable(val)) {
+            String varName = getRawValueString(val);
+            varName = varName.substring(2, varName.length() - 1);
+
+            if(Tool.equals(varName, oname)) {
+               setValue(i, "$(" + nname + ")");
+            }
+         }
       }
    }
 

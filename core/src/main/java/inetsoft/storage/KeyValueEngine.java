@@ -23,17 +23,15 @@ import com.fasterxml.jackson.databind.cfg.ContextAttributes;
 import com.fasterxml.jackson.datatype.guava.GuavaModule;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import inetsoft.util.SingletonManager;
-import inetsoft.util.config.InetsoftConfig;
-import org.slf4j.LoggerFactory;
+import inetsoft.util.ConfigurationContext;
 
-import java.util.*;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 /**
  * {@code KeyValueEngine} is an interface for classes that handle storing key-value pairs.
  */
-@SingletonManager.Singleton(KeyValueEngine.Reference.class)
 public interface KeyValueEngine extends AutoCloseable {
    /**
     * Determines if a store contains the specified key.
@@ -176,48 +174,9 @@ public interface KeyValueEngine extends AutoCloseable {
     * @return the singleton instance.
     */
    static KeyValueEngine getInstance() {
-      return SingletonManager.getInstance(KeyValueEngine.class);
+      return ConfigurationContext.getContext().getSpringBean(KeyValueEngine.class);
    }
 
    String ENCODE_PROPERTY_NAMES = KeyValueEngine.class.getName() + ".encodePropertyNames";
 
-   final class Reference extends SingletonManager.Reference<KeyValueEngine> {
-      @Override
-      public synchronized KeyValueEngine get(Object... parameters) {
-         if(engine == null) {
-            InetsoftConfig config = InetsoftConfig.getInstance();
-            String type = config.getKeyValue().getType();
-
-            for(KeyValueEngineFactory factory : ServiceLoader.load(KeyValueEngineFactory.class)) {
-               if(factory.getType().equals(type)) {
-                  engine = factory.createEngine(config);
-                  break;
-               }
-            }
-
-            if(engine == null) {
-               throw new RuntimeException("Failed to get key value engine of type '" + type + "'");
-            }
-         }
-
-         return engine;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(engine != null) {
-            try {
-               engine.close();
-            }
-            catch(Exception e) {
-               LoggerFactory.getLogger(KeyValueEngine.class)
-                  .warn("Failed to close key value engine", e);
-            }
-
-            engine = null;
-         }
-      }
-
-      private KeyValueEngine engine;
-   }
 }

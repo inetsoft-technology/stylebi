@@ -52,12 +52,16 @@ import com.github.luben.zstd.ZstdInputStream;
 public class RuntimeSheetCache
    implements Map<String, RuntimeSheet>, Closeable
 {
-   public RuntimeSheetCache(String name) {
-      this.cluster = Cluster.getInstance();
+   public RuntimeSheetCache(Cluster cluster, String name) {
+      this.cluster = cluster;
       this.local = new LinkedHashMap<>();
       this.cache = getCache(cluster, name);
       this.maxSheetCount = getMaxSheetCount();
-      this.executor = Executors.newSingleThreadScheduledExecutor();
+      this.executor = Executors.newSingleThreadScheduledExecutor(r -> {
+         Thread t = new Thread(r, "RuntimeSheetCacheFlusher");
+         t.setDaemon(true);
+         return t;
+      });
       this.mapper = createObjectMapper();
       this.sheetCountMap = cluster.getReplicatedMap(LOCAL_SHEET_COUNT);
 
@@ -387,7 +391,8 @@ public class RuntimeSheetCache
 
    @Override
    public void putAll(Map<? extends String, ? extends RuntimeSheet> m) {
-      Map<AffinityKey<String>, CompressedSheetState> states = new HashMap<>();
+      Map<AffinityKey<String>, CompressedSheetState> states =
+         new TreeMap<>(Comparator.comparing(AffinityKey::key));
 
       for(Map.Entry<? extends String, ? extends RuntimeSheet> e : m.entrySet()) {
          states.put(getAffinityKey(e.getKey()), compressState(e.getValue().saveState(mapper)));
@@ -463,6 +468,12 @@ public class RuntimeSheetCache
          while(iter.hasNext()) {
             allIds.add(iter.next().getKey());
          }
+      }
+      catch(NoSuchElementException e) {
+         // Ignite closes distributed iterators mid-scan during topology changes
+         // (node join/leave/rebalance). Use whatever keys were collected so far;
+         // missing keys will be re-discovered on the next flush cycle.
+         LOG.warn("Cache iterator closed during getLocalKeys scan, using partial key set", e);
       }
       finally {
          Tool.closeIterator(iter);
@@ -541,7 +552,8 @@ public class RuntimeSheetCache
          return;
       }
 
-      Map<AffinityKey<String>, CompressedSheetState> changeset = new HashMap<>();
+      Map<AffinityKey<String>, CompressedSheetState> changeset =
+         new TreeMap<>(Comparator.comparing(AffinityKey::key));
 
       for(Map.Entry<AffinityKey<String>, RuntimeSheet> e : snapshot.entrySet()) {
          try {
@@ -613,6 +625,11 @@ public class RuntimeSheetCache
                }
             }
          }
+      }
+      catch(NoSuchElementException e) {
+         // Ignite closes distributed iterators mid-scan during topology changes
+         // (node join/leave/rebalance). Return whatever ids were collected so far.
+         LOG.warn("Cache iterator closed during getAllIds scan, returning partial results", e);
       }
       finally {
          Tool.closeIterator(iter);

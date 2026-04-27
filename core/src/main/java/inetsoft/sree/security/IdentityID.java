@@ -94,7 +94,7 @@ public class IdentityID implements Comparable<IdentityID>, Serializable, XMLSeri
       }
 
       int deliminator = key.indexOf(KEY_DELIMITER);
-      if(deliminator > 0) {
+      if(deliminator >= 0) {
          String name = key.substring(0, deliminator);
          String orgID = key.substring(deliminator + KEY_DELIMITER.length());
 
@@ -147,6 +147,10 @@ public class IdentityID implements Comparable<IdentityID>, Serializable, XMLSeri
    }
 
    public boolean equalsIgnoreCase(IdentityID other) {
+      if(other == null) {
+         return false;
+      }
+
       return Tool.equals(this.name, other.name, false) &&
          Tool.equals(this.orgID, other.orgID, false);
    }
@@ -213,7 +217,7 @@ public class IdentityID implements Comparable<IdentityID>, Serializable, XMLSeri
          orgId = OrganizationManager.getInstance().getCurrentOrgID();
       }
 
-      idName = !idName.startsWith(idName + IdentityID.KEY_DELIMITER) ?
+      idName = !idName.contains(IdentityID.KEY_DELIMITER) ?
          idName + IdentityID.KEY_DELIMITER + orgId : idName;
 
       return idName;

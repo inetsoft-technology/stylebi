@@ -31,6 +31,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.DataRefWrapper;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Catalog;
@@ -63,9 +64,10 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
    public AssemblyConditionDialogService(ViewsheetService viewsheetService,
                                          DataRefModelFactoryService dataRefModelFactoryService,
                                          XRepository xrepository,
-                                         VSScriptableController scriptController)
+                                         VSScriptableController scriptController,
+                                         DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
       this.dataRefModelFactoryService = dataRefModelFactoryService;
       this.xrepository = xrepository;
       this.scriptController = scriptController;

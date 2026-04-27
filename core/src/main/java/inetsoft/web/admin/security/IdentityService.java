@@ -24,27 +24,28 @@ import inetsoft.mv.fs.FSService;
 import inetsoft.mv.fs.internal.BlockFileStorage;
 import inetsoft.mv.mr.XJobPool;
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.internal.license.LicenseManager;
-import inetsoft.sree.RepletRegistry;
-import inetsoft.sree.SreeEnv;
+import inetsoft.sree.*;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.portal.*;
 import inetsoft.sree.schedule.*;
-import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.SessionLicenseManager;
-import inetsoft.sree.web.SessionLicenseService;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import inetsoft.sree.web.dashboard.DashboardManager;
-import inetsoft.sree.web.dashboard.DashboardRegistry;
+import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.storage.*;
-import inetsoft.uql.*;
+import inetsoft.uql.XPrincipal;
+import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.service.XEngine;
-import inetsoft.uql.util.*;
+import inetsoft.uql.util.DefaultIdentity;
+import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.audit.*;
 import inetsoft.util.css.CSSDictionary;
@@ -53,6 +54,12 @@ import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.RecycleBin;
 import inetsoft.web.admin.favorites.FavoriteList;
 import inetsoft.web.admin.security.user.*;
+import org.apache.commons.io.IOUtils;
+import org.passay.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
 import java.io.*;
 import java.rmi.RemoteException;
@@ -61,24 +68,65 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
-import org.apache.commons.io.IOUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
 @Service
 public class IdentityService {
    @Autowired
    public IdentityService(SecurityEngine securityEngine,
                           SecurityProvider securityProvider,
                           IdentityThemeService themeService,
-                          AuthenticationService authenticationService)
+                          AuthenticationService authenticationService,
+                          BlobStorageManager blobStorageManager,
+                          KeyValueStorageManager keyValueStorageManager,
+                          Cluster cluster,
+                          MVManager mvManager,
+                          DataCycleManager dataCycleManager,
+                          DataSourceRegistry dataSourceRegistry,
+                          LogManager logManager,
+                          LicenseManager licenseManager,
+                          ScheduleManager scheduleManager,
+                          IndexedStorage indexedStorage,
+                          Optional<ScheduleServer> scheduleServer,
+                          ScheduleClient scheduleClient, CustomThemesManager customThemesManager,
+                          SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                          DashboardRegistryManager dashboardRegistryManager,
+                          LibManagerProvider libManagerProvider,
+                          DashboardManager dashboardManager,
+                          PortalThemesManager portalThemesManager,
+                          RecycleBin recycleBin,
+                          DataSpace dataSpace,
+                          DependencyStorageService dependencyStorageService,
+                          ExternalStorageService externalStorageService,
+                          XRepository xRepository,
+                          RepletRegistryManager repletRegistryManager)
    {
       this.securityEngine = securityEngine;
       this.securityProvider = securityProvider;
       this.themeService = themeService;
       this.authenticationService = authenticationService;
+      this.blobStorageManager = blobStorageManager;
+      this.keyValueStorageManager = keyValueStorageManager;
+      this.cluster = cluster;
+      this.mvManager = mvManager;
+      this.dataCycleManager = dataCycleManager;
+      this.dataSourceRegistry = dataSourceRegistry;
+      this.logManager = logManager;
+      this.licenseManager = licenseManager;
+      this.scheduleManager = scheduleManager;
+      this.indexedStorage = indexedStorage;
+      this.scheduleServer = scheduleServer.orElse(null);
+      this.scheduleClient = scheduleClient;
+      this.customThemesManager = customThemesManager;
+      this.sessionLicenseServiceProvider = sessionLicenseServiceProvider;
+      this.dashboardRegistryManager = dashboardRegistryManager;
+      this.libManagerProvider = libManagerProvider;
+      this.dashboardManager = dashboardManager;
+      this.portalThemesManager = portalThemesManager;
+      this.recycleBin = recycleBin;
+      this.dataSpace = dataSpace;
+      this.dependencyStorageService = dependencyStorageService;
+      this.externalStorageService = externalStorageService;
+      this.xRepository = xRepository;
+      this.repletRegistryManager = repletRegistryManager;
    }
 
    private AuthenticationProvider getProvider(String providerName) {
@@ -191,7 +239,7 @@ public class IdentityService {
                   logoutSession(identityId);
                }
 
-               Cluster.getInstance().sendMessage(new IdentityChangedMessage(type, null, identityId));
+               cluster.sendMessage(new IdentityChangedMessage(type, null, identityId));
 
                syncIdentity(provider, identityId != null ? new DefaultIdentity(identityId, type) :
                   new DefaultIdentity(), null);
@@ -240,7 +288,7 @@ public class IdentityService {
 
    private void logoutSession(IdentityID user) {
       SessionLicenseManager sessionLicenseManager =
-         SessionLicenseService.getSessionLicenseService();
+         sessionLicenseServiceProvider.getSessionLicenseManager();
 
       if(sessionLicenseManager == null) {
          return;
@@ -379,14 +427,14 @@ public class IdentityService {
       // TODO check permission and throw exception if not allowed to edit
       IdentityID identityId = identity.getIdentityID();
       int type = identity.getType();
-      DashboardManager dmanager = DashboardManager.getManager();
-      ScheduleManager smanager = ScheduleManager.getScheduleManager();
+      DashboardManager dmanager = dashboardManager;
+      ScheduleManager smanager = scheduleManager;
       LibManager manager = null;
 
       if(identityId.orgID != null) {
          // may be null for built-in roles (Site Admin and Org Admin), in which case the lib manager
          // does not need to be cleared
-         manager = LibManager.getManager(identityId.orgID);
+         manager = libManagerProvider.getManager(identityId.orgID);
       }
 
       Identity nid = new DefaultIdentity(identityId, type);
@@ -406,7 +454,7 @@ public class IdentityService {
             dmanager.setDashboards(nid, dmanager.getDashboards(oid));
             dmanager.setDashboards(oid, null);
             dmanager.removeDashboards(oid);
-            DashboardRegistry.clear(oID);
+            dashboardRegistryManager.clear(oID);
          }
       }
 
@@ -416,9 +464,9 @@ public class IdentityService {
          //AssetRepository rep = AssetUtil.getAssetRepository(false);
          if(oID == null) {
             //delete user identityId inside of permissions
-            RepletRegistry.removeUser(identityId);
+            repletRegistryManager.removeUser(identityId);
             //rep.removeUser(identityId);
-            DashboardRegistry.clear(identityId);
+            dashboardRegistryManager.clear(identityId);
             eprovider.removeUser(identityId);
             updateIdentityPermissions(type, identityId, null, identityId.orgID, identityId.orgID,true);
             removeUserScopedAssets(identity);
@@ -427,10 +475,10 @@ public class IdentityService {
             if(!identityId.equals(oID)) {
                String orgId = identityId.orgID;
                //rep.renameUser(oID, identityId);
-               RepletRegistry.renameUser(oID, identityId);
-               DashboardRegistry.clear(identityId);
-               DashboardRegistry.renameUser(oID, identityId);
-               DashboardRegistry.clear(oID);
+               repletRegistryManager.renameUser(oID, identityId);
+               dashboardRegistryManager.clear(identityId);
+               dashboardRegistryManager.renameUser(oID, identityId);
+               dashboardRegistryManager.clear(oID);
                updateUserAutoSaveFiles(oID, identityId);
                //update user identityId inside of permissions
                updateIdentityPermissions(type, oID, identityId, orgId, orgId, true);
@@ -442,18 +490,18 @@ public class IdentityService {
       else if(identity.getType() == Identity.ORGANIZATION) {
          if(oID == null) {
             Organization oOrg = eprovider.getOrganization(identityId.orgID);
-            DashboardRegistry.clear(identityId);
+            dashboardRegistryManager.clear(identityId);
             clearDataSourceMetadata();
 
             if(oOrg != null) {
                String orgID = oOrg.getOrganizationID();
-               PortalThemesManager themesManager = PortalThemesManager.getManager();
+               PortalThemesManager themesManager = portalThemesManager;
                eprovider.removeOrganization(identityId.orgID);
 
                // delete organization identityId inside of permissions
                authoc.cleanOrganizationFromPermissions(orgID);
 
-               DataCycleManager.getDataCycleManager().clearDataCycles(orgID);
+               dataCycleManager.clearDataCycles(orgID);
                removeOrgProperties(orgID);
                removeOrgScopedDataSpaceElements(oOrg);
                updateRepletRegistry(orgID, null);
@@ -462,11 +510,11 @@ public class IdentityService {
                CSSDictionary.resetDictionaryCache();
                themesManager.save();
                removeStorages(orgID);
-               DataSourceRegistry.getRegistry().clearCache(orgID);
+               dataSourceRegistry.clearCache(orgID);
                FSService.clearServerNodeCache(orgID);
                XJobPool.resetOrgCache(orgID);
-               RepletRegistry.clearOrgCache(orgID);
-               LogManager.getInstance().removeOrgLogLevels(orgID);
+               repletRegistryManager.clearOrgCache(orgID);
+               logManager.removeOrgLogLevels(orgID);
             }
 
             // deleting current organization should reset curOrg
@@ -479,8 +527,9 @@ public class IdentityService {
 
             if(!identityId.equals(oID)) {
                eprovider.copyOrganization(oldOrg, (Organization) identity, id, identity.getName(),
-                  this, themeService, ThreadContext.getContextPrincipal(), true);
-               LogManager.getInstance().renameOrgLogLevels(oId, id);
+                                          this, themeService, dashboardRegistryManager, dataCycleManager,
+                                          ThreadContext.getContextPrincipal(), true);
+               logManager.renameOrgLogLevels(oId, id);
             }
 
             // Update current orgID
@@ -609,14 +658,14 @@ public class IdentityService {
       IdentityID[] groups = eprovider.getGroups();
       IdentityID[] roles = eprovider.getRoles();
       KeyValueStorage<FavoriteList> favorites =
-         SingletonManager.getInstance(KeyValueStorage.class, "emFavorites");
+         keyValueStorageManager.getStorage("emFavorites");
 
       for(int i = 0; i < users.length; i++) {
          FSUser user = (FSUser) eprovider.getUser(users[i]);
 
          if(orgID.equals(user.getOrganizationID())) {
             //users are tied to org, delete if deleted
-            RepletRegistry.removeUser(user.getIdentityID());
+            repletRegistryManager.removeUser(user.getIdentityID());
             eprovider.removeUser(user.getIdentityID());
             addCopiedIdentityPermission(user.getIdentityID(), null, "", Identity.USER, false);
 
@@ -679,7 +728,7 @@ public class IdentityService {
 
       AuthorizationChain authoc = ((AuthorizationChain) securityProvider.getAuthorizationProvider());
       KeyValueStorage<FavoriteList> favorites =
-         SingletonManager.getInstance(KeyValueStorage.class, "emFavorites");
+         keyValueStorageManager.getStorage("emFavorites");
 
       for(int i = 0; i < users.length; i++) {
          FSUser user = (FSUser) eprovider.getUser(users[i]);
@@ -698,13 +747,13 @@ public class IdentityService {
 
             if(orgIdChange || orgNameChanged) {
                //Update replet registry here.
-               RepletRegistry.changeOrgID(oldID, OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), false);
-               DashboardRegistry.migrateRegistry(oldID, securityProvider.getOrganization(OrganizationManager.getInstance().getCurrentOrgID()), identity);
+               repletRegistryManager.changeOrgID(oldID, OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), false);
+               dashboardRegistryManager.migrateRegistry(oldID, securityProvider.getOrganization(OrganizationManager.getInstance().getCurrentOrgID()), identity);
             }
 
             eprovider.setUser(user.getIdentityID(), user);
             eprovider.removeUser(oldID);
-            RepletRegistry.renameUser(oldID, user.getIdentityID());
+            repletRegistryManager.renameUser(oldID, user.getIdentityID());
             // Move em favorites to new user
             FavoriteList userFav = favorites.get(oldID.convertToKey());
 
@@ -939,11 +988,11 @@ public class IdentityService {
 
    public void removeStorages(String orgID) throws Exception {
       removeOldOrgTaskFormScheduleServer(orgID);
-      DashboardManager.getManager().removeDashboardStorage(orgID);
-      DependencyStorageService.getInstance().removeDependencyStorage(orgID);
-      RecycleBin.getRecycleBin().removeStorage(orgID);
-      IndexedStorage.getIndexedStorage().removeStorage(orgID);
-      LibManager.getManager(orgID).close();
+      dashboardManager.removeDashboardStorage(orgID);
+      dependencyStorageService.removeDependencyStorage(orgID);
+      recycleBin.removeStorage(orgID);
+      indexedStorage.removeStorage(orgID);
+      libManagerProvider.getManager(orgID).close();
 
       removeBlobStorage("__mv", orgID, MVStorage.Metadata.class);
       removeBlobStorage("__mvws", orgID, MVWorksheetStorage.Metadata.class);
@@ -957,19 +1006,19 @@ public class IdentityService {
 
    public void copyStorages(Organization oOrg, Organization nOrg, boolean rename) {
       try {
-         DashboardManager.getManager().copyStorageData(oOrg.getId(), nOrg.getId());
-         DependencyStorageService.getInstance().copyStorageData(oOrg, nOrg);
-         RecycleBin.getRecycleBin().copyStorageData(oOrg.getId(), nOrg.getId());
+         dashboardManager.copyStorageData(oOrg.getId(), nOrg.getId());
+         dependencyStorageService.copyStorageData(oOrg, nOrg);
+         recycleBin.copyStorageData(oOrg.getId(), nOrg.getId());
          updateLibraryStorage(oOrg.getId(), nOrg.getId(), true);
-         IndexedStorage.getIndexedStorage().copyStorageData(oOrg, nOrg, rename);
-         IndexedStorage.getIndexedStorage().setInitialized(nOrg.getId());
+         indexedStorage.copyStorageData(oOrg, nOrg, rename);
+         indexedStorage.setInitialized(nOrg.getId());
 
          //FSService.copyServerNode(oOrg.getId(), nOrg.getId(), true);
          updateBlobStorageName("__mvws", oOrg.getId(), nOrg.getId(), MVWorksheetStorage.Metadata.class, true);
          updateBlobStorageName("__pdata", oOrg.getId(), nOrg.getId(), EmbeddedTableStorage.Metadata.class, true);
          updateBlobStorageName("__autoSave", oOrg.getId(), nOrg.getId(), AutoSaveUtils.Metadata.class, true);
          updateBlobStorageName("__mvBlock", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
-         MVManager.getManager().migrateStorageData(oOrg, nOrg, !rename);
+         mvManager.migrateStorageData(oOrg, nOrg, !rename);
 
          addNewOrgTaskToScheduleServer(nOrg.getOrganizationID());
       }
@@ -983,35 +1032,29 @@ public class IdentityService {
 
       try {
          scheduleTasks = OrganizationManager.runInOrgScope(orgId,
-            () -> ScheduleManager.getScheduleManager().getScheduleTasks(orgId));
+            () -> scheduleManager.getScheduleTasks(orgId));
       }
       catch(Exception e) {
          LOG.warn("Could not get tasks from: "+ orgId);
       }
-
-      ScheduleServer scheduleServer = ScheduleServer.getInstance();
 
       if(scheduleTasks == null || scheduleServer == null) {
          return;
       }
 
       for(ScheduleTask scheduleTask : scheduleTasks) {
-         ScheduleClient.getScheduleClient().taskAdded(scheduleTask);
+         scheduleClient.taskAdded(scheduleTask);
       }
    }
 
    private void removeOldOrgTaskFormScheduleServer(String oorgId)
       throws RemoteException
    {
-      ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
       Vector<ScheduleTask> scheduleTasks = scheduleManager.getScheduleTasks(oorgId);
-      ScheduleServer scheduleServer = ScheduleServer.getInstance();
 
       if(scheduleTasks == null || scheduleServer == null) {
          return;
       }
-
-      ScheduleClient scheduleClient = ScheduleClient.getScheduleClient();
 
       for(ScheduleTask scheduleTask : scheduleTasks) {
          // should not remove the global task.
@@ -1030,7 +1073,7 @@ public class IdentityService {
                                                            Class<T> type) throws Exception
    {
       BlobStorage<T> storage =
-         SingletonManager.getInstance(BlobStorage.class, orgID.toLowerCase() + suffix, false);
+         blobStorageManager.getStorage(orgID.toLowerCase() + suffix, false);
       storage.deleteBlobStorage();
    }
 
@@ -1050,7 +1093,7 @@ public class IdentityService {
    }
 
    public void removeOrgScopedDataSpaceElements(Organization oorg) {
-      DataSpace dataspace = DataSpace.getDataSpace();
+      DataSpace dataspace = dataSpace;
       String[] paths = dataspace.getOrgScopedPaths(oorg);
 
       for(String path : paths) {
@@ -1059,8 +1102,8 @@ public class IdentityService {
    }
 
    public void updateRepletRegistry(String oOID, String nOID) throws Exception {
-      RepletRegistry oldRegistry = RepletRegistry.getRegistry(oOID);
-      RepletRegistry newRegistry = RepletRegistry.getRegistry(oOID);
+      RepletRegistry oldRegistry = repletRegistryManager.getRegistry(oOID);
+      RepletRegistry newRegistry = repletRegistryManager.getRegistry(oOID);
       String[] oldFolders = oldRegistry.getAllFolders();
       boolean removeOrg = nOID == null;
 
@@ -1080,8 +1123,8 @@ public class IdentityService {
       OrganizationManager.getInstance().setCurrentOrgID(nOID);
 
       try {
-         RepletRegistry oldRegistry = RepletRegistry.getRegistry(oOID);
-         RepletRegistry newRegistry = RepletRegistry.getRegistry(nOID);
+         RepletRegistry oldRegistry = repletRegistryManager.getRegistry(oOID);
+         RepletRegistry newRegistry = repletRegistryManager.getRegistry(nOID);
          String[] oldFolders = oldRegistry.getAllFolders();
 
          for(String oldFolder : oldFolders) {
@@ -1090,13 +1133,13 @@ public class IdentityService {
             }
          }
 
-         RepletRegistry.copyFolderContextMap(oOID, nOID);
+         repletRegistryManager.copyFolderContextMap(oOID, nOID);
          IdentityID[] orgUsers = securityEngine.getOrgUsers(oOID);
 
          if(orgUsers != null) {
             for(IdentityID orgUser : orgUsers) {
                IdentityID newUser = new IdentityID(orgUser.name, nOID);
-               RepletRegistry.copyUser(orgUser, newUser);
+               repletRegistryManager.copyUser(orgUser, newUser);
             }
          }
 
@@ -1110,20 +1153,19 @@ public class IdentityService {
    }
 
    public void copyDashboardRegistry(Organization oorg, Organization norg) {
-      DashboardRegistry.copyRegistry(null, oorg, norg);
+      dashboardRegistryManager.copyRegistry(null, oorg, norg);
 
       for(IdentityID user : securityEngine.getOrgUsers(oorg.getId())) {
-         DashboardRegistry.copyRegistry(user, oorg, norg);
+         dashboardRegistryManager.copyRegistry(user, oorg, norg);
       }
    }
 
    public void clearDataSourceMetadata() throws Exception {
-      XRepository repository = XFactory.getRepository();
-      String[] dsNames = repository.getDataSourceNames();
+      String[] dsNames = xRepository.getDataSourceNames();
 
-      if(repository instanceof XEngine) {
+      if(xRepository instanceof XEngine) {
          for(String datasource : dsNames) {
-            ((XEngine) repository).removeMetaDataFiles(datasource);
+            ((XEngine) xRepository).removeMetaDataFiles(datasource);
          }
       }
    }
@@ -1132,9 +1174,9 @@ public class IdentityService {
                                                                Class<T> type, boolean copy) throws Exception
    {
       BlobStorage<T> oStorage =
-         SingletonManager.getInstance(BlobStorage.class, oId.toLowerCase() + suffix, false);
+         blobStorageManager.getStorage(oId.toLowerCase() + suffix, false);
       BlobStorage<T> nStorage =
-         SingletonManager.getInstance(BlobStorage.class, id.toLowerCase() + suffix, false);
+         blobStorageManager.getStorage(id.toLowerCase() + suffix, false);
 
       List<String> paths = oStorage.paths().collect(Collectors.toList());
 
@@ -1155,9 +1197,9 @@ public class IdentityService {
 
    private void updateLibraryStorage(String oId, String id, boolean copy) throws Exception {
       try(BlobStorage<LibManager.Metadata> oStorage =
-             SingletonManager.getInstance(BlobStorage.class, oId.toLowerCase() + "__library", false);
+             blobStorageManager.getStorage(oId.toLowerCase() + "__library", false);
           BlobStorage<LibManager.Metadata> nStorage =
-             SingletonManager.getInstance(BlobStorage.class, id.toLowerCase() + "__library", false))
+             blobStorageManager.getStorage(id.toLowerCase() + "__library", false))
       {
          List<String> paths = oStorage.paths().collect(Collectors.toList());
 
@@ -1522,7 +1564,7 @@ public class IdentityService {
                                               eprovider, principal);
          }
 
-         Cluster.getInstance().sendMessage(
+         cluster.sendMessage(
             new IdentityChangedMessage(type, newIdentity != null ? newIdentity.getIdentityID() : null,
                                        oldIdentity.getIdentityID()));
       }
@@ -1543,7 +1585,7 @@ public class IdentityService {
          }
 
          if(!SUtil.isMultiTenant()) {
-            LicenseManager.getInstance().userChanged();
+            licenseManager.userChanged();
          }
       }
    }
@@ -1644,6 +1686,7 @@ public class IdentityService {
 
       if(oldUser == null || Tool.isEmptyString(oldUser.getGoogleSSOId())) {
          if(model.password() != null) {
+            validatePasswordStrength(model.password());
             HashedPassword npw = Tool.hash(model.password(), "bcrypt");
 
             if(oldUser != null && npw != null) {
@@ -1671,6 +1714,26 @@ public class IdentityService {
       syncIdentity(eprovider, user, oIdentity);
 
       return user;
+   }
+
+   private static final PasswordValidator PASSWORD_VALIDATOR = new PasswordValidator(
+      new LengthRule(8, 72),
+      new CharacterRule(EnglishCharacterData.UpperCase, 1),
+      new CharacterRule(EnglishCharacterData.LowerCase, 1),
+      new CharacterRule(EnglishCharacterData.Digit, 1),
+      new CharacterRule(EnglishCharacterData.Special, 1)
+   );
+
+   public static void validatePasswordStrength(String password) {
+      if(password == null) {
+         throw new MessageException(Catalog.getCatalog().getString("viewer.password.pwdRule"));
+      }
+
+      RuleResult result = PASSWORD_VALIDATOR.validate(new PasswordData(password));
+
+      if(!result.isValid()) {
+         throw new MessageException(Catalog.getCatalog().getString("viewer.password.pwdRule"));
+      }
    }
 
    /**
@@ -1926,8 +1989,8 @@ public class IdentityService {
       }
 
       if(fromOrg != null && !Tool.equals(fromOrg, newOrg)) {
-         DashboardRegistry.migrateRegistry(null, fromOrg, newOrg);
-         RepletRegistry.getRegistry(fromOrgID).shutdown();
+         dashboardRegistryManager.migrateRegistry(null, fromOrg, newOrg);
+         repletRegistryManager.getRegistry(fromOrgID).shutdown();
          updateOrgScopedDataSpace(fromOrg, newOrg);
       }
 
@@ -1962,8 +2025,7 @@ public class IdentityService {
 
    private void updateCustomThemeOrganization(String oldThemeId, String themeID, String oldOrgID, String newOrgID) {
       if(!Tool.equals(oldThemeId, themeID)) {
-         CustomThemesManager manager = CustomThemesManager.getManager();
-         Set<CustomTheme> themes = new HashSet<>(manager.getCustomThemes());
+         Set<CustomTheme> themes = new HashSet<>(customThemesManager.getCustomThemes());
          boolean modified = false;
 
          if(oldThemeId != null) {
@@ -1993,25 +2055,25 @@ public class IdentityService {
                modified = true;
             }
 
-            manager.setOrgSelectedTheme(themeID, newOrgID);
+            customThemesManager.setOrgSelectedTheme(themeID, newOrgID);
          }
          else {
-            manager.setOrgSelectedTheme("default", newOrgID);
+            customThemesManager.setOrgSelectedTheme("default", newOrgID);
          }
 
          // If org ID changed, clean up old org's selection property
          if(!Tool.equals(oldOrgID, newOrgID)) {
-            manager.setOrgSelectedTheme("default", oldOrgID);
+            customThemesManager.setOrgSelectedTheme("default", oldOrgID);
          }
 
          if(modified) {
-            manager.setCustomThemes(themes);
+            customThemesManager.setCustomThemes(themes);
          }
       }
    }
 
    private void updateOrgScopedDataSpace(Organization oorg, Organization norg) {
-      DataSpace dataspace = DataSpace.getDataSpace();
+      DataSpace dataspace = dataSpace;
       String[] paths = dataspace.getOrgScopedPaths(oorg);
 
       for(String path : paths) {
@@ -2122,24 +2184,22 @@ public class IdentityService {
       }
 
       final IdentityID identityID = identity.getIdentityID();
-      IndexedStorage storage = IndexedStorage.getIndexedStorage();
-
       IndexedStorage.Filter filter = key -> {
          AssetEntry entry = AssetEntry.createAssetEntry(key);
          return entry != null && Tool.equals(entry.getUser(), identityID);
       };
-      Set<String> keys = storage.getKeys(filter, identityID.getOrgID());
-      keys.stream().forEach(key -> storage.remove(key));
+      Set<String> keys = indexedStorage.getKeys(filter, identityID.getOrgID());
+      keys.stream().forEach(key -> indexedStorage.remove(key));
    }
 
 
    public void updateIdentityPermissions(int type, IdentityID oldName, IdentityID newName, String oldOrgId, String newOrgId, boolean doReplace) {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
       Organization oldOrganization = oldOrgId == null || oldOrgId.isEmpty() ?
          null : provider.getOrganization(oldOrgId);
 
       //iterate through all providers when updating permissions, else only first is found and set permissions can be lost
-      for(AuthorizationProvider aprovider : SecurityEngine.getSecurity().getAuthorizationChain().get().getProviders()) {
+      for(AuthorizationProvider aprovider : securityEngine.getAuthorizationChain().get().getProviders()) {
          List<Tuple4<ResourceType, String, String, Permission>> permissionSetList = null;
 
          try {
@@ -2241,10 +2301,10 @@ public class IdentityService {
       }
 
       if(resourceType == ResourceType.DATA_SOURCE) {
-         DataSourceRegistry.getRegistry().removeDataSource(path);
+         dataSourceRegistry.removeDataSource(path);
       }
       else if(resourceType == ResourceType.DATA_SOURCE_FOLDER) {
-         DataSourceRegistry.getRegistry().removeDataSourceFolder(path);
+         dataSourceRegistry.removeDataSourceFolder(path);
       }
    }
 
@@ -2469,7 +2529,7 @@ public class IdentityService {
       }
       else {
          String orgId = fromIdentity.getOrgID();
-         SecurityProvider sProvider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider sProvider = securityEngine.getSecurityProvider();
 
          updateIdentityPermissions(type, fromIdentity, newIdentity, orgId, newOrgId, replace);
       }
@@ -2488,7 +2548,7 @@ public class IdentityService {
       }
 
       try {
-         ExternalStorageService.getInstance().renameFolder(oorg, norg);
+         externalStorageService.renameFolder(oorg, norg);
       }
       catch(Exception e) {
          LOG.warn("Failed to rename folder for organization", oorg, e);
@@ -2531,7 +2591,7 @@ public class IdentityService {
    }
 
    public String getOrganizationDetailString(String orgKey, Principal principal) {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
       IdentityID orgIdentityID = IdentityID.getIdentityIDFromKey(orgKey);
 
       String dataBaseListString = getOrganizationDatabaseListString(orgIdentityID, principal);
@@ -2545,10 +2605,8 @@ public class IdentityService {
    }
 
    private String getOrganizationDatabaseListString(IdentityID orgIdentityID, Principal principal) {
-      final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
-
-      List<String> dataSourceNames = new ArrayList<>(registry.getSubfolderNames(null, false, orgIdentityID.orgID));
-      dataSourceNames.addAll(new ArrayList<>(registry.getSubDataSourceNames(null, false, orgIdentityID.orgID)));
+      List<String> dataSourceNames = new ArrayList<>(dataSourceRegistry.getSubfolderNames(null, false, orgIdentityID.orgID));
+      dataSourceNames.addAll(new ArrayList<>(dataSourceRegistry.getSubDataSourceNames(null, false, orgIdentityID.orgID)));
       Collections.sort(dataSourceNames);
 
       StringBuilder datasourceListString = new StringBuilder("{ ");
@@ -2576,4 +2634,28 @@ public class IdentityService {
    private final IdentityThemeService themeService;
    private final Logger LOG = LoggerFactory.getLogger(IdentityService.class);
    private final AuthenticationService authenticationService;
+   private final BlobStorageManager blobStorageManager;
+   private final KeyValueStorageManager keyValueStorageManager;
+   private final Cluster cluster;
+   private final MVManager mvManager;
+   private final DataCycleManager dataCycleManager;
+   private final DataSourceRegistry dataSourceRegistry;
+   private final LogManager logManager;
+   private final LicenseManager licenseManager;
+   private final ScheduleManager scheduleManager;
+   private final IndexedStorage indexedStorage;
+   private final ScheduleServer scheduleServer;
+   private final ScheduleClient scheduleClient;
+   private final CustomThemesManager customThemesManager;
+   private final SessionLicenseServiceProvider sessionLicenseServiceProvider;
+   private final DashboardRegistryManager dashboardRegistryManager;
+   private final LibManagerProvider libManagerProvider;
+   private final DashboardManager dashboardManager;
+   private final PortalThemesManager portalThemesManager;
+   private final RecycleBin recycleBin;
+   private final DataSpace dataSpace;
+   private final DependencyStorageService dependencyStorageService;
+   private final ExternalStorageService externalStorageService;
+   private final XRepository xRepository;
+   private final RepletRegistryManager repletRegistryManager;
 }

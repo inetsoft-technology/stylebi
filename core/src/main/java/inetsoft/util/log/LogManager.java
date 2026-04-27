@@ -18,13 +18,16 @@
 package inetsoft.util.log;
 
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.util.*;
 import inetsoft.web.admin.logviewer.*;
+import jakarta.annotation.PreDestroy;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.*;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -46,18 +49,23 @@ import java.util.zip.ZipOutputStream;
  * @author InetSoft Technology
  * @since 10.1
  */
+@Service
+@Lazy
 public final class LogManager implements AutoCloseable, MessageListener {
-   /**
-    * Creates a new instance of <tt>LogManager</tt>.
-    */
-   public LogManager() {
+   public LogManager(ObjectProvider<SecurityEngine> securityEngineProvider, Cluster cluster,
+                     FileSystemService fileSystemService)
+   {
+      this.securityEngineProvider = securityEngineProvider;
+      this.cluster = cluster;
+      this.fileSystemService = fileSystemService;
+
       for(LogContext context : LogContext.values()) {
          contextLevels.put(context, new ConcurrentHashMap<>());
       }
    }
 
    public static LogManager getInstance() {
-      return SingletonManager.getInstance(LogManager.class);
+      return ConfigurationContext.getContext().getSpringBean(LogManager.class);
    }
 
    public static void initializeForStartup() {
@@ -69,23 +77,28 @@ public final class LogManager implements AutoCloseable, MessageListener {
    {
       useInitializer(i -> i.initialize(
          logFile, logFileDiscriminator, console, maxFileSize, maxFileCount, performance));
-      Cluster.getInstance().addMessageListener(this);
+
+      if(cluster != null) {
+         cluster.addMessageListener(this);
+      }
    }
 
+   @PreDestroy
    @Override
    public void close()  {
       useInitializer(LogInitializer::reset);
-      Cluster.getInstance().removeMessageListener(this);
+
+      if(cluster != null) {
+         cluster.removeMessageListener(this);
+      }
    }
 
    private static void useInitializer(Consumer<LogInitializer> fn) {
       String factory = LoggerFactory.getILoggerFactory().getClass().getName();
       String initializerClass = null;
 
-      switch(factory) {
-      case "ch.qos.logback.classic.LoggerContext":
+      if(factory.equals("ch.qos.logback.classic.LoggerContext")) {
          initializerClass = "inetsoft.util.log.logback.LogbackInitializer";
-         break;
       }
 
       if(initializerClass != null) {
@@ -97,6 +110,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
          catch(Exception e) {
             // logging is not initialized yet
             System.err.println("Failed to initialize logging framework");
+            //noinspection CallToPrintStackTrace
             e.printStackTrace();//NOSONAR
          }
       }
@@ -106,7 +120,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
       useInitializer(LogInitializer::reset);
    }
 
-   public LogLevel parseLevel(String level) {
+   public static LogLevel parseLevel(String level) {
       LogLevel result = Arrays.stream(LogLevel.values())
          .filter(l -> l.level().equalsIgnoreCase(level))
          .findAny()
@@ -116,21 +130,12 @@ public final class LogManager implements AutoCloseable, MessageListener {
          String upperLevel = level.toUpperCase();
 
          // check legacy names
-         switch(upperLevel) {
-         case "WARNING":
-            result = LogLevel.WARN;
-            break;
-         case "INFO":
-            result = LogLevel.INFO;
-            break;
-         case "FINE":
-         case "FINER":
-         case "FINEST":
-            result = LogLevel.DEBUG;
-            break;
-         default:
-            result = LogLevel.ERROR;
-         }
+         result = switch(upperLevel) {
+            case "WARNING" -> LogLevel.WARN;
+            case "INFO" -> LogLevel.INFO;
+            case "FINE", "FINER", "FINEST" -> LogLevel.DEBUG;
+            default -> LogLevel.ERROR;
+         };
       }
 
       return result;
@@ -203,7 +208,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
     */
    public List<LogLevelSetting> getContextLevels() {
       List<LogLevelSetting> result = new ArrayList<>();
-      final SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      final SecurityProvider provider = securityEngineProvider.getObject().getSecurityProvider();
 
       for(Map.Entry<LogContext, Map<String, LogLevel>> entry : contextLevels.entrySet()) {
          entry.getValue().entrySet().stream()
@@ -307,6 +312,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
       return isLevelEnabled(name, LogLevel.INFO);
    }
 
+   @SuppressWarnings("unused")
    public boolean isWarnEnabled(String name) {
       return isLevelEnabled(name, LogLevel.WARN);
    }
@@ -365,10 +371,12 @@ public final class LogManager implements AutoCloseable, MessageListener {
       return level.ordinal() >= current.ordinal();
    }
 
+   @SuppressWarnings("unused")
    public void addLogMessageListener(LogMessageListener l, boolean exceptionsOnly) {
       messageListeners.put(l, exceptionsOnly);
    }
 
+   @SuppressWarnings("unused")
    public void removeLogMessageListener(LogMessageListener l) {
       messageListeners.remove(l);
    }
@@ -416,7 +424,6 @@ public final class LogManager implements AutoCloseable, MessageListener {
       }
 
       String property;
-      FileSystemService fileSystemService = FileSystemService.getInstance();
 
       if(scheduler) {
          property = SreeEnv.getProperty("schedule.log.file");
@@ -505,13 +512,13 @@ public final class LogManager implements AutoCloseable, MessageListener {
     * Output logs to zip output stream. Outputs all logs.
     */
    public void zipLogs(ZipOutputStream output, String server) throws Exception {
-      String localMember = Cluster.getInstance().getLocalMember();
+      String localMember = cluster.getLocalMember();
 
       if(Tool.equals(localMember, server) || Tool.isEmptyString(server)) {
          zipLogs(output);
       }
       else {
-         GetLogFilesResponse response = Cluster.getInstance().exchangeMessages(
+         GetLogFilesResponse response = cluster.exchangeMessages(
             server, new GetLogFilesRequest(), GetLogFilesResponse.class);
 
          response.getLogFiles().forEach(p -> addEntry(output, p));
@@ -524,7 +531,6 @@ public final class LogManager implements AutoCloseable, MessageListener {
          zip.putNextEntry(entry);
          int offset = 0;
          int length = 500;
-         Cluster cluster = Cluster.getInstance();
 
          try {
             GetLogRequest request = new GetLogRequest(file.getLogFile(), offset, length);
@@ -565,7 +571,6 @@ public final class LogManager implements AutoCloseable, MessageListener {
     */
    public File findLogFile(String name) {
       File file;
-      FileSystemService fileSystemService = FileSystemService.getInstance();
 
       if(name == null) {
          file = getLogFile();
@@ -655,7 +660,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
 
    private Stream<Path> getLogFiles(boolean scheduler, boolean sorted) throws IOException {
       String baseFile = getBaseLogFile(scheduler);
-      Path dirPath = FileSystemService.getInstance().getPath(baseFile).getParent();
+      Path dirPath = fileSystemService.getPath(baseFile).getParent();
       Pattern pattern = getLogFilePattern(scheduler);
       Stream<Path> stream = Files.list(dirPath)
          .filter(Files::isRegularFile)
@@ -724,7 +729,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
             }
          }
 
-         return logFiles.get(0);
+         return logFiles.getFirst();
       }
 
       return null;
@@ -738,7 +743,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
          try {
             RotateLogCompleteMessage message = new RotateLogCompleteMessage();
             message.setId(((RotateLogMessage) event.getMessage()).getId());
-            Cluster.getInstance().sendMessage(event.getSender(), message);
+            cluster.sendMessage(event.getSender(), message);
          }
          catch(Exception e) {
             LOG.warn("Failed to send rotate log complete message", e);
@@ -758,24 +763,21 @@ public final class LogManager implements AutoCloseable, MessageListener {
 
       boolean scheduler =
          logFileProvider.isRotateSupported(getBaseLogFile(true), fileName);
-      Cluster cluster = Cluster.getInstance();
       List<String> selectedNodes = cluster.getClusterNodes().stream()
          .filter((node) -> (!scheduler && !Boolean.TRUE.equals(cluster.getClusterNodeProperty(node, "scheduler")))
             || (scheduler && Boolean.TRUE.equals(cluster.getClusterNodeProperty(node, "scheduler"))))
-         .collect(Collectors.toList());
+         .toList();
       String logFileIp  = extractIPFromLogName(fileName);
       List<String> targetNodes = selectedNodes.stream()
          .filter(node -> Tool.equals(logFileIp, extractIpFromNodeName(node)))
-         .collect(Collectors.toList());
+         .toList();
 
       if(!targetNodes.isEmpty()) {
          RotateLogMessage rotateLogMessage = new RotateLogMessage();
          rotateLogMessage.setId(UUID.randomUUID().toString());
          CountDownLatch latch = new CountDownLatch(targetNodes.size());
          MessageListener listener = event -> {
-            if(event.getMessage() instanceof RotateLogCompleteMessage) {
-               RotateLogCompleteMessage message = (RotateLogCompleteMessage) event.getMessage();
-
+            if(event.getMessage() instanceof RotateLogCompleteMessage message) {
                if(Tool.equals(rotateLogMessage.getId(), message.getId())) {
                   latch.countDown();
                }
@@ -823,7 +825,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
    }
 
    public static String extractIpFromNodeName(String node) {
-      if(node == null || node.indexOf(":") == -1) {
+      if(node == null || !node.contains(":")) {
          return null;
       }
 
@@ -856,10 +858,12 @@ public final class LogManager implements AutoCloseable, MessageListener {
       this.logFileProvider = provider;
    }
 
+   private final ObjectProvider<SecurityEngine> securityEngineProvider;
+   private final Cluster cluster;
+   private final FileSystemService fileSystemService;
    private LogFileProvider logFileProvider;
    private final Map<LogContext, Map<String, LogLevel>> contextLevels = new ConcurrentHashMap<>();
    private final Map<LogMessageListener, Boolean> messageListeners = new ConcurrentHashMap<>();
-   private SreeEnv.Value logProvider;
    private static final Logger LOG = LoggerFactory.getLogger(LogManager.class);
 
    /**

@@ -17,7 +17,9 @@
  */
 package inetsoft.report.internal;
 
+import inetsoft.graph.VGraph;
 import inetsoft.graph.data.*;
+import inetsoft.graph.internal.GTool;
 import inetsoft.report.*;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.composition.graph.IntervalDataSet;
@@ -30,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.awt.geom.Rectangle2D;
 import java.util.Enumeration;
 import java.util.Map;
 
@@ -64,6 +67,26 @@ public class ChartPainterPaintable extends LinkedShapePainterPaintable {
     */
    @Override
    protected void processHyperlink() {
+      Hyperlink elementLink = ((PainterElement) elem).getHyperlink();
+
+      if(elementLink != null) {
+         // scope link to plot rectangle; per-region links added below overlay on top
+         VGraph vgraph = elem instanceof ChartElementDef
+            ? ((ChartElementDef) elem).getVGraph() : null;
+
+         if(vgraph != null) {
+            Rectangle2D plot = vgraph.getPlotBounds();
+            Rectangle2D hitArea = GTool.getFlipYTransform(vgraph)
+               .createTransformedShape(plot).getBounds2D();
+            setHyperlink(hitArea, new Hyperlink.Ref(elementLink));
+         }
+         else {
+            // no VGraph, fall back to whole-paintable bounds
+            LOG.debug("Falling back to whole-paintable bounds for empty-plot link (no VGraph)");
+            setHyperlink(new Hyperlink.Ref(elementLink));
+         }
+      }
+
       ChartPainter cpainter = (ChartPainter) painter;
       DataSet chartData = cpainter.getChartDataSet();
 

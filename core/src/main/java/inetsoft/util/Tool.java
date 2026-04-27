@@ -24,18 +24,15 @@ import com.veracode.annotation.CRLFCleanser;
 import com.veracode.annotation.XSSCleanser;
 import inetsoft.report.*;
 import inetsoft.report.filter.ReversedComparer;
-import inetsoft.sree.PropertiesEngine;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XDataSource;
-import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.asset.internal.AssemblyInfo;
-import inetsoft.uql.jdbc.*;
+import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.schema.XSchema;
-import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.tabular.TabularDataSource;
-import inetsoft.uql.viewsheet.BindableVSAssembly;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
 import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
 import inetsoft.uql.xmla.XMLADataSource;
@@ -98,9 +95,6 @@ import java.util.zip.ZipOutputStream;
  * @author InetSoft Technology Corp
  */
 public final class Tool extends CoreTool {
-   static {
-      PropertiesEngine.getInstance().addPropertyChangeListener("string.compare.casesensitive", evt -> invalidateCaseSensitive());
-   }
    /**
     * User defined type.
     */
@@ -2244,7 +2238,7 @@ public final class Tool extends CoreTool {
     * @return Style Report version.
     */
    public static String getReportVersion() {
-      return "1.1.0";
+      return "1.2.0";
    }
 
    /**
@@ -3531,7 +3525,7 @@ public final class Tool extends CoreTool {
       }
 
       if((name != null && name.length() > 0 && !name.startsWith("localhost")) ||
-         !OperatingSystem.isUnix())
+         !SystemUtils.IS_OS_UNIX)
       {
          return name;
       }
@@ -3593,7 +3587,7 @@ public final class Tool extends CoreTool {
       }
 
       if(phyip != null && phyip.length() > 0 && !phyip.equals("127.0.0.1") ||
-         !OperatingSystem.isUnix())
+         !SystemUtils.IS_OS_UNIX)
       {
          return phyip;
       }
@@ -3603,7 +3597,7 @@ public final class Tool extends CoreTool {
       //bug1407894598896
       //if the os is unix/mac and the network is unavailable
       //the return ip is null, try to avoid it
-      if(phyip == null && OperatingSystem.isUnix()) {
+      if(phyip == null && SystemUtils.IS_OS_UNIX) {
          try {
             phyip = InetAddress.getLocalHost().getHostAddress();
          }
@@ -3623,10 +3617,21 @@ public final class Tool extends CoreTool {
     * the sree.properties file, in which case it returns "localhost").
     */
    public static String getRmiIP() {
-      final String rmilocalhostip = SreeEnv.getProperty("rmi.localhost.ip");
+      return getRmiIP(false);
+   }
 
-      if(rmilocalhostip != null && rmilocalhostip.length() > 0 &&
-         rmilocalhostip.trim().equalsIgnoreCase("true"))
+   public static String getRmiIP(boolean early) {
+      String rmiLocalhostIp;
+
+      if(early) {
+         rmiLocalhostIp = SreeEnv.getEarlyLoadedProperty("rmi.localhost.ip");
+      }
+      else {
+         rmiLocalhostIp = SreeEnv.getProperty("rmi.localhost.ip");
+      }
+
+      if(rmiLocalhostIp != null && !rmiLocalhostIp.isEmpty() &&
+         rmiLocalhostIp.trim().equalsIgnoreCase("true"))
       {
          return "localhost";
       }

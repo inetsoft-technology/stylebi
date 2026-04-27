@@ -18,7 +18,6 @@
 package inetsoft.sree.web;
 
 import inetsoft.sree.security.SRPrincipal;
-import inetsoft.util.SingletonManager;
 
 import java.util.*;
 import java.util.concurrent.*;
@@ -29,12 +28,15 @@ import java.util.concurrent.*;
  * adds a heartbeat management mechanism to recover Viewer Licenses after
  * the Visual Composer is closed.
  */
-@SingletonManager.Singleton(SessionLicenseService.ViewerReference.class)
 public class ViewerSessionService implements SessionLicenseManager {
    public ViewerSessionService(SessionLicenseManager manager) {
       this.manager = manager;
       this.heartbeats = new ConcurrentHashMap<>();
-      this.runner = Executors.newSingleThreadScheduledExecutor();
+      this.runner = Executors.newSingleThreadScheduledExecutor(r -> {
+         Thread t = new Thread(r, "ViewerLicenseCleaner");
+         t.setDaemon(true);
+         return t;
+      });
 
       this.runner.scheduleAtFixedRate(
          new LicenseCleaner(), 1L, 60L, TimeUnit.SECONDS);

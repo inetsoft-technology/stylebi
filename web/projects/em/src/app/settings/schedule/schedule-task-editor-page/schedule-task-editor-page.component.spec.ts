@@ -15,7 +15,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { async, TestBed } from "@angular/core/testing";
 import { UntypedFormBuilder, ReactiveFormsModule } from "@angular/forms";
@@ -29,6 +28,7 @@ import { TimeConditionModel, TimeConditionType } from "../../../../../../shared/
 import { ScheduleTaskNamesService } from "../../../../../../shared/schedule/schedule-task-names.service";
 import { TimeZoneService } from "../../../../../../shared/schedule/time-zone.service";
 import { PageHeaderService } from "../../../page-header/page-header.service";
+import { ScheduleTaskEditorDataService } from "./schedule-task-editor-data.service";
 import { ScheduleTaskEditorPageComponent, TaskItem } from "./schedule-task-editor-page.component";
 
 const createCondition = (label: string = "Daily Condition"): TimeConditionModel => ({
@@ -110,10 +110,11 @@ describe("ScheduleTaskEditorPageComponent", () => {
 
    beforeEach(async(() => {
       TestBed.configureTestingModule({
-         imports: [HttpClientTestingModule, ReactiveFormsModule],
+         imports: [ReactiveFormsModule],
          declarations: [ScheduleTaskEditorPageComponent],
          providers: [
             UntypedFormBuilder,
+            { provide: ScheduleTaskEditorDataService, useValue: { loadTask: jest.fn(), saveTask: jest.fn() } },
             { provide: ActivatedRoute, useValue: { params: EMPTY } },
             { provide: Router, useValue: { navigate: jest.fn() } },
             { provide: MatDialog, useValue: { open: jest.fn() } },

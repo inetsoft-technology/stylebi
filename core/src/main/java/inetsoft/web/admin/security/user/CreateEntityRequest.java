@@ -29,6 +29,8 @@ import javax.annotation.Nullable;
 public interface CreateEntityRequest {
    @Nullable String parentGroup();
 
+   @Nullable String defaultPassword();
+
    static Builder builder() {
       return new Builder();
    }

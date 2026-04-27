@@ -28,8 +28,8 @@
       (startTimeChanged)="onStartTimeChanged($event)">
       <em-time-zone-select formControlName="timeZone"
                            [startTimeEnabled]="startTimeEnabled"
-                           [timeZoneOptions]="timeZoneOptions" [serverTimeZone]="timeZone" [enabled]="timeZoneEnabled"
-                           (labelChanged)="setTimeZoneLabel($event)" (changed)="fireModelChanged()">
+                           [timeZoneOptions]="timeZoneOptions" [enabled]="timeZoneEnabled"
+                           (changed)="fireModelChanged()">
       </em-time-zone-select>
     </em-start-time-editor>
     <mat-checkbox formControlName="weekdayOnly" (change)="fireModelChanged()">_#(Weekdays)</mat-checkbox>

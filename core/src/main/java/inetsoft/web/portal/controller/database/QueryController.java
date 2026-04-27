@@ -45,10 +45,12 @@ import java.util.List;
 public class QueryController extends WorksheetController {
    @Autowired
    public QueryController(RuntimeQueryService runtimeQueryService,
-                          QueryManagerService queryManager)
+                          QueryManagerService queryManager,
+                          SecurityEngine securityEngine)
    {
       this.runtimeQueryService = runtimeQueryService;
       this.queryManager = queryManager;
+      this.securityEngine = securityEngine;
    }
 
    @GetMapping("/api/data/datasource/query/query-model")
@@ -147,7 +149,7 @@ public class QueryController extends WorksheetController {
                            @RequestParam(value = "columnAlias", required = false) String columnAlias,
                            @RequestParam("add") boolean add, Principal principal) throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(
+      if(!securityEngine.checkPermission(
          principal, ResourceType.WORKSHEET_EXPRESSION_COLUMN, "*", ResourceAction.ACCESS))
       {
          throw new SecurityException("You do not have permission to modify expression columns.");
@@ -263,4 +265,5 @@ public class QueryController extends WorksheetController {
 
    private final RuntimeQueryService runtimeQueryService;
    private final QueryManagerService queryManager;
+   private final SecurityEngine securityEngine;
 }

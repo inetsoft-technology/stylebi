@@ -53,11 +53,15 @@ public class DatasourcesTreeService {
    @Autowired
    public DatasourcesTreeService(SecurityEngine securityEngine,
                                  ContentRepositoryTreeService contentRepositoryTreeService,
-                                 AssetRepository assetRepository)
+                                 AssetRepository assetRepository,
+                                 DataSourceRegistry dataSourceRegistry,
+                                 LicenseManager licenseManager)
    {
       this.securityEngine = securityEngine;
       this.contentRepositoryTreeService = contentRepositoryTreeService;
       this.assetRepository = assetRepository;
+      this.dataSourceRegistry = dataSourceRegistry;
+      this.licenseManager = licenseManager;
    }
 
    public TreeNodeModel getRoot(Principal principal) throws Exception {
@@ -245,7 +249,7 @@ public class DatasourcesTreeService {
 
    private TreeNodeModel getDataSources(Principal principal) {
       IdentityID user = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
-      final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      final DataSourceRegistry registry = dataSourceRegistry;
 
       AssetEntry entry = new AssetEntry(
          AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE_FOLDER, "/", user);
@@ -313,7 +317,7 @@ public class DatasourcesTreeService {
                models.add(dataModelNode);
                boolean selfOrg = principal instanceof SRPrincipal &&
                   ((SRPrincipal) principal).isSelfOrganization();
-               boolean enterprise = LicenseManager.getInstance().isEnterprise();
+               boolean enterprise = licenseManager.isEnterprise();
 
                if(!selfOrg && enterprise) {
                   String virtualModelsLabel = Catalog.getCatalog().getString("Virtual Private Models");
@@ -369,7 +373,7 @@ public class DatasourcesTreeService {
             return false;
          }
 
-         XDataSource dataSource = DataSourceRegistry.getRegistry().getDataSource(name,
+         XDataSource dataSource = dataSourceRegistry.getDataSource(name,
             OrganizationManager.getInstance().getCurrentOrgID(principal));
 
          if(dataSource instanceof JDBCDataSource) {
@@ -511,7 +515,7 @@ public class DatasourcesTreeService {
          }
       }
       else {
-         DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+         DataSourceRegistry registry = dataSourceRegistry;
          XDataSource dataSource = registry.getDataSource(databasePath);
 
          if(dataSource == null) {
@@ -622,7 +626,7 @@ public class DatasourcesTreeService {
     */
    public List<TreeNodeModel> getVpms(String database, IdentityID user, Principal principal) {
       List<TreeNodeModel> results = new ArrayList<>();
-      XDataModel dataModel = DataSourceRegistry.getRegistry().getDataModel(database);
+      XDataModel dataModel = dataSourceRegistry.getDataModel(database);
 
       AssetEntry[] entries = getModelAssetEntries(database + "/", AssetEntry.Type.VPM);
 
@@ -675,7 +679,7 @@ public class DatasourcesTreeService {
     * @throws Exception if unable to retrieve the asset entries.
     */
    private AssetEntry[] getModelAssetEntries(String path, AssetEntry.Type type) {
-      DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      DataSourceRegistry registry = dataSourceRegistry;
 
       AssetEntry[] entries = registry.getEntries(path, type);
 
@@ -714,5 +718,7 @@ public class DatasourcesTreeService {
    private final SecurityEngine securityEngine;
    private final ContentRepositoryTreeService contentRepositoryTreeService;
    private final AssetRepository assetRepository;
+   private final DataSourceRegistry dataSourceRegistry;
+   private final LicenseManager licenseManager;
    private static final Logger LOG = LoggerFactory.getLogger(DatasourcesTreeService.class);
 }

@@ -72,6 +72,13 @@ public abstract class TimeConditionModel extends ScheduleConditionModel {
    public abstract String timeZone();
 
    /**
+    * Display label of the selected time zone option, for disambiguation
+    * when multiple options share the same IANA ID (e.g. local vs. server).
+    */
+   @Nullable
+   public abstract String timeZoneLabel();
+
+   /**
     * Server time zone offset
     */
    @Nullable

@@ -48,6 +48,10 @@ import java.util.*;
 
 @Component
 public class VSEmailService {
+   public VSEmailService(FileSystemService fileSystemService) {
+      this.fileSystemService = fileSystemService;
+   }
+
    public void emailViewsheet(RuntimeViewsheet rvs, int formatType, String[] bookmarks,
                               boolean matchLayout, boolean expandSelections,
                               boolean includeCurrent, String toaddrs,
@@ -121,7 +125,7 @@ public class VSEmailService {
       boolean multipleFiles = formatType == FileFormatInfo.EXPORT_TYPE_PNG && bookmarks.length > 1;
       List<File> fileList = new ArrayList<>();
 
-      FileSystemService fileSystemService = FileSystemService.getInstance();
+      FileSystemService fileSystemService = this.fileSystemService;
 
       if(formatType != -1) {
          ftype = ExportUtil.getSuffix(formatType);
@@ -202,7 +206,7 @@ public class VSEmailService {
                   else {
                      int vmode = Viewsheet.SHEET_RUNTIME_MODE;
 
-                     ViewsheetSandbox sandbox = new ViewsheetSandbox(
+                     ViewsheetSandbox sandbox = createSandbox(
                         rvs.getOriginalBookmark(bookmarks[i]), vmode, principal,
                         rvs.getEntry());
                      exporter.export(sandbox, bookmarks[i], (i + 1), helper);
@@ -217,7 +221,7 @@ public class VSEmailService {
       }
 
       try {
-         Mailer mailer = new Mailer();
+         Mailer mailer = createMailer();
          toaddrs = getEmailsString(getEmailsList(toaddrs, principal));
          boolean isEmptyCC = StringUtils.isEmpty(ccaddrs);
          boolean isEmptyBCC = StringUtils.isEmpty(bccaddrs);
@@ -410,7 +414,7 @@ public class VSEmailService {
       }
    }
 
-   private static void exportViewsheet(RuntimeViewsheet rvs, Principal principal, int formatType,
+   private void exportViewsheet(RuntimeViewsheet rvs, Principal principal, int formatType,
                                        String[] bookmarks, OutputStream output, CSVConfig csvConfig,
                                        boolean matchLayout, boolean expandSelections,
                                        boolean onlyDataComponent,  boolean includeCurrent,
@@ -449,7 +453,7 @@ public class VSEmailService {
       int vmode = Viewsheet.SHEET_RUNTIME_MODE;
 
       for(int i = 0; bookmarks != null && i < bookmarks.length; i++) {
-         ViewsheetSandbox sandbox = new ViewsheetSandbox(
+         ViewsheetSandbox sandbox = createSandbox(
                  rvs.getOriginalBookmark(bookmarks[i]), vmode, principal,
                  rvs.getEntry());
          exporter.export(sandbox, bookmarks[i], (i + 1), helper); //!!! maybe the pictures aren't being written out become of overwriting?
@@ -458,6 +462,17 @@ public class VSEmailService {
 
       exporter.write();
       output.close();
+   }
+
+   protected Mailer createMailer() {
+      return new Mailer();
+   }
+
+   protected ViewsheetSandbox createSandbox(Viewsheet bookmark, int mode,
+                                             Principal principal, AssetEntry entry)
+      throws Exception
+   {
+      return new ViewsheetSandbox(bookmark, mode, principal, entry);
    }
 
    /*
@@ -617,4 +632,6 @@ public class VSEmailService {
 
       return false;
    }
+
+   private final FileSystemService fileSystemService;
 }

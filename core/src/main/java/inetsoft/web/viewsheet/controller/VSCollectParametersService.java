@@ -54,11 +54,15 @@ public class VSCollectParametersService {
 
    public VSCollectParametersService(CoreLifecycleService coreLifecycleService,
                                      ViewsheetService viewsheetService,
-                                     AssetRepository assetRepository)
+                                     AssetRepository assetRepository,
+                                     XSessionService sessionService,
+                                     XRepository xRepository)
    {
       this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
       this.assetRepository = assetRepository;
+      this.sessionService = sessionService;
+      this.xRepository = xRepository;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -73,7 +77,7 @@ public class VSCollectParametersService {
       AssetEntry entry = rvs.getEntry();
       String vsName = entry.getSheetName();
       String userSessionID = principal == null ?
-         XSessionService.createSessionID(XSessionService.USER, null) :
+         sessionService.createSessionID(XSessionService.USER, null) :
          ((XPrincipal) principal).getSessionID();
       String objectName = entry.getDescription();
       String execSessionID = event.disableAudit() ? null : rvs.getExecSessionID();
@@ -257,15 +261,14 @@ public class VSCollectParametersService {
       }
 
       Object session = assetRepository.getSession();
-      XRepository rep = XFactory.getRepository();
       Iterator iterator = dbs.iterator();
 
       while(iterator.hasNext()) {
          String db = (String) iterator.next();
-         XDataSource ds = rep.getDataSource(db);
+         XDataSource ds = xRepository.getDataSource(db);
 
          if(db != null) {
-            rep.testDataSource(session, ds, vtable);
+            xRepository.testDataSource(session, ds, vtable);
             String name = (String) vtable.get(XUtil.DB_USER_PREFIX + db);
             String pass = (String) vtable.get(XUtil.DB_PASSWORD_PREFIX + db);
 
@@ -277,7 +280,7 @@ public class VSCollectParametersService {
                                                pass);
             }
 
-            rep.connect(session, ":" + db, vtable);
+            xRepository.connect(session, ":" + db, vtable);
          }
       }
    }
@@ -311,6 +314,8 @@ public class VSCollectParametersService {
    private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
    private final AssetRepository assetRepository;
+   private final XSessionService sessionService;
+   private final XRepository xRepository;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(VSCollectParametersService.class);

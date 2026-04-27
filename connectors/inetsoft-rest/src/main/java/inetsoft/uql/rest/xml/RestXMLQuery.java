@@ -60,6 +60,7 @@ public class RestXMLQuery extends AbstractRestQuery {
    }
 
    @Property(label="URL Suffix", checkEnvVariables = true)
+   @PropertyEditor(autoSize = true)
    @Override
    public String getSuffix() {
       return super.getSuffix();

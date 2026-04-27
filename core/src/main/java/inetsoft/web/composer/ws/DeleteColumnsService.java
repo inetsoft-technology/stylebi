@@ -27,6 +27,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.delete.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.RenameInfo;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.Catalog;
 import inetsoft.web.binding.drm.ColumnRefModel;
@@ -43,8 +44,8 @@ import java.util.List;
 @Service
 @ClusterProxy
 public class DeleteColumnsService extends WorksheetControllerService {
-   public DeleteColumnsService(ViewsheetService viewsheetService) {
-      super(viewsheetService);
+   public DeleteColumnsService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry) {
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

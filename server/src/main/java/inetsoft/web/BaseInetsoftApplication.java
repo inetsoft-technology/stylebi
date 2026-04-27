@@ -21,18 +21,21 @@ package inetsoft.web;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
-import inetsoft.sree.schedule.*;
+import inetsoft.sree.schedule.ScheduleClient;
+import inetsoft.sree.schedule.ScheduleTask;
+import inetsoft.sree.security.AuthenticationService;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
-import inetsoft.util.swap.XSwapper;
 import inetsoft.util.log.LogManager;
-import inetsoft.web.metrics.*;
+import inetsoft.util.swap.XSwapper;
+import inetsoft.web.messaging.SessionConnectionService;
 import inetsoft.web.security.*;
-import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PreDestroy;
 import jakarta.servlet.DispatcherType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.boot.*;
 import org.springframework.boot.actuate.endpoint.web.EndpointMediaTypes;
@@ -55,34 +58,44 @@ public abstract class BaseInetsoftApplication {
    public void start(String[] args) {
       ApplicationArguments appArguments = new DefaultApplicationArguments(args);
 
-      // make sure aot is not enabled during process-aot phase and don't start ignite
+      // make sure aot is not enabled during process-aot phase
       if("true".equals(System.getProperty("spring.aot.processing"))) {
          System.setProperty("spring.aot.enabled", "false");
       }
-      else {
-         String home = null;
 
-         if(appArguments.containsOption("sree.home")) {
-            home = appArguments.getOptionValues("sree.home").getFirst();
-         }
+      String home = null;
 
-         configure(home);
+      if(appArguments.containsOption("sree.home")) {
+         home = appArguments.getOptionValues("sree.home").getFirst();
+      }
+
+      configure(home);
+
+      // don't trigger Ignite initialization during process-aot phase
+      if(!"true".equals(System.getProperty("spring.aot.processing"))) {
+         LogManager.initializeForStartup();
+         Tool.setServer(true);
+         System.setProperty("inetsoft.cluster.node.type", "reportServer");
       }
 
       SpringApplication.run(getClass(), args);
-      SreeEnv.reloadLoggingFramework();
-      SUtil.initScheduleListener();
 
-      if(isSchedulerServerAutoStart()) {
-         ThreadPool.addOnDemand(() -> {
-            try {
-               SUtil.startScheduler();
-            }
-            catch(Exception e) {
-               LoggerFactory.getLogger(InetsoftApplication.class)
-                  .error("Failed to auto-start scheduler", e);
-            }
-         });
+      // don't trigger Ignite initialization during process-aot phase
+      if(!"true".equals(System.getProperty("spring.aot.processing"))) {
+         SreeEnv.reloadLoggingFramework();
+         SUtil.initScheduleListener();
+
+         if(isSchedulerServerAutoStart()) {
+            ThreadPool.addOnDemand(() -> {
+               try {
+                  SUtil.startScheduler();
+               }
+               catch(Exception e) {
+                  LoggerFactory.getLogger(InetsoftApplication.class)
+                     .error("Failed to auto-start scheduler", e);
+               }
+            });
+         }
       }
    }
 
@@ -158,10 +171,10 @@ public abstract class BaseInetsoftApplication {
    }
 
    @Bean
-   public FilterRegistrationBean<SecurityFilterChain> securityChainFilter() {
+   public FilterRegistrationBean<SecurityFilterChain> securityChainFilter(@Lazy SessionLicenseServiceProvider sessionLicenseServiceProvider, @Lazy AuthenticationService authenticationService) {
       FilterRegistrationBean<SecurityFilterChain> bean = new FilterRegistrationBean<>();
       bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 4);
-      bean.setFilter(new SecurityFilterChain());
+      bean.setFilter(new SecurityFilterChain(sessionLicenseServiceProvider, authenticationService));
       bean.setDispatcherTypes(EnumSet.allOf(DispatcherType.class));
       return bean;
    }
@@ -210,14 +223,6 @@ public abstract class BaseInetsoftApplication {
       Logger log = LoggerFactory.getLogger(getClass());
 
       try {
-         DataSpace space = DataSpace.getDataSpace();
-         space.dispose();
-      }
-      catch(Exception ex) {
-         log.debug("Failed to shut down data space", ex);
-      }
-
-      try {
          ScheduleTask.shutdownThreadPool();
       }
       catch(Exception ex) {
@@ -234,17 +239,12 @@ public abstract class BaseInetsoftApplication {
       }
 
       try {
-         XSwapper.stop();
+         if(sessionConnectionService != null) {
+            sessionConnectionService.closeAllSessions();
+         }
       }
       catch(Exception ex) {
-         log.debug("Failed to stop XSwapper", ex);
-      }
-
-      try {
-         SingletonManager.reset(true);
-      }
-      catch(Exception ex) {
-         log.debug("Failed to shutdown SingletonManager", ex);
+         log.debug("Failed to close websocket sessions", ex);
       }
 
       try {
@@ -278,13 +278,18 @@ public abstract class BaseInetsoftApplication {
                "derby.stream.error.file",
                new File(home, "derby.log").getAbsolutePath());
             ConfigurationContext.getContext().setHome(new File(home).getAbsolutePath());
-         }
 
-         LogManager.initializeForStartup();
-         Tool.setServer(true);
-         Cluster.getInstance().setLocalNodeProperty("reportServer", "true");
+            // Eagerly load InetsoftConfig so it is available before SpringApplication.run()
+            // starts creating beans. StorageConfiguration.inetsoftConfig() returns this
+            // instance directly, ensuring all downstream @Bean methods receive a
+            // non-null InetsoftConfig without going through SingletonManager.
+            InetsoftConfig.bootstrap();
+         }
       }
    }
+
+   @Autowired(required = false)
+   private SessionConnectionService sessionConnectionService;
 
    private static final AtomicBoolean configured = new AtomicBoolean(false);
 }

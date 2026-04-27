@@ -161,6 +161,9 @@ export class CodemirrorComponent implements AfterViewInit, AfterViewChecked, OnD
             }, 0);
          });
       }
+      else if(!this.isEditorElementDisplayed()) {
+         this.viewChecked = false;
+      }
    }
 
    ngOnInit(): void {

@@ -398,7 +398,7 @@ public final class MVTableMetaData extends TableMetaData {
     */
    private TableLens getTableLens(TableAssembly tbl) throws Exception {
       AssetQuerySandbox wbox = box.getAssetQuerySandbox();
-      return AssetDataCache.getData(box.getID(), tbl, wbox, null,
+      return AssetDataCache.getCache().getData(box.getID(), tbl, wbox, null,
                                     AssetQuerySandbox.RUNTIME_MODE, false, box.getTouchTimestamp(), null);
       /*
       long ts = System.currentTimeMillis();

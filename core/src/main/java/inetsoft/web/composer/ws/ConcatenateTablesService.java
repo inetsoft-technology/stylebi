@@ -26,6 +26,7 @@ import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
@@ -41,8 +42,10 @@ import java.util.*;
 @Service
 @ClusterProxy
 public class ConcatenateTablesService extends WorksheetControllerService {
-   public ConcatenateTablesService(ViewsheetService viewsheetService) {
-      super(viewsheetService);
+   public ConcatenateTablesService(ViewsheetService viewsheetService,
+                                   DataSourceRegistry dataSourceRegistry)
+   {
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -111,7 +114,7 @@ public class ConcatenateTablesService extends WorksheetControllerService {
       if(event.getOtherTables().length == 0) {
          MessageCommand command = new MessageCommand();
          command.setType(MessageCommand.Type.WARNING);
-         command.setMessage("There are no other tables to concatenate with.");
+         command.setMessage(Catalog.getCatalog().getString("common.concatenate.notable"));
          command.setAssemblyName(event.getSourceTable());
          commandDispatcher.sendCommand(command);
          return null;

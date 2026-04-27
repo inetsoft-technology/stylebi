@@ -58,7 +58,7 @@ public class XSwappableTable implements XTable, Externalizable {
 
       creators = new XTableColumnCreator[0];
       this.tables = new XTableFragment[10];
-      this.monitor = XSwapper.getMonitor();
+      this.monitor = XSwapper.getSwapper().getMonitor();
       this.pos = 0;
 
       if(monitor != null) {
@@ -916,6 +916,14 @@ public class XSwappableTable implements XTable, Externalizable {
 
          mmap.put(path, minfo);
       }
+   }
+
+   /**
+    * Get the meta info map for serialization purposes.
+    * @return map of table data path to meta info, or empty map if none.
+    */
+   public Map<TableDataPath, XMetaInfo> getXMetaInfoMap() {
+      return mmap != null ? Collections.unmodifiableMap(mmap) : Collections.emptyMap();
    }
 
    /**

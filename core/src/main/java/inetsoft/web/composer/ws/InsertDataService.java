@@ -29,6 +29,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSInsertDataEvent;
@@ -43,8 +44,8 @@ import java.util.List;
 @Service
 @ClusterProxy
 public class InsertDataService extends WorksheetControllerService {
-   public InsertDataService(ViewsheetService viewsheetService) {
-      super(viewsheetService);
+   public InsertDataService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry) {
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

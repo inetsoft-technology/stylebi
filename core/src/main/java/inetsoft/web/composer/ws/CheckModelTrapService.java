@@ -25,6 +25,7 @@ import inetsoft.report.composition.*;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AbstractModelTrapContext;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.drm.ColumnRefModel;
@@ -43,9 +44,10 @@ import static inetsoft.web.composer.ws.dialog.AggregateDialogService.getAggregat
 @ClusterProxy
 public class CheckModelTrapService extends WorksheetControllerService {
    public CheckModelTrapService(ViewsheetService viewsheetService,
-                                DataRefModelFactoryService dataRefModelFactoryService)
+                                DataRefModelFactoryService dataRefModelFactoryService,
+                                DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
       this.dataRefModelFactoryService = dataRefModelFactoryService;
    }
 
@@ -67,7 +69,7 @@ public class CheckModelTrapService extends WorksheetControllerService {
       boolean isAgg = !agg.isEmpty();
 
       WSModelTrapContext mtc = new WSModelTrapContext(
-         table, ThreadContext.getContextPrincipal(), isAgg, true);
+         table, ThreadContext.getContextPrincipal(), isAgg, true, getDataSourceRegistry());
 
       if(mtc.isCheckTrap()) {
          TableAssembly otable = (TableAssembly) table.clone();
@@ -81,7 +83,7 @@ public class CheckModelTrapService extends WorksheetControllerService {
          boolean contains = oinfo != null && oinfo.showWarning() ? false :
             ninfo != null && ninfo.showWarning();
          WSModelTrapContext gmtc =
-            new WSModelTrapContext(table, ThreadContext.getContextPrincipal(), true, true);
+            new WSModelTrapContext(table, ThreadContext.getContextPrincipal(), true, true, getDataSourceRegistry());
          gmtc.checkTrap(otable, ntable);
 
          ColumnRefModel[] columnRefs = Arrays.stream(gmtc.getGrayedFields())

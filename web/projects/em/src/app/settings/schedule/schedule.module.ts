@@ -94,9 +94,6 @@ import { BatchActionEditorComponent } from "./task-action-pane/batch-action-edit
 import { BatchAddParametersDialogComponent } from "./task-action-pane/batch-add-parameters-dialog/batch-add-parameters-dialog.component";
 import { BatchEmbeddedParametersDialogComponent } from "./task-action-pane/batch-embedded-parameters-dialog/batch-embedded-parameters-dialog.component";
 import { BatchQueryParametersDialogComponent } from "./task-action-pane/batch-query-parameters-dialog/batch-query-parameters-dialog.component";
-import { BurstEmailDialogComponent } from "./task-action-pane/burst-email-dialog/burst-email-dialog.component";
-import { BurstEmailEmbeddedPaneComponent } from "./task-action-pane/burst-email-dialog/burst-email-embedded-pane/burst-email-embedded-pane.component";
-import { BurstEmailQueryPaneComponent } from "./task-action-pane/burst-email-dialog/burst-email-query-pane/burst-email-query-pane.component";
 import { DeliveryEmailsComponent } from "./task-action-pane/delivery-emails/delivery-emails.component";
 import { EditPermissionDialogComponent } from "./task-action-pane/edit-permission-dialog/edit-permission-dialog.component";
 import { EmCSVConfigPaneComponent } from "./task-action-pane/em-csv-config-pane.component";
@@ -182,9 +179,6 @@ import { TaskOptionsPane } from "./task-options-pane/task-options-pane.component
    declarations: [
       BackupActionEditorComponent,
       BackupFileComponent,
-      BurstEmailDialogComponent,
-      BurstEmailEmbeddedPaneComponent,
-      BurstEmailQueryPaneComponent,
       CompletionConditionEditorComponent,
       DailyConditionEditorComponent,
       DeliveryEmailsComponent,

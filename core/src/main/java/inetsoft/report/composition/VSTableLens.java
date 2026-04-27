@@ -2147,6 +2147,24 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
    }
 
    /**
+    * Get the configured maximum column count from the table.output.maxcol property.
+    * The value is clamped between 1 and 500 (the default).
+    */
+   public static int getConfiguredMaxCols() {
+      String maxColProp = SreeEnv.getProperty("table.output.maxcol");
+      int maxCols = 500;
+
+      try {
+         maxCols = Math.min(Integer.parseInt(maxColProp), 500);
+         maxCols = Math.max(maxCols, 1);
+      }
+      catch(NumberFormatException ignored) {
+      }
+
+      return maxCols;
+   }
+
+   /**
     * Check if a string contains html tag.
     */
    public static boolean isHTML(String str) {

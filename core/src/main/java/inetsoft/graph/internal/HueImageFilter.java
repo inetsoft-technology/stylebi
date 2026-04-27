@@ -47,15 +47,27 @@ class HueImageFilter extends RGBImageFilter {
     
    @Override
    public int filterRGB(int x, int y, int rgb) {
-      int rgb2 = (rgb & 0xFFFFFF);
-
       if((rgb & 0xFF000000) == 0) { // transparent
-	 return rgb;
-      }
-      else if(rgb2 == 0xffffff) { // most likely background
          return rgb;
       }
-      
+
+      // For grey targets (e.g. brush dim color): replace every opaque pixel with solid grey.
+      // changeHue() preserves per-pixel brightness, so dark SVG content stays dark and
+      // white areas were previously skipped — both produce an inconsistent appearance.
+      // Replacing all non-transparent pixels with the target grey makes custom SVG shapes
+      // look like solid grey silhouettes, matching the flat grey of built-in shapes.
+      if(gray) {
+         int srcAlpha = rgb >>> 24;
+         int dstAlpha = a0 != 255 ? srcAlpha * a0 / 255 : srcAlpha;
+         return (dstAlpha << 24) | (r0 << 16) | (g0 << 8) | b0;
+      }
+
+      int rgb2 = (rgb & 0xFFFFFF);
+
+      if(rgb2 == 0xffffff) { // most likely background
+         return rgb;
+      }
+
       int a = rgb & 0xFF000000;
       int r = rgb >>> 16 & 0xFF;
       int g = rgb >>> 8 & 0xFF;
@@ -73,20 +85,18 @@ class HueImageFilter extends RGBImageFilter {
          }
 
          double ratio = (255 - r) / 255.0;
-         
+
          r = (int) (r0 * ratio);
          g = (int) (g0 * ratio);
          b = (int) (b0 * ratio);
 
          return 0xFF000000 | (r << 16) | (g << 8) | b;
       }
-      
+
       float[] hsb = Color.RGBtoHSB((rgb >>> 16) & 0xFF, (rgb >>> 8) & 0xFF,
                                    rgb & 0xFF, null);
-      // gray color should not be changed into color
-      float sat = gray ? 0 : hsb[1];
 
-      return Color.HSBtoRGB(hue, sat, hsb[2]) & 0xFFFFFF | a;
+      return Color.HSBtoRGB(hue, hsb[1], hsb[2]) & 0xFFFFFF | a;
    }
 
    private float hue;

@@ -24,6 +24,7 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
+import jakarta.annotation.PostConstruct;
 import inetsoft.sree.security.db.DatabaseAuthenticationProvider;
 import inetsoft.sree.security.ldap.*;
 import inetsoft.uql.XPrincipal;
@@ -57,15 +58,23 @@ import java.util.stream.Collectors;
 public class AuthenticationProviderService extends BaseSubscribeChangeHandler implements MessageListener {
    @Autowired
    public AuthenticationProviderService(SecurityEngine securityEngine, ObjectMapper objectMapper,
-                                        SimpMessagingTemplate messageTemplate)
+                                        SimpMessagingTemplate messageTemplate,
+                                        Cluster cluster,
+                                        LicenseManager licenseManager)
    {
       super(messageTemplate);
       this.securityEngine = securityEngine;
       this.objectMapper = objectMapper;
-      Cluster.getInstance().addMessageListener(this);
+      this.cluster = cluster;
+      this.licenseManager = licenseManager;
    }
 
-   @EventListener
+   @PostConstruct
+   public void init() {
+      cluster.addMessageListener(this);
+   }
+
+   @EventListener(SessionDisconnectEvent.class)
    public void handleDisconnect(SessionDisconnectEvent event) {
       super.handleDisconnect(event);
    }
@@ -92,7 +101,7 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler im
    }
 
    public AuthenticationProviderModel getAuthenticationProvider(String name) {
-      boolean enterprise = LicenseManager.getInstance().isEnterprise();
+      boolean enterprise = licenseManager.isEnterprise();
       AuthenticationProvider selectedProvider = getProviderByName(name);
       AuthenticationProviderModel.Builder builder = AuthenticationProviderModel.builder()
          .providerName(name)
@@ -210,7 +219,7 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler im
       SecurityProviderStatusList.Builder builder = SecurityProviderStatusList.builder();
 
       if(chain.isEmpty()) {
-         LOG.warn("The authentication chain has not been initialized.");
+         LOG.debug("The authentication chain has not been initialized.");
       }
       else {
          chain.get().stream()
@@ -260,7 +269,9 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler im
                Catalog.getCatalog(principal).getString("em.security.noSystemAdminProvider")));
 
          // Note: If this is a database provider, its service will be cleaned up by lazy cleanup
-         // after no clients have connected for the grace period.
+         // after no clients have connected for the grace period. Eager teardown is intentionally
+         // avoided here: the removal needs time to propagate across cluster nodes, and destroying
+         // the service immediately would cause errors on nodes that haven't yet received the update.
          removedProvider.tearDown();
          chain.setProviders(providerList);
       }
@@ -892,6 +903,8 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler im
 
    private final SecurityEngine securityEngine;
    private final ObjectMapper objectMapper;
+   private final Cluster cluster;
+   private final LicenseManager licenseManager;
    private final DefaultDebouncer<String> debouncer = new DefaultDebouncer<>();
    private final Logger LOG = LoggerFactory.getLogger(AuthenticationProviderService.class);
 }

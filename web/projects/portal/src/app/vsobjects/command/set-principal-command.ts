@@ -36,5 +36,6 @@ export interface SetPrincipalCommand extends ViewsheetCommand {
    worksheetPermission: boolean;
    tableStylePermission: boolean;
    scriptPermission: boolean;
+   aiAssistantPermission: boolean;
    autoSaveFiles: string[];
 }

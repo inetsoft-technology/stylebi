@@ -23,6 +23,8 @@ import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.schedule.ScheduleTaskActionService;
 import inetsoft.web.admin.schedule.model.ViewsheetTreeListModel;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -33,13 +35,22 @@ public class RepositoryDashboardController {
    @Autowired
    public RepositoryDashboardController(RepositoryDashboardService repositoryDashboardService,
                                         ContentRepositoryTreeService treeService,
-                                        ScheduleTaskActionService taskActionService)
+                                        ScheduleTaskActionService taskActionService,
+                                        SecurityEngine securityEngine)
    {
       this.repositoryDashboardService = repositoryDashboardService;
       this.treeService = treeService;
       this.taskActionService = taskActionService;
+      this.securityEngine = securityEngine;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/dashboard")
    public RepositoryDashboardSettingsModel getDashboardSettings(@DecodeParam("path") String path,
                                                                 @DecodeParam(value = "owner", required = false) String owner,
@@ -48,15 +59,30 @@ public class RepositoryDashboardController {
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
       path = treeService.getUnscopedPath(path);
+
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.DASHBOARD, path,
+                                                       ResourceAction.ADMIN))
+      {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", path));
+      }
+
       return repositoryDashboardService.getSettings(path, ownerID, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/dashboard")
    public RepositoryDashboardSettingsModel setDashboardSettings(@DecodeParam("path") String path,
                                                                 @DecodeParam(value = "owner", required = false) String owner,
@@ -68,6 +94,13 @@ public class RepositoryDashboardController {
       return repositoryDashboardService.setSettings(path, model, ownerID, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/settings/content/repository/dashboard/add")
    public ContentRepositoryTreeNode addDashboard(@RequestBody NewRepositoryFolderRequest info,
                                                         Principal principal)
@@ -76,6 +109,13 @@ public class RepositoryDashboardController {
       return repositoryDashboardService.addDashboard(info, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/folder/dashboard")
    public RepositoryFolderDashboardSettingsModel getDashboardFolderSettings(Principal principal)
       throws Exception
@@ -83,6 +123,13 @@ public class RepositoryDashboardController {
       return repositoryDashboardService.getDashboardFolderSettings(principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/folder/dashboard")
    public RepositoryFolderDashboardSettingsModel setDashboardFolderSettings(
       @RequestBody RepositoryFolderDashboardSettingsModel model,
@@ -91,6 +138,13 @@ public class RepositoryDashboardController {
       return repositoryDashboardService.setDashboardFolderSettings(model, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/settings/repository/dashboard/viewsheet/folders")
    public ViewsheetTreeListModel getViewsheetFolders(Principal principal)
       throws Exception
@@ -99,6 +153,7 @@ public class RepositoryDashboardController {
    }
 
    private final RepositoryDashboardService repositoryDashboardService;
+   private final SecurityEngine securityEngine;
    private final ContentRepositoryTreeService treeService;
    private final ScheduleTaskActionService taskActionService;
 }

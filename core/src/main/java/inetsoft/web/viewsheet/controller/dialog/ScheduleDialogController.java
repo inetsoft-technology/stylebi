@@ -22,6 +22,9 @@ import inetsoft.sree.security.*;
 import inetsoft.util.Catalog;
 import inetsoft.web.admin.schedule.model.TimeZoneModel;
 import inetsoft.web.factory.RemainingPath;
+import inetsoft.web.portal.model.CSVConfigModel;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.dialog.schedule.*;
@@ -46,10 +49,12 @@ public class ScheduleDialogController {
    @Autowired
    public ScheduleDialogController(RuntimeViewsheetRef runtimeViewsheetRef,
                                    SecurityProvider securityProvider,
+                                   SecurityEngine securityEngine,
                                    ScheduleDialogServiceProxy scheduleDialogServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.securityProvider = securityProvider;
+      this.securityEngine = securityEngine;
       this.scheduleDialogServiceProxy = scheduleDialogServiceProxy;
    }
 
@@ -59,13 +64,25 @@ public class ScheduleDialogController {
     * @return  the schedule dialog model
     * @throws Exception if could not create the schedule dialog model
     */
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.VIEWSHEET_TOOLBAR_ACTION,
+         resource = "Schedule",
+         actions = ResourceAction.READ
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @RequestMapping(value = "/api/vs/schedule-dialog-model", method = RequestMethod.GET)
    @ResponseBody
    public ScheduleDialogModel getScheduleDialogModel(Principal principal)
       throws Exception
    {
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-      boolean bookmarkEnabled = SecurityEngine.getSecurity().checkPermission(
+      boolean bookmarkEnabled = securityEngine.checkPermission(
          principal, ResourceType.VIEWSHEET_ACTION, "Bookmark", ResourceAction.READ) &&
          !"anonymous".equals(pId.name);
 
@@ -115,6 +132,18 @@ public class ScheduleDialogController {
     * @return  the schedule dialog model
     * @throws Exception if could not create the schedule dialog model
     */
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.VIEWSHEET_TOOLBAR_ACTION,
+         resource = "Schedule",
+         actions = ResourceAction.READ
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @RequestMapping(value = "/api/vs/simple-schedule-dialog-model/**", method = RequestMethod.GET)
    @ResponseBody
    public SimpleScheduleDialogModel getSimpleScheduleDialogModel(@RemainingPath String runtimeId,
@@ -132,6 +161,18 @@ public class ScheduleDialogController {
     * @return  the schedule dialog model
     * @throws Exception if could not create the schedule dialog model
     */
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.VIEWSHEET_TOOLBAR_ACTION,
+         resource = "Schedule",
+         actions = ResourceAction.READ
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @RequestMapping(value = "/api/vs/check-schedule-dialog/**", method = RequestMethod.GET)
    @ResponseBody
    public MessageCommand checkScheduleDialog(@RemainingPath String runtimeId,
@@ -166,5 +207,6 @@ public class ScheduleDialogController {
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final SecurityProvider securityProvider;
+   private final SecurityEngine securityEngine;
    private final ScheduleDialogServiceProxy scheduleDialogServiceProxy;
 }
