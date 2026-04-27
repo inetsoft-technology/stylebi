@@ -20,8 +20,11 @@ package inetsoft.web.composer;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.WorksheetEngine;
+import inetsoft.mv.MVManager;
+import inetsoft.report.composition.*;
+import inetsoft.report.composition.event.AssetEventUtil;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -42,8 +45,8 @@ import org.springframework.stereotype.Service;
 
 import java.rmi.RemoteException;
 import java.security.Principal;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -103,14 +106,14 @@ public class AssetTreeService {
          }
 
          VariableTable vtbl = new VariableTable();
-         XUtil.copyDBCredentials((XPrincipal)principal, vtbl);
+         XUtil.copyDBCredentials((XPrincipal) principal, vtbl);
 
          if(vtbl.contains(XUtil.DB_USER_PREFIX + source)) {
             xRepository.connect(assetRepository.getSession(), ":" + source, vtbl);
             return result;
          }
 
-         try{
+         try {
             UserVariable[] vars = xRepository.getConnectionParameters(
                assetRepository.getSession(), ":" + name);
 
@@ -269,7 +272,6 @@ public class AssetTreeService {
          AssetTreeModel.Node atmNode = new AssetTreeModel.Node(expandedEntry);
 
          if(!"cubeRoot".equals(expandedEntry.getProperty("entryName"))) {
-            XRepository rep = XFactory.getRepository();
             Set<UserVariable> list = new HashSet<>();
 
             if("true".equals(expandedEntry.getProperty("CUBE_TABLE")) ||
@@ -278,7 +280,7 @@ public class AssetTreeService {
                UserVariable[] vars = null;
 
                try {
-                  vars = rep.getConnectionParameters(
+                  vars = xRepository.getConnectionParameters(
                      assetRepository.getSession(), ":" + expandedEntry.getPath());
                }
                catch(RemoteException re) {
@@ -290,7 +292,7 @@ public class AssetTreeService {
                }
             }
 
-            if(list.size() > 0) {
+            if(!list.isEmpty()) {
                UserVariable[] vars = list.toArray(new UserVariable[0]);
                AssetUtil.validateAlias(vars);
                List<VariableAssemblyModelInfo> parameters = Arrays.stream(vars)
@@ -298,7 +300,7 @@ public class AssetTreeService {
                   .map(VariableAssemblyModelInfo::new)
                   .collect(Collectors.toList());
 
-               if(parameters.size() > 0) {
+               if(!parameters.isEmpty()) {
                   result = LoadAssetTreeNodesValidator.builder()
                      .parameters(parameters)
                      .treeNodeModel(TreeNodeModel.builder().build())
@@ -1065,7 +1067,86 @@ public class AssetTreeService {
       }
    }
 
-   private ViewsheetService viewsheetService;
-   private AssetRepository assetRepository;
+   private final ViewsheetService viewsheetService;
+   private final AssetRepository assetRepository;
    private final XRepository xRepository;
+   private static final String TABLE_STYLE = "Table Style";
+   private static final String SCRIPT = "Script Function";
+   private static final Catalog catalog = Catalog.getCatalog();
+
+   private static class EntryComparator implements Comparator<AssetEntry> {
+      @Override
+      public int compare(AssetEntry e1, AssetEntry e2) {
+         int s1 = assetScore(e1);
+         int s2 = assetScore(e2);
+
+         if(s1 != s2) {
+            return s1 - s2;
+         }
+
+         if(e1.getType() != AssetEntry.Type.QUERY) {
+            return e1.compareTo(e2);
+         }
+
+         String p1 = e1.getParentPath();
+         String p2 = e2.getParentPath();
+
+         if(isEmpty(p1) && isEmpty(p2)) {
+            return e1.compareTo(e2);
+         }
+
+         if(isEmpty(p1) || isEmpty(p2)) {
+            return isEmpty(p1) ? -1 : 1;
+         }
+
+         String[] folders1 = p1.split("/");
+         String[] folders2 = p2.split("/");
+         int len = Math.min(folders1.length, folders2.length);
+
+         for(int i = 0; i < len; i++) {
+            int res = folders1[i].compareTo(folders2[i]);
+
+            if(res != 0) {
+               return res;
+            }
+         }
+
+         if(folders1.length != folders2.length) {
+            return folders1.length > folders2.length ? -1 : 1;
+         }
+
+         return e1.compareTo(e2);
+      }
+
+      private boolean isEmpty(String str) {
+         return str == null || "".equals(str.trim());
+      }
+
+      private int assetScore(AssetEntry entry) {
+         switch(entry.getType()) {
+         case DATA_SOURCE_FOLDER:
+            return 0;
+         case DATA_SOURCE:
+            return 10;
+         case PHYSICAL_FOLDER:
+            return 20;
+         case LOGIC_MODEL:
+            return 30;
+         case FOLDER:
+            return 40;
+         case PHYSICAL_TABLE:
+            return 50;
+         case PHYSICAL_COLUMN:
+            return 60;
+         case TABLE:
+            return 70;
+         case COLUMN:
+            return 80;
+         case QUERY:
+            return 90;
+         }
+
+         return 100;
+      }
+   }
 }
