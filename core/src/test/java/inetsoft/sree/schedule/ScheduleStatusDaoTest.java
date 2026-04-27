@@ -19,15 +19,6 @@
 package inetsoft.sree.schedule;
 
 /*
- * Intent vs implementation suspects
- *
- * Issue #74697
- * [Suspect 1] task-name encoding should avoid reserved-keyword conflicts without aliasing
- *             actual: "__foo__" and "TASK^^foo" map to the same internal key and overwrite each other
- * [Suspect 2] "____" (four underscores) satisfies ^__.*__$ and encodes to "TASK^^" (empty suffix via substring(2,2)),
- *             colliding with any literal task named "TASK^^"
- * [Suspect 3] null task name bypasses encodeTaskName and reaches storage with a null key; no null-guard exists in the DAO
- *
  * ScheduleStatusDao state transitions
  *  [Op: put→get]           setStatus(task, ...) on empty storage                  -> getStatus(task) returns stored fields
  *  [Op: remove]            setStatus(task, ...) + clearStatus(task)               -> getStatus(task) returns null
@@ -44,7 +35,6 @@ package inetsoft.sree.schedule;
 import inetsoft.storage.KeyValuePair;
 import inetsoft.storage.KeyValueStorage;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
@@ -115,12 +105,14 @@ public class ScheduleStatusDaoTest {
       dao.setStatus("__nightly__", Scheduler.Status.FAILED, 10L, 20L, "boom", false);
 
       assertFalse(storage.contains("__nightly__"));
-      assertTrue(storage.contains("TASK^^nightly"));
+      assertFalse(storage.contains("TASK^^nightly"));
+      assertEquals(1, storage.size());
       assertStatus(dao.getStatus("__nightly__"), Scheduler.Status.FAILED, 10L, 20L, "boom", 10L);
 
       dao.clearStatus("__nightly__");
 
       assertFalse(storage.contains("TASK^^nightly"));
+      assertEquals(0, storage.size());
       assertNull(dao.getStatus("__nightly__"));
    }
 
@@ -221,10 +213,8 @@ public class ScheduleStatusDaoTest {
       assertThrows(Exception.class, dao::close);
    }
 
-   // Issue #74697
-   // [Suspect 1] reserved-name encoding aliases a valid literal task name to the same key
+   // reserved-name encoding must not alias a valid literal task name to the same key
    // Pre: "__foo__" and "TASK^^foo" are both valid names; Post: they should not overwrite each other
-   @Disabled("Bug: reserved-name encoding aliases different valid task names to the same storage key")
    @Test
    void setStatus_reservedAndLiteralEncodedNames_shouldNotCollide() {
       InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage = new InMemoryKeyValueStorage<>();
@@ -233,15 +223,13 @@ public class ScheduleStatusDaoTest {
       dao.setStatus("__foo__", Scheduler.Status.STARTED, 10L, 0L, null, false);
       dao.setStatus("TASK^^foo", Scheduler.Status.FINISHED, 20L, 30L, null, false);
 
+      assertEquals(2, storage.size());
       assertStatus(dao.getStatus("__foo__"), Scheduler.Status.STARTED, 10L, 0L, null, 10L);
       assertStatus(dao.getStatus("TASK^^foo"), Scheduler.Status.FINISHED, 20L, 30L, null, 20L);
    }
 
-   // Issue #74697
-   // [Suspect 2] "____" satisfies ^__.*__$ and encodes to "TASK^^" (empty suffix via substring(2,2)),
+   // "____" satisfies ^__.*__$ and encodes to "TASK^^" (empty suffix via substring(2,2)),
    // colliding with a literal task named "TASK^^"; the two entries silently overwrite each other
-   @Disabled("Bug: '____' encodes to 'TASK^^' (empty suffix) because substring(2, length-2) == \"\"; " +
-             "storing '____' and 'TASK^^' targets the same key and the second write silently overwrites the first")
    @Test
    void setStatus_fourUnderscoreTaskName_shouldNotCollideWithEmptySuffixKey() {
       InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage = new InMemoryKeyValueStorage<>();
@@ -250,22 +238,29 @@ public class ScheduleStatusDaoTest {
       dao.setStatus("____", Scheduler.Status.STARTED, 10L, 0L, null, false);
       dao.setStatus("TASK^^", Scheduler.Status.FINISHED, 20L, 30L, null, false);
 
+      assertEquals(2, storage.size());
       assertStatus(dao.getStatus("____"), Scheduler.Status.STARTED, 10L, 0L, null, 10L);
       assertStatus(dao.getStatus("TASK^^"), Scheduler.Status.FINISHED, 20L, 30L, null, 20L);
    }
 
-   // Issue #74697
-   // [Suspect 3] null task name bypasses encodeTaskName unchanged and reaches storage with a null key
-   // Pre: null taskName; Op: any DAO operation; Post: SHOULD throw, but currently stores under null key
-   @Disabled("Bug: encodeTaskName(null) returns null; storage operations then use a null key whose behaviour " +
-             "is backend-dependent (MapDB/Ignite may reject it at runtime). The DAO should guard null names explicitly.")
+   // null task name must be rejected before reaching storage
+   // Pre: null taskName; Op: any DAO operation; Post: throws and storage remains unchanged
    @Test
-   void setStatus_nullTaskName_shouldRejectWithException() {
+   void nullTaskName_shouldRejectWithException() {
       InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage = new InMemoryKeyValueStorage<>();
       ScheduleStatusDao dao = newDao(storage);
 
-      assertThrows(IllegalArgumentException.class,
+      IllegalArgumentException getException =
+         assertThrows(IllegalArgumentException.class, () -> dao.getStatus(null));
+      IllegalArgumentException setException = assertThrows(IllegalArgumentException.class,
          () -> dao.setStatus(null, Scheduler.Status.STARTED, 1L, 0L, null, false));
+      IllegalArgumentException clearException =
+         assertThrows(IllegalArgumentException.class, () -> dao.clearStatus(null));
+
+      assertEquals("taskName must not be null", getException.getMessage());
+      assertEquals("taskName must not be null", setException.getMessage());
+      assertEquals("taskName must not be null", clearException.getMessage());
+      assertEquals(0, storage.size());
    }
 
    private static ScheduleStatusDao newDao(InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage) {

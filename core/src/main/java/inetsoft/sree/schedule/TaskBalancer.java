@@ -392,6 +392,10 @@ public class TaskBalancer {
     * @return the task interval in minutes.
     */
    private int getInterval(int concurrency, int duration, int conditions) {
+      if(conditions <= 0) {
+         throw new IllegalArgumentException("conditions must be greater than zero");
+      }
+
       // number of 5 minute blocks
       int len = 0;
 
@@ -464,16 +468,17 @@ public class TaskBalancer {
 
          // add slot for each interval between start and end time of condition
          List<Integer> slots = new ArrayList<>();
-         long conditionInterval = (long) (condition.getHourlyInterval() * 60);
+         long conditionInterval = getHourlyIntervalMinutes(condition);
+         // conditionDuration is negative when taskEnd < taskStart (midnight crossing);
+         // EVERY_HOUR doesn't support overnight ranges so the loop produces no slots.
+         long conditionDuration = Duration.between(taskStart, taskEnd).toMinutes();
 
-         while(taskStart.isBefore(taskEnd)) {
-            int slot = getSlot(taskStart, start, end, interval);
+         for(long offset = 0L; offset < conditionDuration; offset += conditionInterval) {
+            int slot = getSlot(taskStart.plusMinutes(offset), start, end, interval);
 
             if(slot >= 0) {
                slots.add(slot);
             }
-
-            taskStart = taskStart.plusMinutes(conditionInterval);
          }
 
          return slots;
@@ -492,14 +497,35 @@ public class TaskBalancer {
     */
    private LocalTime getStartTime(TimeCondition condition) {
       if(condition.getType() == TimeCondition.AT) {
-         return LocalDateTime.from(condition.getDate().toInstant().atZone(ZoneId.systemDefault()))
-            .toLocalTime();
+         TimeZone timeZone = condition.getTimeZone();
+         ZoneId zone = timeZone == null ? ZoneId.systemDefault() : timeZone.toZoneId();
+         return condition.getDate().toInstant().atZone(zone).toLocalTime();
       }
 
       int m = Math.max(0, condition.getMinute());
       int s = Math.max(0, condition.getSecond());
 
       return LocalTime.of(condition.getHour(), m, s);
+   }
+
+   /**
+    * Gets the every-hour interval as whole minutes.
+    */
+   private long getHourlyIntervalMinutes(TimeCondition condition) {
+      float hourlyInterval = condition.getHourlyInterval();
+
+      if(hourlyInterval <= 0F || Float.isNaN(hourlyInterval) || Float.isInfinite(hourlyInterval)) {
+         throw new IllegalArgumentException("hourlyInterval must be greater than zero");
+      }
+
+      long intervalMinutes = (long) (hourlyInterval * 60);
+
+      if(intervalMinutes <= 0L) {
+         throw new IllegalArgumentException(
+            "hourlyInterval must advance time by at least one minute");
+      }
+
+      return intervalMinutes;
    }
 
    /**
