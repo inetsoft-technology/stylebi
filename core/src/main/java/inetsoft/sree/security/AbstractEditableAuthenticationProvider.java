@@ -335,9 +335,7 @@ public abstract class AbstractEditableAuthenticationProvider
 
       for(CustomTheme theme : sourceThemes) {
          try {
-            if(Tool.equals(theme.getOrgID(), fromOrgId) ||
-               (Tool.isEmptyString(theme.getOrgID()) && Tool.equals(fromOrgId, Organization.getDefaultOrganizationID())))
-            {
+            if(Tool.equals(theme.getOrgID(), fromOrgId)) {
                CustomTheme clone = (CustomTheme) theme.clone();
                clone.setOrgID(toOrgId);
                clone.setId(UUID.randomUUID().toString().replace("-", ""));
@@ -370,13 +368,11 @@ public abstract class AbstractEditableAuthenticationProvider
                   manager.setOrgSelectedTheme(clone.getId(), toOrgId);
                }
 
-               //if copying a global theme, need to actually copy the dataspace jar
-               //since this is usually wrapped into copying the dataspace
                if(!Tool.isEmptyString(clone.getJarPath())) {
                   String oldJarPath = clone.getJarPath();
                   String newJarPath = clone.getJarPath().replace("portal/theme", "portal/" + toOrgId + "/theme");
 
-                  if(Tool.isEmptyString(theme.getOrgID()) || Tool.equals(fromOrgId, Organization.getDefaultOrganizationID())) {
+                  if(Tool.equals(fromOrgId, Organization.getDefaultOrganizationID())) {
                      if(dataSpace.exists(null, clone.getJarPath())) {
                         try(InputStream in = dataSpace.getInputStream(null, oldJarPath)) {
                            int index = newJarPath.lastIndexOf('/');
@@ -395,6 +391,19 @@ public abstract class AbstractEditableAuthenticationProvider
                }
 
                themes.add(clone);
+            }
+            else if(Tool.isEmptyString(theme.getOrgID()) && theme.getOrganizations().contains(fromOrgId)) {
+               // Global themes (Visible to All Organizations) are shared across all orgs —
+               // do not create an org-specific copy. Just propagate the selection to the new org.
+               themes.stream()
+                  .filter(t -> t.getId().equals(theme.getId()))
+                  .findFirst()
+                  .ifPresent(original -> {
+                     if(!original.getOrganizations().contains(toOrgId)) {
+                        original.getOrganizations().add(toOrgId);
+                     }
+                  });
+               manager.setOrgSelectedTheme(theme.getId(), toOrgId);
             }
          }
          catch(Exception ex) {
