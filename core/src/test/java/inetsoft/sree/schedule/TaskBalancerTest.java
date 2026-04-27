@@ -21,10 +21,8 @@ package inetsoft.sree.schedule;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -52,19 +50,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("core")
 public class TaskBalancerTest {
    /*
-    * Intent vs implementation suspects
-    *
-    * Issue #74698
-    * [Suspect 1] EVERY_HOUR conditions can carry a non-positive hourly interval
-    *             intent: invalid interval should be rejected or ignored safely
-    *             actual: getSlot() loops forever because taskStart never advances
-    * [Suspect 2] AT conditions carry a TimeCondition time zone
-    *             intent: TaskBalancer should derive slot time from the condition's own zone
-    *             actual: getStartTime() converts AT dates with ZoneId.systemDefault()
-    * [Suspect 3] getInterval() is a reusable helper for slot sizing
-    *             intent: zero conditions should be handled defensively
-    *             actual: direct calls divide by zero
-    *
     * TaskBalancer decision tree
     *  [A] isInRange() on a regular range                   -> start <= time < end
     *  [B] isInRange() on an overnight range                -> time >= start || time < end
@@ -81,7 +66,7 @@ public class TaskBalancerTest {
     *  [M] roundUp()/roundDown() already aligned            -> unchanged
     *  [N] roundUp()/roundDown() not aligned                -> move to nearest 5-minute boundary
     *  [O] roundUp() near midnight                          -> wraps to 00:00 without date context
-    *  [P] getStartTime(AT)                                 -> uses server default time zone
+    *  [P] getStartTime(AT)                                 -> uses condition time zone
     */
 
    private final TaskBalancer taskBalancer = new TaskBalancer();
@@ -393,7 +378,7 @@ public class TaskBalancerTest {
       assertEquals(-1, outsideSlot);
    }
 
-   // [Path utility] AT conditions use system-default zone, while negative minute/second values are clamped.
+   // [Path utility] AT conditions use their own zone, while negative minute/second values are clamped.
    @Test
    void getStartTime_atAndEveryDayConditions_returnExpectedLocalTime() {
       TimeCondition atCondition = TimeCondition.at(Date.from(
@@ -409,10 +394,10 @@ public class TaskBalancerTest {
       assertEquals(LocalTime.of(8, 0, 0), dayStart);
    }
 
-   // [Path P] AT conditions are interpreted in the server default time zone, not condition time zone.
+   // [Path P] AT conditions are interpreted in the condition time zone.
    @Execution(ExecutionMode.SAME_THREAD)
    @Test
-   void getStartTime_atCondition_usesSystemDefaultTimeZone() {
+   void getStartTime_atCondition_usesConditionTimeZone() {
       TimeZone original = TimeZone.getDefault();
 
       try {
@@ -425,35 +410,49 @@ public class TaskBalancerTest {
          LocalTime start = invoke("getStartTime",
             new Class<?>[] { TimeCondition.class }, condition);
 
-         assertEquals(LocalTime.of(10, 15), start);
+         assertEquals(LocalTime.of(18, 15), start);
       }
       finally {
          TimeZone.setDefault(original);
       }
    }
 
-   // Issue #74698
-   // [Suspect 1] EVERY_HOUR conditions with non-positive hourlyInterval can loop forever in getSlot().
-   @Disabled("Documents a current implementation risk: hourlyInterval <= 0 causes getSlot() to never advance.")
-   @Test
-   @Timeout(5)
-   void getSlot_everyHourCondition_withNonPositiveInterval_canLoopForever() {
+   // EVERY_HOUR conditions with non-positive or infinite hourlyInterval must be rejected.
+   @ParameterizedTest
+   @CsvSource({ "0", "-1", "Infinity", "-Infinity" })
+   void getSlot_everyHourCondition_withNonPositiveInterval_rejects(float hourlyInterval) {
       TimeCondition invalid = TimeCondition.atHours(new int[] { Calendar.MONDAY }, 10, 0, 0);
       invalid.setHourEnd(12);
       invalid.setMinuteEnd(0);
       invalid.setSecondEnd(0);
-      invalid.setHourlyInterval(0);
+      invalid.setHourlyInterval(hourlyInterval);
 
-      invoke("getSlot",
-         new Class<?>[] { TimeCondition.class, LocalTime.class, LocalTime.class, int.class },
-         invalid, LocalTime.of(9, 0), LocalTime.of(13, 0), 30);
+      IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+         () -> invoke("getSlot",
+            new Class<?>[] { TimeCondition.class, LocalTime.class, LocalTime.class, int.class },
+            invalid, LocalTime.of(9, 0), LocalTime.of(13, 0), 30));
+
+      assertEquals("hourlyInterval must be greater than zero", exception.getMessage());
    }
 
-   // Issue #74698
-   // [Suspect 2] AT conditions ignore TimeCondition.getTimeZone() and use the server default zone.
-   // Intent: a 10:15 Asia/Shanghai task should balance using 10:15 in Asia/Shanghai.
-   // Actual: getStartTime() converts the stored instant with ZoneId.systemDefault().
-   @Disabled("Documents current behavior: TaskBalancer ignores TimeCondition time zone for AT conditions.")
+   @Test
+   void getSlot_everyHourCondition_withSubMinuteInterval_rejects() {
+      TimeCondition invalid = TimeCondition.atHours(new int[] { Calendar.MONDAY }, 10, 0, 0);
+      invalid.setHourEnd(12);
+      invalid.setMinuteEnd(0);
+      invalid.setSecondEnd(0);
+      invalid.setHourlyInterval(0.001F);
+
+      IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+         () -> invoke("getSlot",
+            new Class<?>[] { TimeCondition.class, LocalTime.class, LocalTime.class, int.class },
+            invalid, LocalTime.of(9, 0), LocalTime.of(13, 0), 30));
+
+      assertEquals("hourlyInterval must advance time by at least one minute",
+         exception.getMessage());
+   }
+
+   // AT conditions use TimeCondition.getTimeZone(), not the server default zone.
    @Test
    void getStartTime_atCondition_shouldUseConditionTimeZoneInsteadOfSystemDefault() {
       TimeZone original = TimeZone.getDefault();
@@ -475,13 +474,15 @@ public class TaskBalancerTest {
       }
    }
 
-   // Issue #74698
-   // [Suspect 3] getInterval() assumes non-empty conditions and throws if called directly with zero.
+   // getInterval() rejects zero conditions with a clear validation error.
    @Test
-   void getInterval_zeroConditions_throwsArithmeticException() {
-      assertThrows(ArithmeticException.class, () -> invokeUnchecked("getInterval",
+   void getInterval_zeroConditions_throwsIllegalArgumentException() {
+      IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+         () -> invokeUnchecked("getInterval",
          new Class<?>[] { int.class, int.class, int.class },
          1, 30, 0));
+
+      assertEquals("conditions must be greater than zero", exception.getMessage());
    }
 
    @SuppressWarnings("unchecked")
