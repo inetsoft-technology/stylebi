@@ -288,13 +288,22 @@ public class AssistantProxyController {
       "<head><meta charset=\"UTF-8\"><title>SSO Complete</title></head>\n" +
       "<body>\n" +
       "<script>\n" +
-      "  var code = new URLSearchParams(window.location.search).get('code');\n" +
+      "  var params = new URLSearchParams(window.location.search);\n" +
+      "  var code = params.get('code');\n" +
+      "  var openerOrigin = params.get('opener_origin');\n" +
+      "  // Support both popup (window.opener) and hidden iframe (window.parent) auth flows.\n" +
+      "  var target = window.opener || (window.parent !== window ? window.parent : null);\n" +
+      "  var isPopup = !!window.opener;\n" +
       "  var sent = false;\n" +
-      "  if (window.opener) {\n" +
-      "    var openerOrigin;\n" +
-      "    try { openerOrigin = window.opener.location.origin; } catch(e) {}\n" +
-      "    if (openerOrigin) {\n" +
-      "      window.opener.postMessage({type:'sso_complete', code:code}, openerOrigin);\n" +
+      "  if (target && openerOrigin) {\n" +
+      "    target.postMessage({type:'sso_complete', code:code}, openerOrigin);\n" +
+      "    if (isPopup) { setTimeout(function(){window.close();}, 500); }\n" +
+      "    sent = true;\n" +
+      "  } else if (window.opener) {\n" +
+      "    var fallbackOrigin;\n" +
+      "    try { fallbackOrigin = window.opener.location.origin; } catch(e) {}\n" +
+      "    if (fallbackOrigin) {\n" +
+      "      window.opener.postMessage({type:'sso_complete', code:code}, fallbackOrigin);\n" +
       "      setTimeout(function(){window.close();}, 500);\n" +
       "      sent = true;\n" +
       "    }\n" +
