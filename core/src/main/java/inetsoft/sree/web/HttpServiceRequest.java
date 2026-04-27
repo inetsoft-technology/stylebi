@@ -851,11 +851,12 @@ public class HttpServiceRequest implements ServiceRequest {
          byte[] bytes = new byte[1024];
 
          OutputStream output = new ByteArrayOutputStream();
+         XSwapper swapper = XSwapper.getSwapper();
 
          while((read = input.read(bytes)) >= 0) {
             if(file == null && length + read > 1024 * 1024) {
                // cache posts longer than 1M to file
-               file = FileSystemService.getInstance().getCacheFile(XSwapper.getSwapper().getPrefix() + ".tdat");
+               file = FileSystemService.getInstance().getCacheFile(swapper.getPrefix() + ".tdat");
                file.deleteOnExit();
 
                OutputStream foutput = new FileOutputStream(file);

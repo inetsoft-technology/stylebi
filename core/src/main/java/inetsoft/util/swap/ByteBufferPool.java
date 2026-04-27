@@ -130,7 +130,7 @@ public final class ByteBufferPool {
             }
          }
 
-         XSwapper.getSwapper().deregister(this);
+         getSwapper().deregister(this);
       }
 
       public ByteBuffer getByteBuffer() {

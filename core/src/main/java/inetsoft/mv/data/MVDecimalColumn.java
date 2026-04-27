@@ -342,8 +342,9 @@ public abstract class MVDecimalColumn extends AbstractMeasureColumn {
          this.index = index;
          this.size = size;
          this.newbuf = newbuf;
-         XSwapper.getSwapper().cur = System.currentTimeMillis();
-         this.iaccessed = XSwapper.getSwapper().cur;
+         XSwapper s = getSwapper();
+         s.cur = System.currentTimeMillis();
+         this.iaccessed = s.cur;
       }
 
       public abstract ByteBuffer copyToBuffer(ByteBuffer buf);
@@ -370,7 +371,7 @@ public abstract class MVDecimalColumn extends AbstractMeasureColumn {
             return 0;
          }
 
-         return getAgePriority(XSwapper.getSwapper().cur - iaccessed, alive * 2L);
+         return getAgePriority(getSwapper().cur - iaccessed, alive * 2L);
       }
 
       @Override
