@@ -275,17 +275,29 @@ $brush-cursor-path: '~/../../portal/src/assets/cursor/brushcursor.gif';
 }
 
 #assistant-root {
+  font-size: 14px;
+
   .MuiListItemText-root span,
   .MuiTypography-root,
   .MuiDrawer-paper,
-  .MuiPaper-root {
-    font-size: 13px !important;
+  .MuiPaper-root,
+  .markdown-paragraph,
+  .message-content {
+    font-size: 14px !important;
   }
 
   .chat-item.MuiListItemButton-root {
     padding-top: 4px !important;
     padding-bottom: 4px !important;
     min-height: 36px !important;
+  }
+}
+
+ai-assistant-panel {
+  --ai-branding-title-font-size: 14px;
+
+  .panel-title {
+    font-size: 14px !important;
   }
 }
 
