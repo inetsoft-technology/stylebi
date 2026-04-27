@@ -115,7 +115,7 @@ public class RawDataService {
 
       setupColumns(query, entries);
 
-      XDataService service = XFactory.getDataService();
+      XDataService service = XRepository.getRepository();
       XNode result = service.execute(principal.getName(), query, null, principal, true, null);
 
       writeCsvContent(new XNodeTableLens(result), outputStream);

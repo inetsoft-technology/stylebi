@@ -56,6 +56,9 @@ import inetsoft.web.binding.service.DataRefModelFactory;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.web.composer.wiz.service.VisualizationService;
+import inetsoft.web.wiz.service.WizViewsheetService;
+import inetsoft.web.wiz.service.WizViewsheetServiceProxy;
 import inetsoft.web.messaging.MessageAttributes;
 import inetsoft.web.messaging.MessageContextHolder;
 import inetsoft.web.service.LicenseService;
@@ -342,8 +345,13 @@ public class IntegrationTestConfiguration {
    }
 
    @Bean
-   public VSLifecycleControllerService vsLifecycleControllerService(ViewsheetService viewsheetService, CoreLifecycleService coreLifecycleService, VSBookmarkService vsBookmarkService) {
-      return new VSLifecycleControllerService(viewsheetService, coreLifecycleService, vsBookmarkService);
+   public VisualizationService visualizationService(ViewsheetService viewsheetService, AnalyticRepository analyticRepository) {
+      return new VisualizationService(viewsheetService, analyticRepository.unwrap(AssetRepository.class));
+   }
+
+   @Bean
+   public VSLifecycleControllerService vsLifecycleControllerService(ViewsheetService viewsheetService, CoreLifecycleService coreLifecycleService, VSBookmarkService vsBookmarkService, VisualizationService visualizationService) {
+      return new VSLifecycleControllerService(viewsheetService, coreLifecycleService, vsBookmarkService, visualizationService);
    }
 
    @Bean
@@ -384,6 +392,16 @@ public class IntegrationTestConfiguration {
    }
 
    @Bean
+   public WizViewsheetService wizViewsheetService(ViewsheetService viewsheetService) {
+      return new WizViewsheetService(viewsheetService);
+   }
+
+   @Bean
+   public WizViewsheetServiceProxy wizViewsheetServiceProxy(Cluster cluster, WorksheetService worksheetService, WizViewsheetService wizViewsheetService) {
+      return new WizViewsheetServiceProxy(cluster, worksheetService, wizViewsheetService);
+   }
+
+   @Bean
    public OpenViewsheetController openViewsheetController(RuntimeViewsheetRef runtimeViewsheetRef,
                                                           RuntimeViewsheetManager runtimeViewsheetManager,
                                                           VSLifecycleService vsLifecycleService,
@@ -392,11 +410,12 @@ public class IntegrationTestConfiguration {
                                                           SecurityEngine securityEngine,
                                                           Cluster cluster,
                                                           WorksheetService worksheetService,
-                                                          OpenViewsheetService openViewsheetService)
+                                                          OpenViewsheetService openViewsheetService,
+                                                          WizViewsheetServiceProxy wizViewsheetServiceProxy)
    {
       return new OpenViewsheetController(runtimeViewsheetRef, runtimeViewsheetManager,
                                          vsLifecycleService, licenseService,
-                                         new OpenViewsheetServiceProxy(cluster, worksheetService, openViewsheetService), viewsheetService, securityEngine);
+                                         new OpenViewsheetServiceProxy(cluster, worksheetService, openViewsheetService), viewsheetService, securityEngine, wizViewsheetServiceProxy);
    }
 
    @Bean

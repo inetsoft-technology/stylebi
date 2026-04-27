@@ -26,6 +26,7 @@ import inetsoft.sree.ClientInfo;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import inetsoft.util.*;
 import inetsoft.web.security.AbstractSecurityFilter;
 import inetsoft.web.security.AuthenticatedRequest;
@@ -60,6 +61,12 @@ import java.util.*;
  */
 @Component
 public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
+   public WizServiceAuthenticationFilter(SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                                         AuthenticationService authenticationService)
+   {
+      super(sessionLicenseServiceProvider, authenticationService);
+   }
+
    @PostConstruct
    public void initializeKeyPair() {
       try {
