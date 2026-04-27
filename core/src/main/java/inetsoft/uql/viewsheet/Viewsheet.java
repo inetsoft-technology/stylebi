@@ -1645,6 +1645,26 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
                CoordinateHelper.fixTextSize(size, pos, (TextVSAssemblyInfo) info);
             }
 
+            // Extend bounds to include the label for vertical label positions (top/bottom).
+            // For these positions, the label renders outside the declared pixel size.
+            if(info instanceof InputVSAssemblyInfo) {
+               LabelInfo labelInfo = ((InputVSAssemblyInfo) info).getLabelInfo();
+
+               if(labelInfo != null && labelInfo.isLabelVisible()) {
+                  String position = labelInfo.getLabelPosition();
+                  int adjustment = labelInfo.getRenderedHeight() +
+                     labelInfo.getLabelGap();
+
+                  if(LabelInfo.BOTTOM.equals(position)) {
+                     size = new Dimension(size.width, size.height + adjustment);
+                  }
+                  else if(LabelInfo.TOP.equals(position)) {
+                     pos = new Point(pos.x, pos.y - adjustment);
+                     size = new Dimension(size.width, size.height + adjustment);
+                  }
+               }
+            }
+
             // data tip is hidden by moving it off-screen. this should be treated
             // as invisible
             if(!includeInvisible && (pos.y < 0 && -pos.y > size.height ||

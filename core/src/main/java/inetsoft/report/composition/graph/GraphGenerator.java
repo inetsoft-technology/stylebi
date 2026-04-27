@@ -60,8 +60,8 @@ import org.slf4j.LoggerFactory;
 import java.awt.*;
 import java.awt.geom.Dimension2D;
 import java.text.*;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -914,33 +914,10 @@ public abstract class GraphGenerator {
          TitleDescriptor x2title = titlesDesc.getX2TitleDescriptor();
          TitleDescriptor y2title = titlesDesc.getY2TitleDescriptor();
 
-         // Build each title spec with its correct type (determines auto-generated label text),
-         // then swap placement when axis labels are on the opposite side.
-         // A Y field with labelOnSecondaryAxis=true puts labels on the right (Y2 position),
-         // so the Y title should also appear on the right. Similarly for X → X2 (top).
-         TitleSpec xSpec = getTitleSpec(xtitle, "x");
-         TitleSpec x2Spec = getTitleSpec(x2title, "x2");
-         TitleSpec ySpec = getTitleSpec(ytitle, "y");
-         TitleSpec y2Spec = getTitleSpec(y2title, "y2");
-
-         // Mirror the Pareto guard in setupAxisSpec: for Pareto charts, labelOnSecondaryAxis
-         // is suppressed on measure (linear) axes so the percentage scale stays on the right.
-         // Don't move the title for those fields either, or the title would be on the right
-         // while the labels are still on the left.
-         boolean isPareto = GraphTypes.isPareto(info.getChartType());
-         boolean yOnSecondary = Arrays.stream(info.getRTYFields())
-            .anyMatch(f -> f.getAxisDescriptor() != null &&
-               f.getAxisDescriptor().isLabelOnSecondaryAxis() &&
-               !(isPareto && f instanceof ChartAggregateRef));
-         boolean xOnSecondary = Arrays.stream(info.getRTXFields())
-            .anyMatch(f -> f.getAxisDescriptor() != null &&
-               f.getAxisDescriptor().isLabelOnSecondaryAxis() &&
-               !(isPareto && f instanceof ChartAggregateRef));
-
-         graph.setXTitleSpec(xOnSecondary ? x2Spec : xSpec);
-         graph.setX2TitleSpec(xOnSecondary ? xSpec : x2Spec);
-         graph.setYTitleSpec(yOnSecondary ? y2Spec : ySpec);
-         graph.setY2TitleSpec(yOnSecondary ? ySpec : y2Spec);
+         graph.setXTitleSpec(getTitleSpec(xtitle, "x"));
+         graph.setX2TitleSpec(getTitleSpec(x2title, "x2"));
+         graph.setYTitleSpec(getTitleSpec(ytitle, "y"));
+         graph.setY2TitleSpec(getTitleSpec(y2title, "y2"));
       }
 
       // setup visual frames, need to do before element options since GraphDefault.isInPlot
@@ -2147,7 +2124,13 @@ public abstract class GraphGenerator {
                      .filter(f -> f.startsWith(BrushDataSet.ALL_HEADER_PREFIX))
                      .toArray(String[]::new);
                   range.removeAllStackFields();
-                  range.addStackFields(allFields);
+                  // Only add the first alldata field (e.g., __all__Sum(Total)) as the stacked
+                  // group. Adding both __all__Sum(Total) and __all__Sum(Total@Total) would
+                  // double-count since they hold equal per-state values, making scale_max 2x
+                  // the correct total and causing a half-circle chart. (74234)
+                  if(allFields.length > 0) {
+                     range.addStackFields(allFields[0]);
+                  }
                }
             }
 

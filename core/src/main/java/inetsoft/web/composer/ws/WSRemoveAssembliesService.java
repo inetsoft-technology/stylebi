@@ -26,6 +26,7 @@ import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.asset.delete.*;
 import inetsoft.uql.asset.sync.RenameInfo;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
@@ -40,9 +41,9 @@ import java.util.*;
 @ClusterProxy
 public class WSRemoveAssembliesService extends WorksheetControllerService {
 
-   public WSRemoveAssembliesService(ViewsheetService viewsheetService)
+   public WSRemoveAssembliesService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

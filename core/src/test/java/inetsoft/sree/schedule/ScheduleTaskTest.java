@@ -18,8 +18,15 @@
 
 package inetsoft.sree.schedule;
 
-import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.*;
+import inetsoft.test.*;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -28,8 +35,14 @@ import java.util.Date;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, ScheduleTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class ScheduleTaskTest {
    private ScheduleTask scheduleTask;
+   @Autowired SecurityEngine securityEngine;
 
    @Test
    void testCheckRetryTime() {
@@ -120,6 +133,14 @@ public class ScheduleTaskTest {
 
    @Test
    void testOtherSetGetMethod() {
+      IdentityID testUser = new IdentityID("testUser", "testOrg");
+      FSUser testFSUser = new FSUser(testUser);
+
+      SecurityProvider securityProvider = mock(SecurityProvider.class);
+      when(securityProvider.getUser(eq(testUser))).thenReturn(testFSUser);
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[] { "host-org", "testOrg" });
+      when(securityEngine.getSecurityProvider()).thenReturn(securityProvider);
+
       scheduleTask = createBasicScheduleTask("task1");
 
       scheduleTask.setDeleteIfNoMoreRun(true);
@@ -137,7 +158,6 @@ public class ScheduleTaskTest {
       scheduleTask.setLocale("en_US");
       assertEquals("en_US", scheduleTask.getLocale());
 
-      IdentityID testUser = new IdentityID("testUser", "testOrg");
       scheduleTask.setUser(testUser);
       assertEquals(testUser.getName(), scheduleTask.getUser());
 

@@ -57,7 +57,8 @@ public class DatabaseModelBrowserService {
                                       PhysicalModelManagerService physicalModelManagerService,
                                       LogicalModelService modelService,
                                       SecurityEngine securityEngine,
-                                      DataModelFolderManagerService folderManagerService)
+                                      DataModelFolderManagerService folderManagerService,
+                                      RenameTransformHandler renameTransformHandler)
    {
       this.dataSourceService = dataSourceService;
       this.repository = repository;
@@ -65,6 +66,7 @@ public class DatabaseModelBrowserService {
       this.modelService = modelService;
       this.securityEngine = securityEngine;
       this.folderManagerService = folderManagerService;
+      this.renameTransformHandler = renameTransformHandler;
    }
 
    public DatabaseDataModelBrowserModel getDataModelBrowseModel(String database, String folder,
@@ -404,7 +406,7 @@ public class DatabaseModelBrowserService {
 
          DependencyTransformer.createExtendModelDepInfoForFolderChanged(dinfo, logicalModel,
             oldFolder, folder);
-         RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+         renameTransformHandler.addTransformTask(dinfo);
       }
       catch(Exception ex) {
          actionRecord.setActionError(ex.getMessage() + ", Target Entry: " + newPath);
@@ -500,7 +502,7 @@ public class DatabaseModelBrowserService {
 
          DependencyTransformer.createExtendViewDepInfoForFolderChanged(
             dinfo, partition, oldPath, newPath, rinfo, oentry.getPath());
-         RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+         renameTransformHandler.addTransformTask(dinfo);
 
          partition.setFolder(isRoot ? null : folder);
          dataModel.addPartition(partition);
@@ -756,7 +758,7 @@ public class DatabaseModelBrowserService {
          dataModel.removeFolder(oldName);
          dataModel.addFolder(folderName);
          repository.updateDataModel(dataModel);
-         RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+         renameTransformHandler.addTransformTask(dinfo);
 
          if(permission != null) {
             securityEngine.removePermission(
@@ -789,4 +791,5 @@ public class DatabaseModelBrowserService {
    private final LogicalModelService modelService;
    private final SecurityEngine securityEngine;
    private final DataModelFolderManagerService folderManagerService;
+   private final RenameTransformHandler renameTransformHandler;
 }

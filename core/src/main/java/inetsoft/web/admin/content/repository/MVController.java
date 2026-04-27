@@ -24,6 +24,8 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.*;
 import inetsoft.web.admin.content.repository.model.*;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -36,13 +38,27 @@ public class MVController {
    @Autowired
    public MVController(MVService mvService,
                        MVSupportService support,
-                       SecurityProvider securityProvider)
+                       SecurityProvider securityProvider,
+                       SecurityEngine securityEngine)
    {
       this.mvService = mvService;
       this.support = support;
       this.securityProvider = securityProvider;
+      this.securityEngine = securityEngine;
    }
 
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping("/api/em/content/repository/mv/analyze")
    public AnalyzeMVResponse analyze(@RequestBody AnalyzeMVRequest analyzeMVRequest,
                                     Principal principal)
@@ -56,6 +72,13 @@ public class MVController {
          .build();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/materialized-view/check-analysis/{analysisId}")
    public AnalyzeMVResponse checkStatus(Principal principal,
                                         @PathVariable("analysisId") String analysisId)
@@ -64,6 +87,13 @@ public class MVController {
       return mvService.checkAnalyzeStatus(analysisId, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/mv/get-model/{analysisId}")
    @SuppressWarnings("unchecked")
    public AnalyzeMVResponse getModel(@RequestParam("hideData") boolean hideData,
@@ -86,6 +116,13 @@ public class MVController {
          .build();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/mv/show-plan/{analysisId}")
    public String showPlan(@PathVariable("analysisId") String analysisId,
                           @RequestBody CreateUpdateMVRequest createUpdateMVRequest)
@@ -97,6 +134,13 @@ public class MVController {
       return info.toString();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @SuppressWarnings("unchecked")
    @PostMapping("/api/em/content/repository/mv/create")
    public CreateMVResponse create(@RequestParam(name = "createId") String createId,
@@ -108,6 +152,13 @@ public class MVController {
       return mvService.create(createId, analysisId, createUpdateMVRequest, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @SuppressWarnings("unchecked")
    @PostMapping("/api/em/content/repository/mv/set-cycle/{analysisId}")
    public void setCycle(@PathVariable("analysisId") String analysisId,
@@ -117,6 +168,18 @@ public class MVController {
                            createUpdateMVRequest.cycle());
    }
 
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @GetMapping("/api/em/content/repository/mv/exceptions/{analysisId}")
    public MVExceptionResponse setCycle(@PathVariable("analysisId") String analysisId) {
       MVSupportService.AnalysisResult analysisResult = support.getAnalysisResult(analysisId);
@@ -129,6 +192,13 @@ public class MVController {
       return MVExceptionResponse.builder().exceptions(exceptionModels).build();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/materialized-view/info")
    public MVManagementModel getMVInfo(@RequestBody(required = false) AnalyzeMVRequest nodes,
                                       Principal principal)
@@ -137,7 +207,7 @@ public class MVController {
       List<String> ids = null;
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -150,6 +220,18 @@ public class MVController {
       return mvService.getMVInfo(ids, principal);
    }
 
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/materialized-views",
+         actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping("/api/em/content/materialized-view/analysis")
    public AnalyzeMVResponse analyze(@RequestBody MVManagementModel model,
                                     Principal principal) throws Exception
@@ -159,6 +241,13 @@ public class MVController {
       return mvService.checkAnalyzeStatus(analysisResult, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/materialized-view/remove")
    public void deleteMVs(@RequestBody MVManagementModel model) {
       support.dispose(
@@ -169,6 +258,18 @@ public class MVController {
       );
    }
 
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/materialized-views",
+         actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping("/api/em/content/materialized-view/date-as-ages")
    public void setShowAges(@RequestBody MVManagementModel model) throws Exception {
       String showDateAsAges = model.showDateAsAges() ? "true" : "false";
@@ -176,12 +277,36 @@ public class MVController {
       SreeEnv.save();
    }
 
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/materialized-views",
+         actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping("/api/em/content/materialized-view/data-cycle")
    public void setDataCycle(@RequestBody MVManagementModel model) {
       String[] mvNames = model.mvs().stream().map(MaterializedModel::name).toArray(String[]::new);
       support.setDataCycle(mvNames, model.cycle());
    }
 
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/materialized-views",
+         actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping("/api/em/content/materialized-view/update")
    public CreateMVResponse updateMaterializedViews(
       @RequestParam(name = "updateId", required = false) String updateId,
@@ -195,12 +320,36 @@ public class MVController {
          principal);
    }
 
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @GetMapping("/api/em/content/repository/mv/ws-mv-enabled")
    public WSMVEnabledModel isWSMVEnabled() {
       return WSMVEnabledModel.builder().enabled(
          SreeEnv.getBooleanProperty("ws.mv.enabled")).build();
    }
 
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @GetMapping("/api/em/content/repository/mv/permission")
    public MVHasPermissionModel hasMVPermission(Principal principal) {
       boolean canMaterialize = securityProvider.checkPermission(
@@ -209,6 +358,13 @@ public class MVController {
       return MVHasPermissionModel.builder().allow(canMaterialize).build();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/asset-exists")
    public boolean mvAssetExists(@RequestParam("path") String path, Principal principal) {
       try {
@@ -229,4 +385,5 @@ public class MVController {
    private final MVService mvService;
    private final MVSupportService support;
    private final SecurityProvider securityProvider;
+   private final SecurityEngine securityEngine;
 }

@@ -106,22 +106,22 @@ public class VSModelContext extends AbstractModelContext {
    /**
     * Constructor.
     */
-   public VSModelContext(RuntimeViewsheet rvs) {
+   public VSModelContext(RuntimeViewsheet rvs, DataSourceRegistry dataSourceRegistry) {
       this.rvs = rvs;
       this.vs = rvs.getViewsheet();
 
       init(
          vs == null ? null : vs.getBaseEntry(),
-         rvs.getViewsheetSandbox().map(ViewsheetSandbox::getUser).orElse(null));
+         rvs.getViewsheetSandbox().map(ViewsheetSandbox::getUser).orElse(null),
+         dataSourceRegistry);
    }
 
    /**
     * Initialize.
     */
-   protected void init(AssetEntry entry, Principal user) {
+   protected void init(AssetEntry entry, Principal user, DataSourceRegistry dataSourceRegistry) {
       if(entry != null && entry.getType() == AssetEntry.Type.LOGIC_MODEL) {
-         DataSourceRegistry dsr = DataSourceRegistry.getRegistry();
-         XDataModel xdm = dsr.getDataModel(entry.getProperty("prefix"));
+         XDataModel xdm = dataSourceRegistry.getDataModel(entry.getProperty("prefix"));
          lm = xdm.getLogicalModel(entry.getProperty("source"), user);
       }
    }

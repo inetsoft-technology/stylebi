@@ -24,6 +24,7 @@ import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.Catalog;
 import inetsoft.util.log.LogLevel;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
@@ -37,9 +38,10 @@ import java.security.Principal;
 @ClusterProxy
 public class UpdateMirrorService extends WorksheetControllerService {
 
-   public UpdateMirrorService(ViewsheetService viewsheetService)
+   public UpdateMirrorService(ViewsheetService viewsheetService, AssetDataCache assetDataCache, DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
+      this.assetDataCache = assetDataCache;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -95,6 +97,8 @@ public class UpdateMirrorService extends WorksheetControllerService {
    {
       box.resetTableLens(assembly.getName());
       DataKey key = AssetDataCache.getCacheKey(assembly, box, null, mode, true);
-      AssetDataCache.removeCachedData(key);
+      assetDataCache.removeCachedData(key);
    }
+
+   private final AssetDataCache assetDataCache;
 }

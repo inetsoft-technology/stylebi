@@ -19,19 +19,22 @@ package inetsoft.web.admin.content.repository;
 
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.util.*;
 import inetsoft.util.cachefs.BinaryTransfer;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.deploy.DeployService;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.session.IgniteSessionRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
+
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.UUID;
@@ -44,21 +47,29 @@ public class ExportAssetController {
    public ExportAssetController(DeployService deployService,
                                 IgniteSessionRepository igniteSessionRepository,
                                 ExportAssetServiceProxy exportAssetServiceProxy,
-                                BinaryTransferService binaryTransferService)
+                                BinaryTransferService binaryTransferService,
+                                Cluster cluster)
    {
       this.deployService = deployService;
       this.igniteSessionRepository = igniteSessionRepository;
       this.exportAssetServiceProxy = exportAssetServiceProxy;
       this.binaryTransferService = binaryTransferService;
+      this.cluster = cluster;
    }
 
    @PostConstruct
    public void initializeCache() {
-      Cluster cluster = Cluster.getInstance();
       cluster.registerSpringProxyPartitionedCache(ExportAssetService.FILE_LOCATION_CACHE_NAME);
       cluster.getCache(ExportAssetService.FILE_LOCATION_CACHE_NAME);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/export/check-permission")
    public void checkAssetPermission(@RequestBody() SelectedAssetModelList assets,
                                     HttpServletRequest request, Principal principal)
@@ -85,11 +96,25 @@ public class ExportAssetController {
       });
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/export/check-permission/status")
    public ResponseEntity<ExportStatusModel> getAssetPermissionStatus(HttpServletRequest request) {
       return getStatus(PERM_ATTR, request);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/export/check-permission/value")
    public SelectedAssetModelList getAssetPermissionValue(HttpServletRequest request) throws Exception {
       try {
@@ -100,6 +125,13 @@ public class ExportAssetController {
       }
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/export/get-dependent-assets")
    public void getDependentAssets(@RequestBody() SelectedAssetModelList selectedEntities,
                                   HttpServletRequest request, Principal principal)
@@ -127,11 +159,25 @@ public class ExportAssetController {
       });
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/export/get-dependent-assets/status")
    public ResponseEntity<ExportStatusModel> getDependentAssetsStatus(HttpServletRequest request) {
       return getStatus(DEPS_ATTR, request);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/export/get-dependent-assets/value")
    public RequiredAssetModelList getDependentAssetsValue(HttpServletRequest request)
       throws Exception
@@ -144,6 +190,13 @@ public class ExportAssetController {
       }
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/export/create")
    public String createExport(HttpServletRequest req,
                               @RequestBody() ExportedAssetsModel exportedAssetsModel,
@@ -155,12 +208,26 @@ public class ExportAssetController {
       return jobId;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/content/repository/export/create/status/{exportID}")
    public ResponseEntity<ExportStatusModel> getCreateExportStatus(@PathVariable String exportID) {
       boolean isDone = exportAssetServiceProxy.checkExportStatus(exportID);
       return ResponseEntity.ok(ExportStatusModel.builder().ready(isDone).build());
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/content/repository/export/download/{exportID}")
    public void downloadJar(@PathVariable String exportID, HttpServletRequest req, HttpServletResponse res)
       throws Exception
@@ -237,6 +304,7 @@ public class ExportAssetController {
    private final BinaryTransferService binaryTransferService;
    private final DeployService deployService;
    private final IgniteSessionRepository igniteSessionRepository;
+   private final Cluster cluster;
    private static final String PERM_ATTR =
       ExportAssetController.class.getName() + ".deployPermissions";
    private static final String DEPS_ATTR =

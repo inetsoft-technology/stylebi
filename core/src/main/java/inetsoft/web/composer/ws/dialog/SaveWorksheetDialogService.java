@@ -29,6 +29,7 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -51,9 +52,12 @@ import java.util.Date;
 @ClusterProxy
 public class SaveWorksheetDialogService extends WorksheetControllerService {
 
-   public SaveWorksheetDialogService(ViewsheetService viewsheetService)
+   public SaveWorksheetDialogService(ViewsheetService viewsheetService,
+                                     DataSourceRegistry dataSourceRegistry,
+                                     DataSpace dataSpace)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
+      this.dataSpace = dataSpace;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -145,7 +149,7 @@ public class SaveWorksheetDialogService extends WorksheetControllerService {
 
       SaveWorksheetDialogModelValidator validator;
 
-      try(DataSpace.Transaction tx = DataSpace.getDataSpace().beginTransaction()) {
+      try(DataSpace.Transaction tx = dataSpace.beginTransaction()) {
          validator = process0(rws, model, principal, confirmed);
          tx.commit();
       }
@@ -373,5 +377,6 @@ public class SaveWorksheetDialogService extends WorksheetControllerService {
       }
    }
 
+   private final DataSpace dataSpace;
    private final Catalog catalog = Catalog.getCatalog();
 }

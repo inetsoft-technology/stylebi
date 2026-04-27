@@ -19,6 +19,7 @@ package inetsoft.sree.schedule;
 
 import inetsoft.mv.MVTool;
 import inetsoft.report.internal.LicenseException;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.UserEnv;
 import inetsoft.sree.internal.DataCycleManager;
@@ -33,6 +34,7 @@ import inetsoft.util.config.CloudRunnerConfig;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.health.SchedulerHealthService;
 import inetsoft.util.health.SchedulerStatus;
+import inetsoft.util.log.LogManager;
 import inetsoft.web.admin.logviewer.LogMonitoringService;
 import inetsoft.web.admin.server.ServerServiceMessageListener;
 import org.quartz.*;
@@ -42,8 +44,8 @@ import org.quartz.simpl.SimpleThreadPool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Calendar;
 import java.util.*;
+import java.util.Calendar;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
@@ -564,7 +566,7 @@ public class Scheduler {
             }
 
             listeners.add(new ServerServiceMessageListener(cluster));
-            listeners.add(new LogMonitoringService());
+            listeners.add(new LogMonitoringService(LogManager.getInstance(), cluster, LicenseManager.getInstance()));
             listeners.forEach(cluster::addMessageListener);
          }
       }
@@ -725,7 +727,8 @@ public class Scheduler {
       long lastCheck = SchedulerHealthService.getInstance().getLastCheck();
       long nextCheck = healthCheckFuture == null ?
          0L : healthCheckFuture.getDelay(TimeUnit.MILLISECONDS);
-      Future.State checkState = healthCheckFuture == null ? null : healthCheckFuture.state();
+      Future.State checkState = healthCheckFuture == null ?
+         Future.State.CANCELLED : healthCheckFuture.state();
       int executingCount = 0;
       int threadCount = 0;
 

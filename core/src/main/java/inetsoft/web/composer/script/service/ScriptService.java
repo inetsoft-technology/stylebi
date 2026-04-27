@@ -22,8 +22,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.analytic.composition.SheetLibraryService;
 import inetsoft.analytic.web.adhoc.AdHocQueryHandler;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.internal.graph.MapData;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.util.Catalog;
 import inetsoft.util.ItemMap;
 import inetsoft.web.admin.content.repository.ResourcePermissionService;
@@ -44,11 +46,12 @@ public class ScriptService {
    @Autowired
    public ScriptService(SheetLibraryService sheetLibraryService,
                         AssetRepository assetRepository,
-                        ResourcePermissionService permissionService
-                        ) {
-      this.sheetLibraryService = sheetLibraryService;
-      this.assetRepository = assetRepository;
-      this.permissionService = permissionService;
+                        ResourcePermissionService permissionService,
+                        LibManagerProvider libManagerProvider,
+                        DependencyHandler dependencyHandler)
+   {
+      this.libManagerProvider = libManagerProvider;
+      this.dependencyHandler = dependencyHandler;
    }
 
    public TreeNodeModel getFunctionTree(Principal principal) {
@@ -60,7 +63,7 @@ public class ScriptService {
       String excelFunctionLabel = catalog.getString("Excel-style Functions");
       String excelFunctionName = "Excel-style Functions";
 
-      ItemMap functionMap = AdHocQueryHandler.getScriptFunctions();
+      ItemMap functionMap = AdHocQueryHandler.getScriptFunctions(libManagerProvider);
       ItemMap excelFunctionMap = AdHocQueryHandler.getExcelScriptFunctions();
 
       TreeNodeModel jsFunctionsNode = createNode(jsFunctionLabel, null, false, rootName,
@@ -202,7 +205,7 @@ public class ScriptService {
    }
 
    public void createUserDefinedScript(ObjectMapper mapper, ObjectNode root) {
-      List<String> list = AdHocQueryHandler.getUserDefinedScriptFunctions();
+      List<String> list = AdHocQueryHandler.getUserDefinedScriptFunctions(libManagerProvider);
 
       if(list.size() == 0) {
          return;
@@ -226,7 +229,7 @@ public class ScriptService {
    }
 
    public void updateScriptDependencies(String oscript, String nscript, AssetEntry entry) {
-      DependencyHandler.getInstance().updateScriptDependencies(oscript, nscript, entry);
+      dependencyHandler.updateScriptDependencies(oscript, nscript, entry);
    }
 
    public static String getUrl(String funcName) {
@@ -256,7 +259,6 @@ public class ScriptService {
 
 
    private static final Map<String, String> FUNCTION_CSHIDS = new HashMap<>();
-   private final SheetLibraryService sheetLibraryService;
-   private final AssetRepository assetRepository;
-   private final ResourcePermissionService permissionService;
+   private final LibManagerProvider libManagerProvider;
+   private final DependencyHandler dependencyHandler;
 }

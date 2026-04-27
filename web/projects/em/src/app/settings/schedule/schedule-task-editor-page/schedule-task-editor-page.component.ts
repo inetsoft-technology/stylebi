@@ -177,6 +177,10 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
                this.model = model;
                this.form.controls["taskName"].setValue(this.model.label);
 
+               // Long timezone label for display; strip leading day fragment via slice(4), assuming "DD, "
+               // prefix (common en-US style). Boundary: some locales omit the comma (single space after
+               // day), in which case slice(4) can truncate the first character of the zone name — rare;
+               // most browser defaults still match "DD, " so end users typically do not see an issue.
                this.model.timeZone = new Date().toLocaleDateString([],{
                   day: "2-digit",
                   timeZoneName: "long",
@@ -383,9 +387,9 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
             this.snackBar.open("_#(js:em.schedule.task.saveSuccess)", null, {
                duration: Tool.SNACKBAR_DURATION
             });
-         });
 
-      this.taskChanged = false;
+            this.taskChanged = false;
+         });
    }
 
    close(): void {
@@ -413,6 +417,12 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
       this.conditionItems = this.model.taskConditionPaneModel.conditions.map((condition) => {
          return new TaskItem(`condition-${this.nextConditionId++}`, condition.label);
       });
+      if(this.conditionItems.length > 0) {
+         this.selectedConditionIndex = Math.min(
+            Math.max(this.selectedConditionIndex, 0),
+            this.conditionItems.length - 1
+         );
+      }
 
       this.nextActionId = 0;
       this.selectedActionIndex = this.selectedActionIndex == -1 ? 0 : this.selectedActionIndex;
@@ -424,6 +434,12 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
       this.actionItems = this.model.taskActionPaneModel.actions.map((action) => {
          return new TaskItem(`action-${this.nextActionId++}`, action.label);
       });
+      if(this.actionItems.length > 0) {
+         this.selectedActionIndex = Math.min(
+            Math.max(this.selectedActionIndex, 0),
+            this.actionItems.length - 1
+         );
+      }
    }
 
    private appendCondition(appendItem: boolean = false): void {

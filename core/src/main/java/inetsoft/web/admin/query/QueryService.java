@@ -50,17 +50,19 @@ public class QueryService
    extends MonitorLevelService implements MessageListener, StatusUpdater, QueryExecutionListener
 {
    @Autowired
-   public QueryService(ServerClusterClient clusterClient,
-                       MonitoringDataService monitoringDataService)
+   public QueryService(ScheduleClient scheduleClient, ServerClusterClient clusterClient,
+                       MonitoringDataService monitoringDataService,
+                       Cluster cluster)
    {
       super(lowAttrs, medAttrs, new String[0]);
+      this.scheduleClient = scheduleClient;
       this.clusterClient = clusterClient;
       this.monitoringDataService = monitoringDataService;
+      this.cluster = cluster;
    }
 
    @PostConstruct
    public void addListener() {
-      cluster = Cluster.getInstance();
       cluster.addMessageListener(this);
       XSessionManager.addQueryExecutionListener(this);
       XNodeTable.addQueryExecutionListener(this);
@@ -69,9 +71,7 @@ public class QueryService
    @PreDestroy
    public void removeListener() {
       try {
-         if(cluster != null) {
-            cluster.removeMessageListener(this);
-         }
+         cluster.removeMessageListener(this);
 
          XSessionManager.removeQueryExecutionListener(this);
          XNodeTable.removeQueryExecutionListener(this);
@@ -210,10 +210,11 @@ public class QueryService
    private ScheduleQueriesStatus getScheduleQueries(String address) {
       return getScheduleMetrics(
          address,
+         scheduleClient,
          clusterClient,
          server -> {
             try {
-               return ScheduleClient.getQueries(null, server);
+               return scheduleClient.getQueries(null, server);
             }
             catch(RemoteException e) {
                throw new RuntimeException(e);
@@ -430,9 +431,10 @@ public class QueryService
       updateQueryMetrics();
    }
 
+   private final ScheduleClient scheduleClient;
    private final ServerClusterClient clusterClient;
    private final MonitoringDataService monitoringDataService;
-   private Cluster cluster;
+   private final Cluster cluster;
    private final Catalog catalog = Catalog.getCatalog();
 
    private static final Logger LOG = LoggerFactory.getLogger(QueryService.class);

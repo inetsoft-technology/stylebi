@@ -26,6 +26,7 @@ import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
@@ -41,8 +42,10 @@ import java.util.*;
 @Service
 @ClusterProxy
 public class ConcatenateTablesService extends WorksheetControllerService {
-   public ConcatenateTablesService(ViewsheetService viewsheetService) {
-      super(viewsheetService);
+   public ConcatenateTablesService(ViewsheetService viewsheetService,
+                                   DataSourceRegistry dataSourceRegistry)
+   {
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

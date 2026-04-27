@@ -28,9 +28,9 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.RenameInfo;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
-import inetsoft.uql.util.*;
+import inetsoft.uql.util.DefaultIdentity;
+import inetsoft.uql.util.Identity;
 import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.ViewsheetInfo;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
@@ -65,22 +65,25 @@ public class DashboardController {
    @Autowired
    public DashboardController(AnalyticRepository analyticRepository,
                               ViewsheetService viewsheetService,
-                              DashboardServiceProxy serviceProxy)
+                              DashboardServiceProxy serviceProxy,
+                              SecurityEngine securityEngine,
+                              DashboardRegistryManager dashboardRegistryManager,
+                              DashboardManager dashboardManager,
+                              DependencyHandler dependencyHandler,
+                              RenameTransformHandler renameTransformHandler)
    {
       this.analyticRepository = analyticRepository;
       this.viewsheetService = viewsheetService;
       this.serviceProxy = serviceProxy;
+      this.securityEngine = securityEngine;
+      this.dashboardRegistryManager = dashboardRegistryManager;
+      this.dashboardManager = dashboardManager;
+      this.dependencyHandler = dependencyHandler;
+      this.renameTransformHandler = renameTransformHandler;
    }
 
    @GetMapping(value = "/api/portal/dashboard-tab-model")
-   @Secured(
-      operator = "OR",
-      value = {
-         @RequiredPermission(resourceType = ResourceType.DASHBOARD, resource = "*"),
-         @RequiredPermission(resourceType = ResourceType.WORKSHEET, resource = "*", actions = ResourceAction.ACCESS),
-         @RequiredPermission(resourceType = ResourceType.VIEWSHEET, resource = "*", actions = ResourceAction.ACCESS)
-      }
-   )
+   @Secured(@RequiredPermission(resourceType = ResourceType.DASHBOARD, resource = "*"))
    public DashboardTabModel getDashboardTabModel(Principal principal) throws Exception {
       boolean editable = analyticRepository.checkPermission(
          principal, ResourceType.DASHBOARD, "*", ResourceAction.WRITE);
@@ -90,10 +93,14 @@ public class DashboardController {
       DashboardTabModel model = new DashboardTabModel();
       model.setDashboards(getDashboards(principal));
       model.setDashboardTabsTop(isDashboardTabsTop());
-      model.setDrillTabsTop(isDrillTabsTop());
       model.setComposerEnabled(composerEnable);
       model.setEditable(editable);
       return model;
+   }
+
+   @GetMapping(value = "/api/portal/drill-tabs-top")
+   public boolean getDrillTabsTop() {
+      return isDrillTabsTop();
    }
 
    @GetMapping(value = "/api/portal/dashboard-tab-model/{name}")
@@ -108,20 +115,19 @@ public class DashboardController {
    }
 
    private List<DashboardModel> getDashboards(Principal principal) {
-      DashboardManager manager = DashboardManager.getManager();
       Identity identity = getIdentity((XPrincipal) principal);
-      return Arrays.stream(manager.getDashboards(identity))
+      return Arrays.stream(dashboardManager.getDashboards(identity))
          .map(d -> {
             try {
                return getDashboardModel(d, principal);
             }
             catch(FileNotFoundException ex) {
-               LOG.error("Missing dasbhoard: " + d, ex);
-               manager.removeDashboard(d);
+               LOG.error("Missing dashboard: {}", d, ex);
+               dashboardManager.removeDashboard(d);
                return null;
             }
             catch(Exception ex) {
-               LOG.error("Failed to get dashboard: " + d, ex);
+               LOG.error("Failed to get dashboard: {}", d, ex);
                return null;
             }
          })
@@ -136,8 +142,8 @@ public class DashboardController {
          Catalog catalog = Catalog.getCatalog(principal, Catalog.REPORT);
          IdentityID user = principal != null ? IdentityID.getIdentityIDFromKey(principal.getName()) :
             new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
-         DashboardRegistry uregistry = DashboardRegistry.getRegistry(user);
-         DashboardRegistry registry = DashboardRegistry.getRegistry();
+         DashboardRegistry uregistry = dashboardRegistryManager.getRegistry(user);
+         DashboardRegistry registry = dashboardRegistryManager.getRegistry();
          Dashboard dashboard;
          String type;
          String desc;
@@ -249,7 +255,7 @@ public class DashboardController {
 
       IdentityID user = principal != null ? IdentityID.getIdentityIDFromKey(principal.getName()) :
          new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
-      DashboardRegistry registry = DashboardRegistry.getRegistry(user);
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry(user);
       // log create dashboard action
       String actionName = ActionRecord.ACTION_NAME_CREATE;
       String objectName = null;
@@ -314,12 +320,10 @@ public class DashboardController {
          // dashboard should be automatically selected.
          if(user != null) {
             Identity id = getIdentity((XPrincipal) principal);
-            DashboardManager manager = DashboardManager.getManager();
-
-            manager.addDashboard(id, dashboardModel.name());
+            dashboardManager.addDashboard(id, dashboardModel.name());
          }
 
-         DependencyHandler.getInstance().updateDashboardDependencies(user, dashboardModel.name(),
+         dependencyHandler.updateDashboardDependencies(user, dashboardModel.name(),
             true);
          path = viewsheet.getPath();
          type = dashboard.getType();
@@ -364,18 +368,18 @@ public class DashboardController {
       ActionRecord actionRecord = null;
       IdentityID user = principal != null ? IdentityID.getIdentityIDFromKey(principal.getName()) :
          new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
-      DashboardRegistry registry = DashboardRegistry.getRegistry(user);
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry(user);
       Catalog catalog = Catalog.getCatalog();
 
       try {
          Dashboard odashboard = registry.getDashboard(oldName);
 
          if(odashboard == null && oldName != null && oldName.endsWith("__GLOBAL")) {
-            registry = DashboardRegistry.getRegistry();
+            registry = dashboardRegistryManager.getRegistry();
             odashboard = registry.getDashboard(oldName);
          }
 
-         DependencyHandler.getInstance().updateDashboardDependencies(user, oldName, false);
+         dependencyHandler.updateDashboardDependencies(user, oldName, false);
 
          String actionName = null;
          String objectName = null;
@@ -451,7 +455,7 @@ public class DashboardController {
             }
 
             RenameInfo rinfo = new RenameInfo(okey, nkey, RenameInfo.DASHBOARD);
-            RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
+            renameTransformHandler.addTransformTask(rinfo);
          }
 
          // remove the base vs is a new vs replaces it
@@ -466,15 +470,14 @@ public class DashboardController {
 
          registry.addDashboard(dashboardModel.name(), dashboard);
          registry.save();
-         DependencyHandler.getInstance().updateDashboardDependencies(user, dashboardModel.name(),
+         dependencyHandler.updateDashboardDependencies(user, dashboardModel.name(),
             true);
 
          // if this dashboard is created by a user on the viewer, then the
          // dashboard should be automatically selected.
          if(user != null) {
             Identity id = getIdentity((XPrincipal) principal);
-            DashboardManager manager = DashboardManager.getManager();
-            manager.addDashboard(id, dashboardModel.name());
+            dashboardManager.addDashboard(id, dashboardModel.name());
          }
 
          path = viewsheet.getPath();
@@ -523,11 +526,11 @@ public class DashboardController {
       Principal principal)
    {
       Identity identity = getIdentity((XPrincipal) principal);
-      DashboardRegistry registry = DashboardRegistry.getRegistry(identity.getIdentityID());
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry(identity.getIdentityID());
       Dashboard dashboard = registry.getDashboard(name);
 
       if(dashboard == null && name != null && name.endsWith("__GLOBAL")) {
-         registry = DashboardRegistry.getRegistry();
+         registry = dashboardRegistryManager.getRegistry();
          dashboard = registry.getDashboard(name);
       }
 
@@ -563,18 +566,17 @@ public class DashboardController {
          DashboardRegistry registry;
 
          if(dashboardName.endsWith("__GLOBAL")) {
-            registry = DashboardRegistry.getRegistry();
+            registry = dashboardRegistryManager.getRegistry();
          }
          else {
-            registry = DashboardRegistry.getRegistry(user);
+            registry = dashboardRegistryManager.getRegistry(user);
          }
 
-         DashboardManager manager = DashboardManager.getManager();
          Dashboard dashboard = registry.getDashboard(dashboardName);
-         DependencyHandler.getInstance().updateDashboardDependencies(user, dashboardName, false);
+         dependencyHandler.updateDashboardDependencies(user, dashboardName, false);
          registry.removeDashboard(dashboardName);
          registry.save();
-         manager.removeDashboard(dashboardName);
+         dashboardManager.removeDashboard(dashboardName);
 
          // remove the underlying vs if it's created for this dashboard
          if(dashboard instanceof VSDashboard) {
@@ -599,7 +601,7 @@ public class DashboardController {
     */
    private SecurityProvider getSecurityProvider() {
       try {
-         return SecurityEngine.getSecurity().getSecurityProvider();
+         return securityEngine.getSecurityProvider();
       }
       catch(Exception ex) {
          LOG.error("Failed to get security provider", ex);
@@ -611,7 +613,7 @@ public class DashboardController {
     * Get the user identity for dashboard.
     */
    private Identity getIdentity(XPrincipal principal) {
-      boolean securityEnabled = SecurityEngine.getSecurity().isSecurityEnabled();
+      boolean securityEnabled = securityEngine.isSecurityEnabled();
       SecurityProvider provider = getSecurityProvider();
       IdentityID user = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
       Identity identity;
@@ -670,6 +672,11 @@ public class DashboardController {
    private final AnalyticRepository analyticRepository;
    private final ViewsheetService viewsheetService;
    private final DashboardServiceProxy serviceProxy;
+   private final SecurityEngine securityEngine;
+   private final DashboardRegistryManager dashboardRegistryManager;
+   private final DashboardManager dashboardManager;
+   private final DependencyHandler dependencyHandler;
+   private final RenameTransformHandler renameTransformHandler;
    private static final Logger LOG =
       LoggerFactory.getLogger(DashboardController.class);
 }

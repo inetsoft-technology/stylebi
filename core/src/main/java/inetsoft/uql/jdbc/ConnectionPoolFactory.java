@@ -17,9 +17,10 @@
  */
 package inetsoft.uql.jdbc;
 
+import inetsoft.util.ConfigurationContext;
+
 import javax.sql.DataSource;
 import java.security.Principal;
-import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
 /**
@@ -29,6 +30,10 @@ import java.util.function.Predicate;
  * @since 12.2
  */
 public interface ConnectionPoolFactory extends AutoCloseable {
+   static ConnectionPoolFactory getInstance() {
+      return ConfigurationContext.getContext().getSpringBean(ConnectionPoolFactory.class);
+   }
+
    /**
     * Gets the connection pool for a JDBC data source.
     *

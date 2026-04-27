@@ -25,6 +25,7 @@ import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.CompositeTableAssemblyInfo;
 import inetsoft.uql.asset.internal.SchemaTableInfo;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.ReorderSubtablesEvent;
@@ -41,9 +42,9 @@ import java.util.stream.Collectors;
 @ClusterProxy
 public class ReorderSubtableService extends WorksheetControllerService {
 
-   public ReorderSubtableService(ViewsheetService viewsheetService)
+   public ReorderSubtableService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

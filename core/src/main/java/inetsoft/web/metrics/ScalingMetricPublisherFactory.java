@@ -18,10 +18,11 @@
 
 package inetsoft.web.metrics;
 
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.config.MetricsConfig;
 
 public interface ScalingMetricPublisherFactory {
-   ScalingMetricPublisher createMetricPublisher(MetricsConfig config);
+   ScalingMetricPublisher createMetricPublisher(MetricsConfig config, Cluster cluster);
 
    boolean isSupported(MetricsConfig config);
 }

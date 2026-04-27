@@ -1051,7 +1051,7 @@ public abstract class VSAQuery {
       }
 
       try {
-         TableLens lens = AssetDataCache.getData(
+         TableLens lens = AssetDataCache.getCache().getData(
             box.getID(), table, wbox, ignored, mode,
             limited, box.getTouchTimestamp(), qmgr);
 
@@ -1061,7 +1061,7 @@ public abstract class VSAQuery {
             tryIgnoring)
          {
             wbox.setIgnoreFiltering(true);
-            lens = AssetDataCache.getData(box.getID(), table, wbox, null, mode,
+            lens = AssetDataCache.getCache().getData(box.getID(), table, wbox, null, mode,
                                           true, box.getTouchTimestamp(), qmgr);
             exs = WorksheetService.ASSET_EXCEPTIONS.get();
 

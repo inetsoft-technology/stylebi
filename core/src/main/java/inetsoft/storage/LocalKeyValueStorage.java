@@ -33,10 +33,10 @@ import java.util.stream.Stream;
  * @param <T> the value type.
  */
 class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T> {
-   LocalKeyValueStorage(String id, LoadKeyValueTask<T> load) {
+   LocalKeyValueStorage(String id, LoadKeyValueTask<T> load, Cluster cluster) {
       Objects.requireNonNull(id, "The key-value store identifier cannot be null");
       this.id = id;
-      this.cluster = Cluster.getInstance();
+      this.cluster = cluster;
       this.mapName = "inetsoft.storage.kv." + id;
       this.map = cluster.getReplicatedMap(mapName);
       cluster.addReplicatedMapListener(mapName, listenerDelegate);

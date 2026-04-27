@@ -26,6 +26,7 @@ import inetsoft.graph.mxgraph.view.mxGraph;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.web.composer.ws.command.WSMoveAssembliesCommand;
 import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -41,8 +42,8 @@ import java.util.Map;
 @Service
 @ClusterProxy
 public class LayoutGraphService extends WorksheetControllerService {
-   public LayoutGraphService(ViewsheetService viewsheetService) {
-      super(viewsheetService);
+   public LayoutGraphService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry) {
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

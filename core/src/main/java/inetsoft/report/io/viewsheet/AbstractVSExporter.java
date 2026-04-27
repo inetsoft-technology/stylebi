@@ -53,6 +53,7 @@ import inetsoft.report.painter.PresenterPainter;
 import inetsoft.report.script.viewsheet.ChartVSAScriptable;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -140,7 +141,7 @@ public abstract class AbstractVSExporter implements VSExporter {
          exporter = OfficeExporterFactory.getInstance().createPowerpointExporter(stream);
       }
       else if(type == FileFormatInfo.EXPORT_TYPE_PDF) {
-         exporter = new PDFVSExporter(stream);
+         exporter = new PDFVSExporter(LibManagerProvider.getInstance(), Cluster.getInstance(), FileSystemService.getInstance(), DataSpace.getDataSpace(), stream);
          ((PDFVSExporter) exporter).setPrintOnOpen(print);
       }
       else if(type == FileFormatInfo.EXPORT_TYPE_PNG) {
@@ -1128,11 +1129,12 @@ public abstract class AbstractVSExporter implements VSExporter {
          ExecutionRecord executionRecord = null;
 
          if(log) {
+            XSessionService sessionService = XSessionService.getService();
             String userSessionID = box.getUser() == null ?
-                                   XSessionService.createSessionID(XSessionService.USER, null) :
+                                   sessionService.createSessionID(XSessionService.USER, null) :
                                    ((XPrincipal) box.getUser()).getSessionID();
             String objectName = entry.getDescription();
-            String execSessionID = XSessionService.createSessionID(
+            String execSessionID = sessionService.createSessionID(
                XSessionService.EXPORE_VIEW, entry.getName());
             String objectType = ExecutionRecord.OBJECT_TYPE_VIEW;
             String execType = ExecutionRecord.EXEC_TYPE_START;
@@ -1374,41 +1376,44 @@ public abstract class AbstractVSExporter implements VSExporter {
                      }
                   }
 
-                  Hyperlink emptyPlotLink = info.getEmptyPlotLinkValue();
-
-                  if(emptyPlotLink != null) {
-                     int titleHeight = info.isTitleVisible() ? info.getTitleHeight() : 0;
-                     Insets padding = info.getPadding();
-                     Insets2D border = getBorderOffset(info.getFormat());
-                     Rectangle2D plotBounds = new Rectangle2D.Double(
-                        pos.x + padding.left + border.left,
-                        pos.y + padding.top + border.top + titleHeight,
-                        size.width - padding.left - padding.right - border.left - border.right,
-                        size.height - padding.top - padding.bottom - border.top - border.bottom - titleHeight);
-                     writeEmptyPlotHyperlink(new Hyperlink.Ref(emptyPlotLink), plotBounds);
-                  }
-
                   VGraphPair pair = box.getVGraphPair(name, true, null, true, 1);
                   DataSet data = (DataSet) box.getData(name);
                   boolean imgOnly = exportChartAsImage(chart);
                   data = data == null && pair != null ? pair.getData() : data;
 
+                  VGraph graph = null;
+
                   if(data != null && !(data.getRowCount() <= 0 && data.getColCount() <= 0)) {
-                     VGraph graph = !isMatchLayout() && supportChartSlices() ?
+                     graph = !isMatchLayout() && supportChartSlices() ?
                         pair.getExpandedVGraph() : pair.getRealSizeVGraph();
+                  }
 
-                     if(graph != null) {
-                        Rectangle2D bounds = graph.getBounds();
-                        // chart not included in onlyDataComponents. (59989)
-                        boolean needSlice = !isMatchLayout() && !isOnlyDataComponents() &&
-                           bounds.getWidth() * bounds.getHeight() > EXPORT_SIZE * EXPORT_SIZE;
+                  Hyperlink emptyPlotLink = info.getEmptyPlotLinkValue();
 
-                        if(!needSlice) {
-                           writeChart(chart, graph, data, imgOnly);
-                        }
-                        else {
-                           writeSliceChart(chart, data, pair, isMatchLayout(), imgOnly);
-                        }
+                  // emit before writeChart so per-region links overlay on top
+                  if(emptyPlotLink != null) {
+                     int titleHeight = info.isTitleVisible() ? info.getTitleHeight() : 0;
+                     Insets padding = info.getPadding();
+                     Insets2D border = getBorderOffset(info.getFormat());
+                     Rectangle2D chartBounds = new Rectangle2D.Double(
+                        pos.x + padding.left + border.left,
+                        pos.y + padding.top + border.top + titleHeight,
+                        size.width - padding.left - padding.right - border.left - border.right,
+                        size.height - padding.top - padding.bottom - border.top - border.bottom - titleHeight);
+                     writeEmptyPlotHyperlink(new Hyperlink.Ref(emptyPlotLink), graph, chartBounds);
+                  }
+
+                  if(graph != null) {
+                     Rectangle2D bounds = graph.getBounds();
+                     // chart not included in onlyDataComponents. (59989)
+                     boolean needSlice = !isMatchLayout() && !isOnlyDataComponents() &&
+                        bounds.getWidth() * bounds.getHeight() > EXPORT_SIZE * EXPORT_SIZE;
+
+                     if(!needSlice) {
+                        writeChart(chart, graph, data, imgOnly);
+                     }
+                     else {
+                        writeSliceChart(chart, data, pair, isMatchLayout(), imgOnly);
                      }
                   }
 
@@ -3444,7 +3449,19 @@ public abstract class AbstractVSExporter implements VSExporter {
       }
    }
 
-   protected void writeEmptyPlotHyperlink(Hyperlink.Ref ref, Rectangle2D bounds) {
+   /**
+    * Emit the empty-plot hyperlink. The link should be registered on the plot
+    * rectangle only (not the axes or legends). Default is a no-op; subclasses
+    * override.
+    *
+    * @param ref          the hyperlink reference
+    * @param vgraph       the rendered VGraph; use {@code vgraph.getPlotBounds()}
+    *                     (graph-local coords) to derive the actual plot rectangle
+    * @param chartBounds  on-page chart rectangle excluding title, padding and border
+    */
+   protected void writeEmptyPlotHyperlink(Hyperlink.Ref ref, VGraph vgraph,
+                                          Rectangle2D chartBounds)
+   {
       // subclasses override to emit the link
    }
 
@@ -3661,12 +3678,31 @@ public abstract class AbstractVSExporter implements VSExporter {
          return;
       }
 
-      Rectangle2D widgetBounds = writeInputLabelText(info);
-
-      if(widgetBounds == null) {
+      if(!hasVisibleLabel(info)) {
          writePicture(assembly);
          return;
       }
+
+      CoordinateHelper helper = getHelper();
+
+      if(helper == null) {
+         return;
+      }
+
+      InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
+      LabelInfo labelInfo = inputInfo.getLabelInfo();
+      Rectangle2D fullBounds = expandBoundsForLabel(helper.getBounds(info), labelInfo);
+      Rectangle2D[] bounds = splitInputBounds(fullBounds, labelInfo);
+      Rectangle2D labelBounds = bounds[0];
+      Rectangle2D widgetBounds = bounds[1];
+
+      // Draw the assembly background and border around the full area (label + widget).
+      // In the browser the outer wrapper element carries the assembly format (background,
+      // border, round corner), so both the label and the widget share one visual boundary.
+      helper.drawTextBox(fullBounds, fullBounds, info.getFormat(), null, null, null, false);
+
+      // Draw the label text with its own label-specific format.
+      helper.drawTextBox(labelBounds, getLabelFormat(labelInfo), labelInfo.getLabelText());
 
       if(isZeroSize(widgetBounds)) {
          return;
@@ -3675,13 +3711,69 @@ public abstract class AbstractVSExporter implements VSExporter {
       Dimension widgetSize = new Dimension(
          (int) Math.round(widgetBounds.getWidth()),
          (int) Math.round(widgetBounds.getHeight()));
-      BufferedImage img = getInputImage(assembly, widgetSize);
+
+      // Render the widget without the assembly background/border — they were drawn above
+      // around the full (label + widget) bounds so the widget image must not repeat them.
+      BufferedImage img = getInputImageNoAssemblyStyle(assembly, info, widgetSize);
 
       if(img != null) {
-         getHelper().drawImage(img, widgetBounds);
+         helper.drawImage(img, widgetBounds);
       }
       else {
          LOG.warn("No image for input assembly: {}", assembly.getAbsoluteName());
+      }
+   }
+
+   /**
+    * Render a widget image with the assembly-level background and borders suppressed.
+    * Used by {@link #writeInputWithLabel} which draws those styles around the full
+    * (label + widget) bounds instead.
+    *
+    * <p>Both the runtime value (rValue) and the design-time value (dValue) must be
+    * cleared for the suppression to take effect:
+    * <ul>
+    *   <li>{@code ClazzHolder.getRValue()} (used by borders) falls back to dValue
+    *       when rValue is null, so setting rValue to null alone leaves the border
+    *       visible.</li>
+    *   <li>{@code DynamicValue.getRValue()} (used by background) auto-assigns dValue
+    *       to rValue when rValue is null and dValue is a literal string, so setting
+    *       rValue to null alone allows dValue to re-appear on the next read.</li>
+    * </ul>
+    */
+   private BufferedImage getInputImageNoAssemblyStyle(VSAssembly assembly,
+      VSAssemblyInfo info, Dimension widgetSize)
+   {
+      VSCompositeFormat fmt = info.getFormat();
+
+      if(fmt == null) {
+         return getInputImage(assembly, widgetSize);
+      }
+
+      VSFormat udf = fmt.getUserDefinedFormat();
+      Color savedBg = udf.getBackground();
+      boolean savedBgDefined = udf.isBackgroundDefined();
+      String savedBgValue = udf.getBackgroundValue();
+      boolean savedBgValDefined = udf.isBackgroundValueDefined();
+      Insets savedBorders = udf.getBorders();
+      boolean savedBordersDefined = udf.isBordersDefined();
+      Insets savedBordersValue = udf.getBordersValue();
+      boolean savedBordersValDefined = udf.isBordersValueDefined();
+
+      // Clear both rValue and dValue so neither ClazzHolder nor DynamicValue
+      // can resurrect the original value during widget image rendering.
+      udf.setBackground(null);
+      udf.setBackgroundValue(null);
+      udf.setBorders(null);
+      udf.setBordersValue(null);
+
+      try {
+         return getInputImage(assembly, widgetSize);
+      }
+      finally {
+         udf.setBackground(savedBg, savedBgDefined);
+         udf.setBackgroundValue(savedBgValue, savedBgValDefined);
+         udf.setBorders(savedBorders, savedBordersDefined);
+         udf.setBordersValue(savedBordersValue, savedBordersValDefined);
       }
    }
 
@@ -3813,13 +3905,19 @@ public abstract class AbstractVSExporter implements VSExporter {
             Math.max(0, fullH - labelH - gap));
          break;
       case LabelInfo.RIGHT:
-         labelBounds = new Rectangle2D.Double(x + fullW - labelW, y, labelW, fullH);
+         // Center the label text vertically relative to the widget height,
+         // matching the Angular preview which uses flexbox vertical centering.
+         labelBounds = new Rectangle2D.Double(x + fullW - labelW,
+            y + Math.max(0, (fullH - labelH) / 2.0), labelW, labelH);
          widgetBounds = new Rectangle2D.Double(x, y,
             Math.max(0, fullW - labelW - gap), fullH);
          break;
       case LabelInfo.LEFT:
       default:
-         labelBounds = new Rectangle2D.Double(x, y, labelW, fullH);
+         // Center the label text vertically relative to the widget height,
+         // matching the Angular preview which uses flexbox vertical centering.
+         labelBounds = new Rectangle2D.Double(x, y + Math.max(0, (fullH - labelH) / 2.0),
+            labelW, labelH);
          widgetBounds = new Rectangle2D.Double(x + labelW + gap, y,
             Math.max(0, fullW - labelW - gap), fullH);
          break;
@@ -3932,6 +4030,25 @@ public abstract class AbstractVSExporter implements VSExporter {
 
       VSAssembly container = assembly.getContainer();
       return container == null || isAssemblyPrimary(container);
+   }
+
+   /**
+    * Split an input assembly's pixel bounds into [labelBounds, widgetBounds].
+    * Returns null if the assembly has no visible label.
+    * The returned bounds are in the viewsheet pixel coordinate space.
+    */
+   protected static Rectangle2D[] splitInputPixelBounds(VSAssemblyInfo info, Viewsheet vs) {
+      if(!hasVisibleLabel(info)) {
+         return null;
+      }
+
+      InputVSAssemblyInfo inputInfo = (InputVSAssemblyInfo) info;
+      LabelInfo labelInfo = inputInfo.getLabelInfo();
+      Dimension size = info.getLayoutSize() != null ? info.getLayoutSize() : vs.getPixelSize(info);
+      Point pos = info.getLayoutPosition() != null ? info.getLayoutPosition() : vs.getPixelPosition(info);
+      Rectangle2D pixelBounds = new Rectangle2D.Double(pos.x, pos.y, size.width, size.height);
+      Rectangle2D fullBounds = expandBoundsForLabel(pixelBounds, labelInfo);
+      return splitInputBounds(fullBounds, labelInfo);
    }
 
    /**

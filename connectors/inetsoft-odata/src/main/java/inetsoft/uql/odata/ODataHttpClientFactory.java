@@ -17,7 +17,7 @@
  */
 package inetsoft.uql.odata;
 
-import inetsoft.uql.XFactory;
+import inetsoft.uql.XRepository;
 import inetsoft.uql.tabular.oauth.AuthorizationClient;
 import inetsoft.uql.tabular.oauth.Tokens;
 import org.apache.http.impl.client.DefaultHttpClient;
@@ -46,7 +46,7 @@ public class ODataHttpClientFactory extends DefaultHttpClientFactory {
 
             if(saveTokens && dataSource.getFullName() != null) {
                try {
-                  XFactory.getRepository().updateDataSource(dataSource, dataSource.getFullName());
+                  XRepository.getRepository().updateDataSource(dataSource, dataSource.getFullName());
                }
                catch(Exception e) {
                   LOG.warn("Failed to save data source after refreshing token", e);

@@ -2345,6 +2345,14 @@ public class SummaryFilter extends AbstractGroupedTable
       this.cube = cube;
    }
 
+   private XSwapper getSwapper() {
+      if(swapper == null) {
+         swapper = XSwapper.getSwapper();
+      }
+
+      return swapper;
+   }
+
    // base class for MergedGroupNode and UnionGroupNode
    private class CombinedGroupNode extends GroupNode {
       @Override
@@ -2558,7 +2566,7 @@ public class SummaryFilter extends AbstractGroupedTable
             // GroupNode (vals and sum) can be relatively heavy. when the number explodes
             // in deeply nested grouping, it can create a large surge in memory demand.
             if(row % 500 == 0) {
-               XSwapper.getSwapper().waitForMemory();
+               getSwapper().waitForMemory();
             }
 
             node = new GroupNode();
@@ -3389,6 +3397,7 @@ public class SummaryFilter extends AbstractGroupedTable
    private List<OrderInfo> orderInfo = new ArrayList<>();
    UserMessage userMsg = null;
    private transient DefaultComparator defaultComparator = new DefaultComparator(true);
+   private transient XSwapper swapper;
 
    private static final Logger LOG = LoggerFactory.getLogger(SummaryFilter.class);
 }

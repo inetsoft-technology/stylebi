@@ -29,6 +29,7 @@ import inetsoft.report.internal.table.TableFormat;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.table.XSwappableTable;
 import inetsoft.uql.tabular.TabularQuery;
 import inetsoft.uql.util.XEmbeddedTable;
@@ -48,9 +49,9 @@ import java.text.ParseException;
 @ClusterProxy
 public class ColumnTypeDialogService extends WorksheetControllerService {
 
-   public ColumnTypeDialogService(ViewsheetService viewsheetService)
+   public ColumnTypeDialogService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

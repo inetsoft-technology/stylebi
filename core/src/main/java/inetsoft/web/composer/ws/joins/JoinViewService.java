@@ -21,6 +21,7 @@ package inetsoft.web.composer.ws.joins;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.viewsheet.command.UpdateUndoStateCommand;
@@ -33,8 +34,8 @@ import java.security.Principal;
 @ClusterProxy
 public class JoinViewService extends WorksheetControllerService {
 
-   public JoinViewService(ViewsheetService viewsheetService) {
-      super(viewsheetService);
+   public JoinViewService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry) {
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

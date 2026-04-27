@@ -18,7 +18,9 @@
 package inetsoft.web.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.sree.security.AuthenticationService;
 import inetsoft.sree.security.SRPrincipal;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import inetsoft.util.ThreadContext;
 import inetsoft.web.security.auth.*;
 import jakarta.servlet.*;
@@ -50,6 +52,12 @@ import java.util.Locale;
  * @see <a href="https://tools.ietf.org/html/rfc6750#section-2.1">HTTP Bearer Authorization</a>
  */
 public class JWTFilter extends AbstractSecurityFilter {
+   public JWTFilter(SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                    AuthenticationService authenticationService)
+   {
+      super(sessionLicenseServiceProvider, authenticationService);
+   }
+
    @Override
    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
       throws IOException, ServletException

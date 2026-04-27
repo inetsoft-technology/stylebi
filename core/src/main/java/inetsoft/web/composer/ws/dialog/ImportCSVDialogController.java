@@ -17,10 +17,14 @@
  */
 package inetsoft.web.composer.ws.dialog;
 
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.util.Tool;
 import inetsoft.util.cachefs.BinaryTransfer;
 import inetsoft.web.composer.model.ws.ImportCSVDialogModel;
 import inetsoft.web.composer.ws.WorksheetController;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.apache.commons.io.IOUtils;
@@ -60,6 +64,11 @@ public class ImportCSVDialogController extends WorksheetController {
     *
     * @return the rectangle descriptor.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.WORKSHEET,
+      resource = "*",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("/api/composer/ws/import-csv-dialog-model/{runtimeId}")
    @ResponseBody
    public ImportCSVDialogModel getImportCSVDialogModel(@PathVariable("runtimeId") String runtimeId)
@@ -75,13 +84,19 @@ public class ImportCSVDialogController extends WorksheetController {
          .build();
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.WORKSHEET,
+      resource = "*",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping(
       value = "/api/composer/ws/import-csv-dialog-model/upload/{runtimeId}",
       consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
    @ResponseBody
    public HashMap<String, Object> getUploadFile(
       @RequestParam("uploads[]") MultipartFile mpf,
-      @PathVariable("runtimeId") String runtimeId) throws Exception
+      @PathVariable("runtimeId") String runtimeId,
+      Principal principal) throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId);
 
@@ -96,23 +111,34 @@ public class ImportCSVDialogController extends WorksheetController {
          binaryTransferService.closeOutputStream(data, output);
       }
 
-      return dialogService.getUploadFile(runtimeId, data);
+      return dialogService.getUploadFile(runtimeId, data, principal);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.WORKSHEET,
+      resource = "*",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/composer/ws/import-csv-dialog-model/preview/{runtimeId}")
    @ResponseBody
    public HashMap<String, Object> getPreviewTable(
       @RequestBody ImportCSVDialogModel model,
-      @PathVariable("runtimeId") String runtimeId) throws Exception
+      @PathVariable("runtimeId") String runtimeId,
+      Principal principal) throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId);
-      return dialogService.getPreviewTable(runtimeId, model);
+      return dialogService.getPreviewTable(runtimeId, model, principal);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.WORKSHEET,
+      resource = "*",
+      actions = ResourceAction.ACCESS
+   ))
    @PutMapping("/api/composer/ws/import-csv-dialog-model/touch-file/{runtimeId}")
    @ResponseBody
-   public void touchFile(@PathVariable("runtimeId") String runtimeId) throws IOException {
-      dialogService.touchFile(runtimeId);
+   public void touchFile(@PathVariable("runtimeId") String runtimeId, Principal principal) throws Exception {
+      dialogService.touchFile(runtimeId, principal);
    }
 
    @MessageMapping("/ws/dialog/import-csv-dialog-model")

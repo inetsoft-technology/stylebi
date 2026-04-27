@@ -31,6 +31,7 @@ import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AbstractModelTrapContext;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.AbstractCalc;
 import inetsoft.uql.viewsheet.graph.Calculator;
@@ -68,7 +69,9 @@ public class VSCrosstabDndService {
                                VSBindingTreeService bindingTreeService,
                                VSCrosstabBindingHandler crosstabHandler,
                                VSBindingService bfactory,
-                               CoreLifecycleService coreLifecycleService) {
+                               CoreLifecycleService coreLifecycleService,
+                               DataSourceRegistry dataSourceRegistry)
+   {
       this.viewsheetService = viewsheetService;
       this.assemblyInfoHandler = assemblyInfoHandler;
       this.convertTableRefService = convertTableRefService;
@@ -76,6 +79,7 @@ public class VSCrosstabDndService {
       this.crosstabHandler = crosstabHandler;
       this.bfactory = bfactory;
       this.coreLifecycleService = coreLifecycleService;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -194,7 +198,7 @@ public class VSCrosstabDndService {
          }
       }
 
-      AbstractModelTrapContext.TrapInfo trap = new VSModelTrapContext(rvs).checkTrap(old.getVSAssemblyInfo(), clone.getVSAssemblyInfo());
+      AbstractModelTrapContext.TrapInfo trap = new VSModelTrapContext(rvs, dataSourceRegistry).checkTrap(old.getVSAssemblyInfo(), clone.getVSAssemblyInfo());
       rvs.getViewsheet().getAssembly(event.name()).setVSAssemblyInfo(old.getVSAssemblyInfo());
 
       return trap.showWarning();
@@ -513,6 +517,7 @@ public class VSCrosstabDndService {
    private VSCrosstabBindingHandler crosstabHandler;
    private final VSBindingService bfactory;
    private final CoreLifecycleService coreLifecycleService;
+   private final DataSourceRegistry dataSourceRegistry;
 
    private static final Logger LOG = LoggerFactory.getLogger(VSCrosstabDndService.class);
 

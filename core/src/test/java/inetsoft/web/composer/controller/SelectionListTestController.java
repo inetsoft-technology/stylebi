@@ -17,14 +17,16 @@
  */
 package inetsoft.web.composer.controller;
 
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.LinkUri;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import org.junit.jupiter.api.Tag;
 
 @Controller
+@Tag("core")
 public class SelectionListTestController {
 
    @Autowired

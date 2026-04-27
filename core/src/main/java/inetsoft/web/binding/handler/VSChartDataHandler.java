@@ -39,6 +39,7 @@ import inetsoft.uql.erm.AbstractModelTrapContext.TrapInfo;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
@@ -86,10 +87,12 @@ public class VSChartDataHandler {
 
    @Autowired
    public VSChartDataHandler(VSChartHandler chartHandler,
-      VSAssemblyInfoHandler assemblyInfoHandler)
+                             VSAssemblyInfoHandler assemblyInfoHandler,
+                             DataSourceRegistry dataSourceRegistry)
    {
       this.chartHandler = chartHandler;
       this.assemblyInfoHandler = assemblyInfoHandler;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    /**
@@ -465,7 +468,7 @@ public class VSChartDataHandler {
          box.get().processChange(name, hint, clist);
 
          if(checkTrap) {
-            VSModelTrapContext context = new VSModelTrapContext(rvs, true);
+            VSModelTrapContext context = new VSModelTrapContext(rvs, dataSourceRegistry, true);
             TrapInfo trapInfo = context.isCheckTrap()
                ? context.checkTrap(oldInfo, ninfo) : null ;
 
@@ -1327,5 +1330,6 @@ public class VSChartDataHandler {
    }
 
    private final VSChartHandler chartHandler;
-   private VSAssemblyInfoHandler assemblyInfoHandler;
+   private final VSAssemblyInfoHandler assemblyInfoHandler;
+   private final DataSourceRegistry dataSourceRegistry;
 }

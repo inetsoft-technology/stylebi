@@ -83,6 +83,9 @@
   --inet-em-accent-contrast-A400: var(--inet-em-light-primary-text);
   --inet-em-accent-contrast-A700: var(--inet-em-light-primary-text);
   --inet-em-navbar-home-bg-color: var(--inet-em-accent-500);
+
+  // Shared theme variables read by the AI assistant web component via getThemeConfig().
+  --inet-primary-color: var(--inet-em-accent-500);
 }
 
 $em-primary: (

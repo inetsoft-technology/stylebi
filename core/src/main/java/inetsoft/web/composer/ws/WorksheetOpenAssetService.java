@@ -30,6 +30,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.path.XSelection;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.Catalog;
@@ -40,19 +41,20 @@ import inetsoft.web.composer.ws.event.OpenAssetEventValidator;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+
 import java.awt.*;
 import java.security.Principal;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 @Service
 @ClusterProxy
 public class WorksheetOpenAssetService extends WorksheetControllerService {
 
-   public WorksheetOpenAssetService(ViewsheetService viewsheetService)
+   public WorksheetOpenAssetService(ViewsheetService viewsheetService,
+                                    DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -72,7 +74,7 @@ public class WorksheetOpenAssetService extends WorksheetControllerService {
          }
 
          WSModelTrapContext context =
-            new WSModelTrapContext(table, principal);
+            new WSModelTrapContext(table, principal, getDataSourceRegistry());
 
          if(context.isCheckTrap() &&
             (context.checkTrap(null, table)).showWarning())

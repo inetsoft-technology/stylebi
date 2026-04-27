@@ -163,7 +163,7 @@ public class SUtil {
     * Try getting replet engine.
     */
    public static RepletEngine getRepletEngine(AnalyticRepository rep) {
-      return rep instanceof RepletEngine ? (RepletEngine) rep : null;
+      return rep != null && rep.isWrapperFor(RepletEngine.class) ? rep.unwrap(RepletEngine.class) : null;
    }
 
    /**
@@ -179,7 +179,7 @@ public class SUtil {
     * @return the repository.
     */
    public static AnalyticRepository getRepletRepository() {
-      return SingletonManager.getInstance(AnalyticRepository.class);
+      return AnalyticRepository.getInstance();
    }
 
    /**
@@ -1802,7 +1802,7 @@ public class SUtil {
       try {
          boolean isMyReport = isMyReport(path);
          user = isMyReport ? user : null;
-         RepletRegistry registry = RepletRegistry.getRegistry(user);
+         RepletRegistry registry = RepletRegistryManager.getInstance().getRegistry(user);
          boolean result = registry != null && registry.isFolder(path);
 
          if(type == RepositoryEntry.VIEWSHEET) {
@@ -1973,10 +1973,10 @@ public class SUtil {
 
       try {
          if(principal != null && path.startsWith(MY_REPORT)) {
-            registry = RepletRegistry.getRegistry(IdentityID.getIdentityIDFromKey(principal.getName()));
+            registry = RepletRegistryManager.getInstance().getRegistry(IdentityID.getIdentityIDFromKey(principal.getName()));
          }
 
-         dregistry = RepletRegistry.getRegistry();
+         dregistry = RepletRegistryManager.getInstance().getRegistry();
       }
       catch(Exception ex) {
          LOG.error("Failed to get replet registry for localization", ex);

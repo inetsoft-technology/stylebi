@@ -17,10 +17,15 @@
  */
 package inetsoft.sree.schedule;
 
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.storage.KeyValueStorage;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
+import jakarta.annotation.PreDestroy;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -30,16 +35,25 @@ import java.util.concurrent.*;
  * Class that provides access to persistent schedule task status data.
  * @since 12.2
  */
+@Service
+@Lazy
 public class ScheduleStatusDao implements AutoCloseable {
-   public ScheduleStatusDao() {
-      storage = KeyValueStorage.newInstance("scheduleStatus");
+   @Autowired
+   public ScheduleStatusDao(Cluster cluster) {
+      storage = KeyValueStorage.newInstance("scheduleStatus", cluster);
+   }
+
+   // test seam: accepts storage directly instead of constructing via cluster
+   ScheduleStatusDao(KeyValueStorage<Status> storage) {
+      this.storage = storage;
    }
 
    public static ScheduleStatusDao getInstance() {
-      return SingletonManager.getInstance(ScheduleStatusDao.class);
+      return ConfigurationContext.getContext().getSpringBean(ScheduleStatusDao.class);
    }
 
    @Override
+   @PreDestroy
    public void close() throws Exception {
       storage.close();
    }
@@ -68,7 +82,8 @@ public class ScheduleStatusDao implements AutoCloseable {
    public Status setStatus(String taskName, Scheduler.Status status, long startTime,
                            long endTime, String error, boolean runNow)
    {
-      Status oldStatus = getStatus(taskName);
+      String encodedTaskName = encodeTaskName(taskName);
+      Status oldStatus = storage.get(encodedTaskName);
       Status newStatus = new Status();
       newStatus.setStatus(status);
       newStatus.setStartTime(startTime);
@@ -83,7 +98,7 @@ public class ScheduleStatusDao implements AutoCloseable {
       }
 
       try {
-         storage.put(encodeTaskName(taskName), newStatus).get(10L, TimeUnit.SECONDS);
+         storage.put(encodedTaskName, newStatus).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception ex) {
          LOG.error("Failed to put schedule status {} for {}", status, taskName);
@@ -99,8 +114,10 @@ public class ScheduleStatusDao implements AutoCloseable {
     */
    @SuppressWarnings("WeakerAccess")
    public void clearStatus(String taskName) {
+      String encodedTaskName = encodeTaskName(taskName);
+
       try {
-         storage.remove(encodeTaskName(taskName)).get(10L, TimeUnit.SECONDS);
+         storage.remove(encodedTaskName).get(10L, TimeUnit.SECONDS);
       }
       catch(InterruptedException | ExecutionException | TimeoutException e) {
          LOG.error("Failed to clear status for task: {}", taskName, e);
@@ -108,17 +125,28 @@ public class ScheduleStatusDao implements AutoCloseable {
    }
 
    /**
-    * Encodes the task name to avoid conflicts with reserved keywords.
+    * Encodes task names that could conflict with reserved keys or this DAO's escape prefix.
+    *
+    * Format: TASK^^<originalLength>:<originalName>
+    * Encoding changed from the lossy TASK^^<strippedSuffix> format (prior to 14.0) to this
+    * length-prefixed format to eliminate key collisions. Existing statuses stored under the
+    * old format will not be found after upgrade; schedule status is transient operational data
+    * so this data loss on upgrade is acceptable.
     */
    private String encodeTaskName(String taskName) {
-      if(taskName != null && taskName.matches(RESERVED_PATTERN)) {
-         taskName = ENCODE_PREFIX + taskName.substring(2, taskName.length() - 2);
+      if(taskName == null) {
+         throw new IllegalArgumentException("taskName must not be null");
+      }
+
+      if(taskName.matches(RESERVED_PATTERN) || taskName.startsWith(ENCODE_PREFIX)) {
+         taskName = ENCODE_PREFIX + taskName.length() + ENCODE_SEPARATOR + taskName;
       }
 
       return taskName;
    }
 
    private static final String ENCODE_PREFIX = "TASK^^";
+   private static final String ENCODE_SEPARATOR = ":";
    private static final String RESERVED_PATTERN = "^__.*__$";
    private final KeyValueStorage<Status> storage;
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleStatusDao.class);

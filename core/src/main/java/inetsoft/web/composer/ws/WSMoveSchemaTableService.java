@@ -25,6 +25,7 @@ import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.uql.asset.RelationalJoinTableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.asset.internal.CompositeTableAssemblyInfo;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSMoveSchemaTablesEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -37,9 +38,9 @@ import java.security.Principal;
 @ClusterProxy
 public class WSMoveSchemaTableService extends WorksheetControllerService {
 
-   public WSMoveSchemaTableService(ViewsheetService viewsheetService)
+   public WSMoveSchemaTableService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

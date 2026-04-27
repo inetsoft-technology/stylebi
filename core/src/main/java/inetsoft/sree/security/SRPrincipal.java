@@ -207,7 +207,14 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
     */
    public static String getNameFromID(String id) {
       String[] parts = Tool.split(id, SEP);
-      return parts[0];
+      String name = parts[0];
+      int idx = name.indexOf(SEP2);
+
+      if(idx >= 0) {
+         name = name.substring(0, idx);
+      }
+
+      return Tool.byteDecode(name);
    }
 
    /**
@@ -229,11 +236,11 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
             secureId = Long.parseLong(name.substring(index1 + 1, index2));
 
             if(index3 > 0) {
-               addr = name.substring(index2 + 1, index3);
-               session = name.substring(index3 + 1);
+               addr = Tool.byteDecode(name.substring(index2 + 1, index3));
+               session = Tool.byteDecode(name.substring(index3 + 1));
             }
             else {
-               addr = name.substring(index2 + 1);
+               addr = Tool.byteDecode(name.substring(index2 + 1));
             }
          }
          else {
@@ -243,8 +250,10 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
          name = name.substring(0, index1);
       }
 
-      if(parts.length == 1) {
-         return SUtil.getPrincipal(new IdentityID(name, OrganizationManager.getInstance().getCurrentOrgID()), addr, true);
+      name = Tool.byteDecode(name);
+
+      if(parts.length < 3) {
+         return SUtil.getPrincipal(IdentityID.getIdentityIDFromKey(name), addr, true);
       }
 
       ClientInfo clientInfo = new ClientInfo(IdentityID.getIdentityIDFromKey(name), addr, session);
@@ -257,7 +266,9 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
 
       if(gpart.length() > 1) {
          gpart = gpart.substring(1);
-         String[] groups = Tool.split(gpart, SEP2);
+         String[] groups = Arrays.stream(Tool.split(gpart, SEP2))
+            .map(Tool::byteDecode)
+            .toArray(String[]::new);
          user.setGroups(groups);
       }
       else {
@@ -266,8 +277,10 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
 
       if(rpart.length() > 1) {
          rpart = rpart.substring(1);
-         IdentityID[] roles = Arrays.stream(Tool.split(rpart, SEP2)).map(IdentityID::getIdentityIDFromKey)
-                                                .toArray(IdentityID[]::new);
+         IdentityID[] roles = Arrays.stream(Tool.split(rpart, SEP2))
+            .map(Tool::byteDecode)
+            .map(IdentityID::getIdentityIDFromKey)
+            .toArray(IdentityID[]::new);
          user.setRoles(roles);
       }
       else {
@@ -276,10 +289,20 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
 
       for(int i = 3; i < parts.length; i++) {
          String[] ppair = Tool.split(parts[i], SEP3);
+
+         if(ppair.length < 2) {
+            continue;
+         }
+
          String[] ntpair = Tool.split(ppair[0], SEP2);
-         String pname = ntpair[0];
+
+         if(ntpair.length < 2) {
+            continue;
+         }
+
+         String pname = Tool.byteDecode(ntpair[0]);
          String ptype = ntpair[1];
-         String ptext = ppair[1];
+         String ptext = Tool.byteDecode(ppair[1]);
          Object pval = Tool.getData(ptype, ptext);
          user.setParameter(pname, pval);
       }
@@ -298,17 +321,17 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
       }
 
       StringBuilder sb = new StringBuilder();
-      sb.append(getName());
+      sb.append(encodeComponent(getName()));
 
       sb.append(SEP2).append(secureID);
 
       if(getUser() != null && getUser().getIPAddress() != null) {
-         sb.append(SEP2).append(getUser().getIPAddress());
-
+         sb.append(SEP2).append(encodeComponent(getUser().getIPAddress()));
+     
          if(getUser().getSession() != null) {
-            sb.append(SEP2).append(getUser().getSession());
+            sb.append(SEP2).append(encodeComponent(getUser().getSession()));
          }
-      }
+     }
 
       String[] groups = getGroups();
       sb.append(SEP);
@@ -319,7 +342,7 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
             sb.append(SEP2);
          }
 
-         sb.append(groups[i]);
+         sb.append(encodeComponent(groups[i]));
       }
 
       IdentityID[] roles = getRoles();
@@ -331,7 +354,7 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
             sb.append(SEP2);
          }
 
-         sb.append(roles[i]);
+         sb.append(encodeComponent(roles[i].convertToKey()));
       }
 
       for(String name : getParameterNames()) {
@@ -339,15 +362,19 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
 
          if(name != null && !name.isEmpty() && val != null) {
             sb.append(SEP);
-            sb.append(name);
+            sb.append(encodeComponent(name));
             sb.append(SEP2);
             sb.append(Tool.getDataType(val));
             sb.append(SEP3);
-            sb.append(Tool.getDataString(val));
+            sb.append(encodeComponent(Tool.getDataString(val)));
          }
       }
 
       return sb.toString();
+   }
+
+   private static String encodeComponent(String s) {
+      return s == null ? "" : Tool.byteEncode2(s, true);
    }
 
    /**
@@ -430,8 +457,11 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
     */
    @Override
    public int hashCode() {
-      int hash = client.hashCode();
-      return super.hashCode() + hash;
+      if("true".equals(getProperty("__FAKE__"))) {
+         return getName().hashCode();
+      }
+
+      return super.hashCode() + client.hashCode();
    }
 
    /**

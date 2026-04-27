@@ -26,6 +26,7 @@ import inetsoft.util.cachefs.CacheFS;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.output.DeferredFileOutputStream;
 import org.apache.commons.text.RandomStringGenerator;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -33,6 +34,11 @@ import java.nio.file.*;
 
 @Service
 public class BinaryTransferService {
+   @Autowired
+   public BinaryTransferService(FileSystemService fileSystemService) {
+      this.fileSystemService = fileSystemService;
+   }
+
    public BinaryTransfer createBinaryTransfer(String cacheFile) {
       RandomStringGenerator stringGenerator = new RandomStringGenerator.Builder().withinRange('a', 'z').build();
       return new BinaryTransfer(Tool.encodeUriPath(cacheFile) +"_" + stringGenerator.generate(32));
@@ -62,7 +68,6 @@ public class BinaryTransferService {
          int timeout = Integer.parseInt(SreeEnv.getProperty("data.temp.file.timeout", "600000"));
          outputStream.flush(); // Internally flushes data to Files.newInputStream(path)
          Path path = CacheFS.getPath("tempStorage", dataTransfer.getCacheFile());
-         FileSystemService fileSystemService = FileSystemService.getInstance();
          fileSystemService.remove(path, timeout);// Auto-delete temp file after timeout
          outputStream.close();
          dataTransfer.setFileWritten(true);
@@ -169,4 +174,6 @@ public class BinaryTransferService {
       boolean fileWritten = dataTransfer.isFileWritten();
       return (data == null || data.length == 0) && !(fileWritten && Files.exists(path));
    }
+
+   private final FileSystemService fileSystemService;
 }

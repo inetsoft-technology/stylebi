@@ -17,11 +17,12 @@
  */
 package inetsoft.web;
 
-import inetsoft.test.PenetrationTest;
-import inetsoft.test.PenetrationTests;
+import inetsoft.test.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.api.Tag;
 import org.springframework.beans.factory.annotation.AnnotatedBeanDefinition;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
@@ -31,6 +32,9 @@ import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.core.type.filter.RegexPatternTypeFilter;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.stereotype.Controller;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -44,6 +48,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Verifies that all web endpoints have a penetration test.
  */
 @PenetrationTests
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
 public class PenetrationCoverageTest {
    private Map<String, Map<RequestMethod, RequestCoverage>> requestStatus;
    private Map<String, MessageCoverage> messageStatus;

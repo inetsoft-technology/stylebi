@@ -62,12 +62,14 @@ public class QueryManagerService {
    public QueryManagerService(RuntimeQueryService runtimeQueryService,
                               XRepository repository,
                               DataSourceService dataSourceService,
-                              SecurityEngine securityEngine)
+                              SecurityEngine securityEngine,
+                              ColumnCache columnCache)
    {
       this.runtimeQueryService = runtimeQueryService;
       this.repository = repository;
       this.dataSourceService = dataSourceService;
       this.securityEngine = securityEngine;
+      this.columnCache = columnCache;
    }
 
    public void updateQuery(String runtimeId, BasicSQLQueryModel queryModel,
@@ -290,7 +292,7 @@ public class QueryManagerService {
       boolean expressionAllowed = true;
 
       try {
-         expressionAllowed = SecurityEngine.getSecurity().checkPermission(
+         expressionAllowed = securityEngine.checkPermission(
             principal, ResourceType.WORKSHEET_EXPRESSION_COLUMN, "*", ResourceAction.ACCESS);
       }
       catch(SecurityException e) {
@@ -411,11 +413,9 @@ public class QueryManagerService {
          model.setSimpleModel(basicModel);
       }
 
-      SecurityEngine security = SecurityEngine.getSecurity();
-
       for(String dsName : repository.getDataSourceFullNames()) {
          if(repository.getDataSource(dsName) instanceof JDBCDataSource) {
-            if(security.checkPermission(principal, ResourceType.DATA_SOURCE, dsName,
+            if(securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE, dsName,
                ResourceAction.READ))
             {
                model.getDataSources().add(dsName);
@@ -723,8 +723,7 @@ public class QueryManagerService {
       query.setSQLDefinition(browseSql);
       query.setDataSource(xds);
 
-      ColumnCache cache = ColumnCache.getColumnCache();
-      String[][] data = cache.getColumnDataString(
+      String[][] data = columnCache.getColumnDataString(
          query, tableName, colPath, columnType, null, null, quote);
 
       if(XSchema.STRING.equals(columnType)) {
@@ -798,11 +797,9 @@ public class QueryManagerService {
       model.setDataSource(dataSource);
       model.setVariableNames(getVariableList(rws, principal));
 
-      SecurityEngine security = SecurityEngine.getSecurity();
-
       for(String dsName : repository.getDataSourceFullNames()) {
          if(repository.getDataSource(dsName) instanceof JDBCDataSource) {
-            if(security.checkPermission(principal, ResourceType.DATA_SOURCE, dsName,
+            if(securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE, dsName,
                ResourceAction.READ))
             {
                model.getDataSources().add(dsName);
@@ -1507,8 +1504,7 @@ public class QueryManagerService {
          nsql.setSQLString(!StringUtils.isEmpty(nSqlString) ? nSqlString : query.getSQLAsString());
       }
 
-      XDataService service = XFactory.getDataService();
-      UserVariable[] vars = service.getQueryParameters(principal.getName(), query, true);
+      UserVariable[] vars = repository.getQueryParameters(principal.getName(), query, true);
 
       if(vars == null) {
          return null;
@@ -1678,7 +1674,6 @@ public class QueryManagerService {
       JDBCDataSource xds = (JDBCDataSource) query.getDataSource();
 
       try {
-         XRepository repository = XFactory.getRepository();
          XNode node = new XNode();
          node.setAttribute("type", "DBPROPERTIES");
          node = repository.getMetaData(
@@ -1729,8 +1724,6 @@ public class QueryManagerService {
       */
 
       try {
-         XRepository repository = XFactory.getRepository();
-
          // run query to get column info
          if(sql.getParseResult() == UniformSQL.PARSE_FAILED || executeQuery) {
             if(!executeQuery) {
@@ -1774,14 +1767,13 @@ public class QueryManagerService {
     * Execute a query.
     */
    private XNode execute(XQuery xquery, VariableTable variableTable, String user) throws Exception {
-      XDataService service = XFactory.getDataService();
       XNode result = null;
       int maxRows = 0;
 
       try {
          maxRows = xquery.getMaxRows();
          xquery.setMaxRows(1);
-         result = service.execute(user, xquery, variableTable,
+         result = repository.execute(user, xquery, variableTable,
             ThreadContext.getContextPrincipal(), false, null);
       }
       finally {
@@ -1831,8 +1823,7 @@ public class QueryManagerService {
       }
 
       runtimeQueryService.saveRuntimeQuery(runtimeQuery);
-      XDataService service = XFactory.getDataService();
-      XNode result = service.execute(principal.getName(), query, vtable,
+      XNode result = repository.execute(principal.getName(), query, vtable,
          principal, true, null);
 
       if(result == null) {
@@ -2692,5 +2683,6 @@ public class QueryManagerService {
    private final XRepository repository;
    private final SecurityEngine securityEngine;
    private final DataSourceService dataSourceService;
+   private final ColumnCache columnCache;
    private static final Logger LOG = LoggerFactory.getLogger(QueryManagerService.class);
 }

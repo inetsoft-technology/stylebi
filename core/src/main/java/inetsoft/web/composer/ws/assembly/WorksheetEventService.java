@@ -29,6 +29,7 @@ import inetsoft.web.composer.ws.TableModeService;
 import inetsoft.web.composer.ws.command.*;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 import java.security.Principal;
@@ -38,7 +39,9 @@ import java.util.List;
 @ClusterProxy
 @Component
 public class WorksheetEventService {
-   public WorksheetEventService(ViewsheetService engine, WorksheetEventServiceProxy proxy) {
+   public WorksheetEventService(ViewsheetService engine,
+                                ObjectProvider<WorksheetEventServiceProxy> proxy)
+   {
       this.engine = engine;
       this.proxy = proxy;
    }
@@ -48,8 +51,14 @@ public class WorksheetEventService {
                                CommandDispatcher commandDispatcher) throws Exception
    {
       String runtimeId = engine.openWorksheet(entry, user);
-      return proxy.openWorksheet(
-         runtimeId, user, entry, openAutoSaved, gettingStartedCreateQuery, commandDispatcher);
+      WorksheetEventServiceProxy p = proxy.getIfAvailable();
+
+      if(p != null) {
+         return p.openWorksheet(
+            runtimeId, user, entry, openAutoSaved, gettingStartedCreateQuery, commandDispatcher);
+      }
+
+      return null;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -217,5 +226,5 @@ public class WorksheetEventService {
    }
 
    private final ViewsheetService engine;
-   private final WorksheetEventServiceProxy proxy;
+   private final ObjectProvider<WorksheetEventServiceProxy> proxy;
 }

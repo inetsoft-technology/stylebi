@@ -48,9 +48,10 @@ public class RoleController {
    public RoleController(SecurityProvider securityProvider,
                          IdentityService identityService,
                          UserTreeService userTreeService,
-                         SecurityTreeServer securityTreeServer ,
+                         SecurityTreeServer securityTreeServer,
                          SystemAdminService systemAdminService,
-                         IdentityThemeService themeService)
+                         IdentityThemeService themeService,
+                         LicenseManager licenseManager)
    {
       this.securityProvider = securityProvider;
       this.identityService = identityService;
@@ -58,8 +59,16 @@ public class RoleController {
       this.securityTreeServer = securityTreeServer;
       this.systemAdminService = systemAdminService;
       this.themeService = themeService;
+      this.licenseManager = licenseManager;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/security/user/get-security-tree-root/{provider}/{providerChanged}")
    public SecurityTreeRootModel getSecurityTreeRoot(@DecodePathVariable("provider") String provider,
                                                     @PathVariable("providerChanged") boolean providerChanged,
@@ -82,6 +91,13 @@ public class RoleController {
       return result;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/security/user/create-role/{provider}")
    public EditRolePaneModel createRole(HttpServletRequest req, Principal principal,
                                        @DecodePathVariable("provider") String providerName)
@@ -168,6 +184,11 @@ public class RoleController {
    @GetMapping("/api/em/security/providers/{provider}/roles/{role}/")
    @Secured({
       @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
          resourceType = ResourceType.SECURITY_ROLE,
          actions = ResourceAction.ADMIN
       )
@@ -181,7 +202,7 @@ public class RoleController {
       String rootOrgRoleID = new IdentityID("Organization Roles", roleIdentityID.orgID).convertToKey();
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityProvider.getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -213,7 +234,7 @@ public class RoleController {
       //disable editing if a global role and not a system administrator
       boolean editableRoles =  (provider instanceof EditableAuthenticationProvider)
                      && ((org != null || OrganizationManager.getInstance().isSiteAdmin(principal)) ||
-            SecurityEngine.getSecurity().getSecurityProvider()
+            securityProvider
                .checkPermission(principal, ResourceType.SECURITY_ROLE, roleIdentityID.convertToKey(), ResourceAction.ASSIGN));
 
       List<IdentityModel> members = identityService.getRoleMembers(roleIdentityID, provider);
@@ -231,7 +252,7 @@ public class RoleController {
          .permittedIdentities(org == null && isSiteAdmin ? members : userTreeService.filterOtherOrgs(permissions))
          .editable(editableRoles)
          .theme(themeService.getTheme(roleIdentityID, CustomTheme::getRoles))
-         .enterprise(LicenseManager.getInstance().isEnterprise())
+         .enterprise(licenseManager.isEnterprise())
          .build();
    }
 
@@ -286,6 +307,13 @@ public class RoleController {
          .orElse(null);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/security/user/edit-role/{provider}")
    @Audited(
       actionName = ActionRecord.ACTION_NAME_EDIT,
@@ -298,7 +326,7 @@ public class RoleController {
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityProvider.getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -328,6 +356,13 @@ public class RoleController {
       }
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/security/user/delete-identities/{provider}")
    public DeleteIdentitiesResponse deleteIdentities(@RequestBody IdentityModel[] models,
                                                     @DecodePathVariable("provider") String providerName,
@@ -335,7 +370,7 @@ public class RoleController {
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityProvider.getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -393,5 +428,6 @@ public class RoleController {
    private final SecurityTreeServer securityTreeServer;
    private final SystemAdminService systemAdminService;
    private final IdentityThemeService themeService;
+   private final LicenseManager licenseManager;
    private final Logger LOG = LoggerFactory.getLogger(RoleController.class);
 }

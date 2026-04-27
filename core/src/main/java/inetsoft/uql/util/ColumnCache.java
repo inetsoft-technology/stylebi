@@ -17,16 +17,12 @@
  */
 package inetsoft.uql.util;
 
-import inetsoft.report.TableLens;
-import inetsoft.report.XSessionManager;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.XDataModel;
-import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.service.DataSourceRegistry;
-import inetsoft.uql.tabular.TabularQuery;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.util.*;
 import inetsoft.web.composer.model.BrowseDataModel;
@@ -48,11 +44,7 @@ public class ColumnCache {
     * Get a singleton cache.
     */
    public static ColumnCache getColumnCache() {
-      if(cache == null) {
-         cache = new ColumnCache();
-      }
-
-      return cache;
+      return ConfigurationContext.getContext().getSpringBean(ColumnCache.class);
    }
 
    /**
@@ -171,10 +163,9 @@ public class ColumnCache {
       return new String[][] { vals, lbs };
    }
 
-   /**
-    * Initialize column cache.
-    */
-   private ColumnCache() {
+   public ColumnCache(DataSourceRegistry dataSourceRegistry, XRepository repository) {
+      this.dataSourceRegistry = dataSourceRegistry;
+      this.repository = repository;
       // delimited by ;, each item as model::entity::attribute or query::column
       String prop = SreeEnv.getProperty("replet.browseData.nocache");
 
@@ -199,7 +190,7 @@ public class ColumnCache {
       prop = SreeEnv.getProperty("replet.browseData.timeout", "36000000");
       dataTable = new DataCache<>(1000, Integer.parseInt(prop));
 
-      DataSourceRegistry.getRegistry().addRefreshedListener(evt -> dataTable.clear());
+      dataSourceRegistry.addRefreshedListener(evt -> dataTable.clear());
    }
 
    /**
@@ -441,8 +432,8 @@ public class ColumnCache {
     */
    private Object getSession() {
       try {
-         XDataService service = XFactory.getDataService();
-         return service.bind(System.getProperty("user.name"));
+         XRepository xRepository = repository != null ? repository : XRepository.getRepository();
+         return xRepository.bind(System.getProperty("user.name"));
       }
       catch(Exception e) {
          LOG.error("Failed to get data source", e);
@@ -565,7 +556,7 @@ public class ColumnCache {
                                         String aname, VariableTable vars, Principal user)
       throws Exception
    {
-      XRepository xrep = XFactory.getRepository();
+      XRepository xrep = repository != null ? repository : XRepository.getRepository();
       XDataModel model = xrep.getDataModel(dsname);
       Object session = getSession();
 
@@ -810,10 +801,11 @@ public class ColumnCache {
       return comp.compare(v1, v2);
    };
 
+   private final DataSourceRegistry dataSourceRegistry;
+   private final XRepository repository;
    private final DataCache<String, BrowseDataModel> dataTable;
    private final Set<String> excluded = new HashSet<>(); // excluded keys
    private boolean nocache = false; // no caching of data
-   private static ColumnCache cache = null;
 
    private static final Logger LOG = LoggerFactory.getLogger(ColumnCache.class);
 }

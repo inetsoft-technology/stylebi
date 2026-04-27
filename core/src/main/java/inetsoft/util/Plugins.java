@@ -23,9 +23,6 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.db.DatabaseAuthenticationProvider;
 import inetsoft.storage.*;
-import inetsoft.uql.service.DataSourceRegistry;
-import inetsoft.uql.util.Config;
-import inetsoft.uql.util.Drivers;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.config.InetsoftConfig;
@@ -35,6 +32,8 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import jakarta.annotation.PostConstruct;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -46,20 +45,19 @@ import java.sql.Timestamp;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 /**
  * Utility class used to access extensions defined in plugins.
  */
-@SingletonManager.Singleton(Plugins.Reference.class)
-public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoCloseable {
+public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoCloseable {
    /**
     * Creates a new instance of <tt>Plugins</tt>.
     */
-   public Plugins(BlobStorage<Plugin.Descriptor> blobStorage) {
+   public Plugins(BlobStorage<Plugin.Descriptor> blobStorage, Cluster cluster, ApplicationEventPublisher eventPublisher) {
       this.blobStorage = blobStorage;
+      this.eventPublisher = eventPublisher;
       FileSystemService fileSystemService = FileSystemService.getInstance();
 
       InetsoftConfig config = InetsoftConfig.getInstance();
@@ -78,7 +76,19 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
       }
 
       this.plugins = new ConcurrentHashMap<>();
-      this.blobChangeLock = Cluster.getInstance().getLock(BLOB_CHANGE_LOCK);
+      this.blobChangeLock = cluster.getLock(BLOB_CHANGE_LOCK);
+   }
+
+   @PostConstruct
+   public void initBean() {
+      if(!initialized) {
+         synchronized(this) {
+            if(!initialized) {
+               init();
+               initialized = true;
+            }
+         }
+      }
    }
 
    // must be called outside of constructor to avoid infinite recursion
@@ -150,7 +160,7 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
     * @return the plugin manager instance.
     */
    public static Plugins getInstance() {
-      Plugins plugins = SingletonManager.getInstance(Plugins.class);
+      Plugins plugins = ConfigurationContext.getContext().getSpringBean(Plugins.class);
 
       if(!plugins.initialized) {
          synchronized(plugins) {
@@ -566,8 +576,7 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
 
       plugins.remove(pluginId);
       blobStorage.delete(pluginId);
-      Drivers.getInstance().pluginRemoved(pluginId);
-      DataSourceRegistry.getRegistry().clearCache();
+      eventPublisher.publishEvent(new PluginRemovedEvent(this, pluginId));
       plugin.getClassLoader().close();
       resetDBProviderConnection();
       delete(plugin.getFolder());
@@ -652,8 +661,8 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
          Plugin.Descriptor descriptor = event.getNewValue().getMetadata();
          unzipPlugin(descriptor, event.getNewValue().getLastModified().toEpochMilli());
          loadPlugin(descriptor);
-         Drivers.getInstance().pluginAdded(descriptor.getId());
-         Config.reloadServices();
+         eventPublisher.publishEvent(new PluginAddedEvent(this, descriptor.getId()));
+         eventPublisher.publishEvent(new PluginsChangedEvent(this));
          fireActionEvent(descriptor.getId());
       }
       catch(Exception e) {
@@ -677,8 +686,7 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
          Plugin plugin = plugins.remove(pluginId);
 
          if(plugin != null) {
-            DataSourceRegistry.getRegistry().clearCache();
-            Drivers.getInstance().pluginRemoved(pluginId);
+            eventPublisher.publishEvent(new PluginRemovedEvent(this, pluginId));
 
             try {
                plugin.getClassLoader().close();
@@ -694,7 +702,7 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
                LOG.warn("Failed to delete plugin directory", e);
             }
 
-            Config.reloadServices();
+            eventPublisher.publishEvent(new PluginsChangedEvent(this));
             fireActionEvent(pluginId);
          }
       }
@@ -763,55 +771,8 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
       }
    }
 
-   public static final class Reference extends SingletonManager.Reference<Plugins> {
-      @SuppressWarnings("unchecked")
-      @Override
-      public Plugins get(Object... parameters) {
-         if(plugins == null) {
-            lock.lock();
-
-            try {
-               if(plugins == null) {
-                  try {
-                     plugins = new Plugins(
-                        SingletonManager.getInstance(BlobStorage.class, "plugins", true));
-                  }
-                  catch(Exception e) {
-                     LOG.error("Failed to initialize plugins", e);
-                  }
-               }
-            }
-            finally {
-               lock.unlock();
-            }
-         }
-
-         return plugins;
-      }
-
-      @Override
-      public void dispose() {
-         lock.lock();
-
-         try {
-            if(plugins != null) {
-               plugins.close();
-            }
-         }
-         catch(Exception e) {
-            LOG.warn("Failed to close plugins", e);
-         }
-         finally {
-            plugins = null;
-            lock.unlock();
-         }
-      }
-
-      private Plugins plugins;
-      private final Lock lock = new ReentrantLock();
-   }
-
    private final BlobStorage<Plugin.Descriptor> blobStorage;
+   private final ApplicationEventPublisher eventPublisher;
    private final File pluginDirectory;
    private final Map<String, Plugin> plugins;
    private final Lock blobChangeLock;

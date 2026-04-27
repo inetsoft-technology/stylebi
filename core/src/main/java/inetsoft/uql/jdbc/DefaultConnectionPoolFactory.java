@@ -43,7 +43,7 @@ import java.util.function.Predicate;
  *
  * @since 12.2
  */
-class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
+public class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
    /**
     * Creates a new instance of <tt>DefaultConnectionPoolFactory</tt>.
     */
@@ -166,8 +166,8 @@ class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
       }
 
       String fullName = jdbcDataSource.getFullName();
-      Map<String, String> defaultProperties = Config.getDefaultPoolProperties(
-         Config.indexOfJDBCDriver(jdbcDataSource.getDriver()));
+      Map<String, String> defaultProperties = Config.getConfig().getDefaultPoolProperties(
+         Config.getConfig().indexOfJDBCDriver(jdbcDataSource.getDriver()));
 
       if(!(url != null && url.startsWith("jdbc:databricks:"))) {
          config.setAutoCommit("true".equals(defaultProperties.get("autoCommit")));

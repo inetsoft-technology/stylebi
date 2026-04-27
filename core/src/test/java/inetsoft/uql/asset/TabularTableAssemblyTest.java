@@ -17,12 +17,19 @@
  */
 package inetsoft.uql.asset;
 
+import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.web.composer.model.ws.DependencyType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.io.*;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -31,6 +38,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests for null-safety of TabularTableAssembly when the backing query is null
  * (e.g. the data source connector plugin is missing).
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 class TabularTableAssemblyTest {
    private Worksheet ws;
    private TabularTableAssembly assembly;

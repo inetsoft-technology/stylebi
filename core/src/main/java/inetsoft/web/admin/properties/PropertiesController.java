@@ -20,13 +20,14 @@ package inetsoft.web.admin.properties;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.internal.table.TableFormat;
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.log.*;
 import inetsoft.web.admin.security.PropertyModel;
-import inetsoft.web.security.DeniedMultiTenancyOrgUser;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import inetsoft.web.viewsheet.AuditObjectName;
 import inetsoft.web.viewsheet.Audited;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,15 +39,28 @@ import java.util.List;
 import java.util.Properties;
 
 @RestController
-@DeniedMultiTenancyOrgUser
 public class PropertiesController {
    @Autowired
-   private AssetRepository assetRepository;
+   public PropertiesController(AssetRepository assetRepository, LicenseManager licenseManager,
+                               LogManager logManager, SecurityEngine securityEngine)
+   {
+      this.assetRepository = assetRepository;
+      this.licenseManager = licenseManager;
+      this.logManager = logManager;
+      this.securityEngine = securityEngine;
+   }
 
    @Audited(
       actionName = ActionRecord.ACTION_NAME_DELETE,
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY,
       defaultOrg = true
+   )
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/properties",
+         actions = ResourceAction.ACCESS
+      )
    )
    @DeleteMapping("/api/admin/properties/delete")
    public void deleteProperty(Principal user,
@@ -67,6 +81,13 @@ public class PropertiesController {
       actionName = ActionRecord.ACTION_NAME_EDIT,
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY,
       defaultOrg = true
+   )
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/properties",
+         actions = ResourceAction.ACCESS
+      )
    )
    @PutMapping("/api/admin/properties/edit")
    public void editProperty(Principal user,
@@ -106,22 +127,36 @@ public class PropertiesController {
       }
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/properties",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/admin/properties")
    public Properties getProperties() {
       Properties properties = SreeEnv.getProperties();
 
-      if(!LicenseManager.getInstance().isEnterprise()) {
+      if(!licenseManager.isEnterprise()) {
          removeUnuseProperties(properties);
       }
 
       return properties;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/properties",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/admin/properties/defaults")
    public Properties getDefaultProperties() {
       Properties properties = SreeEnv.getDefaultProperties();
 
-      if(!LicenseManager.getInstance().isEnterprise()) {
+      if(!licenseManager.isEnterprise()) {
          removeUnuseProperties(properties);
       }
 
@@ -157,14 +192,13 @@ public class PropertiesController {
          return;
       }
 
-      LogManager logManager = LogManager.getInstance();
       List<LogLevelSetting> logLevels = logManager.getContextLevels();
 
       boolean found = logLevels.stream().anyMatch(logLevel -> {
          String name = logLevel.getName();
 
          if(logLevel.getOrgName() != null) {
-            String orgId = SecurityEngine.getSecurity()
+            String orgId = securityEngine
                .getSecurityProvider()
                .getOrgIdFromName(logLevel.getOrgName());
             name = Tool.buildString(name, "^", orgId);
@@ -180,4 +214,9 @@ public class PropertiesController {
          logManager.setContextLevel(logContext, name, null);
       }
    }
+
+   private final AssetRepository assetRepository;
+   private final LicenseManager licenseManager;
+   private final LogManager logManager;
+   private final SecurityEngine securityEngine;
 }

@@ -22,6 +22,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.ws.WorksheetOptionPaneModel;
 import inetsoft.web.composer.model.ws.WorksheetPropertyDialogModel;
@@ -36,9 +37,9 @@ import java.security.Principal;
 @ClusterProxy
 public class WorksheetPropertyDialogService extends WorksheetControllerService {
 
-   public WorksheetPropertyDialogService(ViewsheetService viewsheetService)
+   public WorksheetPropertyDialogService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
    }
 
 

@@ -24,7 +24,9 @@ import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
+@Tag("core")
 public class IgniteClusterTestUtils {
 
    public static IgniteCluster getIgniteCluster(String name, TcpDiscoveryIpFinder ipFinder,

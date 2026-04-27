@@ -17,7 +17,6 @@
  */
 package inetsoft.uql.asset.internal;
 
-import inetsoft.uql.XFactory;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.jdbc.*;
 import inetsoft.util.Tool;
@@ -107,7 +106,7 @@ public class SQLBoundTableAssemblyInfo extends BoundTableAssemblyInfo {
 
       if(node != null) {
          String name = Tool.getAttribute(node, "name");
-         XRepository repository = XFactory.getRepository();
+         XRepository repository = XRepository.getRepository();
          JDBCDataSource dataSource = (JDBCDataSource) repository.getDataSource(name,
             query.getOrganizationId());
          query.setDataSource(dataSource);

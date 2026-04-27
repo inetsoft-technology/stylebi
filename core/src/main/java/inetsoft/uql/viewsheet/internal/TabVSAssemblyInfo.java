@@ -393,7 +393,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
          }
 
          Point childPos = child.getPixelOffset();
-         int childHeight = child.getPixelSize() != null ? child.getPixelSize().height : 0;
+         int childHeight = getBottomTabChildHeight(child.getVSAssemblyInfo(), child.getPixelSize());
 
          if(childPos == null || childHeight == 0) {
             continue;
@@ -430,7 +430,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
 
          VSAssemblyInfo childInfo = child.getVSAssemblyInfo();
          Point childPos = child.getPixelOffset();
-         int childHeight = child.getPixelSize() != null ? child.getPixelSize().height : 0;
+         int childHeight = getBottomTabChildHeight(child.getVSAssemblyInfo(), child.getPixelSize());
 
          if(childPos == null || childHeight == 0) {
             continue;
@@ -449,6 +449,83 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
             }
          }
       }
+   }
+
+   /**
+    * Reposition a single child assembly so its visual bottom edge is flush
+    * with the tab bar's top edge. The tab bar itself is not moved.
+    *
+    * <p>This is useful when a property change (label, show type, size, etc.)
+    * alters a child's effective height and only that child needs to be
+    * adjusted without recalculating the entire tab layout.</p>
+    *
+    * @param tabInfo  the tab info; caller must verify the tab is in
+    *                 bottom-tab mode before calling
+    * @param childInfo the child assembly's info to reposition
+    * @param childSize the child assembly's pixel size
+    */
+   public static void repositionChildForBottomTabs(TabVSAssemblyInfo tabInfo,
+                                                   VSAssemblyInfo childInfo,
+                                                   Dimension childSize)
+   {
+      Point tabPos = tabInfo.getPixelOffset();
+      int childHeight = getBottomTabChildHeight(childInfo, childSize);
+
+      if(tabPos == null || childHeight <= 0) {
+         return;
+      }
+
+      int newChildY = tabPos.y - childHeight;
+      Point childPos = childInfo.getPixelOffset();
+
+      if(childPos != null && newChildY != childPos.y) {
+         int dy = newChildY - childPos.y;
+         childInfo.setPixelOffset(new Point(childPos.x, newChildY));
+
+         if(childInfo.getLayoutPosition() != null) {
+            childInfo.getLayoutPosition().translate(0, dy);
+         }
+      }
+   }
+
+   /**
+    * Get the effective height for positioning a child in bottom tabs.
+    * Dropdown components only show the title bar, so use title height
+    * instead of the collapsed pixel height.
+    *
+    * <p>Note: uses design-time show type ({@code getShowTypeValue()}).
+    * Label visibility and position use runtime-aware accessors since
+    * {@code repositionForBottomTabs} is also called from script contexts
+    * ({@link inetsoft.report.script.viewsheet.TabVSAScriptable}).</p>
+    */
+   public static int getBottomTabChildHeight(VSAssemblyInfo info, Dimension objectSize) {
+      if(info instanceof CalendarVSAssemblyInfo calInfo) {
+         if(calInfo.getShowTypeValue() == CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
+            return calInfo.getTitleHeight();
+         }
+      }
+      else if(info instanceof SelectionBaseVSAssemblyInfo selInfo) {
+         if(selInfo.getShowTypeValue() == SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
+            return selInfo.getTitleHeight();
+         }
+      }
+
+      int height = objectSize != null ? objectSize.height : 0;
+
+      // top/bottom labels render outside the declared pixel size
+      if(info instanceof InputVSAssemblyInfo inputInfo) {
+         LabelInfo labelInfo = inputInfo.getLabelInfo();
+
+         if(labelInfo != null && labelInfo.isLabelVisible()) {
+            String position = labelInfo.getLabelPosition();
+
+            if(LabelInfo.TOP.equals(position) || LabelInfo.BOTTOM.equals(position)) {
+               height += labelInfo.getRenderedHeight() + labelInfo.getLabelGap();
+            }
+         }
+      }
+
+      return height;
    }
 
    /**
@@ -493,12 +570,15 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    }
 
    /**
-    * Returns the effective bottomTabs value, reflecting the runtime value if set,
-    * otherwise the design-time value.
+    * Returns the effective {@code bottomTabs} value: the runtime (script-set) value
+    * if present, otherwise the design-time value. Use this method in all layout,
+    * export, and rendering paths. Callers that specifically need the raw design-time
+    * value (e.g. property dialog editors) should use {@link #getBottomTabsValue()}
+    * instead.
     */
    public boolean isBottomTabs() {
       Object rval = bottomTabs.getRValue();
-      return Boolean.parseBoolean(rval != null ? rval.toString() : "false");
+      return rval != null ? Boolean.parseBoolean(rval.toString()) : getBottomTabsValue();
    }
 
    public void setBottomTabs(boolean bottomTabs) {

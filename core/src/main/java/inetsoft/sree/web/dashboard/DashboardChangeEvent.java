@@ -19,13 +19,14 @@ package inetsoft.sree.web.dashboard;
 
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
+import org.springframework.context.ApplicationEvent;
 
 import java.util.EventObject;
 
 /**
  * Event that signals that a dashboard has changed.
  */
-public class DashboardChangeEvent extends EventObject {
+public class DashboardChangeEvent extends ApplicationEvent {
    public DashboardChangeEvent(Object source, Type type, String oldName, String newName,
                                IdentityID user)
    {

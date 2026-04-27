@@ -19,8 +19,10 @@ package inetsoft.uql.asset;
 
 import inetsoft.sree.security.*;
 import inetsoft.storage.BlobStorage;
+import inetsoft.storage.BlobStorageManager;
 import inetsoft.storage.BlobTransaction;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
+import jakarta.annotation.PreDestroy;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,9 +31,9 @@ import java.io.*;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
-@SingletonManager.Singleton(EmbeddedTableStorage.Reference.class)
 public class EmbeddedTableStorage implements AutoCloseable {
-   public EmbeddedTableStorage() {
+   public EmbeddedTableStorage(BlobStorageManager blobStorageManager) {
+      this.blobStorageManager = blobStorageManager;
    }
 
    private BlobStorage<Metadata> getStorage() {
@@ -41,7 +43,7 @@ public class EmbeddedTableStorage implements AutoCloseable {
    private BlobStorage<Metadata> getStorage(String orgId) {
       orgId = orgId == null ? OrganizationManager.getInstance().getCurrentOrgID() : orgId;
       String storeID = orgId.toLowerCase() + "__pdata";
-      return SingletonManager.getInstance(BlobStorage.class, storeID, true);
+      return blobStorageManager.getStorage(storeID, true);
    }
 
    public boolean tableExists(String path) {
@@ -105,6 +107,12 @@ public class EmbeddedTableStorage implements AutoCloseable {
       getStorage(orgId).delete(path);
    }
 
+   public String listBlobs(String orgID) throws IOException {
+      BlobStorage<Metadata> storage = getStorage(orgID);
+
+      return storage != null ? storage.listBlobs() : null;
+   }
+
    public Instant getLastModified(String path) throws FileNotFoundException {
       return getLastModified(path, null);
    }
@@ -158,9 +166,10 @@ public class EmbeddedTableStorage implements AutoCloseable {
    }
 
    public static EmbeddedTableStorage getInstance() {
-      return SingletonManager.getInstance(EmbeddedTableStorage.class);
+      return ConfigurationContext.getContext().getSpringBean(EmbeddedTableStorage.class);
    }
 
+   @PreDestroy
    @Override
    public void close() throws Exception {
       getStorage().close();
@@ -178,23 +187,6 @@ public class EmbeddedTableStorage implements AutoCloseable {
       private final boolean temp;
    }
 
-   public static final class Reference extends SingletonManager.Reference<EmbeddedTableStorage> {
-      @Override
-      public EmbeddedTableStorage get(Object... parameters) {
-         if(instance == null) {
-            instance = new EmbeddedTableStorage();
-         }
-
-         return instance;
-      }
-
-      @Override
-      public void dispose() {
-
-      }
-
-      private EmbeddedTableStorage instance;
-   }
-
+   private final BlobStorageManager blobStorageManager;
    private static final Logger LOG = LoggerFactory.getLogger(EmbeddedTableStorage.class);
 }

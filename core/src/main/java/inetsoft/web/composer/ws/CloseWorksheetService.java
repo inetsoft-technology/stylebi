@@ -25,6 +25,7 @@ import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.web.viewsheet.service.RuntimeViewsheetManager;
 import org.springframework.stereotype.Service;
 
@@ -34,9 +35,10 @@ import java.security.Principal;
 @ClusterProxy
 public class CloseWorksheetService extends WorksheetControllerService {
    public CloseWorksheetService(ViewsheetService viewsheetService,
-                                RuntimeViewsheetManager runtimeViewsheetManager)
+                                RuntimeViewsheetManager runtimeViewsheetManager,
+                                DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
       this.runtimeViewsheetManager = runtimeViewsheetManager;
    }
 

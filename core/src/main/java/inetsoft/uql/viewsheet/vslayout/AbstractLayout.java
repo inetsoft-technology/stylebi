@@ -32,8 +32,8 @@ import org.w3c.dom.NodeList;
 import java.awt.*;
 import java.awt.geom.Point2D;
 import java.io.PrintWriter;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 
 /**
  * AbstractLayout is base class for ViewsheetLayout and PrintLayout.
@@ -404,14 +404,17 @@ public abstract class AbstractLayout implements AssetObject {
    }
 
    /**
-    * Apply tab assembly layout.
+    * Apply tab assembly layout. npos is the visual top of the full tab area.
     */
    private void applyTab(TabVSAssembly vsassembly, Point npos, Dimension nsize) {
+      TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) vsassembly.getVSAssemblyInfo();
+      boolean bottomTabs = tabInfo.isBottomTabs();
       Dimension tabSize = getSize(vsassembly);
       Dimension osize = getComponentSize(vsassembly);
+      int contentHeight = nsize.height - tabSize.height;
       Point2D.Double scaleRadio = getScaleRatio(
          new Dimension(osize.width, osize.height - tabSize.height),
-         new Dimension(nsize.width, nsize.height - tabSize.height));
+         new Dimension(nsize.width, contentHeight));
       String[] assemblies = vsassembly.getAssemblies();
       Viewsheet viewsheet = vsassembly.getViewsheet();
 
@@ -423,14 +426,21 @@ public abstract class AbstractLayout implements AssetObject {
             childSize =
                new Dimension((int) (childSize.width * scaleRadio.x),
                              (int) (childSize.height * scaleRadio.y));
-            Point childPos =
+            Point childPos = bottomTabs ?
+               new Point(npos.x, npos.y) :
                new Point(npos.x, npos.y + tabSize.height);
             applyAssembly(child, childPos, childSize);
          }
       }
 
       tabSize.width = (int) (tabSize.width * scaleRadio.x);
-      applyBaseAssembly(vsassembly, npos, tabSize);
+
+      // for bottom tabs, store the tab bar position (visual top + contentHeight)
+      // in tabInfo via applyBaseAssembly; VSEventUtil.applyTabScale reads this
+      // to position children above the tab bar
+      Point tabPos = bottomTabs ?
+         new Point(npos.x, npos.y + contentHeight) : npos;
+      applyBaseAssembly(vsassembly, tabPos, tabSize);
    }
 
    /**

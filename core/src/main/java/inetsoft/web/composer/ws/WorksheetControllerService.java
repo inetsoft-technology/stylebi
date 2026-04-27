@@ -27,6 +27,7 @@ import inetsoft.uql.XTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XUtil;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSInsertColumnsEvent;
@@ -39,8 +40,11 @@ import java.util.Arrays;
 
 @Service
 public class WorksheetControllerService {
-   public WorksheetControllerService(ViewsheetService viewsheetService) {
+   public WorksheetControllerService(ViewsheetService viewsheetService,
+                                     DataSourceRegistry dataSourceRegistry)
+   {
       this.wsEngine = viewsheetService;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    protected RuntimeWorksheet getRuntimeWorksheet(String runtimeId, Principal principal)
@@ -52,6 +56,10 @@ public class WorksheetControllerService {
 
    protected WorksheetService getWorksheetEngine() {
       return wsEngine;
+   }
+
+   protected DataSourceRegistry getDataSourceRegistry() {
+      return dataSourceRegistry;
    }
 
    /**
@@ -203,7 +211,7 @@ public class WorksheetControllerService {
          if(otable != null) {
             assembly.setColumnSelection(columns);
             WSModelTrapContext context =
-               new WSModelTrapContext(boundTable, principal);
+               new WSModelTrapContext(boundTable, principal, dataSourceRegistry);
 
             if(context.isCheckTrap() &&
                context.checkTrap(otable, boundTable).showWarning())
@@ -426,7 +434,8 @@ public class WorksheetControllerService {
       table.setColumnSelection(columns, false);
    }
 
-   private WorksheetService wsEngine;
+   private final WorksheetService wsEngine;
+   private final DataSourceRegistry dataSourceRegistry;
 
    protected static final int ROW_LIMIT = 10000;
    protected static final int COL_LIMIT = 1000;

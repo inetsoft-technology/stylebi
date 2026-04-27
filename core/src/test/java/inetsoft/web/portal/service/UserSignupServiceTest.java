@@ -17,49 +17,48 @@
  */
 package inetsoft.web.portal.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.web.admin.security.AuthenticationProviderService;
-
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import java.util.ArrayList;
-import static org.junit.jupiter.api.Assertions.*;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.util.ArrayList;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
 @Disabled("Test is flaky on the build server")
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
+@Tag("core")
 class UserSignupServiceTest {
-   static UserSignupService userSignupService;
-   static  SecurityEngine securityEngine;
+   UserSignupService userSignupService;
+   @Autowired
+   SecurityEngine securityEngine;
    @Mock
-   static SimpMessagingTemplate messagingTemplate;
+   SimpMessagingTemplate messagingTemplate;
 
-   @BeforeAll
-   static void before() throws Exception {
-      securityEngine = SecurityEngine.getSecurity();
+   @BeforeEach
+   void before() throws Exception {
       securityEngine.enableSecurity();
       SUtil.setMultiTenant(true);
 
       ObjectMapper objectMapper = Mockito.mock(ObjectMapper.class);
       AuthenticationProviderService authenticationProviderService =
-         new AuthenticationProviderService(securityEngine, objectMapper, messagingTemplate);
+         new AuthenticationProviderService(securityEngine, objectMapper, messagingTemplate, null, null);
 
       userSignupService = new UserSignupService(authenticationProviderService);
-   }
-
-   @AfterAll
-   static void cleanup() throws Exception {
-      AuthenticationChain chain =
-         (AuthenticationChain) securityEngine.getSecurityProvider().getAuthenticationProvider();
-      FileAuthenticationProvider fileAuthenticationProvider = (FileAuthenticationProvider) chain.getProviders().get(0);
-      fileAuthenticationProvider.removeUser(new IdentityID("1@inetsoft.com",Organization.getDefaultOrganizationID()));
-
-      SecurityEngine.clear();
-      securityEngine.disableSecurity();
    }
 
    @Test

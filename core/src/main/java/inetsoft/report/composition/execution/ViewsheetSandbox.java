@@ -149,7 +149,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       this.pairs = new SoftHashMap<>(0);
       this.metarep = new TableMetaDataRepository();
       this.user = user;
-      this.rid = boxRid != null ? boxRid : XSessionService.createSessionID(XSessionService.VIEWSHEET, null);
+      this.rid = boxRid != null ? boxRid : XSessionService.getService().createSessionID(XSessionService.VIEWSHEET, null);
       this.parentVsIds = parentVsIds;
       setViewsheet(vs, true);
 
@@ -677,7 +677,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // cancel executing queries
       cancelAllQueries();
       // cancel pending queries
-      AssetDataCache.cancel(rid, !wizard);
+      AssetDataCache.getCache().cancel(rid, !wizard);
    }
 
    /**
@@ -3985,7 +3985,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                   edata.setObject(row, col, cdata);
                   // if the embedded table is changed by input, any cached data
                   // depending on it should be cleared
-                  AssetDataCache.removeCacheDependence(eassembly);
+                  AssetDataCache.getCache().removeCacheDependence(eassembly);
                   removeInputProcessed(eassembly.getAssemblyEntry(), clist);
                }
             }
@@ -4934,6 +4934,20 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
 
          executeScript(assembly);
+
+         // reposition input child in bottom-tab container after script may
+         // have changed label properties (visible, position, gap, font)
+         if(assembly instanceof InputVSAssembly &&
+            assembly.getContainer() instanceof TabVSAssembly tabContainer)
+         {
+            TabVSAssemblyInfo tabInfo =
+               (TabVSAssemblyInfo) tabContainer.getVSAssemblyInfo();
+
+            if(tabInfo.isBottomTabs()) {
+               TabVSAssemblyInfo.repositionChildForBottomTabs(
+                  tabInfo, assembly.getVSAssemblyInfo(), assembly.getPixelSize());
+            }
+         }
 
          // by yanie: bug1412619712845
          // updateHighlight after script execution to make sure the value set
@@ -7406,7 +7420,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                table.setProperty("metadata", "true");
             }
 
-            TableLens data = AssetDataCache.getData(rid, table, wbox, null, mode,
+            TableLens data = AssetDataCache.getCache().getData(rid, table, wbox, null, mode,
                                                     true, getTouchTimestamp(), queryMgr);
             final TableMetaData metadata;
 

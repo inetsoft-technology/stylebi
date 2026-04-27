@@ -24,6 +24,7 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.AbstractModelTrapContext;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
@@ -42,12 +43,14 @@ import java.util.Optional;
 public class VSWizardDataService {
 
    public VSWizardDataService(ViewsheetService viewsheetService,
-                                   VSWizardBindingHandler bindingHandler,
-                                   VSWizardTemporaryInfoService temporaryInfoService)
+                              VSWizardBindingHandler bindingHandler,
+                              VSWizardTemporaryInfoService temporaryInfoService,
+                              DataSourceRegistry dataSourceRegistry)
    {
       this.viewsheetService = viewsheetService;
       this.bindingHandler = bindingHandler;
       this.temporaryInfoService = temporaryInfoService;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -164,7 +167,7 @@ public class VSWizardDataService {
    private Boolean checkTrap0(RuntimeViewsheet rvs, ChartVSAssemblyInfo oinfo,
                               ChartVSAssemblyInfo ninfo)
    {
-      VSModelTrapContext mtc = new VSModelTrapContext(rvs, true);
+      VSModelTrapContext mtc = new VSModelTrapContext(rvs, dataSourceRegistry, true);
       boolean warning = false;
 
       if(mtc.isCheckTrap()) {
@@ -178,4 +181,5 @@ public class VSWizardDataService {
    private final ViewsheetService viewsheetService;
    private final VSWizardBindingHandler bindingHandler;
    private final VSWizardTemporaryInfoService temporaryInfoService;
+   private final DataSourceRegistry dataSourceRegistry;
 }

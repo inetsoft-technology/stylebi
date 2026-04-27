@@ -48,9 +48,10 @@ import java.util.*;
 public class GroupingAssemblyDialogService extends WorksheetControllerService {
 
    public GroupingAssemblyDialogService(ViewsheetService viewsheetService,
-                                        DataRefModelFactoryService dataRefModelFactoryService)
+                                        DataRefModelFactoryService dataRefModelFactoryService,
+                                        DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
       this.dataRefModelFactoryService = dataRefModelFactoryService;
    }
 
@@ -78,7 +79,7 @@ public class GroupingAssemblyDialogService extends WorksheetControllerService {
             String folder = info.getProperty(SourceInfo.QUERY_FOLDER);
 
             if(info.getType() == SourceInfo.MODEL) {
-               DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+               DataSourceRegistry registry = getDataSourceRegistry();
                XDataModel ds = registry.getDataModel(info.getPrefix());
                XLogicalModel lg = ds.getLogicalModel(info.getSource());
                folder = lg == null ? null : lg.getFolder();

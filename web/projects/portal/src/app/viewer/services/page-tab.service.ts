@@ -15,18 +15,36 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
-import { Subject } from "rxjs";
+import { Observable, Subject, throwError } from "rxjs";
+import { catchError, shareReplay } from "rxjs/operators";
 
 @Injectable()
 export class PageTabService {
    private _tabs: TabInfoModel[];
    private _refreshPage = new Subject<TabInfoModel>();
    private _onTabAddedRemoved = new Subject<boolean>();
+   private drillTabsTop$: Observable<boolean> | undefined;
    currentTab: TabInfoModel;
 
-   constructor() {
+   constructor(private http: HttpClient) {
       this.clearTabs();
+   }
+
+   getDrillTabsTop(): Observable<boolean> {
+      if(!this.drillTabsTop$) {
+         this.drillTabsTop$ = this.http.get<boolean>("../api/portal/drill-tabs-top").pipe(
+            shareReplay({ bufferSize: 1, refCount: false })
+         );
+      }
+
+      return this.drillTabsTop$.pipe(
+         catchError(err => {
+            this.drillTabsTop$ = undefined;
+            return throwError(() => err);
+         })
+      );
    }
 
    get tabs(): TabInfoModel[] {

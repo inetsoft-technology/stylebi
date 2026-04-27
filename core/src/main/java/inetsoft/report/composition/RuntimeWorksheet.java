@@ -216,7 +216,7 @@ public class RuntimeWorksheet extends RuntimeSheet
                try {
                   DataKey key = AssetDataCache.getCacheKey(
                      (TableAssembly) assembly, box, null, AssetQuerySandbox.LIVE_MODE, true);
-                  AssetDataCache.removeCachedData(key);
+                  AssetDataCache.getCache().removeCachedData(key);
                }
                catch(Exception e) {
                   LOG.warn("Failed to clear cache for {}", assembly.getAbsoluteName(), e);

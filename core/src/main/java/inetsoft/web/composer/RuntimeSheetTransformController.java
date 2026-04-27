@@ -52,12 +52,13 @@ public class RuntimeSheetTransformController implements MessageListener {
    @Autowired
    public RuntimeSheetTransformController(ViewsheetService viewsheetService,
                                           SimpMessagingTemplate messagingTemplate,
-                                          RuntimeSheetTransformServiceProxy runtimeSheetTransformService)
+                                          RuntimeSheetTransformServiceProxy runtimeSheetTransformService,
+                                          Cluster clusterInstance)
    {
       this.viewsheetService = viewsheetService;
       this.messagingTemplate = messagingTemplate;
       this.runtimeSheetTransformService = runtimeSheetTransformService;
-      clusterInstance = Cluster.getInstance();
+      this.clusterInstance = clusterInstance;
    }
 
    @PostConstruct
@@ -327,7 +328,7 @@ public class RuntimeSheetTransformController implements MessageListener {
       subscriptions.put(sessionId, principal);
    }
 
-   @EventListener
+   @EventListener(SessionDisconnectEvent.class)
    public void handleDisconnect(SessionDisconnectEvent event) {
       removeSubscription(event);
    }

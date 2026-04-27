@@ -31,7 +31,7 @@ import inetsoft.util.Tool;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeService;
 import inetsoft.web.admin.schedule.model.*;
 import inetsoft.web.portal.model.QueryColumnsModel;
-import inetsoft.web.security.PermissionUser;
+import inetsoft.web.security.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,7 +53,8 @@ public class EMScheduleBatchActionController {
                                           SecurityEngine securityEngine,
                                           ViewsheetService viewsheetService,
                                           ScheduleTaskActionServiceProxy actionServiceProxy,
-                                          EMScheduleTaskActionServiceProxy emActionServiceProxy)
+                                          EMScheduleTaskActionServiceProxy emActionServiceProxy,
+                                          LicenseManager licenseManager)
    {
       this.assetRepository = assetRepository;
       this.scheduleService = scheduleService;
@@ -64,8 +65,16 @@ public class EMScheduleBatchActionController {
       this.viewsheetService = viewsheetService;
       this.actionServiceProxy = actionServiceProxy;
       this.emActionServiceProxy = emActionServiceProxy;
+      this.licenseManager = licenseManager;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/batch-action/scheduled-tasks")
    public ScheduleTaskList getScheduledTasks(
       @RequestParam("taskName") String taskId,
@@ -93,7 +102,7 @@ public class EMScheduleBatchActionController {
             String id = task.getTaskId();
             String label = id;
 
-            if(!LicenseManager.getInstance().isEnterprise()) {
+            if(!licenseManager.isEnterprise()) {
                int index = id.indexOf(":");
 
                if(index != -1) {
@@ -117,11 +126,25 @@ public class EMScheduleBatchActionController {
       return builder.addAllTasks(taskModels).build();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/batch-action/query-tree")
    public LabeledAssetEntries getQueryTree(Principal principal) throws Exception {
       return getWorksheets(principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/batch-action/parameters")
    public BatchParameterListModel getParameters(@RequestParam("taskName") String taskName,
                                                 Principal principal) throws Exception
@@ -130,6 +153,11 @@ public class EMScheduleBatchActionController {
 
       if(task == null) {
          throw new RuntimeException("Selected Schedule Task does not exist: " + taskName);
+      }
+
+      if(!ScheduleManager.hasTaskPermission(task.getOwner(), principal, ResourceAction.READ)) {
+         throw new inetsoft.sree.security.SecurityException(String.format(
+            "Unauthorized access to resource \"%s\" by %s", taskName, principal));
       }
 
       Set<String> parameterNames = new LinkedHashSet<>();
@@ -176,6 +204,13 @@ public class EMScheduleBatchActionController {
       }
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/schedule/batch-action/query-columns")
    public QueryColumnsModel getQueryColumns(@RequestBody AssetEntry entry,
                                             Principal principal) throws Exception
@@ -331,6 +366,7 @@ public class EMScheduleBatchActionController {
    private final ScheduleTaskActionService actionService;
    private final ContentRepositoryTreeService contentRepositoryTreeService;
    private final SecurityEngine securityEngine;
+   private final LicenseManager licenseManager;
    private final ViewsheetService viewsheetService;
    private final ScheduleTaskActionServiceProxy actionServiceProxy;
    private final EMScheduleTaskActionServiceProxy emActionServiceProxy;

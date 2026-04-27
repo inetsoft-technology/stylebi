@@ -75,6 +75,17 @@ export class OrganizationDropdownService implements OnDestroy  {
    }
 
    private loadAuthenticationProviders(): void {
+      if(!this.isSystemAdmin()) {
+         this.http.get<SecurityProviderStatus>("../api/em/security/get-current-authentication-provider")
+            .subscribe(securityProvider => {
+               const currProvider = securityProvider != null ? securityProvider.name : "";
+               this.authenticationProviders = currProvider ? [currProvider] : [];
+               this.refresh(currProvider, false);
+            });
+
+         return;
+      }
+
       this.http.get<SecurityProviderStatusList>("../api/em/security/configured-authentication-providers")
          .pipe(
             map((list: SecurityProviderStatusList) => list.providers.map(p => p.name))
@@ -85,29 +96,14 @@ export class OrganizationDropdownService implements OnDestroy  {
             if(providers && providers.length > 0) {
                const provider = this.provider;
 
-               if(provider == null && !this.isSystemAdmin()) {
-                  this.http.get<SecurityProviderStatus>("../api/em/security/get-current-authentication-provider")
-                     .subscribe(securityProvider => {
-                        let currprovider = securityProvider != null ? securityProvider.name : "";
-
-                        if(providers.includes(currprovider)) {
-                           this.refresh(currprovider, false);
-                        }
-                        else {
-                           this.refresh(providers[0], false);
-                        }
-                     });
+               if(!provider) {
+                  this.refresh(providers[0], false);
+               }
+               else if(providers.includes(provider)) {
+                  this.refresh(provider, false);
                }
                else {
-                  if(!provider) {
-                     this.refresh(providers[0], false);
-                  }
-                  else if(providers.includes(provider)) {
-                     this.refresh(provider, false);
-                  }
-                  else {
-                     this.refresh(providers[0], true);
-                  }
+                  this.refresh(providers[0], true);
                }
             }
          });
@@ -129,9 +125,9 @@ export class OrganizationDropdownService implements OnDestroy  {
       this.loadAuthenticationProviders();
    }
 
-   public refresh(provider?: string, providerChanged?: boolean) {
+   public refresh(provider?: string, providerChanged?: boolean, renameOnly?: boolean) {
       this.provider = provider;
-      this.refreshSubject.next({provider : provider, providerChanged: providerChanged});
+      this.refreshSubject.next({provider: provider, providerChanged: providerChanged, renameOnly: renameOnly});
    }
 
    public setProvider(providerName: string): void {

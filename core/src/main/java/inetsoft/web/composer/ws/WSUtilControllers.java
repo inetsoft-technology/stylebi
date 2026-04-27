@@ -73,7 +73,6 @@ public class WSUtilControllers extends WorksheetController {
 
       // get the reportID and elementID
       String elementID = null;
-      AnalyticAssistant engine = AnalyticAssistant.getAnalyticAssistant();
 
       ItemList values = null;
 
@@ -117,7 +116,7 @@ public class WSUtilControllers extends WorksheetController {
                   }
                }
 
-               values = engine.getAvailableValues(source, field, principal, field.getDataType(),
+               values = analyticAssistant.getAvailableValues(source, field, principal, field.getDataType(),
                        vars);
             }
          }
@@ -181,5 +180,11 @@ public class WSUtilControllers extends WorksheetController {
       this.dataRefModelFactoryService = dataRefModelFactoryService;
    }
 
+   @Autowired
+   public void setAnalyticAssistant(AnalyticAssistant analyticAssistant) {
+      this.analyticAssistant = analyticAssistant;
+   }
+
    private DataRefModelFactoryService dataRefModelFactoryService;
+   private AnalyticAssistant analyticAssistant;
 }

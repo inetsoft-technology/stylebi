@@ -17,6 +17,7 @@
  */
 package inetsoft.storage;
 
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.Tool;
 
 import java.io.*;
@@ -40,10 +41,10 @@ public final class LocalBlobStorage<T extends Serializable> extends BlobStorage<
     *
     * @throws IOException if the local storage directories could not be created.
     */
-   public LocalBlobStorage(String id, Path base, KeyValueStorage<Blob<T>> storage)
+   public LocalBlobStorage(String id, Path base, KeyValueStorage<Blob<T>> storage, Cluster cluster)
       throws IOException
    {
-      super(id, storage);
+      super(id, storage, cluster);
       Objects.requireNonNull(id, "The storage identifier cannot be null");
       Objects.requireNonNull(base, "The blob storage directory cannot be null");
       this.base = base.resolve(id);

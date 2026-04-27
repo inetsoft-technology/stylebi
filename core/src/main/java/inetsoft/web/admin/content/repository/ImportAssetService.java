@@ -35,6 +35,7 @@ import inetsoft.web.admin.deploy.*;
 import inetsoft.web.admin.model.FileData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.GetMapping;
 
@@ -47,23 +48,26 @@ import java.util.concurrent.TimeUnit;
 @ClusterProxy
 @Component
 public class ImportAssetService {
-   public ImportAssetService(DeployService deployService) {
+   @Autowired
+   public ImportAssetService(DeployService deployService, Cluster cluster,
+                             FileSystemService fileSystemService)
+   {
       this.deployService = deployService;
+      this.fileSystemService = fileSystemService;
       this.importCache = Caffeine.newBuilder()
          .expireAfterAccess(10L, TimeUnit.MINUTES)
          .maximumSize(1000L)
          .build();
-      Cluster.getInstance().registerSpringProxyPartitionedCache(CACHE_NAME);
-      this.contexts = Cluster.getInstance().getMap(CACHE_NAME);
+      cluster.registerSpringProxyPartitionedCache(CACHE_NAME);
+      this.contexts = cluster.getMap(CACHE_NAME);
    }
 
    @ClusterProxyMethod(CACHE_NAME)
    public ExportedAssetsModel setJarFile(@ClusterProxyKey String importId, FileData file,
                                          Principal principal) throws Exception
    {
-      FileSystemService fileService = FileSystemService.getInstance();
-      File temp = fileService.getCacheTempFile("import", "zip");
-      fileService.remove(temp, 600000);
+      File temp = fileSystemService.getCacheTempFile("import", "zip");
+      fileSystemService.remove(temp, 600000);
 
       try(OutputStream output = new FileOutputStream(temp)) {
          ByteArrayInputStream input =
@@ -250,6 +254,7 @@ public class ImportAssetService {
    }
 
    private final DeployService deployService;
+   private final FileSystemService fileSystemService;
    private final Map<String, ImportAssetContext> contexts;
    private final Cache<String, CompletableFuture<ImportAssetResponse>> importCache;
    static final String CACHE_NAME = "importAssetContexts";

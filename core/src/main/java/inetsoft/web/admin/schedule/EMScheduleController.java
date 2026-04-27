@@ -29,8 +29,6 @@ import inetsoft.report.composition.graph.GraphGenerator;
 import inetsoft.report.composition.region.*;
 import inetsoft.report.internal.binding.BaseField;
 import inetsoft.sree.portal.CustomThemesManager;
-import inetsoft.sree.portal.PortalThemesManager;
-import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.AssetEntry;
@@ -60,15 +58,15 @@ import java.util.*;
 @RestController
 public class EMScheduleController {
    @Autowired
-   public EMScheduleController(ScheduleManager scheduleManager, ScheduleService scheduleService,
-                               ScheduleTaskService taskService, ScheduleTaskFolderService taskFolderService,
-                               ScheduleUsersChangeService usersChangeService)
+   public EMScheduleController(ScheduleService scheduleService,
+                               ScheduleTaskService taskService,
+                               ScheduleUsersChangeService usersChangeService,
+                               CustomThemesManager customThemesManager)
    {
       this.scheduleService = scheduleService;
-      this.scheduleManager = scheduleManager;
       this.taskService = taskService;
-      this.taskFolderService = taskFolderService;
       this.usersChangeService = usersChangeService;
+      this.customThemesManager = customThemesManager;
    }
 
    /**
@@ -85,7 +83,7 @@ public class EMScheduleController {
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/schedule",
+         resource = "settings/schedule/tasks",
          actions = ResourceAction.ACCESS
       )
    )
@@ -99,6 +97,13 @@ public class EMScheduleController {
                                                  filter.orElse(""), principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/schedule/scheduled-tasks")
    public ScheduleTaskList getScheduledTasksByFolder(
            @RequestParam("selectString") Optional<String> selectStr,
@@ -128,6 +133,13 @@ public class EMScheduleController {
     *
     * @throws Exception if could not get task
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
    @PostMapping("/api/em/schedule/remove")
    public ScheduleTaskList removeScheduledTasks(
@@ -148,6 +160,13 @@ public class EMScheduleController {
     *
     * @throws Exception if could not get task
     */
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
    @PostMapping("/api/em/schedule/check-dependency")
    public TaskListModel checkScheduledTaskDependency(
@@ -162,7 +181,7 @@ public class EMScheduleController {
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/schedule",
+         resource = "settings/schedule/tasks",
          actions = ResourceAction.ACCESS
       )
    )
@@ -181,7 +200,7 @@ public class EMScheduleController {
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/schedule",
+         resource = "settings/schedule/tasks",
          actions = ResourceAction.ACCESS
       )
    )
@@ -202,12 +221,26 @@ public class EMScheduleController {
       this.usersChangeService.addSubscriber(stompHeaderAccessor);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/users-model")
    public UsersModel getUsersModel(@PermissionUser Principal principal) throws Exception
    {
       return scheduleService.getUsersModel(principal, true);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/em/schedule/task-names")
    public ScheduleTaskNamesModel getScheduleTaskNamesModel(@PermissionUser Principal principal) throws Exception
    {
@@ -314,6 +347,13 @@ public class EMScheduleController {
       return taskService.getHourDistribution(weekday, hour, principal);
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/schedule/distribution/redistribute")
    public ScheduleTaskList redistributeTasks(@RequestBody RedistributeTasksRequest request,
                                              Principal principal) throws Exception
@@ -344,7 +384,7 @@ public class EMScheduleController {
          max = Math.max(max, point.hardCount() + point.softCount());
       }
 
-      boolean isDarkEM = CustomThemesManager.getManager().isEMDarkTheme();
+      boolean isDarkEM = customThemesManager.isEMDarkTheme();
       Color fgColor = isDarkEM ? Color.lightGray : GDefaults.DEFAULT_TEXT_COLOR;
       Color bgColor = isDarkEM ? new Color(0x424242) : Color.WHITE;
       DataSet dataSet = new DefaultDataSet(data);
@@ -501,8 +541,7 @@ public class EMScheduleController {
    }
 
    private final ScheduleService scheduleService;
-   private final ScheduleManager scheduleManager;
    private final ScheduleTaskService taskService;
-   private final ScheduleTaskFolderService taskFolderService;
    private final ScheduleUsersChangeService usersChangeService;
+   private final CustomThemesManager customThemesManager;
 }

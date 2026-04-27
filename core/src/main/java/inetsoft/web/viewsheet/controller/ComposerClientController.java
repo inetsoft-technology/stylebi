@@ -43,7 +43,7 @@ public class ComposerClientController {
          headerAccessor.getSessionId());
    }
 
-   @EventListener
+   @EventListener(SessionDisconnectEvent.class)
    public void handleDisconnect(SessionDisconnectEvent event) {
       removeSubscription(event);
    }

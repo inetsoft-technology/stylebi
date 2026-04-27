@@ -29,6 +29,7 @@ import inetsoft.uql.asset.internal.MirrorVariableAssemblyInfo;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.Catalog;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSChangeDependencyEvent;
@@ -44,8 +45,10 @@ import java.security.Principal;
 @Service
 @ClusterProxy
 public class ChangeDependencyService extends WorksheetControllerService{
-   public ChangeDependencyService(ViewsheetService viewsheetService) {
-      super(viewsheetService);
+   public ChangeDependencyService(ViewsheetService viewsheetService,
+                                  DataSourceRegistry dataSourceRegistry)
+   {
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

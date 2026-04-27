@@ -54,11 +54,14 @@ import static inetsoft.sree.internal.SUtil.isSecurityOn;
 public class SchedulerConfigurationService {
    @Autowired
    public SchedulerConfigurationService(ScheduleClient scheduleClient,
-                                        ResourcePermissionService permissionService)
+                                        ResourcePermissionService permissionService,
+                                        Cluster cluster,
+                                        ExternalStorageService externalStorageService)
    {
       this.scheduleClient = scheduleClient;
       this.permissionService = permissionService;
-      this.externalStorageService = ExternalStorageService.getInstance();
+      this.externalStorageService = externalStorageService;
+      this.cluster = cluster;
    }
 
    public ScheduleConfigurationModel getConfiguration(Principal principal) throws Exception {
@@ -118,7 +121,7 @@ public class SchedulerConfigurationService {
       // (running off source), stop it before updating the port so the stop command can
       // reach the scheduler on the old port. In Docker/cloud deployments the scheduler
       // runs in a separate container and cannot be stopped from here.
-      int currentPort = ScheduleClient.getSchedulerPort();
+      int currentPort = scheduleClient.getSchedulerPort();
 
       if(currentPort != model.rmiPort() && scheduleClient.isAutoStart() && scheduleClient.isReady()) {
          SUtil.stopScheduler(true, false);
@@ -146,7 +149,7 @@ public class SchedulerConfigurationService {
       SreeEnv.save();
 
       if(InetsoftConfig.getInstance().getCloudRunner() != null) {
-         Cluster.getInstance().sendMessage(new RestartSchedulerMessage());
+         cluster.sendMessage(new RestartSchedulerMessage());
       }
    }
 
@@ -171,7 +174,7 @@ public class SchedulerConfigurationService {
             ScheduleClusterStatusModel.Builder clusterBuilder = ScheduleClusterStatusModel.builder();
             servers.add(nodes[i]);
             clusterBuilder = clusterBuilder.server(nodes[i]);
-            Date startTime = ScheduleClient.getScheduleStartDate(nodes[i]);
+            Date startTime = scheduleClient.getScheduleStartDate(nodes[i]);
 
             if(startTime == null) {
                clusterBuilder = clusterBuilder.uptime(catalog.getString("Not ready"));
@@ -233,17 +236,7 @@ public class SchedulerConfigurationService {
       String result;
 
       try {
-         String emails = null;
-         String queryNode = mailParams.sourceInfo();
-         boolean checkUser = true;
-
-         // For burst action, get email addresses from query. Have checked
-         // user's address in burstAction.
-         if(queryNode == null) {
-            emails = mailParams.toAddresses();
-         }
-
-         SUtil.checkMail(emails, checkUser);
+         SUtil.checkMail(mailParams.toAddresses(), true);
          result = catalog.getString("Test Mail Success");
       }
       catch(Exception e) {
@@ -363,6 +356,7 @@ public class SchedulerConfigurationService {
    private final ScheduleClient scheduleClient;
    private final ResourcePermissionService permissionService;
    private final ExternalStorageService externalStorageService;
+   private final Cluster cluster;
 
    private static final Logger LOG = LoggerFactory.getLogger(SchedulerConfigurationService.class);
 }

@@ -245,7 +245,7 @@ public class JDBCQuery extends XQuery {
                   "prepared statement queries with variables");
          }
          else {
-            XRepository repository = XFactory.getRepository();
+            XRepository repository = XRepository.getRepository();
             XNode mtype = new XNode("sql");
             mtype.setAttribute("type", "SQL");
             mtype.setAttribute("cache", "false");
@@ -262,7 +262,7 @@ public class JDBCQuery extends XQuery {
       // ResultSetMetaData from the ResultSet, which is one of the JDBC1 APIs
       // and widely supported
       try {
-         XRepository repository = XFactory.getRepository();
+         XRepository repository = XRepository.getRepository();
          VariableTable vtable2 = new VariableTable();
 
          if(vtable != null) {
@@ -821,7 +821,7 @@ public class JDBCQuery extends XQuery {
 //      }
 //
 //      try {
-//         XRepository repository = XFactory.getRepository();
+//         XRepository repository = XRepository.getRepository();
 //         XQuery xquery = repository.getQuery(qname);
 //         XNode mtype = new XNode(tname);
 //         XNode cols = repository.getMetaData(session, xquery.getDataSource(),
@@ -848,7 +848,7 @@ public class JDBCQuery extends XQuery {
     */
    private XDataModel getDataModel() {
       try {
-         return XFactory.getRepository().getDataModel(
+         return XRepository.getRepository().getDataModel(
             getDataSource().getName());
       }
       catch(Exception e) {

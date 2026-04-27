@@ -18,9 +18,6 @@
 package inetsoft.web.admin.presentation;
 
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.security.SecurityProvider;
-import inetsoft.sree.web.dashboard.DashboardManager;
-import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.presentation.model.PresentationDashboardSettingsModel;
 import inetsoft.web.viewsheet.Audited;
@@ -28,8 +25,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class PresentationDashboardSettingsService {
-   public PresentationDashboardSettingsService(SecurityProvider securityProvider) {
-      this.securityProvider = securityProvider;
+   public PresentationDashboardSettingsService() {
    }
 
    public PresentationDashboardSettingsModel getModel(boolean globalProperty) {
@@ -73,7 +69,4 @@ public class PresentationDashboardSettingsService {
 
       SreeEnv.save();
    }
-
-   private final SecurityProvider securityProvider;
-   private final DashboardManager manager = DashboardManager.getManager();
 }

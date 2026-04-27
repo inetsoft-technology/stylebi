@@ -780,7 +780,7 @@ public class CubeQuery extends AssetQuery {
       XMLAQuery squery = createSelectQuery(ref);
 
       try {
-         XDataService service = XFactory.getDataService();
+         XDataService service = XRepository.getRepository();
          XSessionManager mgr = XSessionManager.getSessionManager();
          TableLens lens = new XNodeTableLens(service.execute(mgr.getSession(),
             squery, null, box.getUser()));
@@ -1166,7 +1166,7 @@ public class CubeQuery extends AssetQuery {
    private TableLens getResult(XMLAQuery query, VariableTable vars)
       throws Exception
    {
-      XDataService service = XFactory.getDataService();
+      XDataService service = XRepository.getRepository();
       XSessionManager mgr = XSessionManager.getSessionManager();
       TableLens base = new XNodeTableLens(service.execute(mgr.getSession(),
          query, vars, box.getUser()));

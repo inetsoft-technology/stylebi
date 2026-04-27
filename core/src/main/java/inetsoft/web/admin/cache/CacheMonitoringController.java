@@ -17,16 +17,9 @@
  */
 package inetsoft.web.admin.cache;
 
-import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.OrganizationManager;
-import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.web.admin.monitoring.MonitoringDataService;
-
-import java.security.Principal;
-import java.util.List;
-import java.util.Optional;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
@@ -34,14 +27,21 @@ import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Controller;
 
+import java.security.Principal;
+import java.util.List;
+import java.util.Optional;
+
 @Controller
 @Lazy(false)
 public class CacheMonitoringController {
    @Autowired
    public CacheMonitoringController(CacheService cacheService,
-                                    MonitoringDataService monitoringDataService) {
+                                    MonitoringDataService monitoringDataService,
+                                    SecurityEngine securityEngine)
+   {
       this.cacheService = cacheService;
       this.monitoringDataService = monitoringDataService;
+      this.securityEngine = securityEngine;
    }
 
    @SubscribeMapping(value = {"/monitoring/cache/getDataGrid/{address}",
@@ -49,14 +49,15 @@ public class CacheMonitoringController {
    public List<CacheMonitoringTableModel> subscribeDataGrid(
       StompHeaderAccessor stompHeaderAccessor,
       @DestinationVariable("address") Optional<String> address, Principal principal)
+      throws SecurityException
    {
-      return this.monitoringDataService.addSubscriber(stompHeaderAccessor, () -> {
-         IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
-         if (SecurityEngine.getSecurity().isSecurityEnabled() && SUtil.isMultiTenant() && !OrganizationManager.getInstance().isSiteAdmin(principal)) {
-            throw new RuntimeException(
-                    "Unauthorized access to resource cache  monitoring by user " + pId);
-         }
+      if(!securityEngine.getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "monitoring/cache", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to cache monitoring by user " + principal.getName());
+      }
 
+      return this.monitoringDataService.addSubscriber(stompHeaderAccessor, () -> {
          try {
             return cacheService.getDataGrid(address.orElse(null));
          }
@@ -68,4 +69,5 @@ public class CacheMonitoringController {
 
    private final CacheService cacheService;
    private final MonitoringDataService monitoringDataService;
+   private final SecurityEngine securityEngine;
 }

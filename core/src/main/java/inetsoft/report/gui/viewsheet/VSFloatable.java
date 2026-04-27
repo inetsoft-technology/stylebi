@@ -109,8 +109,12 @@ public abstract class VSFloatable extends VSObject {
       int startx = Math.max(pos.x, 0);
       int starty = Math.max(pos.y, 0);
 
-      g.translate(startx, starty);
+      // Draw background at (0,0) before the content translate so it aligns
+      // with the border (which is also drawn at (0,0)). Drawing after the
+      // translate offset it by the border width, causing it to extend beyond
+      // the border's bottom-right corner.
       drawBackground(g);
+      g.translate(startx, starty);
       paintComponent(g);
       g.translate(-startx, -starty);
       drawBorders(g);

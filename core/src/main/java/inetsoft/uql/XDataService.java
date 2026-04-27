@@ -27,7 +27,7 @@ import java.security.Principal;
 /**
  * This interface defines the API of the runtime query engine. It can be
  * used to find the query parameters and execute queries. An instance of
- * of the XDataService can be obtained from the XFactory class.
+ * the XDataService can be obtained from {@link XRepository#getRepository()}.
  *
  * @version 5.1, 9/20/2003
  * @author InetSoft Technology Corp
@@ -277,4 +277,3 @@ public interface XDataService extends AutoCloseable {
     */
    void close(Object session) throws RemoteException;
 }
-

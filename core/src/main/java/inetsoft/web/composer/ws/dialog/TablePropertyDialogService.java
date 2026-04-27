@@ -26,6 +26,7 @@ import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuery;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.Catalog;
 import inetsoft.web.composer.model.ws.TablePropertyDialogModel;
@@ -41,9 +42,9 @@ import java.security.Principal;
 @ClusterProxy
 public class TablePropertyDialogService extends WorksheetControllerService {
 
-   public TablePropertyDialogService(ViewsheetService viewsheetService)
+   public TablePropertyDialogService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

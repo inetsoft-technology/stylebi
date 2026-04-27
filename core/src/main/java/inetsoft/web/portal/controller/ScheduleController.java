@@ -187,6 +187,14 @@ public class ScheduleController {
          filter.orElse(""), principal);
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping("/api/portal/schedule/folder/check-dependency")
    public TaskListModel checkScheduleFolderDependency(
       @RequestBody TaskListModel model, Principal principal) throws Exception
@@ -194,6 +202,14 @@ public class ScheduleController {
       return this.scheduleService.checkScheduleFolderDependency(model, principal);
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @PostMapping("/api/portal/schedule/folder/remove")
    public TaskRemoveResult removeScheduleFolders(@RequestBody TaskListModel model,
                                                  Principal principal)
@@ -264,18 +280,42 @@ public class ScheduleController {
       scheduleService.stopScheduledTask(taskName, principal);
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @GetMapping("/api/portal/schedule/users-model")
    public UsersModel getUsersModel(Principal principal) throws Exception
    {
       return scheduleService.getUsersModel(principal);
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @GetMapping("/api/portal/schedule/task-names")
    public ScheduleTaskNamesModel getScheduleTaskNamesModel(@PermissionUser Principal principal) throws Exception
    {
       return scheduleService.getScheduleTaskNamesModel(principal);
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @GetMapping("/api/portal/schedule/isSelfOrgUser")
    public boolean isSelfOrgUser(Principal principal) throws Exception
    {

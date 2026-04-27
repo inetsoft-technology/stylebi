@@ -20,7 +20,10 @@ package inetsoft.web.admin.server;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.schedule.ScheduleClient;
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.web.HttpServiceRequest;
 import inetsoft.storage.ExternalStorageService;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
@@ -36,7 +39,7 @@ import inetsoft.web.admin.viewsheet.ViewsheetHistory;
 import inetsoft.web.admin.viewsheet.ViewsheetService;
 import inetsoft.web.cluster.ServerClusterClient;
 import inetsoft.web.reportviewer.service.HttpServletRequestWrapper;
-import inetsoft.web.security.DeniedMultiTenancyOrgUser;
+import inetsoft.web.security.*;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -78,7 +81,11 @@ public class ServerMonitoringController {
                                      SchedulerMonitoringService schedulerMonitoringService,
                                      ServerClusterClient client,
                                      UsageHistoryService usageHistoryService,
-                                     ClusterCacheUsageService clusterCacheUsageService)
+                                     ClusterCacheUsageService clusterCacheUsageService,
+                                     Cluster cluster, CustomThemesManager customThemesManager,
+                                     ScheduleClient scheduleClient,
+                                     ExternalStorageService externalStorageService,
+                                     FileSystemService fileSystemService, SecurityEngine securityEngine)
    {
       this.serverService = serverService;
       this.monitoringDataService = monitoringDataService;
@@ -89,13 +96,27 @@ public class ServerMonitoringController {
       this.client = client;
       this.usageHistoryService = usageHistoryService;
       this.clusterCacheUsageService = clusterCacheUsageService;
-      this.externalStorageService = ExternalStorageService.getInstance();
+      this.cluster = cluster;
+      this.customThemesManager = customThemesManager;
+      this.externalStorageService = externalStorageService;
+      this.fileSystemService = fileSystemService;
       this.scheduleCluster = "server_cluster".equals(SreeEnv.getProperty("server.type")) ||
-         ScheduleClient.getScheduleClient().isCluster();
+         scheduleClient.isCluster();
+      this.scheduleClient = scheduleClient;
+      this.securityEngine = securityEngine;
    }
 
    @SubscribeMapping("/monitoring/server/charts")
-   public ServerModel subscribeServerCharts(StompHeaderAccessor stompHeaderAccessor) {
+   public ServerModel subscribeServerCharts(StompHeaderAccessor stompHeaderAccessor,
+                                            Principal principal)
+      throws SecurityException
+   {
+      if(!securityEngine.getSecurityProvider().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "monitoring/summary", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("Unauthorized access to server monitoring by user " + principal.getName());
+      }
+
       return this.monitoringDataService.addSubscriber(stompHeaderAccessor, () -> {
          Map<String, String> serverUpTimeMap = new HashMap<>();
          Map<String, String> serverDateTimeMap = new HashMap<>();
@@ -120,14 +141,14 @@ public class ServerMonitoringController {
                   serverDateTimeMap.put(node, format.format(date));
                }
 
-               if(schedule != null && ScheduleClient.getScheduleClient().isReady(node)) {
+               if(schedule != null && scheduleClient.isReady(node)) {
                   schedulerUpTimeMap.put(node, formatAge(schedule.getUpTime()));
                }
             }
 
             for(String scheduleServer : getScheduleServers()) {
-               if(ScheduleClient.getScheduleClient().isReady(scheduleServer)) {
-                  Date startDate = ScheduleClient.getScheduleStartDate(scheduleServer);
+               if(scheduleClient.isReady(scheduleServer)) {
+                  Date startDate = scheduleClient.getScheduleStartDate(scheduleServer);
 
                   if(startDate != null) {
                      schedulerUpTimeMap.put(scheduleServer,
@@ -154,7 +175,7 @@ public class ServerMonitoringController {
             .schedulerUpTimeMap(schedulerUpTimeMap)
             .timestamp(timestamp)
             .externalStoragePath(externalStorageService.getStorageLocation())
-            .isCloud(ScheduleClient.getScheduleClient().isCloud())
+            .isCloud(scheduleClient.isCloud())
             .build();
       });
    }
@@ -164,7 +185,13 @@ public class ServerMonitoringController {
     * @param response  The response which will be returned to the browser, into
     *                  which the requested image data is to be returned.
     */
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/getSummaryImage/{id}/{width}/{height}")
    public void processSummaryImage(@PathVariable("id") String id,
                                    @PathVariable("width") double width,
@@ -204,7 +231,13 @@ public class ServerMonitoringController {
       }
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/scheduler/get-thread-dump")
    public void getSchedulerThreadDump(@RequestParam(value = "clusterNode", required = false) String clusterNode,
                                       HttpServletResponse response)
@@ -213,7 +246,6 @@ public class ServerMonitoringController {
    }
 
    private boolean writeSchedulerThreadDump(String clusterNode, HttpServletResponse response) {
-      final Cluster cluster = Cluster.getInstance();
 
       for(String node : cluster.getClusterNodes()) {
          boolean isScheduleNode = Boolean.TRUE.equals(cluster.getClusterNodeProperty(node, "scheduler"));
@@ -234,12 +266,18 @@ public class ServerMonitoringController {
       return false;
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/server/get-thread-dump")
    public void getThreadDump(@RequestParam(value = "clusterNode", required = false) String clusterNode,
                              HttpServletResponse response) throws Exception
    {
-      String node = clusterNode == null ? Cluster.getInstance().getLocalMember() :
+      String node = clusterNode == null ? cluster.getLocalMember() :
          SUtil.computeServerClusterNode(clusterNode);
 
       // try the scheduler if there is no such server
@@ -276,7 +314,13 @@ public class ServerMonitoringController {
       }
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/monitoring/scheduler/get-heap-dump")
    public void getSchedulerHeapDump(@RequestBody HeapDumpRequest request) {
       ThreadPool.addOnDemand(new Runnable() {
@@ -295,7 +339,6 @@ public class ServerMonitoringController {
    private boolean writeSchedulerHeapDump(String clusterNode)
       throws Exception
    {
-      final Cluster cluster = Cluster.getInstance();
 
       for(String node : cluster.getClusterNodes()) {
          boolean isScheduleNode = Boolean.TRUE.equals(cluster.getClusterNodeProperty(node, "scheduler"));
@@ -310,10 +353,16 @@ public class ServerMonitoringController {
       return false;
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/monitoring/server/get-heap-dump")
    public void getHeapDump(@RequestBody HeapDumpRequest request) {
-      String node = request.clusterNode() == null ? Cluster.getInstance().getLocalMember() :
+      String node = request.clusterNode() == null ? cluster.getLocalMember() :
          SUtil.computeServerClusterNode(request.clusterNode());
 
       ThreadPool.addOnDemand(new Runnable() {
@@ -389,7 +438,7 @@ public class ServerMonitoringController {
          try {
             int bufferSize = 100 * 1024 * 1024;
             long offset = 0;
-            file = FileSystemService.getInstance().getCacheTempFile("HeapDump", ".hprof.gz");
+            file = fileSystemService.getCacheTempFile("HeapDump", ".hprof.gz");
 
             try(OutputStream output = new FileOutputStream(file)) {
                while(offset < length) {
@@ -401,7 +450,7 @@ public class ServerMonitoringController {
                }
             }
 
-            ExternalStorageService.getInstance().write("heapdump/" + fileName, file.toPath(), null);
+            externalStorageService.write("heapdump/" + fileName, file.toPath(), null);
          }
          catch(Exception e) {
             LOG.error("Failed to get heap dump: " + e.getMessage(), e);
@@ -416,7 +465,13 @@ public class ServerMonitoringController {
       return heapId;
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/server/get-usage-history")
    public void getUsageHistory(
       @RequestParam(value = "clusterNode", required = false) String clusterNode,
@@ -457,7 +512,13 @@ public class ServerMonitoringController {
       }
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/server/get-cluster-cache-usage")
    public void getClusterCacheUsage(
       @RequestParam(value = "clusterNode", required = false) String clusterNode,
@@ -498,7 +559,7 @@ public class ServerMonitoringController {
             return clusterNode;
          }
 
-         String node = Cluster.getInstance().getLocalMember();
+         String node = cluster.getLocalMember();
          int index = node.indexOf(':');
 
          if(index >= 0) {
@@ -559,7 +620,13 @@ public class ServerMonitoringController {
       return s.replaceAll("[\\r\\n]", "").replace(File.pathSeparator, "<br>");
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/server/get-monitoring-summary-chart-legends")
    public SummaryChartLegends getMonitoringChartLegends(
       @RequestParam(value = "clusterNode", required = false) String clusterNode)
@@ -620,7 +687,7 @@ public class ServerMonitoringController {
       counter = 0;
 
       if(!clusterEnabled || clusterNodes.isEmpty()) {
-         clusterNodes = Collections.singleton(Cluster.getInstance().getLocalMember());
+         clusterNodes = Collections.singleton(cluster.getLocalMember());
       }
 
       for(String node: clusterNodes) {
@@ -661,7 +728,7 @@ public class ServerMonitoringController {
       String[] scheduleServers = getScheduleServers();
 
       for(String scheduleServer : scheduleServers) {
-         if(ScheduleClient.getScheduleClient().isReady(scheduleServer)) {
+         if(scheduleClient.isReady(scheduleServer)) {
             legends.addMemUsage(SummaryChartLegend.builder()
                .text("Scheduler(" + scheduleServer + ")/(Bytes)")
                .color(COLOR_PALETTE[counter])
@@ -693,7 +760,13 @@ public class ServerMonitoringController {
       return legends.build();
    }
 
-   @DeniedMultiTenancyOrgUser
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/em/monitoring/server/threads/{id}")
    public ThreadStackTrace getThreadInfo(@PathVariable("id") long id) {
       String stackTrace = serverService.getStackTrace(id);
@@ -752,7 +825,7 @@ public class ServerMonitoringController {
          }
 
          for(String scheduleServer : scheduleServers) {
-            if(ScheduleClient.getScheduleClient().isReady(scheduleServer)) {
+            if(scheduleClient.isReady(scheduleServer)) {
                Object[][] grid = createHistoryGrid(
                   "Scheduler(" + scheduleServer + ")",
                   schedulerMonitoringService.getMemoryHistory(scheduleServer),
@@ -787,7 +860,7 @@ public class ServerMonitoringController {
          }
 
          for(String scheduleServer : scheduleServers) {
-            if(ScheduleClient.getScheduleClient().isReady(scheduleServer)) {
+            if(scheduleClient.isReady(scheduleServer)) {
                Object[][] grid = createHistoryGrid(
                   "Scheduler(" + scheduleServer + ")",
                   schedulerMonitoringService.getCpuHistory(scheduleServer),
@@ -822,7 +895,7 @@ public class ServerMonitoringController {
          }
 
          for(String scheduleServer : scheduleServers) {
-            if(ScheduleClient.getScheduleClient().isReady(scheduleServer)) {
+            if(scheduleClient.isReady(scheduleServer)) {
                Object[][] grid = createHistoryGrid(
                   "Scheduler(" + scheduleServer + ")",
                   schedulerMonitoringService.getGcHistory(scheduleServer),
@@ -868,7 +941,7 @@ public class ServerMonitoringController {
          }
 
          for(String scheduleServer : scheduleServers) {
-            if(ScheduleClient.getScheduleClient().isReady(scheduleServer)) {
+            if(scheduleClient.isReady(scheduleServer)) {
                Object[][] grid = createHistoryGrid(
                   "Scheduler(" + scheduleServer + ")",
                   schedulerMonitoringService.getGcHistory(scheduleServer),
@@ -915,7 +988,7 @@ public class ServerMonitoringController {
          }
 
          for(String scheduleServer : scheduleServers) {
-            if(ScheduleClient.getScheduleClient().isReady(scheduleServer)) {
+            if(scheduleClient.isReady(scheduleServer)) {
                Object[][] grid = createHistoryGrid(
                   "Scheduler(" + scheduleServer + ")",
                   schedulerMonitoringService.getOffHeapHistory(scheduleServer),
@@ -979,7 +1052,7 @@ public class ServerMonitoringController {
 
       if(isShowImage(data)) {
          return MonitorUtil.createMonitorImage(data, width, height, GraphTypes.CHART_LINE,
-                                               format, title, max);
+                                               format, title, max, customThemesManager);
       }
 
       return null;
@@ -990,7 +1063,7 @@ public class ServerMonitoringController {
    {
       Object[][] grid = new Object[history.size() + 1][];
       grid[0] = new Object[] {
-         "Time", node == null ? Cluster.getInstance().getLocalMember() : node
+         "Time", node == null ? cluster.getLocalMember() : node
       };
 
       for(int i = 0; i < history.size(); i++) {
@@ -1108,7 +1181,8 @@ public class ServerMonitoringController {
 
       return MonitorUtil.createMonitorImage(result, width, height,
                                             GraphTypes.CHART_LINE, null,
-                                            catalog.getString("Execution Count"), 0);
+                                            catalog.getString("Execution Count"), 0,
+                                            customThemesManager);
    }
 
    /**
@@ -1180,7 +1254,7 @@ public class ServerMonitoringController {
    }
 
    private String[] getScheduleServers() {
-      String[] allScheduleServers = ScheduleClient.getScheduleClient().getScheduleServers();
+      String[] allScheduleServers = scheduleClient.getScheduleServers();
 
       if(scheduleCluster) {
          // In enterprise embedded mode, scheduler IPs overlap with server cluster node IPs,
@@ -1206,6 +1280,11 @@ public class ServerMonitoringController {
    private final UsageHistoryService usageHistoryService;
    private final ClusterCacheUsageService clusterCacheUsageService;
    private final ExternalStorageService externalStorageService;
+   private final FileSystemService fileSystemService;
+   private final Cluster cluster;
+   private final ScheduleClient scheduleClient;
+   private final CustomThemesManager customThemesManager;
+   private final SecurityEngine securityEngine;
    private final boolean scheduleCluster;
    private static final String[] COLOR_PALETTE = {
       "#5a9bd4", "#f15a60", "#7ac36a",

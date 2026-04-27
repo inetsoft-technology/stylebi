@@ -38,9 +38,11 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
+import org.junit.jupiter.api.Tag;
 
 @Service
 @ClusterProxy
+@Tag("core")
 public class SelectionListTestService {
    public SelectionListTestService(
       CoreLifecycleService coreLifecycleService,

@@ -24,8 +24,10 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import org.junit.jupiter.api.Tag;
 
 @Controller
+@Tag("core")
 public class HeartBeatController {
 
    @RequestMapping(value="/test/vs/touch-asset", method = RequestMethod.POST)

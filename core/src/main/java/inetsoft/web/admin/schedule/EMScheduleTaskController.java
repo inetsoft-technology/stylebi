@@ -19,20 +19,20 @@ package inetsoft.web.admin.schedule;
 
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
-import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeNode;
 import inetsoft.web.admin.schedule.model.*;
-import inetsoft.web.security.*;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import inetsoft.web.viewsheet.service.LinkUri;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.net.URLDecoder;
 import java.security.Principal;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -49,10 +49,14 @@ public class EMScheduleTaskController {
     */
    @Autowired
    public EMScheduleTaskController(ScheduleTaskService scheduleTaskService,
-                                   ScheduleTaskFolderService scheduleTaskFolderService)
+                                   ScheduleTaskFolderService scheduleTaskFolderService,
+                                   SecurityEngine securityEngine,
+                                   ScheduleManager scheduleManager)
    {
       this.scheduleTaskService = scheduleTaskService;
       this.scheduleTaskFolderService = scheduleTaskFolderService;
+      this.securityEngine = securityEngine;
+      this.scheduleManager = scheduleManager;
    }
 
    /**
@@ -64,13 +68,18 @@ public class EMScheduleTaskController {
     *
     * @throws Exception if could not get task
     */
-   @Secured(
+   @Secured({
       @RequiredPermission(
          resourceType = ResourceType.SCHEDULER,
          resource = "*",
          actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
       )
-   )
+   })
    @PostMapping("/api/em/schedule/new")
    public ScheduleTaskDialogModel getNewTaskDialogModel(
       @RequestParam("timeZone") String timeZone,
@@ -156,13 +165,18 @@ public class EMScheduleTaskController {
       return scheduleTaskService.getDialogModel(taskName, principal, true);
    }
 
-   @Secured(
+   @Secured({
       @RequiredPermission(
          resourceType = ResourceType.SCHEDULER,
          resource = "*",
          actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
       )
-   )
+   })
    @PostMapping("/api/em/schedule/task/save")
    public ScheduleTaskDialogModel saveTask(@RequestBody ScheduleTaskEditorModel model,
                                            @LinkUri String linkURI,
@@ -171,24 +185,27 @@ public class EMScheduleTaskController {
       return scheduleTaskService.saveTask(model, linkURI, principal, true);
    }
 
-   @Secured(
+   @Secured({
       @RequiredPermission(
          resourceType = ResourceType.SCHEDULER,
          resource = "*",
          actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
       )
-   )
+   })
    @PostMapping("/api/em/schedule/enable/task")
    public ToggleTaskResponse toggleTaskEnabled(@RequestBody TaskListModel list, Principal principal)
       throws Exception
    {
       final ToggleTaskResponse.Builder builder = ToggleTaskResponse.builder();
-      ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
-
       for(String name : list.taskNames()) {
          ScheduleTask task = scheduleManager.getScheduleTask(name);
 
-         if(!(SecurityEngine.getSecurity().checkPermission(principal, ResourceType.SCHEDULE_TASK, name,
+         if(!(securityEngine.checkPermission(principal, ResourceType.SCHEDULE_TASK, name,
             ResourceAction.WRITE) ||
             (task != null && scheduleTaskService.canDeleteTask(task, principal))))
          {
@@ -202,13 +219,18 @@ public class EMScheduleTaskController {
       return builder.build();
    }
 
-   @Secured(
+   @Secured({
       @RequiredPermission(
          resourceType = ResourceType.SCHEDULER,
          resource = "*",
          actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
       )
-   )
+   })
    @GetMapping("/api/em/schedule/executeAs/identities")
    public ExecuteAsIdentitiesModel getExecuteAsUsers(@RequestParam("owner") String owner,
                                                      Principal principal)
@@ -220,11 +242,13 @@ public class EMScheduleTaskController {
                         .distinct()
                         .collect(Collectors.toList()));
       List<IdentityID> groups = this.scheduleTaskService.getExecuteAsGroups(owner, principal);
-      SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider securityProvider = securityEngine.getSecurityProvider();
       model.setGroups(groups);
       return model;
    }
 
    private final ScheduleTaskService scheduleTaskService;
    private final ScheduleTaskFolderService scheduleTaskFolderService;
+   private final SecurityEngine securityEngine;
+   private final ScheduleManager scheduleManager;
 }

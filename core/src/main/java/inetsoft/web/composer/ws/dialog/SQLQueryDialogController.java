@@ -87,7 +87,7 @@ public class SQLQueryDialogController extends WorksheetController {
       @RequestParam(name = "dataSource", required = false) String dataSource,
       Principal principal) throws Exception
    {
-      boolean sqlEnabled = SecurityEngine.getSecurity().checkPermission(
+      boolean sqlEnabled = securityEngine.checkPermission(
          principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS);
 
       if(!sqlEnabled) {
@@ -126,6 +126,14 @@ public class SQLQueryDialogController extends WorksheetController {
                                          Principal principal)
       throws Exception
    {
+      boolean sqlEnabled = SecurityEngine.getSecurity().checkPermission(
+         principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS);
+
+      if(!sqlEnabled) {
+         throw new MessageException(
+            Catalog.getCatalog().getString("composer.nopermission.physicalTable"));
+      }
+
       return queryManagerService.clearQuery(runtimeId, dataSource, tableName, advancedEdit, principal);
    }
 
@@ -229,7 +237,7 @@ public class SQLQueryDialogController extends WorksheetController {
                         CommandDispatcher commandDispatcher)
       throws Exception
    {
-      boolean sqlEnabled = SecurityEngine.getSecurity().checkPermission(
+      boolean sqlEnabled = securityEngine.checkPermission(
          principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS);
 
       if(!sqlEnabled) {

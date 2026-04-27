@@ -19,6 +19,7 @@ package inetsoft.web.admin.content.repository;
 
 import inetsoft.mv.MVManager;
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.lib.logical.LogicalLibraryEntry;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.*;
@@ -61,14 +62,34 @@ public class ContentRepositoryTreeService {
    @Autowired
    public ContentRepositoryTreeService(SecurityProvider securityProvider, XRepository repository,
                                        ResourcePermissionService permissionService,
-                                       RepletRegistryManager registryManager,
-                                       ScheduleTaskFolderService scheduleTaskFolderService)
+                                       RepletRegistryService registryManager,
+                                       ScheduleTaskFolderService scheduleTaskFolderService,
+                                       MVManager mvManager,
+                                       SecurityEngine securityEngine,
+                                       ScheduleManager scheduleManager,
+                                       DataSourceRegistry dataSourceRegistry,
+                                       DashboardManager dashboardManager,
+                                       IndexedStorage indexedStorage,
+                                       DashboardRegistryManager dashboardRegistryManager,
+                                       LibManagerProvider libManagerProvider,
+                                       RecycleBin recycleBin,
+                                       RepletRegistryManager repletRegistryManager)
    {
       this.securityProvider = securityProvider;
       this.repository = repository;
       this.permissionService = permissionService;
       this.registryManager = registryManager;
       this.scheduleTaskFolderService = scheduleTaskFolderService;
+      this.mvManager = mvManager;
+      this.securityEngine = securityEngine;
+      this.scheduleManager = scheduleManager;
+      this.dataSourceRegistry = dataSourceRegistry;
+      this.dashboardManager = dashboardManager;
+      this.indexedStorage = indexedStorage;
+      this.dashboardRegistryManager = dashboardRegistryManager;
+      this.libManagerProvider = libManagerProvider;
+      this.recycleBin = recycleBin;
+      this.repletRegistryManager = repletRegistryManager;
    }
 
    public LicensedComponents getLicensedComponents() {
@@ -120,11 +141,15 @@ public class ContentRepositoryTreeService {
 
    List<ContentRepositoryTreeNode> getRootNodes(Principal principal, List<String> usersToLoad) throws Exception {
       List<UserNodes> userNodes = createUserNodes(principal, usersToLoad);
-      RegistrySupplier registryFn = new RegistrySupplier();
+      RegistrySupplier registryFn = new RegistrySupplier(repletRegistryManager);
       Catalog catalog = Catalog.getCatalog();
       Principal contextPrincipal = ThreadContext.getContextPrincipal();
       ExecutorService executor =
-         Executors.newFixedThreadPool(Math.min(Runtime.getRuntime().availableProcessors(), 6));
+         Executors.newFixedThreadPool(Math.min(Runtime.getRuntime().availableProcessors(), 6), r -> {
+            Thread t = new Thread(r, "ContentRepositoryTreeLoader");
+            t.setDaemon(true);
+            return t;
+         });
 
       try {
          // global viewsheets/worksheets/reports
@@ -252,7 +277,7 @@ public class ContentRepositoryTreeService {
          return getOrgUsers(principal, org);
       }
 
-      Set<String> keys = IndexedStorage.getIndexedStorage().getKeys(null);
+      Set<String> keys = indexedStorage.getKeys(null);
 
       if(keys == null || keys.isEmpty()) {
          return new ArrayList<>();
@@ -270,7 +295,6 @@ public class ContentRepositoryTreeService {
       throws Exception
    {
       List<UserNodes> list = new ArrayList<>();
-      RecycleBin recycleBin = RecycleBin.getRecycleBin();
       Set<IdentityID> recycleBinUsers = recycleBin.getEntries().stream()
          .map(RecycleBin.Entry::getOriginalUser)
          .filter(Objects::nonNull)
@@ -284,7 +308,7 @@ public class ContentRepositoryTreeService {
          boolean loadUser = usersToLoad.contains(user.convertToKey());
 
          if(loadUser || recycleBinUsers.contains(user)) {
-            registry = RepletRegistry.getRegistry(user);
+            registry = repletRegistryManager.getRegistry(user);
          }
 
          nodes.reports = getUserReports(user, loadUser ? registry : null, principal);
@@ -352,7 +376,6 @@ public class ContentRepositoryTreeService {
          .owner(null)
          .type(RepositoryEntry.RECYCLEBIN_FOLDER);
 
-      RecycleBin recycleBin = RecycleBin.getRecycleBin();
       List<ContentRepositoryTreeNode> userRecycled = userNodes.stream()
          .flatMap(n -> n.recycled.stream())
          .collect(Collectors.toList());
@@ -370,7 +393,7 @@ public class ContentRepositoryTreeService {
 
       // if auto save has administrator, support import auto save assets.
       // if no security, only can login em by admin.
-      if (SecurityEngine.getSecurity().isSecurityEnabled() && !(OrganizationManager.getInstance().isSiteAdmin(principal) || OrganizationManager.getInstance().isOrgAdmin(principal))) {
+      if (securityEngine.isSecurityEnabled() && !(OrganizationManager.getInstance().isSiteAdmin(principal) || OrganizationManager.getInstance().isOrgAdmin(principal))) {
          return Collections.singletonList(recycleRoot.build());
       }
 
@@ -822,7 +845,7 @@ public class ContentRepositoryTreeService {
    }
 
    private IndexedStorage getIndexStorage() {
-      return IndexedStorage.getIndexedStorage();
+      return indexedStorage;
    }
 
    private ContentRepositoryTreeNode createTreeNode(RepositoryEntry entry,
@@ -896,7 +919,7 @@ public class ContentRepositoryTreeService {
                                                          RegistrySupplier registryFn)
       throws Exception
    {
-      final RepletRegistry registry = RepletRegistry.getRegistry();
+      final RepletRegistry registry = repletRegistryManager.getRegistry();
       Map<AssetEntry, List<AssetEntry>> parentEntries = getParentAssetEntryMap();
 
       // build tree from root nodes (repository/worksheet)
@@ -913,8 +936,7 @@ public class ContentRepositoryTreeService {
    public Map<AssetEntry, List<AssetEntry>> getParentAssetEntryMap() throws Exception {
       final AssetRepository assetRepository = AssetUtil.getAssetRepository(false);
       assetRepository.syncFolders(null);
-      final RepletRegistry registry = RepletRegistry.getRegistry();
-      final IndexedStorage indexedStorage = IndexedStorage.getIndexedStorage();
+      final RepletRegistry registry = repletRegistryManager.getRegistry();
       final AssetEntry[] entries = indexedStorage.getKeys(Objects::nonNull)
          .stream()
          .filter(key -> key != null && !key.contains("^" + Tool.MY_DASHBOARD + "/"))
@@ -1002,7 +1024,6 @@ public class ContentRepositoryTreeService {
       final int type;
       String name = entry.getName();
       String icon = null;
-      IndexedStorage indexedStorage = IndexedStorage.getIndexedStorage();
       long lastModifiedTime = indexedStorage.lastModified(entry.toIdentifier());
 
       // worksheets are just folders, viewsheets are repository folders
@@ -1121,11 +1142,11 @@ public class ContentRepositoryTreeService {
    }
 
    private boolean isMaterializedViewsheet(AssetEntry entry) {
-      return MVManager.getManager().isMaterialized(entry.toIdentifier(), false);
+      return mvManager.isMaterialized(entry.toIdentifier(), false);
    }
 
    private boolean isMaterializedWorksheet(AssetEntry entry) {
-      return MVManager.getManager().isMaterialized(entry.toIdentifier(), true);
+      return mvManager.isMaterialized(entry.toIdentifier(), true);
    }
 
    private boolean isMaterializedViewsheet(RepositoryEntry entry) {
@@ -1182,13 +1203,13 @@ public class ContentRepositoryTreeService {
     * Get tree nodes for global dashboards.
     */
    private List<ContentRepositoryTreeNode> getGlobalDashboardNodes(Principal principal) {
-      DashboardRegistry registry = DashboardRegistry.getRegistry();
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry();
       List<String> dashboardNames = Arrays.asList(registry.getDashboardNames());
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
       List<IdentityID> adminUsers = OrganizationManager.getInstance().orgAdminUsers(orgID);
       Identity identity = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
 
-      if(SecurityEngine.getSecurity().isSecurityEnabled()) {
+      if(securityEngine.isSecurityEnabled()) {
          if(OrganizationManager.getInstance().isSiteAdmin(principal) &&
             !orgID.equals(Organization.getDefaultOrganizationID()))
          {
@@ -1200,7 +1221,7 @@ public class ContentRepositoryTreeService {
          }
       }
 
-      List<String> sortedDashboards = Arrays.asList(DashboardManager.getManager().getDashboards(identity));
+      List<String> sortedDashboards = Arrays.asList(dashboardManager.getDashboards(identity));
       dashboardNames.sort(Comparator.comparingInt(
          d -> !sortedDashboards.contains(d) ? Integer.MAX_VALUE : sortedDashboards.indexOf(d)));
       return dashboardNames.stream()
@@ -1210,7 +1231,7 @@ public class ContentRepositoryTreeService {
    }
 
    private ContentRepositoryTreeNode createGlobalDashboardNode(String dashboardName) {
-      DashboardRegistry registry = DashboardRegistry.getRegistry();
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry();
       VSDashboard dashboard = (VSDashboard) registry.getDashboard(dashboardName);
       String label = dashboardName.replaceFirst("__GLOBAL", "");
 
@@ -1225,7 +1246,7 @@ public class ContentRepositoryTreeService {
    }
 
    private ContentRepositoryTreeNode createUserDashboardNode(String dashboardName, IdentityID user) {
-      DashboardRegistry registry = DashboardRegistry.getRegistry(user);
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry(user);
       VSDashboard dashboard = (VSDashboard) registry.getDashboard(dashboardName);
 
       return dashboard == null ? null : ContentRepositoryTreeNode.builder()
@@ -1262,7 +1283,7 @@ public class ContentRepositoryTreeService {
    }
 
    private List<ContentRepositoryTreeNode> getUserDashboardNodeChildren(IdentityID user) {
-      DashboardRegistry registry = DashboardRegistry.getRegistry(user);
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry(user);
       return Arrays.stream(registry.getDashboardNames())
          .map(name -> ContentRepositoryTreeNode.builder()
             .label(name)
@@ -1286,7 +1307,7 @@ public class ContentRepositoryTreeService {
    }
 
    List<ContentRepositoryTreeNode> getScheduleTaskNodeChildren(Principal principal) {
-      ScheduleManager manager = ScheduleManager.getScheduleManager();
+      ScheduleManager manager = scheduleManager;
       String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       List<String> taskNames = manager.getScheduleTasks(orgID).stream()
@@ -1376,14 +1397,17 @@ public class ContentRepositoryTreeService {
    }
 
    private static Stream<AssetEntry> streamEntries() {
-      final IndexedStorage indexedStorage = IndexedStorage.getIndexedStorage();
-      return indexedStorage.getKeys(Objects::nonNull)
+      return IndexedStorage.getIndexedStorage().getKeys(Objects::nonNull)
          .stream()
          .map(AssetEntry::createAssetEntry)
          .filter(Objects::nonNull);
    }
 
    private List<ContentRepositoryTreeNode> getSchedulerNodes(Principal principal) {
+      if(!securityProvider.checkPermission(principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS)) {
+         return Collections.emptyList();
+      }
+
       List<ContentRepositoryTreeNode> result = new ArrayList<>();
       List<ContentRepositoryTreeNode> children = getScheduleTaskNodeChildren(principal);
 
@@ -1427,7 +1451,7 @@ public class ContentRepositoryTreeService {
    }
 
    private List<ContentRepositoryTreeNode> getLibraries(String rootPath) {
-      final LibManager manager = LibManager.getManager();
+      final LibManager manager = libManagerProvider.getManager();
       final Catalog catalog = Catalog.getCatalog();
       Map<Integer, List<ContentRepositoryTreeNode>> libraries = new HashMap<>();
       addLibraryFolder(libraries, RepositoryEntry.SCRIPT, getScripts(manager), rootPath);
@@ -1472,7 +1496,7 @@ public class ContentRepositoryTreeService {
                                                            int type, String rootPath)
    {
       final List<ContentRepositoryTreeNode> nodes = new ArrayList<>();
-      final LibManager manager = LibManager.getManager();
+      final LibManager manager = libManagerProvider.getManager();
 
       while(entries.hasMoreElements()) {
          final String name = entries.nextElement();
@@ -1505,7 +1529,7 @@ public class ContentRepositoryTreeService {
       Map<Integer, List<ContentRepositoryTreeNode>> libraries, String name,
       String rootPath)
    {
-      final LibManager manager = LibManager.getManager();
+      final LibManager manager = libManagerProvider.getManager();
       Catalog catalog = Catalog.getCatalog();
       List<ContentRepositoryTreeNode> nodes = new ArrayList<>();
       List<ContentRepositoryTreeNode> tableStyles = new ArrayList<>();
@@ -1576,7 +1600,7 @@ public class ContentRepositoryTreeService {
     * Get the top level data source nodes/folders
     */
    private List<ContentRepositoryTreeNode> getDataSources(String name, Set<XQuery> queries) {
-      final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      final DataSourceRegistry registry = dataSourceRegistry;
       final List<String> subDataSourceNames = registry.getSubDataSourceNames(name);
       final List<String> subfolderNames = registry.getSubfolderNames(name);
 
@@ -1654,7 +1678,7 @@ public class ContentRepositoryTreeService {
 
    private List<ContentRepositoryTreeNode> getDataSourceCubes(XDataSource dataSource) {
       if(dataSource instanceof XMLADataSource) {
-         XDomain xDomain = DataSourceRegistry.getRegistry().getDomain(dataSource.getFullName());
+         XDomain xDomain = dataSourceRegistry.getDomain(dataSource.getFullName());
 
          if(xDomain instanceof Domain) {
             Domain domain = (Domain) xDomain;
@@ -1771,7 +1795,7 @@ public class ContentRepositoryTreeService {
     */
    private List<ContentRepositoryTreeNode> getDataSourceModels(XDataSource dataSource)
    {
-      final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      final DataSourceRegistry registry = dataSourceRegistry;
       final String dataSourceName = dataSource.getFullName();
       final XDataModel dataModel = registry.getDataModel(dataSourceName);
       final List<ContentRepositoryTreeNode> nodes = new ArrayList<>();
@@ -1939,7 +1963,7 @@ public class ContentRepositoryTreeService {
     * Get the user identity for dashboard.
     */
    public Identity getIdentity(XPrincipal principal) {
-      boolean securityEnabled = SecurityEngine.getSecurity().isSecurityEnabled();
+      boolean securityEnabled = securityEngine.isSecurityEnabled();
       IdentityID userID = principal.getIdentityID();
       Identity identity;
 
@@ -2005,8 +2029,29 @@ public class ContentRepositoryTreeService {
       };
    }
 
+   void checkSheetPermission(int scope, IdentityID ownerID, String path,
+                             ResourceType nonUserScopeType, Principal principal)
+      throws inetsoft.sree.security.SecurityException
+   {
+      if(scope == AssetRepository.USER_SCOPE) {
+         if(!checkUserPermission(ownerID, principal) ||
+            !SecurityEngine.getSecurity().checkPermission(
+               principal, ResourceType.MY_DASHBOARDS, "*", ResourceAction.READ))
+         {
+            throw new MessageException(Catalog.getCatalog().getString(
+               "em.common.security.no.permission", path));
+         }
+      }
+      else if(!SecurityEngine.getSecurity().checkPermission(
+                 principal, nonUserScopeType, path, ResourceAction.ADMIN))
+      {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", path));
+      }
+   }
+
    private boolean checkUserPermission(IdentityID user, Principal principal) {
-      if(principal == null) {
+      if(principal == null || user == null) {
          return false;
       }
 
@@ -2031,11 +2076,21 @@ public class ContentRepositoryTreeService {
 //   }
 
    private final SecurityProvider securityProvider;
-   private final RepletRegistryManager registryManager;
+   private final RepletRegistryService registryManager;
    private final XRepository repository;
    private final ResourcePermissionService permissionService;
 
    private final ScheduleTaskFolderService scheduleTaskFolderService;
+   private final MVManager mvManager;
+   private final SecurityEngine securityEngine;
+   private final ScheduleManager scheduleManager;
+   private final DataSourceRegistry dataSourceRegistry;
+   private final DashboardManager dashboardManager;
+   private final IndexedStorage indexedStorage;
+   private final DashboardRegistryManager dashboardRegistryManager;
+   private final LibManagerProvider libManagerProvider;
+   private final RecycleBin recycleBin;
+   private final RepletRegistryManager repletRegistryManager;
    private final Comparator<ContentRepositoryTreeNode> nodeComparator = getNodeComparator();
 
    public static final String RECYCLE_BIN_FOLDER = "Recycle Bin";
@@ -2061,14 +2116,18 @@ public class ContentRepositoryTreeService {
     * of users, this adds up quickly.
     */
    private static final class RegistrySupplier {
+      private RegistrySupplier(RepletRegistryManager repletRegistryManager) {
+         this.repletRegistryManager = repletRegistryManager;
+      }
+
       public RepletRegistry get(IdentityID user) {
          if(!Objects.equals(user, this.user) || registry == null) {
             try {
                if(user == null) {
-                  registry = RepletRegistry.getRegistry();
+                  registry = repletRegistryManager.getRegistry();
                }
                else {
-                  registry = RepletRegistry.getRegistry(user);
+                  registry = repletRegistryManager.getRegistry(user);
                }
             }
             catch(Exception e) {
@@ -2081,6 +2140,7 @@ public class ContentRepositoryTreeService {
          return registry;
       }
 
+      private final RepletRegistryManager repletRegistryManager;
       private IdentityID user;
       private RepletRegistry registry;
    }

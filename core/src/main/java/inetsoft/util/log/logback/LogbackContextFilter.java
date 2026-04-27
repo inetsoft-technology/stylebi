@@ -37,25 +37,44 @@ public class LogbackContextFilter extends TurboFilter {
    public FilterReply decide(Marker marker, Logger logger, Level level, String format,
                              Object[] params, Throwable t)
    {
-      if(log == null) {
-         log = LogManager.getInstance();
+      // Guard against re-entrant calls: LogManager.getInstance() triggers a Spring bean lookup
+      // which causes trace-level logging in doGetBean(), which calls back into this filter,
+      // producing a StackOverflowError.
+      if(IN_DECIDE.get()) {
+         return FilterReply.NEUTRAL;
       }
 
-      if(Objects.equals(logger.getName(), ologger) && Objects.equals(level, olevel)) {
-         return odecide;
+      IN_DECIDE.set(Boolean.TRUE);
+
+      try {
+         if(log == null) {
+            log = LogManager.getInstance();
+         }
+
+         if(log == null) {
+            return FilterReply.NEUTRAL;
+         }
+
+         if(Objects.equals(logger.getName(), ologger) && Objects.equals(level, olevel)) {
+            return odecide;
+         }
+
+         FilterReply reply = log.isLevelEnabled(logger.getName(), getLogLevel(level))
+            ? FilterReply.ACCEPT : FilterReply.NEUTRAL;
+
+         this.ologger = logger.getName();
+         this.olevel = level;
+         this.odecide = reply;
+         return reply;
       }
-
-      FilterReply reply = log.isLevelEnabled(logger.getName(), getLogLevel(level))
-         ? FilterReply.ACCEPT : FilterReply.NEUTRAL;
-
-      this.ologger = logger.getName();
-      this.olevel = level;
-      this.odecide = reply;
-      return reply;
+      finally {
+         IN_DECIDE.remove();
+      }
    }
 
    private LogManager log = null;
    private String ologger;
    private Level olevel;
    private FilterReply odecide;
+   private static final ThreadLocal<Boolean> IN_DECIDE = ThreadLocal.withInitial(() -> Boolean.FALSE);
 }

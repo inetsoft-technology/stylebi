@@ -20,7 +20,8 @@ package inetsoft.web.viewsheet.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.web.binding.model.BaseFormatModel;
 import org.springframework.stereotype.Component;
 
@@ -70,7 +71,7 @@ public class VSTabModel extends VSObjectModel<TabVSAssembly> {
       activeFormat = new VSFormatModel(compositeFormat, info);
 
       roundTopCornersOnly = info.isRoundTopCornersOnly();
-      bottomTabs = info.isBottomTabs();
+      bottomTabs = rvs.isRuntime() ? info.isBottomTabs() : info.getBottomTabsValue();
       roundBottomCornersOnly = info.isRoundBottomCornersOnly();
 
       // Safe to mutate activeBorder directly — info is a clone so this won't affect the assembly.

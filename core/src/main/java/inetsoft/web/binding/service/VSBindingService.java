@@ -1915,9 +1915,16 @@ public class VSBindingService {
             ((DataVSAssemblyInfo) info).setEditedByWizard(false);
          }
 
-         orvs.setViewsheet(nvs);
-         orvs.setBindingID(null);
-         orvs.getViewsheet().setMaxMode(false);
+      orvs.setViewsheet(nvs);
+      // setViewsheet() triggers resetRuntime() which clears parametersApplied.
+      // Mark parameters as already applied so that applyParameterToInput() does
+      // not overwrite input-assembly selections with stale variable-table entries
+      // on the next reset(initing=true) cycle (e.g. combobox selection change).
+      // Same pattern as the undo/redo fix in RuntimeViewsheet.restoreCheckpoint0().
+      orvs.getViewsheetSandbox().ifPresent(ViewsheetSandbox::markParametersApplied);
+
+      orvs.setBindingID(null);
+      orvs.getViewsheet().setMaxMode(false);
 
          if(!VSWizardEditModes.WIZARD_DASHBOARD.equals(originalMode)) {
             orvs.addCheckpoint(nvs.prepareCheckpoint());

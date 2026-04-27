@@ -26,6 +26,7 @@ import inetsoft.uql.XTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XUtil;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSInsertColumnsEvent;
@@ -65,6 +66,11 @@ public class WorksheetController {
    @Autowired
    protected void setWsEngine(ViewsheetService viewsheetService) {
       this.wsEngine = viewsheetService;
+   }
+
+   @Autowired
+   public void setDataSourceRegistry(DataSourceRegistry dataSourceRegistry) {
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    protected boolean isBeDepend(ColumnSelection columns, DataRef target) {
@@ -183,7 +189,7 @@ public class WorksheetController {
          if(otable != null) {
             assembly.setColumnSelection(columns);
             WSModelTrapContext context =
-               new WSModelTrapContext(boundTable, principal);
+               new WSModelTrapContext(boundTable, principal, dataSourceRegistry);
 
             if(context.isCheckTrap() &&
                context.checkTrap(otable, boundTable).showWarning())
@@ -431,6 +437,7 @@ public class WorksheetController {
 
    private RuntimeViewsheetRef runtimeViewsheetRef;
    private WorksheetService wsEngine;
+   private DataSourceRegistry dataSourceRegistry;
 
    protected static final int BLOCK = 100; // Table row counts per loading process
 }

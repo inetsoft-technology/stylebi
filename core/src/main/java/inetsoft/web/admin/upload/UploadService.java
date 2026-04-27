@@ -20,13 +20,14 @@ package inetsoft.web.admin.upload;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.storage.BlobStorage;
+import inetsoft.storage.BlobStorageManager;
 import inetsoft.storage.BlobTransaction;
 import inetsoft.util.FileSystemService;
-import inetsoft.util.SingletonManager;
 import jakarta.annotation.PreDestroy;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -37,9 +38,14 @@ import java.util.stream.Collectors;
 
 @Component
 public class UploadService {
-   public UploadService(MavenClientService mavenClient) {
+   @Autowired
+   public UploadService(MavenClientService mavenClient, BlobStorageManager blobStorageManager,
+                        Cluster cluster, FileSystemService fileSystemService)
+   {
       this.mavenClient = mavenClient;
-      this.uploads = Cluster.getInstance().getMap(getClass().getName() + ".uploads");
+      this.uploads = cluster.getMap(getClass().getName() + ".uploads");
+      this.blobStorage = blobStorageManager.getStorage("fileUploads", false);
+      this.fileSystemService = fileSystemService;
    }
 
    @PreDestroy
@@ -160,11 +166,10 @@ public class UploadService {
       info.blob = id + "/" + file.fileName();
 
       if(file.multipartFile() != null) {
-         FileSystemService fsService = SingletonManager.getInstance(FileSystemService.class);
-         File localFile = fsService.getCacheTempFile("upload-" + id, ".dat");
+         File localFile = fileSystemService.getCacheTempFile("upload-" + id, ".dat");
 
          try {
-            info.filePath = fsService.getCacheFolder().toPath().toAbsolutePath()
+            info.filePath = fileSystemService.getCacheFolder().toPath().toAbsolutePath()
                .relativize(localFile.toPath().toAbsolutePath()).toString();
             store(info, Objects.requireNonNull(file.multipartFile())::getInputStream);
          }
@@ -229,7 +234,7 @@ public class UploadService {
       Path localFile = Paths.get(info.filePath);
 
       if(!localFile.isAbsolute()) {
-         localFile = FileSystemService.getInstance().getCacheFolder().toPath().resolve(localFile);
+         localFile = fileSystemService.getCacheFolder().toPath().resolve(localFile);
          processor.process(localFile);
       }
 
@@ -238,9 +243,8 @@ public class UploadService {
 
    private final MavenClientService mavenClient;
    private final DistributedMap<String, Upload> uploads;
-   @SuppressWarnings("unchecked")
-   private final BlobStorage<Metadata> blobStorage =
-      SingletonManager.getInstance(BlobStorage.class, "fileUploads", false);
+   private final BlobStorage<Metadata> blobStorage;
+   private final FileSystemService fileSystemService;
    private static final Logger LOG = LoggerFactory.getLogger(UploadService.class);
 
    public static final class Metadata implements Serializable {

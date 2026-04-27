@@ -19,6 +19,7 @@ package inetsoft.util.dep;
 
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.DashboardRegistry;
+import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -86,7 +87,7 @@ public class DashboardEnumeration implements XAssetEnumeration<DashboardAsset> {
        */
       DashboardRegistryEnumeration(IdentityID user) {
          this.user = user;
-         DashboardRegistry registry = DashboardRegistry.getRegistry(user);
+         DashboardRegistry registry = DashboardRegistryManager.getInstance().getRegistry(user);
          names = registry.getDashboardNames();
       }
 

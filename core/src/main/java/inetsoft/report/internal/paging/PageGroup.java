@@ -44,14 +44,15 @@ public class PageGroup extends XSwappable {
       this.swapfile = swapfile;
       this.proc = processor;
       this.pages = new StylePage[max_pages];
-      XSwapper.cur = System.currentTimeMillis();
-      this.accessed = XSwapper.cur;
+      XSwapper s = getSwapper();
+      s.cur = System.currentTimeMillis();
+      this.accessed = s.cur;
       this.valid = true;
       this.ioneoff = proc == null ? false : proc.isInitialOneOff();
       this.interactive = false;// proc == null ? true : proc.isInteractive();
       this.batch = proc == null ? false : proc.isBatchWaiting();
       this.lcompleted = UNKNOWN;
-      this.monitor = XSwapper.getMonitor();
+      this.monitor = s.getMonitor();
 
       if(this.monitor != null) {
          isCountHM = monitor.isLevelQualified(XSwappableMonitor.HITS);
@@ -63,7 +64,7 @@ public class PageGroup extends XSwappable {
     * Access the page group.
     */
    private synchronized void access(int n) {
-      accessed = XSwapper.cur;
+      accessed = getSwapper().cur;
 
       if(disposed) {
          return;
@@ -83,7 +84,7 @@ public class PageGroup extends XSwappable {
       long livePeriod = !interactive && proc != null && proc.isBatchWaiting() &&
          !proc.isCompleted() ? 200 : alive;
 
-      return getAgePriority(XSwapper.cur - accessed, livePeriod);
+      return getAgePriority(getSwapper().cur - accessed, livePeriod);
    }
 
    /**
@@ -237,7 +238,7 @@ public class PageGroup extends XSwappable {
          return;
       }
 
-      XSwapper.getSwapper().waitForMemory();
+      getSwapper().waitForMemory();
       valid = true;
 
       try {

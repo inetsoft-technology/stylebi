@@ -19,7 +19,7 @@ package inetsoft.web.composer.vs.objects.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
@@ -31,8 +31,11 @@ import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.*;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
 import java.security.Principal;
@@ -40,8 +43,12 @@ import java.security.Principal;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
 @ExtendWith({MockitoExtension.class})
+@Tag("core")
 class ComposerObjectServiceTest {
    @BeforeEach
    void setup() throws Exception {
@@ -75,7 +82,7 @@ class ComposerObjectServiceTest {
       TabVSAssembly tab = new TabVSAssembly();
       TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getVSAssemblyInfo();
       tabInfo.setName("Tab1");
-      tabInfo.setBottomTabs(true);
+      tabInfo.setBottomTabsValue(true);
       tabInfo.setPixelOffset(new Point(0, 100)); // tab bar initially at y=100
       tabInfo.setPixelSize(new Dimension(200, 30));
       vs.addAssembly(tab);

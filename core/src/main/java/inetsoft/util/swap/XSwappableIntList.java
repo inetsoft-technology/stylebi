@@ -214,7 +214,7 @@ public class XSwappableIntList implements Serializable {
     */
    public final int add(int val) {
       if((count & BLOCK_SIZE) == 0) {
-         XSwapper.getSwapper().waitForMemory();
+         getSwapper().waitForMemory();
 
          if(fragment != null) {
             fragment.complete();
@@ -342,6 +342,14 @@ public class XSwappableIntList implements Serializable {
       return true;
    }
 
+   private XSwapper getSwapper() {
+      if(swapper == null) {
+         swapper = XSwapper.getSwapper();
+      }
+
+      return swapper;
+   }
+
    private static final int BLOCK_BITS = 15;
    private static final int BLOCK_SIZE = 0x7fff;
 
@@ -353,6 +361,7 @@ public class XSwappableIntList implements Serializable {
    private boolean disposed = false; // list disposed
    private int count; // data count
    private transient XIntFragment fragment; // current list fragment
+   private transient XSwapper swapper;
    private static final Logger LOG =
       LoggerFactory.getLogger(XSwappableIntList.class);
 }

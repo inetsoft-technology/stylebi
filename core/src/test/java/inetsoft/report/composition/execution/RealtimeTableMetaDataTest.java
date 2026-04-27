@@ -19,14 +19,23 @@
 package inetsoft.report.composition.execution;
 
 import inetsoft.report.internal.Util;
-import inetsoft.test.TestSerializeUtils;
-import inetsoft.test.XTableUtil;
+import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.ArrayList;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class RealtimeTableMetaDataTest {
    @Test
    public void testSerializeColumnsTable() throws Exception {

@@ -130,7 +130,6 @@ public class CalcTablePropertyDialogService {
       basicGeneralPaneModel.setObjectNames(this.vsObjectPropertyService.getObjectNames(
          vs, calcTableAssemblyInfo.getAbsoluteName()));
 
-      TableViewStylePaneController styleController = new TableViewStylePaneController();
       tableStylePaneModel.setTableStyle(calcTableAssemblyInfo.getTableStyleValue());
       tableStylePaneModel.setStyleTree(dialogService.getStyleTree(rvs, principal, true));
 

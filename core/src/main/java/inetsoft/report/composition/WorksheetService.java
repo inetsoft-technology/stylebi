@@ -20,9 +20,6 @@ package inetsoft.report.composition;
 import inetsoft.sree.internal.cluster.AffinityCallable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.sync.RenameInfo;
-import inetsoft.util.SingletonManager;
-
-import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.List;
 import java.util.Vector;
@@ -36,7 +33,6 @@ import java.util.concurrent.Future;
  * @version 8.0
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(WorksheetService.Reference.class)
 public interface WorksheetService {
    /**
     * Preview prefix.
@@ -269,48 +265,4 @@ public interface WorksheetService {
     */
    <T> Future<T> affinityCallAsync(String rid, AffinityCallable<T> job);
 
-   final class Reference extends SingletonManager.Reference<WorksheetService> {
-      @SuppressWarnings("unchecked")
-      @Override
-      public synchronized WorksheetService get(Object ... parameters) {
-         if(service == null) {
-            Class<? extends WorksheetService> implementation = null;
-
-            try {
-               implementation = (Class<? extends WorksheetService>)
-                  Class.forName("inetsoft.analytic.composition.ViewsheetEngine");
-               implementation =
-                  (Class<? extends WorksheetService>)
-                  Class.forName("inetsoft.analytic.composition.ViewsheetService");
-            }
-            catch(Exception ignore) {
-            }
-
-            if(implementation == null) {
-               try {
-                  service = new WorksheetEngine();
-               }
-               catch(RemoteException e) {
-                  throw new RuntimeException("Failed to create worksheet service", e);
-               }
-            }
-            else {
-               // if the viewsheet engine is available, use that
-               service = SingletonManager.getInstance(implementation);
-            }
-         }
-
-         return service;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(service != null) {
-            service.dispose();
-            service = null;
-         }
-      }
-
-      private WorksheetService service;
-   }
 }

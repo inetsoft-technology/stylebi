@@ -21,6 +21,7 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -28,6 +29,11 @@ import org.springframework.stereotype.Component;
 @Component
 @Lazy(false)
 public class LicenseService {
+   @Autowired
+   public LicenseService(LicenseManager licenseManager) {
+      this.licenseManager = licenseManager;
+   }
+
    @PostConstruct
    public void initProperties() {
       // ensure that SreeEnv is initialized prior to checking the license.
@@ -36,7 +42,7 @@ public class LicenseService {
 
    @Scheduled(fixedRate = 600000L)
    public void checkLicense() {
-      int licensedCPUCount = LicenseManager.getInstance().getLicensedCpuCount();
+      int licensedCPUCount = licenseManager.getLicensedCpuCount();
 
       if(licensedCPUCount > 0) {
          int realCPUCount = Tool.getAvailableCPUCores();
@@ -57,6 +63,7 @@ public class LicenseService {
       return cpuUnlicensedMSG;
    }
 
+   private final LicenseManager licenseManager;
    private boolean cpuUnlicensed = false;
    private String cpuUnlicensedMSG = null;
 }

@@ -26,6 +26,7 @@ import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSSortColumnEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -36,9 +37,9 @@ import java.security.Principal;
 @ClusterProxy
 public class SortColumnService extends WorksheetControllerService {
 
-   public SortColumnService(ViewsheetService viewsheetService)
+   public SortColumnService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry)
    {
-      super(viewsheetService);
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

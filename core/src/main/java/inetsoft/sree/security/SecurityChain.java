@@ -175,10 +175,9 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
                      root = (ObjectNode) mapper.readTree(input);
                   }
 
-                  timestamp = dataSpace.getLastModified(null, configFile);
-
                   ArrayNode providersArray = (ArrayNode) root.get("providers");
                   List<T> list = new ArrayList<>();
+                  int failureCount = 0;
 
                   for(int i = 0; i < providersArray.size(); i++) {
                      ObjectNode wrapperNode = (ObjectNode) providersArray.get(i);
@@ -195,13 +194,37 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
                         list.add(provider);
                      }
                      catch(Exception e) {
+                        failureCount++;
                         LOG.error(
                            "Failed to create instance of security provider: {}", providerClass, e);
                      }
                   }
 
-                  clear();
-                  setProviderList(list);
+                  // If the config file specified providers but ALL of them failed to instantiate,
+                  // retain the existing runtime providers rather than wiping them. This prevents a
+                  // corrupted or temporarily unreadable config (e.g. after a GKE node restart) from
+                  // clearing all security providers and locking out every user.
+                  // Do NOT update timestamp on total failure – allow the next dataChanged() to retry
+                  // when the transient condition clears, without requiring a manual config edit.
+                  if(list.isEmpty() && failureCount > 0) {
+                     LOG.error(
+                        "All {} security provider(s) failed to load from '{}'; retaining " +
+                        "existing providers to prevent loss of security configuration",
+                        failureCount, configFile);
+                  }
+                  else {
+                     if(failureCount > 0) {
+                        LOG.warn(
+                           "{} of {} security provider(s) failed to load from '{}'; " +
+                           "the remaining providers have been applied but security " +
+                           "configuration may be incomplete",
+                           failureCount, list.size() + failureCount, configFile);
+                     }
+
+                     timestamp = dataSpace.getLastModified(null, configFile);
+                     clear();
+                     setProviderList(list);
+                  }
                }
             }
          }

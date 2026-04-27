@@ -46,8 +46,13 @@ public class PreferencesDialogController {
     * @param analyticRepository the analytic repository.
     */
    @Autowired
-   public PreferencesDialogController(AnalyticRepository analyticRepository) {
+   public PreferencesDialogController(AnalyticRepository analyticRepository,
+                                       SecurityEngine securityEngine,
+                                       PortalThemesManager portalThemesManager)
+   {
       this.analyticRepository = analyticRepository;
+      this.securityEngine = securityEngine;
+      this.portalThemesManager = portalThemesManager;
    }
 
    @GetMapping("/api/portal/get-history-bar-status")
@@ -65,15 +70,14 @@ public class PreferencesDialogController {
    public PreferencesDialogModel getPreferencesDialogModel(
       Principal principal) throws Exception
    {
-      if(!PortalThemesManager.getManager().isButtonVisible(PortalThemesManager.PREFERENCES_BUTTON)) {
+      if(!portalThemesManager.isButtonVisible(PortalThemesManager.PREFERENCES_BUTTON)) {
          Catalog catalog = Catalog.getCatalog();
          throw new SecurityException(catalog.getString("em.common.security.no.permission",
                                                        catalog.getString("Preferences")));
       }
 
       PreferencesDialogModel model = new PreferencesDialogModel();
-      SecurityEngine engine = SecurityEngine.getSecurity();
-      SecurityProvider provider = engine.getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       User user = provider.getUser(pId);
       boolean editableUser = SUtil.isEditableUser(provider, pId);
@@ -104,7 +108,7 @@ public class PreferencesDialogController {
    public PreferencesDialogModel setPreferencesDialogModel(
       @RequestBody PreferencesDialogModel model, Principal principal)
    {
-      if(!PortalThemesManager.getManager().isButtonVisible(PortalThemesManager.PREFERENCES_BUTTON)) {
+      if(!portalThemesManager.isButtonVisible(PortalThemesManager.PREFERENCES_BUTTON)) {
          Catalog catalog = Catalog.getCatalog();
          throw new SecurityException(catalog.getString("em.common.security.no.permission",
                                                        catalog.getString("Preferences")));
@@ -113,8 +117,7 @@ public class PreferencesDialogController {
       String email = model.getEmail();
       email = email == null ? null : email.trim();
       String[] emails = StringUtils.isEmpty(email) ? new String[0] : email.split(",");
-      SecurityEngine engine = SecurityEngine.getSecurity();
-      SecurityProvider provider = engine.getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       EditableAuthenticationProvider eprovider =
          SUtil.getEditableAuthenticationProvider(provider, pId);
@@ -163,6 +166,8 @@ public class PreferencesDialogController {
    }
 
    private final AnalyticRepository analyticRepository;
+   private final SecurityEngine securityEngine;
+   private final PortalThemesManager portalThemesManager;
    private static final String EMAIL_REGEX =
       "^[\\w\\d\\-_]+(\\.[\\w\\d\\-_]+)*@[\\w\\d\\-_]+(\\.[\\w\\d\\-_]+)*$";
 }

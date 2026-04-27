@@ -17,6 +17,9 @@
  */
 package inetsoft.web.security;
 
+import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.security.AuthenticationService;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import inetsoft.web.admin.security.SSOSettingsService;
 import inetsoft.web.admin.security.SSOType;
 import jakarta.servlet.*;
@@ -29,11 +32,17 @@ import java.util.Arrays;
 @Component
 public class StandardFilterChain extends DelegatingFilterChain {
    @Autowired
-   public StandardFilterChain(SSOSettingsService settingsService) {
+   public StandardFilterChain(SSOSettingsService settingsService,
+                              LicenseManager licenseManager,
+                              SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                              AuthenticationService authenticationService)
+   {
       super(Arrays.asList(
-         new LogoutFilter(), new OptionalBeanFilter("styleBIGoogleSSOFilter"),
-         new BasicAuthenticationFilter(), new DefaultAuthorizationFilter(),
-         new AnonymousUserFilter()
+         new LogoutFilter(sessionLicenseServiceProvider, authenticationService),
+         new OptionalBeanFilter("styleBIGoogleSSOFilter"),
+         new BasicAuthenticationFilter(sessionLicenseServiceProvider, authenticationService),
+         new DefaultAuthorizationFilter(sessionLicenseServiceProvider, authenticationService),
+         new AnonymousUserFilter(licenseManager, sessionLicenseServiceProvider, authenticationService)
       ));
       this.settingsService = settingsService;
    }

@@ -22,8 +22,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.SRPrincipal;
+import inetsoft.sree.security.*;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import inetsoft.web.portal.controller.SessionErrorController;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
@@ -38,6 +38,14 @@ import java.security.Principal;
  * @since 12.3
  */
 public class AnonymousUserFilter extends AbstractSecurityFilter {
+   public AnonymousUserFilter(LicenseManager licenseManager,
+                              SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                              AuthenticationService authenticationService)
+   {
+      super(sessionLicenseServiceProvider, authenticationService);
+      this.licenseManager = licenseManager;
+   }
+
    @Override
    public void doFilter(ServletRequest request, ServletResponse response,
                         FilterChain chain) throws IOException, ServletException
@@ -105,6 +113,8 @@ public class AnonymousUserFilter extends AbstractSecurityFilter {
    }
 
    private boolean hasSessionKey() {
-      return LicenseManager.getInstance().getConcurrentSessionCount() > 0;
+      return licenseManager.getConcurrentSessionCount() > 0;
    }
+
+   private final LicenseManager licenseManager;
 }

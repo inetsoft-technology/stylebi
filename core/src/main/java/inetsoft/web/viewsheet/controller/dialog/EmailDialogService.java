@@ -53,9 +53,11 @@ public class EmailDialogService {
 
    public EmailDialogService(ViewsheetService viewsheetService,
                              ScheduleService scheduleService,
+                             SecurityEngine securityEngine,
                              VSEmailService emailService)
    {
       this.scheduleService = scheduleService;
+      this.securityEngine = securityEngine;
       this.emailService = emailService;
       this.viewsheetService = viewsheetService;
    }
@@ -100,8 +102,8 @@ public class EmailDialogService {
       }
 
       boolean expandComponentEnabled = SreeEnv.getBooleanProperty("export.expandComponents");
-      boolean expandComponentAllowed = SecurityEngine.getSecurity().checkPermission(principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION,
-                                                                                    "ExportExpandComponents", ResourceAction.READ);
+      boolean expandComponentAllowed = securityEngine.checkPermission(principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION,
+                                                                      "ExportExpandComponents", ResourceAction.READ);
       //by nickgovus 2023-10-26, matchLayout = !ExportComponents = false only if (ExportSecurityPermission and setExportComponent = true)
       boolean matchLayout = !(expandComponentEnabled && expandComponentAllowed);
 
@@ -117,7 +119,7 @@ public class EmailDialogService {
          .build();
 
       String email = SreeEnv.getProperty("mail.from.address");
-      boolean userDialogEnabled = SecurityEngine.getSecurity().isSecurityEnabled();
+      boolean userDialogEnabled = securityEngine.isSecurityEnabled();
       boolean useSelf =
          !"false".equals(SreeEnv.getProperty("em.mail.defaultEmailFromSelf"));
       boolean smtp =
@@ -212,9 +214,9 @@ public class EmailDialogService {
 
       if((!fileFormatPaneModel.matchLayout() || fileFormatPaneModel.expandSelections() ||
          fileFormatPaneModel.onlyDataComponents()) &&
-         !SecurityEngine.getSecurity().checkPermission(principal,
-                                                       ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ExportExpandComponents",
-                                                       ResourceAction.READ))
+         !securityEngine.checkPermission(principal,
+                                         ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ExportExpandComponents",
+                                         ResourceAction.READ))
       {
          return MessageDialogModel.builder()
             .type(MessageCommand.Type.ERROR)
@@ -278,6 +280,7 @@ public class EmailDialogService {
 
    private ViewsheetService viewsheetService;
    private final ScheduleService scheduleService;
+   private final SecurityEngine securityEngine;
    private final VSEmailService emailService;
    private static final Logger LOG =
       LoggerFactory.getLogger(EmailDialogService.class);

@@ -340,6 +340,16 @@ public abstract class AbstractDataSet implements DataSet {
    }
 
    /**
+    * Reset the cached column count so the next call to getColCount() recomputes it.
+    * Subclasses that change the effective column count outside of the standard calc-column
+    * add/remove paths (e.g. IntervalDataSet.initColumns) must call this to keep
+    * getColCount() consistent. (74367)
+    */
+   protected void invalidateCachedColCount() {
+      cachedColCount = -1;
+   }
+
+   /**
     * Return the number of columns in the data set.
     */
    @Override

@@ -35,9 +35,7 @@ import inetsoft.web.composer.vs.command.ChangeCurrentLayoutCommand;
 import inetsoft.web.composer.vs.event.AddVSLayoutObjectEvent;
 import inetsoft.web.viewsheet.command.UpdateLayoutUndoStateCommand;
 import inetsoft.web.viewsheet.command.UpdateUndoStateCommand;
-import inetsoft.web.viewsheet.model.VSFormatModel;
-import inetsoft.web.viewsheet.model.VSObjectModel;
-import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
+import inetsoft.web.viewsheet.model.*;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -418,12 +416,21 @@ public class VSLayoutService {
       }
 
       VSObjectModel objectModel = null;
-      boolean isBottomTabs = assembly instanceof TabVSAssembly &&
-         ((TabVSAssemblyInfo) assembly.getInfo()).isBottomTabs();
+      boolean isBottomTabs = false;
 
       if(assembly != null) {
          assembly.getInfo().setVisible(true);
          rvs.getViewsheet().getLayoutInfo().getPrintLayout();
+
+         // sync dValue on the clone so VSTabModel (which reads dValue in
+         // composer mode) is consistent with the positioning logic
+         if(assembly instanceof TabVSAssembly tabAssembly) {
+            TabVSAssemblyInfo tabInfoClone =
+               (TabVSAssemblyInfo) tabAssembly.getInfo();
+            isBottomTabs = tabInfoClone.isBottomTabs();
+            tabInfoClone.setBottomTabsValue(isBottomTabs);
+         }
+
          objectModel = objectModelService.createModel(assembly, rvs);
 
          if(assembly instanceof TabVSAssembly ||
@@ -432,31 +439,18 @@ public class VSLayoutService {
             getChildAssemblies((ContainerVSAssembly) assembly, rvs,
                                childModels, objectModelService);
 
-            // for bottom tabs, children sit above the tab bar — position each
-            // child at its own height above the layout position (only one is
-            // visible at a time, so differing heights don't overlap)
+            // for bottom tabs, position children at the visual top of the
+            // layout area (the stored position is the visual top)
             if(isBottomTabs) {
                Point layoutPos = assemblyLayout.getPosition();
 
                for(VSObjectModel childModel : childModels) {
                   VSFormatModel fmt = childModel.getObjectFormat();
                   fmt.setPositions(
-                     layoutPos.x, Math.max(0, layoutPos.y - fmt.getHeight()),
+                     layoutPos.x, layoutPos.y,
                      fmt.getWidth(), fmt.getHeight());
                }
             }
-         }
-      }
-
-      // for bottom tabs, shift top to visual top (children above tab bar).
-      // childModels is empty when assembly is null (editable overlay), so
-      // maxChildHeight stays 0 and top is unchanged.
-      int maxChildHeight = 0;
-
-      if(isBottomTabs) {
-         for(VSObjectModel childModel : childModels) {
-            maxChildHeight = Math.max(maxChildHeight,
-               (int) childModel.getObjectFormat().getHeight());
          }
       }
 
@@ -468,7 +462,7 @@ public class VSLayoutService {
          .width(assemblyLayout.getSize().width)
          .height(assemblyLayout.getSize().height)
          .left(assemblyLayout.getPosition().x)
-         .top(Math.max(0, assemblyLayout.getPosition().y - maxChildHeight))
+         .top(assemblyLayout.getPosition().y)
          .tableLayout(assemblyLayout.getTableLayout())
          .supportTableLayout(supportTableLayout(assembly))
          .build();

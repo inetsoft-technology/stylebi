@@ -21,7 +21,7 @@ package inetsoft.web.session;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import inetsoft.util.audit.SessionRecord;
 import inetsoft.web.admin.server.NodeProtectionService;
 import org.slf4j.Logger;
@@ -29,9 +29,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.ApplicationEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.session.*;
 import org.springframework.util.Assert;
+import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
 import javax.cache.Cache;
 import javax.cache.CacheException;
@@ -45,21 +47,21 @@ import java.util.stream.Collectors;
 
 public class IgniteSessionRepository
    implements FindByIndexNameSessionRepository<IgniteSessionRepository.IgniteSession>,
-   MapChangeListener<String, MapSession>, SessionListener, InitializingBean, DisposableBean
+   MapChangeListener<String, MapSession>, InitializingBean, DisposableBean
 {
    public IgniteSessionRepository(SecurityEngine securityEngine,
                                   AuthenticationService authenticationService,
-                                  NodeProtectionService nodeProtectionService)
+                                  NodeProtectionService nodeProtectionService,
+                                  Cluster cluster)
    {
       this.securityEngine = securityEngine;
       this.authenticationService = authenticationService;
       this.nodeProtectionService = nodeProtectionService;
+      this.cluster = cluster;
    }
 
    @Override
    public void afterPropertiesSet() {
-      authenticationService.addSessionListener(this);
-      this.cluster = Cluster.getInstance();
       this.sessions = cluster.getCache(
          this.sessionMapName, true, new PropertyAccessedExpiryPolicy());
       this.cluster.addReplicatedMapListener(this.sessionMapName, this);
@@ -321,13 +323,8 @@ public class IgniteSessionRepository
       // no-op
    }
 
-   @Override
-   public void loggedIn(inetsoft.sree.security.SessionEvent event) {
-      // no-op
-   }
-
-   @Override
-   public void loggedOut(inetsoft.sree.security.SessionEvent event) {
+   @EventListener(SessionLoggedOutEvent.class)
+   public void loggedOut(SessionLoggedOutEvent event) {
       if(event.isInvalidateSession()) {
          Principal principal = event.getPrincipal();
          Iterator<Cache.Entry<String, MapSession>> iter = sessions.iterator();
@@ -508,7 +505,7 @@ public class IgniteSessionRepository
    private FlushMode flushMode = FlushMode.ON_SAVE;
    private SaveMode saveMode = SaveMode.ON_SET_ATTRIBUTE;
    private Cache<String, MapSession> sessions;
-   private Cluster cluster;
+   private final Cluster cluster;
    private SessionIdGenerator sessionIdGenerator = UuidSessionIdGenerator.getInstance();
    private final SecurityEngine securityEngine;
    private final AuthenticationService authenticationService;
@@ -685,7 +682,7 @@ public class IgniteSessionRepository
 
       @Override
       public void run() {
-         Cluster.getInstance().destroyReplicatedMap(name);
+         ConfigurationContext.getContext().getSpringBean(Cluster.class).destroyReplicatedMap(name);
       }
 
       private final String name;

@@ -19,21 +19,27 @@ package inetsoft.web.admin.security;
 
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
-import inetsoft.web.security.*;
-
-import java.security.Principal;
-
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
+
 @RestController
-@DeniedMultiTenancyOrgUser
 public class SSOSettingsController {
    @Autowired
    public SSOSettingsController(SSOSettingsService service) {
       this.service = service;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/sso",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @GetMapping("/api/sso/settings")
    public SSOSettingsModel getSSOSettings(Principal principal) {
       final SAMLAttributesModel samlAttributesModel = service.buildSAMLModel();

@@ -64,7 +64,7 @@ public class XDataSourceWrapper implements XMLSerializable {
       setSource(null);
       String name = Tool.getAttribute(elem, "name");
       String type = Tool.getAttribute(elem, "type");
-      String cls = Config.getDataSourceClass(type);
+      String cls = Config.getConfig().getDataSourceClass(type);
 
       if(cls == null) {
          if(LOG.isDebugEnabled()) {
@@ -95,7 +95,7 @@ public class XDataSourceWrapper implements XMLSerializable {
          dsNode = list2.item(0);
       }
 
-      Class<?> dxClass = Config.getClass(type, cls);
+      Class<?> dxClass = Config.getConfig().getClass(type, cls);
 
       if(dxClass != null) {
          XDataSource dx = (XDataSource) dxClass.getConstructor().newInstance();

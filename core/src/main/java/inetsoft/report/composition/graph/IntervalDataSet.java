@@ -48,10 +48,26 @@ public class IntervalDataSet extends TopDataSet {
       // info is still valid. (53628)
       if(this.bcols != getDataSet().getColCount()) {
          this.bcols = getDataSet().getColCount();
+         DataSet ds = getDataSet();
+         // Use all=true so that calc column indices are resolved even when calcvals is
+         // temporarily null (e.g. after removeCalcValues). The indices are based on
+         // getColCount0() which is stable regardless of calcvals state. (74367)
          baseIntervals = intervalCols.stream()
-            .map(pair -> new int[]{ getDataSet().indexOfHeader(pair[0]),
-                                    getDataSet().indexOfHeader(pair[1]) })
+            .map(pair -> new int[]{
+               ds instanceof AbstractDataSet
+                  ? ((AbstractDataSet) ds).indexOfHeader(pair[0], true)
+                  : ds.indexOfHeader(pair[0]),
+               ds instanceof AbstractDataSet
+                  ? ((AbstractDataSet) ds).indexOfHeader(pair[1], true)
+                  : ds.indexOfHeader(pair[1])
+            })
             .collect(Collectors.toList());
+         // bcols changed so getColCount0() result changed; invalidate so getColCount()
+         // recomputes instead of returning a stale value. Also ensures outer
+         // IntervalDataSet wrappers see the correct inner colCount rather than a stale
+         // value, preventing wrong intervalIdx offsets and null data for interval bars.
+         // (74492, 74367)
+         invalidateCachedColCount();
       }
    }
 

@@ -483,7 +483,7 @@ public class JoinTableLens extends AbstractTableLens
 
    private JoinTable createDelegate() {
       boolean forceHash = "true".equals(SreeEnv.getProperty("join.table.forceHash"));
-      boolean useHash = forceHash || XSwapper.getMemoryState() >= XSwapper.NORM_MEM;
+      boolean useHash = forceHash || XSwapper.getSwapper().getMemoryState() >= XSwapper.NORM_MEM;
 
       String str = SreeEnv.getProperty("join.table.maxrows");
       int maxRows = Integer.MAX_VALUE;

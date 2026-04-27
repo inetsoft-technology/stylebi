@@ -34,6 +34,7 @@ JAVA_OPTS="$JAVA_OPTS \
 -Dinetsoft.host.ip="$INETSOFT_HOST_IP" \
 -Dinetsoft.host.port="$INETSOFT_HOST_PORT" \
 -Dinetsoft.host.outbound.port="$INETSOFT_HOST_OUTBOUND_PORT" \
+-Dspring.aot.enabled=true \
 -Djava.awt.headless=true \
 -Djava.util.Arrays.useLegacyMergeSort=true \
 -Dderby.system.home=/tmp \
@@ -72,4 +73,4 @@ then
 fi
 
 set -o noglob
-exec java $JAVA_OPTS -classpath $JAVA_CP inetsoft.sree.schedule.ScheduleServer
+exec java $JAVA_OPTS -classpath $JAVA_CP inetsoft.sree.schedule.ScheduleServerApplication

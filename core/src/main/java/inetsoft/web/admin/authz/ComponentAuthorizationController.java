@@ -31,10 +31,12 @@ import org.springframework.web.bind.annotation.*;
 public class ComponentAuthorizationController {
    @Autowired
    public ComponentAuthorizationController(SecurityEngine securityEngine,
-                                           ComponentAuthorizationService componentService)
+                                           ComponentAuthorizationService componentService,
+                                           LicenseManager licenseManager)
    {
       this.securityEngine = securityEngine;
       this.componentService = componentService;
+      this.licenseManager = licenseManager;
    }
 
    @GetMapping("/api/em/authz")
@@ -80,6 +82,10 @@ public class ComponentAuthorizationController {
       boolean authorized = component.available() && checkPermission(resource, principal);
       boolean multiTenancyHidden = false;
 
+      if(component.requiresMultiTenancy() && !SUtil.isMultiTenant()) {
+         return false;
+      }
+
       if(component.hiddenForMultiTenancy() && SUtil.isMultiTenant()) {
          multiTenancyHidden = !OrganizationManager.getInstance().isSiteAdmin(principal);
       }
@@ -89,7 +95,7 @@ public class ComponentAuthorizationController {
 
    private boolean checkPermission(String resource, Principal principal) {
       boolean authorized = false;
-      boolean enterprise = LicenseManager.getInstance().isEnterprise();
+      boolean enterprise = licenseManager.isEnterprise();
 
       try {
          if(securityEngine.checkPermission(
@@ -102,11 +108,18 @@ public class ComponentAuthorizationController {
                principal, ResourceType.MATERIALIZATION, "*", ResourceAction.ACCESS);
          }
          else if(authorized && ("settings/schedule/tasks".equals(resource) ||
-            "settings/schedule/cycles".equals(resource))) {
-            // Don't allow access to the tasks tab if they don't have the general scheduler
-            // permission. Not a real-world use case, but the testers check it.
+            "settings/schedule/cycles".equals(resource) ||
+            "settings/schedule/distribution".equals(resource))) {
+            // Don't allow access to schedule sub-tabs (tasks, cycles, distribution) if they
+            // don't have the general scheduler permission. Not a real-world use case, but the testers check it.
             authorized = securityEngine.checkPermission(
                principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS);
+
+            if(authorized && "settings/schedule/distribution".equals(resource)) {
+               // Distribution is shown within the tasks page, so tasks must also be permitted.
+               authorized = securityEngine.checkPermission(
+                  principal, ResourceType.EM_COMPONENT, "settings/schedule/tasks", ResourceAction.ACCESS);
+            }
          }
          else if(("settings/presentation/themes".equals(resource) ||
             "settings/security/sso".equals(resource) ||
@@ -122,5 +135,6 @@ public class ComponentAuthorizationController {
    }
 
    private final SecurityEngine securityEngine;
+   private final LicenseManager licenseManager;
    private final ComponentAuthorizationService componentService;
 }

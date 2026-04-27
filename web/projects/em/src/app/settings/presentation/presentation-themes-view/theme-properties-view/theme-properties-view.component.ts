@@ -30,7 +30,15 @@ import { ThemePropertiesModel } from "./theme-properties-model";
    styleUrls: ["./theme-properties-view.component.scss"]
 })
 export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
-   @Input() isMultiTenant = false;
+   @Input() get isMultiTenant(): boolean {
+      return this._isMultiTenant;
+   }
+
+   set isMultiTenant(value: boolean) {
+      this._isMultiTenant = value;
+      this.updateFormState();
+   }
+
    @Input() orgId: string;
 
    @Input() get theme() {
@@ -47,24 +55,7 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
          this.form.get("defaultThemeOrg").setValue(value.defaultThemeOrg, { emitEvent: false });
          this.form.get("globalTheme").setValue(value.global, { emitEvent: false });
          this.form.get("jar").setValue(jar, { emitEvent: false });
-
-         if(!this.isMultiTenant || this.isSiteAdmin) {
-            this.form.enable({ emitEvent: false });
-            this.form.get("globalTheme").enable({ emitEvent: false });
-            this.form.get("defaultThemeGlobal").enable({ emitEvent: false });
-         }
-         else {
-            if(value.global) {
-               this.form.disable({ emitEvent: false });
-            }
-            else {
-               this.form.enable();
-               this.form.get("globalTheme").disable({ emitEvent: false });
-               this.form.get("defaultThemeGlobal").disable({ emitEvent: false });
-            }
-         }
-
-         this.form.get("defaultThemeOrg").enable({ emitEvent: false });
+         this.updateFormState();
       }
    }
 
@@ -88,26 +79,7 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
 
    set isSiteAdmin(isSiteAdmin: boolean) {
       this._isSiteAdmin = isSiteAdmin;
-
-      if(!!this.form) {
-         if(this.theme.global && !isSiteAdmin) {
-            this.form.disable();
-         }
-         else {
-            this.form.enable();
-         }
-
-         if(!this.isMultiTenant || isSiteAdmin) {
-            this.form.get("globalTheme").enable();
-            this.form.get("defaultThemeGlobal").enable();
-         }
-         else {
-            this.form.get("globalTheme").disable();
-            this.form.get("defaultThemeGlobal").disable();
-         }
-
-         this.form.get("defaultThemeOrg").enable();
-      }
+      this.updateFormState();
    }
 
    @Output() themePropertiesChanged = new EventEmitter<ThemePropertiesModel>();
@@ -116,6 +88,7 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
    private _themeNames: string[] = [];
    private _theme: CustomThemeModel;
    private _isSiteAdmin = false;
+   private _isMultiTenant = false;
    private destroy$ = new Subject<void>();
 
    constructor(fb: UntypedFormBuilder) {
@@ -127,7 +100,7 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
          jar: [[]]
       });
 
-      if(!this.isSiteAdmin && this.theme?.global) {
+      if(!this.isSiteAdmin && this.theme?.global && this.isMultiTenant) {
          this.form.disable();
       }
       else {
@@ -156,6 +129,32 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
 
    get hostOrg() {
       return this.orgId == "host-org";
+   }
+
+   private updateFormState(): void {
+      if(!this.form || !this.theme) {
+         return;
+      }
+
+      if(this._isMultiTenant && !this._isSiteAdmin && this.theme.global) {
+         this.form.disable({ emitEvent: false });
+      }
+      else {
+         this.form.enable({ emitEvent: false });
+      }
+
+      if(!this._isMultiTenant || this._isSiteAdmin) {
+         this.form.get("globalTheme").enable({ emitEvent: false });
+         this.form.get("defaultThemeGlobal").enable({ emitEvent: false });
+      }
+      else {
+         this.form.get("globalTheme").disable({ emitEvent: false });
+         this.form.get("defaultThemeGlobal").disable({ emitEvent: false });
+      }
+
+      // Allow org admins to mark a global theme as their org default even when
+      // they cannot otherwise edit it.
+      this.form.get("defaultThemeOrg").enable({ emitEvent: false });
    }
 
    private fireThemePropertiesChanged(): void {

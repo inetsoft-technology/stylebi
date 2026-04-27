@@ -40,15 +40,16 @@ import java.util.*;
 public class SessionExpirationController {
    @Autowired
    public SessionExpirationController(SimpMessagingTemplate messagingTemplate,
-                                      IgniteSessionRepository sessionRepository)
+                                      IgniteSessionRepository sessionRepository,
+                                      Cluster cluster)
    {
       this.messagingTemplate = messagingTemplate;
       this.sessionRepository = sessionRepository;
+      this.cluster = cluster;
    }
 
    @PostConstruct
    public void addSessionListener() {
-      cluster = Cluster.getInstance();
       cluster.addMessageListener(listener);
    }
 
@@ -63,7 +64,7 @@ public class SessionExpirationController {
       }
    }
 
-   @EventListener
+   @EventListener(SessionDisconnectEvent.class)
    public void onSessionDisconnect(SessionDisconnectEvent event) {
       synchronized(subscribedSessionIds) {
          subscribedSessionIds.remove(event.getSessionId());
@@ -122,7 +123,7 @@ public class SessionExpirationController {
       }
    }
 
-   private Cluster cluster;
+   private final Cluster cluster;
    private final MessageListener listener = this::messageReceived;
    private final Map<String, String> httpSessionIdMap = new HashMap<>(); // key = simp session id, value = http session id
    private final SimpMessagingTemplate messagingTemplate;

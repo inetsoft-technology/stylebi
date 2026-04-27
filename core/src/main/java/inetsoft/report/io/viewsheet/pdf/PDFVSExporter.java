@@ -31,6 +31,7 @@ import inetsoft.report.io.viewsheet.*;
 import inetsoft.report.io.viewsheet.excel.ExcelVSUtil;
 import inetsoft.report.pdf.PDF3Generator;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
@@ -46,6 +47,7 @@ import org.w3c.dom.Element;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.geom.AffineTransform;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.*;
@@ -62,7 +64,11 @@ public class PDFVSExporter extends AbstractVSExporter {
     * Constructor.
     * @param stream the specified OutputStream.
     */
-   public PDFVSExporter(OutputStream stream) {
+   public PDFVSExporter(LibManagerProvider libManagerProvider, Cluster cluster, FileSystemService fileSystemService, DataSpace dataSpace, OutputStream stream) {
+      this.libManagerProvider = libManagerProvider;
+      this.cluster = cluster;
+      this.fileSystemService = fileSystemService;
+      this.dataSpace = dataSpace;
       helper = new PDFCoordinateHelper(stream);
       generator = PDF3Generator.getPDFGenerator(stream);
       genLink = SreeEnv.getProperty("pdf.generate.links").equalsIgnoreCase("true");
@@ -103,7 +109,7 @@ public class PDFVSExporter extends AbstractVSExporter {
 
             viewsheet.updateCSSFormat("pdf", null, box);
 
-            VsToReportConverter converter = new VsToReportConverter(box);
+            VsToReportConverter converter = new VsToReportConverter(box, libManagerProvider, cluster, fileSystemService, dataSpace);
             ReportSheet report = converter.generateReport();
 
             // Build a list of report sheets instead of generating a printlayout
@@ -251,17 +257,33 @@ public class PDFVSExporter extends AbstractVSExporter {
          return;
       }
 
-      float pH = helper.getPrinter().getPageSize().height * 72;
       LinkArea area = new LinkArea(shape,
          GTool.getFlipYTransform(vgraph), bounds.getX(),
-         bounds.getY(), pH);
+         bounds.getY(), getPageHeightPts());
       helper.setLinks(area, hyperlink);
    }
 
    @Override
-   protected void writeEmptyPlotHyperlink(Hyperlink.Ref ref, Rectangle2D bounds) {
-      if(genLink && ref != null && ref.getLinkType() == Hyperlink.WEB_LINK) {
-         helper.setLinks(bounds, ref);
+   protected void writeEmptyPlotHyperlink(Hyperlink.Ref ref, VGraph vgraph,
+                                          Rectangle2D chartBounds)
+   {
+      if(!genLink || ref == null || ref.getLinkType() != Hyperlink.WEB_LINK) {
+         return;
+      }
+
+      float pH = getPageHeightPts();
+
+      if(vgraph != null) {
+         // map plot bounds to PDF page coords same as per-region chart links
+         Rectangle2D plot = vgraph.getPlotBounds();
+         LinkArea area = new LinkArea(plot, GTool.getFlipYTransform(vgraph),
+                                      chartBounds.getX(), chartBounds.getY(), pH);
+         helper.setLinks(area, ref);
+      }
+      else {
+         // no VGraph (empty dataset), fall back to chart content area
+         LinkArea area = new LinkArea(chartBounds, new AffineTransform(), 0, 0, pH);
+         helper.setLinks(area, ref);
       }
    }
 
@@ -344,12 +366,9 @@ public class PDFVSExporter extends AbstractVSExporter {
                   final String dir = SreeEnv.getProperty("html.image.directory");
 
                   if(!Tool.isEmptyString(dir)) {
-                     final String imagePath =
-                        FileSystemService.getInstance().getPath(dir, name).toString();
+                     final String imagePath = fileSystemService.getPath(dir, name).toString();
 
-                     try(final InputStream stream =
-                            DataSpace.getDataSpace().getInputStream(null, imagePath))
-                     {
+                     try(final InputStream stream = dataSpace.getInputStream(null, imagePath)) {
                         svg = new byte[stream.available()];
                         stream.read(svg);
                      }
@@ -1102,7 +1121,7 @@ public class PDFVSExporter extends AbstractVSExporter {
          generator.setPrintLayoutMode(true);
          generator.setPrintOnOpen(isPrintOnOpen());
          ReportSheet[] reportSheets = reportList.toArray(new ReportSheet[0]);
-         CompositeSheet compositeSheet = new CompositeSheet(reportSheets);
+         CompositeSheet compositeSheet = new CompositeSheet(reportSheets, libManagerProvider, cluster);
          generator.generate(compositeSheet);
          return;
       }
@@ -1117,7 +1136,7 @@ public class PDFVSExporter extends AbstractVSExporter {
       }
 
       helper.write();
-      float pageH = helper.getPrinter().getPageSize().height * 72;
+      float pageH = getPageHeightPts();
 
       if(genLink) {
          for(int i = 0; i <= helper.getPage(); i++) {
@@ -1178,6 +1197,15 @@ public class PDFVSExporter extends AbstractVSExporter {
       }
 
       return !Tool.equals(fmt.getBackground(), parentFmt.getBackground());
+   }
+
+   private final LibManagerProvider libManagerProvider;
+   private final Cluster cluster;
+   private final FileSystemService fileSystemService;
+   private final DataSpace dataSpace;
+   // page height in PDF points (1 inch = 72 points)
+   private float getPageHeightPts() {
+      return helper.getPrinter().getPageSize().height * 72;
    }
 
    private PDFCoordinateHelper helper;

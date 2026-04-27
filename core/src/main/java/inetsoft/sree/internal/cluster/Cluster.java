@@ -17,8 +17,7 @@
  */
 package inetsoft.sree.internal.cluster;
 
-import inetsoft.sree.internal.cluster.ignite.IgniteCluster;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
 import org.apache.ignite.services.Service;
 
 import javax.cache.Cache;
@@ -27,7 +26,6 @@ import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.*;
 
 /**
@@ -35,7 +33,6 @@ import java.util.function.*;
  *
  * @since 12.2
  */
-@SingletonManager.Singleton(Cluster.Reference.class)
 public interface Cluster extends AutoCloseable {
    /**
     * Gets the singleton cluster instance.
@@ -43,14 +40,14 @@ public interface Cluster extends AutoCloseable {
     * @return the cluster instance.
     */
    static Cluster getInstance() {
-      return SingletonManager.getInstance(Cluster.class);
+      return ConfigurationContext.getContext().getSpringBean(Cluster.class);
    }
 
    /**
     * Shuts down and disposes of the singleton cluster instance.
     */
    static void clear() {
-      SingletonManager.reset(Cluster.class);
+      // no-op: Cluster is a Spring-managed singleton; lifecycle is managed by BaseInetsoftApplication
    }
 
    /**
@@ -677,54 +674,4 @@ public interface Cluster extends AutoCloseable {
 
    void setClosed(boolean closed);
 
-   final class Reference extends SingletonManager.Reference<Cluster> {
-      @Override
-      public Cluster get(Object... parameters) {
-         lock.lock();
-
-         try {
-            if(instance == null) {
-               String property = System.getProperty("inetsoft.sree.internal.cluster.implementation");
-
-               if(property != null) {
-                  try {
-                     instance = (Cluster) Class.forName(property).getConstructor().newInstance();
-                  }
-                  catch(Exception e) {
-                     throw new RuntimeException("Failed to create cluster instance", e);
-                  }
-               }
-               else {
-                  instance = new IgniteCluster();
-               }
-            }
-         }
-         finally {
-            lock.unlock();
-         }
-
-         return instance;
-      }
-
-      @Override
-      public void dispose() {
-         lock.lock();
-
-         try {
-            if(instance != null) {
-               try {
-                  instance.close();
-               }
-               catch(Exception ignore) {
-               }
-            }
-         }
-         finally {
-            lock.unlock();
-         }
-      }
-
-      Cluster instance = null;
-      private final Lock lock = new ReentrantLock();
-   }
 }

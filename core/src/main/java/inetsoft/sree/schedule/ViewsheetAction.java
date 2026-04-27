@@ -508,6 +508,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
          return;
       }
 
+      ScheduleViewsheetService vsService = ScheduleViewsheetService.getInstance();
       String id = null;
       Principal oldPrincipal = ThreadContext.getContextPrincipal();
 
@@ -517,7 +518,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
          // text.
          ThreadContext.setContextPrincipal(principal);
          this.principal = principal;
-         id = runViewsheetAction(principal);
+         id = runViewsheetAction(principal, vsService);
       }
       finally {
          // Use instance field as fallback if local id is null but viewsheet was opened.
@@ -530,20 +531,20 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                       closeId, id, this.id, principal);
          }
 
-         closeViewsheet(closeId, principal);
+         closeViewsheet(closeId, principal, vsService);
          this.id = null; // Clear instance field after closing
          ThreadContext.setContextPrincipal(oldPrincipal);
       }
    }
 
-   private List<String> checkAlerts(VSBookmarkInfo[] bookmarks, Principal principal) throws Throwable {
+   private List<String> checkAlerts(VSBookmarkInfo[] bookmarks, Principal principal, ScheduleViewsheetService vsService) throws Throwable {
       RuntimeViewsheet rvs = null;
 
       try {
          if(alerts != null && alerts.length > 0 && bookmarks != null &&
             bookmarks.length > 0)
          {
-            rvs = getRuntimeViewsheet(principal);
+            rvs = getRuntimeViewsheet(principal, vsService);
             ViewsheetSandbox box;
             Viewsheet vs = rvs.getViewsheet().clone();
             Assembly[] assemblies = vs.getAssemblies();
@@ -748,7 +749,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                          rvs.getID(), principal);
             }
 
-            closeViewsheet(rvs.getID(), principal);
+            closeViewsheet(rvs.getID(), principal, vsService);
          }
       }
 
@@ -776,7 +777,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
       return found;
    }
 
-   private String runViewsheetAction(Principal principal) throws Throwable {
+   private String runViewsheetAction(Principal principal, ScheduleViewsheetService vsService) throws Throwable {
       List<Throwable> vec = new ArrayList<>(1);
       Catalog catalog = Catalog.getCatalog(principal);
       Mailer mailer = new Mailer();
@@ -812,7 +813,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
             throw new Exception(catalog.getString("schedule.task.viewsheet.none.bookmark", principal.getName(), vname));
          }
 
-         List<String> alertTriggeredBookmarks = checkAlerts(bookmarks, principal);
+         List<String> alertTriggeredBookmarks = checkAlerts(bookmarks, principal, vsService);
 
          // alertTriggeredBookmarks will be null when there are no alerts set
          // if it's empty then that means there are no bookmarks that pass the highlight conditions
@@ -820,7 +821,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
             return null;
          }
 
-         RuntimeViewsheet rvs = getRuntimeViewsheet(principal);
+         RuntimeViewsheet rvs = getRuntimeViewsheet(principal, vsService);
 
          if(rvs == null) {
             return null;
@@ -1031,7 +1032,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
 
                   try(PrintWriter htmlWriter = new PrintWriter(outputStreamWriter)) {
                      if(isDeliverLink()) {
-                        htmlWriter.write("<a href=\"" + getLinkURL(principal) + "\" >");
+                        htmlWriter.write("<a href=\"" + getLinkURL(principal, vsService) + "\" >");
                         htmlWriter.write("<img src=\"cid:" + pngFile.getName() + "\" /></a>");
                      }
                      else {
@@ -1049,7 +1050,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                String bccAddress = getEmails(getBCCAddresses());
                bccAddress = StringUtils.isEmpty(bccAddress) ? null
                   : bccAddress;
-               body = isDeliverLink() ? addIncludeLink(body, principal) : body;
+               body = isDeliverLink() ? addIncludeLink(body, principal, vsService) : body;
 
                if(isCanceled()) {
                   return id;
@@ -1295,7 +1296,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
             }
 
             if(!isNotifyError()) {
-               String body = isLink() ? addIncludeLink(status.toString(), principal) :
+               String body = isLink() ? addIncludeLink(status.toString(), principal, vsService) :
                   status.toString();
                mailer.send(getEmails(notifies), null, null,
                   null, subject, body, null, isLink());
@@ -1321,7 +1322,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
             catalog.getString("em.scheduler.notification.failedBody2");
 
          if(notifies != null && !notifies.isEmpty()) {
-            body = isLink() ? addIncludeLink(body, principal) : body;
+            body = isLink() ? addIncludeLink(body, principal, vsService) : body;
             mailer.send(getEmails(notifies), null, null, getFrom(),
                     sub, body, null, isLink());
          }
@@ -1406,16 +1407,16 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
     * @param principal the user
     * @return completed string with link
     */
-   private String addIncludeLink(String body, Principal principal) throws Throwable {
+   private String addIncludeLink(String body, Principal principal, ScheduleViewsheetService vsService) throws Throwable {
       Catalog catalog = Catalog.getCatalog(principal);
-      RuntimeViewsheet rvs = getRuntimeViewsheet(principal);
+      RuntimeViewsheet rvs = getRuntimeViewsheet(principal, vsService);
       AssetEntry entry = getViewsheetEntry();
 
       String linkUri = getLinkURI();
       boolean bookmark = (getBookmarks() != null && getBookmarks().length > 0);
 
       if(linkUri != null && entry.getScope() != AssetRepository.TEMPORARY_SCOPE) {
-         String url = getLinkURL(principal);
+         String url = getLinkURL(principal, vsService);
          StringBuilder includeBookMark = new StringBuilder();
          String includeLink;
 
@@ -1457,9 +1458,9 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
     * @param principal the user
     * @return the link url as a string
     */
-   private String getLinkURL(Principal principal) throws Throwable {
+   private String getLinkURL(Principal principal, ScheduleViewsheetService vsService) throws Throwable {
       AssetEntry entry = getViewsheetEntry();
-      RuntimeViewsheet rvs = getRuntimeViewsheet(principal);
+      RuntimeViewsheet rvs = getRuntimeViewsheet(principal, vsService);
       StringBuilder url = new StringBuilder().append(getLinkURI()).append("app/viewer/view/");
 
       if(rvs.getEntry().getScope() == AssetRepository.USER_SCOPE) {
@@ -1907,7 +1908,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
       super.cancel();
 
       if(id != null) {
-         closeViewsheet(id, principal);
+         closeViewsheet(id, principal, ScheduleViewsheetService.getInstance());
       }
    }
 

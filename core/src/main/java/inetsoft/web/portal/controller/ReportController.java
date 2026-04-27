@@ -41,8 +41,11 @@ import java.security.Principal;
 @RestController
 public class ReportController {
    @Autowired
-   public ReportController(SecurityProvider securityProvider) {
+   public ReportController(SecurityProvider securityProvider,
+                           PortalThemesManager portalThemesManager)
+   {
       this.securityProvider = securityProvider;
+      this.portalThemesManager = portalThemesManager;
    }
 
    @GetMapping(value = "/api/portal/report-tab-model")
@@ -50,7 +53,7 @@ public class ReportController {
       @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Report")
    })
    public ReportTabModel getReportTabModel(Principal principal) throws Exception {
-      PortalThemesManager manager = PortalThemesManager.getManager();
+      PortalThemesManager manager = portalThemesManager;
 
       boolean searchEnabled = manager.isButtonVisible(PortalThemesManager.SEARCH_BUTTON);
 
@@ -88,4 +91,5 @@ public class ReportController {
    }
 
    private final SecurityProvider securityProvider;
+   private final PortalThemesManager portalThemesManager;
 }

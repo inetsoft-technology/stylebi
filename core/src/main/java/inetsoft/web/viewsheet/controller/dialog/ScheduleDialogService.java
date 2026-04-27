@@ -67,13 +67,17 @@ public class ScheduleDialogService {
 
    public ScheduleDialogService(ViewsheetService viewsheetService,
                                 SecurityProvider securityProvider,
+                                SecurityEngine securityEngine,
                                 ScheduleService scheduleService,
-                                VSBookmarkService vsBookmarkService)
+                                VSBookmarkService vsBookmarkService,
+                                ScheduleManager scheduleManager)
    {
       this.viewsheetService = viewsheetService;
       this.securityProvider = securityProvider;
+      this.securityEngine = securityEngine;
       this.scheduleService = scheduleService;
       this.vsBookmarkService = vsBookmarkService;
+      this.scheduleManager = scheduleManager;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -112,16 +116,15 @@ public class ScheduleDialogService {
          }
       }
 
-      ScheduleManager manager = ScheduleManager.getScheduleManager();
       AssetEntry entry = rvs.getEntry();
       String taskName = !Tool.isEmptyString(entry.getAlias()) ? entry.getAlias() : entry.getName();
       taskName = principal != null ? principal.getName() + ":" + taskName : taskName;
 
-      if(manager.getScheduleTask(taskName) != null) {
+      if(scheduleManager.getScheduleTask(taskName) != null) {
          String oname = taskName;
 
          for(int i = 1; i < Integer.MAX_VALUE; i++) {
-            if(manager.getScheduleTask(oname + "_" + i) == null) {
+            if(scheduleManager.getScheduleTask(oname + "_" + i) == null) {
                taskName = oname + "_" + i;
                break;
             }
@@ -250,7 +253,7 @@ public class ScheduleDialogService {
             SreeEnv.getBooleanProperty("schedule.options.emailDelivery", "true", "CHECKED") &&
                scheduleService.checkPermission(principal,
                                                ResourceType.SCHEDULE_OPTION, "emailDelivery"))
-         .expandEnabled(SecurityEngine.getSecurity().checkPermission(
+         .expandEnabled(securityEngine.checkPermission(
             principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ScheduleExpandComponents",
             ResourceAction.READ))
          .timeRanges(ranges)
@@ -287,9 +290,9 @@ public class ScheduleDialogService {
    public Void scheduleVS(@ClusterProxyKey String id, ScheduleDialogModel value,
                           Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(
+      if(!securityEngine.checkPermission(
          principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Schedule", ResourceAction.READ) ||
-         !SecurityEngine.getSecurity().checkPermission(
+         !securityEngine.checkPermission(
             principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS))
       {
          Catalog catalog = Catalog.getCatalog();
@@ -300,7 +303,6 @@ public class ScheduleDialogService {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       AssetEntry entry = rvs.getEntry();
-      ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
       SimpleScheduleDialogModel simpleScheduleDialogModel = value.simpleScheduleDialogModel();
 
       if(!(simpleScheduleDialogModel.actionModel() instanceof ViewsheetActionModel)) {
@@ -313,7 +315,7 @@ public class ScheduleDialogService {
       TimeConditionModel timeConditionModel = simpleScheduleDialogModel.timeConditionModel();
       String taskName = Optional.ofNullable(simpleScheduleDialogModel.taskName()).orElse("");
 
-      if(emailInfoModel != null && !emailInfoModel.matchLayout() && !SecurityEngine.getSecurity().checkPermission(
+      if(emailInfoModel != null && !emailInfoModel.matchLayout() && !securityEngine.checkPermission(
          principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ScheduleExpandComponents", ResourceAction.READ))
       {
          Catalog catalog = Catalog.getCatalog(principal);
@@ -326,7 +328,7 @@ public class ScheduleDialogService {
 
       if(emailInfoModel != null && (!emailInfoModel.matchLayout() ||
          emailInfoModel.expandSelections() || emailInfoModel.onlyDataComponents())
-         && !SecurityEngine.getSecurity().checkPermission(
+         && !securityEngine.checkPermission(
          principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ScheduleExpandComponents",
          ResourceAction.READ))
       {
@@ -338,6 +340,13 @@ public class ScheduleDialogService {
          return null;
       }
 
+      boolean canDeliverEmail = securityEngine.checkPermission(
+         principal, ResourceType.SCHEDULE_OPTION, "emailDelivery", ResourceAction.READ);
+      boolean canSetStartTime = securityEngine.checkPermission(
+         principal, ResourceType.SCHEDULE_OPTION, "startTime", ResourceAction.READ);
+      boolean canUseTimeRange = securityEngine.checkPermission(
+         principal, ResourceType.SCHEDULE_OPTION, "timeRange", ResourceAction.READ);
+
       ViewsheetAction action = new ViewsheetAction();
 
       action.setBookmarks(new String[]{Optional.ofNullable(viewsheetActionModel.bookmarkName()).orElse("")});
@@ -347,39 +356,54 @@ public class ScheduleDialogService {
       action.setViewsheet(
          Optional.ofNullable(viewsheetActionModel.viewsheet()).orElse(entry.toIdentifier()));
 
-      action.setFileFormat(getEmailFormat(emailInfoModel.formatType()));
-      action.setEmailCSVConfig(new CSVConfig(emailInfoModel.csvConfigModel()));
-      action.setEmails(Optional.ofNullable(emailInfoModel.emails()).orElse(""));
-      action.setFrom(Optional.ofNullable(emailInfoModel.fromAddress())
-                        .orElse(SreeEnv.getProperty("mail.from.address")));
-      action.setAttachmentName(
-         Optional.ofNullable(emailInfoModel.attachmentName()).orElse(entry.getName()));
-      action.setSubject(
-         Optional.ofNullable(emailInfoModel.subject()).orElse(getEntryMessage(entry)));
-      action.setMessage(
-         Optional.ofNullable(emailInfoModel.message()).orElse(getEntryMessage(entry)));
-      action.setMatchLayout(emailInfoModel.matchLayout());
-      action.setExpandSelections(emailInfoModel.expandSelections());
-      action.setOnlyDataComponents(emailInfoModel.onlyDataComponents());
-      action.setCCAddresses(emailInfoModel.ccAddresses());
-      action.setBCCAddresses(emailInfoModel.bccAddresses());
-      action.setExportAllTabbedTables(emailInfoModel.exportAllTabbedTables());
+      if(canDeliverEmail) {
+         action.setFileFormat(getEmailFormat(emailInfoModel.formatType()));
+         action.setEmailCSVConfig(new CSVConfig(emailInfoModel.csvConfigModel()));
+         action.setEmails(Optional.ofNullable(emailInfoModel.emails()).orElse(""));
+         action.setFrom(Optional.ofNullable(emailInfoModel.fromAddress())
+                           .orElse(SreeEnv.getProperty("mail.from.address")));
+         action.setAttachmentName(
+            Optional.ofNullable(emailInfoModel.attachmentName()).orElse(entry.getName()));
+         action.setSubject(
+            Optional.ofNullable(emailInfoModel.subject()).orElse(getEntryMessage(entry)));
+         action.setMessage(
+            Optional.ofNullable(emailInfoModel.message()).orElse(getEntryMessage(entry)));
+         action.setMatchLayout(emailInfoModel.matchLayout());
+         action.setExpandSelections(emailInfoModel.expandSelections());
+         action.setOnlyDataComponents(emailInfoModel.onlyDataComponents());
+         action.setCCAddresses(emailInfoModel.ccAddresses());
+         action.setBCCAddresses(emailInfoModel.bccAddresses());
+         action.setExportAllTabbedTables(emailInfoModel.exportAllTabbedTables());
 
-      if(emailInfoModel.formatType() == FileFormatInfo.EXPORT_TYPE_CSV) {
-         action.setCompressFile(true);
+         if(emailInfoModel.formatType() == FileFormatInfo.EXPORT_TYPE_CSV) {
+            action.setCompressFile(true);
+         }
       }
 
       TimeCondition condition = new TimeCondition();
-      condition.setHour(Optional.ofNullable(timeConditionModel.hour())
-                           .filter(h -> h > 0)
-                           .orElse(1));
-      condition.setMinute(Optional.ofNullable(timeConditionModel.minute())
-                             .filter(h -> h > 0)
-                             .orElse(30));
-      condition.setSecond(Optional.ofNullable(timeConditionModel.second())
-                             .filter(h -> h > 0)
-                             .orElse(0));
-      condition.setType(timeConditionModel.type());
+
+      if(canSetStartTime) {
+         condition.setHour(Optional.ofNullable(timeConditionModel.hour())
+                              .filter(h -> h > 0)
+                              .orElse(1));
+         condition.setMinute(Optional.ofNullable(timeConditionModel.minute())
+                                .filter(h -> h > 0)
+                                .orElse(30));
+         condition.setSecond(Optional.ofNullable(timeConditionModel.second())
+                                .filter(h -> h > 0)
+                                .orElse(0));
+         condition.setType(timeConditionModel.type());
+      }
+      else {
+         // Principal cannot set the scheduled time: use system defaults and
+         // fall back to EVERY_DAY if the submitted type was AT or EVERY_HOUR.
+         condition.setHour(1);
+         condition.setMinute(30);
+         condition.setSecond(0);
+         int type = timeConditionModel.type();
+         condition.setType(type == TimeCondition.AT || type == TimeCondition.EVERY_HOUR
+                              ? TimeCondition.EVERY_DAY : type);
+      }
 
       if(condition.getType() == TimeCondition.EVERY_DAY) {
          condition.setWeekdayOnly(timeConditionModel.weekdayOnly());
@@ -409,7 +433,7 @@ public class ScheduleDialogService {
          }
       }
 
-      if(timeConditionModel.timeRange() != null) {
+      if(timeConditionModel.timeRange() != null && canUseTimeRange) {
          TimeRangeModel range = timeConditionModel.timeRange();
          condition.setTimeRange(new TimeRange(
             range.name(), range.startTime(), range.endTime(), range.defaultRange()));
@@ -494,7 +518,7 @@ public class ScheduleDialogService {
     */
    private boolean isSecurityEnabled() {
       try {
-         return !SecurityEngine.getSecurity().getSecurityProvider().isVirtual();
+         return !securityEngine.getSecurityProvider().isVirtual();
       }
       catch(Exception ex) {
          LOG.warn("Failed to determine if security is enabled",
@@ -547,8 +571,10 @@ public class ScheduleDialogService {
 
    private final ViewsheetService viewsheetService;
    private final SecurityProvider securityProvider;
+   private final SecurityEngine securityEngine;
    private final ScheduleService scheduleService;
    private VSBookmarkService vsBookmarkService;
+   private final ScheduleManager scheduleManager;
    private static final Logger LOG =
       LoggerFactory.getLogger(ScheduleDialogService.class);
 }

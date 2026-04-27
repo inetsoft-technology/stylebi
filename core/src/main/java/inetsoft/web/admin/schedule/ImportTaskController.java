@@ -27,6 +27,8 @@ import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.model.FileData;
 import inetsoft.web.admin.schedule.model.*;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import inetsoft.web.viewsheet.service.LinkUri;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -45,6 +47,13 @@ public class ImportTaskController {
       this.scheduleTaskFolderService = scheduleTaskFolderService;
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/schedule/set-task-file")
    public ImportTaskDialogModel setTaskFile(@RequestBody FileData file, HttpServletRequest request) throws Exception {
       HttpSession session = request.getSession(true);
@@ -99,6 +108,13 @@ public class ImportTaskController {
          .build();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/schedule/import/{overwriting}")
    public ImportTaskResponse importScheduleTask(@RequestBody List<String> selectedTasks, HttpServletRequest request,
                                                 @PathVariable("overwriting") boolean overwriting,

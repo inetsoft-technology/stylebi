@@ -52,7 +52,7 @@ public interface CustomThemeModel {
    }
 
    final class Builder extends ImmutableCustomThemeModel.Builder {
-      public Builder from(CustomTheme theme) {
+      public Builder from(CustomTheme theme, CustomThemesManager customThemesManager) {
          id(theme.getId());
          name(theme.getName());
          global(theme.getOrgID() == null);
@@ -60,23 +60,25 @@ public interface CustomThemeModel {
 //         groups(theme.getGroups());
 //         roles(theme.getRoles());
 
-         String orgSelected = CustomThemesManager.getManager().getOrgSelectedTheme();
-         String globalSelected = CustomThemesManager.getManager().getGlobalSelectedTheme();
+         String orgSelected = customThemesManager.getOrgSelectedTheme();
+         String globalSelected = customThemesManager.getGlobalSelectedTheme();
          defaultThemeGlobal(Objects.equals(globalSelected, theme.getId()));
          defaultThemeOrg(Objects.equals(theme.getId(), orgSelected));
 
          return this;
       }
 
-      public Builder from(CustomTheme theme, ThemeCssModel portalCss, ThemeCssModel emCss) {
+      public Builder from(CustomTheme theme, ThemeCssModel portalCss, ThemeCssModel emCss,
+                          CustomThemesManager customThemesManager)
+      {
          id(theme.getId());
          name(theme.getName());
          global(theme.getOrgID() == null);
          portalCss(portalCss);
          emCss(emCss);
 
-         String orgSelected = CustomThemesManager.getManager().getOrgSelectedTheme();
-         String globalSelected = CustomThemesManager.getManager().getGlobalSelectedTheme();
+         String orgSelected = customThemesManager.getOrgSelectedTheme();
+         String globalSelected = customThemesManager.getGlobalSelectedTheme();
          defaultThemeGlobal(Objects.equals(globalSelected, theme.getId()));
          defaultThemeOrg(Objects.equals(theme.getId(), orgSelected));
 

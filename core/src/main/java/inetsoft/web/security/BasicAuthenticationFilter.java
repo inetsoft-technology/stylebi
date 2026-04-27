@@ -24,6 +24,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.ActiveSessionInfo;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
@@ -48,6 +49,12 @@ import java.util.stream.Collectors;
  * Filter that handles HTTP basic authentication.
  */
 public class BasicAuthenticationFilter extends AbstractSecurityFilter {
+   public BasicAuthenticationFilter(SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                                    AuthenticationService authenticationService)
+   {
+      super(sessionLicenseServiceProvider, authenticationService);
+   }
+
    private static boolean userCountExceed(Principal user) {
       int max = getOrganizationMaxUser();
 

@@ -19,18 +19,31 @@ package inetsoft.storage;
 
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedLong;
-import org.junit.jupiter.api.*;
+import inetsoft.test.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.*;
 import java.nio.file.Path;
 import java.time.Instant;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 class BlobStorageTest {
    private Cluster mockCluster;
    private KeyValueStorage<Blob<Serializable>> mockStorage;
@@ -59,7 +72,7 @@ class BlobStorageTest {
       try (MockedStatic<Cluster> clusterStatic = Mockito.mockStatic(Cluster.class)) {
          clusterStatic.when(Cluster::getInstance).thenReturn(mockCluster);
 
-         BlobStorage<Serializable> storage = new TestBlobStorage("test-store", mockStorage);
+         BlobStorage<Serializable> storage = new TestBlobStorage("test-store", mockStorage, mockCluster);
 
          IOException thrown = assertThrows(IOException.class,
                                            () -> storage.getInputStream("some/dir"));
@@ -77,7 +90,7 @@ class BlobStorageTest {
       try (MockedStatic<Cluster> clusterStatic = Mockito.mockStatic(Cluster.class)) {
          clusterStatic.when(Cluster::getInstance).thenReturn(mockCluster);
 
-         BlobStorage<Serializable> storage = new TestBlobStorage("test-store", mockStorage);
+         BlobStorage<Serializable> storage = new TestBlobStorage("test-store", mockStorage, mockCluster);
 
          IOException thrown = assertThrows(IOException.class,
                                            () -> storage.getReadChannel("some/dir"));
@@ -89,8 +102,8 @@ class BlobStorageTest {
 
    /** Minimal concrete subclass of BlobStorage used only for testing. */
    private static final class TestBlobStorage extends BlobStorage<Serializable> {
-      TestBlobStorage(String id, KeyValueStorage<Blob<Serializable>> storage) {
-         super(id, storage);
+      TestBlobStorage(String id, KeyValueStorage<Blob<Serializable>> storage, Cluster cluster) {
+         super(id, storage, cluster);
       }
 
       @Override

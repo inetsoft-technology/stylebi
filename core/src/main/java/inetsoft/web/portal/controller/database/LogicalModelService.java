@@ -60,7 +60,9 @@ public class LogicalModelService {
                               DataSourceService dataSourceService,
                               DataRefModelFactoryService dataRefService,
                               LogicalModelTreeService treeService,
-                              AssetRepository assetRepository)
+                              AssetRepository assetRepository,
+                              DependencyHandler dependencyHandler,
+                              RenameTransformHandler renameTransformHandler)
    {
       this.securityEngine = securityEngine;
       this.repository = repository;
@@ -68,6 +70,8 @@ public class LogicalModelService {
       this.dataRefService = dataRefService;
       this.treeService = treeService;
       this.assetRepository = assetRepository;
+      this.dependencyHandler = dependencyHandler;
+      this.renameTransformHandler = renameTransformHandler;
    }
 
    /**
@@ -244,7 +248,7 @@ public class LogicalModelService {
       else {
          XLogicalModel nmodel = createModel(model, dataModel);
          dataModel.addLogicalModel(nmodel);
-         DependencyHandler.getInstance().updateModelDependencies(nmodel, true);
+         dependencyHandler.updateModelDependencies(nmodel, true);
       }
 
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
@@ -356,11 +360,11 @@ public class LogicalModelService {
       dataSourceService.updateDataSourceAssetEntry(entry);
 
       if(ologicalModel != null) {
-         DependencyHandler.getInstance().updateModelDependencies(ologicalModel, false);
+         dependencyHandler.updateModelDependencies(ologicalModel, false);
       }
 
       if(nlogicalModel != null) {
-         DependencyHandler.getInstance().updateModelDependencies(nlogicalModel, true);
+         dependencyHandler.updateModelDependencies(nlogicalModel, true);
       }
 
       renameDependencies(dataSource, name, model);
@@ -418,7 +422,7 @@ public class LogicalModelService {
 
       if(!dinfo.getDependencyMap().isEmpty()) {
          sortRenameInfos(dinfo);
-         RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+         renameTransformHandler.addTransformTask(dinfo);
       }
    }
 
@@ -588,8 +592,8 @@ public class LogicalModelService {
       String path = dataSource + "/" + name;
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.LOGIC_MODEL,
          path, null);
-      DependencyHandler.getInstance().deleteDependencies(entry);
-      DependencyHandler.getInstance().deleteDependenciesKey(entry);
+      dependencyHandler.deleteDependencies(entry);
+      dependencyHandler.deleteDependenciesKey(entry);
 
       repository.updateDataModel(dataModel);
 
@@ -968,5 +972,7 @@ public class LogicalModelService {
    private final DataRefModelFactoryService dataRefService;
    private final LogicalModelTreeService treeService;
    private final AssetRepository assetRepository;
+   private final DependencyHandler dependencyHandler;
+   private final RenameTransformHandler renameTransformHandler;
    private static final Logger LOG = LoggerFactory.getLogger(LogicalModelService.class.getName());
 }

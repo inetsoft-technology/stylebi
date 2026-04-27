@@ -23,10 +23,9 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.VSSnapshot;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.vslayout.AbstractLayout;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
 
 import java.io.Serializable;
-import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.List;
 
@@ -38,8 +37,17 @@ import java.util.List;
  * @version 8.5
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(ViewsheetService.Reference.class)
 public interface ViewsheetService extends WorksheetService {
+   /**
+    * Gets the shared instance of the viewsheet service.
+    *
+    * @return the viewsheet service.
+    */
+   static ViewsheetService getInstance() {
+      return ConfigurationContext.getContext().getSpringBean(ViewsheetService.class);
+   }
+
+
    /**
     * Preview viewsheet.
     */
@@ -163,13 +171,13 @@ public interface ViewsheetService extends WorksheetService {
     * Add excution id to map.
     * @param id the specified viewsheet id.
     */
-   public void addExecution(String id);
+   void addExecution(String id);
 
    /**
     * Delete the excution id from map.
     * @param id the specified viewsheet id.
     */
-   public void removeExecution(String id);
+   void removeExecution(String id);
 
    /**
     * Get the runtime viewsheets.
@@ -187,32 +195,6 @@ public interface ViewsheetService extends WorksheetService {
    void updateBookmarks(AssetEntry viewsheet);
 
    boolean switchToHostOrgForGlobalShareAsset(String sheetRuntimeId, Principal principal);
-
-   final class Reference extends SingletonManager.Reference<ViewsheetService> {
-      @Override
-      public synchronized ViewsheetService get(Object ... parameters) {
-         if(engine == null) {
-            try {
-               engine = new ViewsheetEngine();
-            }
-            catch(RemoteException e) {
-               throw new RuntimeException("Failed to create viewsheet engine", e);
-            }
-         }
-
-         return engine;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(engine != null) {
-            engine.dispose();
-            engine = null;
-         }
-      }
-
-      private ViewsheetEngine engine;
-   }
 
    @FunctionalInterface
    interface Task<T extends Serializable> extends Serializable {

@@ -26,6 +26,7 @@ import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.EmptyTableToEmbeddedException;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
@@ -42,8 +43,8 @@ import java.security.Principal;
 @Service
 @ClusterProxy
 public class ConvertEmbeddedService extends WorksheetControllerService {
-   public ConvertEmbeddedService(ViewsheetService viewsheetService) {
-      super(viewsheetService);
+   public ConvertEmbeddedService(ViewsheetService viewsheetService, DataSourceRegistry dataSourceRegistry) {
+      super(viewsheetService, dataSourceRegistry);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

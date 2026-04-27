@@ -17,10 +17,14 @@
  */
 package inetsoft.uql.rest.xml.parse;
 
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.ExpandedJsonTable;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.w3c.dom.*;
 
 import javax.xml.parsers.DocumentBuilder;
@@ -29,6 +33,9 @@ import javax.xml.xpath.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, CredentialTestConfig.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 class NoSchemaDocumentParserTest {
    @Test

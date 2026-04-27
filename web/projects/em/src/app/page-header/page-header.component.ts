@@ -75,7 +75,7 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
          this.refreshSubscription = this.orgDropdownService.onRefresh.pipe(debounceTime(100))
             .subscribe((res) => {
                this.currentProvider = res.provider;
-               this.refreshModel(this.currentProvider, res.providerChanged);
+               this.refreshModel(this.currentProvider, res.providerChanged, res.renameOnly);
             });
       }
 
@@ -100,7 +100,7 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
       );
    }
 
-   private refreshModel(currentProvider: string, providerChanged?: boolean): void {
+   private refreshModel(currentProvider: string, providerChanged?: boolean, renameOnly?: boolean): void {
       const params = new HttpParams()
          .set("provider", !!currentProvider ? currentProvider : "")
          .set("providerChanged", !!providerChanged ? providerChanged : "false");
@@ -112,7 +112,7 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
             this.currentProvider = result.providerName;
             this.pageTitle.currentOrgId = result.currOrgID;
 
-            if(oldOrg != null && this.model != null && this.model.currOrgID != oldOrg) {
+            if(!renameOnly && oldOrg != null && this.model != null && this.model.currOrgID != oldOrg) {
                // Notify of an externally-detected org change (e.g. changed from another session or admin action).
                this.orgDropdownService.notifyOrgChange();
                let currRoute = this.router.url;

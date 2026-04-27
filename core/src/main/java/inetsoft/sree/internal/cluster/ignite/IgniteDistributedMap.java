@@ -21,8 +21,6 @@ import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.util.Tool;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.lang.IgniteFuture;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.cache.CacheException;
 import java.util.*;
@@ -178,7 +176,7 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
       // properly, leaving the waiting thread blocked indefinitely.
       while(!lock.tryLock()) {
          if(System.nanoTime() >= deadlineNs) {
-            throw new RuntimeException(
+            throw new IllegalStateException(
                "Lock acquisition timed out after " + leaseTime + " " + timeUnit +
                " for key: " + key);
          }
@@ -347,5 +345,4 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
    private final ThreadLocal<Map<K, Lock>> lockMap = ThreadLocal.withInitial(HashMap::new);
    private static final int MAX_RETRIES = 5;
    private static final long LOCK_POLL_INTERVAL_MS = 200L;
-   private static final Logger LOG = LoggerFactory.getLogger(IgniteDistributedMap.class);
 }

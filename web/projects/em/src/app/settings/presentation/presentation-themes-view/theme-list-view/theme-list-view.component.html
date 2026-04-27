@@ -30,7 +30,7 @@
       <button mat-icon-button title="_#(Delete)" (click)="deleteTheme()" [disabled]="cannotDelete()">
         <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
       </button>
-      <button mat-icon-button title="_#(Download)" (click)="downloadTheme()" [disabled]="!selectedTheme || selectedTheme.global && !isSiteAdmin">
+      <button mat-icon-button title="_#(Download)" (click)="downloadTheme()" [disabled]="!selectedTheme || (selectedTheme.global && !isSiteAdmin && isMultiTenant)">
         <mat-icon fontSet="ineticons" fontIcon="export-icon"></mat-icon>
       </button>
     </ng-container>
@@ -56,7 +56,7 @@
     <button mat-menu-item class="dropdown-import-button" (click)="deleteTheme()" [disabled]="cannotDelete()">
       <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
     </button>
-    <button mat-menu-item class="dropdown-import-button" (click)="downloadTheme()" [disabled]="!selectedTheme || selectedTheme.global && !isSiteAdmin">
+    <button mat-menu-item class="dropdown-import-button" (click)="downloadTheme()" [disabled]="!selectedTheme || (selectedTheme.global && !isSiteAdmin && isMultiTenant)">
       <mat-icon fontSet="ineticons" fontIcon="export-icon"></mat-icon>
     </button>
   </mat-menu>
