@@ -56,7 +56,9 @@ public class LicenseKeySettingsService {
 
    @PreDestroy
    public void unregisterListeners() {
-      cluster.removeMessageListener(messageListener);
+      if(messageListener != null) {
+         cluster.removeMessageListener(messageListener);
+      }
    }
 
    public LicenseKeySettingsModel getModel() {

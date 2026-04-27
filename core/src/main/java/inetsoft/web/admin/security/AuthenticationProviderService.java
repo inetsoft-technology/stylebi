@@ -76,7 +76,9 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
 
    @PreDestroy
    public void destroy() {
-      cluster.removeMessageListener(messageListener);
+      if(messageListener != null) {
+         cluster.removeMessageListener(messageListener);
+      }
    }
 
    @EventListener(SessionDisconnectEvent.class)
