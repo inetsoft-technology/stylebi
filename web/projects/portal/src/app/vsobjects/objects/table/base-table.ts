@@ -67,6 +67,7 @@ import { ShowDetailsEvent } from "../../event/table/show-details-event";
 import { VSAnnotationModel } from "../../model/annotation/vs-annotation-model";
 import { BaseTableCellModel } from "../../model/base-table-cell-model";
 import { BaseTableModel } from "../../model/base-table-model";
+import { VSTabModel } from "../../model/vs-tab-model";
 import { GuideBounds } from "../../model/layout/guide-bounds";
 import { ShowHyperlinkService } from "../../show-hyperlink.service";
 import { CheckFormDataService } from "../../util/check-form-data.service";
@@ -1659,6 +1660,29 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
       else {
          return this.model.objectFormat.width;
       }
+   }
+
+   /**
+    * Calculates the object top with the shrink to fit option in mind, shifting
+    * a shrunk table down so its bottom stays flush with a bottom-tabs tab strip.
+    */
+   public getObjectTop(): number {
+      const top = this.model.objectFormat.top;
+
+      if(!this.viewer || !this.model.shrink || this.model.maxMode) {
+         return top;
+      }
+
+      if(this.model.containerType === "VSTab" && this.vsInfo) {
+         const parent = this.vsInfo.vsObjects
+            .find(o => o.absoluteName === this.model.container) as VSTabModel;
+
+         if(parent && parent.bottomTabs) {
+            return top + this.model.objectFormat.height - this.getObjectHeight();
+         }
+      }
+
+      return top;
    }
 
    /**

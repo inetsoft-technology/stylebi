@@ -283,6 +283,53 @@ describe("VSTable Unit Tests", () => {
       expect(fixture2.componentInstance.displayColWidths[3]).toBe(140);
    });
 
+   it("should shift shrunk table down to stay flush with bottom-tabs strip", () => {
+      const tabName = "tab1";
+      const tabModel: any = { absoluteName: tabName, bottomTabs: true };
+
+      let fixture: ComponentFixture<VSTable> = TestBed.createComponent(VSTable);
+      const component = fixture.componentInstance;
+      const model = createModel(300, [30, 30, 30, 30], 4, 240);
+      const designTop = 100;
+      model.objectFormat.top = designTop;
+      model.shrink = true;
+      model.scrollHeight = 10;
+      model.container = tabName;
+      model.containerType = "VSTab";
+      component.model = model;
+      component.vsInfo = new ViewsheetInfo([tabModel], "");
+      fixture.detectChanges();
+
+      // sanity: shrink actually reduced the rendered height
+      const renderedHeight = component.getObjectHeight();
+      expect(renderedHeight).toBeLessThan(model.objectFormat.height);
+
+      // bottom-tabs + shrink → top shifted so bottom stays at the design bottom
+      const expectedTop = designTop + model.objectFormat.height - renderedHeight;
+      expect(component.getObjectTop()).toBe(expectedTop);
+      expect(component.getObjectTop() + renderedHeight)
+         .toBe(designTop + model.objectFormat.height);
+
+      // top-tabs parent: no shift even when shrunk
+      tabModel.bottomTabs = false;
+      expect(component.getObjectTop()).toBe(designTop);
+
+      // not inside a tab: no shift
+      tabModel.bottomTabs = true;
+      model.containerType = undefined;
+      expect(component.getObjectTop()).toBe(designTop);
+
+      // shrink off: no shift
+      model.containerType = "VSTab";
+      model.shrink = false;
+      expect(component.getObjectTop()).toBe(designTop);
+
+      // max mode: no shift
+      model.shrink = true;
+      (model as any).maxMode = true;
+      expect(component.getObjectTop()).toBe(designTop);
+   });
+
    // Bug #9839 ensure row and col selection instantiated to -1, to signal nothing selected.
    it("should instantiate firstSelectedRow and firstSelectedColumn to -1", () => {
       let fixture1: ComponentFixture<VSTable> = TestBed.createComponent(VSTable);
