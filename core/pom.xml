@@ -1024,8 +1024,8 @@
           <quiet>true</quiet>
           <additionalJOption>--allow-script-in-comments</additionalJOption>
           <detectJavaApiLink>true</detectJavaApiLink>
-          <windowtitle>StyleBI API, 1.1.0</windowtitle>
-          <doctitle>StyleBI API, 1.1.0</doctitle>
+          <windowtitle>StyleBI API, 1.2.0</windowtitle>
+          <doctitle>StyleBI API, 1.2.0</doctitle>
           <sourcepath>src/main/java;target/generated-sources/annotations;target/generated-sources/antlr;target/generated-sources/javacc</sourcepath>
           <sourceFileIncludes>
             <include>inetsoft/graph/*.java</include>
