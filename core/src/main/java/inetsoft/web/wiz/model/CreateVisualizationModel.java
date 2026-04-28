@@ -54,8 +54,17 @@ public class CreateVisualizationModel {
       this.viewsheetIdentifier = viewsheetIdentifier;
    }
 
+   public VisualizationConditionModel getConditionModel() {
+      return conditionModel;
+   }
+
+   public void setConditionModel(VisualizationConditionModel conditionModel) {
+      this.conditionModel = conditionModel;
+   }
+
    private String visualizationType;
    private VisualizationConfig config;
    private String runtimeId;
    private String viewsheetIdentifier;
+   private VisualizationConditionModel conditionModel;
 }
