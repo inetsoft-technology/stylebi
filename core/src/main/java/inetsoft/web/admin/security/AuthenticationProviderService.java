@@ -59,14 +59,12 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler im
    @Autowired
    public AuthenticationProviderService(SecurityEngine securityEngine, ObjectMapper objectMapper,
                                         SimpMessagingTemplate messageTemplate,
-                                        Cluster cluster,
-                                        LicenseManager licenseManager)
+                                        Cluster cluster)
    {
       super(messageTemplate);
       this.securityEngine = securityEngine;
       this.objectMapper = objectMapper;
       this.cluster = cluster;
-      this.licenseManager = licenseManager;
    }
 
    @PostConstruct
@@ -101,7 +99,7 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler im
    }
 
    public AuthenticationProviderModel getAuthenticationProvider(String name) {
-      boolean enterprise = licenseManager.isEnterprise();
+      boolean enterprise = LicenseManager.isEnterprise();
       AuthenticationProvider selectedProvider = getProviderByName(name);
       AuthenticationProviderModel.Builder builder = AuthenticationProviderModel.builder()
          .providerName(name)
@@ -904,7 +902,6 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler im
    private final SecurityEngine securityEngine;
    private final ObjectMapper objectMapper;
    private final Cluster cluster;
-   private final LicenseManager licenseManager;
    private final DefaultDebouncer<String> debouncer = new DefaultDebouncer<>();
    private final Logger LOG = LoggerFactory.getLogger(AuthenticationProviderService.class);
 }

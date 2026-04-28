@@ -54,13 +54,12 @@ public abstract class DatasourcesBaseService {
                                  SecurityEngine securityEngine,
                                  DataSourceStatusService dataSourceStatusService,
                                  DataSourceRegistry dataSourceRegistry,
-                                 LicenseManager licenseManager, Config uqlConfig)
+                                 Config uqlConfig)
    {
       this.repository = repository;
       this.securityEngine = securityEngine;
       this.dataSourceStatusService = dataSourceStatusService;
       this.dataSourceRegistry = dataSourceRegistry;
-      this.licenseManager = licenseManager;
       this.uqlConfig = uqlConfig;
    }
 
@@ -154,7 +153,7 @@ public abstract class DatasourcesBaseService {
       TabularOAuthParams.Builder builder = TabularOAuthParams.builder()
          .license(license);
 
-      if(!licenseManager.isEnterprise() && (license == null || license.isEmpty())) {
+      if(!LicenseManager.isEnterprise() && (license == null || license.isEmpty())) {
          return builder.error(Catalog.getCatalog().getString("em.license.communityAPIKeyMissing"))
             .build();
       }
@@ -641,7 +640,6 @@ public abstract class DatasourcesBaseService {
    private final SecurityEngine securityEngine;
    private final DataSourceStatusService dataSourceStatusService;
    private final DataSourceRegistry dataSourceRegistry;
-   private final LicenseManager licenseManager;
    private final Config uqlConfig;
    private static final Logger LOG = LoggerFactory.getLogger(DatasourcesBaseService.class);
 }

@@ -32,10 +32,9 @@ import java.util.*;
 @Service
 public class ClusterService extends MonitorLevelService implements StatusUpdater {
    @Autowired
-   public ClusterService(ServerClusterClient client, LicenseManager licenseManager) {
+   public ClusterService(ServerClusterClient client) {
       super(lowAttrs, medAttrs, new String[0]);
       this.client = client;
-      this.licenseManager = licenseManager;
    }
 
    @Override
@@ -93,7 +92,7 @@ public class ClusterService extends MonitorLevelService implements StatusUpdater
 
    public ClusterEnabledModel getClusterEnabled() {
       return ClusterEnabledModel.builder()
-         .enabled(licenseManager.isEnterprise())
+         .enabled(LicenseManager.isEnterprise())
          .pauseEnabled("true".equals(SreeEnv.getProperty("cluster.pause.enabled", "false")))
          .build();
    }
@@ -131,7 +130,6 @@ public class ClusterService extends MonitorLevelService implements StatusUpdater
    }
 
    private final ServerClusterClient client;
-   private final LicenseManager licenseManager;
 
    private static final Logger LOG = LoggerFactory.getLogger(ClusterService.class);
    private static final String[] medAttrs = { };

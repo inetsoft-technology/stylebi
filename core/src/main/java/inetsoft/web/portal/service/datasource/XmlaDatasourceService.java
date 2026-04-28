@@ -20,14 +20,12 @@ package inetsoft.web.portal.service.datasource;
 import inetsoft.report.TableLens;
 import inetsoft.report.XSessionManager;
 import inetsoft.uql.asset.DependencyHandler;
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.*;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.asset.ColumnRef;
-import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.util.Config;
@@ -60,12 +58,11 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
    public XmlaDatasourceService(XRepository repository, SecurityEngine securityEngine,
                                 DataSourceStatusService dataSourceStatusService,
                                 DataSourceRegistry dataSourceRegistry,
-                                LicenseManager licenseManager,
                                 Config uqlConfig,
                                 DependencyHandler dependencyHandler,
                                 XSessionManager xSessionManager)
    {
-      super(repository, securityEngine, dataSourceStatusService, dataSourceRegistry, licenseManager, uqlConfig);
+      super(repository, securityEngine, dataSourceStatusService, dataSourceRegistry, uqlConfig);
       this.dependencyHandler = dependencyHandler;
       this.xSessionManager = xSessionManager;
    }

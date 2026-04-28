@@ -53,14 +53,12 @@ public class DatasourcesTreeService {
    public DatasourcesTreeService(SecurityEngine securityEngine,
                                  ContentRepositoryTreeService contentRepositoryTreeService,
                                  AssetRepository assetRepository,
-                                 DataSourceRegistry dataSourceRegistry,
-                                 LicenseManager licenseManager)
+                                 DataSourceRegistry dataSourceRegistry)
    {
       this.securityEngine = securityEngine;
       this.contentRepositoryTreeService = contentRepositoryTreeService;
       this.assetRepository = assetRepository;
       this.dataSourceRegistry = dataSourceRegistry;
-      this.licenseManager = licenseManager;
    }
 
    public TreeNodeModel getRoot(Principal principal) throws Exception {
@@ -316,7 +314,7 @@ public class DatasourcesTreeService {
                models.add(dataModelNode);
                boolean selfOrg = principal instanceof SRPrincipal &&
                   ((SRPrincipal) principal).isSelfOrganization();
-               boolean enterprise = licenseManager.isEnterprise();
+               boolean enterprise = LicenseManager.isEnterprise();
 
                if(!selfOrg && enterprise) {
                   String virtualModelsLabel = Catalog.getCatalog().getString("Virtual Private Models");
@@ -718,6 +716,5 @@ public class DatasourcesTreeService {
    private final ContentRepositoryTreeService contentRepositoryTreeService;
    private final AssetRepository assetRepository;
    private final DataSourceRegistry dataSourceRegistry;
-   private final LicenseManager licenseManager;
    private static final Logger LOG = LoggerFactory.getLogger(DatasourcesTreeService.class);
 }

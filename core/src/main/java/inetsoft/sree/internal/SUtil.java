@@ -2997,7 +2997,7 @@ public class SUtil {
 
    public static boolean isMultiTenant() {
       return SecurityEngine.getSecurity().isSecurityEnabled() &&
-         LicenseManager.getInstance().isEnterprise() &&
+         LicenseManager.isEnterprise() &&
          Boolean.parseBoolean(SreeEnv.getProperty("security.users.multiTenant", "false"));
    }
 
@@ -3126,7 +3126,7 @@ public class SUtil {
       }
 
       String finalTaskName = Tool.buildString(userName, ":", taskName);
-      return LicenseManager.getInstance().isEnterprise() ?
+      return LicenseManager.isEnterprise() ?
          Tool.buildString(finalTaskName, "^", orgId) : finalTaskName;
    }
 

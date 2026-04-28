@@ -41,18 +41,17 @@ import static inetsoft.web.admin.schedule.ScheduleCycleService.getCyclePermissio
 public class MVSettingsService {
    @Autowired
    public MVSettingsService(SecurityEngine securityEngine, MVManager mvManager,
-                            DataCycleManager dataCycleManager, LicenseManager licenseManager)
+                            DataCycleManager dataCycleManager)
    {
       this.securityEngine = securityEngine;
       this.mvManager = mvManager;
       this.dataCycleManager = dataCycleManager;
-      this.licenseManager = licenseManager;
    }
 
    public MVSettingsModel getModel(Principal principal) throws Exception {
       Set<String> cycleNames = new TreeSet<>(Comparator.naturalOrder());
       String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
-      boolean isEnterprise = licenseManager.isEnterprise();
+      boolean isEnterprise = LicenseManager.isEnterprise();
 
       if(!SUtil.isMultiTenant() || !isEnterprise) {
          for(Enumeration<String> cycles = dataCycleManager.getDataCycles(orgId); cycles.hasMoreElements(); ) {
@@ -102,6 +101,5 @@ public class MVSettingsService {
    private final SecurityEngine securityEngine;
    private final MVManager mvManager;
    private final DataCycleManager dataCycleManager;
-   private final LicenseManager licenseManager;
    private static final Logger LOG = LoggerFactory.getLogger(MVSettingsService.class);
 }
