@@ -1556,6 +1556,11 @@ public class WizVsService {
          }
 
          VisualizationConditionModel.ConditionSpec spec = entry.getCondition();
+
+         if(spec == null) {
+            continue;
+         }
+
          AttributeRef attr = new AttributeRef(null, spec.getField());
          Condition condition = new Condition();
          condition.setOperation(mapConditionOperation(spec.getOperation()));
