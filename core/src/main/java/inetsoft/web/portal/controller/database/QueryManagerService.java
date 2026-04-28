@@ -94,7 +94,7 @@ public class QueryManagerService {
       XJoin[] xjoins = queryModel.toXJoins();
 
       if(!queryModel.isSqlEdited() && queryModel.getTables() != null &&
-         queryModel.getTables().size() > 1 && (xjoins == null || xjoins.length == 0))
+         queryModel.getTables().size() > 1 && xjoins.length == 0)
       {
          throw new MessageException(
             Catalog.getCatalog().getString("common.sqlquery.cartesianJoin"));
