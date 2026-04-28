@@ -17,9 +17,14 @@
  */
 import { NgModule } from "@angular/core";
 import { RouterModule, Routes } from "@angular/router";
+import { DebugMonitoringPageComponent } from "./debug-monitoring-page/debug-monitoring-page.component";
 import { SummaryMonitoringPageComponent } from "./summary-monitoring-page/summary-monitoring-page.component";
 
 const routes: Routes = [
+   {
+      path: "debug",
+      component: DebugMonitoringPageComponent
+   },
    {
       path: "",
       component: SummaryMonitoringPageComponent,

@@ -76,7 +76,7 @@ public class ImportXLSController {
                                        Principal principal)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(Tool.byteDecode(runtimeId), principal);
 
       if(rvs == null) {
          return;

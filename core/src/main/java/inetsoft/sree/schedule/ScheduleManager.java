@@ -124,7 +124,7 @@ public class ScheduleManager {
          tasks.addAll(map.values());
       }
 
-      return tasks.stream().distinct().collect(Collectors.toList());
+      return tasks.stream().filter(Objects::nonNull).distinct().collect(Collectors.toList());
    }
 
    public ScheduleTaskMap getOrgTaskMap(String orgID) {

@@ -115,7 +115,12 @@ public class UploadController {
             principal, ResourceType.UPLOAD_DRIVERS, "*", ResourceAction.ACCESS);
       }
       else if(uploadType.equals("shape")) {
-         return true;
+         return securityEngine.checkPermission(principal, ResourceType.EM, "*",
+            ResourceAction.ACCESS) &&
+            (securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
+               "settings/presentation/settings", ResourceAction.ACCESS) ||
+             securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
+               "settings/presentation/org-settings", ResourceAction.ACCESS));
       }
       else {
          return securityEngine.checkPermission(principal, ResourceType.EM, "*",

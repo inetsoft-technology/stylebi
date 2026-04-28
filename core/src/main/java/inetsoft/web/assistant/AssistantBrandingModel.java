@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,24 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.admin.content.repository.model;
 
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import org.immutables.value.Value;
+package inetsoft.web.assistant;
 
-import java.util.List;
-
-@Value.Immutable
-@JsonSerialize(as = ImmutableSetRepositoryFolderTableModel.class)
-@JsonDeserialize(as = ImmutableSetRepositoryFolderTableModel.class)
-public interface SetRepositoryFolderTableModel {
-   List<String> table();
-
-   static Builder builder() {
-      return new Builder();
-   }
-
-   class Builder extends ImmutableSetRepositoryFolderTableModel.Builder {
-   }
-}
+/**
+ * Branding configuration returned by {@code GET /api/assistant/get-branding}.
+ * Null fields mean "use the web component's built-in default".
+ */
+public record AssistantBrandingModel(
+   String title,
+   String vendorName,
+   String logoUrl
+) {}

@@ -585,6 +585,14 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
          }
       }
 
+      @Override()
+      public String toString() {
+         return "ReycleBin.Entry{" +
+            "originalUser='" + originalUser + '\'' +
+            ", originalPath='" + originalPath + '\'' +
+            '}';
+      }
+
       private String path;
       private String name;
       private int type;

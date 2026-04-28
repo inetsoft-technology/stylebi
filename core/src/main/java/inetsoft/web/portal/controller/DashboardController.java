@@ -71,14 +71,7 @@ public class DashboardController {
    }
 
    @GetMapping(value = "/api/portal/dashboard-tab-model")
-   @Secured(
-      operator = "OR",
-      value = {
-         @RequiredPermission(resourceType = ResourceType.DASHBOARD, resource = "*"),
-         @RequiredPermission(resourceType = ResourceType.WORKSHEET, resource = "*", actions = ResourceAction.ACCESS),
-         @RequiredPermission(resourceType = ResourceType.VIEWSHEET, resource = "*", actions = ResourceAction.ACCESS)
-      }
-   )
+   @Secured(@RequiredPermission(resourceType = ResourceType.DASHBOARD, resource = "*"))
    public DashboardTabModel getDashboardTabModel(Principal principal) throws Exception {
       boolean editable = analyticRepository.checkPermission(
          principal, ResourceType.DASHBOARD, "*", ResourceAction.WRITE);
@@ -88,10 +81,14 @@ public class DashboardController {
       DashboardTabModel model = new DashboardTabModel();
       model.setDashboards(getDashboards(principal));
       model.setDashboardTabsTop(isDashboardTabsTop());
-      model.setDrillTabsTop(isDrillTabsTop());
       model.setComposerEnabled(composerEnable);
       model.setEditable(editable);
       return model;
+   }
+
+   @GetMapping(value = "/api/portal/drill-tabs-top")
+   public boolean getDrillTabsTop() {
+      return isDrillTabsTop();
    }
 
    @GetMapping(value = "/api/portal/dashboard-tab-model/{name}")

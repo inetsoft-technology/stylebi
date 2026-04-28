@@ -481,8 +481,7 @@ export class VSFormatsPane implements OnInit, OnChanges {
             else if(object.objectType == "VSChart" && !(<VSChartModel> object).titleSelected) {
                const chart = <VSChartModel> object;
                const chartSelection: ChartSelection = chart.chartSelection;
-               return this.vsObjectFormat.borderDisabled ? true :
-                   chartSelection && chartSelection.chartObject &&
+               return chartSelection && chartSelection.chartObject &&
                   (chartSelection.chartObject.areaName != "plot_area" ||
                    ChartTool.isRegionAreaTypePresent(chart, chartSelection, "text") ||
                    ChartTool.isRegionAreaTypePresent(chart, chartSelection, "vo") ||

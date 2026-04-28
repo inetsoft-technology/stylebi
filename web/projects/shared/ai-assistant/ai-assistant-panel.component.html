@@ -23,8 +23,9 @@
      class="ai-assistant-panel"
      [class.side-mode]="mode === 'side'"
      [class.bottom-mode]="mode === 'bottom'"
+     [class.collapsed]="collapsed"
      [style.width.px]="mode === 'side' ? sideWidth : null"
-     [style.height.px]="mode === 'bottom' ? bottomHeight : null">
+     [style.height.px]="mode === 'bottom' && !collapsed ? bottomHeight : null">
   <div class="resize-handle" (mousedown)="startDrag($event)"></div>
   <div class="panel-header bg-white2">
     <span class="panel-title">_#(AI Assistant)</span>
@@ -41,6 +42,24 @@
           <rect x="11" y="1" width="4" height="14" rx="1"/>
         </svg>
       </button>
+      <!-- Collapse / expand toggle.
+           Side mode:   header is at top, body hangs below  → collapse folds body UP   (↑ to collapse, ↓ to expand)
+           Bottom mode: header is at bottom, body rises above → collapse folds body DOWN (↓ to collapse, ↑ to expand) -->
+      <button class="panel-action-btn"
+              (click)="toggleCollapsed()"
+              [attr.aria-label]="collapsed ? '_#(Expand)' : '_#(Collapse)'"
+              [title]="collapsed ? '_#(Expand)' : '_#(Collapse)'">
+        <!-- up chevron -->
+        <svg *ngIf="(mode === 'side' && !collapsed) || (mode === 'bottom' && collapsed)"
+             aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3,10 8,5 13,10"/>
+        </svg>
+        <!-- down chevron -->
+        <svg *ngIf="(mode === 'side' && collapsed) || (mode === 'bottom' && !collapsed)"
+             aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3,6 8,11 13,6"/>
+        </svg>
+      </button>
       <button class="panel-action-btn panel-close-btn" (click)="close()" aria-label="_#(Close)" title="_#(Close)">
         <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
           <line x1="2" y1="2" x2="14" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -49,7 +68,7 @@
       </button>
     </div>
   </div>
-  <div class="panel-body">
+  <div class="panel-body" [class.panel-body-hidden]="collapsed">
     <ng-container [ngSwitch]="serverState">
       <div *ngSwitchCase="'checking'" class="assistant-server-status">
         <span>_#(Connecting to AI assistant...)</span>

@@ -202,7 +202,7 @@ import { ViewerResizeService } from "./util/viewer-resize.service";
 import { VSUtil } from "./util/vs-util";
 import { VsToolbarButtonDirective } from "./vs-toolbar-button.directive";
 import { BaseHrefService } from "../common/services/base-href.service";
-import { DashboardTabModel } from "../portal/dashboard/dashboard-tab-model";
+import { CurrentUserService } from "../../../../shared/util/current-user.service";
 
 declare const window: any;
 declare var globalPostParams: { [name: string]: string[] } | null;
@@ -355,15 +355,6 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    @Input() globalLoadingIndicator: boolean = false;
    @Input() embedViewer: boolean = false;
    @Input() viewerOffsetFunc: () => { x: number, y: number, width: number, height: number, scrollLeft: number, scrollTop: number };
-   @Input()
-   get dashboardTabModel(): DashboardTabModel | null {
-      return this._dashboardTabModel;
-   }
-
-   set dashboardTabModel(value: DashboardTabModel | null) {
-      this._dashboardTabModel = value;
-      this.updateTabPositions();
-   }
    @Output() onAnnotationChanged = new EventEmitter<boolean>();
    @Output() runtimeIdChange = new EventEmitter<string>();
    @Output() socket = new EventEmitter<ViewsheetClientService>();
@@ -506,7 +497,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    isDefaultOrgAsset: boolean = false;
    private intersectionObserver: IntersectionObserver;
    private _tabsHeight: number = 0;
-   private _dashboardTabModel: DashboardTabModel | null = null;
+   drillTabsTop: boolean = false;
 
    constructor(public viewsheetClient: ViewsheetClientService,
                private stompClientService: StompClientService,
@@ -549,6 +540,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                private assetLoadingService: AssetLoadingService,
                private viewContainerRef: ViewContainerRef,
                private baseHrefService: BaseHrefService,
+               private currentUserService: CurrentUserService,
                private chartConfigService: ChartConfigService)
    {
       super(viewsheetClient, zone, true);
@@ -569,7 +561,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       ngbDatepickerConfig.maxDate = {year: 2099, month: 12, day: 31};
       this.embed = this.contextProvider.embed;
 
-      this.http.get<string>("../api/em/navbar/organization").subscribe((org)=>{this.currOrgID = org;});
+      this.subscriptions.add(this.currentUserService.getPortalCurrentUser().subscribe(user => this.currOrgID = user?.name?.orgID ?? null));
    }
 
    getAssemblyName(): string {
@@ -617,6 +609,12 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          event.setWallboard(this.wallboard);
          this.viewsheetClient.sendEvent(TOUCH_ASSET_URI, event);
       }));
+
+      this.subscriptions.add(this.pageTabService.getDrillTabsTop().subscribe(
+         value => {
+            this.drillTabsTop = value;
+            this.updateTabPositions();
+         }));
 
       this.subscriptions.add(this.fullScreenService.fullScreenChange.subscribe(
          () => this.onFullScreenChange()));
@@ -3421,7 +3419,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             // when drillTabsTop is true the bar is at the top and the viewsheet body's
             // topPx already accounts for it, so do not add it again.
             const pageTabBar = document.querySelector(".page-tab-bar");
-            const pageTabBarHeight = (!!pageTabBar && !this.dashboardTabModel?.drillTabsTop)
+            const pageTabBarHeight = (!!pageTabBar && !this.drillTabsTop)
                ? pageTabBar.getBoundingClientRect().height : 0;
 
             const message = {
@@ -4287,7 +4285,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    private updateTabPositions(): void {
-      if(this.dashboardTabModel?.drillTabsTop) {
+      if(this.drillTabsTop) {
          if(this.toolbarVisible) {
             const offset = this.mobileDevice
                ? ViewConstants.TOOLBAR_HEIGHT_MOBILE_PX

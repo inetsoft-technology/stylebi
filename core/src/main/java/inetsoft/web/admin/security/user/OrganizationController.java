@@ -106,22 +106,6 @@ public class OrganizationController {
       return Arrays.stream(SecurityEngine.getSecurity().getSecurityProvider().getOrganizationNames()).toList();
    }
 
-   // No @Secured: non-site-admins are scoped to their own org below, so no data is leaked.
-   @GetMapping("/api/em/security/users/get-all-organization-ids/")
-   public List<String> getAllOrganizationIDs(Principal principal)
-   {
-      if(!SUtil.isMultiTenant()) {
-         return new ArrayList<>();
-      }
-
-      if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
-         String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
-         return orgID != null ? List.of(orgID) : new ArrayList<>();
-      }
-
-      return Arrays.stream(SecurityEngine.getSecurity().getSecurityProvider().getOrganizationIDs()).toList();
-   }
-
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,

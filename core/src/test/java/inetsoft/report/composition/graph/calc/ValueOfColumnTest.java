@@ -19,6 +19,7 @@
 package inetsoft.report.composition.graph.calc;
 
 import inetsoft.graph.data.CalcColumn;
+import inetsoft.graph.data.SortedDataSet;
 import inetsoft.report.composition.graph.*;
 import inetsoft.report.filter.*;
 import inetsoft.report.lens.DefaultTableLens;
@@ -211,6 +212,98 @@ public class ValueOfColumnTest {
       Object result = valueOfColumn.calculate(mockContext, pairN);
 
       assertEquals(12, result);
+   }
+
+   /**
+    * Regression test for Bug #74542: PREVIOUS_YEAR lookup must not exclude PART_DATE_GROUP
+    * sibling dimensions from the condition. The sibling (QuarterOfYear) is the position
+    * discriminator — without it the lookup always returns the first quarter of the previous
+    * year instead of the matching quarter.
+    */
+   @Test
+   void testPreviousYearKeepsPartDateGroupSiblingInCondition() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS_YEAR);
+      valueOfColumn.setDim("Year(Date)");
+      // innerDim == ndim triggers the sibling-detection branch
+      valueOfColumn.setInnerDim("Year(Date)");
+
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         { "Year(Date)", "QuarterOfYear(Date)", "id" },
+         { toDate("2020-01-01"), 1, 5 },  // 2020 Q1
+         { toDate("2020-01-01"), 2, 3 },  // 2020 Q2
+         { toDate("2020-01-01"), 3, 4 },  // 2020 Q3
+         { toDate("2020-01-01"), 4, 2 },  // 2020 Q4
+         { toDate("2021-01-01"), 1, 4 },  // 2021 Q1
+         { toDate("2021-01-01"), 2, 7 },  // 2021 Q2 ← test row
+         { toDate("2021-01-01"), 3, 8 },  // 2021 Q3
+         { toDate("2021-01-01"), 4, 1 },  // 2021 Q4
+      });
+
+      VSDimensionRef yearVsRef = mock(VSDimensionRef.class);
+      when(yearVsRef.getFullName()).thenReturn("Year(Date)");
+      VSDimensionRef quarterVsRef = mock(VSDimensionRef.class);
+      when(quarterVsRef.getFullName()).thenReturn("QuarterOfYear(Date)");
+      vsDataSet = new VSDataSet(tb, new VSDataRef[] { yearVsRef, quarterVsRef });
+
+      // QuarterOfYear(Date) is a PART_DATE_GROUP sibling of Year(Date)
+      XDimensionRef quarterDimRef = mock(XDimensionRef.class);
+      when(quarterDimRef.getFullName()).thenReturn("QuarterOfYear(Date)");
+      when(quarterDimRef.getDateLevel()).thenReturn(XConstants.QUARTER_OF_YEAR_DATE_GROUP);
+      XDimensionRef yearDimRef = mock(XDimensionRef.class);
+      when(yearDimRef.getFullName()).thenReturn("Year(Date)");
+      when(yearDimRef.getDateLevel()).thenReturn(XConstants.YEAR_DATE_GROUP);
+      valueOfColumn.setDimensions(Arrays.asList(quarterDimRef, yearDimRef));
+
+      // Row 5 = 2021 Q2 (id=7). Correct previous-year value = 2020 Q2 (id=3).
+      // Regression: without the fix, QuarterOfYear is stripped from the condition so the
+      // lookup returns the first row of 2020 (Q1, id=5) instead of Q2 (id=3).
+      Object result = valueOfColumn.calculate(vsDataSet, 5, false, false);
+      assertEquals(3, result);
+   }
+
+   /**
+    * Regression test for Bug #74582: PREVIOUS on a plain string dimension must use the
+    * sorted dataset's router (not the root VSDataSet's router) when data is a DataSetFilter.
+    *
+    * Original data order: C, A, B (intentionally non-alphabetical).
+    * Sorted (chart) order: A, B, C.
+    *
+    * With the bug (root-dataset router, iteration C → A → B):
+    *   getValue("A", -1) = "C" (A is at index 1, previous = C at index 0) → returns id=30 (wrong).
+    * With the fix (sorted-dataset router, iteration A → B → C):
+    *   getValue("A", -1) = INVALID (A is first) → correctly returns INVALID.
+    */
+   @Test
+   void testChangePreviousWithStringDimension_RouterUsesSortedOrder() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS);
+      valueOfColumn.setDim("name");
+      valueOfColumn.setInnerDim("name");
+
+      // Original row order: C=30, A=10, B=20 (intentionally NOT alphabetical)
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         { "name", "id" },
+         { "C", 30 },
+         { "A", 10 },
+         { "B", 20 }
+      });
+
+      VSDimensionRef mockDRef = mock(VSDimensionRef.class);
+      when(mockDRef.getFullName()).thenReturn("name");
+      vsDataSet = new VSDataSet(tb, new VSDataRef[]{ mockDRef });
+
+      // SortedDataSet (forceSort=true) sorts "name" alphabetically: A(id=10), B(id=20), C(id=30)
+      SortedDataSet sortedDataSet = new SortedDataSet(vsDataSet, "name");
+      sortedDataSet.setForceSort(true);
+
+      // Row 0 in sorted order = "A" — first alphabetically, so no previous → INVALID
+      Object result = valueOfColumn.calculate(sortedDataSet, 0, true, false);
+      assertEquals(CalcColumn.INVALID, result);
+
+      // Row 1 in sorted order = "B" — previous in sorted order is "A" (id=10)
+      result = valueOfColumn.calculate(sortedDataSet, 1, false, false);
+      assertEquals(10, result);
    }
 
    /**

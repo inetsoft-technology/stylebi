@@ -499,7 +499,7 @@ public class SelectionTreePropertyDialogController {
    {
       VSModelTrapContext context = new VSModelTrapContext(rvs, true);
       context.checkTrap(oinfo, ninfo);
-      DataRef[] refs = context.getGrayedFields();;
+      DataRef[] refs = context.getGrayedFields();
       List<DataRefModel> fields = new ArrayList<>();
 
       for(DataRef ref : refs) {

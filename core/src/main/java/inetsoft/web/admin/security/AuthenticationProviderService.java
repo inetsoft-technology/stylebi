@@ -216,7 +216,7 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
       SecurityProviderStatusList.Builder builder = SecurityProviderStatusList.builder();
 
       if(chain.isEmpty()) {
-         LOG.warn("The authentication chain has not been initialized.");
+         LOG.debug("The authentication chain has not been initialized.");
       }
       else {
          chain.get().stream()

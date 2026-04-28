@@ -799,6 +799,7 @@ public class VsToReportConverter {
             SectionElementDef filler = createReportSection();
             getSectionContent(filler).setHeight(y / 72f);
             addSection(filler, new Rectangle(0, 0, pwidth, y));
+            fillerSectionIds.add(filler.getID());
             bounds = new Rectangle(0, 0, pwidth, y + height);
          }
 
@@ -838,6 +839,7 @@ public class VsToReportConverter {
                int fillh = y - bounds.y - bounds.height;
                getSectionContent(filler).setHeight(fillh / 72f);
                addSection(filler, new Rectangle(0, bounds.y + bounds.height, pwidth, fillh));
+               fillerSectionIds.add(filler.getID());
             }
 
             innersection = createReportSection();
@@ -1455,7 +1457,7 @@ public class VsToReportConverter {
       Hyperlink emptyPlotLink = cinfo.getEmptyPlotLinkValue();
 
       if(emptyPlotLink != null) {
-         chartelem.setPlotAreaHyperlink(emptyPlotLink);
+         chartelem.setEmptyPlotHyperlink(emptyPlotLink);
       }
    }
 
@@ -1802,8 +1804,25 @@ public class VsToReportConverter {
       if(contentBounds.height <= 0) {
          switch(position) {
             case LabelInfo.TOP:
-               // Cannot grow the section upward; overlap label at the widget's top edge
-               // instead of trying to place it above the allocated band.
+               // For a TOP label, try to place the label in the section that covers the space
+               // immediately above the widget (bounds.y - labelH .. bounds.y). This is typically
+               // the filler section created to preserve vertical spacing before the first assembly.
+               // Returning early skips the addElement0 call below so the label is not double-added.
+               if(bounds.y >= labelH) {
+                  String aboveSection = findSectionContaining(bounds.y - 1);
+
+                  if(aboveSection != null) {
+                     Rectangle topLabelBounds =
+                        new Rectangle(bounds.x, bounds.y - labelH, bounds.width, labelH);
+                     expandSectionForLabel(aboveSection, topLabelBounds);
+                     addElement0(topLabelBounds, textbox, aboveSection);
+                     return new Rectangle(bounds.x, bounds.y, bounds.width, bounds.height);
+                  }
+               }
+
+               // No filler section found above to absorb the label; fall back to overlapping
+               // the label with the widget at the same bounds. The label will likely be covered
+               // by the opaque widget image (the original bug), but there is no safe alternative.
                labelBounds = new Rectangle(bounds.x, bounds.y, bounds.width, labelH);
                break;
             case LabelInfo.BOTTOM:
@@ -2885,6 +2904,33 @@ public class VsToReportConverter {
    }
 
    /**
+    * Find the ID of the filler section (one of the empty spacing sections created by
+    * {@link #createReportSections} to preserve vertical gaps between assemblies) whose
+    * absolute-pixel bounds contain the given y-coordinate.
+    * Returns {@code null} if no filler section covers that position.
+    * Content sections (those holding assembly elements) are intentionally excluded to
+    * prevent a label from being placed inside another assembly's section.
+    */
+   private String findSectionContaining(int absoluteY) {
+      for(LayoutSection layout : contentSections) {
+         if(!fillerSectionIds.contains(layout.section.getID())) {
+            continue;
+         }
+
+         int sectionTop = layout.bounds.y;
+         int sectionBottom = layout.bounds.y + layout.bounds.height;
+
+         // Sections are abutted with a half-open interval [sectionTop, sectionBottom).
+         // Use (absoluteY < sectionBottom) rather than (<=) to match this convention.
+         if(absoluteY >= sectionTop && absoluteY < sectionBottom) {
+            return layout.section.getID();
+         }
+      }
+
+      return null;
+   }
+
+   /**
     * Expand the section height if the given label bounds extend below the section's
     * current allocated area. Called when a label must be placed outside the component's
     * own layout bounds.
@@ -2995,6 +3041,8 @@ public class VsToReportConverter {
    private TabularSheet report = new TabularSheet();
    // sections used to hold content elements
    private List<LayoutSection> contentSections = new ArrayList<>();
+   // IDs of filler sections (empty spacing sections, not bound to any assembly)
+   private Set<String> fillerSectionIds = new HashSet<>();
    private SectionElementDef headerSection = null; // section of header.
    private SectionElementDef footerSection = null; // section of footer.
    private static HashMap<String, PrintLayout> tempLayouts = new HashMap<>();

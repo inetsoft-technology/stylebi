@@ -31,11 +31,17 @@ public class AISettingsService {
       boolean aiAssistantVisible = "true".equalsIgnoreCase(aiAssistantVisibleProp);
       String chatAppServerUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_SERVER_URL);
       String chatAppInternalUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_INTERNAL_URL);
+      String chatAppTitle = SreeEnv.getProperty(AIAssistantController.CHAT_APP_TITLE);
+      String chatAppVendorName = SreeEnv.getProperty(AIAssistantController.CHAT_APP_VENDOR_NAME);
+      String chatAppLogoUrl = SreeEnv.getProperty(AIAssistantController.CHAT_APP_LOGO_URL);
 
       return PresentationAISettingsModel.builder()
          .aiAssistantVisible(aiAssistantVisible)
          .chatAppServerUrl(chatAppServerUrl)
          .chatAppInternalUrl(chatAppInternalUrl)
+         .chatAppTitle(chatAppTitle)
+         .chatAppVendorName(chatAppVendorName)
+         .chatAppLogoUrl(chatAppLogoUrl)
          .build();
    }
 
@@ -65,6 +71,33 @@ public class AISettingsService {
          SreeEnv.remove(AIAssistantController.CHAT_APP_INTERNAL_URL);
       }
 
+      String chatAppTitle = model.chatAppTitle() != null ? model.chatAppTitle().trim() : "";
+
+      if(!chatAppTitle.isEmpty()) {
+         SreeEnv.setProperty(AIAssistantController.CHAT_APP_TITLE, chatAppTitle);
+      }
+      else {
+         SreeEnv.remove(AIAssistantController.CHAT_APP_TITLE);
+      }
+
+      String chatAppVendorName = model.chatAppVendorName() != null ? model.chatAppVendorName().trim() : "";
+
+      if(!chatAppVendorName.isEmpty()) {
+         SreeEnv.setProperty(AIAssistantController.CHAT_APP_VENDOR_NAME, chatAppVendorName);
+      }
+      else {
+         SreeEnv.remove(AIAssistantController.CHAT_APP_VENDOR_NAME);
+      }
+
+      String chatAppLogoUrl = model.chatAppLogoUrl() != null ? model.chatAppLogoUrl().trim() : "";
+
+      if(!chatAppLogoUrl.isEmpty()) {
+         SreeEnv.setProperty(AIAssistantController.CHAT_APP_LOGO_URL, chatAppLogoUrl);
+      }
+      else {
+         SreeEnv.remove(AIAssistantController.CHAT_APP_LOGO_URL);
+      }
+
       SreeEnv.save();
    }
 
@@ -88,6 +121,9 @@ public class AISettingsService {
       SreeEnv.remove(AIAssistantController.AI_ASSISTANT_VISIBLE);
       SreeEnv.remove(AIAssistantController.CHAT_APP_SERVER_URL);
       SreeEnv.remove(AIAssistantController.CHAT_APP_INTERNAL_URL);
+      SreeEnv.remove(AIAssistantController.CHAT_APP_TITLE);
+      SreeEnv.remove(AIAssistantController.CHAT_APP_VENDOR_NAME);
+      SreeEnv.remove(AIAssistantController.CHAT_APP_LOGO_URL);
       SreeEnv.save();
    }
 }

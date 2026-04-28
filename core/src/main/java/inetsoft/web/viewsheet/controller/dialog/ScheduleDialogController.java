@@ -45,6 +45,8 @@ import inetsoft.web.admin.schedule.model.UsersModel;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.portal.model.CSVConfigModel;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.dialog.EmailAddrDialogModel;
@@ -92,6 +94,18 @@ public class ScheduleDialogController {
     * @return  the schedule dialog model
     * @throws Exception if could not create the schedule dialog model
     */
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.VIEWSHEET_TOOLBAR_ACTION,
+         resource = "Schedule",
+         actions = ResourceAction.READ
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @RequestMapping(value = "/api/vs/schedule-dialog-model", method = RequestMethod.GET)
    @ResponseBody
    public ScheduleDialogModel getScheduleDialogModel(Principal principal)
@@ -148,6 +162,18 @@ public class ScheduleDialogController {
     * @return  the schedule dialog model
     * @throws Exception if could not create the schedule dialog model
     */
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.VIEWSHEET_TOOLBAR_ACTION,
+         resource = "Schedule",
+         actions = ResourceAction.READ
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @RequestMapping(value = "/api/vs/simple-schedule-dialog-model/**", method = RequestMethod.GET)
    @ResponseBody
    public SimpleScheduleDialogModel getSimpleScheduleDialogModel(@RemainingPath String runtimeId,
@@ -349,6 +375,18 @@ public class ScheduleDialogController {
     * @return  the schedule dialog model
     * @throws Exception if could not create the schedule dialog model
     */
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.VIEWSHEET_TOOLBAR_ACTION,
+         resource = "Schedule",
+         actions = ResourceAction.READ
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @RequestMapping(value = "/api/vs/check-schedule-dialog/**", method = RequestMethod.GET)
    @ResponseBody
    public MessageCommand checkScheduleDialogl(@RemainingPath String runtimeId,
@@ -424,6 +462,14 @@ public class ScheduleDialogController {
          return;
       }
 
+      SecurityEngine security = SecurityEngine.getSecurity();
+      boolean canDeliverEmail = security.checkPermission(
+         principal, ResourceType.SCHEDULE_OPTION, "emailDelivery", ResourceAction.READ);
+      boolean canSetStartTime = security.checkPermission(
+         principal, ResourceType.SCHEDULE_OPTION, "startTime", ResourceAction.READ);
+      boolean canUseTimeRange = security.checkPermission(
+         principal, ResourceType.SCHEDULE_OPTION, "timeRange", ResourceAction.READ);
+
       ViewsheetAction action = new ViewsheetAction();
 
       action.setBookmarks(new String[]{Optional.ofNullable(viewsheetActionModel.bookmarkName()).orElse("")});
@@ -433,39 +479,54 @@ public class ScheduleDialogController {
       action.setViewsheet(
          Optional.ofNullable(viewsheetActionModel.viewsheet()).orElse(entry.toIdentifier()));
 
-      action.setFileFormat(getEmailFormat(emailInfoModel.formatType()));
-      action.setEmailCSVConfig(new CSVConfig(emailInfoModel.csvConfigModel()));
-      action.setEmails(Optional.ofNullable(emailInfoModel.emails()).orElse(""));
-      action.setFrom(Optional.ofNullable(emailInfoModel.fromAddress())
-         .orElse(SreeEnv.getProperty("mail.from.address")));
-      action.setAttachmentName(
-         Optional.ofNullable(emailInfoModel.attachmentName()).orElse(entry.getName()));
-      action.setSubject(
-         Optional.ofNullable(emailInfoModel.subject()).orElse(getEntryMessage(entry)));
-      action.setMessage(
-         Optional.ofNullable(emailInfoModel.message()).orElse(getEntryMessage(entry)));
-      action.setMatchLayout(emailInfoModel.matchLayout());
-      action.setExpandSelections(emailInfoModel.expandSelections());
-      action.setOnlyDataComponents(emailInfoModel.onlyDataComponents());
-      action.setCCAddresses(emailInfoModel.ccAddresses());
-      action.setBCCAddresses(emailInfoModel.bccAddresses());
-      action.setExportAllTabbedTables(emailInfoModel.exportAllTabbedTables());
+      if(canDeliverEmail) {
+         action.setFileFormat(getEmailFormat(emailInfoModel.formatType()));
+         action.setEmailCSVConfig(new CSVConfig(emailInfoModel.csvConfigModel()));
+         action.setEmails(Optional.ofNullable(emailInfoModel.emails()).orElse(""));
+         action.setFrom(Optional.ofNullable(emailInfoModel.fromAddress())
+            .orElse(SreeEnv.getProperty("mail.from.address")));
+         action.setAttachmentName(
+            Optional.ofNullable(emailInfoModel.attachmentName()).orElse(entry.getName()));
+         action.setSubject(
+            Optional.ofNullable(emailInfoModel.subject()).orElse(getEntryMessage(entry)));
+         action.setMessage(
+            Optional.ofNullable(emailInfoModel.message()).orElse(getEntryMessage(entry)));
+         action.setMatchLayout(emailInfoModel.matchLayout());
+         action.setExpandSelections(emailInfoModel.expandSelections());
+         action.setOnlyDataComponents(emailInfoModel.onlyDataComponents());
+         action.setCCAddresses(emailInfoModel.ccAddresses());
+         action.setBCCAddresses(emailInfoModel.bccAddresses());
+         action.setExportAllTabbedTables(emailInfoModel.exportAllTabbedTables());
 
-      if(emailInfoModel.formatType() == FileFormatInfo.EXPORT_TYPE_CSV) {
-         action.setCompressFile(true);
+         if(emailInfoModel.formatType() == FileFormatInfo.EXPORT_TYPE_CSV) {
+            action.setCompressFile(true);
+         }
       }
 
       TimeCondition condition = new TimeCondition();
-      condition.setHour(Optional.ofNullable(timeConditionModel.hour())
-                           .filter(h -> h > 0)
-                           .orElse(1));
-      condition.setMinute(Optional.ofNullable(timeConditionModel.minute())
-                             .filter(h -> h > 0)
-                             .orElse(30));
-      condition.setSecond(Optional.ofNullable(timeConditionModel.second())
-                             .filter(h -> h > 0)
-                             .orElse(0));
-      condition.setType(timeConditionModel.type());
+
+      if(canSetStartTime) {
+         condition.setHour(Optional.ofNullable(timeConditionModel.hour())
+                              .filter(h -> h > 0)
+                              .orElse(1));
+         condition.setMinute(Optional.ofNullable(timeConditionModel.minute())
+                                .filter(h -> h > 0)
+                                .orElse(30));
+         condition.setSecond(Optional.ofNullable(timeConditionModel.second())
+                                .filter(h -> h > 0)
+                                .orElse(0));
+         condition.setType(timeConditionModel.type());
+      }
+      else {
+         // Principal cannot set the scheduled time: use system defaults and
+         // fall back to EVERY_DAY if the submitted type was AT or EVERY_HOUR.
+         condition.setHour(1);
+         condition.setMinute(30);
+         condition.setSecond(0);
+         int type = timeConditionModel.type();
+         condition.setType(type == TimeCondition.AT || type == TimeCondition.EVERY_HOUR
+            ? TimeCondition.EVERY_DAY : type);
+      }
 
       if(condition.getType() == TimeCondition.EVERY_DAY) {
          condition.setWeekdayOnly(timeConditionModel.weekdayOnly());
@@ -495,7 +556,7 @@ public class ScheduleDialogController {
          }
       }
 
-      if(timeConditionModel.timeRange() != null) {
+      if(timeConditionModel.timeRange() != null && canUseTimeRange) {
          TimeRangeModel range = timeConditionModel.timeRange();
          condition.setTimeRange(new TimeRange(
             range.name(), range.startTime(), range.endTime(), range.defaultRange()));

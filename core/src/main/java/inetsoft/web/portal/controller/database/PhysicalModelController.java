@@ -34,6 +34,8 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 
 import java.security.Principal;
 import java.util.List;
@@ -61,11 +63,21 @@ public class PhysicalModelController {
       this.physicalModelManager = physicalModelManager;
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping(value = "/api/data/physicalmodel/heartbeat")
    public boolean heartBeat(@RequestParam("id") String id) {
       return this.runtimePartitionService.touch(id);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("/api/data/physicalModel/checkDuplicate")
    public boolean checkLogicalModelDuplicate(@RequestParam("database") String database,
                                              @RequestParam("name") String name)
@@ -74,6 +86,11 @@ public class PhysicalModelController {
       return dataSourceService.isUniqueModelName(database, name);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("/api/data/physicalModel/extended/checkDuplicate")
    public boolean checkExtendedModelDuplicate(@RequestParam("database") String database,
                                               @RequestParam("parent") String parent,
@@ -89,6 +106,11 @@ public class PhysicalModelController {
     *
     * @throws Exception if the model could not be obtained.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @RequestMapping(value = "/api/data/physicalmodel/model", method = RequestMethod.POST)
    public PhysicalModelDefinition openModel(@RequestBody GetModelEvent event, Principal principal)
       throws Exception
@@ -97,6 +119,11 @@ public class PhysicalModelController {
          event.getDatasource(), event.getParent(), event.getPhysicalName(), principal);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/data/physicalmodel/model/create")
    public PhysicalModelDefinition createNewModel(@RequestBody AddPhysicalModelEvent event,
                                                  Principal principal)
@@ -106,6 +133,11 @@ public class PhysicalModelController {
          event.getDatabase(), event.getParent(), event.getModel(), principal);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping(value = "/api/data/physicalmodel/model/refresh")
    public PhysicalModelDefinition refreshModel(@RequestParam("id") String id) throws Exception {
       if(StringUtils.isEmpty(id)) {
@@ -133,6 +165,11 @@ public class PhysicalModelController {
     *
     * @throws Exception if the tree nodes could not be obtained.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("/api/data/physicalmodel/tree/nodes")
    public List<TreeNodeModel> getDatabaseTreeNodes(
       @RequestParam("parentPath") String parentPath,
@@ -164,6 +201,11 @@ public class PhysicalModelController {
     *
     * @throws Exception if the tree nodes could not be obtained.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping(value = "/api/data/physicalmodel/tree/allNodes")
    public List<TreeNodeModel> getDatabaseTree(
       @RequestParam("database") String database,
@@ -183,6 +225,11 @@ public class PhysicalModelController {
     *
     * @throws Exception if the columns could not be obtained.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping(value = "/api/data/physicalmodel/columns")
    public List<String> getTableColumns(@RequestBody GetTableColumnEvent event)
       throws Exception
@@ -200,6 +247,11 @@ public class PhysicalModelController {
     *
     * @throws Exception if the columns could not be obtained.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping(value = "/api/data/physicalmodel/views/columns")
    public String[] getViewColumns(@RequestBody GetSqlColumnsEvent event, Principal principal)
       throws Exception
@@ -212,6 +264,11 @@ public class PhysicalModelController {
     * Return options for auto-aliasing for a specific table.
     * @return the list of auto-alias options.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping(value = "/api/data/physicalmodel/aliases/{runtimeId}/**")
    public List<AutoAliasJoinModel> getAliases(@PathVariable("runtimeId") String runtimeId,
                                               @RemainingPath String qualifiedName)
@@ -225,6 +282,11 @@ public class PhysicalModelController {
     * @return warning panel data and array with the 0 index being the message,
     *         in the case of unjoined tables 1 index is the first table, 2 index is the second.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("/api/data/physicalmodel/warnings/{runtimeId}")
    public WarningModel getWarnings(@PathVariable("runtimeId") String runtimeId, Principal principal)
    {
@@ -281,6 +343,11 @@ public class PhysicalModelController {
     *
     * @throws Exception if the database could not be added.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/data/physicalmodel/models")
    @ResponseStatus(HttpStatus.CREATED)
    public void addModelAndSave(@RequestBody AddPhysicalModelEvent event, Principal principal)
@@ -296,6 +363,11 @@ public class PhysicalModelController {
     * @param event   rename event.
     * @throws Exception if the model could not be renamed.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PutMapping("/api/data/physicalmodel/rename")
    public void renameModel(@RequestBody RenameModelEvent event, Principal principal)
       throws Exception
@@ -310,6 +382,11 @@ public class PhysicalModelController {
     *
     * @param event edit event.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping(value = "/api/data/physicalmodel/join/exist")
    public boolean checkJoinExist(@RequestBody EditJoinsEvent event) {
       for(EditJoinsEvent.EditJoinEventItem item : event.getJoinItems()) {
@@ -329,6 +406,11 @@ public class PhysicalModelController {
     *
     * @param event edit joins event
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping(value = "/api/data/physicalmodel/join/add")
    public void addJoin(@RequestBody EditJoinsEvent event) {
       editJoins(event);
@@ -339,6 +421,11 @@ public class PhysicalModelController {
     *
     * @param event edit joins event
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PutMapping(value = "/api/data/physicalmodel/join/remove")
    public void removeJoin(@RequestBody EditJoinsEvent event) {
       editJoins(event);
@@ -349,6 +436,11 @@ public class PhysicalModelController {
     *
     * @param event edit joins event
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PutMapping(value = "/api/data/physicalmodel/join/modify")
    public void modifyJoin(@RequestBody EditJoinsEvent event) {
       editJoins(event);
@@ -388,6 +480,11 @@ public class PhysicalModelController {
     *
     * @param id editing RID
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @DeleteMapping(value = "/api/data/physicalmodel/destroy")
    public void destroyRuntime(@RequestParam("id") String id) {
       physicalModelManager.closeModel(id);
@@ -400,6 +497,11 @@ public class PhysicalModelController {
     *
     * @throws Exception if the model could not be updated.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PutMapping(value = "/api/data/physicalmodel/models")
    public void updateModelAndSave(@RequestBody ModifyPhysicalModelEvent event, Principal principal)
       throws Exception
@@ -418,6 +520,11 @@ public class PhysicalModelController {
     *
     * @throws Exception if the model could not be removed.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @DeleteMapping(value = "/api/data/physicalmodel/models")
    public boolean removeModel(@RequestParam("database") String database,
                               @RequestParam(value = "folder", required = false) String folder,
@@ -428,11 +535,21 @@ public class PhysicalModelController {
       return physicalModelManager.removeModel(database, folder, name, parent, principal);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/data/physicalmodel/table/add")
    public void addTable(@RequestBody EditTableEvent event) throws Exception {
       physicalModelManager.addTable(event.getId(), event.getNode(), true);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/data/physicalmodel/table/remove")
    public void removeTable(@RequestBody EditTableEvent event) {
       String id = event.getId();
@@ -455,6 +572,11 @@ public class PhysicalModelController {
       }
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/data/physicalmodel/tables/remove")
    public void removeTable(@RequestBody RemoveGraphTableEvent event)
    {
@@ -463,6 +585,11 @@ public class PhysicalModelController {
       }
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @DeleteMapping("/api/data/physicalmodel/table/remove")
    public void removeTable(@RequestParam String runtimeId, @RequestParam String name,
                            @RequestParam String tableName)
@@ -476,6 +603,11 @@ public class PhysicalModelController {
     * @return true if the datasource supports full outer joins, false otherwise
     * @throws Exception if could not get the datasource
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @RequestMapping(
       value = "/api/data/physicalmodel/fullOuterJoin",
       method = RequestMethod.GET)
@@ -500,6 +632,11 @@ public class PhysicalModelController {
     * @return a list of available columns for auto join
     * @throws Exception if could not generate list of columns for auto join.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @RequestMapping(
       value = "/api/data/physicalmodel/autoJoin/**",
       method = RequestMethod.POST)
@@ -511,11 +648,21 @@ public class PhysicalModelController {
       return physicalModelManager.getAutoJoinColumns(database, model, principal);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PutMapping(value = "/api/data/physicalmodel/autoAlias")
    public void setAutoAlias(@RequestBody SetAutoAliasEvent event) {
       physicalModelManager.updateAutoAliasing(event.getId(), event.getTable());
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping(value = "/api/data/physicalmodel/alias/add")
    public StringWrapper createTableAlias(@RequestBody EditTableEvent event) throws Exception {
       String invalidMsg = physicalModelManager.createAlias(event.getId(), event.getTable());
@@ -529,16 +676,31 @@ public class PhysicalModelController {
       return null;
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping(value = "/api/data/physicalmodel/alias/modify")
    public void modifyTableAlias(@RequestBody EditTableEvent event) {
       physicalModelManager.updateAlias(event.getId(), event.getOldName(), event.getTable());
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping(value = "/api/data/physicalmodel/inlineView/modify")
    public void editInlineView(@RequestBody EditTableEvent event) {
       physicalModelManager.updateInlineView(event.getId(), event.getOldName(), event.getTable());
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping(value = "/api/data/physicalmodel/inlineView/add")
    public void createInlineView(@RequestBody EditTableEvent event) throws Exception {
       physicalModelManager.createInlineView(event.getId(), event.getTable());
@@ -549,6 +711,11 @@ public class PhysicalModelController {
     *
     * @param event add joins event
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping(value = "/api/data/physicalmodel/add/autoJoin")
    public void addAutoJoins(@RequestBody EditJoinsEvent event, Principal principal) {
       EditJoinsEvent.EditJoinEventItem[] items = event.getJoinItems();
@@ -571,6 +738,11 @@ public class PhysicalModelController {
     * @return the join with detected cardinality
     * @throws Exception if could not detect the cardinality
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @RequestMapping(
       value = "/api/data/physicalmodel/cardinality",
       method = RequestMethod.POST)
@@ -589,6 +761,11 @@ public class PhysicalModelController {
     *
     * @return the physical view list.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("/api/data/physicalmodel/views")
    @ResponseBody
    public List<String> getPhysicalViews(@RequestParam("database") String database,

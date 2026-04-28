@@ -308,6 +308,7 @@ public abstract class AbstractEditableAuthenticationProvider
                if(t.getOrgID() != null) {
                   CustomTheme clone = (CustomTheme) t.clone();
                   clone.setOrgID(toOrgId);
+                  clone.setId(UUID.randomUUID().toString().replace("-", ""));
 
                   if(t.getOrganizations().contains(fromOrgId)) {
                      List<String> newOrgs = clone.getOrganizations();
@@ -316,7 +317,9 @@ public abstract class AbstractEditableAuthenticationProvider
                      clone.setOrganizations(newOrgs);
                   }
 
-                  clone.setJarPath(clone.getJarPath().replace(fromOrgId, toOrgId));
+                  if(clone.getJarPath() != null) {
+                     clone.setJarPath(clone.getJarPath().replace(fromOrgId, toOrgId));
+                  }
 
                   themes.add(clone);
                }

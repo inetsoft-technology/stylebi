@@ -1,6 +1,6 @@
-/*
+/*!
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,24 +15,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.portal.controller;
 
-import inetsoft.web.admin.schedule.ScheduleTaskActionService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.RestController;
+.button-container {
+  display: flex;
+  flex: 1;
+  flex-direction: row;
+  flex-wrap: wrap;
 
-/**
- * Controller that provides a REST endpoint used for the email dialog in the scheduler
- * task dialog.
- *
- * @since 12.3
- */
-@RestController
-public class ScheduleTaskEmailDialogController {
-   @Autowired
-   public ScheduleTaskEmailDialogController(ScheduleTaskActionService actionService) {
-      this.actionService = actionService;
-   }
-
-   private final ScheduleTaskActionService actionService;
+  button{
+    margin: 6px;
+  }
 }

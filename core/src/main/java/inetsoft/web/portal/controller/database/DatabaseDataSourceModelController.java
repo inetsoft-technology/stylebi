@@ -18,8 +18,11 @@
 package inetsoft.web.portal.controller.database;
 
 import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.util.Tool;
 import inetsoft.web.factory.RemainingPath;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -31,6 +34,11 @@ public class DatabaseDataSourceModelController {
       this.dataSourceService = dataSourceService;
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping(value = "/api/data/model/checkEditable/**")
    public boolean checkDatabaseEditable(@RemainingPath String databasePath,
                                         @RequestParam(value = "folder", required = false) String folder,

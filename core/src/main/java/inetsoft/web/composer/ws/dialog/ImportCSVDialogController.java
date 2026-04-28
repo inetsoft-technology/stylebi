@@ -23,6 +23,8 @@ import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -41,6 +43,8 @@ import inetsoft.web.composer.model.ws.ImportCSVDialogModelValidator;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.composer.ws.WorksheetController;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import inetsoft.web.composer.ws.command.ForceNotCloseWorksheetCommand;
 import inetsoft.web.messaging.MessageAttributes;
 import inetsoft.web.messaging.MessageContextHolder;
@@ -101,6 +105,11 @@ public class ImportCSVDialogController extends WorksheetController {
     *
     * @return the rectangle descriptor.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.WORKSHEET,
+      resource = "*",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("/api/composer/ws/import-csv-dialog-model/{runtimeId}")
    @ResponseBody
    public ImportCSVDialogModel getImportCSVDialogModel(@PathVariable("runtimeId") String runtimeId)
@@ -116,15 +125,24 @@ public class ImportCSVDialogController extends WorksheetController {
          .build();
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.WORKSHEET,
+      resource = "*",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping(
       value = "/api/composer/ws/import-csv-dialog-model/upload/{runtimeId}",
       consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
    @ResponseBody
    public HashMap<String, Object> getUploadFile(
       @RequestParam("uploads[]") MultipartFile mpf,
-      @PathVariable("runtimeId") String runtimeId) throws Exception
+      @PathVariable("runtimeId") String runtimeId,
+      Principal principal) throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId);
+
+      // Verify the user has access to this runtime worksheet; throws if not found or unauthorized.
+      getWorksheetEngine().getWorksheet(runtimeId, principal);
       processUploadCSV(mpf, runtimeId);
       HashMap<String, Object> res = process(runtimeId);
       CSVInfo csvinfo = (CSVInfo) res.get("model");
@@ -159,13 +177,22 @@ public class ImportCSVDialogController extends WorksheetController {
       return res;
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.WORKSHEET,
+      resource = "*",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/composer/ws/import-csv-dialog-model/preview/{runtimeId}")
    @ResponseBody
    public HashMap<String, Object> getPreviewTable(
       @RequestBody ImportCSVDialogModel model,
-      @PathVariable("runtimeId") String runtimeId) throws Exception
+      @PathVariable("runtimeId") String runtimeId,
+      Principal principal) throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId);
+
+      // Verify the user has access to this runtime worksheet; throws if not found or unauthorized.
+      getWorksheetEngine().getWorksheet(runtimeId, principal);
       String rid = Tool.normalizeFileName(runtimeId);
       File csvTemp = FileSystemService.getInstance().getCacheFile(rid + "_csv");
       CSVInfo csvInfo = null;
@@ -223,11 +250,22 @@ public class ImportCSVDialogController extends WorksheetController {
       return resultMap;
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.WORKSHEET,
+      resource = "*",
+      actions = ResourceAction.ACCESS
+   ))
    @PutMapping("/api/composer/ws/import-csv-dialog-model/touch-file/{runtimeId}")
    @ResponseBody
-   public void touchFile(@PathVariable("runtimeId") String runtimeId) throws IOException {
+   public void touchFile(@PathVariable("runtimeId") String runtimeId,
+                         Principal principal) throws Exception
+   {
+      runtimeId = Tool.byteDecode(runtimeId);
+
+      // Verify the user has access to this runtime worksheet; throws if not found or unauthorized.
+      getWorksheetEngine().getWorksheet(runtimeId, principal);
       String cdir = FileSystemService.getInstance().getCacheDirectory();
-      runtimeId = Tool.normalizeFileName(Tool.byteDecode(runtimeId));
+      runtimeId = Tool.normalizeFileName(runtimeId);
       fileCache.get(cdir + runtimeId + "_csv");
    }
 

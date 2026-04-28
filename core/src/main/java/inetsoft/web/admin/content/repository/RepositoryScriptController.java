@@ -22,7 +22,7 @@ import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.repository.model.ScriptSettingsModel;
@@ -53,8 +53,17 @@ public class RepositoryScriptController {
    public ScriptSettingsModel getScriptModel(@RequestParam("path") String path,
                                              @RequestParam("type") int type,
                                              Principal principal)
+      throws Exception
    {
       Resource resource = resourcePermissionService.getRepositoryResourceType(type, path);
+
+      if(!SecurityEngine.getSecurity().checkPermission(
+         principal, resource.getType(), resource.getPath(), ResourceAction.ADMIN))
+      {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", path));
+      }
+
       ResourcePermissionModel permissionModel = this.resourcePermissionService.getTableModel(
          resource.getPath(), resource.getType(),
          ResourcePermissionService.ADMIN_ACTIONS, principal);
@@ -82,6 +91,15 @@ public class RepositoryScriptController {
                               Principal principal)
       throws Exception
    {
+      Resource resource = resourcePermissionService.getRepositoryResourceType(type, path);
+
+      if(!SecurityEngine.getSecurity().checkPermission(
+         principal, resource.getType(), resource.getPath(), ResourceAction.ADMIN))
+      {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", path));
+      }
+
       Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
       String objectName = "Script Function/" + model.oname();
       ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal),
@@ -111,7 +129,7 @@ public class RepositoryScriptController {
             manager.save();
          }
 
-         Resource resource = resourcePermissionService.getRepositoryResourceType(type, path);
+         resource = resourcePermissionService.getRepositoryResourceType(type, path);
 
          if(npath != null && !npath.isEmpty()) {
             SecurityEngine security = SecurityEngine.getSecurity();

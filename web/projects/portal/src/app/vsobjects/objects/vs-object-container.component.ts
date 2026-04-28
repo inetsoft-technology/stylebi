@@ -508,25 +508,28 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
             if((this.viewer || this.embeddedVS) && !(<VSSelectionBaseModel> obj).maxMode
                && obj.containerType !== "VSSelectionContainer")
             {
-               const inBottomTab = VSUtil.isInBottomTabContainer(obj, this.vsInfo?.vsObjects);
+               const bottomTab = VSUtil.getBottomTabContainer(obj, this.vsInfo?.vsObjects);
+               const inBottomTab = !!bottomTab;
+               const selModel = <VSSelectionBaseModel> obj;
 
-               if(this.isAtBottom(i, true) && (<VSSelectionBaseModel> obj).dropdown &&
-                  !SelectionBaseController.isHidden(<VSSelectionBaseModel> obj) &&
+               if(this.isAtBottom(i, true) && selModel.dropdown &&
+                  !SelectionBaseController.isHidden(selModel) &&
                   !inBottomTab)
                {
-                  let bodyHeight = this.getSelectionBodyHeight(<VSSelectionBaseModel> obj);
+                  let bodyHeight = this.getSelectionBodyHeight(selModel);
                   let popDown = this.containerBounds?.height - obj?.objectFormat?.top -
-                     (<VSSelectionBaseModel> obj)?.titleFormat?.height - bodyHeight > 0;
+                     selModel?.titleFormat?.height - bodyHeight > 0;
 
                   return popDown ? obj?.objectFormat?.top : obj?.objectFormat?.top - bodyHeight;
                }
-               else if((<VSSelectionBaseModel> obj).dropdown &&
-                  !SelectionBaseController.isHidden(<VSSelectionBaseModel> obj) &&
-                  inBottomTab)
-               {
-                  let bodyHeight = this.getSelectionBodyHeight(<VSSelectionBaseModel> obj);
-                  let searchBarHeight = (<VSSelectionBaseModel> obj).searchDisplayed ? (<VSSelectionBaseModel> obj).titleFormat.height : 0;
-                  return obj?.objectFormat?.top - bodyHeight - searchBarHeight;
+               else if(selModel.dropdown && inBottomTab) {
+                  // applies whether the dropdown is collapsed or expanded; the collapsed
+                  // case is critical because it's where objectFormat.top would be stale
+                  // when bottomTabs is toggled via script.
+                  const expanded = !SelectionBaseController.isHidden(selModel);
+                  return VSUtil.computeBottomTabSelectionTop(
+                     bottomTab.objectFormat.top, selModel.titleFormat.height,
+                     expanded, this.getSelectionBodyHeight(selModel), selModel.searchDisplayed);
                }
                else {
                   return obj?.objectFormat?.top;

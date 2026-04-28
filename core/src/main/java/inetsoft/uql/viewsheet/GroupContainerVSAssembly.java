@@ -17,7 +17,6 @@
  */
 package inetsoft.uql.viewsheet;
 
-import inetsoft.report.internal.Common;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.internal.*;
@@ -187,7 +186,7 @@ public class GroupContainerVSAssembly extends AbstractContainerVSAssembly {
 
                   if(labelInfo != null && labelInfo.isLabelVisible()) {
                      String position = labelInfo.getLabelPosition();
-                     int adjustment = getLabelHeight(labelInfo) + labelInfo.getLabelGap();
+                     int adjustment = labelInfo.getRenderedHeight() + labelInfo.getLabelGap();
 
                      if(LabelInfo.BOTTOM.equals(position)) {
                         // Label renders below the content; push the bottom boundary down.
@@ -223,22 +222,4 @@ public class GroupContainerVSAssembly extends AbstractContainerVSAssembly {
       return new Point[] {upperLeft, bottomRight};
    }
 
-   /**
-    * Estimate the rendered pixel height of a label, using the label's font if available,
-    * falling back to the default viewsheet font.
-    */
-   private static int getLabelHeight(LabelInfo labelInfo) {
-      VSCompositeFormat format = labelInfo.getLabelFormat();
-      Font font = null;
-
-      if(format != null) {
-         font = format.getFont();
-      }
-
-      if(font == null) {
-         font = VSAssemblyInfo.getDefaultFont(Font.PLAIN, 11);
-      }
-
-      return (int) Math.ceil(Common.getHeight(font));
-   }
 }

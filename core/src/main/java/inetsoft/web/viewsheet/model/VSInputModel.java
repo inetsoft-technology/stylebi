@@ -35,12 +35,17 @@ public abstract class VSInputModel<T extends InputVSAssembly> extends VSObjectMo
 
       LabelInfo labelInfo = assemblyInfo.getLabelInfo();
 
-      if (labelInfo != null) {
+      if(labelInfo != null) {
+         boolean runtime = rvs != null && rvs.isRuntime();
          labelModel = new VSInputLabelModel();
-         labelModel.setShowLabel(labelInfo.isLabelVisible());
-         labelModel.setLabelText(labelInfo.getLabelText());
-         labelModel.setLabelPosition(labelInfo.getLabelPosition());
-         labelModel.setLabelGap(labelInfo.getLabelGap());
+         labelModel.setShowLabel(runtime ? labelInfo.isLabelVisible()
+                                         : labelInfo.getLabelVisibleValue());
+         labelModel.setLabelText(runtime ? labelInfo.getLabelText()
+                                         : labelInfo.getLabelTextValue());
+         labelModel.setLabelPosition(runtime ? labelInfo.getLabelPosition()
+                                              : labelInfo.getLabelPositionValue());
+         labelModel.setLabelGap(runtime ? labelInfo.getLabelGap()
+                                         : labelInfo.getLabelGapValue());
          labelModel.setLabelFormat(new VSFormatModel(labelInfo.getLabelFormat()));
       }
    }

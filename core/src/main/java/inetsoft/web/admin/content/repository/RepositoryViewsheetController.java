@@ -62,8 +62,11 @@ public class RepositoryViewsheetController {
       }
 
       int scope = treeService.getAssetScope(path);
-      path = treeService.getUnscopedPath(path);
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
+      path = treeService.getUnscopedPath(path);
+
+      treeService.checkSheetPermission(scope, ownerID, path, ResourceType.REPORT, principal);
+
       final AssetEntry entry = new AssetEntry(scope, AssetEntry.Type.VIEWSHEET, path, ownerID);
       return sheetService.getSheetSettings(entry, ResourceType.REPORT, timeZone, owner, principal);
    }
@@ -85,6 +88,9 @@ public class RepositoryViewsheetController {
       int scope = treeService.getAssetScope(path);
       path = treeService.getUnscopedPath(path);
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
+
+      treeService.checkSheetPermission(scope, ownerID, path, ResourceType.REPORT, principal);
+
       final AssetEntry oldEntry = new AssetEntry(scope, AssetEntry.Type.VIEWSHEET, path, ownerID);
       final AssetEntry newEntry =
          sheetService.setSheetSettings(oldEntry.toIdentifier(), principal, model);

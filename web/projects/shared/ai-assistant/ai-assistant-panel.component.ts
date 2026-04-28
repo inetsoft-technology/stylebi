@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { Component, HostListener, NgZone, OnDestroy, OnInit, Renderer2 } from "@angular/core";
+import { Component, ElementRef, HostListener, NgZone, OnDestroy, OnInit, Renderer2 } from "@angular/core";
 import { Subscription } from "rxjs";
 import { AiAssistantService } from "./ai-assistant.service";
 
@@ -25,8 +25,8 @@ type PanelMode = "side" | "bottom";
 const LS_MODE_KEY = "ai-assistant-panel-mode";
 const LS_SIDE_WIDTH_KEY = "ai-assistant-panel-side-width";
 const LS_BOTTOM_HEIGHT_KEY = "ai-assistant-panel-bottom-height";
-const DEFAULT_SIDE_WIDTH = 680;
-const DEFAULT_BOTTOM_HEIGHT = 380;
+const DEFAULT_SIDE_WIDTH = 760;
+const DEFAULT_BOTTOM_HEIGHT = 520;
 const MIN_SIZE = 300;
 // Must match --ai-panel-top-offset in ai-assistant-panel.component.scss.
 const TOP_OFFSET = 52;
@@ -38,6 +38,8 @@ const TOP_OFFSET = 52;
 })
 export class AiAssistantPanelComponent implements OnInit, OnDestroy {
    mode: PanelMode = "side";
+   get collapsed(): boolean { return this.aiAssistantService.panelCollapsed; }
+   set collapsed(v: boolean) { this.aiAssistantService.panelCollapsed = v; }
    sideWidth: number = DEFAULT_SIDE_WIDTH;
    bottomHeight: number = DEFAULT_BOTTOM_HEIGHT;
    serverState: "checking" | "online" | "offline" = "checking";
@@ -47,6 +49,7 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
    private dragging = false;
    private dragStartPos = 0;
    private dragStartSize = 0;
+   private dragPanelEl: HTMLElement | null = null;
    private unlisten: (() => void)[] = [];
    private healthSub: Subscription | null = null;
    private panelOpenSub: Subscription | null = null;
@@ -54,7 +57,8 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
    constructor(
       private aiAssistantService: AiAssistantService,
       private renderer: Renderer2,
-      private zone: NgZone
+      private zone: NgZone,
+      private el: ElementRef
    ) {}
 
    ngOnInit(): void {
@@ -67,7 +71,10 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
                   const timeout = new Promise<never>((_, reject) =>
                      setTimeout(() => reject(new Error("timeout")), 10000));
                   this.aiAssistantService.loadWebComponentScript()
-                     .then(() => Promise.race([customElements.whenDefined("ai-assistant"), timeout]))
+                     .then(() => Promise.all([
+                        Promise.race([customElements.whenDefined("ai-assistant"), timeout]),
+                        Promise.race([this.aiAssistantService.refreshBranding(), timeout])
+                     ]))
                      .then(() => this.zone.run(() => this.serverState = "online"))
                      .catch(() => this.zone.run(() => this.serverState = "offline"));
                }
@@ -98,6 +105,7 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
          if(savedHeight >= MIN_SIZE && savedHeight <= maxBottomHeight) {
             this.bottomHeight = savedHeight;
          }
+
       }
       catch {
          // localStorage unavailable (e.g. private browsing with strict settings) — use defaults.
@@ -105,6 +113,7 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
    }
 
    ngOnDestroy(): void {
+      this.stopDrag();
       this.unlisten.forEach(fn => fn());
       this.healthSub?.unsubscribe();
       this.panelOpenSub?.unsubscribe();
@@ -112,6 +121,10 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
 
    close(): void {
       this.aiAssistantService.panelOpen = false;
+   }
+
+   toggleCollapsed(): void {
+      this.collapsed = !this.collapsed;
    }
 
    toggleMode(): void {
@@ -150,6 +163,10 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
    }
 
    startDrag(event: MouseEvent): void {
+      if(this.collapsed) {
+         return;
+      }
+
       event.preventDefault();
       this.unlisten.forEach(fn => fn());
       this.unlisten = [];
@@ -157,13 +174,18 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
       this.dragStartPos = this.mode === "side" ? event.clientX : event.clientY;
       this.dragStartSize = this.mode === "side" ? this.sideWidth : this.bottomHeight;
 
-      const moveUnsub = this.renderer.listen("document", "mousemove", (e: MouseEvent) => {
-         this.zone.run(() => this.onDrag(e));
+      this.zone.runOutsideAngular(() => {
+         this.dragPanelEl = (this.el.nativeElement as HTMLElement).querySelector<HTMLElement>(".ai-assistant-panel");
+         this.dragPanelEl?.classList.add("dragging");
+
+         const moveUnsub = this.renderer.listen("document", "mousemove", (e: MouseEvent) => {
+            this.onDrag(e);
+         });
+         const upUnsub = this.renderer.listen("document", "mouseup", () => {
+            this.zone.run(() => this.stopDrag());
+         });
+         this.unlisten = [moveUnsub, upUnsub];
       });
-      const upUnsub = this.renderer.listen("document", "mouseup", () => {
-         this.zone.run(() => this.stopDrag());
-      });
-      this.unlisten = [moveUnsub, upUnsub];
    }
 
    private onDrag(event: MouseEvent): void {
@@ -175,11 +197,19 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
          const delta = this.dragStartPos - event.clientX;
          const maxWidth = Math.floor(window.innerWidth * 0.8);
          this.sideWidth = Math.min(maxWidth, Math.max(MIN_SIZE, this.dragStartSize + delta));
+
+         if(this.dragPanelEl) {
+            this.dragPanelEl.style.width = `${this.sideWidth}px`;
+         }
       }
       else {
          const delta = this.dragStartPos - event.clientY;
          const maxBottomHeight = window.innerHeight - TOP_OFFSET;
          this.bottomHeight = Math.min(maxBottomHeight, Math.max(MIN_SIZE, this.dragStartSize + delta));
+
+         if(this.dragPanelEl) {
+            this.dragPanelEl.style.height = `${this.bottomHeight}px`;
+         }
       }
    }
 
@@ -189,6 +219,8 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
       }
 
       this.dragging = false;
+      this.dragPanelEl?.classList.remove("dragging");
+      this.dragPanelEl = null;
       this.unlisten.forEach(fn => fn());
       this.unlisten = [];
       try {

@@ -25,6 +25,7 @@ import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.sree.web.dashboard.DashboardRegistry;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -601,6 +602,15 @@ public class RepositoryObjectService {
          String newFolderName = parentInfo.getFolderName();
 
          if(type == RepositoryEntry.DATA_SOURCE_FOLDER) {
+            String dsParent = parentFolder == null || parentFolder.isEmpty() ? "/" : parentFolder;
+
+            if(!securityProvider.checkPermission(
+               principal, ResourceType.DATA_SOURCE_FOLDER, dsParent, ResourceAction.WRITE))
+            {
+               throw new MessageException(Catalog.getCatalog().getString(
+                  "em.common.security.no.permission", dsParent));
+            }
+
             if(!Tool.isEmptyString(newFolderName)) {
                if(dataSourceRegistry.getDataSourceFolder(newFolderName) != null) {
                   throw new RuntimeException("Folder already exists");
@@ -1197,6 +1207,20 @@ public class RepositoryObjectService {
       else if((type & RepositoryEntry.FOLDER) != 0) {
          registryManager.checkPermission(src, src, resource.getType(),
             actions, true, principal);
+      }
+      else if(type == RepositoryEntry.DASHBOARD) {
+         IdentityID principalID = IdentityID.getIdentityIDFromKey(principal.getName());
+         String dashboardName = SUtil.isMyDashboard(src) ? SUtil.getUnscopedPath(src) : src;
+         DashboardRegistry userRegistry = DashboardRegistry.getRegistry(principalID);
+         boolean isOwnDashboard = SUtil.isMyDashboard(src) && userRegistry.getDashboard(dashboardName) != null;
+
+         if(!isOwnDashboard &&
+            !securityProvider.checkPermission(
+               principal, resource.getType(), resource.getPath(), ResourceAction.ADMIN))
+         {
+            throw new MessageException(Catalog.getCatalog().getString(
+               "em.common.security.no.permission", src));
+         }
       }
    }
 

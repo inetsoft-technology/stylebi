@@ -20,26 +20,41 @@ import {
    ActivatedRouteSnapshot, CanActivate, Router,
    RouterStateSnapshot
 } from "@angular/router";
-import { MonitorLevel, MonitorLevelService } from "./monitor-level.service";
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
+import { MonitorLevel, MonitorLevelService } from "./monitor-level.service";
 
 @Injectable()
 export class MonitoringLevelGuard implements CanActivate {
    constructor(private monitorLevelService: MonitorLevelService, private router: Router) {
    }
 
-   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
-      let isException = state.url == "/monitoring/exceptions";
+   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> | boolean {
+      const isException = state.url == "/monitoring/exceptions";
 
-      return this.monitorLevelService.monitorLevelForGuard().pipe(
-         map((level: number) => {
-            if(level <= MonitorLevel.OFF || isException && level <= MonitorLevel.MEDIUM) {
-               this.router.navigate(["monitoring/monitoringoff"]);
-            }
+      if(!this.monitorLevelService.isLevelInitialized()) {
+         // The WebSocket hasn't delivered its first value yet — the BehaviorSubject
+         // default of OFF would incorrectly redirect every initial navigation to
+         // monitoringoff. Fall back to the HTTP call for the cold-start case only.
+         return this.monitorLevelService.monitorLevelForGuard().pipe(
+            map((level: number) => {
+               if(level <= MonitorLevel.OFF || isException && level <= MonitorLevel.MEDIUM) {
+                  this.router.navigate(["monitoring/monitoringoff"]);
+                  return false;
+               }
 
-            return true;
-         })
-      );
+               return true;
+            })
+         );
+      }
+
+      const level = this.monitorLevelService.getMonitorLevel();
+
+      if(level <= MonitorLevel.OFF || isException && level <= MonitorLevel.MEDIUM) {
+         this.router.navigate(["monitoring/monitoringoff"]);
+         return false;
+      }
+
+      return true;
    }
 }

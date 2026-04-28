@@ -21,6 +21,7 @@ import inetsoft.mv.*;
 import inetsoft.mv.fs.internal.ClusterUtil;
 import inetsoft.mv.trans.UserInfo;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.internal.Util;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
@@ -175,6 +176,15 @@ public class MVSupportService {
                   }
                }
             }
+         }
+      }
+
+      // check for asset permissions
+      for(MVCandidate candidate : candidateSet) {
+         AssetEntry candidateEntry = getEntry(candidate.id);
+
+         if(candidateEntry != null) {
+            checkAssetPermission(candidateEntry, principal);
          }
       }
 
@@ -1414,14 +1424,56 @@ public class MVSupportService {
       }
    }
 
+   private static void checkAssetPermission(AssetEntry entry, Principal principal)
+      throws inetsoft.sree.security.SecurityException
+   {
+      boolean hasPermission;
+
+      if(entry.getScope() == AssetRepository.USER_SCOPE) {
+         hasPermission = hasUserScopePermission(entry, principal);
+      }
+      else {
+         ResourceType resourceType = entry.isWorksheet() ?
+            ResourceType.ASSET : ResourceType.REPORT;
+         hasPermission = SecurityEngine.getSecurity().checkPermission(
+            principal, resourceType, entry.getPath(), ResourceAction.WRITE);
+      }
+
+      if(!hasPermission) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.common.security.no.permission", entry.getPath()));
+      }
+   }
+
+   private static boolean hasUserScopePermission(AssetEntry entry, Principal principal)
+      throws inetsoft.sree.security.SecurityException
+   {
+      IdentityID entryUser = entry.getUser();
+
+      // Intentionally fail-closed: deny access when the owning user is unknown.
+      // AbstractAssetEngine.checkAssetPermission() returns true in this case, but
+      // MV analysis must not proceed without a verifiable owner.
+      if(entryUser == null || principal == null) {
+         return false;
+      }
+
+      boolean isSameUser = principal.getName().equals(entryUser.convertToKey());
+      boolean isAdmin = !isSameUser && SecurityEngine.getSecurity().checkPermission(
+         principal, ResourceType.SECURITY_USER, entryUser, ResourceAction.ADMIN);
+
+      return (isSameUser || isAdmin) &&
+         SecurityEngine.getSecurity().checkPermission(
+            principal, ResourceType.MY_DASHBOARDS, "*", ResourceAction.READ);
+   }
+
    private final ExecutorService analyzePool =
       Executors.newFixedThreadPool(4, new GroupedThreadFactory());
    private final ExecutorService localCreatePool =
       Executors.newFixedThreadPool(2, new GroupedThreadFactory());
    private final ExecutorService remoteCreatePool =
       Executors.newCachedThreadPool(new GroupedThreadFactory());
-   public static final String MV_TASK_PREFIX = "MV Task: ";
-   public static final String MV_TASK_STAGE_PREFIX = "MV Task Stage 2: ";
+   public static final String MV_TASK_PREFIX = Util.MV_TASK_PREFIX;
+   public static final String MV_TASK_STAGE_PREFIX = Util.MV_TASK_STAGE_PREFIX;
 
    private static final Logger LOG = LoggerFactory.getLogger(MVSupportService.class);
 

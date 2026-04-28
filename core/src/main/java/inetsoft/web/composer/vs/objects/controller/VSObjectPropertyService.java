@@ -333,6 +333,24 @@ public class VSObjectPropertyService {
       // if script contains binding change, re-process data
       hint = assembly instanceof SelectionVSAssembly ? (hint | hintScript) : hint;
 
+      // reposition this child in the bottom-tab container when a label
+      // property change alters its effective height. setVSAssemblyInfo uses
+      // copyInfo (not reference storage), so we modify the assembly's own info.
+      if(assembly instanceof InputVSAssembly &&
+         assembly.getContainer() instanceof TabVSAssembly tabContainer)
+      {
+         TabVSAssemblyInfo tabInfo =
+            (TabVSAssemblyInfo) tabContainer.getVSAssemblyInfo();
+
+         // post-setVSAssemblyInfo the assembly info has no rValues, so
+         // runtime-aware accessors in getBottomTabChildHeight are equivalent
+         // to design-time ones here
+         if(tabInfo.getBottomTabsValue() && inputLabelHeightChanged(oinfo, info)) {
+            TabVSAssemblyInfo.repositionChildForBottomTabs(
+               tabInfo, assembly.getVSAssemblyInfo(), assembly.getPixelSize());
+         }
+      }
+
       /* TODO some logic relevant to hyperlink dialog  charts, decide if need to keep when implementing chart property change
       boolean viewOnly = "true".equals(get("viewOnly"));
 
@@ -801,6 +819,8 @@ public class VSObjectPropertyService {
 
       if(vs.renameAssembly(oldName, newName)) {
          rvs.getViewsheetSandbox().resetRuntime();
+         // prevent applyParameterToInput() from overwriting input values after rename
+         rvs.getViewsheetSandbox().markParametersApplied();
          commandDispatcher.sendCommand(containerName, new RenameVSObjectCommand(oldName, newName));
          renameChildAssemblies(oldNames, newName, vs);
          ViewsheetSandbox box = rvs.getViewsheetSandbox();
@@ -2003,6 +2023,37 @@ public class VSObjectPropertyService {
       }
    }
 
+   /**
+    * Check if label properties that affect vertical height changed between old and new info.
+    * Compares design-time values only, since this is called from the composer property dialog
+    * where only design-time values are modified. Runtime script changes are handled separately.
+    */
+   private boolean inputLabelHeightChanged(VSAssemblyInfo oldInfo, VSAssemblyInfo newInfo) {
+      if(!(oldInfo instanceof InputVSAssemblyInfo oldInput) ||
+         !(newInfo instanceof InputVSAssemblyInfo newInput))
+      {
+         return false;
+      }
+
+      LabelInfo oldLabel = oldInput.getLabelInfo();
+      LabelInfo newLabel = newInput.getLabelInfo();
+
+      if(oldLabel == null && newLabel == null) {
+         return false;
+      }
+
+      if(oldLabel == null || newLabel == null) {
+         return true;
+      }
+
+      return oldLabel.getLabelVisibleValue() != newLabel.getLabelVisibleValue() ||
+         !Objects.equals(oldLabel.getLabelPositionValue(), newLabel.getLabelPositionValue()) ||
+         oldLabel.getLabelGapValue() != newLabel.getLabelGapValue() ||
+         !Objects.equals(
+            oldLabel.getLabelFormat() == null ? null : oldLabel.getLabelFormat().getFont(),
+            newLabel.getLabelFormat() == null ? null : newLabel.getLabelFormat().getFont());
+   }
+
    private void setAssemblyPrimary(RuntimeViewsheet rvs, String name, boolean primary,
                                   CommandDispatcher commandDispatcher) throws Exception
    {
@@ -2162,7 +2213,6 @@ public class VSObjectPropertyService {
          }
       }
    }
-
 
    private final CoreLifecycleService coreLifecycleService;
    private final VSInputService vsInputService;

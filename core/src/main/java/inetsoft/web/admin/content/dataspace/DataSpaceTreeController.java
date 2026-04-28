@@ -17,24 +17,29 @@
  */
 package inetsoft.web.admin.content.dataspace;
 
-import inetsoft.sree.security.ResourceAction;
-import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.ImageShapes;
 import inetsoft.util.MessageException;
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.admin.content.dataspace.model.*;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.List;
 
 @RestController
 public class DataSpaceTreeController {
    @Autowired
-   public DataSpaceTreeController(DataSpaceContentSettingsService dataSpaceContentSettingsService) {
+   public DataSpaceTreeController(DataSpaceContentSettingsService dataSpaceContentSettingsService,
+                                   SecurityEngine securityEngine)
+   {
       this.dataSpaceContentSettingsService = dataSpaceContentSettingsService;
+      this.securityEngine = securityEngine;
    }
 
    @Secured(
@@ -101,21 +106,22 @@ public class DataSpaceTreeController {
    /**
     * Delete the selected repository entry
     */
-   @Secured(
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/content/data-space",
-         actions = ResourceAction.ACCESS
-      )
-   )
    @PostMapping("api/em/content/data-space/tree/delete")
-   public void deleteNodes(@RequestBody DeleteDataSpaceTreeNodesRequest deleteRequest)
-      throws MessageException
+   public void deleteNodes(@RequestBody DeleteDataSpaceTreeNodesRequest deleteRequest,
+                           Principal principal, HttpServletRequest request)
+      throws Exception
    {
       DataSpaceTreeNodeInfo[] nodes = deleteRequest.nodes();
 
       if(nodes == null) {
          return;
+      }
+
+      for(DataSpaceTreeNodeInfo node : nodes) {
+         if(!checkDeletePermission(principal, node.path())) {
+            throw new inetsoft.sree.security.SecurityException(
+               "Unauthorized access to resource \"" + request.getRequestURI() + "\" by user " + principal);
+         }
       }
 
       for(DataSpaceTreeNodeInfo node : nodes) {
@@ -127,5 +133,32 @@ public class DataSpaceTreeController {
       }
    }
 
+   private boolean checkDeletePermission(Principal principal, String path)
+      throws inetsoft.sree.security.SecurityException
+   {
+      if(!securityEngine.checkPermission(principal, ResourceType.EM, "*", ResourceAction.ACCESS)) {
+         return false;
+      }
+
+      String globalShapesDir = ImageShapes.getGlobalShapesDirectory();
+      String orgShapesDir = ImageShapes.getShapesDirectory();
+
+      if(path.equals(globalShapesDir) || path.startsWith(globalShapesDir + "/")) {
+         return securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
+            "settings/presentation/settings", ResourceAction.ACCESS);
+      }
+
+      if(path.equals(orgShapesDir) || path.startsWith(orgShapesDir + "/")) {
+         return securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
+               "settings/presentation/settings", ResourceAction.ACCESS) ||
+            securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
+               "settings/presentation/org-settings", ResourceAction.ACCESS);
+      }
+
+      return securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
+         "settings/content/data-space", ResourceAction.ACCESS);
+   }
+
    private final DataSpaceContentSettingsService dataSpaceContentSettingsService;
+   private final SecurityEngine securityEngine;
 }

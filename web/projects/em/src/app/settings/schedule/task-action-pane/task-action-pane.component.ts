@@ -56,7 +56,7 @@ export class TaskActionPaneComponent {
          this._action = Object.assign({}, value);
       }
       else {
-         this.selectedActionType = "RepletAction";
+         this.selectedActionType = "ViewsheetAction";
          this._action = <GeneralActionModel>{
             label: "_#(js:New Action)",
             actionType: this.selectedActionType,
@@ -65,7 +65,7 @@ export class TaskActionPaneComponent {
       }
    }
 
-   selectedActionType = "RepletAction";
+   selectedActionType = "ViewsheetAction";
    private _model: TaskActionPaneModel;
    private _action: ScheduleActionModel;
 

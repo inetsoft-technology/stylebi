@@ -404,11 +404,11 @@ public abstract class AbstractLayout implements AssetObject {
    }
 
    /**
-    * Apply tab assembly layout.
+    * Apply tab assembly layout. npos is the visual top of the full tab area.
     */
    private void applyTab(TabVSAssembly vsassembly, Point npos, Dimension nsize) {
       TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) vsassembly.getVSAssemblyInfo();
-      boolean bottomTabs = tabInfo.getBottomTabsValue();
+      boolean bottomTabs = tabInfo.isBottomTabs();
       Dimension tabSize = getSize(vsassembly);
       Dimension osize = getComponentSize(vsassembly);
       int contentHeight = nsize.height - tabSize.height;
@@ -426,17 +426,21 @@ public abstract class AbstractLayout implements AssetObject {
             childSize =
                new Dimension((int) (childSize.width * scaleRadio.x),
                              (int) (childSize.height * scaleRadio.y));
-            // for bottom tabs, the layout position (npos) is the tab bar at the
-            // bottom; children sit above it, each positioned by its own height
             Point childPos = bottomTabs ?
-               new Point(npos.x, npos.y - childSize.height) :
+               new Point(npos.x, npos.y) :
                new Point(npos.x, npos.y + tabSize.height);
             applyAssembly(child, childPos, childSize);
          }
       }
 
       tabSize.width = (int) (tabSize.width * scaleRadio.x);
-      applyBaseAssembly(vsassembly, npos, tabSize);
+
+      // for bottom tabs, store the tab bar position (visual top + contentHeight)
+      // in tabInfo via applyBaseAssembly; VSEventUtil.applyTabScale reads this
+      // to position children above the tab bar
+      Point tabPos = bottomTabs ?
+         new Point(npos.x, npos.y + contentHeight) : npos;
+      applyBaseAssembly(vsassembly, tabPos, tabSize);
    }
 
    /**

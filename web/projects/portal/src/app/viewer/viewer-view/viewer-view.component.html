@@ -34,7 +34,6 @@
                      [inDashboard]="inDashboard"
                      [tabsHeight]="tabBarHeight"
                      [isIframe]="isIframe()"
-                     [dashboardTabModel]="dashboardTabModel"
                      (onEditTable)="onEditTable($event)"
                      (onEditChart)="onEditChart($event)"
                      (closeCurrentTab)="closeCurrentTab()"
@@ -48,7 +47,7 @@
       <div class="page-tab-bar" #pageTabBar
            [class.page-tab-fullscreen]="fullScreen" *ngIf="tabs.length > 1"
            [style.top.px]="drillTabsTopPx"
-           [style.bottom]="dashboardTabModel?.drillTabsTop ? 'unset' : null">
+           [style.bottom]="drillTabsTop ? 'unset' : null">
          <page-tab></page-tab>
       </div>
    </div>

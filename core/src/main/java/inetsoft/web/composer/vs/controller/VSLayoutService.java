@@ -180,16 +180,6 @@ public class VSLayoutService {
 
       if(info instanceof TabVSAssemblyInfo) {
          size = getVSTabSize(viewsheet, assembly);
-
-         // for bottom tabs, the stored position represents the tab bar (at the
-         // bottom of the content area). The drop position is the visual top, so
-         // shift it down by maxChildHeight to match the convention used by
-         // createObjectModel and the frontend move/resize handler.
-         if(((TabVSAssemblyInfo) info).getBottomTabsValue()) {
-            int tabBarHeight = viewsheet.getPixelSize(info).height;
-            int maxChildHeight = size.height - tabBarHeight;
-            position.y += Math.max(0, maxChildHeight);
-         }
       }
       else if(assembly instanceof Viewsheet) {
          Viewsheet cloneAssembly = ((Viewsheet) assembly).clone();
@@ -430,12 +420,21 @@ public class VSLayoutService {
       }
 
       VSObjectModel objectModel = null;
-      boolean isBottomTabs = assembly instanceof TabVSAssembly &&
-         ((TabVSAssemblyInfo) assembly.getInfo()).isBottomTabs();
+      boolean isBottomTabs = false;
 
       if(assembly != null) {
          assembly.getInfo().setVisible(true);
          rvs.getViewsheet().getLayoutInfo().getPrintLayout();
+
+         // sync dValue on the clone so VSTabModel (which reads dValue in
+         // composer mode) is consistent with the positioning logic
+         if(assembly instanceof TabVSAssembly tabAssembly) {
+            TabVSAssemblyInfo tabInfoClone =
+               (TabVSAssemblyInfo) tabAssembly.getInfo();
+            isBottomTabs = tabInfoClone.isBottomTabs();
+            tabInfoClone.setBottomTabsValue(isBottomTabs);
+         }
+
          objectModel = objectModelService.createModel(assembly, rvs);
 
          if(assembly instanceof TabVSAssembly ||
@@ -444,31 +443,18 @@ public class VSLayoutService {
             getChildAssemblies((ContainerVSAssembly) assembly, rvs,
                                childModels, objectModelService);
 
-            // for bottom tabs, children sit above the tab bar — position each
-            // child at its own height above the layout position (only one is
-            // visible at a time, so differing heights don't overlap)
+            // for bottom tabs, position children at the visual top of the
+            // layout area (the stored position is the visual top)
             if(isBottomTabs) {
                Point layoutPos = assemblyLayout.getPosition();
 
                for(VSObjectModel childModel : childModels) {
                   VSFormatModel fmt = childModel.getObjectFormat();
                   fmt.setPositions(
-                     layoutPos.x, Math.max(0, layoutPos.y - fmt.getHeight()),
+                     layoutPos.x, layoutPos.y,
                      fmt.getWidth(), fmt.getHeight());
                }
             }
-         }
-      }
-
-      // for bottom tabs, shift top to visual top (children above tab bar).
-      // childModels is empty when assembly is null (editable overlay), so
-      // maxChildHeight stays 0 and top is unchanged.
-      int maxChildHeight = 0;
-
-      if(isBottomTabs) {
-         for(VSObjectModel childModel : childModels) {
-            maxChildHeight = Math.max(maxChildHeight,
-               (int) childModel.getObjectFormat().getHeight());
          }
       }
 
@@ -480,7 +466,7 @@ public class VSLayoutService {
          .width(assemblyLayout.getSize().width)
          .height(assemblyLayout.getSize().height)
          .left(assemblyLayout.getPosition().x)
-         .top(Math.max(0, assemblyLayout.getPosition().y - maxChildHeight))
+         .top(assemblyLayout.getPosition().y)
          .tableLayout(assemblyLayout.getTableLayout())
          .supportTableLayout(supportTableLayout(assembly))
          .build();

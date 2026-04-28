@@ -44,7 +44,7 @@ public class AuthorizationProviderService {
       SecurityProviderStatusList.Builder builder = SecurityProviderStatusList.builder();
 
       if(!chain.isPresent()) {
-         LOG.warn("The authorization chain has not been initialized.");
+         LOG.debug("The authorization chain has not been initialized.");
       }
       else {
          chain.get().stream()

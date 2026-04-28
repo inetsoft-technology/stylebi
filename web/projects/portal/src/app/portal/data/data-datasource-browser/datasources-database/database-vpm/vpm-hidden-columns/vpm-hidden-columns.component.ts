@@ -22,10 +22,11 @@ import {
    EventEmitter,
    ViewEncapsulation,
    OnInit,
+   OnDestroy,
    ViewChild
 } from "@angular/core";
 import { TreeNodeModel } from "../../../../../../widget/tree/tree-node-model";
-import { Observable, of } from "rxjs";
+import { Observable, of, Subscription } from "rxjs";
 import { DatabaseTreeNodeModel } from "../../../../model/datasources/database/physical-model/database-tree-node-model";
 import { HttpClient } from "@angular/common/http";
 import { HiddenColumnsModel } from "../../../../model/datasources/database/vpm/hidden-columns-model";
@@ -34,6 +35,7 @@ import { AttributeRef } from "../../../../../../common/data/attribute-ref";
 import { DataRef } from "../../../../../../common/data/data-ref";
 import { DatabaseTreeNodeType } from "../../../../model/datasources/database/database-tree-node-type";
 import { Tool } from "../../../../../../../../../shared/util/tool";
+import { CurrentUserService } from "../../../../../../../../../shared/util/current-user.service";
 import { ComponentTool } from "../../../../../../common/util/component-tool";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { DataItem } from "../../../../model/datasources/database/vpm/test-data-model";
@@ -50,7 +52,7 @@ const MAX_HIDDEN_COLUMN = 500;
    styleUrls: ["vpm-hidden-columns.component.scss"],
    encapsulation: ViewEncapsulation.None
 })
-export class VPMHiddenColumnsComponent implements OnInit {
+export class VPMHiddenColumnsComponent implements OnInit, OnDestroy {
    @Input() hidden: HiddenColumnsModel;
    @Input() databaseName: string;
    @Input() availableRoles: DataItem[];
@@ -68,14 +70,19 @@ export class VPMHiddenColumnsComponent implements OnInit {
    loadingTree: boolean = false;
    filterStr: string = "";
    currOrg: string = "";
+   private subscriptions = new Subscription();
 
-   constructor(private httpClient: HttpClient, private modalService: NgbModal) {
+   constructor(private httpClient: HttpClient, private modalService: NgbModal,
+               private currentUserService: CurrentUserService) {
    }
 
    ngOnInit(): void {
       this.initDataSourceTree();
-      this.httpClient.get<string>("../api/em/navbar/organization")
-         .subscribe((org) => this.currOrg = org);
+      this.subscriptions.add(this.currentUserService.getPortalCurrentUser().subscribe(user => this.currOrg = user?.name?.orgID ?? ""));
+   }
+
+   ngOnDestroy(): void {
+      this.subscriptions.unsubscribe();
    }
 
    get selectedColumns(): TreeNodeModel[] {
