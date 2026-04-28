@@ -442,8 +442,11 @@ public class VGraph extends BoundedContainer {
             continue;
          }
 
-         // Brush VOs whose key is empty (synthetic total/aggregate rows from multi-VS brush)
-         // have no valid angular position in a polar chart and must be removed.
+         // Brush VOs with an empty key are synthetic total rows (all-null dimensions) from
+         // multi-VS brush. In polar (pie/donut) charts they have no valid angular position
+         // and must be removed before overlay matching. Non-polar charts (e.g. bar) do not
+         // remove them here; getOverlayVO() returns null for an empty key, so no overlay is
+         // applied — the correct no-op for non-polar geometry.
          if(coord instanceof PolarCoord && createKey(vo).isEmpty()) {
             overlayToRemove.add(vo);
             continue;

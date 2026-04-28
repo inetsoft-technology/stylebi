@@ -186,7 +186,12 @@ public abstract class ElementGeometry extends Geometry {
          }
       }
 
-      boolean allDimsNull = ridx >= 0 && ridx < data.getRowCount();
+      boolean allDimsNull = false;
+      boolean processedAnyDim = false;
+
+      if(ridx >= 0 && ridx < data.getRowCount()) {
+         allDimsNull = true;
+      }
 
       for(int i = 0; i < data.getColCount(); i++) {
          String dim = data.getHeader(i);
@@ -195,6 +200,8 @@ public abstract class ElementGeometry extends Geometry {
             if(pie3d && indexOfDim(elem, dim) < 0) {
                continue;
             }
+
+            processedAnyDim = true;
 
             if(sb.length() > 0) {
                sb.append(',');
@@ -228,7 +235,9 @@ public abstract class ElementGeometry extends Geometry {
       // whose dimension values are all null (State=null etc). This row has no valid angular
       // position in a polar/donut chart and must not be matched to any base VO.
       // Return empty string so VGraph.getOverlayVO() can skip it.
-      if(hasOverlay && allDimsNull) {
+      // Guard processedAnyDim to avoid a false positive when the dataset has no dimension
+      // columns at all (allDimsNull would stay true but no synthetic row is implied).
+      if(hasOverlay && processedAnyDim && allDimsNull) {
          return "";
       }
       return sb.toString();
