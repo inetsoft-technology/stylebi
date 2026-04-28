@@ -269,10 +269,11 @@ public class VirtualAuthenticationProvider
          try {
             SUtil.setPassword(admin, AdminCredentialUtil.getRequiredAdminPassword());
             save();
-            LOG.info("INETSOFT_ADMIN_PASSWORD is set; admin password synced from environment variable.");
+            LOG.debug("INETSOFT_ADMIN_PASSWORD is set; admin password synced from environment variable.");
          }
          catch(Exception e) {
-            LOG.warn("INETSOFT_ADMIN_PASSWORD is set but could not be applied: {}", e.getMessage());
+            LOG.warn("INETSOFT_ADMIN_PASSWORD is set but could not be applied: {}. " +
+                     "Ensure the password meets strength requirements.", e.getMessage());
          }
       }
    }
@@ -285,7 +286,8 @@ public class VirtualAuthenticationProvider
    @Override
    public void addUser(User user) {
       if(user.getName().equals("admin") &&
-         Organization.getDefaultOrganizationID().equals(user.getIdentityID().orgID))
+         Organization.getDefaultOrganizationID().equals(user.getIdentityID().orgID) &&
+         user instanceof FSUser)
       {
          admin = (FSUser) user;
          save();

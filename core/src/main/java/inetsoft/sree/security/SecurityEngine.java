@@ -107,6 +107,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
 
          if(!authcChain.getProviders().isEmpty() && !authzChain.getProviders().isEmpty()) {
             provider = CompositeSecurityProvider.create(authcChain, authzChain);
+            migrateSiteAdminToChain(authcChain);
          }
          else {
             authcChain.tearDown();
@@ -219,7 +220,8 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
 
       IdentityID siteAdminId = new IdentityID("admin", Organization.getDefaultOrganizationID());
       boolean alreadyPresent = primary.getUser(siteAdminId) != null;
-      boolean envVarSet = System.getenv("INETSOFT_ADMIN_PASSWORD") != null;
+      String envVar = System.getenv("INETSOFT_ADMIN_PASSWORD");
+      boolean envVarSet = envVar != null && !envVar.isBlank();
 
       // When the env var is set it acts as a recovery mechanism: always update the File
       // provider so a corrupted or unknown password can be reset without wiping data.
@@ -266,6 +268,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
 
       if(!authcChain.getProviders().isEmpty() && !authzChain.getProviders().isEmpty()) {
          provider = CompositeSecurityProvider.create(authcChain, authzChain);
+         migrateSiteAdminToChain(authcChain);
          authcChain.addAuthenticationChangeListener(authzChain);
          authcChain.addAuthenticationChangeListener(this::fireAuthenticationChange);
       }
