@@ -176,6 +176,11 @@ public class TabVSAssembly extends AbstractContainerVSAssembly {
          writer.print("<![CDATA[" + selected + "]]>");
          writer.println("</state_selected>");
       }
+
+      // Persist the effective bottomTabs value (runtime override takes precedence).
+      // Positions saved in the state reflect the bottomTabs layout at save time, so
+      // restoring bottomTabs here keeps the client model consistent with those positions.
+      writer.println("<state_bottomTabs>" + getTabInfo().isBottomTabs() + "</state_bottomTabs>");
    }
 
    /**
@@ -190,6 +195,14 @@ public class TabVSAssembly extends AbstractContainerVSAssembly {
 
       String selected = Tool.getChildValueByTagName(elem, "state_selected");
       setSelectedValue(selected);
+
+      // Restore the bottomTabs runtime value that was in effect when the state was saved.
+      // Positions are already restored by the super call, so no repositioning is needed.
+      String bottomTabsStr = Tool.getChildValueByTagName(elem, "state_bottomTabs");
+
+      if(bottomTabsStr != null) {
+         getTabInfo().setBottomTabs(Boolean.parseBoolean(bottomTabsStr));
+      }
    }
 
    /**
