@@ -223,7 +223,6 @@ public abstract class ElementGeometry extends Geometry {
       }
 
       boolean hasOverlay = elem.getHint("overlay") != null;
-      boolean hasOverlaid = elem.getHint("overlaid") != null;
 
       // For brush VOs (hasOverlay) in multi-VS brush, a synthetic "grand total" row is added
       // whose dimension values are all null (State=null etc). This row has no valid angular

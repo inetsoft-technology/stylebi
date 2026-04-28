@@ -444,7 +444,7 @@ public class VGraph extends BoundedContainer {
 
          // Brush VOs whose key is empty (synthetic total/aggregate rows from multi-VS brush)
          // have no valid angular position in a polar chart and must be removed.
-         if(coord instanceof inetsoft.graph.coord.PolarCoord && createKey(vo).isEmpty()) {
+         if(coord instanceof PolarCoord && createKey(vo).isEmpty()) {
             overlayToRemove.add(vo);
             continue;
          }
