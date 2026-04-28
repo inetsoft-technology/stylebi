@@ -1545,15 +1545,14 @@ public class WizVsService {
       ConditionList conditionList = new ConditionList();
       List<VisualizationConditionModel.Entry> entries = wizModel.getConditions();
 
-      for(int i = 0; i < entries.size(); i++) {
-         VisualizationConditionModel.Entry entry = entries.get(i);
+      for(VisualizationConditionModel.Entry entry : entries) {
          VisualizationConditionModel.ConditionSpec spec = entry.getCondition();
 
          if(spec == null || Tool.isEmptyString(spec.getField())) {
             continue;
          }
 
-         if(i > 0) {
+         if(!conditionList.isEmpty()) {
             int junctionType = "or".equalsIgnoreCase(entry.getJunction())
                ? JunctionOperator.OR
                : JunctionOperator.AND;
