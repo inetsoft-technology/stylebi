@@ -32,6 +32,8 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.StringValue;
+import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.util.Tool;
@@ -1565,7 +1567,7 @@ public class WizVsService {
 
          if(spec.getValues() != null) {
             for(VisualizationConditionModel.ValueSpec val : spec.getValues()) {
-               condition.addValue(val.getValue());
+               condition.addValue(convertConditionValue(val));
             }
          }
 
@@ -1574,6 +1576,49 @@ public class WizVsService {
       }
 
       return conditionList;
+   }
+
+   private Object convertConditionValue(VisualizationConditionModel.ValueSpec val) {
+      if(val == null) {
+         return null;
+      }
+
+      String type = val.getType();
+      Object value = val.getValue();
+
+      if(type == null) {
+         return value;
+      }
+
+      switch(type.toUpperCase()) {
+         case "FIELD":
+            return new AttributeRef(null, String.valueOf(value));
+         case "VARIABLE":
+         case "SESSION_DATA": {
+            if(value instanceof String) {
+               String str = (String) value;
+
+               if(str.startsWith("$(") && str.endsWith(")")) {
+                  String name = str.substring(2, str.length() - 1);
+                  UserVariable variable = new UserVariable();
+                  variable.setName(name);
+                  variable.setAlias(name);
+                  variable.setValueNode(new StringValue(name));
+                  return variable;
+               }
+            }
+
+            return value;
+         }
+         case "EXPRESSION": {
+            ExpressionValue expr = new ExpressionValue();
+            expr.setExpression(String.valueOf(value));
+            expr.setType(ExpressionValue.JAVASCRIPT);
+            return expr;
+         }
+         default:
+            return value;
+      }
    }
 
    /**
