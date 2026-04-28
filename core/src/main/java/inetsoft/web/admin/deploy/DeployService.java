@@ -658,6 +658,7 @@ public class DeployService {
             subassets = findAssets(pattern);
          }
          catch(IllegalArgumentException e) {
+            LOG.warn("Skipping invalid pattern in findAssets: {}", pattern);
             errPatterns.add(pattern);
             continue;
          }
