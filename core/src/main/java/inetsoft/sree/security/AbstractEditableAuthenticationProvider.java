@@ -144,7 +144,7 @@ public abstract class AbstractEditableAuthenticationProvider
       String fromOrgId = fromOrganization.getId();
       copyScopedProperties(fromOrgId, newOrgID, replace);
       copyDataSpace(fromOrganization, newOrg, replace);
-      copyThemes(fromOrgId, newOrgID, replace);
+      String newOrgThemeId = copyThemes(fromOrgId, newOrgID, replace);
 
       if(replace) {
          clearScopedProperties(fromOrgId);
@@ -248,7 +248,7 @@ public abstract class AbstractEditableAuthenticationProvider
       else {
          newOrg.setMembers(addedMembers.stream().map(id -> id.name).toArray(String[]::new));
          newOrg.setLocale(fromOrganization.getLocale());
-         newOrg.setTheme(fromOrganization.getTheme());
+         newOrg.setTheme(newOrgThemeId);
       }
 
       addOrganization(newOrg);
@@ -301,9 +301,9 @@ public abstract class AbstractEditableAuthenticationProvider
       }
    }
 
-   private void copyThemes(String fromOrgId, String toOrgId, boolean replace) {
+   private String copyThemes(String fromOrgId, String toOrgId, boolean replace) {
       if(Tool.isEmptyString(fromOrgId)) {
-         return;
+         return null;
       }
 
       DataSpace dataSpace = DataSpace.getDataSpace();
@@ -332,6 +332,8 @@ public abstract class AbstractEditableAuthenticationProvider
             }
          }
       }
+
+      String newOrgThemeId = null;
 
       for(CustomTheme theme : sourceThemes) {
          try {
@@ -368,6 +370,7 @@ public abstract class AbstractEditableAuthenticationProvider
                   clone.setOrganizations(newOrgs);
 
                   manager.setOrgSelectedTheme(clone.getId(), toOrgId);
+                  newOrgThemeId = clone.getId();
                }
 
                //if copying a global theme, need to actually copy the dataspace jar
@@ -376,7 +379,7 @@ public abstract class AbstractEditableAuthenticationProvider
                   String oldJarPath = clone.getJarPath();
                   String newJarPath = clone.getJarPath().replace("portal/theme", "portal/" + toOrgId + "/theme");
 
-                  if(Tool.isEmptyString(theme.getOrgID()) || Tool.equals(fromOrgId, Organization.getDefaultOrganizationID())) {
+                  if(Tool.isEmptyString(theme.getOrgID())) {
                      if(dataSpace.exists(null, clone.getJarPath())) {
                         try(InputStream in = dataSpace.getInputStream(null, oldJarPath)) {
                            int index = newJarPath.lastIndexOf('/');
@@ -407,6 +410,7 @@ public abstract class AbstractEditableAuthenticationProvider
       }
 
       manager.setCustomThemes(themes);
+      return newOrgThemeId;
    }
 
    protected void clearScopedProperties(String oldOrgId) {
