@@ -3719,7 +3719,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    private Set<String> aliasflags = new HashSet<>();
    private Collection<XJoin> ojoins; // original joins before being transformed
    private transient Principal vpmUser; // vpm user apply for studio worksheet.
-   private transient SQLHelper cachedSQLHelper;
+   private transient volatile SQLHelper cachedSQLHelper;
    private Boolean lossy = null;
 
    private static final Logger LOG = LoggerFactory.getLogger(UniformSQL.class);

@@ -1519,7 +1519,7 @@ public class DataSourceRegistry implements MessageListener {
       // fast path: if the registry-level timestamp for this org hasn't advanced past
       // when we cached this object, no individual entry in that org can have changed —
       // skip the per-entry Ignite lastModified call entirely
-      if(obj != null) {
+      if(obj != null && orgId != null) {
          Long registryTS = ts.get(orgId);
 
          if(registryTS != null && registryTS <= obj.timeTS) {

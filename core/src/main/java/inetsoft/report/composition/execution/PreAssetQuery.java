@@ -312,6 +312,10 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
    }
 
    protected SQLHelper getSQLHelper(UniformSQL sql) {
+      if(sqlHelperCache == null) {
+         sqlHelperCache = new IdentityHashMap<>(4);
+      }
+
       return sqlHelperCache.computeIfAbsent(sql, s -> SQLHelper.getSQLHelper(s, box.getUser()));
    }
 
@@ -4698,7 +4702,7 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
 
    private boolean mergeable; // query mergeable flag
    private boolean merged; // query merged flag
-   private final IdentityHashMap<UniformSQL, SQLHelper> sqlHelperCache = new IdentityHashMap<>(4);
+   private transient IdentityHashMap<UniformSQL, SQLHelper> sqlHelperCache;
    private Map<DataRef, ColumnRef> colmap = new HashMap<>(); // optimization
    private Map<Tuple, Object> exprAttrs = new Object2ObjectOpenHashMap<>();
    private Map<String, List<AttributeRef>> expr2Attrs = new Object2ObjectOpenHashMap<>();
