@@ -1547,18 +1547,17 @@ public class WizVsService {
 
       for(int i = 0; i < entries.size(); i++) {
          VisualizationConditionModel.Entry entry = entries.get(i);
+         VisualizationConditionModel.ConditionSpec spec = entry.getCondition();
+
+         if(spec == null || Tool.isEmptyString(spec.getField())) {
+            continue;
+         }
 
          if(i > 0) {
             int junctionType = "or".equalsIgnoreCase(entry.getJunction())
                ? JunctionOperator.OR
                : JunctionOperator.AND;
             conditionList.append(new JunctionOperator(junctionType, 0));
-         }
-
-         VisualizationConditionModel.ConditionSpec spec = entry.getCondition();
-
-         if(spec == null) {
-            continue;
          }
 
          AttributeRef attr = new AttributeRef(null, spec.getField());
@@ -1645,7 +1644,7 @@ public class WizVsService {
          case "LIKE" -> XCondition.LIKE;
          case "NULL" -> XCondition.NULL;
          case "DATE_IN" -> XCondition.DATE_IN;
-         default -> throw new IllegalArgumentException("Unknown condition operation: " + operation);
+         default -> XCondition.EQUAL_TO;
       };
    }
 
