@@ -3851,7 +3851,8 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
-    * Get the font to use for rendering an input label.
+    * Get the font to use for rendering an input label. The default size 11
+    * matches LabelInfo.getRenderedHeight() so drawing and measurement agree.
     */
    protected static Font getLabelFont(LabelInfo labelInfo) {
       VSCompositeFormat fmt = labelInfo.getLabelFormat();
