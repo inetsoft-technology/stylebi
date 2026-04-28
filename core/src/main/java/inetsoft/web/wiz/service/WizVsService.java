@@ -1589,7 +1589,7 @@ public class WizVsService {
       String type = val.getType();
       Object value = val.getValue();
 
-      if(type == null) {
+      if(type == null || value == null) {
          return value;
       }
 
