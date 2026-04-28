@@ -27,14 +27,15 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.internal.graph.MapData;
-import inetsoft.uql.ColumnSelection;
-import inetsoft.uql.XConstants;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.StringValue;
+import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
-import inetsoft.sree.security.IdentityID;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.wiz.service.VisualizationService;
 import inetsoft.web.wiz.model.*;
@@ -53,10 +54,25 @@ public class WizVsService {
    }
 
    public CreateViewsheetResult createViewsheet(CreateVisualizationModel model, Principal user) throws Exception {
+      final boolean modificationOnly = model.getConfig() == null && model.getConditionModel() != null;
       String runtimeId = model.getRuntimeId();
       boolean createdRuntimeId = false;
 
-      if(Tool.isEmptyString(runtimeId)) {
+      // Modification-only: capture the source viewsheet before opening a fresh runtime.
+      // The source is never mutated; the result is an independent clone.
+      Viewsheet cloneSource = null;
+
+      if(modificationOnly) {
+         if(Tool.isEmptyString(runtimeId)) {
+            throw new IllegalArgumentException("runtimeId is required for condition-only modifications");
+         }
+
+         cloneSource = getValidatedViewsheet(viewsheetService.getViewsheet(runtimeId, user));
+         Viewsheet.WizInfo wizInfo = new Viewsheet.WizInfo(true, null, null);
+         runtimeId = viewsheetService.openTemporaryViewsheet(null, null, user, wizInfo);
+         createdRuntimeId = true;
+      }
+      else if(Tool.isEmptyString(runtimeId)) {
          Viewsheet.WizInfo wizInfo = new Viewsheet.WizInfo(true, null, null);
          runtimeId = viewsheetService.openTemporaryViewsheet(null, null, user, wizInfo);
          createdRuntimeId = true;
@@ -65,39 +81,54 @@ public class WizVsService {
       try {
          RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
          Viewsheet vs = getValidatedViewsheet(rvs);
-         SourceContext ctx = resolveSourceContext(model, user);
 
-         // Incremental mode: when runtimeId was supplied by the caller, add the new assembly
-         // to the existing viewsheet rather than replacing it wholesale.
          final Viewsheet targetVs;
+         final VSAssembly assembly;
+         // Only relevant for the incremental standard path (non-null when base entry may be mutated).
+         AssetEntry previousBaseEntry = null;
 
-         if(createdRuntimeId) {
-            // Fresh viewsheet: create a new one bound to the source worksheet.
-            targetVs = new Viewsheet(ctx.sourceWs());
-            targetVs.syncWizData(vs);
+         if(modificationOnly) {
+            // Clone the source viewsheet — shares the same base worksheet but has an independent
+            // assembly tree, so applying the condition does not affect the original.
+            targetVs = cloneSource.clone();
+            assembly = findPrimaryAssembly(targetVs);
+
+            if(assembly == null) {
+               throw new IllegalStateException("No primary assembly found in cloned viewsheet");
+            }
          }
          else {
-            // Incremental: reuse the existing viewsheet; update the base entry only if it differs.
-            targetVs = vs;
+            SourceContext ctx = resolveSourceContext(model, user);
+
+            // Incremental mode: reuse the existing viewsheet when runtimeId was supplied.
+            if(createdRuntimeId) {
+               targetVs = new Viewsheet(ctx.sourceWs());
+               targetVs.syncWizData(vs);
+            }
+            else {
+               targetVs = vs;
+            }
+
+            // Snapshot before any mutation so we can restore on failure.
+            previousBaseEntry = targetVs.getBaseEntry();
+
+            if(!createdRuntimeId && !ctx.sourceWs().equals(previousBaseEntry)) {
+               targetVs.setBaseEntry(ctx.sourceWs());
+            }
+
+            String assemblyName = uniqueAssemblyName(targetVs, ctx.title());
+            assembly = createAssembly(targetVs, model.getVisualizationType(), assemblyName,
+                                      ctx.config(), ctx.primaryAssemblyName());
+
+            if(assembly == null) {
+               throw new IllegalArgumentException("Unsupported visualization type: " + model.getVisualizationType());
+            }
+
+            targetVs.addAssembly(assembly);
+            assembly.setPrimary(true);
          }
 
-         // Snapshot the previous base entry before any mutation so we can restore it on failure.
-         AssetEntry previousBaseEntry = targetVs.getBaseEntry();
-
-         if(!createdRuntimeId && !ctx.sourceWs().equals(previousBaseEntry)) {
-            targetVs.setBaseEntry(ctx.sourceWs());
-         }
-
-         String assemblyName = uniqueAssemblyName(targetVs, ctx.title());
-         VSAssembly assembly = createAssembly(targetVs, model.getVisualizationType(), assemblyName,
-                                              ctx.config(), ctx.primaryAssemblyName());
-
-         if(assembly == null) {
-            throw new IllegalArgumentException("Unsupported visualization type: " + model.getVisualizationType());
-         }
-
-         targetVs.addAssembly(assembly);
-         assembly.setPrimary(true);
+         applyConditionModel(assembly, model.getConditionModel());
 
          // Always call setViewsheet so the sandbox picks up the updated viewsheet object.
          Viewsheet previousVs = rvs.getViewsheet();
@@ -112,7 +143,9 @@ public class WizVsService {
                result.setRuntimeId(runtimeId);
             }
 
-            result.setViewsheetIdentifier(persistViewsheet(targetVs, model.getViewsheetIdentifier(), user));
+            // Modification-only always produces a new asset entry (null = auto-generate UUID).
+            String identifierToUse = modificationOnly ? null : model.getViewsheetIdentifier();
+            result.setViewsheetIdentifier(persistViewsheet(targetVs, identifierToUse, user));
 
             return result;
          }
@@ -1464,6 +1497,154 @@ public class WizVsService {
       }
 
       return DateRangeRef.getDateRangeOption(mappedLevel);
+   }
+
+   /**
+    * Returns the first assembly marked as primary in the viewsheet, or null if none exists.
+    */
+   private VSAssembly findPrimaryAssembly(Viewsheet vs) {
+      Assembly[] assemblies = vs.getAssemblies();
+
+      if(assemblies == null) {
+         return null;
+      }
+
+      for(Assembly a : assemblies) {
+         if(a instanceof VSAssembly vsAssembly && vsAssembly.isPrimary()) {
+            return vsAssembly;
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Applies the given {@link VisualizationConditionModel} to {@code assembly} as a pre-condition list.
+    * No-ops silently when the model is null, empty, or the assembly is not a data assembly.
+    */
+   private void applyConditionModel(VSAssembly assembly, VisualizationConditionModel conditionModel) {
+      if(conditionModel == null || conditionModel.getConditions() == null ||
+         conditionModel.getConditions().isEmpty())
+      {
+         return;
+      }
+
+      if(!(assembly instanceof DataVSAssembly dataAssembly)) {
+         LOG.warn("Cannot apply condition to non-data assembly type: {}", assembly.getClass().getSimpleName());
+         return;
+      }
+
+      dataAssembly.setPreConditionList(buildConditionList(conditionModel));
+   }
+
+   /**
+    * Converts a {@link VisualizationConditionModel} into a {@link ConditionList}.
+    * Junction operators are inserted between consecutive condition entries.
+    */
+   private ConditionList buildConditionList(VisualizationConditionModel wizModel) {
+      ConditionList conditionList = new ConditionList();
+      List<VisualizationConditionModel.Entry> entries = wizModel.getConditions();
+
+      for(VisualizationConditionModel.Entry entry : entries) {
+         VisualizationConditionModel.ConditionSpec spec = entry.getCondition();
+
+         if(spec == null || Tool.isEmptyString(spec.getField())) {
+            continue;
+         }
+
+         if(!conditionList.isEmpty()) {
+            int junctionType = "or".equalsIgnoreCase(entry.getJunction())
+               ? JunctionOperator.OR
+               : JunctionOperator.AND;
+            conditionList.append(new JunctionOperator(junctionType, 0));
+         }
+
+         AttributeRef attr = new AttributeRef(null, spec.getField());
+         Condition condition = new Condition();
+         condition.setOperation(mapConditionOperation(spec.getOperation()));
+         condition.setNegated(spec.isNegated());
+
+         if(spec.getEqual() != null) {
+            condition.setEqual(spec.getEqual());
+         }
+
+         if(spec.getValues() != null) {
+            for(VisualizationConditionModel.ValueSpec val : spec.getValues()) {
+               condition.addValue(convertConditionValue(val));
+            }
+         }
+
+         ConditionItem item = new ConditionItem(attr, condition, 0);
+         conditionList.append(item);
+      }
+
+      return conditionList;
+   }
+
+   private Object convertConditionValue(VisualizationConditionModel.ValueSpec val) {
+      if(val == null) {
+         return null;
+      }
+
+      String type = val.getType();
+      Object value = val.getValue();
+
+      if(type == null || value == null) {
+         return value;
+      }
+
+      switch(type.toUpperCase()) {
+         case "FIELD":
+            return new AttributeRef(null, String.valueOf(value));
+         case "VARIABLE":
+         case "SESSION_DATA": {
+            if(value instanceof String) {
+               String str = (String) value;
+
+               if(str.startsWith("$(") && str.endsWith(")")) {
+                  String name = str.substring(2, str.length() - 1);
+                  UserVariable variable = new UserVariable();
+                  variable.setName(name);
+                  variable.setAlias(name);
+                  variable.setValueNode(new StringValue(name));
+                  return variable;
+               }
+            }
+
+            return value;
+         }
+         case "EXPRESSION": {
+            ExpressionValue expr = new ExpressionValue();
+            expr.setExpression(String.valueOf(value));
+            expr.setType(ExpressionValue.JAVASCRIPT);
+            return expr;
+         }
+         default:
+            return value;
+      }
+   }
+
+   /**
+    * Maps a TypeScript {@code ConditionOperation} string to the corresponding {@link XCondition} int constant.
+    */
+   private int mapConditionOperation(String operation) {
+      if(operation == null) {
+         return XCondition.EQUAL_TO;
+      }
+
+      return switch(operation) {
+         case "EQUAL_TO" -> XCondition.EQUAL_TO;
+         case "ONE_OF" -> XCondition.ONE_OF;
+         case "LESS_THAN" -> XCondition.LESS_THAN;
+         case "GREATER_THAN" -> XCondition.GREATER_THAN;
+         case "BETWEEN" -> XCondition.BETWEEN;
+         case "STARTING_WITH" -> XCondition.STARTING_WITH;
+         case "CONTAINS" -> XCondition.CONTAINS;
+         case "LIKE" -> XCondition.LIKE;
+         case "NULL" -> XCondition.NULL;
+         case "DATE_IN" -> XCondition.DATE_IN;
+         default -> XCondition.EQUAL_TO;
+      };
    }
 
    /**

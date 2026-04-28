@@ -629,9 +629,10 @@ public class AssetTreeService {
    {
       return Arrays.stream(entries)
          .filter(e -> {
-            if(Tool.equals(e.getPath(), VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH)) {
+            // Temporary comment to display visualizations on the tree for debugging.
+            /*if(Tool.equals(e.getPath(), VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH)) {
                return false;
-            }
+            }*/
 
             if(e.isFolder() || e.isRepositoryFolder()) {
                return true;
