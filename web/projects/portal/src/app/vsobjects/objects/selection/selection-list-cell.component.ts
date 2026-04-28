@@ -169,7 +169,7 @@ export class SelectionListCell implements OnInit, OnChanges, OnDestroy {
       this.isParentIDTree = model.objectType === "VSSelectionTree" && (<VSSelectionTreeModel> model).mode == MODE.ID;
       this.quickSwitchAllowed = model.quickSwitchAllowed &&
          (model.objectType === "VSSelectionList" || model.objectType === "VSSelectionTree")
-         && (this.contextProvider.viewer || this.contextProvider.preview) && !this.mobile;
+         && (this.contextProvider.viewer || this.contextProvider.preview);
 
       switch(this.measureTextFormat.vAlign) {
       case "top":
