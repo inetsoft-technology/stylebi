@@ -652,7 +652,15 @@ public class DeployService {
             continue;
          }
 
-         List<String> subassets = findAssets(pattern);
+         List<String> subassets;
+
+         try {
+            subassets = findAssets(pattern);
+         }
+         catch(IllegalArgumentException e) {
+            errPatterns.add(pattern);
+            continue;
+         }
 
          if(subassets == null || subassets.isEmpty()) {
             errPatterns.add(pattern);
@@ -1413,6 +1421,9 @@ public class DeployService {
          else {
             throw new IllegalArgumentException("Invalid pattern string: " + patternStr);
          }
+      }
+      else {
+         throw new IllegalArgumentException("Invalid pattern string: " + patternStr);
       }
 
       if(path != null) {
