@@ -407,6 +407,31 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
       }
    }
 
+   // [Path F] theme is the org's selected default → return value is the clone's ID (not the original's)
+   @Test
+   void copyThemes_orgSelectedTheme_returnsCloneId() {
+      CustomTheme theme = new CustomTheme();
+      theme.setId("theme-1");
+      theme.setOrgID("fromOrg");
+      theme.setOrganizations(new ArrayList<>(List.of("fromOrg")));
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
+
+         DataSpace mockDs = mock(DataSpace.class);
+         ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
+
+         CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
+         when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
+
+         String returnedId = provider.callCopyThemes("fromOrg", "toOrg", false);
+
+         assertNotNull(returnedId, "clone ID must be returned when theme is the org's selected default");
+         assertNotEquals("theme-1", returnedId, "returned ID must be the clone's new ID, not the original's");
+      }
+   }
+
    // -------------------------------------------------------------------------
    // copyDataSpace — private; tested via reflection
    // -------------------------------------------------------------------------
@@ -567,12 +592,12 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          }
       }
 
-      void callCopyThemes(String fromOrgId, String toOrgId, boolean replace) {
+      String callCopyThemes(String fromOrgId, String toOrgId, boolean replace) {
          try {
             var m = AbstractEditableAuthenticationProvider.class.getDeclaredMethod(
                "copyThemes", String.class, String.class, boolean.class);
             m.setAccessible(true);
-            m.invoke(this, fromOrgId, toOrgId, replace);
+            return (String) m.invoke(this, fromOrgId, toOrgId, replace);
          }
          catch(ReflectiveOperationException e) {
             throw new AssertionError("reflection failed: copyThemes", e);

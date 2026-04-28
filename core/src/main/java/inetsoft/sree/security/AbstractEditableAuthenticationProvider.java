@@ -376,10 +376,10 @@ public abstract class AbstractEditableAuthenticationProvider
                //if copying a global theme, need to actually copy the dataspace jar
                //since this is usually wrapped into copying the dataspace
                if(!Tool.isEmptyString(clone.getJarPath())) {
-                  String oldJarPath = clone.getJarPath();
-                  String newJarPath = clone.getJarPath().replace("portal/theme", "portal/" + toOrgId + "/theme");
-
                   if(Tool.isEmptyString(theme.getOrgID())) {
+                     String oldJarPath = clone.getJarPath();
+                     String newJarPath = clone.getJarPath().replace("portal/theme", "portal/" + toOrgId + "/theme");
+
                      if(dataSpace.exists(null, clone.getJarPath())) {
                         try(InputStream in = dataSpace.getInputStream(null, oldJarPath)) {
                            int index = newJarPath.lastIndexOf('/');
