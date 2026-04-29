@@ -281,14 +281,23 @@ public class GenerateWsService {
       Map<String, String> map = new HashMap<>(fields.size() * 2);
 
       for(WorksheetConstructionModel.QueryField field : fields) {
-         String alias     = field.getAlias();
+         String alias = field.getAlias();
          String fieldName = field.getFieldName();
+
+         if(fieldName == null || field.getTable() == null) {
+            continue;
+         }
 
          map.put(fieldName, alias);
 
          if(!fieldName.contains(".")) {
-            String fullName = Tool.buildString(field.getTable().getName(), fieldName);
+            String fullName = Tool.buildString(field.getTable().getName(), ".", fieldName);
             map.putIfAbsent(fullName, alias);
+
+            // in case join key is alias.
+            if(alias != null && !alias.equals(fieldName)) {
+               map.putIfAbsent(alias, alias);
+            }
          }
       }
 
@@ -301,8 +310,22 @@ public class GenerateWsService {
    private String qualifyKey(String tableName, String key,
                              Map<String, String> keyToAliasMap)
    {
-      String qualifiedKey = key.contains(".") ? key : tableName + "." + key;
-      String alias = keyToAliasMap.get(qualifiedKey);
+      if(Tool.isEmptyString(key)) {
+         return key;
+      }
+
+      // join key is alias.
+      String alias = keyToAliasMap.get(key);
+      String qualifiedKey = key;
+
+      if(alias == null && key.contains(".")) {
+         alias = keyToAliasMap.get(key);
+      }
+      else {
+         qualifiedKey = tableName + "." + key;
+         alias = keyToAliasMap.get(qualifiedKey);
+      }
+
       return alias != null ? alias : qualifiedKey;
    }
 
@@ -620,6 +643,7 @@ public class GenerateWsService {
 
       if(Tool.isEmptyString(field.getExpression())) {
          String colType = null;
+         String fieldName = null;
 
          if(boundTable) {
             if(metaData != null && metaData.getFields() != null) {
@@ -628,12 +652,18 @@ public class GenerateWsService {
                   .findFirst();
 
                if(osiField.isPresent()) {
+                  fieldName = osiField.get().getName();
                   colType = extractFieldType(osiField.get());
                }
             }
          }
 
-         String attr = field.getFieldName();
+         String attr = fieldName;
+
+         if(attr == null) {
+            attr = field.getUnqualifiedFieldName();
+         }
+
          attr = AssetUtil.trimEntity(attr, null);
          AttributeRef ref = new AttributeRef(null, attr);
          ref.setDataType(colType);

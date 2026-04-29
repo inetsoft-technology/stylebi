@@ -145,6 +145,11 @@ public class WorksheetConstructionModel {
          this.description = description;
       }
 
+      public String getUnqualifiedFieldName() {
+         String prefix = getTable() + ".";
+         return fieldName.startsWith(prefix) ? fieldName.substring(prefix.length()) : fieldName;
+      }
+
       @Override
       public boolean equals(Object o) {
          if(this == o) {
