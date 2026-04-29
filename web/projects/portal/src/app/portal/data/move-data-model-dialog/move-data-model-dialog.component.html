@@ -18,19 +18,14 @@
 <modal-header [title]="'_#(data.datasets.moveTo)'"
               (onCancel)="cancel()">
 </modal-header>
-<div class="modal-body">
-  <div class="container-fluid">
-    <div class="row">
-      <div class="col">
-        <data-models-browser [rootLabel]="rootLabel"
-                             [openFolderRequest]="openFolderRequest"
-                             (selectionChange)="folderSelected($event)">
-        </data-models-browser>
-        <div class="alert alert-danger w-100 mt-2" *ngIf="!folderPath">
-          _#(data.datasets.targetFolderRequired)
-        </div>
-      </div>
-    </div>
+<div class="modal-body move-datasource-dialog__body">
+  <data-models-browser class="move-datasource-dialog__browser"
+                       [rootLabel]="rootLabel"
+                       [openFolderRequest]="openFolderRequest"
+                       (selectionChange)="folderSelected($event)">
+  </data-models-browser>
+  <div class="alert alert-danger move-datasource-dialog__error" *ngIf="!folderPath">
+    _#(data.datasets.targetFolderRequired)
   </div>
 </div>
 <div class="modal-footer">

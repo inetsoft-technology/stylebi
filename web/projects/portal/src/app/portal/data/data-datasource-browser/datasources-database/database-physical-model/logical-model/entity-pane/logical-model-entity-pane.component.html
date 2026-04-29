@@ -15,8 +15,8 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<form [formGroup]="form">
-  <div class="form-group content-spacing form-floating">
+<form [formGroup]="form" class="logical-model-entity-pane">
+  <div class="form-group form-floating logical-model-entity-pane__first-field">
     <input #nameInput type="text" class="form-control" formControlName="name"
            [class.is-invalid]="nameControl && nameControl.invalid">
     <label>_#(Entity Name)</label>

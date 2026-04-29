@@ -43,7 +43,7 @@
   gap: 18px;
   padding: 10px 0 14px;
   background: transparent;
-  border-bottom: 1px solid var(--inet-border-color, #d9d4c8);
+  border-bottom: 1px solid var(--inet-default-border-color);
 }
 
 .worksheet-workspace-heading {
@@ -56,14 +56,14 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--inet-secondary-text-color, #6e6759);
+  color: var(--inet-text-muted-color);
 }
 
 .worksheet-workspace-title {
   font-size: 22px;
   font-weight: 500;
   line-height: 1.25;
-  color: var(--inet-text-color, #2f2c25);
+  color: var(--inet-text-color);
   word-break: break-word;
 }
 
@@ -71,7 +71,7 @@
   margin-top: 6px;
   font-size: 12px;
   line-height: 1.5;
-  color: var(--inet-secondary-text-color, #6e6759);
+  color: var(--inet-text-muted-color);
 }
 
 .worksheet-workspace-actions {
@@ -97,8 +97,8 @@
   gap: 6px;
   padding: 10px 0;
   background: transparent;
-  border-bottom: 1px solid var(--inet-border-color, #d9d4c8);
-  color: var(--inet-secondary-text-color, #6e6759);
+  border-bottom: 1px solid var(--inet-default-border-color);
+  color: var(--inet-text-muted-color);
   font-size: 12px;
 }
 
@@ -107,45 +107,50 @@
 }
 
 .btn {
-  --bs-btn-disabled-border-color: rgba(0,0,0,0);
+  --bs-btn-disabled-border-color: transparent;
 }
 
 .worksheet-detail-shell {
   overflow: auto;
   height: 100%;
-  background: var(--inet-toolbar-bg-color, #f7f4ee);
+  background: var(--inet-portal-main-panel-bg-color);
 }
 
 .worksheet-detail-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--inet-space-7);
   max-width: 1100px;
   margin: 0 auto;
-  padding: 24px 28px 32px;
+  padding: var(--inet-space-8) var(--inet-space-6) var(--inet-space-8);
 }
 
 .worksheet-detail-hero {
+  position: relative;
   display: flex;
   align-items: flex-start;
   flex-direction: column;
-  gap: 20px;
-  padding: 16px 18px;
-  background: var(--inet-cell-bg-color, #fffdfa);
-  border: 1px solid var(--inet-border-color, #d9d4c8);
-  border-radius: 8px;
+  gap: var(--inet-space-5);
+  padding: var(--inet-space-6);
+  background: var(--inet-shell-surface-default);
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-lg);
 }
 
 .worksheet-detail-actions {
-  flex: 0 0 auto;
-  align-self: flex-end;
+  position: absolute;
+  top: var(--inet-space-6);
+  right: var(--inet-space-6);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--inet-space-2);
   justify-content: flex-end;
 }
 
 .worksheet-detail-actions__group {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--inet-space-1);
 
   .disabled {
     pointer-events: none;
@@ -154,7 +159,8 @@
 
 .worksheet-detail-hero__copy {
   min-width: 0;
-  width: 100%;
+  max-width: 760px;
+  padding-right: calc(var(--inet-control-height) * 4 + var(--inet-space-3));
 }
 
 .worksheet-detail-hero__eyebrow {
@@ -162,8 +168,8 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--inet-secondary-text-color, #6e6759);
-  margin-bottom: 8px;
+  color: var(--inet-text-muted-color);
+  margin-bottom: var(--inet-space-2);
 }
 
 .worksheet-detail-hero__title {
@@ -175,29 +181,37 @@
 
 .worksheet-detail-hero__description {
   max-width: 760px;
-  margin-top: 12px;
-  color: var(--inet-secondary-text-color, #6e6759);
+  margin-top: var(--inet-space-4);
+  color: var(--inet-text-muted-color);
   line-height: 1.6;
 }
 
 .worksheet-detail-section {
-  margin-top: 24px;
+  margin-top: var(--inet-space-6);
+  padding-top: var(--inet-space-6);
+  border-top: 1px solid var(--inet-default-border-color);
+}
+
+.worksheet-detail-layout > .worksheet-detail-section:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
 }
 
 .worksheet-detail-section__title {
-  margin-bottom: 12px;
+  margin-bottom: var(--inet-space-5);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--inet-secondary-text-color, #6e6759);
+  color: var(--inet-text-muted-color);
 }
 
 .worksheet-detail-overview-grid,
 .worksheet-detail-grid,
 .worksheet-root-block-grid {
   display: grid;
-  gap: 16px;
+  gap: var(--inet-space-4);
 }
 
 .worksheet-detail-overview-grid {
@@ -214,16 +228,23 @@
 }
 
 .worksheet-detail-overview-item,
-.worksheet-detail-card,
-.worksheet-block-card,
 .worksheet-detail-summary {
-  background: var(--inet-cell-bg-color, #fffdfa);
-  border: 1px solid var(--inet-border-color, #d9d4c8);
-  border-radius: 8px;
+  background: var(--inet-shell-surface-default);
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-lg);
 }
 
 .worksheet-detail-overview-item {
-  padding: 14px 16px;
+  background: var(--inet-shell-surface-subtle);
+  padding: var(--inet-space-4);
+  border-radius: var(--inet-radius-md);
+}
+
+.worksheet-detail-card,
+.worksheet-block-card {
+  background: var(--inet-shell-surface-default);
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-lg);
 }
 
 .worksheet-detail-overview-item__label {
@@ -231,28 +252,35 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--inet-secondary-text-color, #6e6759);
+  color: var(--inet-text-muted-color);
 }
 
 .worksheet-detail-overview-item__value {
-  margin-top: 8px;
+  margin-top: var(--inet-space-2);
   font-size: 14px;
   line-height: 1.5;
   word-break: break-word;
 }
 
 .worksheet-detail-summary {
-  padding: 16px 18px;
+  padding: var(--inet-space-6);
   line-height: 1.65;
 }
 
 .worksheet-detail-card,
 .worksheet-block-card {
-  padding: 16px;
+  padding: var(--inet-space-6);
 }
 
 .worksheet-block-card--primary {
   min-height: 100%;
+}
+
+.worksheet-block-card--flush {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .worksheet-block-card__header,
@@ -260,7 +288,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--inet-space-3);
 }
 
 .worksheet-block-card__title,
@@ -274,29 +302,29 @@
 .worksheet-dependent-asset-meta,
 .worksheet-dependent-asset-path {
   font-size: 12px;
-  color: var(--inet-secondary-text-color, #6e6759);
+  color: var(--inet-text-muted-color);
   line-height: 1.5;
 }
 
 .worksheet-block-card__subtitle {
-  margin-top: 4px;
+  margin-top: var(--inet-space-1);
 }
 
 .worksheet-block-card__badge,
 .worksheet-block-card__pill {
   flex: 0 0 auto;
-  padding: 3px 8px;
+  padding: var(--inet-space-1) var(--inet-space-3);
   border-radius: 999px;
-  background: var(--inet-hover-bg-color, #f1ece1);
-  color: var(--inet-secondary-text-color, #6e6759);
+  background: var(--inet-ui-neutral-hover-bg-color);
+  color: var(--inet-text-muted-color);
   font-size: 11px;
   font-weight: 500;
   line-height: 1.4;
 }
 
 .worksheet-dependent-asset-item {
-  padding: 12px 0;
-  border-top: 1px solid var(--inet-border-color, #d9d4c8);
+  padding: var(--inet-space-4) 0;
+  border-top: 1px solid var(--inet-default-border-color);
 }
 
 .worksheet-dependent-asset-item:first-of-type {
@@ -305,26 +333,26 @@
 }
 
 .worksheet-dependent-asset-path {
-  margin-top: 6px;
+  margin-top: var(--inet-space-2);
   word-break: break-word;
 }
 
 .worksheet-field-chip-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 8px;
-  margin-top: 14px;
+  gap: var(--inet-space-3);
+  margin-top: var(--inet-space-5);
 }
 
 .worksheet-field-chip {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 10px;
+  gap: var(--inet-space-3);
   min-width: 0;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: var(--inet-panel-bg-color, #f8f5ef);
+  padding: var(--inet-space-2) var(--inet-space-3);
+  border-radius: var(--inet-radius-sm);
+  background: var(--inet-shell-surface-subtle);
 }
 
 .worksheet-field-chip__name {
@@ -333,22 +361,22 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
-  color: var(--inet-text-color, #2f2c25);
+  color: var(--inet-text-color);
 }
 
 .worksheet-field-chip__type {
   flex: 0 0 auto;
   font-size: 11px;
-  color: var(--inet-secondary-text-color, #6e6759);
+  color: var(--inet-text-muted-color);
   text-transform: lowercase;
 }
 
 .worksheet-detail-empty {
-  padding: 14px 16px;
-  border: 1px dashed var(--inet-border-color, #d9d4c8);
-  border-radius: 8px;
-  color: var(--inet-secondary-text-color, #6e6759);
-  background: var(--inet-cell-bg-color, #fffdfa);
+  padding: var(--inet-space-5);
+  border: 1px dashed var(--inet-default-border-color);
+  border-radius: var(--inet-radius-lg);
+  color: var(--inet-text-muted-color);
+  background: var(--inet-shell-surface-default);
 }
 
 @media (max-width: 900px) {
@@ -371,7 +399,12 @@
   }
 
   .worksheet-detail-layout {
-    padding: 20px 20px 28px;
+    gap: var(--inet-space-6);
+    padding: var(--inet-space-6) var(--inet-space-5) var(--inet-space-7);
+  }
+
+  .worksheet-detail-hero {
+    padding: calc(var(--inet-space-6) + var(--inet-control-height) + var(--inet-space-3)) var(--inet-space-5) var(--inet-space-5);
   }
 
   .worksheet-detail-grid,
@@ -380,7 +413,13 @@
   }
 
   .worksheet-detail-actions {
-    align-self: stretch;
+    top: var(--inet-space-6);
+    left: var(--inet-space-5);
+    right: var(--inet-space-5);
     justify-content: flex-start;
+  }
+
+  .worksheet-detail-hero__copy {
+    padding-right: 0;
   }
 }

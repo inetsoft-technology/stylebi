@@ -30,7 +30,8 @@ const GET_DATA_MODEL_URI: string = "../api/data/database/dataModel/folder/browse
 
 @Component({
   selector: "move-data-model-dialog",
-  templateUrl: "./move-data-model-dialog.component.html"
+  templateUrl: "./move-data-model-dialog.component.html",
+  styleUrls: ["../move-datasource-dialog/move-datasource-dialog.component.scss"]
 })
 export class MoveDataModelDialog implements OnInit {
   @Input() database: string;

@@ -15,21 +15,27 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.edit-column-container {
+.logical-model-column-editor {
   display: flex;
   flex-direction: column;
   height: 100%;
+}
 
-  .edit-column-header {
-    flex-grow: 0;
-    flex-shrink: 0;
-  }
+.logical-model-column-editor__header {
+  flex-grow: 0;
+  flex-shrink: 0;
+}
 
-  .edit-column-content {
-    flex-shrink: 1;
-    flex-grow: 1;
-    flex-basis: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-  }
+.logical-model-column-editor__title {
+  font-size: var(--inet-font-size-md, 14px);
+  font-weight: 600;
+}
+
+.logical-model-column-editor__content {
+  flex-shrink: 1;
+  flex-grow: 1;
+  flex-basis: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--inet-space-4);
 }

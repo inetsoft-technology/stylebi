@@ -15,11 +15,11 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="card p-1">
+<div class="files-browser-shell">
   <nav aria-label="breadcrumb" role="navigation"
      [ngbTooltip]="breadcrumbTooltip"
      triggers="mouseenter:mouseleave" placement="right">
-    <ol class="breadcrumb mb-0">
+    <ol class="breadcrumb files-browser__breadcrumb mb-0">
       <ng-container *ngIf="showBreadcrumb">
         <li *ngFor="let folder of browserView?.path; last as isLast"
             class="breadcrumb-item"
@@ -34,16 +34,16 @@
       </ng-container>
     </ol>
   </nav>
-  <div class="list-group list-group-flush files-browser my-1" *ngIf="!!browserView">
+  <div class="list-group list-group-flush files-browser" *ngIf="!!browserView">
     <div *ngIf="!browserView.root"
-        class="list-group-item list-group-item-action px-1"
+        class="list-group-item list-group-item-action files-browser__item"
         (click)="openParentFolder()">
       <span class="cursor-pointer text-nowrap">
         <i class="upward-icon"></i>
         {{currentFolderName()}}
       </span>
     </div>
-    <div class="list-group-item list-group-item-action px-1" *ngFor="let folder of browserView.folders"
+    <div class="list-group-item list-group-item-action files-browser__item" *ngFor="let folder of browserView.folders"
             [class.active]="!multiSelect && isItemSelected(folder, true)"
             (click)="folderSelectable ? selectFolder(folder) : openFolder(folder.path, folder.type, folder.scope)">
       <div class="truncate-parent justify-content-between">
@@ -65,7 +65,7 @@
         </i>
       </div>
     </div>
-    <div class="list-group-item list-group-item-action px-1" *ngFor="let file of browserView.files"
+    <div class="list-group-item list-group-item-action files-browser__item" *ngFor="let file of browserView.files"
             [class.active]="!multiSelect && isItemSelected(file, false)"
             (click)="selectFile(file)">
       <div class="truncate-parent align-items-center">

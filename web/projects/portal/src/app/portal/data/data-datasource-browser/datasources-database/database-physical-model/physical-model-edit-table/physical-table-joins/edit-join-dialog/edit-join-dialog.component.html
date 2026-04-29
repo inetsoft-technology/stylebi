@@ -25,9 +25,8 @@
   </div>
   <div class="join-properties">
     <div class="join-properties__header">
-      <div class="join-properties__eyebrow">_#(Join)</div>
       <div class="join-properties__title">
-        _#(Properties)
+        _#(Join) _#(Properties)
       </div>
     </div>
     <div class="join-properties__content" *ngIf="!!joinModel">
@@ -38,7 +37,7 @@
           <label>_#(Join)</label>
         </div>
 
-        <div class="form-group mt-2 form-floating">
+        <div class="form-group form-floating">
             <select class="form-control"
                     [(ngModel)]="joinModel.type" defaultFocus [autoSelect]="false">
               <option *ngFor="let option of joinTypes" [value]="option.value">
@@ -96,36 +95,36 @@
           <div class="form-group">
             <div class="join-properties__section-title">_#(Cardinality)</div>
             <div class="join-properties__choice-grid">
-              <div class="form-check form-check-inline">
-                <label class="form-check-label">
-                  <input class="form-check-input align-middle" type="radio"
+              <div class="join-properties__choice">
+                <label class="join-properties__choice-label">
+                  <input class="join-properties__choice-input" type="radio"
                          name="cardinalityRadio"
                          [value]="Cardinality.ONE_TO_ONE"
                          [(ngModel)]="joinModel.cardinality">
                   _#(One to one)
                 </label>
               </div>
-              <div class="form-check form-check-inline">
-                <label class="form-check-label">
-                  <input class="form-check-input align-middle" type="radio"
+              <div class="join-properties__choice">
+                <label class="join-properties__choice-label">
+                  <input class="join-properties__choice-input" type="radio"
                          name="cardinalityRadio"
                          [value]="Cardinality.ONE_TO_MANY"
                          [(ngModel)]="joinModel.cardinality">
                   _#(One to many)
                 </label>
               </div>
-              <div class="form-check form-check-inline">
-                <label class="form-check-label">
-                  <input class="form-check-input align-middle" type="radio"
+              <div class="join-properties__choice">
+                <label class="join-properties__choice-label">
+                  <input class="join-properties__choice-input" type="radio"
                          name="cardinalityRadio"
                          [value]="Cardinality.MANY_TO_ONE"
                          [(ngModel)]="joinModel.cardinality">
                   _#(Many to one)
                 </label>
               </div>
-              <div class="form-check form-check-inline">
-                <label class="form-check-label">
-                  <input class="form-check-input align-middle" type="radio"
+              <div class="join-properties__choice">
+                <label class="join-properties__choice-label">
+                  <input class="join-properties__choice-input" type="radio"
                          name="cardinalityRadio"
                          [value]="Cardinality.MANY_TO_MANY"
                          [(ngModel)]="joinModel.cardinality">
@@ -134,9 +133,9 @@
               </div>
             </div>
           </div>
-          <div class="form-group form-check form-check-inline">
-            <label class="form-check-label">
-              <input class="form-check-input align-middle" type="checkbox"
+          <div class="form-group">
+            <label class="join-properties__choice-label">
+              <input class="join-properties__choice-input" type="checkbox"
                      [(ngModel)]="joinModel.weak">
               _#(Weak join)
             </label>
@@ -148,7 +147,7 @@
 <div class="modal-footer">
   <button *ngIf="removeEnabled"
           type="button"
-          class="btn btn-default join-dialog__remove-btn"
+          class="btn btn-secondary join-dialog__remove-btn"
           (click)="remove()">_#(Remove)</button>
   <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="okDisabled">_#(OK)</button>
   <button type="button" class="btn btn-secondary" (click)="cancel()">_#(Cancel)</button>

@@ -22,7 +22,7 @@
   width: 100%;
   height: 100%;
   overflow: auto;
-  background: var(--inet-main-panel-background, #f6f4ed);
+  background: var(--inet-portal-main-panel-bg-color);
 }
 
 .landing-shell {
@@ -41,20 +41,20 @@
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--inet-primary-color, #1456a0);
+  color: var(--inet-primary-color);
 }
 
 .landing-title {
   font-size: 22px;
   font-weight: 600;
-  color: var(--inet-text-color, #333);
+  color: var(--inet-text-color);
   margin-bottom: 10px;
   max-width: 540px;
 }
 
 .landing-body {
   font-size: 13px;
-  color: var(--inet-secondary-text-color, #6c757d);
+  color: var(--inet-text-muted-color);
   max-width: 560px;
   line-height: 1.65;
   margin-bottom: 20px;
@@ -63,7 +63,7 @@
 .landing-note {
   margin-bottom: 28px;
   font-size: 12px;
-  color: var(--inet-secondary-text-color, #6c757d);
+  color: var(--inet-text-muted-color);
 }
 
 .landing-cards {
@@ -77,10 +77,10 @@
 
 .landing-card {
   padding: 20px 18px 18px;
-  border: 1px solid var(--inet-default-border-color, #d9dee7);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 8px 24px rgba(22, 44, 74, 0.05);
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-lg);
+  background: var(--inet-shell-surface-default);
+  box-shadow: var(--inet-shadow-small);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -91,28 +91,28 @@
   transition: box-shadow 0.15s ease, border-color 0.15s ease;
 
   &:hover,
-  &:focus {
-    border-color: var(--inet-primary-color, #1456a0);
-    box-shadow: 0 12px 32px rgba(22, 44, 74, 0.1);
-    outline: none;
+  &:focus-visible {
+    border-color: var(--inet-primary-color);
+    box-shadow: var(--inet-focus-ring), var(--inet-shadow-medium);
+    outline: var(--inet-focus-ring-outline);
   }
 }
 
 .landing-card__icon-wrap {
-  color: var(--inet-primary-color, #1456a0);
+  color: var(--inet-primary-color);
   margin-bottom: 4px;
 }
 
 .landing-card__title {
   font-size: 13px;
   font-weight: 600;
-  color: var(--inet-text-color, #333);
+  color: var(--inet-text-color);
 }
 
 .landing-card__copy {
   font-size: 12px;
   line-height: 1.6;
-  color: var(--inet-secondary-text-color, #6c757d);
+  color: var(--inet-text-muted-color);
 }
 
 .landing-card__action,
@@ -130,7 +130,7 @@
 .landing-card__hint {
   font-size: 12px;
   line-height: 1.55;
-  color: var(--inet-primary-color, #1456a0);
+  color: var(--inet-primary-color);
   font-weight: 500;
 }
 
@@ -141,7 +141,7 @@
   width: 100%;
   margin-top: 40px;
   padding-top: 32px;
-  border-top: 1px solid var(--inet-default-border-color, #d9dee7);
+  border-top: 1px solid var(--inet-default-border-color);
 }
 
 .landing-designer__eyebrow {
@@ -150,7 +150,7 @@
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--inet-primary-color, #1456a0);
+  color: var(--inet-primary-color);
   text-align: center;
 }
 
@@ -159,7 +159,7 @@
   margin-bottom: 16px;
   font-size: 13px;
   line-height: 1.6;
-  color: var(--inet-secondary-text-color, #6c757d);
+  color: var(--inet-text-muted-color);
   text-align: center;
 }
 

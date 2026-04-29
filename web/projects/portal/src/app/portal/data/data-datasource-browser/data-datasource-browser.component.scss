@@ -34,7 +34,7 @@
     gap: 18px;
     padding: 10px 0 14px;
     background: transparent;
-    border-bottom: 1px solid var(--inet-border-color, #d9d4c8);
+    border-bottom: 1px solid var(--inet-default-border-color);
   }
 
   .datasource-workspace-heading {
@@ -47,14 +47,14 @@
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--inet-secondary-text-color, #6e6759);
+    color: var(--inet-text-muted-color);
   }
 
   .datasource-workspace-title {
     font-size: 22px;
     font-weight: 500;
     line-height: 1.25;
-    color: var(--inet-text-color, #2f2c25);
+    color: var(--inet-text-color);
     word-break: break-word;
   }
 
@@ -62,7 +62,7 @@
     margin-top: 6px;
     font-size: 12px;
     line-height: 1.5;
-    color: var(--inet-secondary-text-color, #6e6759);
+    color: var(--inet-text-muted-color);
   }
 
   .datasource-workspace-actions {
@@ -76,7 +76,7 @@
   .datasource-workspace-actions__divider {
     width: 1px;
     align-self: stretch;
-    background: var(--inet-border-color, #d9d4c8);
+    background: var(--inet-default-border-color);
     opacity: 0.9;
   }
 
@@ -99,7 +99,7 @@
   }
 
   .datasource-table-body {
-    border-top: 1px solid var(--inet-border-color, #d9d4c8);
+    border-top: 1px solid var(--inet-default-border-color);
   }
 
   .datasource-search-banner {
@@ -108,8 +108,8 @@
     gap: 6px;
     padding: 10px 0;
     background: transparent;
-    border-bottom: 1px solid var(--inet-border-color, #d9d4c8);
-    color: var(--inet-secondary-text-color, #6e6759);
+    border-bottom: 1px solid var(--inet-default-border-color);
+    color: var(--inet-text-muted-color);
     font-size: 12px;
   }
 
@@ -127,7 +127,7 @@
       justify-content: center;
       opacity: 0;
       transition: opacity 120ms ease, color 120ms ease;
-      color: var(--inet-secondary-text-color, #6e6759);
+      color: var(--inet-text-muted-color);
     }
 
     .sort-indicator::before,
@@ -153,7 +153,7 @@
     }
 
     &.is-active {
-      color: var(--inet-text-color, #2f2c25);
+      color: var(--inet-text-color);
 
       .sort-indicator {
         opacity: 1;
@@ -217,7 +217,7 @@
   }
 
   .btn {
-    --bs-btn-disabled-border-color: rgba(0,0,0,0);
+    --bs-btn-disabled-border-color: transparent;
   }
 
   @media (max-width: 900px) {

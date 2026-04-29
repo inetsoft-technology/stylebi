@@ -792,11 +792,11 @@ schema-column, edit-join-table-column {
 
 .toolbar-ghost-actions {
   .btn {
-    min-width: 30px;
-    height: 30px;
-    padding: 0.25rem 0.5rem;
+    min-width: var(--inet-control-height-md);
+    height: var(--inet-control-height-md);
+    padding: var(--inet-space-2) var(--inet-space-4);
     border: 0;
-    border-radius: 8px;
+    border-radius: var(--inet-radius-lg);
     background-color: transparent;
     color: var(--inet-icon-color);
     box-shadow: none;
@@ -809,7 +809,7 @@ schema-column, edit-join-table-column {
 
     &:not([disabled]):not(.disabled):focus-visible {
       outline: none;
-      box-shadow: 0 0 0 2px var(--inet-primary-soft-color);
+      box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
     }
 
     &.disabled,
@@ -1013,7 +1013,7 @@ binding-editor {
   text-align: left;
   padding-top:4pt;
   padding-bottom:20px;
-  border-top: 1px solid silver;
+  border-top: 1px solid var(--inet-default-border-color);
   position:relative;
   top:5pt;
 }
@@ -1064,7 +1064,7 @@ binding-editor {
   }
 
   .ls-el {
-    fill: var(--inet-primary-color, #ed711c);
+    fill: var(--inet-primary-color);
     transform-box: fill-box;
     transform-origin: center;
   }

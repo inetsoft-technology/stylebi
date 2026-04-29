@@ -36,13 +36,13 @@
               (click)="save()">
         _#(Save)
       </button>
-      <button type="button" class="btn btn-default"
+      <button type="button" class="btn btn-secondary"
               (click)="close()">
         _#(Close)
       </button>
     </div>
   </div>
-  <div class="g-0 row data-model-edit-container split-content">
+  <div class="data-model-edit-container split-content">
       <split-pane #horizontalSplitPane direction="horizontal"
                   [sizes]="[INIT_TREE_PANE_SIZE, 100 - INIT_TREE_PANE_SIZE]"
                   class="split-pane data-model-horizontal-split" (onDrag)="splitPaneDragEnd()"
@@ -69,7 +69,7 @@
                 </ng-container>
               </div>
             </div>
-            <div class="table-search-input ps-1">
+            <div class="table-search-input">
               <input type="text" class="form-control search-input" name="_#(Data source name filter)"
                      placeholder="_#(Search)" [(ngModel)]="filterTablesString"
                      (ngModelChange)="onSearchInputChange()"

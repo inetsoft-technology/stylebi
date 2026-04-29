@@ -49,7 +49,7 @@
 
 /* this is ubiquitous to add space between the vertical height of some form fields */
 .form-group {
-  margin-bottom: 1rem;
+  margin-bottom: var(--inet-space-5);
 }
 
 /*
@@ -70,13 +70,13 @@ form-inline is no longer a thing in bootstrap 5
 .form-row {
   display: flex;
   flex-wrap: wrap;
-  margin-right: -5px;
-  margin-left: -5px;
+  margin-right: calc(-1 * var(--inet-space-2));
+  margin-left: calc(-1 * var(--inet-space-2));
 }
 
 .form-row > .col {
-  padding-left: 5px;
-  padding-right: 5px;
+  padding-left: var(--inet-space-2);
+  padding-right: var(--inet-space-2);
 }
 
 
@@ -245,7 +245,7 @@ fieldset legend {
 }
 
 fieldset.float-title {
-  border-radius: 3px;
+  border-radius: var(--inet-radius-md);
   padding-bottom: 0.5em;
 
   legend {
@@ -271,7 +271,7 @@ fieldset.float-title {
   margin-top: 0;
   margin-left: 0;
   margin-right: 0.5rem;
-  --bs-form-check-bg: white; // needs to match $form-check-input-checked-color
+  --bs-form-check-bg: var(--inet-shell-surface-default); // needs to match shell input/default surface
   --bs-border-color: var(--inet-input-text-color);
 
   &:checked {
@@ -281,7 +281,7 @@ fieldset.float-title {
 
   &:focus {
     border-color: var(--inet-primary-color);
-    box-shadow: none;
+    box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
   }
 }
 
@@ -340,7 +340,7 @@ input[type="checkbox"], input[type="radio"] {
   /* ~half size of bootstraps btn-sm*/
   padding: 0 0.25rem !important;
   font-size: 0.875rem;
-  border-radius: 0.2rem;
+  border-radius: var(--inet-radius-sm);
 }
 
 .btn-close {
@@ -385,7 +385,7 @@ input[type="checkbox"], input[type="radio"] {
 }
 
 .dropdown-toggle.white-toggle::after {
-  border-top:0.5em solid white;
+  border-top:0.5em solid var(--inet-light-color);
   border-right: 0.4em solid transparent;
   border-left: 0.4em solid transparent;
 }
@@ -396,8 +396,8 @@ input[type="checkbox"], input[type="radio"] {
 
 // override ngb-tp-meridian color
 .ngb-tp-meridian button {
-  color: $secondary;
-  border-color: $secondary;
+  color: var(--inet-button-secondary-text-color);
+  border-color: var(--inet-button-secondary-border-color);
 }
 
 // override and fix ngb-datepicker layout issue on month/year dropdown
@@ -760,7 +760,7 @@ a:not([href]) {
 {
   // on click
   &:not(:disabled):not(.disabled):not(.condition-field-combo-toggle.disabled):active:focus {
-    box-shadow: 0 0 0 1px var(--inet-default-border-color);
+    box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
     filter: brightness(0.9);
   }
 }
@@ -844,8 +844,8 @@ a:not([href]) {
 
 .nav-tabs .nav-item.show .nav-link, .nav-tabs .nav-link.active {
   color: var(--inet-text-color);
-  background-color: var(--inet-main-panel-bg-color);
-  border-color: var(--inet-default-border-color) var(--inet-default-border-color) var(--inet-main-panel-bg-color);
+  background-color: var(--inet-shell-surface-default);
+  border-color: var(--inet-default-border-color) var(--inet-default-border-color) var(--inet-shell-surface-default);
 }
 
 .nav-tabs .nav-link:hover {
@@ -934,6 +934,26 @@ a, .btn-link {
 }
 
 // borders
+.border {
+  border-color: var(--inet-default-border-color) !important;
+}
+
+.border-top {
+  border-top-color: var(--inet-default-border-color) !important;
+}
+
+.border-bottom {
+  border-bottom-color: var(--inet-default-border-color) !important;
+}
+
+.border-start {
+  border-left-color: var(--inet-default-border-color) !important;
+}
+
+.border-end {
+  border-right-color: var(--inet-default-border-color) !important;
+}
+
 .border-primary {
   border-color: var(--inet-primary-color) !important;
 }
@@ -980,8 +1000,10 @@ a, .btn-link {
   border-color: var(--inet-input-border-color);
 
   &:focus {
-    border-color: var(--inet-primary-color-light);
-    box-shadow: 0 0 0 1px var(--inet-primary-color);
+    color: var(--inet-input-focus-text-color);
+    background-color: var(--inet-input-focus-bg-color, var(--inet-input-bg-color));
+    border-color: var(--inet-primary-color);
+    box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
   }
 }
 
@@ -993,12 +1015,37 @@ a, .btn-link {
   color: var(--inet-secondary-color) !important;;
 }
 
+.text-success {
+  color: var(--inet-success-color) !important;
+}
+
 .text-info {
   color: var(--inet-info-color) !important;
 }
 
 .text-danger {
   color: var(--inet-danger-color) !important;
+}
+
+.text-warning {
+  color: var(--inet-warning-color) !important;
+}
+
+.text-muted {
+  color: var(--inet-text-muted-color) !important;
+}
+
+.text-bg-light {
+  color: var(--inet-button-light-text-color) !important;
+  background-color: var(--inet-button-light-bg-color) !important;
+}
+
+.badge {
+  padding: var(--inet-space-1) var(--inet-space-3);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  border-radius: var(--inet-radius-pill);
 }
 
 .layout-divider {
@@ -1009,18 +1056,36 @@ a, .btn-link {
   // bootstrap
   // from bootstrap 4 for backwards compatibility, navbar nav-link items had horizontal padding
   --bs-navbar-nav-link-padding-x: 0.5rem;
-  --bs-dropdown-item-padding-y: 0.25rem;
-  --bs-dropdown-item-padding-x: 1.5rem;
+  --bs-secondary-color: var(--inet-text-muted-color);
+  --bs-dropdown-item-padding-y: var(--inet-space-2);
+  --bs-dropdown-item-padding-x: var(--inet-space-5);
+  --bs-dropdown-bg: var(--inet-dropdown-bg-color);
+  --bs-dropdown-border-color: var(--inet-default-border-color);
+  --bs-dropdown-link-hover-bg: var(--inet-hover-primary-bg-color);
   --bs-body-font-family: var(--inet-font-family);
   --bs-body-font-size: var(--inet-font-size-base);
   --bs-body-color: var(--inet-text-color);
   --bs-body-bg: var(--inet-main-panel-bg-color);
-  --bs-border-radius: .25rem;
+  --bs-border-radius: var(--inet-radius-md);
   --bs-border-color: var(--inet-default-border-color);
+  --bs-card-bg: var(--inet-card-bg-color);
+  --bs-card-border-color: var(--inet-default-border-color);
+  --bs-modal-bg: var(--inet-dialog-bg-color);
+  --bs-modal-border-color: var(--inet-default-border-color);
+  --bs-badge-font-size: 10px;
+  --bs-badge-font-weight: 600;
+  --bs-badge-padding-y: var(--inet-space-1);
+  --bs-badge-padding-x: var(--inet-space-3);
   --bs-list-group-border-width: 1px;
+  --bs-list-group-bg: var(--inet-dropdown-bg-color);
+  --bs-list-group-color: var(--inet-text-color);
   --bs-list-group-border-color: var(--inet-default-border-color);
-  --bs-list-group-item-padding-y: 6px;
-  --bs-list-group-item-padding-x: 1.25rem;
+  --bs-list-group-item-padding-y: var(--inet-space-3);
+  --bs-list-group-item-padding-x: var(--inet-space-5);
+  --bs-list-group-action-hover-bg: var(--inet-ui-neutral-hover-bg-color);
+  --bs-list-group-active-bg: var(--inet-shell-selected-bg-color);
+  --bs-list-group-active-color: var(--inet-text-color);
+  --bs-list-group-active-border-color: var(--inet-default-border-color);
 }
 
 // Suppress programmatic-focus highlight on portal dropdowns (defaultFocus directive calls

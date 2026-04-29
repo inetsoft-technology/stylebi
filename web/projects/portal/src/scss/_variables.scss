@@ -15,60 +15,73 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-/***
- * Theming override section begin
- */
-
 // if themed, need to ensure font available on server
-$inet-font-name: Roboto, -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif !default;
-
-// inet orange based light palette.
-$inet-orange: #ed711c;
-$inet-red: #ffc1cf;
-$inet-blue: #cdf7f6;
-$inet-yellow: #f2f3ae;
-$inet-green: #dbf4ad;
-
-// inet extended palette - shades for base colors. Not all in actual use yet
-$inet-orange-light: #ffb17c;
-$inet-orange-dark: #d25f11;
-$inet-red-light: #ffd7e0;
-$inet-red-dark: #fe688b;
-$inet-blue-light: #f2fefe;
-$inet-blue-dark: #105e5a;
-$inet-yellow-light: #feffd2;
-$inet-yellow-dark: #656616;
-$inet-green-light:#e7f9c7;
-$inet-green-dark: #aacc6d;
-
-// white/gray/black colors for toolbar/panel background & border
-$inet-offwhite1: #fcfcfc;
-$inet-offwhite2: #f9f9f9;
-$inet-offwhite3: #f5f5f5;
-$inet-offwhite4: #f0f0f0;
-$inet-gray1: #e0e0e0;
-$inet-gray2: #bdbdbd;
-$inet-gray3: #757575;
-$inet-gray4: #424242;
-
-// text/icon fg colors
-$inet-default-icon-color: #6d6d6d;
-$inet-text-dark: #202020;
-$inet-text-light: #fff;
-
-$inet-drop-highlight: #66DD66;
+$inet-font-name: Inter, Roboto, -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif !default;
 
 /***
- * Theming override section end
+ * Raw palette values
+ *
+ * Keep literal color values grouped here so the shell palette is easy to audit.
+ * Derived Sass tokens and emitted CSS variables should reference this section
+ * instead of introducing new hard-coded colors where possible.
  */
 
+// Shell foundations
+$shell-surface-canvas: #F8F7F4;
+$shell-surface-default: #FFFFFF;
+$shell-surface-subtle: #F1EFEA;
+$shell-surface-hover: #ECE9E2;
+$shell-border-default: #D9D5CC;
+$shell-border-strong: #C8C2B7;
+$shell-chrome-dark: #4A4845;
+$shell-text-strong: #1F1F1B;
+$shell-text-default: #35342F;
+$shell-text-muted: #6A685F;
+$shell-text-subtle: #99958C;
+$shell-selected-bg: #E7E2D8;
+
+// Primary family
+$shell-primary: #E58A2A;
+$shell-primary-hover: #C96F12;
+$shell-primary-soft: #F6E2C8;
+$shell-primary-text: #4A2500;
+
+// Support families
+$shell-secondary: #7455A8;
+$shell-secondary-active: #4E3378;
+$shell-secondary-soft: #EDE8F5;
+$shell-secondary-text: #3D2070;
+$shell-third: #B54B6E;
+$shell-third-soft: #F5DCEA;
+$shell-third-text: #6B1F3A;
+$shell-fourth: #1D8A86;
+$shell-fourth-soft: #D5EDEC;
+$shell-fourth-text: #0F4E4C;
+
+// Semantic families
+$shell-success: #2E8B57;
+$shell-success-soft: #E2F3E8;
+$shell-success-text: #1D5B39;
+$shell-warning: #B7791F;
+$shell-warning-soft: #F8E8CC;
+$shell-warning-text: #7A4E10;
+$shell-danger: #C84C4C;
+$shell-danger-soft: #F7DEDE;
+$shell-danger-text: #7F2E2E;
+$shell-info: #3E7FC4;
+$shell-info-soft: #E4EFFA;
+$shell-info-text: #1F548A;
+
+// Raw utility/effect primitives
+$navbar-hover-overlay: rgba(255, 255, 255, 0.2);
+$inverse-text-color: #FFFFFF;
+
 /***
- * Color variables with semantic meaning.
+ * Derived Sass color tokens
  *
- * create & use variable in this section when a color is used for same meaning or consistent look in more than 1 component.
- * otherwise, use color from theming section palette directly is ok.
- *
- * All bootstrap override variables in next section are also considered semantic meaning colors
+ * These are compatibility and semantic tokens consumed by Bootstrap overrides
+ * and legacy component styles. Keep them value-free when possible by mapping
+ * back to the raw palette section above.
  *
  * Support-family usage contract:
  * - secondary, third, and fourth are constrained support families
@@ -76,20 +89,60 @@ $inet-drop-highlight: #66DD66;
  * - prefer the corresponding *-soft and *-text aliases in component code
  * - promote meaning through named aliases before reaching for raw family tokens
  */
-$third-color: #B54B6E;                // constrained rose support family for recurring structural meaning
-$third-color-light: #F5DCEA;
-$third-color-text: #6B1F3A;
-$fourth-color: #1D8A86;               // constrained teal support family for recurring structural meaning
-$fourth-color-light: #D5EDEC;
-$fourth-color-text: #0F4E4C;
 
+// Legacy inet palette aliases
+$inet-orange: $shell-primary;
+$inet-orange-light: $shell-primary-soft;
+$inet-orange-dark: $shell-primary-hover;
+$inet-red: $shell-danger;
+$inet-red-light: $shell-danger-soft;
+$inet-red-dark: $shell-danger-text;
+$inet-blue: $shell-selected-bg;
+$inet-blue-light: $shell-surface-hover;
+$inet-blue-dark: $shell-text-default;
+$inet-yellow: $shell-warning;
+$inet-yellow-light: $shell-warning-soft;
+$inet-yellow-dark: $shell-warning-text;
+$inet-green: $shell-success;
+$inet-green-light: $shell-success-soft;
+$inet-green-dark: $shell-success-text;
+$inet-offwhite1: $shell-surface-default;
+$inet-offwhite2: $shell-surface-canvas;
+$inet-offwhite3: $shell-surface-subtle;
+$inet-offwhite4: $shell-surface-hover;
+$inet-gray1: $shell-border-default;
+$inet-gray2: $shell-border-strong;
+$inet-gray3: $shell-text-muted;
+$inet-gray4: $shell-text-strong;
+$inet-default-icon-color: $shell-text-muted;
+$inet-text-dark: $shell-text-strong;
+$inet-text-light: $inverse-text-color;
+
+// Support-family aliases
+$third-color: $shell-third;                // constrained rose support family for recurring structural meaning
+$third-color-light: $shell-third-soft;
+$third-color-text: $shell-third-text;
+$fourth-color: $shell-fourth;             // constrained teal support family for recurring structural meaning
+$fourth-color-light: $shell-fourth-soft;
+$fourth-color-text: $shell-fourth-text;
+
+// Shared semantic aliases
 $inet-gray-border: $inet-gray1;
-$selected-item-bg-color:  $inet-blue;
+$selected-item-bg-color: $inet-blue;
 $selected-item-color: $inet-text-dark;
 $hover-bg-blue: $inet-blue-light;
-
 $top-bar-black: $inet-gray4;
 $top-bar-hover-gray: $inet-gray3;
+
+// Derived UI intent tokens
+$drag-drop-highlight: $shell-success;
+$navbar-bg: $shell-chrome-dark;
+$link-hover-color: $shell-primary-hover;
+$worksheet-row-odd-bg: $shell-surface-default;
+$worksheet-row-even-bg: $shell-surface-subtle;
+$dropdown-toggle-color: $shell-text-strong;
+$graph-assembly-error-text-color: $shell-danger;
+$inet-drop-highlight: $drag-drop-highlight;
 
 
 /***
@@ -101,28 +154,32 @@ $font-size-lg:   1rem !default;
 $font-size-sm:   .66rem !default;
 $font-size-xs:   .56rem !default;
 $modal-lg:        850px !default;
+$border-radius-sm: 2px !default;
+$border-radius: 3px !default;
+$border-radius-lg: 4px !default;
+$border-radius-xl: 6px !default;
 
 $primary: $inet-orange;  // use for primary function in the current working area. Also for current focused element in current working area
 $primary-light: $inet-orange-light;
 $primary-dark: $inet-orange-dark;
-$secondary: #7455A8;  // constrained violet support family, not a routine shell accent
-$secondary-light: #EDE8F5;  // secondary soft surface
-$secondary-dark: #4E3378;  // secondary active/dark
-$secondary-text: #3D2070;  // text on secondary soft surface
+$secondary: $shell-secondary;  // constrained violet support family, not a routine shell accent
+$secondary-light: $shell-secondary-soft;  // secondary soft surface
+$secondary-dark: $shell-secondary-active;  // secondary active/dark
+$secondary-text: $shell-secondary-text;  // text on secondary soft surface
 $success: $inet-green;
 $warning: $inet-yellow;
-$danger: $inet-red-dark;
+$danger: $inet-red;
 $light: $inet-offwhite1;
-$link-color: $inet-yellow-dark;
+$link-color: $inet-orange-dark;
 
 $component-active-color: $inet-text-dark;
-$table-hover-bg: #ECE9E2;
-$table-active-bg: #E7E2D8;
+$table-hover-bg: $shell-surface-hover;
+$table-active-bg: $shell-selected-bg;
 $input-btn-focus-width: 1px;
 $input-btn-focus-color: $primary;
 $input-disabled-bg: $inet-gray1;
 $input-border-color: $inet-gray1;
-$dropdown-link-hover-bg: #ECE9E2;
+$dropdown-link-hover-bg: $shell-surface-hover;
 $btn-disabled-opacity: 0.3;
 $action-color: $inet-default-icon-color;
 $action-hover-color: $inet-gray4;
@@ -131,7 +188,7 @@ $form-floating-padding-y: .375rem;
 $form-floating-input-padding-t: $form-floating-padding-y;
 $form-floating-input-padding-b: $form-floating-padding-y;
 $form-floating-label-y: $form-floating-padding-y + .125rem;
-$form-check-input-checked-color: white;
+$form-check-input-checked-color: $inverse-text-color;
 $form-check-input-checked-bg-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' width='16' height='16' fill='none' stroke='#{$form-check-input-checked-color}' stroke-width='3'%3E%3Cpath d='M3 8 l3 3 L13 3' fill='none'/%3E%3C/svg%3E");
 $form-check-radio-checked-bg-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' width='16' height='16' fill='none'%3E%3Ccircle cx='8' cy='8' r='7' stroke='#{$form-check-input-checked-color}' stroke-width='3' /%3E%3C/svg%3E");
 
@@ -149,13 +206,17 @@ $sqrt2: 1.41421356;
   // font
   --inet-font-size-base: 13px;
   --inet-font-family: #{inspect($inet-font-name)};
-  --inet-text-color: #35342F;
+  --inet-text-color: #{$shell-text-default};
   --inet-icon-color: #{$inet-default-icon-color};
-  --inet-text-strong-color: #1F1F1B;
-  --inet-text-muted-color: #6A685F;
-  --inet-text-subtle-color: #99958C;
+  --inet-text-strong-color: #{$shell-text-strong};
+  --inet-text-muted-color: #{$shell-text-muted};
+  --inet-text-subtle-color: #{$shell-text-subtle};
+  --inet-shell-text-strong: var(--inet-text-strong-color);
+  --inet-shell-text-default: var(--inet-text-color);
+  --inet-shell-text-muted: var(--inet-text-muted-color);
+  --inet-shell-text-subtle: var(--inet-text-subtle-color);
 
-  // general colors
+  // emitted palette tokens
   --inet-light-color: #{$inet-text-light};
   --inet-dark-color: #{$inet-text-dark};
   --inet-primary-color: #{$inet-orange};
@@ -165,24 +226,32 @@ $sqrt2: 1.41421356;
   --inet-success-color: #{$success};
   --inet-danger-color: #{$danger};
   --inet-warning-color: #{$warning};
-  --inet-info-color: #17a2b8;
+  --inet-info-color: #{$shell-info};
+
+  // shell foundations
+  --inet-shell-surface-canvas: #{$shell-surface-canvas};
+  --inet-shell-surface-default: #{$shell-surface-default};
+  --inet-shell-surface-subtle: #{$shell-surface-subtle};
+  --inet-shell-surface-hover: #{$shell-surface-hover};
+  --inet-shell-border-default: #{$shell-border-default};
+  --inet-shell-border-strong: #{$shell-border-strong};
 
   // panels
-  --inet-main-panel-bg-color: white;
+  --inet-main-panel-bg-color: var(--inet-shell-surface-canvas);
   //--inet-side-panel-bg-color // not set by default to get different side panel colors in portal/composer in the default theme
   //--inet-panel-border // not set by default, used to create borders between panels
   //--inet-panel-border-zero // needs to be set to 0 when panel border is set
 
   --inet-portal-main-panel-bg-color: var(--inet-main-panel-bg-color);
-  --inet-portal-side-panel-bg-color: var(--inet-side-panel-bg-color, #F8F7F4);
+  --inet-portal-side-panel-bg-color: var(--inet-side-panel-bg-color, var(--inet-shell-surface-subtle));
 
   --inet-composer-main-panel-bg-color: var(--inet-main-panel-bg-color);
-  --inet-composer-side-panel-bg-color: var(--inet-side-panel-bg-color, #F8F7F4);
+  --inet-composer-side-panel-bg-color: var(--inet-side-panel-bg-color, var(--inet-shell-surface-subtle));
 
   // hover
   --inet-hover-primary-bg-color: var(--inet-ui-neutral-hover-bg-color);
   --inet-hover-secondary-bg-color: var(--inet-ui-neutral-hover-bg-color);
-  --inet-hover-text-color: #{$inet-gray4};
+  --inet-hover-text-color: var(--inet-text-strong-color);
 
   // selected items
   --inet-selected-item-bg-color: var(--inet-shell-selected-bg-color);
@@ -190,7 +259,7 @@ $sqrt2: 1.41421356;
 
   // navbar/ navigation tabs
   --inet-navbar-text-color: #{$inet-text-light};
-  --inet-navbar-bg-color: #4A4845;
+  --inet-navbar-bg-color: #{$navbar-bg};
   --inet-navbar-selected-border-color: var(--inet-primary-color);
   --inet-navbar-logo-color: var(--inet-primary-color);
   --inet-navbar-home-icon-color: var(--inet-navbar-text-color);
@@ -201,7 +270,7 @@ $sqrt2: 1.41421356;
   --inet-portal-navbar-text-color: var(--inet-navbar-text-color);
   --inet-portal-navbar-bg-color: var(--inet-navbar-bg-color);
   --inet-portal-navbar-hover-text-color: var(--inet-navbar-hover-text-color, var(--inet-portal-navbar-text-color));
-  --inet-portal-navbar-hover-bg-color: var(--inet-navbar-hover-bg-color, rgba(255, 255, 255, 0.2));
+  --inet-portal-navbar-hover-bg-color: var(--inet-navbar-hover-bg-color, #{$navbar-hover-overlay});
 
   --inet-composer-navbar-text-color: var(--inet-navbar-text-color);
   --inet-composer-navbar-bg-color: var(--inet-navbar-bg-color);
@@ -209,11 +278,11 @@ $sqrt2: 1.41421356;
   --inet-composer-navbar-hover-bg-color: var(--inet-navbar-hover-bg-color, var(--inet-secondary-color));
 
   --inet-nav-tabs-text-color: var(--inet-text-color);
-  --inet-nav-tabs-bg-color: #F1EFEA;
+  --inet-nav-tabs-bg-color: var(--inet-shell-surface-subtle);
   --inet-nav-tabs-selected-border-color: var(--inet-primary-color);
 
   // toolbars
-  --inet-toolbar-bg-color: #F1EFEA;
+  --inet-toolbar-bg-color: var(--inet-shell-surface-subtle);
   --inet-vs-toolbar-bg-color: var(--inet-toolbar-bg-color);
   --inet-repository-tree-toolbar-bg-color: var(--inet-portal-side-panel-bg-color);
 
@@ -223,7 +292,7 @@ $sqrt2: 1.41421356;
   --inet-graph-assembly-header-text-color: var(--inet-text-color);
   --inet-graph-assembly-header-selected-text-color: var(--inet-selected-item-text-color);
   --inet-graph-assembly-header-selected-bg-color: var(--inet-selected-item-bg-color);
-  --inet-graph-assembly-error-text-color: red;
+  --inet-graph-assembly-error-text-color: #{$graph-assembly-error-text-color};
   --inet-graph-connection-color: #{$inet-gray4};
   --inet-graph-connection-warning-color: #{$primary-light};
   --inet-schema-connection-color: #{$inet-gray2};
@@ -232,39 +301,40 @@ $sqrt2: 1.41421356;
   --inet-schema-column-incompatible-bg-color: #{$primary-light};
   --inet-ws-header-primary-bg-color: var(--inet-third-color);
   --inet-ws-header-secondary-bg-color: var(--inet-third-color-light);
-  --inet-ws-table-odd-row-bg-color: #fff;
-  --inet-ws-table-even-row-bg-color: #f2f2f2;
+  --inet-ws-table-odd-row-bg-color: #{$worksheet-row-odd-bg};
+  --inet-ws-table-even-row-bg-color: #{$worksheet-row-even-bg};
 
   // other
-  --inet-default-border-color: #D9D5CC;
+  --inet-default-border-color: var(--inet-shell-border-default);
+  --inet-border-strong-color: var(--inet-shell-border-strong);
   --inet-drag-drop-highlight-color: #{$inet-drop-highlight};
   --inet-link-color: #{$link-color};
-  --inet-link-hover-color: #272708;
+  --inet-link-hover-color: #{$link-hover-color};
   --inet-ruler-text-color: #{$inet-gray4};
   --inet-ruler-bg-color: #{$inet-offwhite1};
   --inet-ruler-border-color: #{$inet-gray3};
 
   // bootstrap components
   // -> dialogs/slide outs
-  --inet-dialog-bg-color: #FFFFFF;
+  --inet-dialog-bg-color: var(--inet-shell-surface-default);
   --inet-dialog-title-text-transform: none;
   --inet-dialog-title-font-size: 14px;
 
   // -> inputs
-  --inet-input-bg-color: #FFFFFF;
+  --inet-input-bg-color: var(--inet-shell-surface-default);
   --inet-input-text-color: var(--inet-text-color);
   --inet-input-border-color: var(--inet-default-border-color);
   --inet-input-focus-text-color: var(--inet-input-text-color);
   --inet-input-focus-bg-color: var(--inet-input-bg-color);
-  --inet-input-disabled-bg-color: #F1EFEA;
+  --inet-input-disabled-bg-color: var(--inet-shell-surface-subtle);
   --inet-input-disabled-opacity: 0.5;
 
   // -> poppups/dropdowns
-  --inet-dropdown-bg-color: white;
-  --inet-dropdown-toggle-color: black;
+  --inet-dropdown-bg-color: var(--inet-shell-surface-default);
+  --inet-dropdown-toggle-color: #{$dropdown-toggle-color};
 
   // -> cards
-  --inet-card-bg-color: white;
+  --inet-card-bg-color: var(--inet-shell-surface-default);
 
   // -> tables
   --inet-table-text-color: var(--inet-text-color);
@@ -275,10 +345,10 @@ $sqrt2: 1.41421356;
   // -> buttons
   // --> primary
   --inet-button-primary-bg-color: var(--inet-primary-color);
-  --inet-button-primary-text-color: white;
+  --inet-button-primary-text-color: #{$inverse-text-color};
   --inet-button-primary-border-color: var(--inet-primary-color);
   --inet-button-primary-hover-bg-color: var(--inet-primary-color-dark);
-  --inet-button-primary-hover-text-color: white;
+  --inet-button-primary-hover-text-color: #{$inverse-text-color};
   --inet-button-primary-hover-border-color: var(--inet-primary-color-dark);
 
   // --> secondary
@@ -298,12 +368,12 @@ $sqrt2: 1.41421356;
   --inet-button-default-hover-border-color: transparent;
 
   // --> light
-  --inet-button-light-bg-color: var(--inet-light-color);
+  --inet-button-light-bg-color: var(--inet-shell-surface-default);
   --inet-button-light-text-color: var(--inet-text-color);
-  --inet-button-light-border-color: var(--inet-light-color);
-  --inet-button-light-hover-bg-color: #e3e3e3;
+  --inet-button-light-border-color: var(--inet-default-border-color);
+  --inet-button-light-hover-bg-color: var(--inet-shell-surface-hover);
   --inet-button-light-hover-text-color: var(--inet-text-color);
-  --inet-button-light-hover-border-color: #dcdcdc;
+  --inet-button-light-hover-border-color: var(--inet-default-border-color);
 
   // auto generated colors
   --inet-light-color-light: #{lighten($inet-text-light, 10%)};
@@ -314,8 +384,8 @@ $sqrt2: 1.41421356;
 
   --inet-primary-color-light: #{$primary-light};
   --inet-primary-color-dark: #{$primary-dark};
-  --inet-primary-soft-color: #F6E2C8;
-  --inet-primary-text-color: #4A2500;
+  --inet-primary-soft-color: #{$shell-primary-soft};
+  --inet-primary-text-color: #{$shell-primary-text};
 
   --inet-secondary-color-light: #{$secondary-light};
   --inet-secondary-color-dark: #{$secondary-dark};
@@ -333,24 +403,24 @@ $sqrt2: 1.41421356;
   --inet-fourth-soft-color: var(--inet-fourth-color-light);
   --inet-fourth-text-color: #{$fourth-color-text};
 
-  --inet-success-color-light: #f8fdef;
-  --inet-success-color-dark: #727f5a;
+  --inet-success-color-light: #{$shell-success-soft};
+  --inet-success-color-dark: #{$shell-success-text};
 
-  --inet-danger-color-light: #fff3f5;
-  --inet-danger-color-dark: #85646c;
+  --inet-danger-color-light: #{$shell-danger-soft};
+  --inet-danger-color-dark: #{$shell-danger-text};
 
-  --inet-warning-color-light: #fcfdef;
-  --inet-warning-color-dark: #7e7e5a;
+  --inet-warning-color-light: #{$shell-warning-soft};
+  --inet-warning-color-dark: #{$shell-warning-text};
 
-  --inet-info-color-light: #d1ecf1;
-  --inet-info-color-dark: #0c5460;
+  --inet-info-color-light: #{$shell-info-soft};
+  --inet-info-color-dark: #{$shell-info-text};
 
   // neutral control family
   --inet-ui-neutral-color: var(--inet-text-muted-color);
   --inet-ui-neutral-border-color: var(--inet-default-border-color);
-  --inet-ui-neutral-hover-bg-color: #ECE9E2;
+  --inet-ui-neutral-hover-bg-color: var(--inet-shell-surface-hover);
   --inet-ui-neutral-hover-color: var(--inet-text-color);
-  --inet-shell-selected-bg-color: #E7E2D8;
+  --inet-shell-selected-bg-color: #{$shell-selected-bg};
 
   // sizing
   --inet-control-height-sm: 24px;

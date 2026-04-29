@@ -75,12 +75,31 @@
       </div>
 
       <div class="data-model-detail-pane__actions">
-        <div class="data-model-detail-pane__buttons">
+        <div class="data-model-detail-pane__action-row">
           <button type="button" class="btn btn-primary"
                   [disabled]="!showDetailsItem?.editable"
                   (click)="editModel(showDetailsItem)">
             _#(Edit)
           </button>
+          <div class="btn-toolbar toolbar-ghost-actions" role="toolbar">
+            <div class="btn-group" role="group">
+              <i role="button" class="btn py-1 folder-move-icon"
+                 title="_#(Move)"
+                 [class.disabled]="!canMoveDetailItem(showDetailsItem)"
+                 (click)="moveDetailItem()"></i>
+              <i role="button" class="btn py-1 view-detail-meta-icon"
+                 title="_#(Rename)"
+                 [class.disabled]="!canRenameDetailItem(showDetailsItem)"
+                 (click)="renameModel(showDetailsItem)"></i>
+              <i role="button" class="btn py-1 trash-icon"
+                 title="_#(Delete)"
+                 [class.disabled]="!canDeleteDetailItem(showDetailsItem)"
+                 (click)="deleteDetailItem()"></i>
+            </div>
+          </div>
+        </div>
+        <div class="data-model-detail-pane__action-row data-model-detail-pane__action-row--secondary"
+             *ngIf="canAddLogicalModel(showDetailsItem) || canAddExtendedModel(showDetailsItem)">
           <button type="button" class="btn btn-secondary"
                   *ngIf="canAddLogicalModel(showDetailsItem)"
                   (click)="addLogicalModel0(showDetailsItem)">
@@ -91,22 +110,6 @@
                   (click)="addExtendModel(showDetailsItem)">
             {{isPhysicalView(showDetailsItem) ? '_#(Add Extended View)' : '_#(Add Extended Model)'}}
           </button>
-        </div>
-        <div class="btn-toolbar toolbar-ghost-actions" role="toolbar">
-          <div class="btn-group" role="group">
-            <i role="button" class="btn py-1 folder-move-icon"
-               title="_#(Move)"
-               [class.disabled]="!canMoveDetailItem(showDetailsItem)"
-               (click)="moveDetailItem()"></i>
-            <i role="button" class="btn py-1 view-detail-meta-icon"
-               title="_#(Rename)"
-               [class.disabled]="!canRenameDetailItem(showDetailsItem)"
-               (click)="renameModel(showDetailsItem)"></i>
-            <i role="button" class="btn py-1 trash-icon"
-               title="_#(Delete)"
-               [class.disabled]="!canDeleteDetailItem(showDetailsItem)"
-               (click)="deleteDetailItem()"></i>
-          </div>
         </div>
       </div>
 

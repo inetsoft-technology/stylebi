@@ -121,7 +121,7 @@ div.CodeMirror {
   .btn-toolbar .btn {
     min-width: 58px;
     max-width: 92px;
-    height: 52px;
+    height: var(--inet-control-height-xl);
   }
 
   .btn-toolbar .btn > i {
@@ -195,8 +195,8 @@ div.CodeMirror {
 
 .btn-secondary, .btn-default, .btn-primary {
   &:focus {
-    box-shadow: none;
-    outline: none;
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
   }
 }
 
@@ -221,7 +221,7 @@ div.CodeMirror {
 
 .toolbar-btn {
   font-size: 13px;
-  border-radius: 0;
+  border-radius: var(--inet-radius-sm);
   flex-direction: column;
   justify-content: flex-start;
   align-items: center;

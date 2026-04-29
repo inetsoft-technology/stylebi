@@ -39,7 +39,8 @@ const ADD_AUTO_JOIN_URI: string = "../api/data/physicalmodel/add/autoJoin";
 
 @Component({
    selector: "auto-join-tables-dialog",
-   templateUrl: "auto-join-tables-dialog.component.html"
+   templateUrl: "auto-join-tables-dialog.component.html",
+   styleUrls: ["auto-join-tables-dialog.component.scss"]
 })
 export class AutoJoinTablesDialog implements OnInit, AfterViewInit {
    @Input() physicalModel: PhysicalModelDefinition;

@@ -31,26 +31,20 @@
    border-bottom: 1px solid var(--inet-default-border-color);
 }
 
-.join-properties__eyebrow {
-   font-size: 12px;
-   font-weight: 700;
-   letter-spacing: 0.08em;
-   text-transform: uppercase;
-   color: var(--inet-text-muted-color);
-   margin-bottom: 4px;
-}
-
 .join-properties__title {
-   font-size: 18px;
-   font-weight: 600;
+   font-size: 16px;
+   font-weight: 500;
    color: var(--inet-text-strong-color);
    line-height: 1.3;
-   white-space: nowrap;
 }
 
 .join-properties__content {
    display: grid;
    gap: 12px;
+}
+
+.join-properties__content > .form-floating:first-child {
+   margin-top: 0;
 }
 
 .join-properties__content > .form-group {
@@ -71,6 +65,22 @@
    display: flex;
    flex-wrap: wrap;
    gap: 8px 16px;
+}
+
+.join-properties__choice {
+   display: flex;
+}
+
+.join-properties__choice-label {
+   display: inline-flex;
+   align-items: center;
+   gap: 8px;
+   margin: 0;
+}
+
+.join-properties__choice-input {
+   margin: 0;
+   flex: 0 0 auto;
 }
 
 .join-dialog__remove-btn {

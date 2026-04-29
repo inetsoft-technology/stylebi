@@ -25,12 +25,12 @@
   width: 100%;
   overflow: hidden;
 
-  .portal-schedule-task-list {
+    .portal-schedule-task-list {
     flex-grow: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    background-color: var(--inet-main-panel-background, #f6f4ed);
+    background-color: var(--inet-portal-main-panel-bg-color);
 
     .schedule-task-list-header {
       flex-grow: 0;
@@ -39,8 +39,8 @@
       align-items: center;
       justify-content: space-between;
       gap: 16px;
-      min-height: 52px;
-      padding: 8px 16px;
+      min-height: var(--inet-control-height-xl);
+      padding: var(--inet-space-3) var(--inet-space-5);
       border-bottom: 1px solid var(--inet-default-border-color);
     }
 
@@ -53,42 +53,42 @@
       flex: 1 1 auto;
     }
 
-    .schedule-task-list-header__status-label {
+      .schedule-task-list-header__status-label {
       font-size: 11px;
       font-weight: 600;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: var(--inet-secondary-text-color, #6e6759);
-    }
+      color: var(--inet-text-muted-color);
+      }
 
-    .schedule-task-list-header__status-pill {
+      .schedule-task-list-header__status-pill {
       display: inline-flex;
       align-items: center;
       padding: 6px 10px;
       border-radius: 999px;
-      background: var(--inet-ui-neutral-hover-bg-color, #ece9e2);
-      color: var(--inet-text-color, #35342f);
+      background: var(--inet-ui-neutral-hover-bg-color);
+      color: var(--inet-text-color);
       font-weight: 600;
 
       &.is-ready {
-        background: var(--inet-success-color-light, #e2f3e8);
-        color: var(--inet-success-color-dark, #1d5b39);
+        background: var(--inet-success-color-light);
+        color: var(--inet-success-color-dark);
       }
 
       &.is-warning {
-        background: #f7ead8;
-        color: #7a5220;
+        background: var(--inet-warning-color-light);
+        color: var(--inet-warning-color-dark);
       }
 
       &.is-unavailable {
-        background: var(--inet-danger-color-light, #f7dede);
-        color: var(--inet-danger-color-dark, #7f2e2e);
+        background: var(--inet-danger-color-light);
+        color: var(--inet-danger-color-dark);
       }
     }
 
     .schedule-task-list-header__status-message {
       min-width: 0;
-      color: var(--inet-secondary-text-color, #6e6759);
+      color: var(--inet-text-muted-color);
       line-height: 1.45;
     }
 
@@ -138,6 +138,7 @@
       flex-direction: column;
       min-height: 0;
       background-color: var(--inet-main-panel-background, #f6f4ed);
+      background-color: var(--inet-portal-main-panel-bg-color);
 
       .portal-task-list-items {
         flex-grow: 1;
@@ -164,12 +165,13 @@
               overflow-y: auto;
               position: relative;
 
-              .table {
+                .table {
                 width: 100%;
                 text-align: center;
                 display: flex;
                 flex-direction: column;
-                max-height: calc(100% - 16px);
+                flex: 1 1 auto;
+                min-height: 0;
                 border-top: 0;
                 margin: 0;
 
@@ -191,6 +193,8 @@
                   display: flex;
                   flex-direction: column;
                   overflow-y: auto;
+                  flex: 1 1 auto;
+                  min-height: 0;
                 }
 
                 > tbody tr {
@@ -201,17 +205,17 @@
                 }
 
                 > tbody tr:hover > td {
-                  background-color: var(--inet-hover-bg-color, #f1ece1);
+                  background-color: var(--inet-ui-neutral-hover-bg-color);
                 }
 
                 > tbody tr.selected {
-                  background-color: var(--inet-selected-item-bg-color, #eee7db);
-                  color: var(--inet-selected-item-text-color, var(--inet-text-color));
+                  background-color: var(--inet-selected-item-bg-color);
+                  color: var(--inet-selected-item-text-color);
                 }
 
                 > tbody tr.selected > td {
-                  background-color: var(--inet-selected-item-bg-color, #eee7db);
-                  color: var(--inet-selected-item-text-color, var(--inet-text-color));
+                  background-color: var(--inet-selected-item-bg-color);
+                  color: var(--inet-selected-item-text-color);
                 }
 
                 > thead th,
@@ -238,7 +242,7 @@
                   height: 12px;
                   margin-left: 4px;
                   vertical-align: middle;
-                  color: var(--inet-secondary-text-color, #6e6759);
+                  color: var(--inet-text-muted-color);
                   font-size: 0;
                 }
 
@@ -304,14 +308,14 @@
                 }
               }
 
-              .loading-indicator {
+                .loading-indicator {
                 display: flex;
                 position: absolute;
                 top: 0;
                 left: 0;
                 width: 100%;
                 height: 100%;
-                background: rgba(0, 0, 0, 0.33);
+                background: var(--inet-overlay-scrim-bg-color);
                 z-index: 9999;
 
                 .loading-content {
@@ -352,13 +356,14 @@
     align-items: center;
     justify-content: center;
     position: absolute;
-    top: calc(50% - 50px);
-    height: 100px;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 96px;
     width: 22px;
     right: -22px;
     z-index: 6;
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: var(--inet-radius-md);
   }
 
   .data-tree-pane {
@@ -404,7 +409,7 @@
     overflow-y: hidden;
     display: block;
     padding: 12px;
-    background-color: var(--inet-card-bg-color, #fff);
+    background-color: var(--inet-shell-surface-default);
   }
 
   .btn.schedule-button {

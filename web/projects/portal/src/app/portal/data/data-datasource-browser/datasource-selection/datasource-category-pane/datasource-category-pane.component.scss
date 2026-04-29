@@ -18,3 +18,15 @@
 :host {
   display: block;
 }
+
+.datasource-category-option {
+  padding: var(--inet-space-2) var(--inet-space-3);
+  margin: 0 0 var(--inet-space-2);
+  border-radius: var(--inet-radius-md);
+  color: var(--inet-text-color);
+  cursor: pointer;
+}
+
+.datasource-category-option:last-child {
+  margin-bottom: 0;
+}

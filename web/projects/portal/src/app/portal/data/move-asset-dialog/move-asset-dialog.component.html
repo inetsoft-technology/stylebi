@@ -19,23 +19,18 @@
               [cshid]="'DataSourceNewFolder'"
               (onCancel)="cancel()">
 </modal-header>
-<div class="modal-body">
-  <div class="container-fluid">
-    <div class="row">
-      <div class="col">
-        <files-browser [folderSelectable]="true"
-                       [selectedFolders]="[{ path: parentPath, scope: parentScope, type: AssetType.FOLDER }]"
-                       [openFolderRequest]="openFolderRequest"
-                       [openFolderError]="config.templateConfig.openFolderError"
-                       [openFolderPath]="grandparentFolder"
-                       [openFolderScope]="parentScope"
-                       (selectionChange)="folderSelected($event)">
-        </files-browser>
-        <div class="alert alert-danger w-100 mt-2" *ngIf="!folderPath">
-          {{isFolder() ? config.templateConfig.targetFolderRequired : config.templateConfig.targetAssetTypeRequired}}
-        </div>
-      </div>
-    </div>
+<div class="modal-body move-datasource-dialog__body">
+  <files-browser class="move-datasource-dialog__browser"
+                 [folderSelectable]="true"
+                 [selectedFolders]="[{ path: parentPath, scope: parentScope, type: AssetType.FOLDER }]"
+                 [openFolderRequest]="openFolderRequest"
+                 [openFolderError]="config.templateConfig.openFolderError"
+                 [openFolderPath]="grandparentFolder"
+                 [openFolderScope]="parentScope"
+                 (selectionChange)="folderSelected($event)">
+  </files-browser>
+  <div class="alert alert-danger move-datasource-dialog__error" *ngIf="!folderPath">
+    {{isFolder() ? config.templateConfig.targetFolderRequired : config.templateConfig.targetAssetTypeRequired}}
   </div>
 </div>
 <div class="modal-footer">

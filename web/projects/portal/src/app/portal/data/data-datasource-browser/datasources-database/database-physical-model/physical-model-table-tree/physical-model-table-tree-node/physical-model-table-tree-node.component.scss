@@ -17,29 +17,40 @@
  */
 .physical-model-table-tree-node {
   white-space: nowrap;
-  padding: 6px;
   display: flex;
   align-items: center;
-  align-content: center;
+  min-height: 32px;
 }
 
 physical-model-table-tree-node:first-of-type > .physical-model-table-tree-node {
   padding-top: 4px;
 }
 
-.form-check {
+.physical-model-table-tree-node__shell {
+  width: 100%;
+}
+
+.physical-model-table-tree-node__row {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding-left: 0;
-
-  .form-check-input {
-    float: none;
-    margin: 0;
-    flex-shrink: 0;
-  }
+  min-height: 28px;
 }
 
-.form-check-top {
-  margin-top: 0;
+.physical-model-table-tree-node__toggle,
+.physical-model-table-tree-node__menu {
+  flex: 0 0 auto;
+}
+
+.physical-model-table-tree-node__checkbox {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.physical-model-table-tree-node__label {
+  flex: 1 1 auto;
+}
+
+.physical-model-table-tree-node__row--leaf {
+  padding-left: 0;
 }

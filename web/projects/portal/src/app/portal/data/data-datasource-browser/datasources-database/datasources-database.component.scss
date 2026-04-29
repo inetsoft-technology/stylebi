@@ -21,32 +21,19 @@
   width: 100%;
   height: 100%;
   overflow: auto;
-  padding: 16px;
-  background: var(--inet-toolbar-bg-color, #f7f4ee);
-
-  .container-fluid {
-    max-width: 1120px;
-    padding: 0;
-  }
-
-  .content-spacing {
-    margin: 0;
-    padding: 18px 20px 24px;
-    background: var(--inet-cell-bg-color, #fffdfa);
-    border: 1px solid var(--inet-border-color, #d9d4c8);
-    border-radius: 8px;
-  }
+  padding: 40px;
+  background: var(--inet-portal-main-panel-bg-color);
 
   .editor-query-strip {
     display: grid;
     grid-template-columns: 180px minmax(0, 1fr);
-    gap: 18px;
+    gap: var(--inet-space-5);
     align-items: center;
-    padding: 14px 16px;
-    margin-bottom: 16px;
-    background: var(--inet-panel-bg-color, #f8f5ef);
-    border: 1px solid var(--inet-border-color, #d9d4c8);
-    border-radius: 8px;
+    padding: var(--inet-space-4) var(--inet-space-5);
+    margin-bottom: var(--inet-space-6);
+    background: var(--inet-shell-surface-subtle);
+    border: 1px solid var(--inet-default-border-color);
+    border-radius: var(--inet-radius-lg);
   }
 
   .editor-query-strip__status {
@@ -60,7 +47,7 @@
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--inet-secondary-text-color, #6e6759);
+    color: var(--inet-text-muted-color);
   }
 
   .editor-query-strip__badge {
@@ -70,19 +57,19 @@
     align-self: flex-start;
     padding: 6px 10px;
     border-radius: 999px;
-    background: var(--inet-ui-neutral-hover-bg-color, #ece9e2);
-    color: var(--inet-text-color, #35342f);
+    background: var(--inet-ui-neutral-hover-bg-color);
+    color: var(--inet-text-color);
     font-weight: 600;
   }
 
   .editor-query-strip__badge.is-ready {
-    background: var(--inet-success-color-light, #e2f3e8);
-    color: var(--inet-success-color-dark, #1d5b39);
+    background: var(--inet-success-color-light);
+    color: var(--inet-success-color-dark);
   }
 
   .editor-query-strip__badge.is-unavailable {
-    background: var(--inet-danger-color-light, #f7dede);
-    color: var(--inet-danger-color-dark, #7f2e2e);
+    background: var(--inet-danger-color-light);
+    color: var(--inet-danger-color-dark);
   }
 
   .editor-query-strip__status-icon {
@@ -109,14 +96,14 @@
   }
 
   .editor-query-strip__message {
-    color: var(--inet-secondary-text-color, #6e6759);
+    color: var(--inet-text-muted-color);
     line-height: 1.45;
   }
 
   form {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--inet-space-5);
   }
 
   fieldset {
@@ -130,6 +117,10 @@
     margin-bottom: 0;
   }
 
+  .editor-form-group--first {
+    margin-top: var(--inet-space-2);
+  }
+
   input:not([type="checkbox"]),
   textarea.form-control,
   select.form-control {
@@ -141,10 +132,39 @@
   }
 }
 
+.editor-content {
+  width: min(100%, 1120px);
+  margin: 0 auto;
+  padding: var(--inet-space-6) var(--inet-space-7) var(--inet-space-8);
+}
+
+.editor-content--expanded {
+  width: min(100%, 1280px);
+}
+
+.editor-section {
+  margin-top: var(--inet-space-5);
+}
+
+.editor-section--compact {
+  margin-top: var(--inet-space-2);
+}
+
+.editor-side-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(148px, 172px);
+  gap: var(--inet-space-5);
+  align-items: stretch;
+}
+
 .pool-property-content {
   height: 100%;
   display: flex;
   flex-direction: column;
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-lg);
+  background: var(--inet-shell-surface-default);
+  overflow: hidden;
 
   > .pool-property-table {
     flex-grow: 1;
@@ -155,10 +175,11 @@
     .table {
       width: 100%;
       margin: 0;
-      border-top: 0;
+      border: 0;
       display: flex;
       flex-direction: column;
-      max-height: calc(100% - 16px);
+      max-height: 100%;
+      background: transparent;
 
       > thead {
         display: table;
@@ -170,6 +191,7 @@
         display: flex;
         flex-direction: column;
         overflow-y: auto;
+        background: var(--inet-shell-surface-default);
       }
 
       > tbody tr {
@@ -180,10 +202,27 @@
       .pool-property-container {
         width: 50% !important;
         text-align: left;
+        padding: var(--inet-space-3) var(--inet-space-4);
+        vertical-align: middle;
       }
 
       .pool-property-row {
         margin: 0;
+
+        td,
+        th {
+          border-left: 0;
+          border-right: 0;
+        }
+      }
+
+      > tbody .pool-property-row {
+        cursor: default;
+        transition: background-color 120ms ease;
+
+        &:hover {
+          background: var(--inet-ui-neutral-hover-bg-color);
+        }
       }
     }
   }
@@ -191,6 +230,13 @@
 
 .file-upload-label {
   padding-top: 1px;
+}
+
+.editor-help-label {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--inet-text-color);
 }
 
 :host ::ng-deep .help-link {
@@ -205,7 +251,7 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--inet-secondary-text-color, #6e6759);
+  color: var(--inet-text-muted-color);
 }
 
 .additional-datasource {
@@ -213,12 +259,24 @@
   margin-top: 6px;
 }
 
-.testDiv {
+.additional-datasource__list {
+  height: 100%;
+}
+
+.editor-driver-actions {
+  margin-top: var(--inet-space-2);
+}
+
+.editor-test-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   padding-top: 4px;
   padding-bottom: 8px;
+}
+
+.editor-inline-info {
+  padding: var(--inet-space-2) var(--inet-space-3);
 }
 
 .buttonSize,
@@ -232,51 +290,101 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
+}
+
+.editor-side-actions {
+  width: 100%;
 }
 
 .bordered-box,
-.pool-property-content .table,
 .pool-property-content .table thead,
 .pool-property-content .table tbody {
-  border-color: var(--inet-border-color, #d9d4c8) !important;
+  border-color: var(--inet-default-border-color) !important;
 }
 
 .bordered-box {
-  background: var(--inet-panel-bg-color, #f8f5ef);
-  border-radius: 6px;
+  background: var(--inet-shell-surface-default);
+  border-radius: var(--inet-radius-md);
   padding: 6px;
 }
 
-.row.form-check {
+.editor-option-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--inet-space-4);
   align-items: end;
+}
+
+.editor-option-row__toggle {
+  min-width: 0;
+}
+
+.editor-option-row__input {
+  min-width: 0;
 }
 
 .alert.alert-info {
   margin-top: 8px;
   margin-bottom: 0;
-  border: 1px solid var(--inet-border-color, #d9d4c8);
-  background: var(--inet-panel-bg-color, #f8f5ef);
-  color: var(--inet-secondary-text-color, #6e6759);
+  border: 1px solid var(--inet-default-border-color);
+  background: var(--inet-shell-surface-subtle);
+  color: var(--inet-text-muted-color);
 }
 
-.pool-property-content .table thead.thead-light th {
-  background: var(--inet-panel-bg-color, #f8f5ef);
-  color: var(--inet-text-color, #2f2c25);
-  font-weight: 500;
+.bottom-button-container {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--inet-space-6);
 }
 
-.pool-property-content .table tbody tr.selected,
-.bordered-box .selected {
-  background: var(--inet-hover-bg-color, #f1ece1);
+.bottom-button-container__primary {
+  margin-right: var(--inet-space-2);
 }
 
 @media (max-width: 900px) {
   .editor-container {
-    padding: 12px;
+    padding: 40px;
+  }
 
-    .content-spacing {
-      padding: 16px;
-    }
+  .editor-content {
+    padding: var(--inet-space-5);
+  }
+
+  .editor-query-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-query-strip__actions {
+    justify-content: flex-start;
+  }
+
+  .editor-side-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-option-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+}
+
+.pool-property-content .table .pool-property-table__head th {
+  background: var(--inet-shell-surface-subtle);
+  color: var(--inet-text-color);
+  font-weight: 600;
+  border-top: 0;
+  border-bottom: 1px solid var(--inet-default-border-color);
+}
+
+.pool-property-content .table tbody tr.selected,
+.bordered-box .selected {
+  background: var(--inet-shell-selected-bg-color);
+}
+
+@media (max-width: 900px) {
+  .editor-container {
+    padding: 40px;
 
     .editor-query-strip {
       grid-template-columns: 1fr;

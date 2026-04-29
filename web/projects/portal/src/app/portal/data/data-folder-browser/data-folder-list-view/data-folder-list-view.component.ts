@@ -166,8 +166,8 @@ export class DataFolderListViewComponent {
          return;
       }
 
-      if(asset.type === AssetType.WORKSHEET && asset.editable) {
-         this.editWorksheet.emit(asset);
+      if(asset.type === AssetType.WORKSHEET) {
+         this.showDetails.emit(asset);
       }
       else {
          this.openAsset.emit(asset);

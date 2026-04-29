@@ -15,6 +15,28 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+.logical-model-attribute-dialog {
+  padding: var(--inet-space-5);
+}
+
+.logical-model-attribute-dialog__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--inet-space-5);
+}
+
+.logical-model-attribute-dialog__tree-shell {
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-lg);
+  background: var(--inet-shell-surface-default);
+  padding: var(--inet-space-3);
+}
+
+.logical-model-attribute-dialog__tree-shell ::ng-deep .tree-node.checkbox-enabled.selected,
+.logical-model-attribute-dialog__tree-shell ::ng-deep .tree-node.checkbox-enabled.selected:hover {
+  background: transparent;
+}
+
 .physical-table-tree {
   max-height: 480px;
   overflow-y: auto;

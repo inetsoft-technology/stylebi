@@ -15,14 +15,14 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="row g-0">
+<div class="datasource-listing-grid">
   <datasource-listing *ngFor="let _listing of listings"
-                      class="col-auto hover-bg-primary m-1"
+                      class="datasource-listing-grid__item"
                       [class.bg-selected]="_listing.name === selectedListingName"
                       [listing]="_listing"
                       [selected]="_listing.name === selectedListingName"
                       (dblclick)="submitted.emit(_listing.name)"
                       (mousedown)="select(_listing)"
                       (touchstart)="select(_listing)"></datasource-listing>
-  <p *ngIf="listings.length === 0">_#(No listings found).</p>
+  <p *ngIf="listings.length === 0" class="datasource-listing-grid__empty">_#(No listings found).</p>
 </div>

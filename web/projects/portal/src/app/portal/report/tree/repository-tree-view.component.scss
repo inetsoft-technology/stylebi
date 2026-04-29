@@ -61,11 +61,7 @@
   .repository-tree {
     height: 100%;
     display: block;
-    overflow: hidden;
-
-    &:hover {
-      overflow: auto;
-    }
+    overflow: auto;
 
     &.mobile-tree {
       overflow: auto;

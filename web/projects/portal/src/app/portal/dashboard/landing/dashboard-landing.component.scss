@@ -25,12 +25,12 @@
     width: min(820px, 100%);
     height: 100%;
     display: flex;
-    margin-top: 4.5em;
     margin-left: auto;
     margin-right: auto;
     justify-content: center;
-    align-items: flex-start;
+    align-items: center;
     align-self: center;
+    padding: var(--inet-space-8) var(--inet-space-6);
   }
 
   .landing-shell {
@@ -44,14 +44,14 @@
     font-weight: 600;
     letter-spacing: .12em;
     text-transform: uppercase;
-    color: var(--inet-primary-color, #1456a0);
+    color: var(--inet-primary-color);
   }
 
   .landing-title {
     margin-bottom: .75rem;
     font-size: 22px;
     font-weight: 600;
-    color: var(--inet-text-color, #333);
+    color: var(--inet-text-color);
   }
 
   .landing-body {
@@ -59,7 +59,7 @@
     margin: 0 auto 2rem;
     font-size: 13px;
     line-height: 1.65;
-    color: var(--inet-secondary-text-color, #6c757d);
+    color: var(--inet-text-muted-color);
   }
 
   .landing-cards {
@@ -71,10 +71,10 @@
 
   .landing-card {
     padding: 20px 18px 18px;
-    border: 1px solid var(--inet-default-border-color, #d9dee7);
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.96);
-    box-shadow: 0 8px 24px rgba(22, 44, 74, 0.05);
+    border: 1px solid var(--inet-default-border-color);
+    border-radius: var(--inet-radius-lg);
+    background: var(--inet-shell-surface-default);
+    box-shadow: var(--inet-shadow-small);
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -86,13 +86,13 @@
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 
     &:hover,
-    &:focus {
-      border-color: var(--inet-primary-color, #1456a0);
-      box-shadow: 0 12px 32px rgba(22, 44, 74, 0.1);
-      outline: none;
+    &:focus-visible {
+      border-color: var(--inet-primary-color);
+      box-shadow: var(--inet-focus-ring), var(--inet-shadow-medium);
+      outline: var(--inet-focus-ring-outline);
 
       .landing-card__icon-wrap {
-        background: rgba(20, 86, 160, 0.14);
+        background: var(--inet-primary-soft-color);
       }
     }
   }
@@ -104,8 +104,8 @@
     width: 42px;
     height: 42px;
     border-radius: 12px;
-    background: rgba(20, 86, 160, 0.08);
-    color: var(--inet-primary-color, #1456a0);
+    background: var(--inet-primary-soft-color);
+    color: var(--inet-primary-color);
     margin-bottom: 4px;
     transition: background-color 0.15s ease;
   }
@@ -113,12 +113,12 @@
   .landing-card__title {
     font-size: 13px;
     font-weight: 600;
-    color: var(--inet-text-color, #333);
+    color: var(--inet-text-color);
   }
 
   .landing-card__copy {
     font-size: 12px;
     line-height: 1.6;
-    color: var(--inet-secondary-text-color, #6c757d);
+    color: var(--inet-text-muted-color);
   }
 }

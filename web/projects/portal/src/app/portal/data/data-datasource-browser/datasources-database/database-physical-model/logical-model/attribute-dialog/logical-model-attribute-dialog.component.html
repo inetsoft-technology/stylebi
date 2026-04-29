@@ -19,8 +19,8 @@
               [cshid]="'AddAttributes'"
               (onCancel)="cancel()">
 </modal-header>
-<div class="modal-body">
-  <form [formGroup]="form">
+<div class="modal-body logical-model-attribute-dialog">
+  <form [formGroup]="form" class="logical-model-attribute-dialog__form">
     <div class="form-group form-floating" #entityDropdown="ngbDropdown" ngbDropdown [autoClose]="true">
       <input type="text" class="form-control input-dropdown"
              [value]="selectedEntityName"
@@ -46,8 +46,8 @@
     </div>
     <div class="form-group">
       <div class="form-floating">
-        <div class="card">
-          <div class="physical-table-tree p-2">
+        <div class="logical-model-attribute-dialog__tree-shell">
+          <div class="physical-table-tree">
             <physical-table-tree #physicalTree *ngIf="!!tablesRoot"
                                  [root]="tablesRoot" (nodesSelected)="select($event)">
             </physical-table-tree>
@@ -61,6 +61,6 @@
 <div class="modal-footer">
   <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!!form.errors" >_#(OK)
   </button>
-  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)
+  <button type="button" class="btn btn-secondary" data-dismiss="modal" (click)="cancel()">_#(Cancel)
   </button>
 </div>

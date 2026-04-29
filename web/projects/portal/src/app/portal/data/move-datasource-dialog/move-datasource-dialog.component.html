@@ -17,23 +17,18 @@
   -->
 <modal-header [title]="'_#(data.datasets.moveTo)'" (onCancel)="cancel()" [cshid]="'DataSourceNewFolder'">
 </modal-header>
-<div class="modal-body">
-  <div class="container-fluid">
-    <div class="row">
-      <div class="col">
-        <data-sources-browser [folderSelectable]="true"
-                       [rootLabel]="rootLabel"
-                       [selectedFolders]="[{ path: parentPath, type: { name: 'DATA_SOURCE_FOLDER', label: 'DATA_SOURCE_FOLDER'} }]"
-                       [openFolderRequest]="openFolderRequest"
-                       [openFolderError]="config.templateConfig.openFolderError"
-                       [openFolderPath]="grandparentFolder"
-                       (selectionChange)="folderSelected($event)">
-        </data-sources-browser>
-        <div class="alert alert-danger w-100 mt-2" *ngIf="!folderPath">
-          {{isFolder() ? config.templateConfig.targetFolderRequired : config.templateConfig.targetAssetTypeRequired}}
-        </div>
-      </div>
-    </div>
+<div class="modal-body move-datasource-dialog__body">
+  <data-sources-browser class="move-datasource-dialog__browser"
+                 [folderSelectable]="true"
+                 [rootLabel]="rootLabel"
+                 [selectedFolders]="[{ path: parentPath, type: { name: 'DATA_SOURCE_FOLDER', label: 'DATA_SOURCE_FOLDER'} }]"
+                 [openFolderRequest]="openFolderRequest"
+                 [openFolderError]="config.templateConfig.openFolderError"
+                 [openFolderPath]="grandparentFolder"
+                 (selectionChange)="folderSelected($event)">
+  </data-sources-browser>
+  <div class="alert alert-danger move-datasource-dialog__error" *ngIf="!folderPath">
+    {{isFolder() ? config.templateConfig.targetFolderRequired : config.templateConfig.targetAssetTypeRequired}}
   </div>
 </div>
 <div class="modal-footer">

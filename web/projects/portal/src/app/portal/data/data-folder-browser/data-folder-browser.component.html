@@ -219,7 +219,7 @@
                 <div class="worksheet-detail-section__title">_#(Primary Data Block)</div>
                 <div *ngIf="loadingWorksheetDetails" class="worksheet-detail-empty">_#(Loading)</div>
                 <div *ngIf="!loadingWorksheetDetails && !primaryBlock" class="worksheet-detail-empty">_#(None)</div>
-                <div *ngIf="primaryBlock" class="worksheet-block-card worksheet-block-card--primary">
+                <div *ngIf="primaryBlock" class="worksheet-block-card worksheet-block-card--primary worksheet-block-card--flush">
                   <div class="worksheet-block-card__header">
                     <div class="worksheet-block-card__title">{{primaryBlock.name}}</div>
                     <div class="worksheet-block-card__badge">{{primaryBlock.fields?.length || 0}} Fields</div>

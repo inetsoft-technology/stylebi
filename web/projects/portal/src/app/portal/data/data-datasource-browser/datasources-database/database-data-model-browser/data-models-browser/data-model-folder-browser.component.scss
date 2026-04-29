@@ -16,18 +16,28 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 .data-model-folder-browser {
-  padding: 4px 0 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: var(--inet-space-3);
+  background: var(--inet-shell-surface-default);
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-lg);
 }
 
-.data-model-folder-browser .breadcrumb {
-  padding: 0 0 8px;
-  background: transparent;
+nav {
+  min-height: 32px;
+}
+
+.data-model-folder-browser__breadcrumb {
+  min-height: 32px;
+  padding-bottom: var(--inet-space-3);
+  margin-bottom: var(--inet-space-3) !important;
   border-bottom: 1px solid var(--inet-default-border-color);
 }
 
-.data-model-folder-browser .list-group-item {
-  padding-left: 0.25rem;
-  padding-right: 0.25rem;
+.data-model-folder-browser__item {
+  padding: var(--inet-space-2) var(--inet-space-3);
 }
 
 .list-group.files-browser {

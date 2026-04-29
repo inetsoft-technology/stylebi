@@ -185,13 +185,24 @@
 
   .data-model-detail-pane__actions {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
     gap: 12px;
     margin-bottom: 18px;
     padding: 12px 0 16px;
     border-top: 1px solid var(--inet-default-border-color);
     border-bottom: 1px solid var(--inet-default-border-color);
+  }
+
+  .data-model-detail-pane__action-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .data-model-detail-pane__action-row--secondary {
+    justify-content: flex-start;
   }
 
   .data-model-detail-pane__buttons {
@@ -266,11 +277,14 @@
     }
 
     .data-model-detail-pane__actions {
-      flex-direction: column;
+      gap: 10px;
+    }
+
+    .data-model-detail-pane__action-row {
       align-items: stretch;
     }
 
-    .data-model-detail-pane__buttons {
+    .data-model-detail-pane__action-row .btn-toolbar {
       justify-content: flex-start;
     }
   }

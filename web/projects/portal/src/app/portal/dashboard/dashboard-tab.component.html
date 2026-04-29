@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div *ngIf="model" class="dashboard-tab-container" [class.top]="model.dashboardTabsTop">
-  <div class="portal-sub-navbar bg-white4">
+  <div class="portal-sub-navbar">
     <responsive-tabs class="dashboard-tabs" [tabs]="model.dashboards"
                      [(selectedIndex)]="selectedDashboardIndex" [labelFunction]="getDashboardLabel"
                      (selectedIndexChange)="selectTab($event)">
@@ -72,7 +72,7 @@
       </ul>
     </ng-template>
   </div>
-  <div class="dashboard-container viewer-pane bg-white1">
+  <div class="dashboard-container viewer-pane">
      <router-outlet></router-outlet>
   </div>
 </div>

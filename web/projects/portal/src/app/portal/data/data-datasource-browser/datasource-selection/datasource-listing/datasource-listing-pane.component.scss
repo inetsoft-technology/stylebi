@@ -18,3 +18,18 @@
 :host {
   display: block;
 }
+
+.datasource-listing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: var(--inet-space-3);
+}
+
+.datasource-listing-grid__item {
+  min-width: 0;
+}
+
+.datasource-listing-grid__empty {
+  margin: 0;
+  color: var(--inet-text-muted-color);
+}

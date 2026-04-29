@@ -38,7 +38,8 @@ const CHECK_MOVE_DUPLICATE_URI: string = "../api/data/datasources/move/checkDupl
 
 @Component({
    selector: "move-datasource-dialog",
-   templateUrl: "move-datasource-dialog.component.html"
+   templateUrl: "move-datasource-dialog.component.html",
+   styleUrls: ["move-datasource-dialog.component.scss"]
 })
 export class MoveDataSourceDialogComponent implements OnInit {
    @Input() originalPaths: string[] = [];

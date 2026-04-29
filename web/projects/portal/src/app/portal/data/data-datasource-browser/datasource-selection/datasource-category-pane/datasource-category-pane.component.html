@@ -15,13 +15,13 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="text-overflow hover-bg-primary unhighlightable p-1 m-1"
+<div class="datasource-category-option text-overflow unhighlightable"
      title="_#(All)"
      [class.bg-selected]="selectedCategory == null"
      (mousedown)="selectAll()"
      (touchstart)="selectAll()">_#(All)</div>
 <div *ngFor="let _category of categories"
-     class="text-overflow hover-bg-primary unhighlightable p-1 m-1"
+     class="datasource-category-option text-overflow unhighlightable"
      [attr.title]="_category"
      [class.bg-selected]="_category === selectedCategory"
      (mousedown)="selectCategory(_category)"

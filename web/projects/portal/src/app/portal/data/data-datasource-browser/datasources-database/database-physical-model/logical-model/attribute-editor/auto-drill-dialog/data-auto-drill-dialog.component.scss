@@ -15,16 +15,57 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.card-header {
-  min-height: 68px;
+:host {
+  display: block;
 }
 
-.param-card-body {
-  max-height: 107px;
+.auto-drill-dialog {
+  padding: var(--inet-space-5);
 }
 
-.min-height {
-  height: 590px;
+.auto-drill-dialog__layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.85fr) minmax(0, 1.55fr);
+  gap: var(--inet-space-4);
+}
+
+.auto-drill-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 590px;
+  background: var(--inet-shell-surface-default);
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-lg);
+  overflow: hidden;
+}
+
+.auto-drill-panel__header {
+  border-bottom: 1px solid var(--inet-default-border-color);
+  background: var(--inet-shell-surface-subtle);
+}
+
+.auto-drill-panel__header-content {
+  min-height: 56px;
+  padding: var(--inet-space-3) var(--inet-space-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--inet-space-3);
+}
+
+.auto-drill-panel__body {
+  flex: 1 1 auto;
+  padding: var(--inet-space-4);
+}
+
+.auto-drill-panel__body form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--inet-space-4);
+}
+
+.auto-drill-panel__list {
+  flex: 1 1 auto;
 }
 
 .auto-overflow {
@@ -33,6 +74,21 @@
 
 .no-shrink {
   flex: 1 0 auto;
+}
+
+.auto-drill-panel__list-item,
+.auto-drill-parameter-panel__item {
+  padding: 0;
+}
+
+.auto-drill-panel__list-item-content,
+.auto-drill-parameter-panel__item-content {
+  min-height: 48px;
+  padding: var(--inet-space-2) var(--inet-space-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--inet-space-3);
 }
 
 .parameter-label {
@@ -64,12 +120,38 @@
 
 .toolbar-button-group {
   display: flex;
+  align-items: center;
+  gap: var(--inet-space-1);
 }
 
-.card .parameter-list {
-  .card-header,
-  .list-group-item {
-    height: 3em;
-    min-height: 3em;
+.auto-drill-parameter-panel {
+  background: var(--inet-shell-surface-default);
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-lg);
+  overflow: hidden;
+}
+
+.auto-drill-parameter-panel__header {
+  min-height: 52px;
+  padding: var(--inet-space-3) var(--inet-space-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--inet-space-3);
+  border-bottom: 1px solid var(--inet-default-border-color);
+  background: var(--inet-shell-surface-subtle);
+}
+
+.auto-drill-parameter-panel__list {
+  max-height: 140px;
+}
+
+@media (max-width: 992px) {
+  .auto-drill-dialog__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .auto-drill-panel {
+    min-height: 420px;
   }
 }

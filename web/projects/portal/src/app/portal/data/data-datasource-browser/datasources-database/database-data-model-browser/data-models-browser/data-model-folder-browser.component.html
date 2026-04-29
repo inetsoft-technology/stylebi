@@ -19,7 +19,7 @@
   <nav aria-label="breadcrumb" role="navigation"
        [ngbTooltip]="breadcrumbTooltip"
        triggers="mouseenter:mouseleave" placement="right">
-    <ol class="breadcrumb mb-0">
+    <ol class="breadcrumb data-model-folder-browser__breadcrumb mb-0">
       <li *ngFor="let folder of browserView?.path; last as isLast"
           class="breadcrumb-item"
           [class.active]="isLast">
@@ -29,8 +29,8 @@
       </li>
     </ol>
   </nav>
-  <div class="list-group list-group-flush files-browser my-1" *ngIf="!!browserView">
-    <div class="list-group-item list-group-item-action px-1" *ngFor="let folder of browserView.folders"
+  <div class="list-group list-group-flush files-browser" *ngIf="!!browserView">
+    <div class="list-group-item list-group-item-action data-model-folder-browser__item" *ngFor="let folder of browserView.folders"
          [class.active]="isItemSelected(folder, true)"
          (click)="selectFolder(folder)">
       <div class="truncate-parent justify-content-between">

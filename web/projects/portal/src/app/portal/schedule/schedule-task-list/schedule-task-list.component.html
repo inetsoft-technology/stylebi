@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div class="portal-schedule-task-list">
-  <div class="schedule-task-list-header bg-white4">
+  <div class="schedule-task-list-header">
     <div *ngIf="showSchedulerHealth" class="schedule-task-list-header__status">
       <div class="schedule-task-list-header__status-label">_#(Scheduler Status)</div>
       <div class="schedule-task-list-header__status-pill"
@@ -82,7 +82,7 @@
                 (onContextmenu)="openTreeContextmenu($event)">
           </tree>
         </div>
-        <div class="pane data-pane bg-white1">
+        <div class="pane data-pane">
           <div class="schedule-task-list-content">
             <div class="schedule-task-list-table">
               <table class="table table-bordered table-sm" wScrollableFlexTable [wScrollableSetBodyWidths]="true">

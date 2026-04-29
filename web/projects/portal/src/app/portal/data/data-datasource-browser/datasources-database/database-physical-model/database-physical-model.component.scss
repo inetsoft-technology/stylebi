@@ -172,10 +172,11 @@
 .table-search-input {
    display: flex;
    flex-wrap: nowrap;
-   width: calc(100% - 15px);
+   width: calc(100% - 12px);
    position: relative;
    margin-top: 8px;
    margin-bottom: 6px;
+   margin-left: 6px;
 
    .search-input::-ms-clear {
       display: none;
