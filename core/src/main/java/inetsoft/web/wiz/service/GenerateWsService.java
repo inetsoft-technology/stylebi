@@ -682,8 +682,6 @@ public class GenerateWsService {
          columnRef.setAlias(field.getAlias());
       }
 
-      System.err.println("====columnRef: " + columnRef.getName());
-
       if(!Tool.isEmptyString(field.getDescription())) {
          columnRef.setDescription(field.getDescription());
       }
