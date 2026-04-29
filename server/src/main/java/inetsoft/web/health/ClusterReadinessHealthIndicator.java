@@ -46,10 +46,6 @@ public class ClusterReadinessHealthIndicator extends ReadinessStateHealthIndicat
             clusterReady.set(true);
             LOG.info("Cluster is ready");
          }
-         catch(InterruptedException e) {
-            Thread.currentThread().interrupt();
-            LOG.error("Interrupted while waiting for cluster readiness, pod will not accept traffic", e);
-         }
          catch(Exception e) {
             LOG.error("Failed to initialize cluster, pod will not accept traffic", e);
          }
