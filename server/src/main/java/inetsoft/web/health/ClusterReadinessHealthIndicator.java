@@ -20,13 +20,15 @@ package inetsoft.web.health;
 
 import inetsoft.sree.internal.cluster.Cluster;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.actuate.availability.ReadinessStateHealthIndicator;
 import org.springframework.boot.availability.*;
 import org.springframework.stereotype.Component;
 
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
@@ -37,18 +39,35 @@ public class ClusterReadinessHealthIndicator extends ReadinessStateHealthIndicat
 
    @PostConstruct
    public void initClusterReadiness() {
-      ForkJoinPool pool = ForkJoinPool.commonPool();
-      ForkJoinTask<Cluster> task = pool.submit(Cluster::getInstance);
-      pool.submit(() -> {
+      this.executor = Executors.newSingleThreadExecutor();
+      this.executor.submit(() -> {
          try {
-            task.get(2L, TimeUnit.MINUTES);
+            Cluster.getInstance();
             clusterReady.set(true);
             LOG.info("Cluster is ready");
          }
-         catch(InterruptedException | ExecutionException | TimeoutException e) {
-            LOG.error("Failed to get cluster readiness, pod will not accept traffic", e);
+         catch(Exception e) {
+            LOG.error("Failed to initialize cluster, pod will not accept traffic", e);
+         }
+         finally {
+            ExecutorService exec = this.executor;
+
+            if(exec != null) {
+               exec.shutdown();
+               this.executor = null;
+            }
          }
       });
+   }
+
+   @PreDestroy
+   public void stopExecutor() {
+      ExecutorService exec = this.executor;
+
+      if(exec != null) {
+         exec.shutdown();
+         this.executor = null;
+      }
    }
 
    @Override
@@ -63,5 +82,6 @@ public class ClusterReadinessHealthIndicator extends ReadinessStateHealthIndicat
    }
 
    private final AtomicBoolean clusterReady = new AtomicBoolean(false);
+   private ExecutorService executor;
    private static final Logger LOG = LoggerFactory.getLogger(ClusterReadinessHealthIndicator.class);
 }

@@ -63,6 +63,11 @@ public class TestKeyValueEngine implements KeyValueEngine {
    }
 
    @Override
+   public long size(String id) {
+      return storage.getOrDefault(id, new ConcurrentHashMap<>()).size();
+   }
+
+   @Override
    public Stream<String> idStream() {
       return storage.keySet().stream();
    }
