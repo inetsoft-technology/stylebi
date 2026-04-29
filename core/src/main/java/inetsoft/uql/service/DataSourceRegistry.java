@@ -1514,8 +1514,21 @@ public class DataSourceRegistry implements MessageListener {
     */
    private CachedObject getCachedObject(AssetEntry entry, boolean checkTS) {
       CachedObject obj = cachemap.get(entry); //NOSONAR can't use computeIfAbsent, b/c null would be present and not recomputed
+      String orgId = entry.getOrgID();
+
+      // fast path: if the registry-level timestamp for this org hasn't advanced past
+      // when we cached this object, no individual entry in that org can have changed —
+      // skip the per-entry Ignite lastModified call entirely
+      if(obj != null && orgId != null) {
+         Long registryTS = ts.get(orgId);
+
+         if(registryTS != null && registryTS <= obj.timeTS) {
+            return obj;
+         }
+      }
+
       String identifier = entry.toIdentifier();
-      long timeTS = indexedStorage.lastModified(identifier, entry.getOrgID());
+      long timeTS = indexedStorage.lastModified(identifier, orgId);
 
       // if changed, throw out the cached value
       // timeTS as 0 means we didn't find it
