@@ -262,8 +262,8 @@ public class GenerateWsService {
       Map<String, String> keyToAliasMap = buildKeyToAliasMap(fields);
 
       joinPaths.forEach(joinPath -> {
-         joinPath.setLeftKey(qualifyKey(joinPath.getLeftTable().getName(), joinPath.getLeftKey(), keyToAliasMap));
-         joinPath.setRightKey(qualifyKey(joinPath.getRightTable().getName(), joinPath.getRightKey(), keyToAliasMap));
+         joinPath.setLeftKey(qualifyKey(joinPath.getLeftTable(), joinPath.getLeftKey(), keyToAliasMap));
+         joinPath.setRightKey(qualifyKey(joinPath.getRightTable(), joinPath.getRightKey(), keyToAliasMap));
       });
    }
 
@@ -307,26 +307,27 @@ public class GenerateWsService {
    /**
     * Qualify a raw key with the table prefix if needed, then resolve to its alias.
     */
-   private String qualifyKey(String tableName, String key,
-                             Map<String, String> keyToAliasMap)
-   {
-      if(Tool.isEmptyString(key)) {
+   private String qualifyKey(WorksheetConstructionModel.TableInfo table, String key, Map<String, String> keyToAliasMap) {
+      if(Tool.isEmptyString(key) || table == null) {
          return key;
       }
 
-      // join key is alias.
+      // Direct lookup covers: alias-as-key, and already-qualified "table.col"
       String alias = keyToAliasMap.get(key);
-      String qualifiedKey = key;
 
-      if(alias == null && key.contains(".")) {
-         alias = keyToAliasMap.get(key);
+      if(alias != null) {
+         return alias;
       }
-      else {
-         qualifiedKey = tableName + "." + key;
+
+      // Unqualified key: try qualifying with the table name
+      if(!key.contains(".")) {
+         String qualifiedKey = Tool.buildString(table.getName(), ".", key);
          alias = keyToAliasMap.get(qualifiedKey);
+
+         return alias != null ? alias : qualifiedKey;
       }
 
-      return alias != null ? alias : qualifiedKey;
+      return key;
    }
 
    private void layoutGraph(Worksheet worksheet) throws Exception {
@@ -644,7 +645,7 @@ public class GenerateWsService {
       if(Tool.isEmptyString(field.getExpression())) {
          String colType = null;
          String fieldName = null;
-
+System.err.println("=====boundTable: " + boundTable);
          if(boundTable) {
             if(metaData != null && metaData.getFields() != null) {
                Optional<OsiField> osiField = metaData.getFields().stream()
@@ -680,6 +681,8 @@ public class GenerateWsService {
       if(!Tool.isEmptyString(field.getAlias())) {
          columnRef.setAlias(field.getAlias());
       }
+
+      System.err.println("====columnRef: " + columnRef.getName());
 
       if(!Tool.isEmptyString(field.getDescription())) {
          columnRef.setDescription(field.getDescription());
