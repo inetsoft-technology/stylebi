@@ -250,16 +250,18 @@ public class SVGAnimationDOMInjector {
       // Fade text label groups after the last bar has finished animating.
       double lastBarDelay = AnimationConstants.staggerDelay(numCols - 1, numCols);
       double dotDelay     = lastBarDelay + AnimationConstants.DURATION + AnimationConstants.READY_BUFFER;
-      List<Element> valueLabelGroups = new ArrayList<>();
-      collectTextGroups(svgRoot, valueLabelGroups);
+      String labelAnimStyle = String.format(java.util.Locale.US,
+         "opacity:0;animation:inetsoft-bar-fade %.2fs %s %.2fs both",
+         AnimationConstants.DURATION, AnimationConstants.EASING, dotDelay);
 
-      // A2 pattern applies to labels too: animate inner children, not the group itself.
-      // Animating the group directly would cause fill-mode:both to hold opacity:1 on the group,
-      // which overrides the hover-dim CSS (!important cannot beat a running/filled animation).
-      for(Element labelG : valueLabelGroups) {
-         applyAnimStyleToChildren(labelG, String.format(java.util.Locale.US,
-            "opacity:0;animation:inetsoft-bar-fade %.2fs %s %.2fs both",
-            AnimationConstants.DURATION, AnimationConstants.EASING, dotDelay));
+      // A2 pattern: collect inetsoft-bar-label annotation groups directly and animate their
+      // inner children (text primitives), not the annotation group itself. Hover-dim CSS targets
+      // the annotation group, so animating that group's opacity directly would create a
+      // fill-mode:both conflict that !important cannot resolve.
+      List<Element> annotLabelGroups = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_LABEL);
+
+      for(Element labelG : annotLabelGroups) {
+         applyAnimStyleToChildren(labelG, labelAnimStyle);
       }
 
    }
