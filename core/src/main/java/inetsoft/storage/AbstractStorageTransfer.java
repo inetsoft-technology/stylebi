@@ -29,6 +29,7 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Organization;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.XPrincipal;
+import inetsoft.util.ShutdownException;
 import inetsoft.util.ThreadContext;
 import org.apache.commons.io.FileUtils;
 
@@ -123,10 +124,15 @@ public abstract class AbstractStorageTransfer implements StorageTransfer {
       Principal oPrincipal = ThreadContext.getPrincipal();
 
       if(oPrincipal == null) {
-         IdentityID tempPID = new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID());
-         XPrincipal tempPrincipal = new XPrincipal(tempPID, new IdentityID[0], new String[0],
-                                                   Organization.getDefaultOrganizationID());
-         ThreadContext.setPrincipal(tempPrincipal);
+         try {
+            IdentityID tempPID = new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID());
+            XPrincipal tempPrincipal = new XPrincipal(tempPID, new IdentityID[0], new String[0],
+                                                      Organization.getDefaultOrganizationID());
+            ThreadContext.setPrincipal(tempPrincipal);
+         }
+         catch(ShutdownException ignored) {
+            // Spring context not available during storage init — proceed without a session principal
+         }
       }
 
       try(ZipFile zip = new ZipFile(file.toFile(), ZipFile.OPEN_READ)) {
