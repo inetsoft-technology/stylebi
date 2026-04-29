@@ -39,16 +39,64 @@
       align-items: center;
       justify-content: space-between;
       gap: 16px;
-      min-height: 40px;
-      padding: 0 16px;
+      min-height: 52px;
+      padding: 8px 16px;
       border-bottom: 1px solid var(--inet-default-border-color);
     }
 
-    .schedule-task-list-header__title {
+    .schedule-task-list-header__status {
+      display: flex;
+      align-items: center;
+      gap: 12px;
       min-width: 0;
-      font-size: 13px;
-      font-weight: 400;
-      color: var(--inet-shell-text-muted, var(--inet-text-color));
+      flex-wrap: wrap;
+      flex: 1 1 auto;
+    }
+
+    .schedule-task-list-header__status-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--inet-secondary-text-color, #6e6759);
+    }
+
+    .schedule-task-list-header__status-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--inet-ui-neutral-hover-bg-color, #ece9e2);
+      color: var(--inet-text-color, #35342f);
+      font-weight: 600;
+
+      &.is-ready {
+        background: var(--inet-success-color-light, #e2f3e8);
+        color: var(--inet-success-color-dark, #1d5b39);
+      }
+
+      &.is-warning {
+        background: #f7ead8;
+        color: #7a5220;
+      }
+
+      &.is-unavailable {
+        background: var(--inet-danger-color-light, #f7dede);
+        color: var(--inet-danger-color-dark, #7f2e2e);
+      }
+    }
+
+    .schedule-task-list-header__status-message {
+      min-width: 0;
+      color: var(--inet-secondary-text-color, #6e6759);
+      line-height: 1.45;
+    }
+
+    .schedule-task-list-header__status-action {
+      min-height: 30px;
+      padding: 4px 10px;
+      font-size: 12px;
+      line-height: 1.2;
     }
 
     .schedule-task-list-header__actions {
@@ -64,6 +112,22 @@
         padding: 4px 10px;
         font-size: 12px;
         line-height: 1.2;
+      }
+    }
+
+    @media (max-width: 1100px) {
+      .schedule-task-list-header {
+        align-items: flex-start;
+      }
+
+      .schedule-task-list-header__status {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+
+      .schedule-task-list-header__actions {
+        flex-shrink: 0;
       }
     }
 

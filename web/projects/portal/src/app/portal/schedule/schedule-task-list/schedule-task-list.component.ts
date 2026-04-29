@@ -92,8 +92,23 @@ const GET_TASK_FOLDER_EDIT_MODEL_URI = "../api/portal/schedule/folder/editModel"
 const CHECK_MOVE_DUPLICATE_URI: string = "../api/portal/schedule/move/checkDuplicate";
 const CHECK_ADD_DUPLICATE_URI: string = "../api/portal/schedule/add/checkDuplicate";
 const CHECK_ROOT_PERMISSION_URI = "../api/portal/schedule/folder/checkRootPermission";
+const SCHEDULER_HEALTH_URI = "../api/portal/schedule/health";
 const SYSTEM_USER = "INETSOFT_SYSTEM";
 declare const window: any;
+
+interface PortalSchedulerHealthModel {
+   available: boolean;
+   healthy: boolean;
+   started: boolean;
+   shutdown: boolean;
+   standby: boolean;
+   lastCheck: number;
+   nextCheck: number;
+   executingCount: number;
+   threadCount: number;
+   statusLabel: string;
+   detailMessage?: string;
+}
 
 @Component({
    selector: "p-schedule-task-list",
@@ -117,9 +132,11 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
    _selectAllChecked: boolean = false;
    selectedItems: string[] = [];
    loading = false;
+   schedulerHealthLoading = false;
    noRootPermission: boolean = false;
    dateFormat: string = "YYYY-MM-DD HH:mm:ss";
    securityEnabled: boolean;
+   schedulerHealth: PortalSchedulerHealthModel;
 
    private subscriptions: Subscription;
 
@@ -178,6 +195,51 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
       this.http.get(CHECK_ROOT_PERMISSION_URI).subscribe((rootPermission: boolean) => {
          this.noRootPermission = !rootPermission;
       });
+
+      this.refreshSchedulerHealth();
+   }
+
+   get showSchedulerHealth(): boolean {
+      return !!this.schedulerHealth;
+   }
+
+   get schedulerHealthPillClass(): string {
+      if(!this.schedulerHealth?.available || this.schedulerHealth?.shutdown) {
+         return "is-unavailable";
+      }
+
+      if(!this.schedulerHealth?.healthy) {
+         return "is-warning";
+      }
+
+      return "is-ready";
+   }
+
+   refreshSchedulerHealth(): void {
+      this.schedulerHealthLoading = true;
+      this.http.get<PortalSchedulerHealthModel>(SCHEDULER_HEALTH_URI)
+         .subscribe(
+            (health) => {
+               this.schedulerHealth = health;
+               this.schedulerHealthLoading = false;
+            },
+            () => {
+               this.schedulerHealth = {
+                  available: false,
+                  healthy: false,
+                  started: false,
+                  shutdown: false,
+                  standby: false,
+                  lastCheck: 0,
+                  nextCheck: 0,
+                  executingCount: 0,
+                  threadCount: 0,
+                  statusLabel: "Unavailable",
+                  detailMessage: "Scheduler health could not be retrieved."
+               };
+               this.schedulerHealthLoading = false;
+            }
+         );
    }
 
    ngAfterViewInit(): void {
