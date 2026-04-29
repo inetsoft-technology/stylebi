@@ -17,6 +17,8 @@
  */
 package inetsoft.util;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
@@ -163,6 +165,7 @@ public class ConfigurationContext implements AutoCloseable {
    }
 
    public void setApplicationContext(ApplicationContext applicationContext) {
+      beanCache.invalidateAll();
       this.applicationContext = applicationContext;
 
       if(applicationContext != null) {
@@ -193,7 +196,7 @@ public class ConfigurationContext implements AutoCloseable {
          throw new ShutdownException();
       }
 
-      return applicationContext.getBean(type);
+      return type.cast(beanCache.get(type, t -> applicationContext.getBean(t)));
    }
 
    /**
@@ -206,12 +209,16 @@ public class ConfigurationContext implements AutoCloseable {
          return null;
       }
 
-      try {
-         return applicationContext.getBean(type);
-      }
-      catch(NoSuchBeanDefinitionException e) {
-         return null;
-      }
+      Object cached = beanCache.get(type, t -> {
+         try {
+            return applicationContext.getBean(t);
+         }
+         catch(NoSuchBeanDefinitionException e) {
+            return MISSING_BEAN;
+         }
+      });
+
+      return cached == MISSING_BEAN ? null : type.cast(cached);
    }
 
    public Object getSpringBean(String name) {
@@ -249,10 +256,14 @@ public class ConfigurationContext implements AutoCloseable {
    }
 
    private final Map<String, Object> data = new ConcurrentHashMap<>();
+   private final Cache<Class<?>, Object> beanCache = Caffeine.newBuilder()
+      .maximumSize(500L)
+      .build();
    private final PropertyChangeSupport support = new PropertyChangeSupport(this);
    private volatile String home = ".";
    private ApplicationContext applicationContext;
    private final CompletableFuture<Void> springContextReady = new CompletableFuture<>();
    private static volatile ConfigurationContext INSTANCE;
+   private static final Object MISSING_BEAN = new Object();
    private static final Logger LOG = LoggerFactory.getLogger(ConfigurationContext.class);
 }
