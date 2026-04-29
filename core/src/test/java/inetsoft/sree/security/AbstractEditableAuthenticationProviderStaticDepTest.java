@@ -59,13 +59,6 @@ package inetsoft.sree.security;
  *             after they were copied by copyScopedProperties (key format mismatch)
  *             — AbstractEditableAuthenticationProvider:407 vs :468
  *
- * [Suspect 8] copyThemes(replace=true) — mutation of shared CustomTheme objects
- *             pre-processing loop calls t.setOrganizations(newOrgs) on the same objects
- *             referenced by sourceThemes; main loop then sees already-mutated organizations,
- *             so theme.getOrganizations().contains(fromOrgId) == false →
- *             manager.setOrgSelectedTheme(clone.getId(), toOrgId) is silently skipped
- *             — AbstractEditableAuthenticationProvider:319 (pre-loop) vs :355 (main loop)
- *             Fix: deepClone themes before the pre-processing step, or re-check orgID on the clone
  */
 
 /*
@@ -86,8 +79,9 @@ package inetsoft.sree.security;
  *  ├─ [C] theme with orgID==fromOrgId, replace=false → clone added, original kept
  *  ├─ [D] theme with orgID==fromOrgId, replace=true  → original removed, clone added,
  *  │       setOrgSelectedTheme(null, fromOrgId) called
- *  └─ [E] global theme + replace=true mutation bug   → setOrgSelectedTheme(clone.getId(), toOrgId)
- *          skipped because pre-loop already removed fromOrgId from organizations  [Suspect 8]
+ *  ├─ [E] global theme (orgID==null) with fromOrgId in organizations → toOrgId added to
+ *  │       organizations, setOrgSelectedTheme(themeId, toOrgId) called; no clone created
+ *  └─ [F] global theme (orgID==null) without fromOrgId in organizations → no action
  *
  * copyDataSpace decision tree
  *  ├─ [A] replace=true                  → dataSpace.rename called for each scoped path
@@ -373,22 +367,17 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
       }
    }
 
-   // Issue #74695
-   // [Path E] replace=true mutation bug — pre-loop mutates shared CustomTheme.organizations;
-   //           main loop finds organizations no longer contains fromOrgId → setOrgSelectedTheme skipped  [Suspect 8]
-   @Disabled("Suspect 8: replace=true pre-processing mutates shared theme.organizations — AbstractEditableAuthenticationProvider:319; " +
-             "Fix: deepClone source themes before the pre-processing step so main loop sees unmutated state")
+   // [Path E] global theme with fromOrgId in organizations, replace=true →
+   //           toOrgId added to organizations, setOrgSelectedTheme called, no clone created
    @Test
-   void copyThemes_globalThemeWithOrg_replaceTrue_setOrgSelectedThemeCalledForClone() {
-      // Global theme (orgID=null) with fromOrgId in organizations — used to pick a custom theme per org
+   void copyThemes_globalThemeSelectedForFromOrg_replaceTrue_selectionPropagatedNoClone() {
       CustomTheme globalTheme = new CustomTheme();
       globalTheme.setId("global-1");
       globalTheme.setOrgID(null);
       globalTheme.setOrganizations(new ArrayList<>(List.of("fromOrg")));
 
       try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
-          MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class);
-          MockedStatic<Organization> org = mockStatic(Organization.class)) {
+          MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
 
          DataSpace mockDs = mock(DataSpace.class);
          ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
@@ -397,13 +386,120 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
          when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(globalTheme)));
 
-         // fromOrg is the default org so global theme enters the main loop
-         org.when(Organization::getDefaultOrganizationID).thenReturn("fromOrg");
-
          provider.callCopyThemes("fromOrg", "toOrg", true);
 
-         // Expected correct behavior: a clone is created and registered as selected for toOrg
-         verify(mockManager).setOrgSelectedTheme(notNull(), eq("toOrg"));
+         @SuppressWarnings("unchecked")
+         ArgumentCaptor<Set<CustomTheme>> captor = ArgumentCaptor.forClass(Set.class);
+         verify(mockManager).setCustomThemes(captor.capture());
+
+         Set<CustomTheme> result = captor.getValue();
+         assertEquals(1, result.size(), "global theme must not be cloned");
+         CustomTheme saved = result.iterator().next();
+         assertNull(saved.getOrgID(), "global theme must remain global (orgID null)");
+         assertTrue(saved.getOrganizations().contains("toOrg"), "toOrg must be added to global theme organizations");
+         assertFalse(saved.getOrganizations().contains("fromOrg"),
+            "fromOrg must be removed from global theme organizations when replace=true");
+         verify(mockManager).setOrgSelectedTheme("global-1", "toOrg");
+         verify(mockManager).setOrgSelectedTheme(null, "fromOrg");
+      }
+   }
+
+   // Bug #74719: global theme from default org, replace=false → no clone, selection propagated
+   @Test
+   void copyThemes_globalThemeSelectedForDefaultOrg_replaceFalse_selectionPropagatedNoClone() {
+      CustomTheme globalTheme = new CustomTheme();
+      globalTheme.setId("global-1");
+      globalTheme.setOrgID(null);
+      globalTheme.setOrganizations(new ArrayList<>(List.of("host-org")));
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
+
+         DataSpace mockDs = mock(DataSpace.class);
+         ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
+
+         CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
+         when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(globalTheme)));
+
+         // host-org is Organization.getDefaultOrganizationID() — the case that triggered bug #74719
+         provider.callCopyThemes("host-org", "toOrg", false);
+
+         @SuppressWarnings("unchecked")
+         ArgumentCaptor<Set<CustomTheme>> captor = ArgumentCaptor.forClass(Set.class);
+         verify(mockManager).setCustomThemes(captor.capture());
+
+         Set<CustomTheme> result = captor.getValue();
+         assertEquals(1, result.size(), "global theme must not be cloned into an org-specific entry");
+         CustomTheme saved = result.iterator().next();
+         assertNull(saved.getOrgID(), "global theme must remain global");
+         assertTrue(saved.getOrganizations().contains("toOrg"), "toOrg must be added to global theme organizations");
+         verify(mockManager).setOrgSelectedTheme("global-1", "toOrg");
+      }
+   }
+
+   // [Path F] global theme not selected for fromOrg → no modification, setOrgSelectedTheme not called
+   @Test
+   void copyThemes_globalThemeNotSelectedForFromOrg_noAction() {
+      CustomTheme globalTheme = new CustomTheme();
+      globalTheme.setId("global-1");
+      globalTheme.setOrgID(null);
+      globalTheme.setOrganizations(new ArrayList<>(List.of("otherOrg")));
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
+
+         DataSpace mockDs = mock(DataSpace.class);
+         ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
+
+         CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
+         when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(globalTheme)));
+
+         provider.callCopyThemes("fromOrg", "toOrg", false);
+
+         @SuppressWarnings("unchecked")
+         ArgumentCaptor<Set<CustomTheme>> captor = ArgumentCaptor.forClass(Set.class);
+         verify(mockManager).setCustomThemes(captor.capture());
+
+         Set<CustomTheme> result = captor.getValue();
+         assertEquals(1, result.size(), "set size must not change");
+         CustomTheme saved = result.iterator().next();
+         assertFalse(saved.getOrganizations().contains("toOrg"), "toOrg must not be added when global theme not selected for fromOrg");
+         verify(mockManager, never()).setOrgSelectedTheme(any(), eq("toOrg"));
+      }
+   }
+
+   // [Path G] global theme already has toOrgId in organizations → idempotent, no duplicate added
+   @Test
+   void copyThemes_globalThemeAlreadyHasToOrg_idempotent() {
+      CustomTheme globalTheme = new CustomTheme();
+      globalTheme.setId("global-1");
+      globalTheme.setOrgID(null);
+      globalTheme.setOrganizations(new ArrayList<>(List.of("fromOrg", "toOrg")));
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
+
+         DataSpace mockDs = mock(DataSpace.class);
+         ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
+
+         CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
+         when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(globalTheme)));
+
+         provider.callCopyThemes("fromOrg", "toOrg", false);
+
+         @SuppressWarnings("unchecked")
+         ArgumentCaptor<Set<CustomTheme>> captor = ArgumentCaptor.forClass(Set.class);
+         verify(mockManager).setCustomThemes(captor.capture());
+
+         Set<CustomTheme> result = captor.getValue();
+         assertEquals(1, result.size(), "global theme must not be cloned");
+         CustomTheme saved = result.iterator().next();
+         assertEquals(1, saved.getOrganizations().stream().filter("toOrg"::equals).count(),
+            "toOrg must appear exactly once (no duplicates)");
+         verify(mockManager).setOrgSelectedTheme("global-1", "toOrg");
       }
    }
 

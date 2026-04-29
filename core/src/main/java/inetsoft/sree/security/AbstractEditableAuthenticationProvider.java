@@ -337,9 +337,7 @@ public abstract class AbstractEditableAuthenticationProvider
 
       for(CustomTheme theme : sourceThemes) {
          try {
-            if(Tool.equals(theme.getOrgID(), fromOrgId) ||
-               (Tool.isEmptyString(theme.getOrgID()) && Tool.equals(fromOrgId, Organization.getDefaultOrganizationID())))
-            {
+            if(Tool.equals(theme.getOrgID(), fromOrgId)) {
                CustomTheme clone = (CustomTheme) theme.clone();
                clone.setOrgID(toOrgId);
                clone.setId(UUID.randomUUID().toString().replace("-", ""));
@@ -373,8 +371,6 @@ public abstract class AbstractEditableAuthenticationProvider
                   newOrgThemeId = clone.getId();
                }
 
-               //if copying a global theme, need to actually copy the dataspace jar
-               //since this is usually wrapped into copying the dataspace
                if(!Tool.isEmptyString(clone.getJarPath())) {
                   if(Tool.isEmptyString(theme.getOrgID())) {
                      String oldJarPath = clone.getJarPath();
@@ -398,6 +394,24 @@ public abstract class AbstractEditableAuthenticationProvider
                }
 
                themes.add(clone);
+            }
+            else if(Tool.isEmptyString(theme.getOrgID())
+               && theme.getOrganizations() != null
+               && theme.getOrganizations().contains(fromOrgId))
+            {
+               // Global themes are shared; propagate selection pointer only, no clone.
+               // Mutate the live entry in `themes` (not the sourceThemes copy) so the
+               // change is visible when setCustomThemes is called below.
+               themes.stream()
+                  .filter(t -> t.getId().equals(theme.getId()))
+                  .findFirst()
+                  .ifPresent(original -> {
+                     if(!original.getOrganizations().contains(toOrgId)) {
+                        original.getOrganizations().add(toOrgId);
+                     }
+
+                     manager.setOrgSelectedTheme(theme.getId(), toOrgId);
+                  });
             }
          }
          catch(Exception ex) {
