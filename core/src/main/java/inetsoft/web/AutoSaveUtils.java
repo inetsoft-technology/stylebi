@@ -496,6 +496,7 @@ public final class AutoSaveUtils {
             DocumentBuilder docBuilder;
 
             try {
+               factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
                docBuilder = factory.newDocumentBuilder();
                Document newDocument = docBuilder.parse(new InputSource(new StringReader(builder.toString())));
                Element documentElement = newDocument.getDocumentElement();

@@ -92,6 +92,14 @@ public class QueryManagerService {
       String[] selectedColumns = queryModel.getSelectedColumns();
       JDBCDataSource jdbcDataSource = (JDBCDataSource) repository.getDataSource(dataSource);
       XJoin[] xjoins = queryModel.toXJoins();
+
+      if(!queryModel.isSqlEdited() && queryModel.getTables() != null &&
+         queryModel.getTables().size() > 1 && xjoins.length == 0)
+      {
+         throw new MessageException(
+            Catalog.getCatalog().getString("common.sqlquery.cartesianJoin"));
+      }
+
       UniformSQL sql = JDBCUtil.createSQL(jdbcDataSource, queryModel.getTables(), selectedColumns,
          xjoins, queryModel.getConditionList(), principal);
       JDBCQuery query = new JDBCQuery();
