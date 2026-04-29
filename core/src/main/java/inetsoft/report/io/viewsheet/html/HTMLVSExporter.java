@@ -142,7 +142,14 @@ public class HTMLVSExporter extends AbstractVSExporter {
       Rectangle2D fullBounds = expandBoundsForLabel(helper.getBounds(info), labelInfo);
       Rectangle2D[] bounds = splitInputBounds(fullBounds, labelInfo);
 
-      helper.writeText(writer, bounds[0], getLabelFormat(labelInfo),
+      // HTML uses overflow:hidden to clip rather than positioning on a shared canvas,
+      // so we don't need to materialize a default font (PDF/SVG do, since
+      // PDFPrinter.setFont(null) silently keeps a stale printer font). Passing the raw
+      // labelFormat lets CSS inherit when no font is set, keeping the label close to
+      // the viewer's rendering (Roboto at the inherited size).
+      VSCompositeFormat labelFormat = labelInfo.getLabelFormat();
+      helper.writeText(writer, bounds[0],
+         labelFormat != null ? labelFormat : new VSCompositeFormat(),
          labelInfo.getLabelText(), null, false, null, false, info.getZIndex());
 
       return bounds[1];
