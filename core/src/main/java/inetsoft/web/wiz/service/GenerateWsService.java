@@ -131,6 +131,7 @@ public class GenerateWsService {
       else {
          boolean containsMergeJoin = false; // Todo To be implemented later
          List<WorksheetConstructionModel.JoinPath> joinPaths = model.getJoinPaths();
+         fixJoinPathKey(joinPaths, model.getFields());
 
          for(WorksheetConstructionModel.JoinPath joinPath : joinPaths) {
             WorksheetConstructionModel.QueryField leftField =
@@ -249,6 +250,60 @@ public class GenerateWsService {
       }
 
       return generateWsResponse;
+   }
+
+   private void fixJoinPathKey(List<WorksheetConstructionModel.JoinPath> joinPaths,
+                               List<WorksheetConstructionModel.QueryField> fields)
+   {
+      if(joinPaths == null || joinPaths.isEmpty()) {
+         return;
+      }
+
+      Map<String, String> keyToAliasMap = buildKeyToAliasMap(fields);
+
+      joinPaths.forEach(joinPath -> {
+         joinPath.setLeftKey(qualifyKey(joinPath.getLeftTable().getName(), joinPath.getLeftKey(), keyToAliasMap));
+         joinPath.setRightKey(qualifyKey(joinPath.getRightTable().getName(), joinPath.getRightKey(), keyToAliasMap));
+      });
+   }
+
+   /**
+    * Build a lookup map from fully-qualified field name (and its alias variants) to alias.
+    * Each field is indexed by:
+    *   1. Its original fieldName (if already qualified, e.g. "table.col")
+    *   2. "tableName.fieldName" (if fieldName has no dot, builds full name)
+    */
+   private Map<String, String> buildKeyToAliasMap(List<WorksheetConstructionModel.QueryField> fields) {
+      if(fields == null || fields.isEmpty()) {
+         return Collections.emptyMap();
+      }
+
+      Map<String, String> map = new HashMap<>(fields.size() * 2);
+
+      for(WorksheetConstructionModel.QueryField field : fields) {
+         String alias     = field.getAlias();
+         String fieldName = field.getFieldName();
+
+         map.put(fieldName, alias);
+
+         if(!fieldName.contains(".")) {
+            String fullName = Tool.buildString(field.getTable().getName(), fieldName);
+            map.putIfAbsent(fullName, alias);
+         }
+      }
+
+      return map;
+   }
+
+   /**
+    * Qualify a raw key with the table prefix if needed, then resolve to its alias.
+    */
+   private String qualifyKey(String tableName, String key,
+                             Map<String, String> keyToAliasMap)
+   {
+      String qualifiedKey = key.contains(".") ? key : tableName + "." + key;
+      String alias = keyToAliasMap.get(qualifiedKey);
+      return alias != null ? alias : qualifiedKey;
    }
 
    private void layoutGraph(Worksheet worksheet) throws Exception {
