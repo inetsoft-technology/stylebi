@@ -395,8 +395,13 @@ public abstract class AbstractEditableAuthenticationProvider
 
                themes.add(clone);
             }
-            else if(Tool.isEmptyString(theme.getOrgID()) && theme.getOrganizations().contains(fromOrgId)) {
+            else if(Tool.isEmptyString(theme.getOrgID())
+               && theme.getOrganizations() != null
+               && theme.getOrganizations().contains(fromOrgId))
+            {
                // Global themes are shared; propagate selection pointer only, no clone.
+               // Mutate the live entry in `themes` (not the sourceThemes copy) so the
+               // change is visible when setCustomThemes is called below.
                themes.stream()
                   .filter(t -> t.getId().equals(theme.getId()))
                   .findFirst()

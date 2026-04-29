@@ -397,6 +397,8 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          CustomTheme saved = result.iterator().next();
          assertNull(saved.getOrgID(), "global theme must remain global (orgID null)");
          assertTrue(saved.getOrganizations().contains("toOrg"), "toOrg must be added to global theme organizations");
+         assertFalse(saved.getOrganizations().contains("fromOrg"),
+            "fromOrg must be removed from global theme organizations when replace=true");
          verify(mockManager).setOrgSelectedTheme("global-1", "toOrg");
          verify(mockManager).setOrgSelectedTheme(null, "fromOrg");
       }
