@@ -42,12 +42,10 @@ public class ActionPermissionService {
    @Autowired
    public ActionPermissionService(ComponentAuthorizationService componentService,
                                   SecurityEngine securityEngine,
-                                  LicenseManager licenseManager,
                                   PortalThemesManager portalThemesManager)
    {
       this.componentService = componentService;
       this.securityEngine = securityEngine;
-      this.licenseManager = licenseManager;
       this.portalThemesManager = portalThemesManager;
    }
 
@@ -180,7 +178,7 @@ public class ActionPermissionService {
 
       if(principal != null) {
          if(OrganizationManager.getInstance().isSiteAdmin(principal) ||
-            !licenseManager.isEnterprise() || !SUtil.isMultiTenant())
+            !LicenseManager.isEnterprise() || !SUtil.isMultiTenant())
          {
             root.addFilteredChildren(ActionTreeNode.builder()
                                         .label(catalog.getString("Upload Drivers"))
@@ -550,7 +548,7 @@ public class ActionPermissionService {
                                           ViewComponent component, String path, boolean isOrgAdmin,
                                           Principal principal)
    {
-      boolean enterprise = licenseManager.isEnterprise();
+      boolean enterprise = LicenseManager.isEnterprise();
       boolean isSiteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
       component.children().values().stream()
          .filter(ViewComponent::available)
@@ -566,7 +564,7 @@ public class ActionPermissionService {
    }
 
    private boolean isEMActionVisible(ViewComponent c, String path, boolean isSiteAdmin) {
-      if(!licenseManager.isEnterprise() && Tool.equals("auditing", c.name()) ||
+      if(!LicenseManager.isEnterprise() && Tool.equals("auditing", c.name()) ||
          !SUtil.isMultiTenant() && Tool.equals("org-settings", c.name()))
       {
          return false;
@@ -825,6 +823,5 @@ public class ActionPermissionService {
 
    private final ComponentAuthorizationService componentService;
    private final SecurityEngine securityEngine;
-   private final LicenseManager licenseManager;
    private final PortalThemesManager portalThemesManager;
 }

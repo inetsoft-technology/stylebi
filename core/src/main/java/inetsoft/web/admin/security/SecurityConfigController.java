@@ -28,12 +28,9 @@ import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.config.*;
-import inetsoft.web.admin.security.action.ActionPermissionService;
 import inetsoft.web.portal.model.CurrentUserModel;
 import inetsoft.web.security.*;
 import inetsoft.web.viewsheet.Audited;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -43,12 +40,10 @@ import java.util.Locale;
 @RestController
 public class SecurityConfigController {
    public SecurityConfigController(SecurityEngine securityEngine,
-                                    ActionPermissionService actionPermissionService,
-                                    LicenseManager licenseManager,
+                                   LicenseManager licenseManager,
                                     DataSourceRegistry dataSourceRegistry)
    {
       this.securityEngine = securityEngine;
-      this.actionPermissionService = actionPermissionService;
       this.licenseManager = licenseManager;
       this.dataSourceRegistry = dataSourceRegistry;
    }
@@ -292,7 +287,7 @@ public class SecurityConfigController {
    @GetMapping("/api/em/security/get-api-key")
    public String getOpenSourceLicenseKey()
    {
-      if(!licenseManager.isEnterprise()) {
+      if(!LicenseManager.isEnterprise()) {
          return SreeEnv.getProperty("license.key");
       }
       return null;
@@ -308,7 +303,7 @@ public class SecurityConfigController {
    @PostMapping("/api/em/security/set-api-key")
    public void setOpenSourceLicenseKey(@RequestBody(required = false) String key)
    {
-      if(!licenseManager.isEnterprise()) {
+      if(!LicenseManager.isEnterprise()) {
          SreeEnv.setProperty("license.key", key);
       }
    }
@@ -351,8 +346,6 @@ public class SecurityConfigController {
    }
 
    private final SecurityEngine securityEngine;
-   private final ActionPermissionService actionPermissionService;
    private final LicenseManager licenseManager;
    private final DataSourceRegistry dataSourceRegistry;
-   private final Logger LOG = LoggerFactory.getLogger(SecurityConfigController.class);
 }

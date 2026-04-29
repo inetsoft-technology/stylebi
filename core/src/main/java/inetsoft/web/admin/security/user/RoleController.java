@@ -50,8 +50,7 @@ public class RoleController {
                          UserTreeService userTreeService,
                          SecurityTreeServer securityTreeServer,
                          SystemAdminService systemAdminService,
-                         IdentityThemeService themeService,
-                         LicenseManager licenseManager)
+                         IdentityThemeService themeService)
    {
       this.securityProvider = securityProvider;
       this.identityService = identityService;
@@ -59,7 +58,6 @@ public class RoleController {
       this.securityTreeServer = securityTreeServer;
       this.systemAdminService = systemAdminService;
       this.themeService = themeService;
-      this.licenseManager = licenseManager;
    }
 
    @Secured(
@@ -252,7 +250,7 @@ public class RoleController {
          .permittedIdentities(org == null && isSiteAdmin ? members : userTreeService.filterOtherOrgs(permissions))
          .editable(editableRoles)
          .theme(themeService.getTheme(roleIdentityID, CustomTheme::getRoles))
-         .enterprise(licenseManager.isEnterprise())
+         .enterprise(LicenseManager.isEnterprise())
          .build();
    }
 
@@ -428,6 +426,5 @@ public class RoleController {
    private final SecurityTreeServer securityTreeServer;
    private final SystemAdminService systemAdminService;
    private final IdentityThemeService themeService;
-   private final LicenseManager licenseManager;
    private final Logger LOG = LoggerFactory.getLogger(RoleController.class);
 }

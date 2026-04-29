@@ -41,11 +41,10 @@ import java.util.Properties;
 @RestController
 public class PropertiesController {
    @Autowired
-   public PropertiesController(AssetRepository assetRepository, LicenseManager licenseManager,
+   public PropertiesController(AssetRepository assetRepository,
                                LogManager logManager, SecurityEngine securityEngine)
    {
       this.assetRepository = assetRepository;
-      this.licenseManager = licenseManager;
       this.logManager = logManager;
       this.securityEngine = securityEngine;
    }
@@ -138,7 +137,7 @@ public class PropertiesController {
    public Properties getProperties() {
       Properties properties = SreeEnv.getProperties();
 
-      if(!licenseManager.isEnterprise()) {
+      if(!LicenseManager.isEnterprise()) {
          removeUnuseProperties(properties);
       }
 
@@ -156,7 +155,7 @@ public class PropertiesController {
    public Properties getDefaultProperties() {
       Properties properties = SreeEnv.getDefaultProperties();
 
-      if(!licenseManager.isEnterprise()) {
+      if(!LicenseManager.isEnterprise()) {
          removeUnuseProperties(properties);
       }
 
@@ -216,7 +215,6 @@ public class PropertiesController {
    }
 
    private final AssetRepository assetRepository;
-   private final LicenseManager licenseManager;
    private final LogManager logManager;
    private final SecurityEngine securityEngine;
 }

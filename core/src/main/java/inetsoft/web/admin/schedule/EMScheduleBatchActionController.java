@@ -48,24 +48,20 @@ public class EMScheduleBatchActionController {
    public EMScheduleBatchActionController(AssetRepository assetRepository,
                                           ScheduleService scheduleService,
                                           ScheduleManager scheduleManager,
-                                          ScheduleTaskActionService actionService,
                                           ContentRepositoryTreeService contentRepositoryTreeService,
                                           SecurityEngine securityEngine,
                                           ViewsheetService viewsheetService,
                                           ScheduleTaskActionServiceProxy actionServiceProxy,
-                                          EMScheduleTaskActionServiceProxy emActionServiceProxy,
-                                          LicenseManager licenseManager)
+                                          EMScheduleTaskActionServiceProxy emActionServiceProxy)
    {
       this.assetRepository = assetRepository;
       this.scheduleService = scheduleService;
       this.scheduleManager = scheduleManager;
-      this.actionService = actionService;
       this.contentRepositoryTreeService = contentRepositoryTreeService;
       this.securityEngine = securityEngine;
       this.viewsheetService = viewsheetService;
       this.actionServiceProxy = actionServiceProxy;
       this.emActionServiceProxy = emActionServiceProxy;
-      this.licenseManager = licenseManager;
    }
 
    @Secured(
@@ -102,7 +98,7 @@ public class EMScheduleBatchActionController {
             String id = task.getTaskId();
             String label = id;
 
-            if(!licenseManager.isEnterprise()) {
+            if(!LicenseManager.isEnterprise()) {
                int index = id.indexOf(":");
 
                if(index != -1) {
@@ -361,12 +357,10 @@ public class EMScheduleBatchActionController {
    }
 
    private final AssetRepository assetRepository;
-   private ScheduleService scheduleService;
+   private final ScheduleService scheduleService;
    private final ScheduleManager scheduleManager;
-   private final ScheduleTaskActionService actionService;
    private final ContentRepositoryTreeService contentRepositoryTreeService;
    private final SecurityEngine securityEngine;
-   private final LicenseManager licenseManager;
    private final ViewsheetService viewsheetService;
    private final ScheduleTaskActionServiceProxy actionServiceProxy;
    private final EMScheduleTaskActionServiceProxy emActionServiceProxy;

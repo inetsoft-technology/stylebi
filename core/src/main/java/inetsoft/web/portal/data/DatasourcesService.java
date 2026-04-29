@@ -17,7 +17,6 @@
  */
 package inetsoft.web.portal.data;
 
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
@@ -37,9 +36,9 @@ public class DatasourcesService extends DatasourcesBaseService {
                              SecurityEngine securityEngine,
                              DataSourceStatusService dataSourceStatusService,
                              DataSourceRegistry dataSourceRegistry,
-                             LicenseManager licenseManager, Config uqlConfig)
+                             Config uqlConfig)
    {
-      super(repository, securityEngine, dataSourceStatusService, dataSourceRegistry, licenseManager, uqlConfig);
+      super(repository, securityEngine, dataSourceStatusService, dataSourceRegistry, uqlConfig);
    }
 
    /**

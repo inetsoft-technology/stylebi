@@ -434,7 +434,7 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
          .filter(u -> !u.equals(IdentityID.getIdentityIDFromKey(principal.getName())))
          .filter(u -> checkLoginAs(principal, provider, u))
          .map(u -> new NameLabelTuple.Builder()
-            .label(siteAdmin && LicenseManager.getInstance().isEnterprise() ? (provider.getOrgNameFromID(u.getOrgID()) + ":" + u.getName()) : u.getName())
+            .label(siteAdmin && LicenseManager.isEnterprise() ? (provider.getOrgNameFromID(u.getOrgID()) + ":" + u.getName()) : u.getName())
             .name(u.convertToKey())
             .build()
          )

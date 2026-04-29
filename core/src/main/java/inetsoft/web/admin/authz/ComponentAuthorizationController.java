@@ -31,12 +31,10 @@ import org.springframework.web.bind.annotation.*;
 public class ComponentAuthorizationController {
    @Autowired
    public ComponentAuthorizationController(SecurityEngine securityEngine,
-                                           ComponentAuthorizationService componentService,
-                                           LicenseManager licenseManager)
+                                           ComponentAuthorizationService componentService)
    {
       this.securityEngine = securityEngine;
       this.componentService = componentService;
-      this.licenseManager = licenseManager;
    }
 
    @GetMapping("/api/em/authz")
@@ -95,7 +93,7 @@ public class ComponentAuthorizationController {
 
    private boolean checkPermission(String resource, Principal principal) {
       boolean authorized = false;
-      boolean enterprise = licenseManager.isEnterprise();
+      boolean enterprise = LicenseManager.isEnterprise();
 
       try {
          if(securityEngine.checkPermission(
@@ -135,6 +133,5 @@ public class ComponentAuthorizationController {
    }
 
    private final SecurityEngine securityEngine;
-   private final LicenseManager licenseManager;
    private final ComponentAuthorizationService componentService;
 }

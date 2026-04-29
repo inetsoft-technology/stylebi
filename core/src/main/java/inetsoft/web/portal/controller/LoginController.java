@@ -48,12 +48,11 @@ import java.util.*;
 @Controller
 public class LoginController {
    @Autowired
-   public LoginController(SecurityEngine securityEngine, LicenseManager licenseManager,
+   public LoginController(SecurityEngine securityEngine,
                           CustomThemesManager customThemesManager,
                           PortalThemesManager portalThemesManager)
    {
       this.securityEngine = securityEngine;
-      this.licenseManager = licenseManager;
       this.customThemesManager = customThemesManager;
       this.portalThemesManager = portalThemesManager;
    }
@@ -136,7 +135,7 @@ public class LoginController {
       model.addObject("loginAs", "on".equals(SreeEnv.getProperty("login.loginAs")));
       model.addObject("selfSignUpEnabled",
                       securityEngine.isSecurityEnabled() && securityEngine.isSelfSignupEnabled() &&
-                      licenseManager.isEnterprise());
+                      LicenseManager.isEnterprise());
       model.addObject("isNotTenantServer", isNotTenantServer(request));
 
       boolean googleSignInEnabled = SreeEnv.getBooleanProperty("security.googleSignIn.enabled");
@@ -206,7 +205,6 @@ public class LoginController {
    }
 
    private final SecurityEngine securityEngine;
-   private final LicenseManager licenseManager;
    private final CustomThemesManager customThemesManager;
    private final PortalThemesManager portalThemesManager;
    private static final String ORG_COOKIE = "X-INETSOFT-ORGID";
