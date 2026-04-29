@@ -32,6 +32,7 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.util.ShutdownException;
 import inetsoft.util.ThreadContext;
 import org.apache.commons.io.FileUtils;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.file.*;
@@ -132,6 +133,8 @@ public abstract class AbstractStorageTransfer implements StorageTransfer {
          }
          catch(ShutdownException ignored) {
             // Spring context not available during storage init — proceed without a session principal
+            LoggerFactory.getLogger(AbstractStorageTransfer.class)
+               .debug("Security disabled; proceeding without session principal");
          }
       }
 
