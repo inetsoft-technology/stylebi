@@ -253,22 +253,13 @@ public class SVGAnimationDOMInjector {
       List<Element> valueLabelGroups = new ArrayList<>();
       collectTextGroups(svgRoot, valueLabelGroups);
 
+      // A2 pattern applies to labels too: animate inner children, not the group itself.
+      // Animating the group directly would cause fill-mode:both to hold opacity:1 on the group,
+      // which overrides the hover-dim CSS (!important cannot beat a running/filled animation).
       for(Element labelG : valueLabelGroups) {
-         mergeStyle(labelG, String.format(java.util.Locale.US,
+         applyAnimStyleToChildren(labelG, String.format(java.util.Locale.US,
             "opacity:0;animation:inetsoft-bar-fade %.2fs %s %.2fs both",
             AnimationConstants.DURATION, AnimationConstants.EASING, dotDelay));
-      }
-
-      // Annotate value labels with inetsoft-bar-label and matching data-row/data-col so the
-      // server-side hover CSS can pair each label with its bar. DOM order matches bar order.
-      for(int i = 0; i < Math.min(annotBars.size(), valueLabelGroups.size()); i++) {
-         Element label = valueLabelGroups.get(i);
-         Element bar   = annotBars.get(i);
-         label.setAttribute("class", SVGSupport.ANNOTATION_LABEL);
-         label.setAttribute("data-" + SVGSupport.ATTR_ROW,
-            bar.getAttribute("data-" + SVGSupport.ATTR_ROW));
-         label.setAttribute("data-" + SVGSupport.ATTR_COL,
-            bar.getAttribute("data-" + SVGSupport.ATTR_COL));
       }
 
    }
