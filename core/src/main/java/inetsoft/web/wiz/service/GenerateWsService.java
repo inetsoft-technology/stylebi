@@ -645,7 +645,7 @@ public class GenerateWsService {
       if(Tool.isEmptyString(field.getExpression())) {
          String colType = null;
          String fieldName = null;
-System.err.println("=====boundTable: " + boundTable);
+
          if(boundTable) {
             if(metaData != null && metaData.getFields() != null) {
                Optional<OsiField> osiField = metaData.getFields().stream()
