@@ -81,8 +81,8 @@ import { AssetUtil } from "../../../binding/util/asset-util";
 import {
    DataSourcesTreeActionsService
 } from "../data-navigation-tree/data-sources-tree-actions.service";
-import { AssetConstants } from "../../../common/data/asset-constants";
 import { DataDetailsPaneService } from "../services/data-details-pane.service";
+import { WorksheetSelectionRequest } from "../services/data-details-pane.service";
 
 const FOLDER_URI: string = "../api/data/folders";
 const DATA_URI: string = "../api/data/datasets";
@@ -115,6 +115,38 @@ export interface DeleteDataSetResponse {
    corrupt: boolean;
 }
 
+interface WorksheetRootBlockInfo {
+   name: string;
+   kind: string;
+   fields?: WorksheetRootBlockFieldInfo[];
+   sourceInfo?: {
+      source?: string;
+      prefix?: string;
+      dataSourceType?: string;
+   };
+}
+
+interface WorksheetRootBlockFieldInfo {
+   name: string;
+   type: string;
+}
+
+interface WorksheetRootBlocksSummary {
+   id: string;
+   path: string;
+   scope: number;
+   primaryBlock?: WorksheetRootBlockInfo;
+   transformationSummary?: string;
+   usedBy: WorksheetDependentAssetInfo[];
+   rootBlocks: WorksheetRootBlockInfo[];
+}
+
+interface WorksheetDependentAssetInfo {
+   name: string;
+   path: string;
+   type: string;
+}
+
 @Component({
    selector: "data-folder-browser",
    templateUrl: "data-folder-browser.component.html",
@@ -130,6 +162,12 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
    currentFolderPathString: string = "";
    currentFolderPathScope: string = "";
    selectedFile: AssetItem = null;
+   private pendingWorksheetSelection: WorksheetSelectionRequest = null;
+   primaryBlock: WorksheetRootBlockInfo = null;
+   transformationSummary = "";
+   usedBy: WorksheetDependentAssetInfo[] = [];
+   rootBlocks: WorksheetRootBlockInfo[] = [];
+   loadingWorksheetDetails = false;
    selectedItems: WorksheetBrowserInfo[] = [];
    sortOptions: SortOptions = new SortOptions(["name"], SortTypes.ASCENDING);
    worksheetAccess: boolean;
@@ -179,7 +217,12 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
 
    ngOnInit(): void {
       this.subscriptions.add(this.dataDetailsPaneService.selectedFile$
-         .subscribe((selectedFile) => this.selectedFile = selectedFile));
+         .subscribe((selectedFile) => {
+            this.selectedFile = selectedFile;
+            this.loadWorksheetDetails();
+         }));
+      this.subscriptions.add(this.dataDetailsPaneService.worksheetSelectionRequest$
+         .subscribe((request) => this.pendingWorksheetSelection = request));
 
       // subscribe to route parameters and refresh browser content based on current path
       this.routeParamSubscription = this.route.queryParamMap
@@ -206,11 +249,6 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
             this.refreshBrowserContent(path);
          });
 
-      this.subscriptions.add(this.dataSourcesTreeActionsService.showWSFolderDetailsSubject()
-         .subscribe(data => {
-            this.showWSDetailsByDataSourcesTree(data);
-         }));
-
       this.repositoryClient.connect();
       this.repositoryClient.dataChanged
          .subscribe(() => this.refreshBrowserContent(this.currentFolderPathString));
@@ -221,7 +259,6 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
    ngOnDestroy(): void {
       this.routeParamSubscription.unsubscribe();
       this.subscriptions.unsubscribe();
-      this.dataDetailsPaneService.clear();
    }
 
    getAssemblyName(): string {
@@ -298,8 +335,10 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
 
                if(!!subPath) {
                   const asset: WorksheetBrowserInfo = this.findAsset(subPath);
-                  this.selectFile(asset);
+                  this.selectFile(asset, false);
                }
+
+               this.applyPendingWorksheetSelection();
             }
          );
    }
@@ -376,6 +415,23 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
 
    get newWorksheetDisabled(): boolean {
       return !this.isFolderEditable || !this.worksheetAccess;
+   }
+
+   get currentFolderInfo(): WorksheetBrowserInfo {
+      return this.currentFolderPath?.length ?
+         this.currentFolderPath[this.currentFolderPath.length - 1] : null;
+   }
+
+   get currentFolderActionsVisible(): boolean {
+      return !!this.currentFolderInfo && !!this.currentFolderPathString;
+   }
+
+   get currentFolderRenameDisabled(): boolean {
+      return !this.currentFolderInfo?.editable;
+   }
+
+   get currentFolderDeleteDisabled(): boolean {
+      return !this.currentFolderInfo?.deletable;
    }
 
    /**
@@ -504,6 +560,22 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
 
    editWorksheet(worksheet: WorksheetBrowserInfo): void {
       this.dataBrowserService.openWorksheet(worksheet.id, this.clientService);
+   }
+
+   renameCurrentFolder(): void {
+      if(this.currentFolderRenameDisabled) {
+         return;
+      }
+
+      this.renameAsset(this.currentFolderInfo);
+   }
+
+   deleteCurrentFolder(): void {
+      if(this.currentFolderDeleteDisabled) {
+         return;
+      }
+
+      this.deleteAsset(this.currentFolderInfo);
    }
 
    /**
@@ -768,10 +840,10 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
     * Handle dashboard/dataset selection.
     * @param file  the newly selected dashboard/dataset
     */
-   selectFile(file: WorksheetBrowserInfo): void {
+   selectFile(file: WorksheetBrowserInfo, toggle: boolean = true): void {
       let selectedItem: AssetItem = this.convertToAssetItem(file);
 
-      if(Tool.isEquals(this.selectedFile, selectedItem)) {
+      if(toggle && Tool.isEquals(this.selectedFile, selectedItem)) {
          this.selectedFile = null;
       }
       else {
@@ -781,19 +853,78 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
       this.dataDetailsPaneService.setSelectedFile(this.selectedFile);
    }
 
+   clearSelectedFile(): void {
+      this.dataDetailsPaneService.clear();
+   }
+
+   get selectedWorksheetInfo(): WorksheetBrowserInfo {
+      if(!this.selectedFile) {
+         return null;
+      }
+
+      return this.viewAssets.find((asset) =>
+         asset.path === this.selectedFile.path && asset.type === this.selectedFile.type) ||
+         <WorksheetBrowserInfo> <unknown> this.selectedFile;
+   }
+
+   get canEditSelectedWorksheet(): boolean {
+      return !!this.selectedWorksheetInfo?.editable;
+   }
+
+   get canRenameSelectedWorksheet(): boolean {
+      return !!this.selectedWorksheetInfo?.editable;
+   }
+
+   get canMoveSelectedWorksheet(): boolean {
+      return !!this.selectedWorksheetInfo?.editable && !!this.selectedWorksheetInfo?.deletable;
+   }
+
+   get canDeleteSelectedWorksheet(): boolean {
+      return !!this.selectedWorksheetInfo?.deletable;
+   }
+
+   editSelectedWorksheet(): void {
+      if(this.canEditSelectedWorksheet) {
+         this.editWorksheet(this.selectedWorksheetInfo);
+      }
+   }
+
+   renameSelectedWorksheet(): void {
+      if(this.canRenameSelectedWorksheet) {
+         this.renameAsset(this.selectedWorksheetInfo);
+      }
+   }
+
+   moveSelectedWorksheet(): void {
+      if(this.canMoveSelectedWorksheet) {
+         this.moveAsset(this.selectedWorksheetInfo);
+      }
+   }
+
+   deleteSelectedWorksheet(): void {
+      if(this.canDeleteSelectedWorksheet) {
+         this.deleteAsset(this.selectedWorksheetInfo);
+      }
+   }
+
    private convertToAssetItem(file: WorksheetBrowserInfo): AssetItem {
       if(file != null) {
-         return {
+         return <AssetItem> <unknown> {
             type: file.type,
             id: file.id,
             path: file.path,
+            scope: file.scope,
             urlPath: "",
             name: file.name,
             createdBy: file.createdBy,
             description: file.description,
             createdDate: file.createdDate,
             editable: file.editable,
-            deletable: file.deletable,
+            materialized: file.materialized,
+            canMaterialize: file.canMaterialize,
+            modifiedDate: file.modifiedDate,
+            dateFormat: file.dateFormat,
+            parentPath: file.parentPath,
             createdDateLabel:  DateTypeFormatter.getLocalTime(file.createdDate, file.dateFormat),
             modifiedDateLabel: DateTypeFormatter.getLocalTime(file.modifiedDate, file.dateFormat)
          };
@@ -1275,21 +1406,82 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
       };
    }
 
-   showWSDetailsByDataSourcesTree(data: any) {
-      this.currentFolderPathScope = data.scope;
-      let path = data.path;
+   private applyPendingWorksheetSelection(): void {
+      if(!this.pendingWorksheetSelection?.path || !this.pendingWorksheetSelection?.scope) {
+         return;
+      }
 
-      if(!path || path === "/" || !path.includes("/")) {
-         if(path === "/" && data.scope === AssetConstants.USER_SCOPE + "") {
-            this.currentFolderPathScope = AssetConstants.GLOBAL_SCOPE + "";
+      const asset = this.findAsset(this.pendingWorksheetSelection.path);
+
+      if(!asset || `${asset.scope}` !== this.pendingWorksheetSelection.scope) {
+         return;
+      }
+
+      this.selectFile(asset, false);
+      this.dataDetailsPaneService.clearWorksheetSelectionRequest();
+   }
+
+   getRootBlockLabel(block: WorksheetRootBlockInfo): string {
+      if(block.kind === "connected") {
+         const prefix = block.sourceInfo?.prefix;
+         const source = block.sourceInfo?.source;
+
+         if(prefix && source) {
+            return `${source} (${prefix})`;
          }
-
-         path = "";
+         else if(source) {
+            return source;
+         }
+         else if(prefix) {
+            return prefix;
+         }
       }
-      else {
-         path = path.substring(0, path.lastIndexOf("/"));
+
+      return block.name;
+   }
+
+   getRootBlockMeta(block: WorksheetRootBlockInfo): string {
+      if(block.kind === "embedded") {
+         return "_#(Embedded Data)";
       }
 
-      this.refreshFolderBrowser(path, data.path);
+      return block.sourceInfo?.dataSourceType || "_#(Connected Data Source)";
+   }
+
+   getRootBlockFieldType(field: WorksheetRootBlockFieldInfo): string {
+      return field?.type || "unknown";
+   }
+
+   getDependentAssetTypeLabel(asset: WorksheetDependentAssetInfo): string {
+      return asset?.type === "dashboard" ? "_#(Dashboard)" : "_#(Viewsheet)";
+   }
+
+   private loadWorksheetDetails(): void {
+      this.primaryBlock = null;
+      this.transformationSummary = "";
+      this.usedBy = [];
+      this.rootBlocks = [];
+
+      if(!this.selectedFile?.path || this.selectedFile?.scope == null) {
+         this.loadingWorksheetDetails = false;
+         return;
+      }
+
+      this.loadingWorksheetDetails = true;
+      const params = new HttpParams()
+         .set("path", this.selectedFile.path)
+         .set("scope", `${this.selectedFile.scope}`);
+
+      this.httpClient.get<WorksheetRootBlocksSummary>("../api/portal/data/worksheet/root-blocks", {params})
+         .subscribe({
+            next: (summary) => {
+               this.primaryBlock = summary?.primaryBlock || null;
+               this.transformationSummary = summary?.transformationSummary || "";
+               this.usedBy = summary?.usedBy || [];
+               this.rootBlocks = summary?.rootBlocks || [];
+               this.loadingWorksheetDetails = false;
+            },
+            error: () => this.loadingWorksheetDetails = false
+         });
    }
 }

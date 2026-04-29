@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <modal-header [title]="'_#(Add Expression)'"
-              [cshid]="'AddExpression'"
+              [helpURL]="scriptHelpUrl"
               (onCancel)="cancel()">
 </modal-header>
 <div class="modal-body">
@@ -44,7 +44,7 @@
     </div>
     <div class="form-group">
       <div class="script-container">
-        <script-pane [sql]="true" [expression]="expression"
+        <script-pane [sql]="true" [showHelp]="false" [expression]="expression"
                      (expressionChange)="updateExpression($event)"
                      [columnTreeRoot]="columnTreeRoot"
                      [columnTreeEnabled]="!!columnTreeRoot"
@@ -63,7 +63,7 @@
   <button type="button" class="btn btn-primary" (click)="ok()"
           [disabled]="!form.valid || expression == null || expression.length == 0">_#(OK)
   </button>
-  <button type="button" class="btn btn-secondary" data-dismiss="modal" (click)="cancel()">_#(Cancel)
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)
   </button>
 </div>
 <notifications #notifications class="notifications-physical-model" [timeout]="5000"></notifications>

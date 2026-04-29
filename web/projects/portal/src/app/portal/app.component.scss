@@ -50,6 +50,22 @@
       pointer-events: none;
     }
 
+    &.disabled.portal-nav-item--explain-disabled {
+      pointer-events: auto;
+
+      &:hover {
+        background-color: transparent;
+
+        &, a, i {
+          color: var(--inet-portal-navbar-text-color);
+        }
+      }
+
+      > a.nav-link {
+        cursor: default;
+      }
+    }
+
     &.home {
       opacity: 1;
     }

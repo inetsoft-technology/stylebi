@@ -16,6 +16,22 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div class="portal-schedule-task-list">
+  <div class="schedule-task-list-header bg-white4">
+    <div class="schedule-task-list-header__title">_#(Schedule Tasks)</div>
+    <div class="schedule-task-list-header__actions" [class.disable-actions-fade]="loading">
+      <button type="button" class="btn btn-primary" (click)="newTask()" [disabled]="!isCreateTaskEnabled()">_#(New Task)</button>
+      <button type="button" class="btn btn-default ms-2" (click)="loadTasks(true)">_#(Refresh List)</button>
+      <button type="button" class="btn btn-default ms-2"
+              (click)="moveTasks()"
+              [disabled]="(showTasksAsList || !removeEnable())">
+        _#(Move)
+      </button>
+      <button type="button" class="btn btn-default ms-2"
+              (click)="removeItems()" [disabled]="!removeEnable()">
+        _#(Delete)
+      </button>
+    </div>
+  </div>
   <div class="portal-task-list-container">
     <div class="portal-task-list-items">
       <split-pane [sizes]="[INIT_TREE_PANE_SIZE, 100 - INIT_TREE_PANE_SIZE]"
@@ -128,18 +144,5 @@
         </div>
       </split-pane>
     </div>
-  </div>
-  <div class="schedule-task-list-actions" [class.disable-actions-fade]="loading">
-    <button type="button" class="btn btn-primary" (click)="newTask()" [disabled]="!isCreateTaskEnabled()">_#(New Task)</button>
-    <button type="button" class="btn btn-default ms-2" (click)="loadTasks(true)">_#(Refresh List)</button>
-    <button type="button" class="btn btn-default ms-2"
-            (click)="moveTasks()"
-            [disabled]="(showTasksAsList || !removeEnable())">
-      _#(Move)
-    </button>
-    <button type="button" class="btn btn-default ms-2"
-            (click)="removeItems()" [disabled]="!removeEnable()">
-      _#(Delete)
-    </button>
   </div>
 </div>

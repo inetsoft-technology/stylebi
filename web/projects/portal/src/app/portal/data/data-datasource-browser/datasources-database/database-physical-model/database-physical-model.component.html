@@ -16,41 +16,63 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div class="data-model-edit-pane">
-  <div class="d-flex data-model-toolbar">
-    <div class="data-model-title">
-      <i class="partition-icon"></i>
-      <span class="data-model-name" [attr.title]="displayTitle">
-        {{displayTitle}}
-      </span>
+  <div class="data-model-toolbar">
+    <div class="data-model-toolbar__main">
+      <div class="data-model-title">
+        <div class="data-model-title__text">
+          <div class="data-model-title__eyebrow">_#(Physical View)</div>
+          <span class="data-model-name" [attr.title]="displayTitle">
+            {{headerTitle}}
+          </span>
+        </div>
+      </div>
+      <div class="data-model-title__subtitle">
+        {{headerSubtitle}}
+      </div>
     </div>
-    <div class="btn-group btn-group-sm px-2 py-1" *ngIf="!joinEditing">
-      <button type="button" class="btn btn-light-no-bg" [attr.title]="'_#(Save)'"
-              [disabled]="!isModified" (click)="save()">
-        <i class="save-icon"></i>
+    <div class="data-model-toolbar__actions" *ngIf="!joinEditing">
+      <button type="button" class="btn btn-primary"
+              [disabled]="!isModified"
+              (click)="save()">
+        _#(Save)
+      </button>
+      <button type="button" class="btn btn-default"
+              (click)="close()">
+        _#(Close)
       </button>
     </div>
   </div>
   <div class="g-0 row data-model-edit-container split-content">
-    <split-pane #horizontalSplitPane direction="horizontal"
-                [sizes]="[INIT_TREE_PANE_SIZE, 100 - INIT_TREE_PANE_SIZE]"
-                class="split-pane data-model-horizontal-split" (onDrag)="splitPaneDragEnd()"
-                [gutterSize]="hiddenCollapsed ? 5 : 22"
-                [minSize]="0" [snapOffset]="0" [fullWidth]="true">
+      <split-pane #horizontalSplitPane direction="horizontal"
+                  [sizes]="[INIT_TREE_PANE_SIZE, 100 - INIT_TREE_PANE_SIZE]"
+                  class="split-pane data-model-horizontal-split" (onDrag)="splitPaneDragEnd()"
+                  [gutterSize]="hiddenCollapsed ? 1 : 22"
+                  [minSize]="0" [snapOffset]="0" [fullWidth]="true">
       <div class="data-model-left-top-pane split-content" #leftPane
            [class.data-model-left-pane-min-width]="!fullScreen">
         <split-pane #splitPane direction="vertical" [sizes]="DEFAULT_VERTICAL_SIZE"
                     class="split-pane" [minSize]="0" [snapOffset]="0" [gutterSize]="4">
           <div class="data-model-left-top-pane">
             <div class="data-model-header-pane">
-              <span class="font-weight-bold">_#(Tables)</span>
-              <div class="join-tree-toolbar">
-                <auto-collapse-toolbar [actions]="actions" [minEmpty]="50"
-                  ></auto-collapse-toolbar>
+              <span class="data-model-header-pane__title">_#(Tables)</span>
+              <div class="join-tree-toolbar toolbar-ghost-actions" role="toolbar" aria-label="_#(Tables)">
+                <ng-container *ngFor="let action of actions">
+                  <button *ngIf="action.visible()"
+                          type="button"
+                          class="btn btn-light-no-bg btn-sm"
+                          [ngClass]="action.buttonClass"
+                          [title]="!!action.tooltip ? action.tooltip() : ''"
+                          [disabled]="!action.enabled()"
+                          (click)="action.action()">
+                    <i [ngClass]="action.iconClass"></i>
+                  </button>
+                </ng-container>
               </div>
             </div>
             <div class="table-search-input ps-1">
               <input type="text" class="form-control search-input" name="_#(Data source name filter)"
                      placeholder="_#(Search)" [(ngModel)]="filterTablesString"
+                     (ngModelChange)="onSearchInputChange()"
                      (keyup.enter)="search()" [disabled]="joinEditing">
               <i *ngIf="filterTablesString" class="close-icon icon-size-medium icon-color-default"
                  aria-hidden="true" (click)="resetSearchMode()" [class.disabled]=joinEditing></i>
@@ -69,11 +91,11 @@
             </div>
             <loading-indicator-pane [show]="loadingTree && !modelInitializing">
             </loading-indicator-pane>
-            <div class="row outgoing-header-pane btn-toolbar bt-gray" role="toolbar">
-              <div class="col-10 pane-title">
+            <div class="outgoing-header-pane btn-toolbar" role="toolbar">
+              <div class="pane-title">
                 _#(data.physicalmodel.outgoingJoins)
               </div>
-              <div class="col-2 outgoing-toggle-btn"
+              <div class="outgoing-toggle-btn"
                    (click)="toggleRepositoryTreePane()"
                    title="_#(viewer.explorer.toggle)">
                 <i class="outgoing-toggle-icon"

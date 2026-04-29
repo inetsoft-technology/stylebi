@@ -15,12 +15,31 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+.data-model-folder-browser {
+  padding: 4px 0 0;
+}
+
+.data-model-folder-browser .breadcrumb {
+  padding: 0 0 8px;
+  background: transparent;
+  border-bottom: 1px solid var(--inet-default-border-color);
+}
+
+.data-model-folder-browser .list-group-item {
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+}
+
 .list-group.files-browser {
   overflow-y: auto;
   // Note: same height as used in previous agile
   height: 28vh;
   display: block;
   cursor: default;
+}
+
+.breadcrumb-item.active {
+  font-weight: 400;
 }
 
 ol {

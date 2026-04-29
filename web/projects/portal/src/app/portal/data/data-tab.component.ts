@@ -24,7 +24,6 @@ import {
 } from "../../../../../shared/ai-assistant/ai-assistant.service";
 import { RepositoryClientService } from "../../common/repository-client/repository-client.service";
 import { SplitPane } from "../../widget/split-pane/split-pane.component";
-import { AssetItem } from "./model/datasources/database/asset-item";
 import { DataDetailsPaneService } from "./services/data-details-pane.service";
 import { DataPhysicalModelService } from "./services/data-physical-model.service";
 
@@ -41,9 +40,9 @@ export class DataTabComponent implements OnInit, OnDestroy {
    treePaneSize: number = this.INIT_TREE_PANE_SIZE;
    treePaneCollapsed: boolean = false;
    private subscription: Subscription;
-   private detailsSubscription: Subscription = Subscription.EMPTY;
    public hiddenCollapsed: boolean = false;
-   selectedFile: AssetItem = null;
+   currentUrl: string = "";
+   searchView: boolean = false;
 
    constructor(private readonly physicalModelService: DataPhysicalModelService,
                private aiAssistantSerivice: AiAssistantService,
@@ -59,14 +58,19 @@ export class DataTabComponent implements OnInit, OnDestroy {
    }
 
    ngOnInit(): void {
-      this.detailsSubscription = this.dataDetailsPaneService.selectedFile$
-         .subscribe((selectedFile) => this.selectedFile = selectedFile);
-
+      this.currentUrl = this.router.url;
+      this.updateSearchView();
       this.subscription.add(this.router.events.subscribe((event) => {
-         if(event instanceof NavigationEnd &&
-            !event.urlAfterRedirects.startsWith("/portal/tab/data/folder"))
-         {
-            this.dataDetailsPaneService.clear();
+         if(event instanceof NavigationEnd) {
+            this.currentUrl = event.urlAfterRedirects;
+            this.updateSearchView();
+
+            if(!event.urlAfterRedirects.startsWith("/portal/tab/data/folder") &&
+               !event.urlAfterRedirects.startsWith("/portal/tab/data?") &&
+               event.urlAfterRedirects !== "/portal/tab/data")
+            {
+               this.dataDetailsPaneService.clear();
+            }
          }
       }));
    }
@@ -76,8 +80,18 @@ export class DataTabComponent implements OnInit, OnDestroy {
          this.subscription.unsubscribe();
          this.subscription = null;
       }
+   }
 
-      this.detailsSubscription.unsubscribe();
+   get showSearchResults(): boolean {
+      return this.searchView;
+   }
+
+   get showMainPane(): boolean {
+      return !this.isEmptyLandingRoute() || this.showSearchResults;
+   }
+
+   get showEmptyState(): boolean {
+      return this.isEmptyLandingRoute() && !this.showSearchResults;
    }
 
    toggleDataTreePane(): void {
@@ -110,7 +124,29 @@ export class DataTabComponent implements OnInit, OnDestroy {
       }
    }
 
-   closeDetailsPane(): void {
-      this.dataDetailsPaneService.clear();
+   private updateSearchView(): void {
+      const [path, query = ""] = this.currentUrl.split("?");
+      this.searchView = path.startsWith("/portal/tab/data/folder") &&
+         new URLSearchParams(query).has("query");
+   }
+
+   private isDatasourceLandingRoute(): boolean {
+      const [path, query = ""] = this.currentUrl.split("?");
+
+      if(path !== "/portal/tab/data/datasources") {
+         return false;
+      }
+
+      const params = new URLSearchParams(query);
+      return !params.has("path") && !params.has("scope") && !params.has("query");
+   }
+
+   private isEmptyLandingRoute(): boolean {
+      const [path, query = ""] = this.currentUrl.split("?");
+      const params = new URLSearchParams(query);
+      const isWorksheetLanding = path === "/portal/tab/data/folder" &&
+         !params.has("path") && !params.has("scope") && !params.has("query");
+
+      return isWorksheetLanding || this.isDatasourceLandingRoute();
    }
 }

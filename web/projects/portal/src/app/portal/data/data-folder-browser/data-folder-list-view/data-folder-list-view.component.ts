@@ -220,6 +220,12 @@ export class DataFolderListViewComponent {
       return this.multiObjectSelectList.isSelected(asset);
    }
 
+   isSelectedFile(asset: WorksheetBrowserInfo): boolean {
+      return !!asset && !!this.selectedFile &&
+         this.selectedFile.path === asset.path &&
+         this.selectedFile.type === asset.type;
+   }
+
    public getDateLabel(dateNumber: number, dateFormat: string): string {
       return DateTypeFormatter.getLocalTime(dateNumber,  dateFormat);
    }

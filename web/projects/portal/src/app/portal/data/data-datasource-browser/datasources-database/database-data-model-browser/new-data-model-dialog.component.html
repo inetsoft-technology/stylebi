@@ -1,0 +1,62 @@
+<!--
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2024  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+<modal-header [title]="'_#(New Data Model)'"
+              (onCancel)="cancel()">
+</modal-header>
+<div class="modal-body">
+  <div class="new-data-model-dialog__intro">
+    _#(Data models are built in stages. Start with a physical view, then create logical models and VPMs as needed.)
+  </div>
+
+  <div class="new-data-model-dialog__options">
+    <button type="button"
+            class="new-data-model-dialog__option new-data-model-dialog__option--primary"
+            (click)="select('physical')">
+      <div class="new-data-model-dialog__option-title">_#(Physical View)</div>
+      <div class="new-data-model-dialog__option-copy">
+        _#(Start here. Combine and shape source tables into the foundation for later models.)
+      </div>
+      <div class="new-data-model-dialog__option-action">_#(Create Physical View)</div>
+    </button>
+
+    <button type="button"
+            class="new-data-model-dialog__option"
+            [class.disabled]="!canCreateLogicalModel"
+            [disabled]="!canCreateLogicalModel"
+            (click)="select('logical')">
+      <div class="new-data-model-dialog__option-title">_#(Logical Model)</div>
+      <div class="new-data-model-dialog__option-copy">{{logicalModelHint}}</div>
+      <div class="new-data-model-dialog__option-action">_#(Create Logical Model)</div>
+    </button>
+
+    <button type="button"
+            class="new-data-model-dialog__option"
+            [class.disabled]="!canCreateVpm"
+            [disabled]="!canCreateVpm"
+            (click)="select('vpm')">
+      <div class="new-data-model-dialog__option-title">_#(VPM)</div>
+      <div class="new-data-model-dialog__option-copy">{{vpmHint}}</div>
+      <div class="new-data-model-dialog__option-action">_#(Create VPM)</div>
+    </button>
+  </div>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-default" (click)="cancel()">
+    _#(Cancel)
+  </button>
+</div>

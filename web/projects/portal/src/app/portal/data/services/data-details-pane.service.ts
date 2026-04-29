@@ -19,23 +19,43 @@ import { Injectable } from "@angular/core";
 import { BehaviorSubject, Observable } from "rxjs";
 import { AssetItem } from "../model/datasources/database/asset-item";
 
+export interface WorksheetSelectionRequest {
+   path: string;
+   scope: string;
+}
+
 @Injectable()
 export class DataDetailsPaneService {
    private readonly selectedFileSubject = new BehaviorSubject<AssetItem>(null);
+   private readonly worksheetSelectionRequestSubject =
+      new BehaviorSubject<WorksheetSelectionRequest>(null);
 
    get selectedFile$(): Observable<AssetItem> {
       return this.selectedFileSubject.asObservable();
-   }
-
-   get selectedFile(): AssetItem {
-      return this.selectedFileSubject.value;
    }
 
    setSelectedFile(selectedFile: AssetItem): void {
       this.selectedFileSubject.next(selectedFile);
    }
 
+   get worksheetSelectionRequest$(): Observable<WorksheetSelectionRequest> {
+      return this.worksheetSelectionRequestSubject.asObservable();
+   }
+
+   get worksheetSelectionRequest(): WorksheetSelectionRequest {
+      return this.worksheetSelectionRequestSubject.value;
+   }
+
+   requestWorksheetSelection(request: WorksheetSelectionRequest): void {
+      this.worksheetSelectionRequestSubject.next(request);
+   }
+
+   clearWorksheetSelectionRequest(): void {
+      this.worksheetSelectionRequestSubject.next(null);
+   }
+
    clear(): void {
       this.selectedFileSubject.next(null);
+      this.worksheetSelectionRequestSubject.next(null);
    }
 }

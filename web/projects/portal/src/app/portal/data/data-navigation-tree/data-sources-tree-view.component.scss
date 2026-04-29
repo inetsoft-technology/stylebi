@@ -15,7 +15,67 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+.data-tree-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.data-tree-switch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 10px 0;
+  border-bottom: 1px solid var(--inet-border-color, #d9d4c8);
+}
+
+.data-tree-switch__button {
+  border: 0;
+  background: transparent;
+  color: var(--inet-secondary-text-color, #6e6759);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  padding: 8px 10px;
+  border-bottom: 2px solid transparent;
+
+  &--active {
+    color: var(--inet-text-color, #2f2c25);
+    border-bottom-color: var(--inet-primary-color, #d7802b);
+  }
+}
+
+.repository-tree-toolbar {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  position: relative;
+}
+
+.data-tree-toolbar-label {
+  font-size: 12px;
+  color: var(--inet-secondary-text-color, #6e6759);
+}
+
+.search-container {
+  position: relative;
+  flex: 1 1 auto;
+
+  input {
+    padding-right: 28px;
+  }
+
+  .close-icon {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    cursor: pointer;
+  }
+}
+
 .tree-container {
+  flex: 1 1 auto;
   overflow-y: hidden;
   overflow-x: hidden;
 

@@ -1,4 +1,4 @@
-/*!
+﻿/*!
  * This file is part of StyleBI.
  * Copyright (C) 2024  InetSoft Technology
  *
@@ -123,7 +123,7 @@ table.scrollable-table {
   flex-shrink: 0;
 
   &:hover, &:active {
-    box-shadow: 3px 0 6px 0px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--inet-shadow-overlay);
   }
 }
 
@@ -204,13 +204,13 @@ table.scrollable-table {
   white-space: pre-wrap;
   word-wrap: break-word;
 
-  color: #555;
+  color: var(--inet-text-color);
   font-size: 12px;
-  background-color: #fff;
+  background-color: var(--inet-dialog-bg-color);
   border-radius: 1px;
-  box-shadow: 1px 2px 1px rgba(0, 0, 0, 0.22);
+  box-shadow: var(--inet-shadow-low);
   padding: 4px 6px;
-  border: 1px solid #d4d4d4;
+  border: 1px solid var(--inet-default-border-color);
   margin: 3px;
   //display: flex;
   //flex-direction: column;
@@ -221,13 +221,13 @@ table.scrollable-table {
   white-space: pre-wrap;
   word-wrap: break-word;
 
-  color: #555;
+  color: var(--inet-text-color);
   font-size: 12px;
-  background-color: #fff;
+  background-color: var(--inet-dialog-bg-color);
   border-radius: 1px;
-  box-shadow: 1px 2px 1px rgba(0, 0, 0, 0.22);
+  box-shadow: var(--inet-shadow-low);
   padding: 4px 6px;
-  border: 1px solid #d4d4d4;
+  border: 1px solid var(--inet-default-border-color);
   margin: 3px;
   //display: flex;
   //flex-direction: column;
@@ -384,3 +384,4 @@ $stacking-order: (
     transform: translateY(-100%);
   }
 }
+

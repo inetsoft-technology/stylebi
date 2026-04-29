@@ -20,7 +20,10 @@
               (onCancel)="cancel()">
 </modal-header>
 <div class="modal-body">
-  <form #joinForm="ngForm">
+  <div class="join-dialog__intro">
+    _#(Choose the source and target columns to define a relationship between these tables.)
+  </div>
+  <form #joinForm="ngForm" class="join-dialog__form">
     <div class="form-group form-floating">
         <select #selectFocus #columnCtrl="ngModel"
                 name="column"

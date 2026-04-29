@@ -20,6 +20,51 @@
   <div class="container-fluid h-100 flex-fixed-container">
     <div class="row flex-fixed-content content-spacing">
       <div [ngClass]="additionalVisible ? 'col-10' : 'col-12'">
+        <div class="editor-query-strip" *ngIf="database">
+          <div class="editor-query-strip__status">
+            <div class="editor-query-strip__label">_#(Status)</div>
+            <div class="editor-query-strip__badge"
+                 [class.is-ready]="dataSourceConnected === true"
+                 [class.is-unavailable]="dataSourceConnected === false">
+              <i class="editor-query-strip__status-icon" [ngClass]="queryStatusIconClass"></i>
+              {{queryStatusLabel}}
+            </div>
+          </div>
+          <div class="editor-query-strip__content">
+            <div class="editor-query-strip__message">{{queryStatusMessage}}</div>
+            <div class="editor-query-strip__actions">
+              <button type="button" class="btn btn-primary"
+                      [disabled]="!canCreateQuery"
+                      (click)="createQuery()">
+                _#(New Query)
+              </button>
+              <button type="button" class="btn btn-secondary"
+                      [disabled]="loadingDataSourceStatus || !currentDataSourcePath"
+                      (click)="refreshDataSourceStatus()">
+                _#(Refresh Status)
+              </button>
+              <button type="button" class="btn btn-secondary"
+                      [disabled]="!currentDataSourcePath"
+                      (click)="createPhysicalView()">
+                _#(New Data Model)
+              </button>
+              <div class="btn-toolbar toolbar-ghost-actions editor-query-strip__toolbar" role="toolbar">
+                <div class="btn-group" role="group">
+                  <i role="button" class="btn py-1 folder-move-icon"
+                     title="_#(Move)"
+                     [class.disabled]="!currentDataSourceInfo?.deletable"
+                     (click)="moveDataSource()">
+                  </i>
+                  <i role="button" class="btn py-1 trash-icon"
+                     title="_#(Delete)"
+                     [class.disabled]="!currentDataSourceInfo?.deletable"
+                     (click)="deleteDataSource()">
+                  </i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         <form #databaseForm="ngForm">
           <div class="form-group mt-2 form-floating">
             <input #input type="text" #nameCtrl="ngModel"
@@ -312,10 +357,10 @@
           </ng-container>
           <ng-container>
             <div class="testDiv">
-              <button class="btn btn-default buttonSize" type="button"
+              <button class="btn btn-secondary buttonSize" type="button"
                       (click)="testDatabase()">_#(Test Connection)
               </button>
-               <button class="btn btn-default buttonMargin" type="button"
+               <button class="btn btn-secondary buttonMargin" type="button"
                       (click)="refreshMetadata()">_#(Refresh Metadata)
                </button>
             </div>

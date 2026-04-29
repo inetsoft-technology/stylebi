@@ -21,17 +21,28 @@
 </modal-header>
 <div class="modal-body">
   <form [formGroup]="form">
-    <div class="form-group form-floating">
-      <select #selectFocus class="form-control"
-              formControlName="parent"
-              [class.is-invalid]="!!parentControl.errors"
-              (ngModelChange)="entityChange($event)">
-        <option *ngFor="let entity of entities; let i = index" [value]="i">{{ entity.name }}</option>
-      </select>
+    <div class="form-group form-floating" #entityDropdown="ngbDropdown" ngbDropdown [autoClose]="true">
+      <input type="text" class="form-control input-dropdown"
+             [value]="selectedEntityName"
+             [class.is-invalid]="!!parentControl.errors"
+             [disabled]="parentControl.disabled"
+             readonly
+             ngbDropdownToggle
+             #selectFocus>
+      <div class="caret-down-icon dropdown-caret"></div>
       <label><span>_#(data.logicalmodel.parentEntity)</span></label>
       <span class="invalid-feedback" *ngIf="parentControl.getError('required')">
         _#(data.logicalmodel.parentEntityRequired)
       </span>
+      <div ngbDropdownMenu>
+        <button *ngFor="let entity of entities; let i = index"
+                type="button"
+                class="dropdown-item"
+                [class.selected]="parent === i"
+                (click)="selectEntity(i, entityDropdown)">
+          {{ entity.name }}
+        </button>
+      </div>
     </div>
     <div class="form-group">
       <div class="form-floating">
@@ -50,6 +61,6 @@
 <div class="modal-footer">
   <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!!form.errors" >_#(OK)
   </button>
-  <button type="button" class="btn btn-secondary" data-dismiss="modal" (click)="cancel()">_#(Cancel)
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)
   </button>
 </div>

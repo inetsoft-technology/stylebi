@@ -19,6 +19,46 @@
   <div class="h-100 container-fluid flex-fixed-container">
     <div class="row flex-fixed-content">
       <div class="col-10 col-sm-8">
+        <div class="editor-query-strip">
+          <div class="editor-query-strip__status">
+            <div class="editor-query-strip__label">_#(Status)</div>
+            <div class="editor-query-strip__badge"
+                 [class.is-ready]="dataSourceConnected === true"
+                 [class.is-unavailable]="dataSourceConnected === false">
+              <i class="editor-query-strip__status-icon" [ngClass]="queryStatusIconClass"></i>
+              {{queryStatusLabel}}
+            </div>
+          </div>
+          <div class="editor-query-strip__content">
+            <div class="editor-query-strip__message">{{queryStatusMessage}}</div>
+            <div class="editor-query-strip__actions">
+              <button type="button" class="btn btn-primary"
+                      [disabled]="!canCreateQuery"
+                      (click)="createQuery()">
+                _#(New Query)
+              </button>
+              <button type="button" class="btn btn-secondary"
+                      [disabled]="loadingDataSourceStatus || !datasourcePath"
+                      (click)="refreshDataSourceStatus()">
+                _#(Refresh Status)
+              </button>
+              <div class="btn-toolbar toolbar-ghost-actions editor-query-strip__toolbar" role="toolbar">
+                <div class="btn-group" role="group">
+                  <i role="button" class="btn py-1 folder-move-icon"
+                     title="_#(Move)"
+                     [class.disabled]="!currentDataSourceInfo?.deletable"
+                     (click)="moveDataSource()">
+                  </i>
+                  <i role="button" class="btn py-1 trash-icon"
+                     title="_#(Delete)"
+                     [class.disabled]="!currentDataSourceInfo?.deletable"
+                     (click)="deleteDataSource()">
+                  </i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         <datasources-datasource-editor
           [datasource]="datasource"
           (datasourceChanged)="datasourceChanged($event)"

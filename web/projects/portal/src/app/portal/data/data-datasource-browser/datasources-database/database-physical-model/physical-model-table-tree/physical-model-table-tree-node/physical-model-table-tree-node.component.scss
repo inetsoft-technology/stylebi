@@ -27,6 +27,19 @@ physical-model-table-tree-node:first-of-type > .physical-model-table-tree-node {
   padding-top: 4px;
 }
 
+.form-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 0;
+
+  .form-check-input {
+    float: none;
+    margin: 0;
+    flex-shrink: 0;
+  }
+}
+
 .form-check-top {
-	margin-top: 3px;
+  margin-top: 0;
 }

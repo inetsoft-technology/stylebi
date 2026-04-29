@@ -132,6 +132,7 @@ public class PortalController {
          .reportEnabled(true)
          .composerEnabled(creationModel.composerEnabled())
          .dashboardEnabled(creationModel.dashboardEnabled())
+         .securityEnabled(securityEngine.isSecurityEnabled())
          .customLogo(manager.hasCustomLogo(OrganizationManager.getInstance().getCurrentOrgID()))
          .helpURL(Tool.getHelpBaseURL())
          .logoutUrl(logoutUrl)

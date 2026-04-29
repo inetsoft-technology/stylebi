@@ -60,7 +60,7 @@ export class DashboardTabComponent implements OnInit, OnDestroy {
                route: ActivatedRoute,
                private http: HttpClient,
                private hideNavService: HideNavService,
-               dashboardService: DashboardService,
+               private dashboardService: DashboardService,
                currentRouteService: CurrentRouteService,
                private assetLoadingService: AssetLoadingService,
                private aiAssistantService: AiAssistantService)
@@ -87,6 +87,7 @@ export class DashboardTabComponent implements OnInit, OnDestroy {
       this.subscriptions.add(route.data.subscribe(
          (data) => {
             this.model = data.dashboardTabModel;
+            this.dashboardService.dashboardTabModelChanged.emit(this.model);
             this.updateSelectedDashboard();
          }
       ));
@@ -178,7 +179,10 @@ export class DashboardTabComponent implements OnInit, OnDestroy {
 
    private updateModel(): Observable<DashboardTabModel> {
       return this.modelService.getModel<DashboardTabModel>(DASHBOARD_TAB_MODEL_URI).pipe(
-         tap((model) => this.model = model)
+         tap((model) => {
+            this.model = model;
+            this.dashboardService.dashboardTabModelChanged.emit(model);
+         })
       );
    }
 
@@ -194,12 +198,19 @@ export class DashboardTabComponent implements OnInit, OnDestroy {
       const dialog = ComponentTool.showDialog(this.modalService, EditDashboardDialog, (result: DashboardModel) => {
             this.updateModel().subscribe((model) => {
                if(model.dashboards.length > 0) {
-                  for(let i = 0; i < model.dashboards.length; i++) {
-                     if(model.dashboards[i].name === result.name) {
-                        this.selectedDashboardIndex = i;
-                        this.selectDashboard(model.dashboards[i], true);
-                        break;
-                     }
+                  const dashboardIndex = model.dashboards.findIndex((db) =>
+                     db.name === result.name ||
+                     (!!result.identifier && db.identifier === result.identifier) ||
+                     (!!result.path && db.path === result.path)
+                  );
+
+                  if(dashboardIndex >= 0) {
+                     this.selectedDashboardIndex = dashboardIndex;
+                     this.selectDashboard(model.dashboards[dashboardIndex], true);
+                  }
+                  else {
+                     this.selectedDashboardIndex = model.dashboards.length - 1;
+                     this.selectDashboard(model.dashboards[this.selectedDashboardIndex], true);
                   }
                }
             });

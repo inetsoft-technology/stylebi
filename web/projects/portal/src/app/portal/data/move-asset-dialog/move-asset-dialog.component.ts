@@ -33,7 +33,8 @@ export const FAKE_ROOT_PATH: string = "_fake_root_";
 
 @Component({
    selector: "move-asset-dialog",
-   templateUrl: "move-asset-dialog.component.html"
+   templateUrl: "move-asset-dialog.component.html",
+   styleUrls: ["move-asset-dialog.component.scss"]
 })
 export class MoveAssetDialogComponent implements OnInit {
    @Input() originalPaths: string[] = [];

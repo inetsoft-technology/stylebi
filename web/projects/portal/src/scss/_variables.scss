@@ -1,4 +1,4 @@
-/*!
+﻿/*!
  * This file is part of StyleBI.
  * Copyright (C) 2024  InetSoft Technology
  *
@@ -69,11 +69,19 @@ $inet-drop-highlight: #66DD66;
  * otherwise, use color from theming section palette directly is ok.
  *
  * All bootstrap override variables in next section are also considered semantic meaning colors
+ *
+ * Support-family usage contract:
+ * - secondary, third, and fourth are constrained support families
+ * - do not use them as routine shell accents or generic action colors
+ * - prefer the corresponding *-soft and *-text aliases in component code
+ * - promote meaning through named aliases before reaching for raw family tokens
  */
-$third-color: $inet-yellow;           // any color coding necessary but doesn't fit with primary oranges and secondary blues
-$third-color-light: $inet-yellow-light;
-$fourth-color: $inet-green;           // last color coding option if third-color is already in use
-$fourth-color-light: $inet-green-light;
+$third-color: #B54B6E;                // constrained rose support family for recurring structural meaning
+$third-color-light: #F5DCEA;
+$third-color-text: #6B1F3A;
+$fourth-color: #1D8A86;               // constrained teal support family for recurring structural meaning
+$fourth-color-light: #D5EDEC;
+$fourth-color-text: #0F4E4C;
 
 $inet-gray-border: $inet-gray1;
 $selected-item-bg-color:  $inet-blue;
@@ -97,9 +105,10 @@ $modal-lg:        850px !default;
 $primary: $inet-orange;  // use for primary function in the current working area. Also for current focused element in current working area
 $primary-light: $inet-orange-light;
 $primary-dark: $inet-orange-dark;
-$secondary: #2F7E9E;  // semantic info blue (repositioned from teal #105e5a)
-$secondary-light: #DCEEF5;  // secondary soft surface
-$secondary-dark: #1D5368;  // secondary active/dark
+$secondary: #7455A8;  // constrained violet support family, not a routine shell accent
+$secondary-light: #EDE8F5;  // secondary soft surface
+$secondary-dark: #4E3378;  // secondary active/dark
+$secondary-text: #3D2070;  // text on secondary soft surface
 $success: $inet-green;
 $warning: $inet-yellow;
 $danger: $inet-red-dark;
@@ -305,15 +314,24 @@ $sqrt2: 1.41421356;
 
   --inet-primary-color-light: #{$primary-light};
   --inet-primary-color-dark: #{$primary-dark};
+  --inet-primary-soft-color: #F6E2C8;
+  --inet-primary-text-color: #4A2500;
 
   --inet-secondary-color-light: #{$secondary-light};
   --inet-secondary-color-dark: #{$secondary-dark};
+  --inet-secondary-soft-color: var(--inet-secondary-color-light);
+  --inet-secondary-active-color: var(--inet-secondary-color-dark);
+  --inet-secondary-text-color: #{$secondary-text};
 
   --inet-third-color-light: #{$third-color-light};
-  --inet-third-color-dark: #{darken($third-color, 10%)};
+  --inet-third-color-dark: #{$third-color-text};
+  --inet-third-soft-color: var(--inet-third-color-light);
+  --inet-third-text-color: #{$third-color-text};
 
-  --inet-fourth-color-light: #{lighten($fourth-color, 10%)};
-  --inet-fourth-color-dark: #{darken($fourth-color, 10%)};
+  --inet-fourth-color-light: #{$fourth-color-light};
+  --inet-fourth-color-dark: #{$fourth-color-text};
+  --inet-fourth-soft-color: var(--inet-fourth-color-light);
+  --inet-fourth-text-color: #{$fourth-color-text};
 
   --inet-success-color-light: #f8fdef;
   --inet-success-color-dark: #727f5a;
@@ -362,11 +380,21 @@ $sqrt2: 1.41421356;
   --inet-shadow-low: 0 1px 2px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.04);
   --inet-shadow-medium: 0 2px 4px rgba(0,0,0,.08), 0 1px 6px rgba(0,0,0,.05);
   --inet-shadow-overlay: 0 8px 16px rgba(0,0,0,.12), 0 4px 14px rgba(0,0,0,.08);
+  --inet-shadow-divider: inset 0 -1px 0 rgba(0,0,0,.08);
+
+  // overlays
+  --inet-overlay-scrim-bg-color: rgba(0, 0, 0, 0.3);
+  --inet-overlay-subtle-bg-color: rgba(0, 0, 0, 0.02);
+  --inet-overlay-hover-bg-color: rgba(0, 0, 0, 0.1);
 
   // focus
   --inet-focus-ring-width: 2px;
   --inet-focus-ring-color: rgba(229, 138, 42, 0.28);
 
+  // transient surfaces
+  --inet-splash-bg: var(--inet-dialog-bg-color);
+
   // float label default color - not configurable by user - is set to whatever pane it's in
   --inet-float-label-bg-color: var(--inet-main-panel-bg-color);
 }
+

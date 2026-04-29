@@ -67,6 +67,7 @@ export class DatasourceBrowserService {
     */
    public datasourceChanged = new EventEmitter<void>();
    public folderChanged = new EventEmitter<any>();
+   public refreshFolderStatusesRequested = new EventEmitter<string>();
    private physicalTablePermission: Observable<boolean>;
    onCreateEvent = new Subject<CreateEventInfo>();
 
@@ -83,7 +84,11 @@ export class DatasourceBrowserService {
    }
 
    changeFolder(path: string): void {
-      this.folderChanged.emit({path: path, type: PortalDataType.DATA_SOURCE_ROOT_FOLDER});
+      this.folderChanged.emit({path: path, scope: "0", type: PortalDataType.DATA_SOURCE_ROOT_FOLDER});
+   }
+
+   requestFolderStatusRefresh(path: string): void {
+      this.refreshFolderStatusesRequested.emit(path);
    }
 
    getPhysicalTablePermission(): Observable<boolean> {

@@ -33,8 +33,8 @@
               [title]="fullScreenTooltip"
               (click)="toggleFullScreen()">
         <i class="icon-size-small"
-           [class.maximize-icon]="!fullScreenView"
-           [class.collapse-icon]="fullScreenView">
+           [class.expand-icon]="!fullScreenView"
+           [class.contract-icon]="fullScreenView">
         </i>
       </button>
 
@@ -95,11 +95,11 @@
 
     <ng-container *ngIf="physicalGraph.joinEdit">
       <div class="join-edit-button-container">
-        <button type="button" class="btn btn-primary btn-sm" (click)="closeJoinEditPane(false)">
-          _#(Cancel)
-        </button>
         <button type="button" class="btn btn-primary btn-sm" (click)="closeJoinEditPane(true)">
           _#(Done)
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" (click)="closeJoinEditPane(false)">
+          _#(Cancel)
         </button>
       </div>
     </ng-container>

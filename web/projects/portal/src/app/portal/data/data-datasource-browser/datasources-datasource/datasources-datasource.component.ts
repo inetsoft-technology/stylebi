@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClient } from "@angular/common/http";
+import { HttpClient, HttpParams } from "@angular/common/http";
 import {ChangeDetectorRef, Component, HostListener, NgZone, OnDestroy, OnInit, ViewChild} from "@angular/core";
 import { ActivatedRoute, ParamMap, Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
@@ -24,6 +24,7 @@ import { FormValidators } from "../../../../../../../shared/util/form-validators
 import { DataSourceDefinitionModel } from "../../../../../../../shared/util/model/data-source-definition-model";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { ComponentTool } from "../../../../common/util/component-tool";
+import { GuiTool } from "../../../../common/util/gui-tool";
 import { DeleteDatasourceInfo } from "../../commands/delete-datasource-info";
 import { DataNotificationsComponent } from "../../data-notifications.component";
 import { InputNameDescDialog } from "../../input-name-desc-dialog/input-name-desc-dialog.component";
@@ -34,8 +35,13 @@ import {
 } from "../../../../widget/dialog/getting-started-dialog/service/getting-started.service";
 import { PortalDataType } from "../../data-navigation-tree/portal-data-type";
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
+import { WSObjectType } from "../../../../composer/dialog/ws/new-worksheet-dialog.component";
+import { DataSourceConnectionStatusRequest } from "../../model/data-source-connection-status-request";
+import { DataSourceStatus } from "../../model/data-source-status";
+import { DatasourceBrowserService } from "../datasource-browser.service";
 
 const DATASOURCES_URI: string = "../api/portal/data/datasources";
+const DATASOURCE_STATUSES_URI = "../api/data/datasources/statuses";
 
 export interface AdditionalInfo {
    name: string;
@@ -69,6 +75,11 @@ export class DatasourcesDatasourceComponent implements OnInit, OnDestroy{
    selectedAdditionalIndex: number[] = [];
    private routeParamSubscription: Subscription;
    enterprise: boolean;
+   private attemptingConnectionStatus: string = "_#(js:data.datasources.attemptingToConnectToDataSource)";
+   private failedConnectionStatus: string = "_#(js:data.datasources.problemRetrievingDataSourceStatus)";
+   dataSourceConnected: boolean = null;
+   dataSourceStatusMessage: string = null;
+   loadingDataSourceStatus = false;
 
    constructor(private httpClient: HttpClient,
                private modalService: NgbModal,
@@ -77,6 +88,7 @@ export class DatasourcesDatasourceComponent implements OnInit, OnDestroy{
                private zone: NgZone,
                private changeRef: ChangeDetectorRef,
                private appInfoService: AppInfoService,
+               private datasourceBrowserService: DatasourceBrowserService,
                private gettingStartedService: GettingStartedService)
    {
    }
@@ -101,6 +113,7 @@ export class DatasourcesDatasourceComponent implements OnInit, OnDestroy{
                      this.datasource = data;
                      this.defaultDataSource = Tool.clone(this.datasource);
                      this.originalDatasource = Tool.clone(this.datasource);
+                     this.loadDataSourceStatus();
                   });
             }
             else if(!!this.datasourceType) {
@@ -111,9 +124,10 @@ export class DatasourcesDatasourceComponent implements OnInit, OnDestroy{
                      data => {
                            // Run change detection to set the datasource
                            this.zone.run(() => {
-                              this.datasource = data;
+                           this.datasource = data;
                               this.defaultDataSource = Tool.clone(this.datasource);
                               this.originalDatasource = Tool.clone(this.datasource);
+                              this.loadDataSourceStatus();
                            });
                      },
                      () => {
@@ -141,6 +155,7 @@ export class DatasourcesDatasourceComponent implements OnInit, OnDestroy{
                this.updateAdditionalList();
                this.defaultDataSource = Tool.clone(this.datasource);
                this.originalDatasource = Tool.clone(this.datasource);
+               this.loadDataSourceStatus();
             },
             (error) => {
                if(error.status == 403) {
@@ -163,6 +178,109 @@ export class DatasourcesDatasourceComponent implements OnInit, OnDestroy{
       }
    }
 
+   get canCreateQuery(): boolean {
+      return !!this.datasourcePath && this.dataSourceConnected === true;
+   }
+
+   get queryStatusLabel(): string {
+      if(!this.datasourcePath) {
+         return "Save first";
+      }
+
+      if(this.loadingDataSourceStatus) {
+         return "Checking";
+      }
+
+      if(this.dataSourceConnected === true) {
+         return "Healthy";
+      }
+
+      if(this.dataSourceConnected === false) {
+         return "Unavailable";
+      }
+
+      return "Unknown";
+   }
+
+   get queryStatusMessage(): string {
+      if(!this.datasourcePath) {
+         return "Save this data source first, then create a new query from it.";
+      }
+
+      if(this.loadingDataSourceStatus) {
+         return "Checking connection health for this data source.";
+      }
+
+      if(this.dataSourceConnected === true) {
+         return "Connection is healthy. Create a new query from this data source.";
+      }
+
+      return this.dataSourceStatusMessage
+         || "This data source is not currently healthy. Fix the connection before creating a query.";
+   }
+
+   get queryStatusIconClass(): string {
+      if(!this.datasourcePath || this.loadingDataSourceStatus) {
+         return "help-question-mark-icon";
+      }
+
+      return this.dataSourceConnected ? "submit-icon" : "alert-circle-icon";
+   }
+
+   createQuery(): void {
+      if(!this.canCreateQuery) {
+         return;
+      }
+
+      const params = new HttpParams()
+         .set("wsWizard", "true")
+         .set("baseDataSource", this.datasourcePath)
+         .set("baseDataSourceType", `${WSObjectType.TABULAR}`);
+      GuiTool.openBrowserTab("composer", params);
+   }
+
+   refreshDataSourceStatus(): void {
+      if(this.loadingDataSourceStatus || !this.datasourcePath) {
+         return;
+      }
+
+      this.loadDataSourceStatus();
+   }
+
+   moveDataSource(): void {
+      const datasource = this.currentDataSourceInfo;
+
+      if(!datasource || !(datasource.editable && datasource.deletable)) {
+         return;
+      }
+
+      this.datasourceBrowserService.moveDataSource(datasource, this.parentPath,
+         () => {
+            this.datasourceBrowserService.refreshTree();
+            this.close(true);
+         },
+         (error) => this.dataNotifications.notifications.danger(error.error.message));
+   }
+
+   deleteDataSource(): void {
+      const datasource = this.currentDataSourceInfo;
+
+      if(!datasource || !datasource.deletable) {
+         return;
+      }
+
+      this.datasourceBrowserService.deleteDataSourceByInfo(datasource,
+         (type: string, message: string) => {
+            if(type === "success") {
+               this.datasourceBrowserService.refreshTree();
+               this.close(true);
+            }
+            else if(type === "danger") {
+               this.dataNotifications.notifications.danger(message);
+            }
+         });
+   }
+
    @HostListener("window:beforeunload", ["$event"])
    beforeunloadHandler(event) {
       if(JSON.stringify(this.datasource) != JSON.stringify(this.originalDatasource)) {
@@ -176,6 +294,37 @@ export class DatasourcesDatasourceComponent implements OnInit, OnDestroy{
       this.datasource = value;
       this.originalDatasource = Tool.clone(this.datasource);
       this.updateAdditionalList();
+   }
+
+   private loadDataSourceStatus(): void {
+      if(!this.datasourcePath) {
+         this.loadingDataSourceStatus = false;
+         this.dataSourceConnected = null;
+         this.dataSourceStatusMessage = null;
+         return;
+      }
+
+      this.loadingDataSourceStatus = true;
+      this.dataSourceStatusMessage = this.attemptingConnectionStatus;
+      const request = <DataSourceConnectionStatusRequest> {
+         paths: [this.datasourcePath],
+         updateStatus: true,
+         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      };
+
+      this.httpClient.post<DataSourceStatus[]>(DATASOURCE_STATUSES_URI, request)
+         .subscribe(
+            (statuses) => {
+               const status = statuses?.[0];
+               this.dataSourceConnected = status?.connected ?? false;
+               this.dataSourceStatusMessage = status?.message || this.failedConnectionStatus;
+            },
+            () => {
+               this.dataSourceConnected = false;
+               this.dataSourceStatusMessage = this.failedConnectionStatus;
+            },
+            () => this.loadingDataSourceStatus = false
+         );
    }
 
    canDeactivate(): Observable<boolean> | Promise<boolean> | boolean {
@@ -199,6 +348,28 @@ export class DatasourcesDatasourceComponent implements OnInit, OnDestroy{
       }
 
       return null;
+   }
+
+   get currentDataSourceInfo(): DataSourceInfo {
+      if(!this.datasourcePath) {
+         return null;
+      }
+
+      return {
+         name: this.datasource.name || this.originalName,
+         path: this.datasourcePath,
+         type: {
+            name: this.datasourceType || PortalDataType.DATA_SOURCE,
+            label: this.datasourceType || PortalDataType.DATA_SOURCE
+         },
+         createdBy: null,
+         createdDate: 0,
+         createdDateLabel: "",
+         dateFormat: "",
+         editable: true,
+         deletable: this.datasource.deletable,
+         hasSubFolder: false
+      };
    }
 
    updateAdditionalList() {

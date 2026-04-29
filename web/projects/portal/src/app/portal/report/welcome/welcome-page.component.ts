@@ -17,7 +17,7 @@
  */
 import { Component, Input, OnDestroy, OnInit } from "@angular/core";
 import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
-import { ActivatedRoute } from "@angular/router";
+import { ActivatedRoute, Router } from "@angular/router";
 import { map, withLatestFrom } from "rxjs/operators";
 import { Subscription } from "rxjs";
 
@@ -31,10 +31,10 @@ export class WelcomePageComponent implements OnInit, OnDestroy {
    contentSource: SafeResourceUrl;
    showWelcome = false;
    licensedComponentMsg: string;
-   welcomeMsg: string;
    private routeSubscription: Subscription;
 
-   constructor(private route: ActivatedRoute, private sanitationService: DomSanitizer) {
+   constructor(private route: ActivatedRoute, private sanitationService: DomSanitizer,
+               private router: Router) {
       this.routeSubscription = route.parent.data.pipe(
          map((data) => {
             this.welcomePageUri = data.reportTabModel.welcomePageUri;
@@ -49,18 +49,35 @@ export class WelcomePageComponent implements OnInit, OnDestroy {
    }
 
    ngOnInit(): void {
-      // if custom welcome page exists then show it
       if(this.welcomePageUri) {
          this.contentSource = this.sanitationService
             .bypassSecurityTrustResourceUrl(this.welcomePageUri);
       }
-
-      this.welcomeMsg = this.licensedComponentMsg ? "_#(js:viewer.welcomePage.openDes)" : "";
    }
 
    ngOnDestroy(): void {
       if(this.routeSubscription) {
          this.routeSubscription.unsubscribe();
       }
+   }
+
+   navigateToScheduleTab(): void {
+      this.router.navigate(["/portal/tab/schedule"]);
+   }
+
+   navigateToRepository(): void {
+      this.router.navigate(["/portal/tab/report"], { queryParams: { hideWelcomePage: "true" } });
+   }
+
+   navigateToPinboard(): void {
+      this.router.navigate(["/portal/tab/dashboard"]);
+   }
+   
+   navigateToDataSources(): void {
+      this.router.navigate(["/portal/tab/data/datasources"]);
+   }
+
+   navigateToWorksheets(): void {
+      this.router.navigate(["/portal/tab/data/folder"]);
    }
 }

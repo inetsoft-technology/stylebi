@@ -23,6 +23,10 @@
   cursor: default;
 }
 
+.breadcrumb-item.active {
+  font-weight: 400;
+}
+
 ol {
   overflow: hidden;
 }

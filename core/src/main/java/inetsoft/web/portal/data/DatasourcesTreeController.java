@@ -22,16 +22,28 @@ import inetsoft.sree.security.ResourceType;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
+import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.security.Principal;
 
 @RestController
-public class DatasourcesTreeController {
+public class DatasourcesTreeController implements ApplicationContextAware {
+   public DatasourcesTreeController() {
+   }
+
    @Autowired
    public DatasourcesTreeController(DatasourcesTreeService datasourcesTreeService) {
+      this.datasourcesTreeService = datasourcesTreeService;
+   }
+
+   @Autowired
+   public void setDatasourcesTreeService(DatasourcesTreeService datasourcesTreeService) {
       this.datasourcesTreeService = datasourcesTreeService;
    }
 
@@ -42,8 +54,38 @@ public class DatasourcesTreeController {
       actions = ResourceAction.ACCESS
    ))
    public TreeNodeModel getDataNavigationTree(Principal principal) throws Exception {
-      return datasourcesTreeService.getRoot(principal);
+      DatasourcesTreeService treeService = getDatasourcesTreeService();
+      return treeService == null ? TreeNodeModel.builder().build() : treeService.getRoot(principal);
    }
 
-   private final DatasourcesTreeService datasourcesTreeService;
+   @GetMapping("api/portal/data/tree/search")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
+   public TreeNodeModel searchDataNavigationTree(@RequestParam("searchString") String searchString,
+                                                 Principal principal)
+      throws Exception
+   {
+      DatasourcesTreeService treeService = getDatasourcesTreeService();
+      return treeService == null ? TreeNodeModel.builder().build() :
+         treeService.search(searchString, principal);
+   }
+
+   @Override
+   public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+      this.applicationContext = applicationContext;
+   }
+
+   private DatasourcesTreeService getDatasourcesTreeService() {
+      if(this.datasourcesTreeService == null && this.applicationContext != null) {
+         this.datasourcesTreeService = this.applicationContext.getBean(DatasourcesTreeService.class);
+      }
+
+      return this.datasourcesTreeService;
+   }
+
+   private DatasourcesTreeService datasourcesTreeService;
+   private ApplicationContext applicationContext;
 }

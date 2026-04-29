@@ -27,6 +27,7 @@
    height: 40px;
    line-height: 40px;
    width: 100%;
+   background: var(--inet-main-panel-bg-color);
 }
 
 .physical-graph-container {
@@ -44,12 +45,13 @@
 
 .join-edit-button-container {
    display: flex;
-   flex-direction: row-reverse;
+   flex-direction: row;
    flex-grow: 1;
+   justify-content: flex-end;
+   gap: 10px;
 
    button {
       min-width: 120px;
-      margin-left: 10px;
    }
 }
 

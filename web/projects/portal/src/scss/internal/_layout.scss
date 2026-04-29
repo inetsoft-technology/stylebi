@@ -1,4 +1,4 @@
-/*!
+﻿/*!
  * This file is part of StyleBI.
  * Copyright (C) 2024  InetSoft Technology
  *
@@ -236,7 +236,7 @@ div.CodeMirror {
   align-content: center;
 
   active {
-    background: #ccc !important;
+    background: var(--inet-input-disabled-bg-color) !important;
   }
 }
 
@@ -295,7 +295,7 @@ table.table-layout-fixed {
 
 //background not themeable
 .loading-container {
-  background: rgba(#000, 0.3);
+  background: var(--inet-overlay-scrim-bg-color);
   width: 100%;
   height: 100%;
   display: flex;
@@ -440,3 +440,4 @@ li.active, a.active {
   font-size: 1.2em;
   color: var(--inet-primary-color);
 }
+

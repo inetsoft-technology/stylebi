@@ -30,6 +30,42 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
+    background-color: var(--inet-main-panel-background, #f6f4ed);
+
+    .schedule-task-list-header {
+      flex-grow: 0;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 40px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--inet-default-border-color);
+    }
+
+    .schedule-task-list-header__title {
+      min-width: 0;
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--inet-shell-text-muted, var(--inet-text-color));
+    }
+
+    .schedule-task-list-header__actions {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      margin-left: auto;
+
+      .btn {
+        min-height: 30px;
+        padding: 4px 10px;
+        font-size: 12px;
+        line-height: 1.2;
+      }
+    }
 
     .portal-task-list-container {
       flex-grow: 1;
@@ -37,6 +73,7 @@
       display: flex;
       flex-direction: column;
       min-height: 0;
+      background-color: var(--inet-main-panel-background, #f6f4ed);
 
       .portal-task-list-items {
         flex-grow: 1;
@@ -80,8 +117,10 @@
                 }
 
                 > thead th {
+                  padding: 10px 12px;
                   background-color: var(--inet-toolbar-bg-color);
                   color: var(--inet-text-color);
+                  font-weight: 500;
                 }
 
                 > tbody {
@@ -94,16 +133,21 @@
                   display: table;
                   width: 100%;
                   table-layout: fixed;
+                  transition: background-color 120ms ease, color 120ms ease;
+                }
+
+                > tbody tr:hover > td {
+                  background-color: var(--inet-hover-bg-color, #f1ece1);
                 }
 
                 > tbody tr.selected {
-                  background-color: var(--inet-main-panel-bg-color);
-                  color: var(--inet-text-color);
+                  background-color: var(--inet-selected-item-bg-color, #eee7db);
+                  color: var(--inet-selected-item-text-color, var(--inet-text-color));
                 }
 
                 > tbody tr.selected > td {
-                  background-color: var(--inet-main-panel-bg-color);
-                  color: var(--inet-text-color);
+                  background-color: var(--inet-selected-item-bg-color, #eee7db);
+                  color: var(--inet-selected-item-text-color, var(--inet-text-color));
                 }
 
                 > thead th,
@@ -112,6 +156,54 @@
                   overflow: hidden;
                   text-overflow: ellipsis;
                   vertical-align: middle;
+                }
+
+                > tbody td {
+                  padding: 9px 12px;
+                }
+
+                > thead th[sortColumn] {
+                  cursor: pointer;
+                  user-select: none;
+                }
+
+                > thead th[sortColumn] .sort-column-sort-icon {
+                  display: inline-flex !important;
+                  position: relative;
+                  width: 10px;
+                  height: 12px;
+                  margin-left: 4px;
+                  vertical-align: middle;
+                  color: var(--inet-secondary-text-color, #6e6759);
+                  font-size: 0;
+                }
+
+                > thead th[sortColumn] .sort-column-sort-icon::before,
+                > thead th[sortColumn] .sort-column-sort-icon::after {
+                  position: absolute;
+                  left: 0;
+                  font-size: 9px;
+                  line-height: 1;
+                }
+
+                > thead th[sortColumn] .sort-column-sort-icon::before {
+                  content: "\2303";
+                  top: -1px;
+                }
+
+                > thead th[sortColumn] .sort-column-sort-icon::after {
+                  content: "\2304";
+                  bottom: -1px;
+                }
+
+                > thead th[sortColumn] .sort-column-sort-icon.sort-ascending-icon::before,
+                > thead th[sortColumn] .sort-column-sort-icon.sort-descending-icon::after {
+                  opacity: 1;
+                }
+
+                > thead th[sortColumn] .sort-column-sort-icon.sort-ascending-icon::after,
+                > thead th[sortColumn] .sort-column-sort-icon.sort-descending-icon::before {
+                  opacity: 0.22;
                 }
 
                 .schedule-container {
@@ -128,6 +220,7 @@
 
                 .actiones-container {
                   width: 15% !important;
+                  text-align: right;
                 }
 
                 .status-container {
@@ -166,17 +259,6 @@
         }
       }
 
-    }
-
-    .schedule-task-list-actions {
-      flex-grow: 0;
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      gap: 0;
-      padding: 12px 16px;
-      border-top: 1px solid var(--inet-default-border-color);
-      background-color: var(--inet-portal-side-panel-bg-color);
     }
   }
 
@@ -258,9 +340,14 @@
     overflow-y: hidden;
     display: block;
     padding: 12px;
+    background-color: var(--inet-card-bg-color, #fff);
   }
 
   .btn.schedule-button {
     color: var(--inet-icon-color);
+
+    & + .schedule-button {
+      margin-left: 6px;
+    }
   }
 }

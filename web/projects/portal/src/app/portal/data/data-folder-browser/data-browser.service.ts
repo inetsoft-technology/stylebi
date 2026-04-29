@@ -96,7 +96,7 @@ export class DataBrowserService {
    changeFolder(path: string, scope: number): void {
       let folderType = scope == AssetEntryHelper.USER_SCOPE ?
          PortalDataType.PRIVATE_WORKSHEETS_FOLDER : PortalDataType.SHARED_WORKSHEETS_FOLDER;
-      this.folderChanged.emit({path: path, type: folderType});
+      this.folderChanged.emit({path: path, scope: scope, type: folderType});
    }
 
    renameAsset(asset: WorksheetBrowserInfo, handleResponseFun?: Function,

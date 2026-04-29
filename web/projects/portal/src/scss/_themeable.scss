@@ -1,4 +1,4 @@
-/*!
+﻿/*!
  * This file is part of StyleBI.
  * Copyright (C) 2024  InetSoft Technology
  *
@@ -183,7 +183,7 @@ body {
 
 /********************************** Background *********************************************/
 .bg-darken1 {
-  background-color: rgba(0, 0, 0, 0.1);
+  background-color: var(--inet-overlay-hover-bg-color);
 }
 
 .bg-darken2 {
@@ -228,14 +228,6 @@ body {
 
 .bg-danger-inet {
   background-color: var(--inet-danger-color);
-}
-
-.bg-third-color {
-  background-color: var(--inet-third-color);
-}
-
-.bg-third-color-light {
-  background-color: var(--inet-third-color-light);
 }
 
 .bg-selected {
@@ -449,7 +441,7 @@ body {
 }
 
 div.disable-link, a.disable-link {
-  color: #aaa !important;
+  color: var(--inet-text-subtle-color) !important;
   pointer-events: none;
 }
 
@@ -474,8 +466,10 @@ div.disable-link, a.disable-link {
   color: var(--inet-primary-color);
 }
 
+// Legacy support-color utility. Avoid using this for routine shell chrome;
+// prefer named support aliases or component-specific tokens.
 .txt-secondary {
-  color: var(--inet-secondary-color);
+  color: var(--inet-secondary-text-color);
 }
 
 .txt-highlight {
@@ -708,7 +702,7 @@ schema-column, edit-join-table-column {
   }
 
   &.schema-column-highlight {
-    border-bottom: 1px solid rgba(0, 0, 0, 0.25);
+    box-shadow: var(--inet-shadow-divider);
   }
 }
 
@@ -792,12 +786,37 @@ schema-column, edit-join-table-column {
 
 .icon-hover-bg {
   &:not([disabled]):hover {
-    background-color: rgba(229, 138, 42, 0.12);
+    background-color: var(--inet-primary-soft-color);
   }
 }
 
-.folder-action-toolbar .btn:not([disabled]):not(.disabled):hover {
-  background-color: rgba(229, 138, 42, 0.12);
+.toolbar-ghost-actions {
+  .btn {
+    min-width: 30px;
+    height: 30px;
+    padding: 0.25rem 0.5rem;
+    border: 0;
+    border-radius: 8px;
+    background-color: transparent;
+    color: var(--inet-icon-color);
+    box-shadow: none;
+    transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+
+    &:not([disabled]):not(.disabled):hover {
+      background-color: var(--inet-hover-secondary-bg-color);
+      color: var(--inet-hover-text-color);
+    }
+
+    &:not([disabled]):not(.disabled):focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--inet-primary-soft-color);
+    }
+
+    &.disabled,
+    &[disabled] {
+      background-color: transparent;
+    }
+  }
 }
 
 .img-button {
@@ -986,8 +1005,8 @@ binding-editor {
 }
 
 .dropdown-pane {
-  box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(0, 0, 0, .15);
+  box-shadow: var(--inet-shadow-medium);
+  border: 1px solid var(--inet-default-border-color);
 }
 
 .pagenote {
@@ -999,7 +1018,7 @@ binding-editor {
   top:5pt;
 }
 
-// Logo wave propagation — each wave ripples upward in sequence
+// Logo wave propagation â€” each wave ripples upward in sequence
 @keyframes loading-splash-wave {
   0%, 100% { transform: translateY(0); }
   50%       { transform: translateY(-7px); }
@@ -1012,7 +1031,7 @@ binding-editor {
 .loading-splash {
   position: fixed;
   inset: 0;
-  background: var(--inet-splash-bg, #fff);
+  background: var(--inet-splash-bg);
   display: none;
   flex-direction: column;
   align-items: center;
@@ -1061,7 +1080,7 @@ binding-editor {
     font-size: 0.875rem;
     font-weight: 500;
     letter-spacing: 0.01em;
-    color: rgba(0, 0, 0, 0.54);
+    color: var(--inet-text-muted-color);
     margin-top: 20px;
     padding: 0;
     line-height: 1;
@@ -1112,8 +1131,8 @@ binding-editor {
 }
 
 .bg-submit-default {
-  background-color: #eee;
-  border-color: #eee;
+  background-color: var(--inet-ui-neutral-hover-bg-color);
+  border-color: var(--inet-ui-neutral-hover-bg-color);
 }
 
 .tree-node-hover {
@@ -1150,7 +1169,7 @@ binding-editor {
 
 .explorer-tree {
   .hidden-details {
-    background-color: #c5c5c5;
+    background-color: var(--inet-input-disabled-bg-color);
   }
 }
 
@@ -1194,10 +1213,10 @@ binding-editor {
 }
 
 .collapse-pane-button {
-  background-color: rgba(0, 0, 0, 0.02);
+  background-color: var(--inet-overlay-subtle-bg-color);
 
   &:hover {
-    background-color: rgba(0, 0, 0, 0.1);
+    background-color: var(--inet-overlay-hover-bg-color);
   }
 }
 
@@ -1250,7 +1269,7 @@ binding-editor {
       left: 0;
       padding: 0;
       margin: 0;
-      background-color: rgba(0, 0, 0, 0.02);
+      background-color: var(--inet-overlay-subtle-bg-color);
     }
   }
 }
@@ -1283,7 +1302,7 @@ binding-editor {
   }
 
   // Normalize all items to 2px bottom border so content height is identical
-  // whether selected or not — keeps icons vertically centered with no shift.
+  // whether selected or not â€” keeps icons vertically centered with no shift.
   .bb-highlight-filler {
     border-bottom-width: 2px;
   }
@@ -1715,3 +1734,4 @@ wizard-main {
   padding: 0;
   border-radius: 50%;
 }
+

@@ -33,12 +33,6 @@
           <span class="visually-hidden">_#(Home)</span>
         </a>
       </li>
-      <ng-template
-        *ngIf="reportTabFirst; then reportTab; else dashboardTab">
-      </ng-template>
-      <ng-template
-        *ngIf="reportTabFirst; then dashboardTab; else reportTab">
-      </ng-template>
       <ng-template #reportTab>
         <li class="nav-item portal-nav-item"
             [class.disabled]="!getTab(PortalTabs.REPORT) && !getTab(PortalTabs.VIEWER)"
@@ -52,14 +46,35 @@
           </a>
         </li>
       </ng-template>
+      <ng-template
+        *ngIf="reportTabFirst; then reportTab; else dashboardTab">
+      </ng-template>
+      <li *ngIf="!mobile" [title]="getScheduleTabTooltip()"
+          class="nav-item portal-nav-item"
+          [class.disabled]="!getTab(PortalTabs.SCHEDULE)"
+          [class.bb-highlight-filler]="!isTabSelected(PortalTabs.SCHEDULE)"
+          [class.bb-highlight-primary]="isTabSelected(PortalTabs.SCHEDULE)">
+        <a class="nav-link nav-icon nav-icon-size" routerLink="{{getTab(PortalTabs.SCHEDULE)?.uri}}"
+           routerLinkActive="active" aria-label="_#(Schedule)">
+          <i class="datetime-field-icon nav-icon-size portal-toolbar-icon" aria-hidden="true"></i>
+          <span class="visually-hidden">_#(Schedule)</span>
+        </a>
+      </li>
+      <ng-template
+        *ngIf="reportTabFirst; then dashboardTab; else reportTab">
+      </ng-template>
       <ng-template #dashboardTab>
         <li [title]="getDashboardTabTooltip()"
             class="nav-item portal-nav-item"
-            [class.disabled]="!getTab(PortalTabs.DASHBOARD)"
+            [class.disabled]="!canAccessDashboardTab()"
+            [class.portal-nav-item--explain-disabled]="showDisabledDashboardTab()"
             [class.bb-highlight-filler]="!isTabSelected(PortalTabs.DASHBOARD)"
             [class.bb-highlight-primary]="isTabSelected(PortalTabs.DASHBOARD)">
-          <a class="nav-link nav-icon nav-icon-size" routerLink="{{getTab(PortalTabs.DASHBOARD)?.uri}}"
-             routerLinkActive="active">
+          <a class="nav-link nav-icon nav-icon-size"
+             [routerLink]="canAccessDashboardTab() ? getTab(PortalTabs.DASHBOARD)?.uri : null"
+             routerLinkActive="active"
+             [attr.aria-disabled]="!canAccessDashboardTab()"
+             (click)="openDashboardTab($event)">
             <i class="viewsheet-book-icon nav-icon-size portal-toolbar-icon"></i>
             <span class="visually-hidden">_#(Dashboard)</span>
           </a>
@@ -76,26 +91,16 @@
           <span class="visually-hidden">_#(Custom Tabs)</span>
         </a>
       </li>
-      <li *ngIf="!mobile" [title]="getScheduleTabTooltip()"
-          class="nav-item portal-nav-item"
-          [class.disabled]="!getTab(PortalTabs.SCHEDULE)"
-          [class.bb-highlight-filler]="!isTabSelected(PortalTabs.SCHEDULE)"
-          [class.bb-highlight-primary]="isTabSelected(PortalTabs.SCHEDULE)">
-        <a class="nav-link nav-icon nav-icon-size" routerLink="{{getTab(PortalTabs.SCHEDULE)?.uri}}"
-           routerLinkActive="active" aria-label="_#(Schedule)">
-          <i class="datetime-field-icon nav-icon-size portal-toolbar-icon" aria-hidden="true"></i>
-          <span class="visually-hidden">_#(Schedule)</span>
-        </a>
-      </li>
       <li *ngIf="model.elasticLicenseExhausted" class="nav-item portal-nav-item">
         <span>_#(elastic.license.exhausted)</span>
       </li>
     </ul>
     <ul class="navbar-nav ms-auto">
-      <li *ngIf="!mobile && (model.newDatasourceEnabled || model.newWorksheetEnabled
-       || model.newViewsheetEnabled || model.reportEnabled)"
-          class="nav-item portal-nav-item bb-highlight-filler">
+      <li *ngIf="!mobile && shouldShowCreateButton()"
+          class="nav-item portal-nav-item bb-highlight-filler"
+          [class.disabled]="!hasEnabledCreateAction()">
         <a class="nav-link nav-icon nav-icon-size" [fixedDropdown]="addDropdown"
+           [disabled]="!hasEnabledCreateAction()"
            (click)="refreshCreationPermissions()"
            dropdownPlacement="bottom"
            title="_#(Create)">
@@ -106,25 +111,25 @@
         <ng-template #addDropdown>
           <ul role="menu" class="dropdown-pane portal-dropdown bt-highlight-primary">
             <li class="dropdown-item no-hover">_#(Create New):</li>
-            <li class="dropdown-item" [class.disabled]="!model.newDatasourceEnabled"
+            <li class="dropdown-item" [class.disabled]="!canCreateDataSource()"
                 (click)="showListings()">
               <i class="database-plus-icon icon-size-medium" aria-hidden="true"></i>
               <a class="p-2">_#(Data Source)</a>
             </li>
             <li class="dropdown-item"
-                [class.disabled]="!openComposerEnabled || !model.newWorksheetEnabled"
+                [class.disabled]="!canCreateWorksheet()"
                 (click)="openComposer(false)">
               <i class="worksheet-icon icon-size-medium" aria-hidden="true"></i>
               <a class="p-2">_#(Worksheet)</a>
             </li>
             <li class="dropdown-item"
-                [class.disabled]="!openComposerEnabled || !model.dashboardEnabled || !model.newViewsheetEnabled"
+                [class.disabled]="!canCreateViewsheet()"
                 (click)="openComposer(true)">
               <i class="viewsheet-icon icon-size-medium" aria-hidden="true"></i>
               <a class="p-2">_#(Dashboard)</a>
             </li>
             <li class="dropdown-item bt-gray"
-                [class.disabled]="!openComposerEnabled"
+                [class.disabled]="!canLaunchComposer()"
                 (click)="launchComposer()">
               <i class="composer-icon icon-size-medium" aria-hidden="true"></i>
               <a class="p-2">_#(Launch Composer)</a>

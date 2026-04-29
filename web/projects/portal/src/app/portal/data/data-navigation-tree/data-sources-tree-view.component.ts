@@ -53,6 +53,8 @@ import { DataBrowserService } from "../data-folder-browser/data-browser.service"
 import { DataNotificationsComponent } from "../data-notifications.component";
 import { DataSourceInfo } from "../model/data-source-info";
 import { WorksheetBrowserInfo } from "../model/worksheet-browser-info";
+import { SearchResultsModel } from "../model/search-results-model";
+import { SearchDataSourceResultsModel } from "../model/search-data-source-results-model";
 import { PortalDataType } from "./portal-data-type";
 import { FixedDropdownService } from "../../../widget/fixed-dropdown/fixed-dropdown.service";
 import { ValidatorFn, Validators } from "@angular/forms";
@@ -75,6 +77,8 @@ import { DomService } from "../../../widget/dom-service/dom.service";
 import { DataSourcesTreeActionsService } from "./data-sources-tree-actions.service";
 import { GettingStartedService } from "../../../widget/dialog/getting-started-dialog/service/getting-started.service";
 import { AppInfoService } from "../../../../../../shared/util/app-info.service";
+import { DataDetailsPaneService } from "../services/data-details-pane.service";
+import { SearchCommand } from "../commands/search-command";
 
 const DATA_FOLDERS_URI: string = "../api/data/folders/children/";
 const DATA_DATASOURCES_URI: string = "../api/data/datasources/nodes";
@@ -86,6 +90,17 @@ const VPM_CHECK_DUPLICATE_URI: string = "../api/data/vpm/checkDuplicate";
 const FOLDER_URI: string = "../api/data/folders";
 const DATA_URI: string = "../api/data/datasets";
 const CREATE_QUERY_URI = "/events/composer/ws/query/create";
+const DATA_SEARCH_URI = "../api/data/search/datasets";
+const DATASOURCE_SEARCH_URI = "../api/data/search/dataSources";
+
+interface SearchTreeBuilderNode {
+   key: string;
+   label: string;
+   node: TreeNodeModel;
+   children: Map<string, SearchTreeBuilderNode>;
+}
+
+type DataTreeSection = "worksheets" | "datasources";
 
 @Component({
    selector: "p-data-sources-tree-view",
@@ -98,6 +113,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
    @ViewChild("dataNotifications") dataNotifications: DataNotificationsComponent;
    @ViewChild("treeContainer") treeContainer: ElementRef;
    rootNode: TreeNodeModel;
+   searchRootNode: TreeNodeModel = null;
    private _oldRootNode: TreeNodeModel;
    private currentFolderPath: string = "";
    private subscriptions = new Subscription();
@@ -105,12 +121,15 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
    private initPath: string;
    private initScope: string;
    private searchView = false;
+   searchMode = false;
    private composedDashboard = false;
    scrollY = 0;
    PortalDataType = PortalDataType;
    loading: boolean = false;
    oldSelectedNode: TreeNodeModel;
    private enterprise: boolean;
+   searchString: string = null;
+   activeTreeSection: DataTreeSection = "datasources";
 
    datasetHome: TreeNodeModel = {
       label: "_#(js:Data)",
@@ -182,7 +201,8 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
                private domService: DomService,
                private dataSourcesTreeActionsService: DataSourcesTreeActionsService,
                private gettingStartedService: GettingStartedService,
-               private appInfoService: AppInfoService)
+               private appInfoService: AppInfoService,
+               private dataDetailsPaneService: DataDetailsPaneService)
    {
       super(clientService, zone, true);
    }
@@ -203,7 +223,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
       }));
 
       this.subscriptions.add(this.dataFolderService.folderChanged.subscribe((folder) => {
-         this.changeFolder(folder.path, null, folder.type);
+         this.changeFolder(folder.path, folder.scope + "", folder.type);
       }));
 
       this.subscriptions.add(this.datasourceService.datasourceChanged.subscribe(() => {
@@ -211,7 +231,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
       }));
 
       this.subscriptions.add(this.datasourceService.folderChanged.subscribe((folder) => {
-         this.changeFolder(folder.path, null, folder.type);
+         this.changeFolder(folder.path, folder.scope + "", folder.type);
       }));
 
       this.subscriptions.add(this.datasourceService.onCreateEvent.subscribe((event: CreateEventInfo) => {
@@ -225,8 +245,14 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
       }));
 
       this.subscriptions.add(this.router.events.subscribe(event => {
-         if(event instanceof NavigationEnd && this.isDefaultDataLandingRoute(event.url)) {
+         if(event instanceof NavigationEnd && this.isDefaultDataLandingRoute(event.url) &&
+            !this.searchMode && !this.hasTempQueryParam(event.url))
+         {
             this.selectedNodes = [];
+         }
+
+         if(event instanceof NavigationEnd) {
+            this.syncActiveTreeSection(event.urlAfterRedirects || event.url);
          }
       }));
 
@@ -238,7 +264,11 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
                this.initPath = null;
                this.initScope = null;
                this.searchView = false;
-               this.selectedNodes = [];
+
+               if(!this.searchMode && !params.has("temp")) {
+                  this.selectedNodes = [];
+               }
+
                return;
             }
 
@@ -252,6 +282,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
                this.initPath = params.get("path");
                this.initScope = params.get("scope");
                this.searchView = params.has("query");
+               this.searchString = this.searchView ? params.get("query") : this.searchString;
 
                if(!this.initPath && !this.initScope && !!params.get("databaseName")) {
                   let folder = params.get("folderName");
@@ -265,8 +296,14 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
                }
             }
 
-            if(this.rootNode && this.initPath && this.initScope) {
+            const preserveWorksheetSelection = params.has("temp") && this.hasWorksheetSelection();
+
+            if(this.rootNode && this.initPath && this.initScope && !preserveWorksheetSelection) {
                this.initSeletedNodes(this.initPath, this.initScope, searchAllNodes);
+            }
+
+            if(!this.searchView && !params.get("query") && !this.searchMode) {
+               this.searchString = null;
             }
          }));
 
@@ -316,6 +353,11 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
    }
 
    changeFolder(path: string, scope: string, folderType: string, searchAllNodes: boolean = false) {
+      this.activeTreeSection = folderType === PortalDataType.DATA_SOURCE_ROOT_FOLDER ||
+         folderType === PortalDataType.DATA_SOURCE_FOLDER ||
+         folderType === PortalDataType.DATA_MODEL ||
+         folderType === PortalDataType.DATA_MODEL_FOLDER ? "datasources" : "worksheets";
+
       this.selectedNodes = [];
 
       if(folderType === PortalDataType.PRIVATE_WORKSHEETS_FOLDER) {
@@ -406,6 +448,22 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
       return result;
    }
 
+   get currentStandardRootNode(): TreeNodeModel {
+      if(this.activeTreeSection === "datasources") {
+         return this.getCurrentRootNode(PortalDataType.DATA_SOURCE_ROOT_FOLDER);
+      }
+
+      return this.getCurrentRootNode(PortalDataType.SHARED_WORKSHEETS_FOLDER);
+   }
+
+   get currentRootNode(): TreeNodeModel {
+      return this.searchMode && !!this.searchRootNode ? this.searchRootNode : this.currentStandardRootNode;
+   }
+
+   get showCurrentRoot(): boolean {
+      return !this.searchMode;
+   }
+
    /**
     * Get root node for dataset/datasources tree
     */
@@ -416,13 +474,20 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
          .subscribe(root => {
             this.rootNode = root;
             this.loading = false;
+
+            if(this.searchMode && !!this.searchString?.trim()) {
+               this.refreshSearchTree();
+               return;
+            }
+
             let paneRoot = this.getCurrentRootNode(type);
+            paneRoot = this.searchMode ? this.searchRootNode : this.currentStandardRootNode;
             const onDataHome = this.isDefaultDataLandingRoute();
 
             if(onDataHome) {
                this.selectedNodes = [];
-               if(this.rootNode.children?.length > 0) {
-                  this.rootNode.children[0].expanded = true;
+               if(this.currentStandardRootNode) {
+                  this.currentStandardRootNode.expanded = true;
                }
                this.keepExpandedNodes(this.rootNode, paneRoot);
             }
@@ -432,8 +497,8 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
             }
             else {
                this.initSeletedNodes(this.initPath, this.initScope);
-               if(this.rootNode.children?.length > 0) {
-                  this.rootNode.children[0].expanded = true;
+               if(this.currentStandardRootNode) {
+                  this.currentStandardRootNode.expanded = true;
                }
 
                this.keepExpandedNodes(this.rootNode, paneRoot);
@@ -454,6 +519,14 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
 
       return (path === "/portal/tab/data" || path === "/portal/tab/data/folder") &&
          !hasPath && !hasScope;
+   }
+
+   private hasTempQueryParam(url: string): boolean {
+      if(!url || url.indexOf("?") < 0) {
+         return false;
+      }
+
+      return new URLSearchParams(url.split("?")[1]).has("temp");
    }
 
    /**
@@ -521,6 +594,19 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
          const node: TreeNodeModel = nodes[0];
          const nodeEntry = !!node ? <AssetEntry>node.data : null;
 
+         this.activeTreeSection = this.isDataSourceFolder(node) ||
+            node.type === PortalDataType.DATA_MODEL ||
+            node.type === PortalDataType.DATA_MODEL_FOLDER ||
+            node.type === PortalDataType.DATA_SOURCE ||
+            node.type === PortalDataType.DATABASE ||
+            node.type === PortalDataType.XMLA_SOURCE ||
+            node.type === PortalDataType.PARTITION ||
+            node.type === PortalDataType.EXTENDED_PARTITION ||
+            node.type === PortalDataType.LOGIC_MODEL ||
+            node.type === PortalDataType.EXTENDED_LOGIC_MODEL ||
+            node.type === PortalDataType.VPM ||
+            node.type === PortalDataType.VPM_FOLDER ? "datasources" : "worksheets";
+
          if(!nodeEntry) {
             return;
          }
@@ -532,6 +618,10 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
          if(node.type === PortalDataType.DATA_SOURCE_ROOT_FOLDER ||
             node.type === PortalDataType.DATA_SOURCE_FOLDER)
          {
+            if(this.searchMode) {
+               this.exitSearchMode();
+            }
+
             const path = nodeEntry.path;
             const scope = nodeEntry.scope + "";
             const extras = {
@@ -567,6 +657,11 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
          }
 
          else if(nodeEntry.type === AssetType.FOLDER) {
+            if(this.searchMode) {
+               this.exitSearchMode();
+            }
+
+            this.dataDetailsPaneService.clear();
             const path = nodeEntry.path;
             const scope = nodeEntry.scope + "";
             const extras = {
@@ -579,7 +674,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
             this.router.navigate(["/portal/tab/data/folder"], extras);
          }
          else if(!!nodeEntry && nodeEntry.type === AssetType.WORKSHEET) {
-            this.dataFolderService.openWorksheet(nodeEntry.identifier, this.clientService);
+            this.showWorksheetDetails(node);
          }
          else if(node.type === PortalDataType.DATABASE) {
             this.router.navigate(["/portal/tab/data/datasources/database",
@@ -1313,7 +1408,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
       contextmenu.actions = this.createActions(event[1]);
 
       if(!!event[1] && event[1].type != PortalDataType.DATABASE) {
-         this.selectNode([event[1]]);
+         this.selectedNodes = [event[1]];
       }
    }
 
@@ -1349,12 +1444,36 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
             action: () => this.newDataAsset(node)
          },
          {
+            id: () => "worksheet edit",
+            label: () => "_#(js:Edit)",
+            icon: () => "",
+            visible: () => this.editVisible(node),
+            enabled: () => this.canEdit(node),
+            action: () => this.editNode(node)
+         },
+         {
             id: () => "rename foler",
             label: () => "_#(js:Rename)",
             icon: () => "",
             visible: () => this.renameVisible(node),
             enabled: () => this.canRename(node),
             action: () => this.renameFolder(node)
+         },
+         {
+            id: () => "worksheet move",
+            label: () => "_#(js:Move)",
+            icon: () => "",
+            visible: () => this.moveVisible(node),
+            enabled: () => this.canMove(node),
+            action: () => this.moveNode(node)
+         },
+         {
+            id: () => "datasource refresh",
+            label: () => "_#(js:Refresh)",
+            icon: () => "",
+            visible: () => this.refreshVisible(node),
+            enabled: () => true,
+            action: () => this.refreshNode(node)
          },
          {
             id: () => "delete folder",
@@ -1376,7 +1495,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
          },
          {
             id: () => "add physical view",
-            label: () => "_#(js:New Physical View)",
+            label: () => "_#(js:New Data Model)",
             icon: () => "",
             visible: () => node.type === PortalDataType.DATA_MODEL ||
                node.type === PortalDataType.DATA_MODEL_FOLDER ||
@@ -1407,8 +1526,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
             icon: () => "",
             visible: () => this.detailVisible(node),
             enabled: () => true,
-            action: () => this.dataSourcesTreeActionsService
-               .showWSFolderDetails({path: node.data.path, scope: node.data.scope + ""})
+            action: () => this.showWorksheetDetails(node)
          },
       ];
 
@@ -1436,7 +1554,8 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
 
          if(node.type === PortalDataType.SHARED_WORKSHEETS_FOLDER ||
             node.type === PortalDataType.PRIVATE_WORKSHEETS_FOLDER ||
-            node.type === PortalDataType.FOLDER)
+            node.type === PortalDataType.FOLDER ||
+            this.isWorksheetNode(node))
          {
             root = this.getCurrentRootNode(PortalDataType.SHARED_WORKSHEETS_FOLDER);
          }
@@ -1493,7 +1612,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
          return "tabular-data-icon";
       }
       else if(type === PortalDataType.DATA_SOURCE_ROOT_FOLDER) {
-         return "data-source-folder-icon";
+         return "folder-icon";
       }
       else if(type === PortalDataType.FOLDER
          || type === PortalDataType.DATA_SOURCE_FOLDER
@@ -1527,6 +1646,418 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
 
    onScroll(event: any) {
       this.scrollY = this.treeContainer.nativeElement.scrollTop;
+   }
+
+   search(): void {
+      const trimmedQuery = this.searchString?.trim();
+
+      if(!!trimmedQuery) {
+         if(this.activeTreeSection === "worksheets") {
+            this.dataDetailsPaneService.clear();
+            this.router.navigate(["/portal/tab/data"]);
+         }
+
+         this.refreshSearchTree(trimmedQuery);
+      }
+   }
+
+   searchStringChanged(): void {
+      if(!this.searchString) {
+         this.resetSearchMode();
+      }
+   }
+
+   resetSearchMode(): void {
+      this.searchString = null;
+      this.searchMode = false;
+      this.searchRootNode = null;
+      this.selectedNodes = [];
+
+      if(this.activeTreeSection === "worksheets") {
+         this.dataDetailsPaneService.clear();
+         this.router.navigate(["/portal/tab/data"]);
+      }
+   }
+
+   private refreshSearchTree(query: string = this.searchString?.trim()): void {
+      const trimmedQuery = query?.trim();
+
+      if(!trimmedQuery) {
+         this.searchMode = false;
+         this.searchRootNode = null;
+         return;
+      }
+
+      this.loading = true;
+      const request: Observable<SearchResultsModel | SearchDataSourceResultsModel> =
+         this.activeTreeSection === "datasources" ?
+         this.httpClient.post<SearchDataSourceResultsModel>(DATASOURCE_SEARCH_URI,
+            new SearchCommand(trimmedQuery, "/", 0)) :
+         this.httpClient.post<SearchResultsModel>(DATA_SEARCH_URI,
+            new SearchCommand(trimmedQuery, "/", AssetEntryHelper.GLOBAL_SCOPE));
+
+      request.subscribe((result) => {
+         const oldSearchRoot = Tool.clone(this.searchRootNode);
+         this.searchMode = true;
+         this.searchRootNode = this.activeTreeSection === "datasources" ?
+            this.buildDatasourceSearchResultTree((result as SearchDataSourceResultsModel)?.dataSourceInfos || []) :
+            this.buildWorksheetSearchResultTree((result as SearchResultsModel)?.assets || []);
+         this.loading = false;
+
+         if(this.selectedNodes?.length > 0 && !!oldSearchRoot) {
+            this.selectedNodes = this.updateSelectedNodes(oldSearchRoot, this.searchRootNode);
+            this.keepExpandedNodes(oldSearchRoot, this.searchRootNode);
+         }
+         else {
+            this.selectedNodes = [];
+         }
+      }, () => this.loading = false);
+   }
+
+   private buildWorksheetSearchResultTree(assets: WorksheetBrowserInfo[]): TreeNodeModel {
+      const root: SearchTreeBuilderNode = {
+         key: "root",
+         label: "root",
+         node: { children: [] } as TreeNodeModel,
+         children: new Map<string, SearchTreeBuilderNode>()
+      };
+
+      const globalRoot = this.ensureSearchGroup(root, "_#(js:Global Worksheet)",
+         PortalDataType.SHARED_WORKSHEETS_FOLDER, AssetEntryHelper.GLOBAL_SCOPE);
+      const privateRoot = this.ensureSearchGroup(root, "_#(js:User Worksheet)",
+         PortalDataType.PRIVATE_WORKSHEETS_FOLDER, AssetEntryHelper.USER_SCOPE);
+
+      for(const asset of assets || []) {
+         if(!asset) {
+            continue;
+         }
+
+         const groupRoot = asset.scope === AssetEntryHelper.USER_SCOPE ? privateRoot : globalRoot;
+         const parentNode = this.ensureSearchFolderNode(groupRoot, asset.parentPath || "/",
+            asset.scope);
+         parentNode.children.set(`${asset.scope}:${asset.path}`, {
+            key: `${asset.scope}:${asset.path}`,
+            label: asset.name,
+            node: this.createWorksheetSearchNode(asset),
+            children: new Map<string, SearchTreeBuilderNode>()
+         });
+      }
+
+      root.node.children = Array.from(root.children.values())
+         .map(node => this.toSearchTreeNode(node))
+         .filter(node => !!node && (!!node.children?.length || node.type !== PortalDataType.SHARED_WORKSHEETS_FOLDER))
+         .filter(node => !!node.children?.length);
+      root.node.expanded = true;
+
+      return root.node;
+   }
+
+   private ensureSearchGroup(root: SearchTreeBuilderNode, label: string, type: string,
+                             scope: number): SearchTreeBuilderNode
+   {
+      const key = `${scope}:${type}`;
+      let group = root.children.get(key);
+
+      if(!group) {
+         group = {
+            key,
+            label,
+            node: {
+               label,
+               type,
+               expanded: true,
+               leaf: false,
+               children: [],
+               data: {
+                  path: "/",
+                  scope,
+                  type: AssetType.FOLDER,
+                  properties: {}
+               }
+            } as TreeNodeModel,
+            children: new Map<string, SearchTreeBuilderNode>()
+         };
+         root.children.set(key, group);
+      }
+
+      return group;
+   }
+
+   private ensureSearchFolderNode(groupRoot: SearchTreeBuilderNode, parentPath: string,
+                                  scope: number): SearchTreeBuilderNode
+   {
+      const normalizedPath = !parentPath || parentPath === "" ? "/" : parentPath;
+
+      if(normalizedPath === "/") {
+         return groupRoot;
+      }
+
+      let current = groupRoot;
+      const segments = normalizedPath.split("/").filter(segment => !!segment);
+      let currentPath = "";
+
+      for(const segment of segments) {
+         currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+         const key = `${scope}:${currentPath}`;
+         let child = current.children.get(key);
+
+         if(!child) {
+            child = {
+               key,
+               label: segment,
+               node: this.createFolderSearchNode(segment, currentPath, scope),
+               children: new Map<string, SearchTreeBuilderNode>()
+            };
+            current.children.set(key, child);
+         }
+
+         current = child;
+      }
+
+      return current;
+   }
+
+   private createFolderSearchNode(label: string, path: string, scope: number): TreeNodeModel {
+      return {
+         label,
+         type: AssetType.FOLDER,
+         expanded: true,
+         leaf: false,
+         children: [],
+         data: {
+            path,
+            parentPath: this.getParentPath0(path),
+            scope,
+            type: AssetType.FOLDER,
+            properties: {}
+         }
+      } as TreeNodeModel;
+   }
+
+   private buildDatasourceSearchResultTree(assets: DataSourceInfo[]): TreeNodeModel {
+      const root: SearchTreeBuilderNode = {
+         key: "root",
+         label: "root",
+         node: { children: [] } as TreeNodeModel,
+         children: new Map<string, SearchTreeBuilderNode>()
+      };
+
+      for(const asset of assets || []) {
+         if(!asset?.path) {
+            continue;
+         }
+
+         if(asset.type?.name === PortalDataType.DATA_SOURCE_FOLDER) {
+            const folderNode = this.ensureDatasourceSearchFolderNode(root, asset.path);
+            folderNode.node = {
+               ...folderNode.node,
+               ...this.createDatasourceFolderSearchNode(asset.name, asset.path, asset)
+            };
+         }
+         else {
+            const parentNode = this.ensureDatasourceSearchFolderNode(root, this.getParentPath0(asset.path));
+            parentNode.children.set(`datasource:${asset.path}`, {
+               key: `datasource:${asset.path}`,
+               label: asset.name,
+               node: this.createDatasourceSearchNode(asset),
+               children: new Map<string, SearchTreeBuilderNode>()
+            });
+         }
+      }
+
+      root.node.children = Array.from(root.children.values())
+         .map(node => this.toSearchTreeNode(node))
+         .filter(node => !!node?.children?.length || this.isDataSourceFolder(node));
+      root.node.expanded = true;
+
+      return root.node;
+   }
+
+   private ensureDatasourceSearchFolderNode(root: SearchTreeBuilderNode, path: string): SearchTreeBuilderNode {
+      const normalizedPath = !path || path === "" ? "/" : path;
+
+      if(normalizedPath === "/") {
+         return root;
+      }
+
+      let current = root;
+      const segments = normalizedPath.split("/").filter(segment => !!segment);
+      let currentPath = "";
+
+      for(const segment of segments) {
+         currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+         const key = `datasource-folder:${currentPath}`;
+         let child = current.children.get(key);
+
+         if(!child) {
+            child = {
+               key,
+               label: segment,
+               node: this.createDatasourceFolderSearchNode(segment, currentPath),
+               children: new Map<string, SearchTreeBuilderNode>()
+            };
+            current.children.set(key, child);
+         }
+
+         current = child;
+      }
+
+      return current;
+   }
+
+   private createDatasourceFolderSearchNode(label: string, path: string,
+                                            asset?: DataSourceInfo): TreeNodeModel
+   {
+      return {
+         label,
+         type: PortalDataType.DATA_SOURCE_FOLDER,
+         expanded: true,
+         leaf: false,
+         children: [],
+         data: {
+            path,
+            scope: AssetEntryHelper.GLOBAL_SCOPE,
+            type: PortalDataType.DATA_SOURCE_FOLDER,
+            properties: {
+               [DatasourceTreeAction.CREATE_CHILDREN]: asset?.childrenCreatable ? "true" : "false",
+               [DatasourceTreeAction.NEW_DATASOURCE]: asset?.childrenCreatable ? "true" : "false",
+               [DatasourceTreeAction.RENAME]: asset?.editable && asset?.deletable ? "true" : "false",
+               [DatasourceTreeAction.DELETE]: asset?.deletable ? "true" : "false",
+               [DatasourceTreeAction.EDIT]: "false"
+            }
+         }
+      } as TreeNodeModel;
+   }
+
+   private createDatasourceSearchNode(asset: DataSourceInfo): TreeNodeModel {
+      return {
+         label: asset.name,
+         type: asset.type?.name || PortalDataType.DATA_SOURCE,
+         expanded: false,
+         leaf: true,
+         children: [],
+         data: {
+            path: asset.path,
+            scope: AssetEntryHelper.GLOBAL_SCOPE,
+            type: AssetType.DATA_SOURCE,
+            properties: {
+               [DatasourceTreeAction.CREATE_CHILDREN]: "false",
+               [DatasourceTreeAction.NEW_DATASOURCE]: "false",
+               [DatasourceTreeAction.RENAME]: "false",
+               [DatasourceTreeAction.DELETE]: asset.deletable ? "true" : "false",
+               [DatasourceTreeAction.EDIT]: asset.editable ? "true" : "false",
+               queryCreatable: asset.queryCreatable === false ? "false" : "true"
+            }
+         }
+      } as TreeNodeModel;
+   }
+
+   private createWorksheetSearchNode(asset: WorksheetBrowserInfo): TreeNodeModel {
+      return {
+         label: asset.name,
+         type: AssetType.WORKSHEET,
+         expanded: false,
+         leaf: true,
+         children: [],
+         materialized: asset.materialized,
+         data: asset as any
+      } as TreeNodeModel;
+   }
+
+   private toSearchTreeNode(builderNode: SearchTreeBuilderNode): TreeNodeModel {
+      builderNode.node.children = Array.from(builderNode.children.values())
+         .map(node => this.toSearchTreeNode(node))
+         .sort((a, b) => a.label.localeCompare(b.label));
+      builderNode.node.leaf = !builderNode.node.children?.length &&
+         builderNode.node.type !== PortalDataType.SHARED_WORKSHEETS_FOLDER &&
+         builderNode.node.type !== PortalDataType.PRIVATE_WORKSHEETS_FOLDER &&
+         builderNode.node.type !== AssetType.FOLDER;
+      builderNode.node.expanded = true;
+      return builderNode.node;
+   }
+
+   private showWorksheetDetails(node: TreeNodeModel): void {
+      const nodeEntry = !!node ? <AssetEntry> node.data : null;
+
+      if(!nodeEntry) {
+         return;
+      }
+
+      this.router.navigate(["/portal/tab/data/folder"], {
+         queryParams: {
+            ...this.getWorksheetFolderQueryParams(nodeEntry),
+            temp: new Date().getTime()
+         }
+      });
+      this.dataDetailsPaneService.requestWorksheetSelection({
+         path: nodeEntry.path,
+         scope: `${nodeEntry.scope}`
+      });
+   }
+
+   private getWorksheetFolderQueryParams(nodeEntry: AssetEntry): { path?: string, scope: string } {
+      const scope = `${nodeEntry.scope}`;
+      const worksheetPath = nodeEntry.path || "";
+      const lastSlashIndex = worksheetPath.lastIndexOf("/");
+
+      if(lastSlashIndex <= 0) {
+         return { scope };
+      }
+
+      return {
+         path: worksheetPath.substring(0, lastSlashIndex),
+         scope
+      };
+   }
+
+   private hasWorksheetSelection(): boolean {
+      return !!this.selectedNodes?.length && this.isWorksheetNode(this.selectedNodes[0]);
+   }
+
+   private exitSearchMode(): void {
+      this.searchMode = false;
+      this.searchRootNode = null;
+      this.searchString = null;
+   }
+
+   setActiveSection(section: DataTreeSection): void {
+      if(this.activeTreeSection === section) {
+         return;
+      }
+
+      this.activeTreeSection = section;
+      this.exitSearchMode();
+      this.dataDetailsPaneService.clear();
+      this.selectedNodes = [];
+
+      if(section === "datasources") {
+         this.router.navigate(["/portal/tab/data/datasources"], {
+            queryParams: {
+               temp: new Date().getTime()
+            }
+         });
+      }
+      else {
+         this.router.navigate(["/portal/tab/data/folder"], {
+            queryParams: {
+               temp: new Date().getTime()
+            }
+         });
+      }
+   }
+
+   private syncActiveTreeSection(url: string = this.router.url): void {
+      const nextSection = this.isDatasourcesRoute(url) ? "datasources" : "worksheets";
+
+      if(this.activeTreeSection !== nextSection) {
+         this.activeTreeSection = nextSection;
+         this.exitSearchMode();
+      }
+   }
+
+   private isDatasourcesRoute(url: string = this.router.url): boolean {
+      const path = !!url ? url.split("?")[0] : "";
+      return path.startsWith("/portal/tab/data/datasources");
    }
 
    hasMenuFunction(node: TreeNodeModel): boolean {
@@ -1594,6 +2125,34 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
    canDelete(node: TreeNodeModel): boolean {
       if(node && node.data && node.data.properties) {
          return node.data.properties[DatasourceTreeAction.DELETE] === "true";
+      }
+
+      return false;
+   }
+
+   canEdit(node: TreeNodeModel): boolean {
+      if(node && node.data && node.data.properties) {
+         return node.data.properties[DatasourceTreeAction.EDIT] === "true";
+      }
+
+      return false;
+   }
+
+   canMove(node: TreeNodeModel): boolean {
+      if(this.isDataSourceLeafNode(node)) {
+         return this.canEdit(node) && this.canDelete(node);
+      }
+
+      if(node?.type === PortalDataType.DATA_SOURCE_FOLDER) {
+         return this.canRename(node) && this.canDelete(node);
+      }
+
+      return this.canRename(node);
+   }
+
+   canMaterialize(node: TreeNodeModel): boolean {
+      if(node && node.data && node.data.properties) {
+         return node.data.properties[DatasourceTreeAction.MATERIALIZE] === "true";
       }
 
       return false;
@@ -1785,6 +2344,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
             this.actionCallback(node));
       }
       else if(this.isDataSourceFolder(node)) {
+         this.focusDatasourceFolder(node);
          this.dataSourcesTreeActionsService.addDataSourceFolder(node.data.path,
             this.actionCallback(node));
       }
@@ -1796,6 +2356,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
 
    newDataAsset(node: TreeNodeModel) {
       if(this.isDataSourceFolder(node)) {
+         this.focusDatasourceFolder(node);
          this.dataSourcesTreeActionsService.addDataSource(node.data.path, node.data.scope);
       }
       else if(this.isDataWorksheetFolder(node)) {
@@ -1804,10 +2365,15 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
    }
 
    deleteFolder(node: TreeNodeModel): void {
-      if(node.type === PortalDataType.DATA_MODEL_FOLDER) {
+      if(this.isWorksheetNode(node)) {
+         this.dataSourcesTreeActionsService.deleteWorksheet(node,
+            this.actionCallback(node, true));
+      }
+      else if(node.type === PortalDataType.DATA_MODEL_FOLDER) {
          this.deleteDataModelFolder(node);
       }
       else if(node.type === PortalDataType.DATA_SOURCE_FOLDER) {
+         this.focusDatasourceFolder(node);
          this.dataSourcesTreeActionsService.deleteDataSourceFolder(node,
             this.actionCallback(node, true));
       }
@@ -1824,11 +2390,16 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
    }
 
    renameFolder(node: TreeNodeModel): void {
-      if(node.type === PortalDataType.DATA_MODEL_FOLDER) {
+      if(this.isWorksheetNode(node)) {
+         this.dataSourcesTreeActionsService.renameWorksheet(node,
+            this.actionCallback(node, true));
+      }
+      else if(node.type === PortalDataType.DATA_MODEL_FOLDER) {
          this.dataModelBrowserService.renameDataModelFolder(node.data.path, node.label,
             this.actionCallback(node, true), true, node);
       }
       else if(node.type === PortalDataType.DATA_SOURCE_FOLDER) {
+         this.focusDatasourceFolder(node);
          this.dataSourcesTreeActionsService.renameDataSourceFolder(node,
             this.actionCallback(node, true));
       }
@@ -1838,21 +2409,91 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
       }
    }
 
+   editNode(node: TreeNodeModel): void {
+      if(this.isWorksheetNode(node)) {
+         this.dataSourcesTreeActionsService.editWorksheet(node, this.clientService);
+      }
+      else {
+         this.selectNode([node]);
+      }
+   }
+
+   moveNode(node: TreeNodeModel): void {
+      if(this.isWorksheetNode(node)) {
+         this.dataSourcesTreeActionsService.moveWorksheet(node,
+            this.actionCallback(node, true));
+      }
+      else if(this.isDataSourceFolder(node) || this.isDataSourceLeafNode(node)) {
+         if(this.isDataSourceFolder(node)) {
+            this.focusDatasourceFolder(node);
+         }
+
+         this.dataSourcesTreeActionsService.moveDataSource(node,
+            this.actionCallback(node, true));
+      }
+    }
+
+   materializeWorksheet(node: TreeNodeModel): void {
+      this.dataSourcesTreeActionsService.materializeWorksheet(node,
+         this.actionCallback(node));
+   }
+
+   refreshNode(node: TreeNodeModel): void {
+      if(this.isDataSourceFolder(node)) {
+         this.focusDatasourceFolder(node);
+         this.datasourceService.requestFolderStatusRefresh(node?.data?.path);
+         return;
+      }
+
+      if(!this.isDataSourceLeafNode(node)) {
+         return;
+      }
+
+      this.httpClient.get("../api/data/datasources/refresh/" +
+         Tool.encodeURIComponentExceptSlash(node.data.path))
+         .subscribe(
+            () => {
+               this.dataNotifications.notifications.success("_#(js:data.datasources.refreshSuccess)");
+               this.datasourceService.refreshTree();
+            },
+            () => this.dataNotifications.notifications.danger("_#(js:data.datasources.refreshError)")
+         );
+   }
+
    deleteVisible(node: TreeNodeModel): boolean {
-      return node.type === PortalDataType.DATA_MODEL_FOLDER ||
+      return this.isWorksheetNode(node) ||
+         node.type === PortalDataType.DATA_MODEL_FOLDER ||
          node.type === PortalDataType.DATA_SOURCE_FOLDER || node.type === PortalDataType.FOLDER ||
          node.type === PortalDataType.DATA_SOURCE || node.type === PortalDataType.DATABASE ||
          node.type == PortalDataType.XMLA_SOURCE;
    }
 
    detailVisible(node: TreeNodeModel): boolean {
-      return !(node.type === PortalDataType.SHARED_WORKSHEETS_FOLDER) &&
-         this.isDataWorksheetFolder(node);
+      return node?.data?.type === AssetType.WORKSHEET;
    }
 
    renameVisible(node: TreeNodeModel): boolean {
-      return node.type === PortalDataType.DATA_MODEL_FOLDER ||
+      return this.isWorksheetNode(node) ||
+         node.type === PortalDataType.DATA_MODEL_FOLDER ||
          node.type === PortalDataType.DATA_SOURCE_FOLDER || node.type === PortalDataType.FOLDER;
+   }
+
+   editVisible(node: TreeNodeModel): boolean {
+      return this.isWorksheetNode(node);
+   }
+
+   moveVisible(node: TreeNodeModel): boolean {
+      return this.isWorksheetNode(node) ||
+         node?.type === PortalDataType.DATA_SOURCE_FOLDER ||
+         this.isDataSourceLeafNode(node);
+   }
+
+   materializeVisible(node: TreeNodeModel): boolean {
+      return this.isWorksheetNode(node);
+   }
+
+   refreshVisible(node: TreeNodeModel): boolean {
+      return this.isDataSourceFolder(node) || this.isDataSourceLeafNode(node);
    }
 
    isDataSourceFolder(node: TreeNodeModel): boolean {
@@ -1864,5 +2505,21 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
       return node.type === PortalDataType.SHARED_WORKSHEETS_FOLDER ||
          node.type === PortalDataType.PRIVATE_WORKSHEETS_FOLDER ||
          node.type === PortalDataType.FOLDER;
+   }
+
+   private isWorksheetNode(node: TreeNodeModel): boolean {
+      return node?.data?.type === AssetType.WORKSHEET;
+   }
+
+   private isDataSourceLeafNode(node: TreeNodeModel): boolean {
+      return node?.type === PortalDataType.DATA_SOURCE ||
+         node?.type === PortalDataType.DATABASE ||
+         node?.type === PortalDataType.XMLA_SOURCE;
+   }
+
+   private focusDatasourceFolder(node: TreeNodeModel): void {
+      if(this.isDataSourceFolder(node)) {
+         this.selectNode([node]);
+      }
    }
 }

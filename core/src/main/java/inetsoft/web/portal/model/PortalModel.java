@@ -35,6 +35,7 @@ public abstract class PortalModel {
    public abstract boolean reportEnabled();
    public abstract boolean composerEnabled();
    public abstract boolean dashboardEnabled();
+   public abstract boolean securityEnabled();
    public abstract boolean customLogo();
    public abstract String helpURL();
    public abstract String logoutUrl();
