@@ -117,26 +117,25 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
    }
 
    public void reloadThemes(String path) {
-      if(getCustomThemes() == null || getCustomThemes().isEmpty()) {
+      Set<CustomTheme> themes = getCustomThemes();
+
+      if(themes == null || themes.isEmpty()) {
          return;
       }
 
       Set<CustomTheme> newThemes = new HashSet<>();
 
-      getCustomThemes().forEach(theme -> {
+      themes.forEach(theme -> {
          String jarPath = theme.getJarPath();
 
-         if(jarPath != null && jarPath.startsWith(path)) {
-            CustomTheme newTheme = (CustomTheme) theme.clone();
-            newTheme.setEMDark(false);
-            newTheme.setPortalScript(null);
-            newTheme.setEmScript(null);
-            newThemes.add(newTheme);
-         }
-         else {
+         if(jarPath == null || (!jarPath.equals(path) && !jarPath.startsWith(path + "/"))) {
             newThemes.add(theme);
          }
       });
+
+      themes.stream()
+         .filter(t -> !newThemes.contains(t))
+         .forEach(t -> removeSelectedTheme(t.getId()));
 
       setCustomThemes(newThemes);
    }
