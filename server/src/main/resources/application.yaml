@@ -80,6 +80,10 @@ management:
             - scheduler
             - securityProvider
             - fileSystem
+        readiness:
+          include:
+            - readinessState
+            - clusterReadiness
       show-details: always
       show-components: always
   health:
