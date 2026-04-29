@@ -82,8 +82,8 @@ management:
             - fileSystem
         readiness:
           include:
-            - readinessState
-            - clusterReadiness
+            - readinessState # nosemgrep: java.spring.security.audit.spring-actuator-non-health-enabled-yaml.spring-actuator-dangerous-endpoints-enabled-yaml
+            - clusterReadiness # nosemgrep: java.spring.security.audit.spring-actuator-non-health-enabled-yaml.spring-actuator-dangerous-endpoints-enabled-yaml
       show-details: always
       show-components: always
   health:
