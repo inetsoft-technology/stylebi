@@ -502,7 +502,7 @@ public class BarVO extends ElementVO {
       IntervalElement ielem = (IntervalElement) ((ElementGeometry) getGeometry()).getElement();
       if((ielem.getCollisionModifier() & GraphElement.MOVE_MIDDLE) != 0) {
          AffineTransform st = getScreenTransform();
-         if(st.getShearX() == 0 && st.getShearY() == 0) {
+         if(Math.abs(st.getShearX()) < 1e-10 && Math.abs(st.getShearY()) < 1e-10) {
             return;
          }
       }
@@ -779,8 +779,8 @@ public class BarVO extends ElementVO {
       // for funnel
       if((elem.getCollisionModifier() & GraphElement.MOVE_MIDDLE) != 0) {
          // All centering and reshaping is done in one pass by the first bar to call
-         // dodge(). Subsequent bars must return immediately — if they run the initial
-         // GTool.move on line 750 their shape is already a trapezoid whose bounding-box
+         // dodge(). Subsequent bars must return immediately — if they run the centering step below,
+         // their shape is already a trapezoid whose bounding-box
          // height differs from the original rectangle height, causing a wrong extra shift.
          if(elem.getHint("_funnel_shaped_") != null) {
             return;
@@ -1543,33 +1543,6 @@ public class BarVO extends ElementVO {
          return new Rectangle2D.Double(
             fullBarX, segBounds.getY(), stackDim, segBounds.getHeight());
       }
-   }
-
-   /**
-    * Build a trapezoid shape for one section of a funnel chart.
-    * y increases upward in pre-screen-transform coordinate space, so y is the bottom
-    * visual edge and y+h is the top visual edge. After the screen y-flip, the "bottom"
-    * edge (low logical y) appears at the TOP of the screen, and the "top" edge (high
-    * logical y) appears at the BOTTOM of the screen.
-    *
-    * @param bounds      bounding rectangle of the bar (defines y position and height)
-    * @param cx          shared center-x for the whole funnel stack
-    * @param topWidth    width of the high-logical-y (bottom-of-screen) edge
-    * @param bottomWidth width of the low-logical-y (top-of-screen) edge; 0 = triangle
-    */
-   static Shape buildFunnelTrapezoid(Rectangle2D bounds, double cx,
-                                     double topWidth, double bottomWidth)
-   {
-      double y = bounds.getY();
-      double h = bounds.getHeight();
-
-      GeneralPath path = new GeneralPath();
-      path.moveTo((float)(cx - topWidth / 2),    (float)(y + h)); // high-y left
-      path.lineTo((float)(cx + topWidth / 2),    (float)(y + h)); // high-y right
-      path.lineTo((float)(cx + bottomWidth / 2), (float) y);      // low-y right
-      path.lineTo((float)(cx - bottomWidth / 2), (float) y);      // low-y left
-      path.closePath();
-      return path;
    }
 
    /**
