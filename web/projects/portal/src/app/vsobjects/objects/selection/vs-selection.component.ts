@@ -206,7 +206,6 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    private _scrollbarMouseLeaveUnlisten: (() => void) | null = null;
    private _currentHoverElement: Element | null = null;
    private _currentSingleSelection: boolean = false;
-   private _columnShiftCleanup: (() => void) | null = null;
 
    get topPosition(): number {
       const bottomTab = VSUtil.getBottomTabContainer(this.model, this.vsInfo?.vsObjects);
@@ -710,9 +709,9 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       this._overlayMouseLeaveUnlisten = null;
       this._overlayWheelUnlisten?.();
       this._overlayWheelUnlisten = null;
-      this._scrollbarMouseLeaveUnlisten?.();
-      this._scrollbarMouseLeaveUnlisten = null;
-      this._columnShiftCleanup?.();
+      // Clears _scrollbarMouseLeaveUnlisten and the inline width on .selection-list
+      // in one place rather than duplicating that cleanup here.
+      this._hideOverlay();
 
       super.ngOnDestroy();
    }
@@ -759,13 +758,11 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
             .querySelector(".selection-list");
 
          if(!listEl) {
-            this._columnShiftCleanup?.();
             return;
          }
-         // Reset before measuring — re-entry from the overlay button leaves the list expanded
-         // and columns shifted, so without this reset the measurement would be wrong.
+         // Reset the locked width before measuring so getBoundingClientRect returns the
+         // natural width rather than the previously-locked value.
          this.renderer.removeStyle(listEl, "width");
-         this._columnShiftCleanup?.();
 
          const listRect = listEl.getBoundingClientRect();
          const cellRect = cellElement.getBoundingClientRect();
@@ -773,19 +770,40 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
          // getBoundingClientRect() returns viewport px; offsetWidth returns CSS layout px.
          // Divide by scale to convert viewport px → CSS px when setting inline styles.
          const scale = this.scale || 1;
+         const scrollbarAdjust = this.showScroll ? this.scrollbarWidth : 0;
+         const listWidthCss = listRect.width / scale;
 
-         // Determine which column index is being hovered so adjacent columns can be shifted.
-         const colEl = cellElement.closest(".selection-list-cell-column") as HTMLElement | null;
-         const rowEl = colEl?.parentElement as HTMLElement | null;
-         const colIndex = (rowEl && colEl) ? Array.from(rowEl.children).indexOf(colEl) : -1;
-         const numColumnsInRow = rowEl ? rowEl.children.length : 1;
-         const isLastColumn = colIndex < 0 || colIndex >= numColumnsInRow - 1;
+         // Float the button over the hovered cell using its semi-transparent background.
+         // Cells with a measure (text/bar): anchor at the start of the measure area
+         // (.selection-list-cell-label's right edge) so the label stays fully visible —
+         // .selection-list-cell-content collapses to 0px width because its children are
+         // absolutely positioned, so its own bounding rect cannot be used.  Label-only
+         // cells: anchor at the right edge of the hovered cell, clamped to the list's right
+         // edge (minus scrollbar) so the button stays in bounds for indented tree cells and
+         // last-column cells alike.
+         //
+         // labelEl is rendered unconditionally in selection-list-cell.component.html, so
+         // the (measureContentEl && !labelEl) case is unreachable; the else branch's
+         // cell-rect math is the safe fallback if a future template change ever changes
+         // that.
+         const measureContentEl = cellElement.querySelector(".selection-list-cell-content");
+         const labelEl = cellElement.querySelector(".selection-list-cell-label") as HTMLElement | null;
+         let leftCss: number;
 
-         if(!isLastColumn) {
-            this._positionOverlayNonLastColumn(btn, listEl, listRect, cellRect, btnWidth, colIndex, scale);
-         } else {
-            this._positionOverlayLastColumn(btn, listEl, listRect, cellRect, btnWidth, cellElement, scale);
+         if(measureContentEl && labelEl) {
+            leftCss = (labelEl.getBoundingClientRect().right - listRect.left) / scale;
          }
+         else {
+            const cellRightCss = (cellRect.right - listRect.left) / scale;
+            leftCss = Math.min(cellRightCss - btnWidth, listWidthCss - scrollbarAdjust - btnWidth);
+         }
+
+         this.renderer.setStyle(btn, "left", Math.max(0, leftCss) + "px");
+         this.renderer.setStyle(btn, "right", "auto");
+         // Lock the list width so the button's containing block stays stable between
+         // synchronous positioning and the next paint frame.  Without this the list can
+         // collapse to 0px and resolve the button's left offset against the wrong width.
+         this.renderer.setStyle(listEl, "width", listWidthCss + "px");
 
          this.renderer.setStyle(btn, "top", (cellRect.top - listRect.top) / scale + "px");
          this.renderer.setStyle(btn, "height", cellRect.height / scale + "px");
@@ -824,137 +842,11 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
          this.renderer.removeStyle(listEl, "width");
       }
 
-      this._columnShiftCleanup?.();
       this._quickSwitchClickCallback = null;
       this._currentHoverElement = null;
       this._currentSingleSelection = false;
       this._scrollbarMouseLeaveUnlisten?.();
       this._scrollbarMouseLeaveUnlisten = null;
-   }
-
-   // Body and row widths must be expanded so overflow-x:hidden does not clip the
-   // shifted column, and flex does not shrink items when margin-left is added.
-   private _positionOverlayNonLastColumn(
-      btn: HTMLElement,
-      listEl: Element,
-      listRect: DOMRect,
-      cellRect: DOMRect,
-      btnWidth: number,
-      colIndex: number,
-      scale: number
-   ): void {
-      const bodyEl = listEl.querySelector<HTMLElement>(".selection-list-body");
-      const bodyWidthCss = (bodyEl?.getBoundingClientRect().width ?? listRect.width) / scale;
-      const expandedBodyWidthCss = bodyWidthCss + btnWidth;
-
-      const cellRight = (cellRect.right - listRect.left) / scale;
-      this.renderer.setStyle(btn, "left", cellRight + "px");
-      this.renderer.setStyle(btn, "right", "auto");
-      // Use .vs-object (has an explicit width binding) rather than the host <vs-selection>
-      // element, which is display:inline and reports width=0 when its child is position:absolute.
-      const vsObjectEl = (this.elementRef.nativeElement as Element).querySelector(".vs-object");
-      const maxListWidthCss = vsObjectEl
-         ? vsObjectEl.getBoundingClientRect().width / scale
-         : listRect.width / scale;
-      this.renderer.setStyle(listEl, "width", Math.min(listRect.width / scale + btnWidth, maxListWidthCss) + "px");
-
-      if(bodyEl) {
-         this.renderer.setStyle(bodyEl, "width", expandedBodyWidthCss + "px");
-      }
-
-      const shiftedCols: HTMLElement[] = [];
-      const expandedRows: HTMLElement[] = [];
-      const allRows = listEl.querySelectorAll<HTMLElement>(
-         ".selection-list-cell-row:not(.others-container)"
-      );
-      allRows.forEach(row => {
-         this.renderer.setStyle(row, "width", expandedBodyWidthCss + "px");
-         expandedRows.push(row);
-         const nextCol = row.children[colIndex + 1] as HTMLElement | undefined;
-
-         if(nextCol) {
-            this.renderer.setStyle(nextCol, "margin-left", btnWidth + "px");
-            shiftedCols.push(nextCol);
-         }
-      });
-
-      this._columnShiftCleanup = () => {
-         // Restore rather than removeStyle: removeStyle erases Angular's binding before the
-         // next CD cycle, causing the next hover measurement to see a collapsed DOM.
-         if(bodyEl) {
-            this.renderer.setStyle(bodyEl, "width", bodyWidthCss + "px");
-         }
-
-         expandedRows.forEach(row => this.renderer.setStyle(row, "width", bodyWidthCss + "px"));
-         shiftedCols.forEach(col => this.renderer.removeStyle(col, "margin-left"));
-         this._columnShiftCleanup = null;
-      };
-   }
-
-   // Last (or only) column: anchor to the right edge of the cell.
-   // The button floats over the cell text rather than expanding the list width, which would
-   // overflow .vs-object and overlap adjacent selection lists (Bug #74107).
-   private _positionOverlayLastColumn(
-      btn: HTMLElement,
-      listEl: Element,
-      listRect: DOMRect,
-      cellRect: DOMRect,
-      btnWidth: number,
-      cellElement: Element,
-      scale: number
-   ): void {
-      this.renderer.removeStyle(btn, "left");
-      // In a VSSelectionContainer the scrollbar is at right:0 inside the list, so offset the
-      // button left so it doesn't cover the scrollbar.  In a standalone list the scrollbar sits
-      // outside the list at left:100%, so the same offset creates visual separation between the
-      // button and the scrollbar when the list is hovered.
-      const scrollbarAdjust = this.showScroll ? this.scrollbarWidth : 0;
-      // For container lists the list is position:static and expanding it reflows the parent,
-      // so clamp to the vs-object width.  For standalone the list is position:absolute and
-      // can expand freely without affecting surrounding layout.
-      // Use .vs-object (has an explicit width binding) rather than the host <vs-selection>
-      // element, which is display:inline and reports width=0 when its child is position:absolute.
-      const vsObjectEl = (this.elementRef.nativeElement as Element).querySelector(".vs-object");
-      const vsObjectWidthCss = vsObjectEl
-         ? vsObjectEl.getBoundingClientRect().width / scale
-         : listRect.width / scale;
-      const maxListWidthCss = this.inContainer ? vsObjectWidthCss : Number.MAX_SAFE_INTEGER;
-
-      // When the cell has measure content (bar/text), the measure area occupies the right side
-      // of the cell. Position the button to the right of the entire cell to avoid overlap.
-      const measureContentEl = cellElement.querySelector(".selection-list-cell-content") as HTMLElement | null;
-
-      // Always lock the list's explicit width to stabilize it as the button's containing block.
-      // Without this, the list can collapse between synchronous positioning and the next paint
-      // frame, causing right/left offsets to resolve against the wrong (0px) width.
-      const listWidthCss = listRect.width / scale;
-
-      if(measureContentEl) {
-         // .selection-list-cell-content collapses to 0px in the flex layout (all its children
-         // are absolutely positioned), so its getBoundingClientRect().left == cell.right — not
-         // the visual start of the measure area.  Use .selection-list-cell-label instead: it
-         // has an explicit [style.width.px]="labelWidth" so its right edge reliably marks the
-         // end of the label column.
-         const labelEl = cellElement.querySelector(".selection-list-cell-label") as HTMLElement | null;
-         const anchorCss = labelEl
-            ? (labelEl.getBoundingClientRect().right - listRect.left) / scale
-            : listWidthCss - scrollbarAdjust - btnWidth;
-         this.renderer.setStyle(btn, "left", Math.max(0, anchorCss) + "px");
-         this.renderer.setStyle(btn, "right", "auto");
-         this.renderer.setStyle(listEl, "width", listWidthCss + "px");
-         return;
-      }
-
-      // Always anchor the button to the list's right edge (+ scrollbar gap).
-      // Anchoring to the cell's right edge would push the button left of the list boundary for
-      // indented tree cells, causing overflow and making the button unreachable by mouse.
-      this.renderer.setStyle(btn, "right", scrollbarAdjust + "px");
-
-      // Don't expand the list — the button floats over the right side of the text using
-      // its semi-transparent background and z-index.  Expanding per-row causes the list
-      // width to shift as the user moves between items with different text lengths.
-      // For container lists, clamp to the vs-object width so the list doesn't reflow the parent.
-      this.renderer.setStyle(listEl, "width", Math.min(listWidthCss, maxListWidthCss) + "px");
    }
 
    public clearQuickSwitchHoverIfOwner(cellElement: Element | null): void {

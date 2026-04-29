@@ -465,3 +465,200 @@ describe("VSSelection Test", () => {
       expect(fixture.componentInstance.topPosition).toBeNull();
    });
 });
+
+// Direct unit tests of setQuickSwitchHover's positioning math, without TestBed.
+// Mocks the renderer to capture setStyle calls and constructs minimal cell/list
+// elements with controlled getBoundingClientRect / offsetWidth values.
+describe("VSSelection - quick-switch overlay positioner", () => {
+   let vsSelection: VSSelection;
+   let setStyleCalls: Array<{ el: any; prop: string; value: string }>;
+   let listEl: any;
+   let btnEl: any;
+
+   const makeRect = (left: number, top: number, width: number, height: number): DOMRect => ({
+      left, top, width, height,
+      right: left + width,
+      bottom: top + height,
+      x: left, y: top,
+      toJSON: () => ({})
+   } as DOMRect);
+
+   // Pass labelRect to model a cell whose label has been laid out; omit it to model
+   // the (template-impossible) case where .selection-list-cell-label is missing — used
+   // only by the regression test that pins the fallback contract.
+   const makeCell = (rect: DOMRect, hasMeasure: boolean, labelRect?: DOMRect): any => ({
+      getBoundingClientRect: () => rect,
+      querySelector: (sel: string) => {
+         if(sel === ".selection-list-cell-content") {
+            return hasMeasure ? {} : null;
+         }
+
+         if(sel === ".selection-list-cell-label") {
+            return labelRect ? { getBoundingClientRect: () => labelRect } : null;
+         }
+
+         return null;
+      }
+   });
+
+   // Reverse-find so the helpers return the LAST setStyle write for a given (el, prop) —
+   // that is what the rendered DOM reflects.  find() would silently mask a future
+   // reset-then-set sequence.
+   const lastStyle = (el: any, prop: string) =>
+      [...setStyleCalls].reverse().find(c => c.el === el && c.prop === prop)?.value;
+   const btnLeft = () => lastStyle(btnEl, "left");
+   const btnRight = () => lastStyle(btnEl, "right");
+   const listWidth = () => lastStyle(listEl, "width");
+
+   beforeEach(() => {
+      setStyleCalls = [];
+      listEl = {
+         getBoundingClientRect: () => makeRect(0, 0, 200, 300),
+         querySelector: jest.fn(() => null),
+         querySelectorAll: jest.fn(() => [])
+      };
+      btnEl = { offsetWidth: 24 };
+
+      const renderer: any = {
+         setStyle: (el: any, prop: string, value: string) =>
+            setStyleCalls.push({ el, prop, value }),
+         removeStyle: jest.fn(),
+         setAttribute: jest.fn(),
+         addClass: jest.fn(),
+         removeClass: jest.fn(),
+         listen: jest.fn(() => () => {})
+      };
+
+      const elementRef: any = {
+         nativeElement: {
+            querySelector: (sel: string) => sel === ".selection-list" ? listEl : null
+         }
+      };
+
+      const zone: any = { run: (fn: any) => fn(), runOutsideAngular: (fn: any) => fn() };
+
+      const scaleService: any = {
+         getScale: () => observableOf(1),
+         setScale: jest.fn(),
+         getCurrentScale: jest.fn()
+      };
+
+      vsSelection = new VSSelection(
+         { sendEvent: jest.fn(), commands: observableOf([]) } as any,
+         {} as any,
+         renderer,
+         { showFilter: jest.fn(), adhocFilterShowing: false } as any,
+         elementRef,
+         { detectChanges: jest.fn() } as any,
+         zone,
+         scaleService,
+         {} as any,
+         { isDataTip: jest.fn() } as any,
+         { open: jest.fn() } as any,
+         {} as any,
+         { isCurrentPopComponent: jest.fn() } as any,
+         {} as HttpClient,
+         null
+      );
+
+      (vsSelection as any).quickSwitchOverlay = { nativeElement: btnEl };
+      (vsSelection as any).quickSwitchOverlayIcon = { nativeElement: {} };
+      (vsSelection as any).verticalScrollWrapper = { nativeElement: {} };
+      (vsSelection as any).scale = 1;
+      (vsSelection as any).scrollbarWidth = 16;
+      // Override the showScroll getter (depends on internal model state); each test
+      // can re-define it before calling setQuickSwitchHover.
+      Object.defineProperty(vsSelection, "showScroll", { get: () => false, configurable: true });
+   });
+
+   it("with measure content: anchors button at labelEl.right (column-agnostic)", () => {
+      const cell = makeCell(makeRect(0, 0, 100, 30), true, makeRect(0, 0, 70, 30));
+      vsSelection.setQuickSwitchHover(cell, false, () => {});
+
+      // labelRight(70) - listLeft(0) = 70
+      expect(btnLeft()).toBe("70px");
+      expect(btnRight()).toBe("auto");
+      expect(listWidth()).toBe("200px");
+   });
+
+   it("non-last column without measure: anchors button at right edge of hovered cell", () => {
+      const cell = makeCell(makeRect(0, 0, 100, 30), false);
+      vsSelection.setQuickSwitchHover(cell, false, () => {});
+
+      // cellRight(100) - btn(24) = 76; list(200) - 0 - 24 = 176; min = 76
+      expect(btnLeft()).toBe("76px");
+      expect(btnRight()).toBe("auto");
+   });
+
+   it("last/single column without measure, with scrollbar: clamps to listRight - scrollbar - btn", () => {
+      Object.defineProperty(vsSelection, "showScroll", { get: () => true, configurable: true });
+      const cell = makeCell(makeRect(0, 0, 200, 30), false);
+      vsSelection.setQuickSwitchHover(cell, false, () => {});
+
+      // cellRight(200) - btn(24) = 176; list(200) - scrollbar(16) - btn(24) = 160; min = 160
+      expect(btnLeft()).toBe("160px");
+   });
+
+   it("clamps button left to 0 when cell is narrower than the button", () => {
+      const cell = makeCell(makeRect(0, 0, 10, 30), false);
+      vsSelection.setQuickSwitchHover(cell, false, () => {});
+
+      // cellRight(10) - btn(24) = -14 → clamped to 0 by Math.max(0, ...)
+      expect(btnLeft()).toBe("0px");
+   });
+
+   it("does not expand body width or apply margin-left to adjacent columns", () => {
+      const cell = makeCell(makeRect(0, 0, 100, 30), false);
+      vsSelection.setQuickSwitchHover(cell, false, () => {});
+
+      // Required writes: button position + list width lock.
+      expect(setStyleCalls.find(c => c.el === btnEl && c.prop === "left")).toBeDefined();
+      expect(setStyleCalls.find(c => c.el === listEl && c.prop === "width")).toBeDefined();
+      // Forbidden writes from the removed column-shift path: any margin-left, or any
+      // width write on something other than the list element (body/row expansion).
+      expect(setStyleCalls.find(c => c.prop === "margin-left")).toBeUndefined();
+      expect(setStyleCalls.find(c => c.prop === "width" && c.el !== listEl)).toBeUndefined();
+   });
+
+   it("converts viewport coordinates to CSS px when scale != 1", () => {
+      (vsSelection as any).scale = 2;
+      // List at viewport (100, 0), 400x600 viewport px → 200x300 CSS px.
+      listEl.getBoundingClientRect = () => makeRect(100, 0, 400, 600);
+      // Cell at viewport (100, 0), 200x60 viewport px → 100x30 CSS px (non-last column).
+      const cell = makeCell(makeRect(100, 0, 200, 60), false);
+      vsSelection.setQuickSwitchHover(cell, false, () => {});
+
+      // (cellRight 300 - listLeft 100) / scale 2 = 100 CSS px → 100 - btn(24) = 76;
+      // listWidth 200 - 0 - btn(24) = 176; min = 76.
+      expect(btnLeft()).toBe("76px");
+      expect(listWidth()).toBe("200px");
+   });
+
+   it("falls back to cell-rect math when measure content has no labelEl (defensive)", () => {
+      // Template-impossible state: .selection-list-cell-content present, but no
+      // .selection-list-cell-label.  Pins the fallback contract so a future template
+      // change cannot silently regress this case.
+      const cell = makeCell(makeRect(0, 0, 100, 30), true /* hasMeasure */ /* no labelRect */);
+      vsSelection.setQuickSwitchHover(cell, false, () => {});
+
+      // Falls into the else branch: cellRight(100) - btn(24) = 76; min vs 176 = 76.
+      expect(btnLeft()).toBe("76px");
+   });
+
+   it("returns early without writing position styles when the list element is missing", () => {
+      // Stub elementRef to return no .selection-list child.
+      (vsSelection as any).elementRef = {
+         nativeElement: { querySelector: () => null }
+      };
+      const cell = makeCell(makeRect(0, 0, 100, 30), false);
+      vsSelection.setQuickSwitchHover(cell, false, () => {});
+
+      // No left/width writes — the early return fires before measurement.
+      expect(btnLeft()).toBeUndefined();
+      expect(listWidth()).toBeUndefined();
+      // _currentHoverElement is still set by setQuickSwitchHover before the early return,
+      // documenting the contract that the hover state is recorded even when the list
+      // element cannot be located.
+      expect((vsSelection as any)._currentHoverElement).toBe(cell);
+   });
+});
