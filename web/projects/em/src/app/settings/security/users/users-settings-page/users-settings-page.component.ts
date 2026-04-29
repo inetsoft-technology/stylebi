@@ -209,6 +209,10 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    }
 
    public newUser(parentGroup: string) {
+      this.withIncompleteUserGuard(() => this.createNewUser(parentGroup));
+   }
+
+   private withIncompleteUserGuard(action: () => void): void {
       if(this.newUserIdentity) {
          const ref = this.dialog.open(MessageDialog, {
             data: {
@@ -221,14 +225,14 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
          ref.afterClosed().subscribe(val => {
             if(val) {
                this.clearIncompleteNewUser(false).subscribe({
-                  next: () => this.createNewUser(parentGroup),
+                  next: () => action(),
                   error: () => {}
                });
             }
          });
       }
       else {
-         this.createNewUser(parentGroup);
+         action();
       }
    }
 
@@ -402,18 +406,34 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    }
 
    public newGroup(parentGroup: string) {
+      this.withIncompleteUserGuard(() => this.createNewGroup(parentGroup));
+   }
+
+   private createNewGroup(parentGroup: string) {
       let provider = Tool.byteEncodeURLComponent(this.selectedProvider);
       const uri = `../api/em/security/providers/${provider}/create-group`;
       this.http.post<EditGroupPaneModel>(uri, {parentGroup})
-         .subscribe(model => this.refreshTree(
-            {name: model.name, orgID: model.organization}, IdentityType.GROUP));
+         .pipe(catchError((error: HttpErrorResponse) => this.errorService.showSnackBar(error)))
+         .subscribe(model => {
+            if(model) {
+               this.refreshTree({name: model.name, orgID: model.organization}, IdentityType.GROUP);
+            }
+         });
    }
 
    public newRole() {
+      this.withIncompleteUserGuard(() => this.createNewRole());
+   }
+
+   private createNewRole() {
       let provider = Tool.byteEncodeURLComponent(this.selectedProvider);
       this.http.get<EditRolePaneModel>("../api/em/security/user/create-role/" + provider)
-         .subscribe(model => this.refreshTree(
-            {name: model.name, orgID: model.organization}, IdentityType.ROLE));
+         .pipe(catchError((error: HttpErrorResponse) => this.errorService.showSnackBar(error)))
+         .subscribe(model => {
+            if(model) {
+               this.refreshTree({name: model.name, orgID: model.organization}, IdentityType.ROLE);
+            }
+         });
    }
 
    setRole(model: EditRolePaneModel) {
