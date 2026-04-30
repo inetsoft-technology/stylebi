@@ -116,7 +116,7 @@ export class InputNameDialog implements OnChanges, OnInit, AfterViewInit {
             (error: HttpErrorResponse) => {
                this.zone.run(() => {
                   const message = error?.status === 403
-                     ? "_#(js:composer.authorization.permissionDenied)"
+                     ? "_#(js:data.datasets.unauthorized)"
                      : "_#(js:internal.error)";
                   this.changeDetectorRef.detach();
                   ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", message).then(() => {
