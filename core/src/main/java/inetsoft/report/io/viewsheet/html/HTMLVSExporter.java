@@ -24,6 +24,7 @@ import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.gui.viewsheet.VSGroupContainer;
 import inetsoft.report.gui.viewsheet.VSImage;
+import inetsoft.report.internal.Common;
 import inetsoft.report.internal.table.TableFormat;
 import inetsoft.report.io.viewsheet.AbstractVSExporter;
 import inetsoft.report.io.viewsheet.ExportUtil;
@@ -148,11 +149,45 @@ public class HTMLVSExporter extends AbstractVSExporter {
       // labelFormat lets CSS inherit when no font is set, keeping the label close to
       // the viewer's rendering (Roboto at the inherited size).
       VSCompositeFormat labelFormat = labelInfo.getLabelFormat();
-      helper.writeText(writer, bounds[0],
+      Rectangle2D labelBounds = adjustLabelBoundsForFont(
+         bounds[0], labelFormat, labelInfo.getLabelPosition());
+      helper.writeText(writer, labelBounds,
          labelFormat != null ? labelFormat : new VSCompositeFormat(),
          labelInfo.getLabelText(), null, false, null, false, info.getZIndex());
 
       return bounds[1];
+   }
+
+   /**
+    * Expand bounds vertically to fit the font (otherwise overflow:hidden clips it)
+    * and shift away from the widget to preserve the label-widget gap.
+    */
+   private static Rectangle2D adjustLabelBoundsForFont(Rectangle2D labelBounds,
+      VSCompositeFormat labelFormat, String position)
+   {
+      if(labelFormat == null || labelFormat.getFont() == null) {
+         return labelBounds;
+      }
+
+      double fontHeight = Common.getHeight(labelFormat.getFont());
+
+      if(fontHeight <= labelBounds.getHeight()) {
+         return labelBounds;
+      }
+
+      double extra = fontHeight - labelBounds.getHeight();
+      double newY = labelBounds.getY();
+
+      if(LabelInfo.LEFT.equals(position) || LabelInfo.RIGHT.equals(position)) {
+         newY -= extra / 2.0;  // recenter on widget
+      }
+      else if(LabelInfo.TOP.equals(position)) {
+         newY -= extra;  // grow upward; bottom anchored
+      }
+      // BOTTOM: grow downward; top anchored
+
+      return new Rectangle2D.Double(
+         labelBounds.getX(), newY, labelBounds.getWidth(), fontHeight);
    }
 
    /**
