@@ -38,7 +38,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.util.AntPathMatcher;
 
 import java.io.IOException;
 import java.security.KeyPair;
@@ -85,7 +84,7 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
       HttpServletResponse httpResponse = (HttpServletResponse) response;
 
       // Only process requests to WIZ endpoints
-      if(!isWizApiRequest(httpRequest)) {
+      if(!isWizRequest(httpRequest)) {
          chain.doFilter(request, response);
          return;
       }
@@ -143,29 +142,6 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
          LOG.error("Error during WIZ service authentication", e);
          sendUnauthorized(httpResponse, "Authentication error");
       }
-   }
-
-   /**
-    * Checks if the request has a wiz_auth cookie.
-    */
-   private boolean isWizApiRequest(HttpServletRequest request) {
-      Cookie[] cookies = request.getCookies();
-
-      if(cookies != null) {
-         for(Cookie cookie : cookies) {
-            if(WIZ_AUTH_COOKIE.equals(cookie.getName())) {
-               return true;
-            }
-         }
-      }
-
-      String path = request.getServletPath();
-
-      if(request.getPathInfo() != null) {
-         path += request.getPathInfo();
-      }
-
-      return pathMatcher.match(WIZ_API_PATTERN, path);
    }
 
    /**
@@ -404,13 +380,9 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
 
    private KeyPair ssoKeyPair;
 
-   private final AntPathMatcher pathMatcher = new AntPathMatcher();
-   private static final String WIZ_API_PATTERN = "/api/wiz/**";
-
    private static final String AUTHORIZATION_HEADER = "Authorization";
    private static final String BEARER_PREFIX = "Bearer ";
    private static final String WIZ_AUTH_ENABLED_PROPERTY = "wiz.auth.enabled";
-   private static final String WIZ_AUTH_COOKIE = "wiz_auth";
 
    // Valid audiences for WIZ service tokens
    private static final List<String> VALID_AUDIENCES = Arrays.asList(
