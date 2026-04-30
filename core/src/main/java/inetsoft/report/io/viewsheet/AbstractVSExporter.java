@@ -3853,7 +3853,8 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
-    * Get the font to use for rendering an input label.
+    * Get the font to use for rendering an input label. The default size 11
+    * matches LabelInfo.getRenderedHeight() so drawing and measurement agree.
     */
    protected static Font getLabelFont(LabelInfo labelInfo) {
       VSCompositeFormat fmt = labelInfo.getLabelFormat();
@@ -3862,15 +3863,25 @@ public abstract class AbstractVSExporter implements VSExporter {
          return fmt.getFont();
       }
 
-      return GDefaults.DEFAULT_TEXT_FONT;
+      return VSAssemblyInfo.getDefaultFont(Font.PLAIN, 11);
    }
 
    /**
-    * Get the label format, returning a default if null.
+    * Get the label format, returning a default if null. The returned format always
+    * has an explicit font so the drawing path uses the same font as the measurement
+    * path (PDFPrinter.setFont ignores null, so an unset font would silently fall
+    * back to whatever font was previously on the printer).
     */
    protected static VSCompositeFormat getLabelFormat(LabelInfo labelInfo) {
       VSCompositeFormat fmt = labelInfo.getLabelFormat();
-      return fmt != null ? fmt : new VSCompositeFormat();
+
+      if(fmt != null && fmt.getFont() != null) {
+         return fmt;
+      }
+
+      VSCompositeFormat result = fmt != null ? fmt.clone() : new VSCompositeFormat();
+      result.getUserDefinedFormat().setFont(getLabelFont(labelInfo));
+      return result;
    }
 
    /**

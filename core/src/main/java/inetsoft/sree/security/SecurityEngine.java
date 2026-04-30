@@ -125,6 +125,7 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
 
          if(!authcChain.getProviders().isEmpty() && !authzChain.getProviders().isEmpty()) {
             provider = CompositeSecurityProvider.create(authcChain, authzChain);
+            migrateSiteAdminToChain(authcChain);
          }
          else {
             authcChain.tearDown();
@@ -219,6 +220,39 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
       return result;
    }
 
+   /**
+    * Ensures the virtual site admin ({@code admin^<defaultOrg>}) exists in the primary
+    * authentication provider of the given chain so that admin login works when a custom
+    * security provider chain is active.
+    */
+   private void migrateSiteAdminToChain(AuthenticationChain authcChain) {
+      if(vprovider == null || authcChain.getProviders().isEmpty()) {
+         return;
+      }
+
+      AuthenticationProvider primary = authcChain.getProviders().get(0);
+
+      if(!(primary instanceof EditableAuthenticationProvider editablePrimary)) {
+         return;
+      }
+
+      IdentityID siteAdminId = new IdentityID("admin", Organization.getDefaultOrganizationID());
+      boolean alreadyPresent = primary.getUser(siteAdminId) != null;
+      String envVar = System.getenv("INETSOFT_ADMIN_PASSWORD");
+      boolean envVarSet = envVar != null && !envVar.isBlank();
+
+      // When the env var is set it acts as a recovery mechanism: always update the File
+      // provider so a corrupted or unknown password can be reset without wiping data.
+      // When not set, only add the admin if it is missing (first-time migration).
+      if(!alreadyPresent || envVarSet) {
+         User virtualAdmin = vprovider.getAuthenticationProvider().getUser(siteAdminId);
+
+         if(virtualAdmin != null) {
+            editablePrimary.addUser(virtualAdmin);
+         }
+      }
+   }
+
    public void newChain() {
       AuthenticationChain authcChain = new AuthenticationChain();
       List<AuthenticationProvider> authcProviders = authcChain.getProviderList();
@@ -226,6 +260,7 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
       authcProvider.setProviderName("Primary");
       authcProviders.add(authcProvider);
       authcChain.setProviders(authcProviders);
+      migrateSiteAdminToChain(authcChain);
 
       AuthorizationChain authzChain = new AuthorizationChain();
       List<AuthorizationProvider> authzProviders = authzChain.getProviderList();
@@ -254,6 +289,7 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
 
          if(!authcChain.getProviders().isEmpty() && !authzChain.getProviders().isEmpty()) {
             provider = CompositeSecurityProvider.create(authcChain, authzChain);
+            migrateSiteAdminToChain(authcChain);
             authcChain.addAuthenticationChangeListener(authzChain);
             authcChain.addAuthenticationChangeListener(this::fireAuthenticationChange);
          }

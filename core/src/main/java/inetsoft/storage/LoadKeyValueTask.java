@@ -35,7 +35,7 @@ public class LoadKeyValueTask<T extends Serializable>
    extends KeyValueTask<T> implements SingletonRunnableTask
 {
    /**
-    * Creates a new instance of {@code DeleteKeyValueTask}.
+    * Creates a new instance of {@code LoadKeyValueTask}.
     *
     * @param id the unique identifier of the key-value store.
     */
@@ -44,7 +44,7 @@ public class LoadKeyValueTask<T extends Serializable>
    }
 
    /**
-    * Creates a new instance of {@code DeleteKeyValueTask}.
+    * Creates a new instance of {@code LoadKeyValueTask}.
     *
     * @param id       the unique identifier of the key-value store.
     * @param external a flag indicating if this load was triggered by an external change.
@@ -59,7 +59,7 @@ public class LoadKeyValueTask<T extends Serializable>
       try {
          Map<String, T> map = getMap();
 
-         if(map.isEmpty() || external) {
+         if(map.isEmpty() || external || map.size() != getEngine().size(getId())) {
             TreeMap<String, T> temp = new TreeMap<>();
             getEngine().<T>stream(getId())
                .forEach(p -> temp.put(p.getKey(), p.getValue()));

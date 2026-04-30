@@ -81,9 +81,11 @@ management:
             - scheduler
             - securityProvider
             - fileSystem
+            - clusterReadiness # nosemgrep: java.spring.security.audit.spring-actuator-non-health-enabled-yaml.spring-actuator-dangerous-endpoints-enabled-yaml
         readiness:
           include:
-            - readinessState
+            - readinessState # nosemgrep: java.spring.security.audit.spring-actuator-non-health-enabled-yaml.spring-actuator-dangerous-endpoints-enabled-yaml
+            - clusterReadiness # nosemgrep: java.spring.security.audit.spring-actuator-non-health-enabled-yaml.spring-actuator-dangerous-endpoints-enabled-yaml
             - cluster
       show-details: always
       show-components: always
@@ -109,6 +111,8 @@ management:
     fileSystem:
       enabled: true
     cluster:
+      enabled: true
+    clusterReadiness:
       enabled: true
   server:
     port: 8081

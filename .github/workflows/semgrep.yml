@@ -1,0 +1,49 @@
+name: Semgrep
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  semgrep:
+    name: Semgrep Scan
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.pull_request.draft }}
+    continue-on-error: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Semgrep
+        run: |
+          pip install semgrep==1.160.0 --quiet
+          semgrep scan \
+            --config=p/java \
+            --config=p/typescript \
+            --config=p/owasp-top-ten \
+            --baseline-commit ${{ github.event.pull_request.base.sha }} \
+            --sarif \
+            --output=semgrep.sarif \
+            --exclude='**/node_modules/**' \
+            --exclude='**/target/**' \
+            --exclude='**/*.min.js' \
+            --exclude='**/dist/**' \
+            --timeout=300 \
+            .
+
+      - name: Upload SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
