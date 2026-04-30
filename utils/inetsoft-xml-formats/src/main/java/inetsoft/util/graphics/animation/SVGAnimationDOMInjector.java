@@ -2889,7 +2889,10 @@ public class SVGAnimationDOMInjector {
             if(!parentClass.startsWith("inetsoft-")) {
                result.add(c);
             }
-            // Don't recurse — label groups don't contain nested label groups.
+            else {
+               // Still recurse in case a label is nested deeper inside the Batik wrapper.
+               collectTextGroups(c, result);
+            }
          }
          else {
             collectTextGroups(c, result);

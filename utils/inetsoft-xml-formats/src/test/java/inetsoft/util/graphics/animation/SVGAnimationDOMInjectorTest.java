@@ -747,10 +747,6 @@ class SVGAnimationDOMInjectorTest {
    }
 
    // -------------------------------------------------------------------------
-   // nearestCellByCtm fallback path test
-   // -------------------------------------------------------------------------
-
-   // -------------------------------------------------------------------------
    // Step-area animation tests
    // -------------------------------------------------------------------------
 
@@ -922,10 +918,6 @@ class SVGAnimationDOMInjectorTest {
    }
 
    // -------------------------------------------------------------------------
-   // nearestCellByCtm fallback path test
-   // -------------------------------------------------------------------------
-
-   // -------------------------------------------------------------------------
    // Step / jump line — no ghost fill
    // -------------------------------------------------------------------------
 
@@ -959,6 +951,36 @@ class SVGAnimationDOMInjectorTest {
 
       assertEquals(0, countGhostFills(svg),
          "no ghost-fill element must be inserted into the SVG root for a step/jump line");
+   }
+
+   /**
+    * Jump lines (axis-aligned horizontal-then-vertical segments) set the same {@code data-step}
+    * flag as step lines and must also be excluded from ghost-fill insertion.
+    */
+   @Test
+   void jumpLine_noGhostFillInjected() throws Exception {
+      Document doc = newDocument();
+      Element svg = doc.getDocumentElement();
+
+      Element lineAnnot = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      lineAnnot.setAttribute("class", SVGSupport.ANNOTATION_LINE);
+      lineAnnot.setAttribute("data-" + SVGSupport.ATTR_COLOR, "96,165,250");
+      lineAnnot.setAttribute("data-" + SVGSupport.ATTR_SERIES, "0");
+      lineAnnot.setAttribute("data-" + SVGSupport.ATTR_STEP, "true");
+
+      Element inner = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      Element linePath = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+      // Jump line: horizontal segment first, then vertical drop (H-then-V pattern).
+      linePath.setAttribute("d", "M0,50 L50,50 L100,30 L100,30 L150,10");
+      linePath.setAttribute("fill", "none");
+      inner.appendChild(linePath);
+      lineAnnot.appendChild(inner);
+      svg.appendChild(lineAnnot);
+
+      SVGAnimationDOMInjector.injectAnimation(svg, SVGSupport.ANIMATION_LINE);
+
+      assertEquals(0, countGhostFills(svg),
+         "no ghost-fill element must be inserted into the SVG root for a jump line");
    }
 
    /**
@@ -1005,6 +1027,10 @@ class SVGAnimationDOMInjectorTest {
       }
       return count;
    }
+
+   // -------------------------------------------------------------------------
+   // nearestCellByCtm fallback path test
+   // -------------------------------------------------------------------------
 
    /**
     * When a label's translate-origin sits just outside all cell bounding boxes, the fallback

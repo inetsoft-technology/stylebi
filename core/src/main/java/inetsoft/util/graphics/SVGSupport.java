@@ -132,7 +132,7 @@ public interface SVGSupport {
    String ATTR_COLOR  = "color";
    /** {@code data-dashed} — {@code "true"} when the line uses a non-zero dash pattern. */
    String ATTR_DASHED = "dashed";
-   /** {@code data-step} — {@code "true"} when the line type is STEP or JUMP (no ghost fill). */
+   /** {@code data-step} — {@code "true"} when the line uses axis-aligned STEP or JUMP segments. */
    String ATTR_STEP   = "step";
    /** {@code data-face} — {@code "top"} or {@code "depth"} for 3D pie faces. */
    String ATTR_FACE   = "face";
