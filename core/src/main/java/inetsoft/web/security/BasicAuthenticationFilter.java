@@ -238,12 +238,10 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
                      // Site admin is replacing an existing session: authenticate without
                      // creating a session, then create the session with the replacement.
                      //check if user belongs to self org if not provided an organization via redirect
-                     if(SecurityEngine.getSecurity().isSelfSignupEnabled() &&
+                     if(SUtil.isMultiTenant() &&
                         recordedOrgID.equalsIgnoreCase(Organization.getDefaultOrganizationID()))
                      {
-                        IdentityID selfUser = SUtil.isMultiTenant() ?
-                           new IdentityID(userKey, Organization.getSelfOrganizationID()) :
-                           new IdentityID(userKey, Organization.getDefaultOrganizationID());
+                        IdentityID selfUser = new IdentityID(userKey, Organization.getSelfOrganizationID());
                         loginUser = selfUser;
                         principal = authenticate(request, selfUser, password, null, locale, false);
                      }
@@ -276,12 +274,10 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
                   }
                   else {
                      //check if user belongs to self org if not provided an organization via redirect
-                     if(SecurityEngine.getSecurity().isSelfSignupEnabled() &&
+                     if(SUtil.isMultiTenant() &&
                         recordedOrgID.equalsIgnoreCase(Organization.getDefaultOrganizationID()))
                      {
-                        IdentityID selfUser = SUtil.isMultiTenant() ?
-                           new IdentityID(userKey, Organization.getSelfOrganizationID()) :
-                           new IdentityID(userKey, Organization.getDefaultOrganizationID());
+                        IdentityID selfUser = new IdentityID(userKey, Organization.getSelfOrganizationID());
                         loginUser = selfUser;
 
                         principal =
@@ -295,11 +291,8 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
                      }
 
                      IdentityID loginAsUser = IdentityID.getIdentityIDFromKey(loginAsUserKey);
-                     boolean isSelfUser = loginAsUser != null &&
-                        Tool.equals(loginAsUser.orgID, Organization.getSelfOrganizationID());
-                     boolean selfLogin = isSelfUser && SecurityEngine.getSecurity().isSelfSignupEnabled();
 
-                     if(principal != null && (!isSelfUser || selfLogin)) {
+                     if(principal != null) {
                         authorized = true;
                         principal.setProperty("curr_provider_name", providerName);
 
