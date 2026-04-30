@@ -560,6 +560,31 @@ public abstract class AbstractSecurityFilter
       return isPageRequested(apiTableExportPath, request);
    }
 
+   /**
+    * Determines if an HTTP request originates from the WIZ service — either by path
+    * ({@code /api/wiz/**}) or by the presence of the {@code wiz_auth} cookie set during
+    * WIZ service login. Requests matched by cookie alone may not target a WIZ endpoint
+    * (e.g. {@code getAssemblyImage}), but they are still authenticated by
+    * {@link inetsoft.web.wiz.security.WizServiceAuthenticationFilter} via JWT and must
+    * not have their sessions invalidated by the standard active-user check.
+    *
+    * @param request the HTTP request object.
+    * @return {@code true} if the request is a WIZ service request.
+    */
+   protected boolean isWizRequest(HttpServletRequest request) {
+      Cookie[] cookies = request.getCookies();
+
+      if(cookies != null) {
+         for(Cookie cookie : cookies) {
+            if(WIZ_AUTH_COOKIE.equals(cookie.getName())) {
+               return true;
+            }
+         }
+      }
+
+      return isPageRequested(wizApiPath, request);
+   }
+
    @Override
    public void sessionAccessed(SessionAccessDispatcher.SessionAccessEvent event) {
       // NO-OP
@@ -731,6 +756,8 @@ public abstract class AbstractSecurityFilter
    private static final String apiTableExportPath = "/api/table-export/**"; // NOSONAR not applicable
    private static final String apiPath = "/api/**"; // NOSONAR not applicable
    private static final String publicApiPath = "/api/public/**"; // NOSONAR not applicable
+   private static final String wizApiPath = "/api/wiz/**"; // NOSONAR not applicable
+   protected static final String WIZ_AUTH_COOKIE = "wiz_auth";
    private static final String teamWebsocketEndpointPath = "/reports/**"; // NOSONAR not applicable
    private static final String[] publicResources = {
       "/", "/index.html", "/add-license.html",
