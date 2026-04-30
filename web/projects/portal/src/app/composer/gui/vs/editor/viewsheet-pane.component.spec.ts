@@ -68,6 +68,7 @@ describe("Viewsheet Pane Test", () => {
    let fontService: any;
    let aiAssistantService: any;
    let aiAssistantDialogService: any;
+   let wizService: any;
 
    let createChartObject: () =>  ChartObject = () => {
       return {
@@ -189,6 +190,7 @@ describe("Viewsheet Pane Test", () => {
 
       aiAssistantService = { loadCurrentUser: jest.fn() };
       aiAssistantDialogService = { setViewsheetScriptContext: jest.fn() };
+      wizService = { showingWiz: false };
 
       viewsheetPane = new VSPane(
          aiAssistantService, aiAssistantDialogService,
@@ -196,7 +198,7 @@ describe("Viewsheet Pane Test", () => {
          treeService, changeDetectorRef, modelService, modalService,
          downloadService, dragService, scaleService, renderer, actionFactory,
          dialogService, dataTipService, debounceService, uiContextService, zone, domService, null,
-         resizeHandlerService, composerVsSearchService, appInfoService, fontService);
+         resizeHandlerService, composerVsSearchService, appInfoService, fontService, wizService);
    });
 
    // Bug #10442 make sure to update send to back/front enabled after adding vs object to vs
