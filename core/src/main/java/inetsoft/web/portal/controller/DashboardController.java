@@ -254,8 +254,9 @@ public class DashboardController {
       String type;
       boolean composedDashboard = false;
 
-      Identity identity = getIdentity((XPrincipal) principal);
-      IdentityID user = identity.getIdentityID();
+      IdentityID user = principal != null
+         ? getIdentity((XPrincipal) principal).getIdentityID()
+         : new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
       DashboardRegistry registry = dashboardRegistryManager.getRegistry(user);
       // log create dashboard action
       String actionName = ActionRecord.ACTION_NAME_CREATE;
@@ -276,7 +277,7 @@ public class DashboardController {
          AssetEntry entry;
 
          if(identifier == null) {
-            owner = identity.getIdentityID();
+            owner = user;
             AssetRepository engine = AssetUtil.getAssetRepository(false);
             entry = new AssetEntry(AssetRepository.USER_SCOPE,
                AssetEntry.Type.VIEWSHEET, dashboardModel.name(), owner);
@@ -405,7 +406,7 @@ public class DashboardController {
          AssetEntry entry;
 
          if(identifier == null) {
-            owner = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
+            owner = user;
             AssetRepository engine = viewsheetService.getAssetRepository();
             entry = new AssetEntry(AssetRepository.USER_SCOPE,
                AssetEntry.Type.VIEWSHEET, dashboardModel.name(), owner);
