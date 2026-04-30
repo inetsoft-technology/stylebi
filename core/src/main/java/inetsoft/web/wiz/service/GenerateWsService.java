@@ -20,6 +20,7 @@ package inetsoft.web.wiz.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.web.wiz.model.DatasourceType;
 import inetsoft.web.wiz.model.GenerateWsResponse;
 import inetsoft.web.wiz.model.WorksheetConstructionModel;
@@ -100,19 +101,67 @@ public class GenerateWsService {
    public GenerateWsResponse generateWs(WorksheetConstructionModel model, Principal user)
       throws Exception
    {
-      Worksheet originWs = getWorksheet(model, user);
+      WorksheetBuildResult buildResult = buildFreshWorksheet(model, user);
+      Worksheet worksheet = buildResult.worksheet();
+      AbstractTableAssembly table = buildResult.primaryTable();
       GenerateWsResponse generateWsResponse = new GenerateWsResponse();
 
+      if(model.getWorksheetId() != null) {
+         // Incremental path: merge the new query into the existing worksheet
+         AssetEntry existingEntry;
+
+         try {
+            existingEntry = AssetEntry.createAssetEntry(model.getWorksheetId());
+         }
+         catch(Exception e) {
+            throw new IllegalArgumentException("Invalid worksheetId: " + model.getWorksheetId(), e);
+         }
+
+         AbstractSheet sheet = viewsheetService.getAssetRepository()
+            .getSheet(existingEntry, user, false, AssetContent.ALL);
+
+         if(!(sheet instanceof Worksheet dashWS)) {
+            throw new IllegalArgumentException(
+               sheet == null
+                  ? "Worksheet not found: " + model.getWorksheetId()
+                  : "worksheetId does not reference a worksheet: " + model.getWorksheetId());
+         }
+
+         String vizSuffix = wsMergeService.computeUniqueSuffix(model.getName(), dashWS);
+         Map<String, String> wsRenameMap = wsMergeService.mergeWorksheet(worksheet, dashWS, vizSuffix, new HashMap<>());
+         String finalTableName = wsRenameMap.getOrDefault(table.getName(), table.getName());
+         // By design, the primary assembly always tracks the most recently added query.
+         // Callers (e.g. WizVsService) bind to the primary assembly name returned in
+         // the response, so downstream VS bindings remain consistent with the last request.
+         dashWS.setPrimaryAssembly(finalTableName);
+         layoutGraph(dashWS);
+         viewsheetService.getAssetRepository().setSheet(existingEntry, dashWS, user, true);
+         generateWsResponse.setWsId(existingEntry.toIdentifier());
+      }
+      else {
+         // New worksheet path
+         worksheet.setPrimaryAssembly(table.getName());
+         layoutGraph(worksheet);
+         AssetEntry assetEntry = persistWorksheet(worksheet, user);
+         generateWsResponse.setWsId(assetEntry.toIdentifier());
+      }
+
+      return generateWsResponse;
+   }
+
+   private record WorksheetBuildResult(Worksheet worksheet, AbstractTableAssembly primaryTable) {
+   }
+
+   private WorksheetBuildResult buildFreshWorksheet(WorksheetConstructionModel model, Principal user)
+      throws Exception
+   {
+      Worksheet originWs = getWorksheet(model, user);
+
       if(model.getFields() == null || model.getFields().isEmpty()) {
-         throw new RuntimeException("Doesn't select any field!");
+         throw new IllegalArgumentException("At least one field must be selected.");
       }
 
-      Worksheet worksheet = originWs;
-
-      if(worksheet == null) {
-         worksheet = new Worksheet();
-      }
-
+      Worksheet worksheet = originWs != null ? originWs : new Worksheet();
       AbstractTableAssembly table = null;
       List<WorksheetConstructionModel.QueryField> fields = new ArrayList<>(model.getFields());
 
@@ -198,58 +247,18 @@ public class GenerateWsService {
       }
 
       if(table == null) {
-         throw new RuntimeException("can not generate worksheet");
+         throw new IllegalStateException("Failed to generate worksheet: no table assembly was produced.");
       }
 
-      // Apply conditions and sort to the new table before persisting or merging
       if(model.getFilters() != null) {
          applyCondition(table, model.getFilters());
       }
+
       if(model.getOrderBy() != null) {
          applyOrderBy(table, model.getOrderBy());
       }
 
-      if(model.getWorksheetId() != null) {
-         // Incremental path: merge the new query into the existing worksheet
-         AssetEntry existingEntry;
-
-         try {
-            existingEntry = AssetEntry.createAssetEntry(model.getWorksheetId());
-         }
-         catch(Exception e) {
-            throw new IllegalArgumentException("Invalid worksheetId: " + model.getWorksheetId(), e);
-         }
-         AbstractSheet sheet = viewsheetService.getAssetRepository()
-            .getSheet(existingEntry, user, false, AssetContent.ALL);
-
-         if(!(sheet instanceof Worksheet dashWS)) {
-            throw new IllegalArgumentException(
-               sheet == null
-                  ? "Worksheet not found: " + model.getWorksheetId()
-                  : "worksheetId does not reference a worksheet: " + model.getWorksheetId());
-         }
-
-         String vizSuffix = wsMergeService.computeUniqueSuffix(model.getName(), dashWS);
-         Map<String, String> wsRenameMap = wsMergeService.mergeWorksheet(worksheet, dashWS, vizSuffix, new HashMap<>());
-         String finalTableName = wsRenameMap.getOrDefault(table.getName(), table.getName());
-         // By design, the primary assembly always tracks the most recently added query.
-         // Callers (e.g. WizVsService) bind to the primary assembly name returned in
-         // the response, so downstream VS bindings remain consistent with the last request.
-         dashWS.setPrimaryAssembly(finalTableName);
-         layoutGraph(dashWS);
-         viewsheetService.getAssetRepository().setSheet(existingEntry, dashWS, user, true);
-         generateWsResponse.setWsId(existingEntry.toIdentifier());
-      }
-      else {
-         // New worksheet path
-         worksheet.setPrimaryAssembly(table.getName());
-         layoutGraph(worksheet);
-         AssetEntry assetEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, model.getName(), null);
-         viewsheetService.setWorksheet(worksheet, assetEntry, user, true, true);
-         generateWsResponse.setWsId(assetEntry.toIdentifier());
-      }
-
-      return generateWsResponse;
+      return new WorksheetBuildResult(worksheet, table);
    }
 
    private void fixJoinPathKey(List<WorksheetConstructionModel.JoinPath> joinPaths,
@@ -270,9 +279,9 @@ public class GenerateWsService {
    /**
     * Build a lookup map from fully-qualified field name (and its alias variants) to alias.
     * Each field is indexed by:
-    *   1. Its original fieldName (e.g. "col" or "table.col")
-    *   2. "tableName.fieldName" (if fieldName has no dot)
-    *   3. Its alias (if the alias differs from the fieldName)
+    * 1. Its original fieldName (e.g. "col" or "table.col")
+    * 2. "tableName.fieldName" (if fieldName has no dot)
+    * 3. Its alias (if the alias differs from the fieldName)
     */
    private Map<String, String> buildKeyToAliasMap(List<WorksheetConstructionModel.QueryField> fields) {
       if(fields == null || fields.isEmpty()) {
@@ -330,6 +339,27 @@ public class GenerateWsService {
       }
 
       return key;
+   }
+
+   private AssetEntry persistWorksheet(Worksheet worksheet, Principal user) throws Exception {
+      AssetRepository repo = viewsheetService.getAssetRepository();
+      AssetEntry folder = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.FOLDER, WORKSHEET_ROOT_FOLDER_PATH, null);
+
+      try {
+         repo.addFolder(folder, user);
+      }
+      catch(Exception e) {
+         if(!repo.containsEntry(folder)) {
+            throw e;
+         }
+      }
+
+      IdentityID pId = IdentityID.getIdentityIDFromKey(user.getName());
+      String path = WORKSHEET_ROOT_FOLDER_PATH + "/" + UUID.randomUUID();
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, path, pId);
+      viewsheetService.setWorksheet(worksheet, entry, user, true, true);
+      return entry;
    }
 
    private void layoutGraph(Worksheet worksheet) throws Exception {
@@ -856,4 +886,8 @@ public class GenerateWsService {
    private final LayoutGraphService layoutGraphService;
    private final WsMergeService wsMergeService;
    private final ObjectMapper objectMapper;
+
+   // UUID suffix prevents name collision with user-created folders.
+   public static final String WORKSHEET_ROOT_FOLDER_PATH =
+      "worksheets-7a3f9c2e-8b5d-4f6a-b1c4-3e7d0a9f2b8c";
 }

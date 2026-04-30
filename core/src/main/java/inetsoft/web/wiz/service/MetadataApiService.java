@@ -317,7 +317,7 @@ public class MetadataApiService {
       AssetEntry entry = AssetEntry.createAssetEntry(wsId);
       AbstractSheet sheet = assetRepository.getSheet(entry, principal, true, AssetContent.ALL);
 
-      if(!(sheet instanceof Worksheet)) {
+      if(!(sheet instanceof Worksheet worksheet)) {
          throw new Exception("Worksheet " + wsId + " not found.");
       }
 
@@ -336,6 +336,12 @@ public class MetadataApiService {
       worksheetMeta.setName(entry.getName());
       worksheetMeta.setDescription(sheet.getDescription());
       worksheetMeta.setTables(tables);
+
+      WSAssembly primaryAssembly = worksheet.getPrimaryAssembly();
+
+      if(primaryAssembly != null) {
+         worksheetMeta.setPrimaryTable(primaryAssembly.getName());
+      }
 
       return worksheetMeta;
    }
