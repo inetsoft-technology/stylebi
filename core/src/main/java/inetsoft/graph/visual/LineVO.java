@@ -157,6 +157,11 @@ public class LineVO extends ElementVO {
             }
          }
 
+         LineElement.Type lineType = lineInfo.getType();
+         if(lineType == LineElement.Type.STEP || lineType == LineElement.Type.JUMP) {
+            annotAttrs.put(SVGSupport.ATTR_STEP, "true");
+         }
+
          svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_LINE, annotAttrs);
       }
 

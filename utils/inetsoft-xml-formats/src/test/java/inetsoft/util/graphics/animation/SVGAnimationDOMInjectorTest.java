@@ -750,6 +750,262 @@ class SVGAnimationDOMInjectorTest {
    // nearestCellByCtm fallback path test
    // -------------------------------------------------------------------------
 
+   // -------------------------------------------------------------------------
+   // Step-area animation tests
+   // -------------------------------------------------------------------------
+
+   /**
+    * {@link SVGAnimationInjector#xRangesOverlap} must return {@code true} for overlapping paths
+    * and {@code false} for disjoint paths.
+    */
+   @Test
+   void xRangesOverlap_detectsOverlapAndDisjoint() {
+      // Same x-range — stacked area series.
+      assertTrue(SVGAnimationInjector.xRangesOverlap(
+         "M0,10 L100,10 L100,20 L200,20",
+         "M0,5  L100,5  L100,8  L200,8"),
+         "Identical x-ranges must overlap");
+
+      // Partial overlap.
+      assertTrue(SVGAnimationInjector.xRangesOverlap(
+         "M0,10 L150,10",
+         "M100,5 L200,5"),
+         "Partially overlapping x-ranges must overlap");
+
+      // Disjoint — non-stacked step area series.
+      assertFalse(SVGAnimationInjector.xRangesOverlap(
+         "M0,10 L100,10",
+         "M200,5 L300,5"),
+         "Disjoint x-ranges must not overlap");
+
+      // Single-point touch (minA == maxB) — treated as overlapping.
+      assertTrue(SVGAnimationInjector.xRangesOverlap(
+         "M0,10 L100,10",
+         "M100,5 L200,5"),
+         "Touching x-ranges at a single point must overlap");
+   }
+
+   /**
+    * In a non-stacked step-area chart each colored series covers a different x-range.
+    * {@code buildBandPolygon} must NOT be applied across disjoint x-ranges because it would
+    * produce a skewed polygon that spans the full chart width incorrectly.
+    *
+    * <p>Verifies that each area fill path keeps its original {@code d} attribute unchanged
+    * when adjacent series have disjoint x-ranges.
+    */
+   @Test
+   void stepArea_nonStacked_fillPathUnchangedWhenXRangesDisjoint() throws Exception {
+      Document doc = newDocument();
+      Element svg = doc.getDocumentElement();
+
+      // Series A: cyan fill, x-range 0–100.
+      String fillA = "M0,50 L50,50 L50,30 L100,30 L100,0 L0,0 Z";
+      String lineA = "M0,50 L50,50 L50,30 L100,30";
+      Element areaA = addLineAreaPair(doc, svg, "34,211,238", fillA, lineA);
+
+      // Series B: purple fill, x-range 200–300 (disjoint from A).
+      String fillB = "M200,40 L250,40 L250,20 L300,20 L300,0 L200,0 Z";
+      String lineB = "M200,40 L250,40 L250,20 L300,20";
+      Element areaB = addLineAreaPair(doc, svg, "167,139,250", fillB, lineB);
+
+      SVGAnimationDOMInjector.injectAnimation(svg, SVGSupport.ANIMATION_LINE);
+
+      // Locate the fill path inside each area annotation group.
+      Element pathA = firstDescendantPathOf(areaA);
+      Element pathB = firstDescendantPathOf(areaB);
+
+      assertNotNull(pathA, "area A must have a descendant path");
+      assertNotNull(pathB, "area B must have a descendant path");
+
+      assertEquals(fillA, pathA.getAttribute("d"),
+         "non-stacked area A fill must keep its original polygon (no band reshape)");
+      assertEquals(fillB, pathB.getAttribute("d"),
+         "non-stacked area B fill must keep its original polygon (no band reshape)");
+   }
+
+   /**
+    * The inner Batik style {@code <g text-rendering="geometricPrecision">} that wraps the fill
+    * path inside an {@code inetsoft-area} annotation group must NOT receive a fade animation.
+    * Before the fix, {@code collectTextGroups} incorrectly identified it as a value-label group
+    * and applied the dot-delay fade, hiding the area fill until all lines had finished drawing.
+    */
+   @Test
+   void stepArea_innerBatikStyleGroupNotFadedAsLabel() throws Exception {
+      Document doc = newDocument();
+      Element svg = doc.getDocumentElement();
+
+      String fill = "M0,50 L50,50 L50,30 L100,30 L100,0 L0,0 Z";
+      String line = "M0,50 L50,50 L50,30 L100,30";
+      addLineAreaPair(doc, svg, "34,211,238", fill, line);
+
+      SVGAnimationDOMInjector.injectAnimation(svg, SVGSupport.ANIMATION_LINE);
+
+      // Collect all elements with text-rendering="geometricPrecision" anywhere in the SVG.
+      List<Element> textRenderingGroups = new ArrayList<>();
+      collectByAttr(svg, "text-rendering", "geometricPrecision", textRenderingGroups);
+
+      for(Element g : textRenderingGroups) {
+         String style = g.getAttribute("style");
+         // Must not have a dot-delay fade (opacity:0 + inetsoft-line-fade animation).
+         // Annotation inner style groups should be transparent only if a wipe was applied to
+         // a child path — the parent g itself must not carry the fade.
+         assertFalse(style.contains("inetsoft-line-fade"),
+            "inner Batik style group inside inetsoft-area must not carry a label fade animation");
+      }
+   }
+
+   /**
+    * Adds a matched {@code inetsoft-area} / {@code inetsoft-line} pair to the SVG root, with
+    * the area fill wrapped in a Batik-style inner {@code <g text-rendering="geometricPrecision">}
+    * (matching the actual SVG structure produced by Batik for step-area charts).
+    *
+    * @return the outer {@code inetsoft-area} annotation group
+    */
+   private static Element addLineAreaPair(Document doc, Element svg,
+                                           String color, String fillD, String lineD)
+   {
+      // Area annotation group: outer g → inner Batik style g → clip g → path
+      Element areaAnnot = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      areaAnnot.setAttribute("class", SVGSupport.ANNOTATION_AREA);
+      areaAnnot.setAttribute("data-color", color);
+      areaAnnot.setAttribute("data-series", "0");
+
+      Element batikStyleG = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      batikStyleG.setAttribute("text-rendering", "geometricPrecision");
+
+      Element fillPath = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+      fillPath.setAttribute("d", fillD);
+      fillPath.setAttribute("stroke", "none");
+
+      batikStyleG.appendChild(fillPath);
+      areaAnnot.appendChild(batikStyleG);
+      svg.appendChild(areaAnnot);
+
+      // Line annotation group: outer g → inner g → path
+      Element lineAnnot = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      lineAnnot.setAttribute("class", SVGSupport.ANNOTATION_LINE);
+      lineAnnot.setAttribute("data-color", color);
+      lineAnnot.setAttribute("data-series", "0");
+
+      Element lineInner = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      Element linePath = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+      linePath.setAttribute("d", lineD);
+      linePath.setAttribute("fill", "none");
+
+      lineInner.appendChild(linePath);
+      lineAnnot.appendChild(lineInner);
+      svg.appendChild(lineAnnot);
+
+      return areaAnnot;
+   }
+
+   /** DFS traversal to find the first {@code <path>} descendant of the given element. */
+   private static Element firstDescendantPathOf(Element el) {
+      NodeList children = el.getChildNodes();
+      for(int i = 0; i < children.getLength(); i++) {
+         if(!(children.item(i) instanceof Element c)) continue;
+         if("path".equals(c.getLocalName())) return c;
+         Element found = firstDescendantPathOf(c);
+         if(found != null) return found;
+      }
+      return null;
+   }
+
+   /** Collects all elements anywhere in the tree that have the given attribute set to the given value. */
+   private static void collectByAttr(Element el, String attr, String value, List<Element> result) {
+      NodeList children = el.getChildNodes();
+      for(int i = 0; i < children.getLength(); i++) {
+         if(!(children.item(i) instanceof Element c)) continue;
+         if(value.equals(c.getAttribute(attr))) result.add(c);
+         collectByAttr(c, attr, value, result);
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // nearestCellByCtm fallback path test
+   // -------------------------------------------------------------------------
+
+   // -------------------------------------------------------------------------
+   // Step / jump line — no ghost fill
+   // -------------------------------------------------------------------------
+
+   /**
+    * Step and jump lines must not produce a ghost fill polygon.
+    * The fill polygon generated by {@code buildFillPolygon} for a straight line is a simple
+    * rectangle-like shape; for a stepped path it would be a visually incorrect "staircase shadow"
+    * that does not follow the line.  When {@code data-step="true"} is present on the annotation
+    * group the injector must skip ghost-fill insertion entirely.
+    */
+   @Test
+   void stepLine_noGhostFillInjected() throws Exception {
+      Document doc = newDocument();
+      Element svg = doc.getDocumentElement();
+
+      Element lineAnnot = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      lineAnnot.setAttribute("class", SVGSupport.ANNOTATION_LINE);
+      lineAnnot.setAttribute("data-" + SVGSupport.ATTR_COLOR, "96,165,250");
+      lineAnnot.setAttribute("data-" + SVGSupport.ATTR_SERIES, "0");
+      lineAnnot.setAttribute("data-" + SVGSupport.ATTR_STEP, "true");
+
+      Element inner = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      Element linePath = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+      linePath.setAttribute("d", "M0,50 L50,50 L50,30 L100,30 L100,10 L150,10");
+      linePath.setAttribute("fill", "none");
+      inner.appendChild(linePath);
+      lineAnnot.appendChild(inner);
+      svg.appendChild(lineAnnot);
+
+      SVGAnimationDOMInjector.injectAnimation(svg, SVGSupport.ANIMATION_LINE);
+
+      assertEquals(0, countGhostFills(svg),
+         "no ghost-fill element must be inserted into the SVG root for a step/jump line");
+   }
+
+   /**
+    * Regular (non-step) lines must still produce a ghost fill when {@code data-step} is absent.
+    */
+   @Test
+   void regularLine_ghostFillInjected() throws Exception {
+      Document doc = newDocument();
+      Element svg = doc.getDocumentElement();
+
+      Element lineAnnot = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      lineAnnot.setAttribute("class", SVGSupport.ANNOTATION_LINE);
+      lineAnnot.setAttribute("data-" + SVGSupport.ATTR_COLOR, "96,165,250");
+      lineAnnot.setAttribute("data-" + SVGSupport.ATTR_SERIES, "0");
+
+      Element inner = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      Element linePath = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+      linePath.setAttribute("d", "M0,50 L50,30 L100,10 L150,20");
+      linePath.setAttribute("fill", "none");
+      inner.appendChild(linePath);
+      lineAnnot.appendChild(inner);
+      svg.appendChild(lineAnnot);
+
+      SVGAnimationDOMInjector.injectAnimation(svg, SVGSupport.ANIMATION_LINE);
+
+      assertTrue(countGhostFills(svg) > 0,
+         "a ghost-fill element must be inserted into the SVG root for a regular line");
+   }
+
+   /**
+    * Count direct {@code <path>} children of {@code parent} that have a translucent rgba fill
+    * (the signature of injected ghost fill polygons).
+    */
+   private static int countGhostFills(Element parent) {
+      int count = 0;
+      NodeList children = parent.getChildNodes();
+      for(int i = 0; i < children.getLength(); i++) {
+         if(children.item(i) instanceof Element e &&
+            "path".equals(e.getLocalName()) &&
+            e.getAttribute("fill").startsWith("rgba("))
+         {
+            count++;
+         }
+      }
+      return count;
+   }
+
    /**
     * When a label's translate-origin sits just outside all cell bounding boxes, the fallback
     * nearest-centre path should still match it to the closest cell.

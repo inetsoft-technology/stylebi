@@ -853,7 +853,10 @@ public class SVGAnimationDOMInjector {
          // The transform lives on Batik's inner style group (path's parent), not on the annotation
          // group itself.  Each series fills independently from its line to the baseline (y=0 in
          // local coords), so crossing lines never produce self-intersecting polygons.
-         if(!isAreaChart) {
+         // Step/jump lines use axis-aligned segments; a fill polygon would create a visually
+         // incorrect "ghost" area that doesn't match the stepped shape.
+         boolean isStep = "true".equals(g.getAttribute("data-" + SVGSupport.ATTR_STEP));
+         if(!isAreaChart && !isStep) {
             String pathFill = path.getAttribute("fill");
             boolean hasFill = !pathFill.isEmpty() && !"none".equals(pathFill) && !pathFill.startsWith("url(");
 
@@ -961,7 +964,9 @@ public class SVGAnimationDOMInjector {
                AreaBandEntry top  = panel.get(i);
                AreaBandEntry bot  = panel.get(i + 1);
 
-               if(!top.linePath.isEmpty() && !bot.linePath.isEmpty()) {
+               if(!top.linePath.isEmpty() && !bot.linePath.isEmpty()
+                  && SVGAnimationInjector.xRangesOverlap(top.linePath, bot.linePath))
+               {
                   String band = SVGAnimationInjector.buildBandPolygon(top.linePath, bot.linePath);
                   if(band != null && !band.isEmpty()) {
                      top.fillPath.setAttribute("d", band);
@@ -2876,7 +2881,15 @@ public class SVGAnimationDOMInjector {
          if("g".equals(c.getLocalName())
             && "geometricPrecision".equals(c.getAttribute("text-rendering")))
          {
-            result.add(c);
+            // Skip inner Batik style groups that are direct children of annotation groups
+            // (inetsoft-area, inetsoft-line, etc.). These share the text-rendering attribute
+            // but are chart element wrappers, not text label groups.
+            String parentClass = el.getAttribute("class");
+
+            if(!parentClass.startsWith("inetsoft-")) {
+               result.add(c);
+            }
+            // Don't recurse — label groups don't contain nested label groups.
          }
          else {
             collectTextGroups(c, result);
