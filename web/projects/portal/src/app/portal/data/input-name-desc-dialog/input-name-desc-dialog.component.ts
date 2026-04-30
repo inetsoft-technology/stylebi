@@ -26,6 +26,7 @@ import {
    OnChanges, ChangeDetectorRef, NgZone
 } from "@angular/core";
 import { UntypedFormControl, ValidatorFn } from "@angular/forms";
+import { HttpErrorResponse } from "@angular/common/http";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable } from "rxjs";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
@@ -107,6 +108,18 @@ export class InputNameDescDialog implements OnChanges, OnInit {
                   });
                }
             },
+            (error: HttpErrorResponse) => {
+               this.zone.run(() => {
+                  const message = error?.status === 403
+                     ? "_#(js:composer.authorization.permissionDenied)"
+                     : "_#(js:internal.error)";
+                  this.changeDetectorRef.detach();
+                  ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", message).then(() => {
+                     this.changeDetectorRef.reattach();
+                     this.onCancel.emit("cancel");
+                  });
+               });
+            }
          );
       }
       else {

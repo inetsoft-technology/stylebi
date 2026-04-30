@@ -33,6 +33,7 @@ import {
 import { UntypedFormControl, ValidatorFn } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { HttpErrorResponse } from "@angular/common/http";
 import { Observable } from "rxjs";
 import { ComponentTool } from "../../../common/util/component-tool";
 
@@ -112,12 +113,13 @@ export class InputNameDialog implements OnChanges, OnInit, AfterViewInit {
                   this.onCommit.emit(newName);
                }
             },
-            () => {
+            (error: HttpErrorResponse) => {
                this.zone.run(() => {
+                  const message = error?.status === 403
+                     ? "_#(js:composer.authorization.permissionDenied)"
+                     : "_#(js:internal.error)";
                   this.changeDetectorRef.detach();
-                  ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
-                     "_#(js:composer.authorization.permissionDenied)").then(() =>
-                  {
+                  ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", message).then(() => {
                      this.changeDetectorRef.reattach();
                      this.onCancel.emit("cancel");
                   });
