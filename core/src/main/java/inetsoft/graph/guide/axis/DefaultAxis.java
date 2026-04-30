@@ -1236,7 +1236,9 @@ public class DefaultAxis extends Axis {
       for(int k = 0; k < getGridLineCount(); k++) {
          GridLine gridLine = getGridLine(k);
 
-         // Already extended on a previous layout pass; skip to avoid double-extension.
+         // createGridLines() always recreates GridLine instances (via removeAllGridLines) before
+         // layout() is called, so facetGrid is false on the first pass. This guard is a safety net
+         // against a hypothetical double-layout() call without an intervening createGridLines().
          if(gridLine.isFacetGrid()) {
             continue;
          }
@@ -1247,12 +1249,9 @@ public class DefaultAxis extends Axis {
             Line2D line = (Line2D) lineShape;
             Line2D line2;
 
-            if(isLabelAbove() && hor) {
-               line2 = new Line2D.Double(
-                  line.getX1(), Math.min(line.getY1(), line.getY2()) - labelSize,
-                  line.getX2(), Math.max(line.getY1(), line.getY2()));
-            }
-            else if(hor) {
+            if(hor) {
+               // In VGraph Y-up coordinates the label area is always at smaller Y than the plot,
+               // regardless of which side the labels appear on in screen space.
                line2 = new Line2D.Double(
                   line.getX1(), Math.min(line.getY1(), line.getY2()) - labelSize,
                   line.getX2(), Math.max(line.getY1(), line.getY2()));
