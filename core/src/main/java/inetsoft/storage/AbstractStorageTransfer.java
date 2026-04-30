@@ -32,6 +32,7 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.util.ShutdownException;
 import inetsoft.util.ThreadContext;
 import org.apache.commons.io.FileUtils;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
@@ -42,6 +43,7 @@ import java.util.stream.Stream;
 import java.util.zip.*;
 
 public abstract class AbstractStorageTransfer implements StorageTransfer {
+   private static final Logger LOG = LoggerFactory.getLogger(AbstractStorageTransfer.class);
 
    @Override
    public final void exportContents(OutputStream output) throws IOException {
@@ -131,9 +133,8 @@ public abstract class AbstractStorageTransfer implements StorageTransfer {
                                                       Organization.getDefaultOrganizationID());
             ThreadContext.setPrincipal(tempPrincipal);
          }
-         catch(ShutdownException ignored) {
-            LoggerFactory.getLogger(AbstractStorageTransfer.class)
-               .debug("Spring context not available during storage import; proceeding without session principal");
+         catch(ShutdownException e) {
+            LOG.debug("Spring context not available during storage import; proceeding without session principal", e);
          }
       }
 
