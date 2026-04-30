@@ -21,6 +21,7 @@ import inetsoft.sree.UserEnv;
 import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.log.LogManager;
+import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import org.apache.commons.lang3.SystemUtils;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
@@ -55,7 +56,6 @@ import java.util.*;
       "inetsoft.web.factory",
       "inetsoft.web.viewsheet.service",
       "inetsoft.web.viewsheet.model",
-      "inetsoft.web.composer.vs.controller",
       "inetsoft.web.binding.service",
       "inetsoft.web.binding.drm",
       "inetsoft.web.binding.model"
@@ -66,7 +66,7 @@ import java.util.*;
       @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = RuntimeViewsheetRef.class)
    }
 )
-@Import(ScheduleServerContext.class)
+@Import({ ScheduleServerContext.class, VSLayoutService.class })
 public class ScheduleServerApplication {
    public static void main(String[] args) {
       ApplicationArguments appArguments = new DefaultApplicationArguments(args);
