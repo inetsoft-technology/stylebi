@@ -112,6 +112,17 @@ export class InputNameDialog implements OnChanges, OnInit, AfterViewInit {
                   this.onCommit.emit(newName);
                }
             },
+            () => {
+               this.zone.run(() => {
+                  this.changeDetectorRef.detach();
+                  ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
+                     "_#(js:composer.authorization.permissionDenied)").then(() =>
+                  {
+                     this.changeDetectorRef.reattach();
+                     this.onCancel.emit("cancel");
+                  });
+               });
+            }
          );
       }
       else {
