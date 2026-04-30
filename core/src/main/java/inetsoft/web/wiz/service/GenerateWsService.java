@@ -270,8 +270,9 @@ public class GenerateWsService {
    /**
     * Build a lookup map from fully-qualified field name (and its alias variants) to alias.
     * Each field is indexed by:
-    *   1. Its original fieldName (if already qualified, e.g. "table.col")
-    *   2. "tableName.fieldName" (if fieldName has no dot, builds full name)
+    *   1. Its original fieldName (e.g. "col" or "table.col")
+    *   2. "tableName.fieldName" (if fieldName has no dot)
+    *   3. Its alias (if the alias differs from the fieldName)
     */
    private Map<String, String> buildKeyToAliasMap(List<WorksheetConstructionModel.QueryField> fields) {
       if(fields == null || fields.isEmpty()) {
@@ -288,16 +289,17 @@ public class GenerateWsService {
             continue;
          }
 
-         map.put(fieldName, alias);
+         if(alias != null) {
+            map.put(fieldName, alias);
+         }
 
          if(!fieldName.contains(".")) {
             String fullName = Tool.buildString(field.getTable().getName(), ".", fieldName);
             map.putIfAbsent(fullName, alias);
+         }
 
-            // in case join key is alias.
-            if(alias != null && !alias.equals(fieldName)) {
-               map.putIfAbsent(alias, alias);
-            }
+         if(alias != null && !alias.equals(fieldName)) {
+            map.putIfAbsent(alias, alias);
          }
       }
 
