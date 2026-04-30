@@ -158,7 +158,7 @@ public class GenerateWsService {
       Worksheet originWs = getWorksheet(model, user);
 
       if(model.getFields() == null || model.getFields().isEmpty()) {
-         throw new RuntimeException("Doesn't select any field!");
+         throw new IllegalArgumentException("At least one field must be selected.");
       }
 
       Worksheet worksheet = originWs != null ? originWs : new Worksheet();
@@ -347,9 +347,7 @@ public class GenerateWsService {
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.FOLDER, WORKSHEET_ROOT_FOLDER_PATH, null);
 
       try {
-         if(!repo.containsEntry(folder)) {
-            repo.addFolder(folder, user);
-         }
+         repo.addFolder(folder, user);
       }
       catch(Exception e) {
          if(!repo.containsEntry(folder)) {
@@ -736,9 +734,9 @@ public class GenerateWsService {
 
       if(tableMetaData == null) {
          throw new IllegalArgumentException("Table does not exist: " + selectTable.getName() +
-                                               " (source: " + source.getPath() +
-                                               ", catalog: " + source.getCatalog() +
-                                               ", schema: " + source.getSchema() + ")");
+            " (source: " + source.getPath() +
+            ", catalog: " + source.getCatalog() +
+            ", schema: " + source.getSchema() + ")");
       }
 
       String qname = SQLTypes.getSQLTypes(jdbcDatasource).
@@ -889,6 +887,7 @@ public class GenerateWsService {
    private final WsMergeService wsMergeService;
    private final ObjectMapper objectMapper;
 
+   // UUID suffix prevents name collision with user-created folders.
    public static final String WORKSHEET_ROOT_FOLDER_PATH =
       "worksheets-7a3f9c2e-8b5d-4f6a-b1c4-3e7d0a9f2b8c";
 }
