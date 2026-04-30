@@ -247,7 +247,7 @@ public class GenerateWsService {
       }
 
       if(table == null) {
-         throw new RuntimeException("can not generate worksheet");
+         throw new IllegalStateException("Failed to generate worksheet: no table assembly was produced.");
       }
 
       if(model.getFilters() != null) {
