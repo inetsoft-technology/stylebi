@@ -54,9 +54,18 @@ public class WorksheetMeta {
       this.tables = tables;
    }
 
+   public String getPrimaryTable() {
+      return primaryTable;
+   }
+
+   public void setPrimaryTable(String primaryTable) {
+      this.primaryTable = primaryTable;
+   }
+
    private String path;
    private String name;
    private String description;
    private String org;
    private List<WorksheetTableMeta> tables = new ArrayList<>();
+   private String primaryTable;
 }

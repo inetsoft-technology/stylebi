@@ -374,6 +374,8 @@ public class WizVsService {
     * Returns a result with null headers/rows if data is unavailable (best-effort).
     */
    private CreateViewsheetResult extractChartData(RuntimeViewsheet rvs, String assemblyName) {
+      ViewsheetSandbox box = null;
+
       try {
          Optional<ViewsheetSandbox> boxOpt = rvs.getViewsheetSandbox();
 
@@ -381,7 +383,7 @@ public class WizVsService {
             return new CreateViewsheetResult();
          }
 
-         ViewsheetSandbox box = boxOpt.get();
+         box = boxOpt.get();
          VGraphPair pair = box.getVGraphPair(assemblyName, true);
 
          if(pair == null) {
@@ -445,6 +447,14 @@ public class WizVsService {
       catch(Exception e) {
          LOG.warn("Failed to extract chart data after viewsheet creation for assembly '{}': {}",
                   assemblyName, e.getMessage());
+
+         // If initGraph threw an exception, it still sets completed=true but leaves vgraph=null.
+         // That broken pair would cause getAssemblyImage to loop on retryAfter=1 indefinitely.
+         // Clearing it here allows getAssemblyImage to reinitialize on the next request.
+         if(box != null) {
+            box.clearGraph(assemblyName);
+         }
+
          return new CreateViewsheetResult();
       }
    }
