@@ -21,11 +21,12 @@ import inetsoft.sree.UserEnv;
 import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.log.LogManager;
+import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import org.apache.commons.lang3.SystemUtils;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.boot.*;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.*;
 import org.springframework.core.io.ClassPathResource;
 
 import java.io.File;
@@ -47,8 +48,17 @@ import java.util.*;
    "inetsoft.util",
    "inetsoft.sree",
    "inetsoft.storage",
-   "inetsoft.web.factory"
-})
+   "inetsoft.web.factory",
+   "inetsoft.web.viewsheet.service",
+   "inetsoft.web.viewsheet.model",
+   "inetsoft.web.composer.vs.controller",
+   "inetsoft.web.binding.service",
+   "inetsoft.web.binding.drm",
+   "inetsoft.web.binding.model"
+}, excludeFilters = @ComponentScan.Filter(
+   type = FilterType.ASSIGNABLE_TYPE,
+   classes = RuntimeViewsheetRef.class
+))
 @Import(ScheduleServerContext.class)
 public class ScheduleServerApplication {
    public static void main(String[] args) {
