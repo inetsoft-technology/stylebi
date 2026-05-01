@@ -26,6 +26,7 @@ import org.apache.commons.io.output.NullOutputStream;
 import org.slf4j.*;
 import org.xml.sax.InputSource;
 
+import javax.xml.XMLConstants;
 import javax.xml.transform.*;
 import javax.xml.transform.sax.SAXSource;
 import javax.xml.transform.stream.StreamResult;
@@ -99,6 +100,17 @@ public abstract class AbstractXMLStreamTransformer implements InputTransformer {
 
       return runWithPluginContextClassLoader(() -> {
          final TransformerFactory xsltTransformerFactory = TransformerFactory.newInstance();
+
+         try {
+            xsltTransformerFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+         }
+         catch(IllegalArgumentException ignored) {}
+
+         try {
+            xsltTransformerFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
+         }
+         catch(IllegalArgumentException ignored) {}
+
          final Transformer xsltTransformer = xsltTransformerFactory.newTransformer(source);
          xsltTransformer.setParameter("parser", parser);
          setXSLTObjectParameters(xsltTransformer);
