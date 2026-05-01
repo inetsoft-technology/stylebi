@@ -270,6 +270,10 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    }
 
    public newOrganization(event: {parentGroup: string, defaultPassword?: string}) {
+      this.withIncompleteUserGuard(() => this.createNewOrganization(event));
+   }
+
+   private createNewOrganization(event: {parentGroup: string, defaultPassword?: string}) {
       this.loading = true;
       const uri = "../api/em/security/users/create-organization/" + Tool.byteEncodeURLComponent(this.selectedProvider);
       this.http.post<EditOrganizationPaneModel>(uri, {parentGroup: event.parentGroup, defaultPassword: event.defaultPassword})
