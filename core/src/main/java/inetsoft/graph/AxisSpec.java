@@ -640,7 +640,7 @@ public class AxisSpec implements Cloneable, Serializable {
       return null;
    }
 
-   private int style = AXIS_DOUBLE;
+   private int style = AXIS_SINGLE;
 
    private boolean tickVisible = true;
    private boolean labelVisible = true;
