@@ -203,6 +203,28 @@ public final class SVGAnimationInjector {
       return sum / pts.size();
    }
 
+   /**
+    * Returns true when the x-coordinate ranges of two paths overlap.
+    * Used to distinguish stacked area series (same x-range, should build band polygons)
+    * from grouped/non-stacked series (disjoint x-ranges, no band reshaping needed).
+    */
+   static boolean xRangesOverlap(String pathA, String pathB) {
+      List<double[]> ptsA = extractXYPairs(pathA);
+      List<double[]> ptsB = extractXYPairs(pathB);
+
+      if(ptsA.isEmpty() || ptsB.isEmpty()) {
+         return false;
+      }
+
+      double minA = Double.MAX_VALUE, maxA = -Double.MAX_VALUE;
+      double minB = Double.MAX_VALUE, maxB = -Double.MAX_VALUE;
+
+      for(double[] p : ptsA) { minA = Math.min(minA, p[0]); maxA = Math.max(maxA, p[0]); }
+      for(double[] p : ptsB) { minB = Math.min(minB, p[0]); maxB = Math.max(maxB, p[0]); }
+
+      return minA <= maxB && minB <= maxA;
+   }
+
    private static List<double[]> extractXYPairs(String d) {
       if(d == null || d.isEmpty()) return Collections.emptyList();
       Matcher m = Pattern.compile("-?[0-9]+(?:\\.[0-9]+)?(?:[eE][-+]?[0-9]+)?")
