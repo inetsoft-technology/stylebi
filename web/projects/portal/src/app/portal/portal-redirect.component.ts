@@ -33,13 +33,14 @@ export class PortalRedirectComponent implements AfterViewInit {
       this.route.url.subscribe((routeUrl) => {
          this.portalTabsService.getPortalTabs().subscribe((portalTabs) => {
             if(portalTabs.length > 0) {
+               const targetTab = portalTabs.find(tab => tab.name === "Report") || portalTabs[0];
                let url: string;
 
-               if(portalTabs[0].custom) {
-                  url = "./tab/custom" + portalTabs[0].uri;
+               if(targetTab.custom) {
+                  url = "./tab/custom" + targetTab.uri;
                }
                else {
-                  url = "./" + portalTabs[0].uri;
+                  url = "./" + targetTab.uri;
                }
 
                this.router.navigate([url], {relativeTo: this.route.parent});

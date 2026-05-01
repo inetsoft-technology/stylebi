@@ -28,6 +28,7 @@ import { DragService } from "../../../../../../../widget/services/drag.service";
 import { ElementModel } from "../../../../../model/datasources/database/physical-model/logical-model/element-model";
 import { EntityModel } from "../../../../../model/datasources/database/physical-model/logical-model/entity-model";
 import { Tool } from "../../../../../../../../../../shared/util/tool";
+import { GuiTool } from "../../../../../../../common/util/gui-tool";
 import { SelectedItem } from "../logical-model.component";
 import { AttributeModel } from "../../../../../model/datasources/database/physical-model/logical-model/attribute-model";
 
@@ -116,7 +117,7 @@ export class ElementTreeNode implements OnChanges {
             return "drill-up-icon";
          }
 
-         icon = "column-icon";
+         icon = GuiTool.getDataTypeIconClass(attr.dataType) || "column-icon";
       }
 
       return icon;

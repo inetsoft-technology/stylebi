@@ -694,6 +694,79 @@ export class DatabaseDataModelBrowserComponent implements OnDestroy, OnInit {
       return false;
    }
 
+   getDetailEyebrow(item: AssetItem): string {
+      if(this.isPhysicalView(item)) {
+         return "_#(Physical View)";
+      }
+      else if(this.isLogicalModel(item)) {
+         return "_#(Logical Model)";
+      }
+
+      return "_#(Data Model)";
+   }
+
+   getDetailSubtitle(item: AssetItem): string {
+      if(this.isPhysicalView(item)) {
+         const physicalItem = <PhysicalModelBrowserInfo> item;
+
+         if(physicalItem.parentView) {
+            return "_#(Extended from)" + " " + physicalItem.parentView;
+         }
+
+         return "_#(Browse and manage the selected physical view.)";
+      }
+      else if(this.isLogicalModel(item)) {
+         const logicalItem = <LogicalModelBrowserInfo> item;
+
+         if(logicalItem.parentModel) {
+            return "_#(Extended from)" + " " + logicalItem.parentModel;
+         }
+
+         return "_#(Built on)" + " " + logicalItem.physicalModel;
+      }
+
+      return "";
+   }
+
+   getConnectionLabel(item: AssetItem): string {
+      return this.isLogicalModel(item) ? (<LogicalModelBrowserInfo> item).connection : "";
+   }
+
+   canMoveDetailItem(item: AssetItem): boolean {
+      return !!item && !this.isFolder(item) && item.deletable && item.editable && !this.isExtend(<DatabaseAsset> item);
+   }
+
+   canRenameDetailItem(item: AssetItem): boolean {
+      return !!item && item.deletable && item.editable && !this.isExtend(<DatabaseAsset> item);
+   }
+
+   canDeleteDetailItem(item: AssetItem): boolean {
+      return !!item && item.deletable;
+   }
+
+   canAddLogicalModel(item: AssetItem): boolean {
+      return !!item && item.editable &&
+         ((this.isPhysicalView(item) && !this.isExtend(<DatabaseAsset> item)) || this.isFolder(item));
+   }
+
+   canAddExtendedModel(item: AssetItem): boolean {
+      return !!item && this.pageModel?.dbEditable && this.listModel?.editable && item.editable &&
+         !this.isExtend(<DatabaseAsset> item) && this.enterprise &&
+         (this.isPhysicalView(item) || this.isLogicalModel(item));
+   }
+
+   moveDetailItem(): void {
+      if(this.showDetailsItem) {
+         this.moveModel(<DatabaseAsset> this.showDetailsItem);
+      }
+   }
+
+   deleteDetailItem(): void {
+      if(this.showDetailsItem) {
+         this.deleteModel(<DatabaseAsset> this.showDetailsItem, this.folderName);
+      }
+   }
+
    setShowDetailsItem(item: AssetItem): void {
       if(this.showDetailsItem == item) {
          this.showDetailsItem = null;
@@ -728,6 +801,14 @@ export class DatabaseDataModelBrowserComponent implements OnDestroy, OnInit {
       let group = new AssemblyActionGroup();
       let groups: AssemblyActionGroup[] = [group];
       group.actions = [
+         {
+            id: () => "data model edit",
+            label: () => "_#(js:Edit)",
+            icon: () => "",
+            enabled: () => true,
+            visible: () => !this.isFolder(model) && model.editable && !this.isExtend(model),
+            action: () => this.editModel(model)
+         },
          {
             id: () => "data model move",
             label: () => "_#(js:Move)",

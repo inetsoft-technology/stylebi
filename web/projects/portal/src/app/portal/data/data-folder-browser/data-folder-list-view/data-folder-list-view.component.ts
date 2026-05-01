@@ -166,8 +166,8 @@ export class DataFolderListViewComponent {
          return;
       }
 
-      if(asset.type === AssetType.WORKSHEET && asset.editable) {
-         this.editWorksheet.emit(asset);
+      if(asset.type === AssetType.WORKSHEET) {
+         this.showDetails.emit(asset);
       }
       else {
          this.openAsset.emit(asset);
@@ -218,6 +218,12 @@ export class DataFolderListViewComponent {
       }
 
       return this.multiObjectSelectList.isSelected(asset);
+   }
+
+   isSelectedFile(asset: WorksheetBrowserInfo): boolean {
+      return !!asset && !!this.selectedFile &&
+         this.selectedFile.path === asset.path &&
+         this.selectedFile.type === asset.type;
    }
 
    public getDateLabel(dateNumber: number, dateFormat: string): string {

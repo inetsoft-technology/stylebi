@@ -38,6 +38,7 @@ import { JoinEditPaneModel } from "../../../model/datasources/database/physical-
 import { TableDetailJoinInfo } from "../../../model/datasources/database/physical-model/graph/table-detail-join-info";
 import { GraphColumnInfo } from "../../../model/datasources/database/physical-model/graph/graph-column-info";
 import { JoinModel } from "../../../model/datasources/database/physical-model/join-model";
+import { Cardinality } from "../../../model/datasources/database/physical-model/cardinality.enum";
 import {
    joinMap, operatorToJoinTitle
 } from "../../../model/datasources/database/physical-model/join-type.config";
@@ -221,9 +222,6 @@ export class JoinThumbnailService implements OnDestroy {
          location: 0.5,
          cssClass: "dependency-type-overlay-container"
       };
-      let overlays = [
-         ["Label", overlayProps]
-      ];
 
       this.model.tables.forEach(table => {
          table.joins.forEach(join => {
@@ -232,12 +230,67 @@ export class JoinThumbnailService implements OnDestroy {
             const rightId = this.sourceIds
                .get(join.foreignTable + TABLE_COLUMN_SEPARATOR + join.foreignColumn);
 
-            overlayProps.label = `<div class="overlay-operator"
-                     title="${operatorToJoinTitle(join.type)}">${joinMap(join.type)}</div>`;
+            const overlays = this.getJoinOverlays(join);
 
             this.connectColumns(leftId, rightId, overlays, join.weak, join.cycle);
          });
       });
+   }
+
+   private getJoinOverlays(join: JoinModel): (string | { label: string; id: string; location?: number;
+      cssClass?: string })[][]
+   {
+      return [
+         ["Label", {
+            label: `<div class="overlay-operator"
+                     title="${operatorToJoinTitle(join.type)}">${joinMap(join.type)}</div>`,
+            id: "join",
+            location: 0.5,
+            cssClass: "dependency-type-overlay-container"
+         }],
+         ["Label", {
+            label: `<div class="join-end-cardinality join-end-cardinality--start">
+               ${this.getStartCardinalityLabel(join.cardinality)}
+            </div>`,
+            id: "join-cardinality-start",
+            location: 0.02,
+            cssClass: "join-end-cardinality-overlay join-end-cardinality-overlay--start"
+         }],
+         ["Label", {
+            label: `<div class="join-end-cardinality join-end-cardinality--end">
+               ${this.getEndCardinalityLabel(join.cardinality)}
+            </div>`,
+            id: "join-cardinality-end",
+            location: 0.98,
+            cssClass: "join-end-cardinality-overlay join-end-cardinality-overlay--end"
+         }]
+      ];
+   }
+
+   private getStartCardinalityLabel(cardinality: Cardinality): string {
+      switch(cardinality) {
+         case Cardinality.ONE_TO_ONE:
+         case Cardinality.ONE_TO_MANY:
+            return "1";
+         case Cardinality.MANY_TO_ONE:
+         case Cardinality.MANY_TO_MANY:
+            return "N";
+         default:
+            return "";
+      }
+   }
+
+   private getEndCardinalityLabel(cardinality: Cardinality): string {
+      switch(cardinality) {
+         case Cardinality.ONE_TO_ONE:
+         case Cardinality.MANY_TO_ONE:
+            return "1";
+         case Cardinality.ONE_TO_MANY:
+         case Cardinality.MANY_TO_MANY:
+            return "N";
+         default:
+            return "";
+      }
    }
 
    private connectColumns(source: string, target: string,

@@ -18,5 +18,5 @@
 package inetsoft.web.portal.model.database;
 
 public enum DatasourceTreeAction {
-   CREATE_CHILDREN, RENAME, EDIT, DELETE, NEW_DATASOURCE, NEW_WORKSHEET
+   CREATE_CHILDREN, RENAME, EDIT, DELETE, MATERIALIZE, NEW_DATASOURCE, NEW_WORKSHEET
 }

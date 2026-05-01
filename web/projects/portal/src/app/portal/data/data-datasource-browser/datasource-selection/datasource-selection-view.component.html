@@ -16,26 +16,24 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div class="datasource-selection__title">
-  <div class="font-weight-bold p-2">
+  <div class="datasource-selection__heading">
     _#(Select a Data Source)
   </div>
-  <a *ngIf="model == null" class="font-weight-bold p-2"
+  <a *ngIf="model == null" class="datasource-selection__more-link"
     href="https://www.inetsoft.com/support/drivers.jsp"
      target="_blank">
     _#(data.datasources.moreTypes)
   </a>
 </div>
-<div class="bd-gray"></div>
 <div class="datasource-selection__container">
   <div *ngIf="model != null; else _loading" class="datasource-selection__pane">
-    <div class="datasource-selection__filter-pane p-1">
-      <datasource-search class="mb-1"
+    <div class="datasource-selection__filter-pane">
+      <datasource-search class="datasource-selection__search"
                          [(searchString)]="searchString"></datasource-search>
       <datasource-category-pane [categories]="model.categories"
                                 [(selectedCategory)]="selectedCategory"></datasource-category-pane>
     </div>
-    <div class="bd-gray"></div>
-    <datasource-listing-pane class="p-1"
+    <datasource-listing-pane class="datasource-selection__listing-pane"
                              [listings]="getListings()"
                              (submitted)="create($event)"
                              [(selectedListingName)]="selectedListingName"></datasource-listing-pane>
@@ -43,9 +41,8 @@
   <ng-template #_loading>
     <h2>_#(data.sources.loading)...</h2>
   </ng-template>
-  <div class="bd-gray"></div>
-  <div class="text-center p-1">
-    <button class="btn btn-primary m-1" [disabled]="isCreateDisabled()" (click)="create(selectedListingName)">_#(Create)</button>
-    <button class="btn btn-default m-1" (click)="cancel()">_#(Cancel)</button>
+  <div class="datasource-selection__footer">
+    <button class="btn btn-primary" [disabled]="isCreateDisabled()" (click)="create(selectedListingName)">_#(Create)</button>
+    <button class="btn btn-default" (click)="cancel()">_#(Cancel)</button>
   </div>
 </div>

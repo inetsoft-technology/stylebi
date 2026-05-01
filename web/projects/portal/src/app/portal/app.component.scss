@@ -24,7 +24,7 @@
 .tab-body {
   flex: 2;
   width: 100%;
-  height: calc(100% - 52px);
+  height: calc(100% - 44px);
   min-height: 0;
 }
 
@@ -48,6 +48,22 @@
       opacity: 0.3;
       cursor: default;
       pointer-events: none;
+    }
+
+    &.disabled.portal-nav-item--explain-disabled {
+      pointer-events: auto;
+
+      &:hover {
+        background-color: transparent;
+
+        &, a, i {
+          color: var(--inet-portal-navbar-text-color);
+        }
+      }
+
+      > a.nav-link {
+        cursor: default;
+      }
     }
 
     &.home {

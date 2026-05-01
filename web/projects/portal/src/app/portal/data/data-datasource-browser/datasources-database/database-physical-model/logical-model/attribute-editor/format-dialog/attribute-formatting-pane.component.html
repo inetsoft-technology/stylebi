@@ -43,14 +43,16 @@
     </select>
     <label><span>_#(Format Type)</span></label>
   </div>
-  <select [ngModel]="dateFormat"
-          (ngModelChange)="updateDateFormat($event)"
-          *ngIf="formatModel?.format == 'DateFormat'" class="form-control mt-1">
-    <option [value]="dfmt.value" *ngFor="let dfmt of dateFormats">
-      {{dfmt.label}}
-    </option>
-  </select>
-  <div *ngIf="showFormatSpec()" class="mt-2">
+  <div class="popup-editor__field popup-editor__field--compact" *ngIf="formatModel?.format == 'DateFormat'">
+    <select [ngModel]="dateFormat"
+            (ngModelChange)="updateDateFormat($event)"
+            class="form-control">
+      <option [value]="dfmt.value" *ngFor="let dfmt of dateFormats">
+        {{dfmt.label}}
+      </option>
+    </select>
+  </div>
+  <div class="popup-editor__field-group" *ngIf="showFormatSpec()">
     <div class="form-floating" *ngIf="formatModel?.format == 'MessageFormat'">
       <input type="text" [ngModel]="formatModel?.formatSpec"
              (ngModelChange)="formatModel.formatSpec = $event"
@@ -76,8 +78,8 @@
         </combo-box>
         <label>_#(Custom Format)</label>
       </div>
-      <div class="form-check duration-pad">
-        <input type="checkbox" class="form-check-input duration-pad-check"
+      <div class="form-check popup-editor__checkbox-row">
+        <input type="checkbox" class="form-check-input popup-editor__checkbox"
                [(ngModel)]="formatModel.durationPadZeros" id="padZeros">
         <label class="form-check-label" for="padZeros">
           _#(Pad with Zeros)

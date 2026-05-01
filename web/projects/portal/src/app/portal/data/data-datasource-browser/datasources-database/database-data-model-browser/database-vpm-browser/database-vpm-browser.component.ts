@@ -158,6 +158,15 @@ export class DatabaseVPMBrowserComponent implements OnDestroy, OnInit {
          this.rootLabel : this.currentFolderPathString;
    }
 
+   getDetailSubtitle(item: VPMBrowserInfo): string {
+      if(!item) {
+         return "";
+      }
+
+      return item.description ||
+         "_#(Virtual private models scope access to a physical view for downstream use.)";
+   }
+
    /**
     * Send request to search vpms.
     */
@@ -372,6 +381,10 @@ export class DatabaseVPMBrowserComponent implements OnDestroy, OnInit {
                               this.models.splice(index, 1);
                            }
                         });
+
+                        if(items.includes(this.showDetailsItem)) {
+                           this.showDetailsItem = null;
+                        }
 
                         if(callback) {
                            callback();

@@ -35,7 +35,7 @@
   <link rel="shortcut icon" data-th-href="@{/portal/favicon}" href="portal/favicon">
 </head>
 <body>
-  <div data-th-replace="~{fragments :: navbar('portal/logo')}"></div>
+  <div data-th-replace="~{fragments :: navbar('portal/logo', './')}"></div>
   <div class="container-fluid login-root">
 
     <!-- ── Background decoration ── -->
@@ -44,8 +44,9 @@
     <!-- ── Floating card: branding + form ── -->
     <main class="login-left">
       <div class="card">
-        <div class="card-header" data-th-text="#{login.title}">
-          Please sign in
+        <div class="card-header"
+             data-th-text="${enterpriseManagerLogin} ? #{login.title.em} : #{login.title.portal}">
+          Portal Login
         </div>
         <div class="card-body">
           <form id="login-form" novalidate>

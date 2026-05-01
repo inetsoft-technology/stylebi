@@ -19,24 +19,35 @@
               [cshid]="'AddAttributes'"
               (onCancel)="cancel()">
 </modal-header>
-<div class="modal-body">
-  <form [formGroup]="form">
-    <div class="form-group form-floating">
-      <select #selectFocus class="form-control"
-              formControlName="parent"
-              [class.is-invalid]="!!parentControl.errors"
-              (ngModelChange)="entityChange($event)">
-        <option *ngFor="let entity of entities; let i = index" [value]="i">{{ entity.name }}</option>
-      </select>
+<div class="modal-body logical-model-attribute-dialog">
+  <form [formGroup]="form" class="logical-model-attribute-dialog__form">
+    <div class="form-group form-floating" #entityDropdown="ngbDropdown" ngbDropdown [autoClose]="true">
+      <input type="text" class="form-control input-dropdown"
+             [value]="selectedEntityName"
+             [class.is-invalid]="!!parentControl.errors"
+             [disabled]="parentControl.disabled"
+             readonly
+             ngbDropdownToggle
+             #selectFocus>
+      <div class="caret-down-icon dropdown-caret"></div>
       <label><span>_#(data.logicalmodel.parentEntity)</span></label>
       <span class="invalid-feedback" *ngIf="parentControl.getError('required')">
         _#(data.logicalmodel.parentEntityRequired)
       </span>
+      <div ngbDropdownMenu>
+        <button *ngFor="let entity of entities; let i = index"
+                type="button"
+                class="dropdown-item"
+                [class.selected]="parent === i"
+                (click)="selectEntity(i, entityDropdown)">
+          {{ entity.name }}
+        </button>
+      </div>
     </div>
     <div class="form-group">
       <div class="form-floating">
-        <div class="card">
-          <div class="physical-table-tree p-2">
+        <div class="logical-model-attribute-dialog__tree-shell">
+          <div class="physical-table-tree">
             <physical-table-tree #physicalTree *ngIf="!!tablesRoot"
                                  [root]="tablesRoot" (nodesSelected)="select($event)">
             </physical-table-tree>

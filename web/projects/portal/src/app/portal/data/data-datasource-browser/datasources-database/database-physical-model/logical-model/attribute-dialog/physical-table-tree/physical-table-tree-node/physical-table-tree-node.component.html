@@ -17,18 +17,18 @@
   -->
 <div class="action-color" *ngIf="showRoot"
      [style.padding-left.px]="indentLevel * INDENT_SIZE">
-  <div class="truncate-parent justify-content-between w-100">
-    <div class="truncate-text d-flex align-items-center w-100 cursor-pointer hover-bg-primary"
-         [class.bg-selected]="isSelected()"
+  <div class="physical-table-tree-node__shell truncate-parent justify-content-between w-100">
+    <div class="physical-table-tree-node__row truncate-text d-flex align-items-center w-100 cursor-pointer hover-bg-primary"
          [class.light-gray-bg]="isDisabled()"
          (click)="selectNode($event)"
          (dblclick)="hasChildren() ? toggleNode() : null">
       <span *ngIf="hasChildren()"
-            class="{{getToggleIcon()}} tree-node-toggle cursor-pointer truncate-addon me-1"
+            class="{{getToggleIcon()}} physical-table-tree-node__toggle tree-node-toggle cursor-pointer truncate-addon"
             (click)="toggleNode()" (dblclick)="$event.stopPropagation()">
       </span>
-      <input class="mt-0 me-1" type="checkbox" [checked]="isSelected()" [disabled]="isDisabled()"/>
-      <span class="truncate-text form-check-label" [attr.title]="node.label">
+      <input class="physical-table-tree-node__checkbox" type="checkbox"
+             [checked]="isSelected()" [disabled]="isDisabled()"/>
+      <span class="physical-table-tree-node__label truncate-text form-check-label" [attr.title]="node.label">
         {{node ? node.label : ""}}
       </span>
     </div>

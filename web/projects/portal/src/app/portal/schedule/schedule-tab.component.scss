@@ -21,32 +21,13 @@
   align-items: stretch;
   height: 100%;
 
-  > nav {
-    flex-grow: 0;
-    flex-shrink: 0;
-
-    .nav-link {
-      cursor: pointer;
-    }
-  }
-
-  > .schedule-tab-content {
+  > .schedule-content {
     min-height: 0px;
     height: 100%;
     flex-grow: 1;
     display: flex;
     flex-direction: column;
     align-items: stretch;
-  }
-}
-
-.schedule-navbar {
-  .navbar-nav {
-    flex-direction: row;
-
-    .nav-link {
-      padding-right: 0.5rem;
-      padding-left: 0.5rem;
-    }
+    background-color: var(--inet-portal-main-panel-bg-color);
   }
 }

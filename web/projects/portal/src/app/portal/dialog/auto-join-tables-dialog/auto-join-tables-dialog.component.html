@@ -20,40 +20,52 @@
               (onCancel)="cancel()">
 </modal-header>
 <div class="modal-body">
-  <div class="container-fluid">
-    <div class="form-group">
-      <div class="form-check form-check-inline">
-        <label class="form-check-label">
-          <input #radioInput class="form-check-input" type="radio"
-                 name="joinOnRadio"
-                 [disabled]="!autoJoinColumns.metaAvailable"
-                 [value]="false"
-                 [(ngModel)]="joinOnName"
-                 (ngModelChange)="joinOnChanged()">
-          {{'_#(Key Relations)'}}
-        </label>
-      </div>
-      <div class="form-check form-check-inline">
-        <label class="form-check-label">
-          <input class="form-check-input" type="radio"
-                 name="joinOnRadio"
-                 [value]="true"
-                 [(ngModel)]="joinOnName"
-                 (ngModelChange)="joinOnChanged()">
-          {{'_#(Column Names)'}}
-        </label>
-      </div>
+  <div class="auto-join-dialog">
+    <div class="auto-join-dialog__intro">
+      _#(Choose how to generate joins, then select the columns to use across the physical view.)
     </div>
-    <div class="form-floating">
-      <div class="bordered-box bd-gray">
-        <div class="form-check d-flex align-items-center pt-1 ps-1 availableCols_check_id" *ngFor="let column of availableColumns">
-          <label class="form-check-label action-style ps-1 no-float-label">
-            <input class="form-check-input" type="checkbox" [(ngModel)]="column.selected">
-            {{column.label}}
+    <div class="auto-join-dialog__panel">
+      <div class="auto-join-dialog__header">
+        <div class="auto-join-dialog__title">
+          _#(Join) _#(Properties)
+        </div>
+      </div>
+      <div class="auto-join-dialog__choice-group">
+        <div class="auto-join-dialog__choice-row">
+          <div class="form-check auto-join-dialog__choice-toggle">
+            <input #radioInput class="form-check-input" type="radio"
+                   name="joinOnRadio"
+                   id="joinOnKeyRelations"
+                   [disabled]="!autoJoinColumns.metaAvailable"
+                   [value]="false"
+                   [(ngModel)]="joinOnName"
+                   (ngModelChange)="joinOnChanged()">
+            <label class="form-check-label" for="joinOnKeyRelations">
+              {{'_#(Key Relations)'}}
+            </label>
+          </div>
+          <div class="form-check auto-join-dialog__choice-toggle">
+            <input class="form-check-input" type="radio"
+                   name="joinOnRadio"
+                   id="joinOnColumnNames"
+                   [value]="true"
+                   [(ngModel)]="joinOnName"
+                   (ngModelChange)="joinOnChanged()">
+            <label class="form-check-label" for="joinOnColumnNames">
+              {{'_#(Column Names)'}}
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="auto-join-dialog__columns-field">
+        <div class="auto-join-dialog__section-label">_#(Available Columns)</div>
+        <div class="bordered-box bd-gray auto-join-dialog__columns-list">
+          <label class="auto-join-dialog__column" *ngFor="let column of availableColumns">
+            <input class="auto-join-dialog__column-input" type="checkbox" [(ngModel)]="column.selected">
+            <span class="auto-join-dialog__column-label">{{column.label}}</span>
           </label>
         </div>
       </div>
-      <label>_#(Available Columns)</label>
     </div>
   </div>
 </div>

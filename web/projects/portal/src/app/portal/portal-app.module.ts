@@ -74,6 +74,7 @@ import { PortalAppRoutingModule } from "./app-routing.module";
 import { PortalAppComponent } from "./app.component";
 import { CustomTabComponent } from "./custom/custom-tab.component";
 import { DashboardTabComponent } from "./dashboard/dashboard-tab.component";
+import { DashboardService } from "./dashboard/dashboard.service";
 import { DashboardLandingComponent } from "./dashboard/landing/dashboard-landing.component";
 import { AssetItemListViewComponent } from "./data/asset-item-list-view/asset-item-list-view.component";
 import { AssetDescriptionComponent } from "./data/data-datasource-browser/asset-description/asset-description.component";
@@ -91,6 +92,7 @@ import { DataModelBrowserService } from "./data/data-datasource-browser/datasour
 import { DataModelFolderBrowserComponent } from "./data/data-datasource-browser/datasources-database/database-data-model-browser/data-models-browser/data-model-folder-browser.component";
 import { DatabaseDataModelBrowserComponent } from "./data/data-datasource-browser/datasources-database/database-data-model-browser/database-data-model-browser.component";
 import { DatabaseDataModelToolbarComponent } from "./data/data-datasource-browser/datasources-database/database-data-model-browser/database-data-model-toolbar.component";
+import { NewDataModelDialogComponent } from "./data/data-datasource-browser/datasources-database/database-data-model-browser/new-data-model-dialog.component";
 import { DatabaseVPMBrowserComponent } from "./data/data-datasource-browser/datasources-database/database-data-model-browser/database-vpm-browser/database-vpm-browser.component";
 import { ChoseAdditionalConnectionDialog } from "./data/data-datasource-browser/datasources-database/database-physical-model/chose-additional-connection-dialog/chose-additional-connection-dialog.component";
 import { ChosePhysicalViewDialog } from "./data/data-datasource-browser/datasources-database/database-physical-model/chose-physical-view-dialog/chose-physical-view-dialog.component";
@@ -232,6 +234,7 @@ import { RouteSourceResolver } from "./services/route-source-resolver.service";
       DataFolderBrowserComponent,
       DataFolderListViewComponent,
       DataModelScriptPane,
+      NewDataModelDialogComponent,
       DataNotificationsComponent,
       DatasourceCategoryPaneComponent,
       DatasourceListingComponent,
@@ -396,6 +399,7 @@ import { RouteSourceResolver } from "./services/route-source-resolver.service";
       DataBrowserService,
       DatasourceBrowserService,
       DataModelBrowserService,
+      DashboardService,
       MoveAssetDialogDataConfig,
       ScheduleUsersService,
       ScheduleTaskNamesService,

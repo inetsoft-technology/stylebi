@@ -25,12 +25,14 @@ import { AssetItem } from "../model/datasources/database/asset-item";
 import { DataModelBrowserModel } from "../data-datasource-browser/datasources-database/database-data-model-browser/data-model-browser-model";
 import { DataModelBrowserViewModel } from "../model/data-model-browser-view-model";
 
+const DATA_MODEL_ROOT_PATH: string = "_data_model_root_";
 const ROOT_LABEL: string = "_#(js:Data Model)";
 const GET_DATA_MODEL_URI: string = "../api/data/database/dataModel/folder/browser";
 
 @Component({
   selector: "move-data-model-dialog",
-  templateUrl: "./move-data-model-dialog.component.html"
+  templateUrl: "./move-data-model-dialog.component.html",
+  styleUrls: ["../move-datasource-dialog/move-datasource-dialog.component.scss"]
 })
 export class MoveDataModelDialog implements OnInit {
   @Input() database: string;
@@ -38,6 +40,7 @@ export class MoveDataModelDialog implements OnInit {
   @Output() onCancel = new EventEmitter<string>();
   folderPath: string;
   AssetType = AssetType;
+  readonly fakeRootPath = FAKE_ROOT_PATH;
 
   private readonly fakeRootFolder: AssetItem = {
     type: "data_model_folder",
@@ -45,6 +48,20 @@ export class MoveDataModelDialog implements OnInit {
     path: FAKE_ROOT_PATH,
     urlPath: null,
     name: "_#(js:Data Model)",
+    createdBy: "",
+    description: "",
+    createdDate: new Date().getDate(),
+    editable: false,
+    deletable: false,
+    createdDateLabel: ""
+  };
+
+  private readonly dataModelRootFolder: AssetItem = {
+    type: "data_model_folder",
+    id: null,
+    path: DATA_MODEL_ROOT_PATH,
+    urlPath: null,
+    name: ROOT_LABEL,
     createdBy: "",
     description: "",
     createdDate: new Date().getDate(),
@@ -63,15 +80,27 @@ export class MoveDataModelDialog implements OnInit {
   public openFolderRequest: (path: string, assetType?: string, scope?: number) => Observable<DataModelBrowserViewModel> =
      (value: string, assetType?: string, scope?: number) => {
        let params = new HttpParams().set("database", this.database);
+       const isDataModelRoot = value === DATA_MODEL_ROOT_PATH;
 
        if(value === FAKE_ROOT_PATH) {
          params = params.set("root", "true");
        }
+       else if(value && value !== "/" && !isDataModelRoot) {
+         params = params.set("path", value);
+       }
 
        return this.httpClient.get(GET_DATA_MODEL_URI, { params: params }).pipe(
           map((model: DataModelBrowserModel) => {
+            if(value === FAKE_ROOT_PATH) {
+              return <DataModelBrowserViewModel> {
+                path: [this.fakeRootFolder],
+                folders: [{...this.dataModelRootFolder}]
+              };
+            }
+
             return <DataModelBrowserViewModel> {
-              path: [this.fakeRootFolder].concat(model.currentFolder),
+              path: [this.fakeRootFolder, {...this.dataModelRootFolder}]
+                 .concat(isDataModelRoot ? [] : model.currentFolder),
               folders: model.dataModelList,
             };
           }));
@@ -82,7 +111,8 @@ export class MoveDataModelDialog implements OnInit {
    * @param items   the selected items on the files browser
    */
   folderSelected(items: AssetItem[]): void {
-    this.folderPath = items?.length > 0 ? items[0].path : null;
+    this.folderPath = items?.length > 0 ?
+       (items[0].path === DATA_MODEL_ROOT_PATH ? "/" : items[0].path) : null;
   }
 
   get rootLabel(): string {

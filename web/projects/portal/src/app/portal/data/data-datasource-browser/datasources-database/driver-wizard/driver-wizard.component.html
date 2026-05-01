@@ -20,18 +20,13 @@
 </modal-header>
 <div class="modal-body" blockMouse>
   <loading-indicator-pane [show]="loading"></loading-indicator-pane>
-  <div *ngIf="step === 'upload'" class="container-fluid" [formGroup]="uploadForm">
-    <div class="container">
-      <div class="row mb-1">
-        <div class="col">
-          <div class="form-check">
-            <input type="radio" class="form-check-input" name="uploadType" value="upload" formControlName="uploadType" id="uploadTypeUpload" [disabled]="uploadForm.controls['uploadType']?.value !== 'upload'">
-            <label class="form-check-label" for="uploadTypeUpload">_#(Upload)</label>
-          </div>
+  <div *ngIf="step === 'upload'" class="driver-wizard driver-wizard--upload" [formGroup]="uploadForm">
+      <div class="driver-wizard__choice-row">
+        <div class="form-check driver-wizard__choice-toggle">
+          <input type="radio" class="form-check-input" name="uploadType" value="upload" formControlName="uploadType" id="uploadTypeUpload" [disabled]="uploadForm.controls['uploadType']?.value !== 'upload'">
+          <label class="form-check-label" for="uploadTypeUpload">_#(Upload)</label>
         </div>
-      </div>
-      <div class="row mb-1">
-        <div class="col-10 upload-files">
+        <div class="upload-files">
           <div class="list-group">
             <a class="list-group-item unhighlightable"
                *ngFor="let file of uploadForm.controls['uploadFiles']?.value; let i = index"
@@ -41,28 +36,23 @@
             </a>
           </div>
         </div>
-        <div class="col-2 btn-container-vertical">
+        <div class="driver-wizard__side-actions driver-wizard__upload-actions">
           <input #uploadFileInput type="file" accept="application/java-archive" hidden multiple (change)="addDriverFiles($event)">
-          <button type="button" class="btn btn-default" (click)="uploadFileInput.value = null; uploadFileInput.click()" [disabled]="uploadForm.controls['uploadType']?.value !== 'upload'">_#(Add)</button>
+          <button type="button" class="btn btn-secondary" (click)="uploadFileInput.value = null; uploadFileInput.click()" [disabled]="uploadForm.controls['uploadType']?.value !== 'upload'">_#(Add)</button>
           <button type="button" class="btn btn-default" (click)="removeDriverFiles()" [disabled]="uploadForm.controls['uploadType']?.value !== 'upload' || selectedDriverFiles.length === 0">_#(Remove)</button>
         </div>
       </div>
-      <div class="row mb-1" *ngIf="uploadForm.errors?.uploadFilesRequired">
-        <div class="col">
+      <div class="driver-wizard__validation" *ngIf="uploadForm.errors?.uploadFilesRequired">
           <span class="is-invalid"></span>
           <span class="invalid-feedback">_#(em.data.databases.driver.uploadFilesRequired)</span>
-        </div>
       </div>
-      <div class="row mt-1 mb-1">
-        <div class="col">
-          <div class="form-check">
-            <input type="radio" class="form-check-input" name="uploadType" value="maven" formControlName="uploadType" id="uploadTypeMaven">
-            <label class="form-check-label" for="uploadTypeMaven">_#(Maven)</label>
-          </div>
+      <div class="driver-wizard__divider" role="separator" aria-hidden="true"></div>
+      <div class="driver-wizard__choice-row">
+        <div class="form-check driver-wizard__choice-toggle">
+          <input type="radio" class="form-check-input" name="uploadType" value="maven" formControlName="uploadType" id="uploadTypeMaven">
+          <label class="form-check-label" for="uploadTypeMaven">_#(Maven)</label>
         </div>
-      </div>
-      <div class="row form-row-float-label field-row mb-1">
-        <div class="col form-floating">
+        <div class="driver-wizard__field form-floating">
             <input class="form-control" type="text" formControlName="mavenCoord"
                    [class.is-invalid]="uploadForm.controls['mavenCoord'].invalid"
                    placeholder="_#(em.data.databases.driver.mavenCoord)"
@@ -70,38 +60,30 @@
             <label>_#(em.data.databases.driver.mavenCoord)</label>
             <span *ngIf="uploadForm.controls['mavenCoord']?.errors?.required" class="invalid-feedback">_#(em.data.databases.driver.mavenCoordRequired)</span>
             <span *ngIf="uploadForm.controls['mavenCoord']?.errors?.pattern" class="invalid-feedback">_#(em.data.databases.driver.mavenCoordInvalid)</span>
-            <span *ngIf="!uploadForm.controls['mavenCoord']?.errors?.required || uploadForm.controls['mavenCoord']?.pristine" class="helper-text">_#(em.data.databases.driver.mavenCoordHint)</span>
         </div>
       </div>
-    </div>
+      <div class="driver-wizard__hint"
+           *ngIf="!uploadForm.controls['mavenCoord']?.errors?.required || uploadForm.controls['mavenCoord']?.pristine">
+        _#(em.data.databases.driver.mavenCoordHint)
+      </div>
   </div>
-  <div *ngIf="step === 'drivers'" class="container-fluid">
-    <div class="container">
-      <div class="row mb-1">
-        <div class="col">
+  <div *ngIf="step === 'drivers'" class="driver-wizard driver-wizard--drivers">
+      <div class="driver-wizard__section">
           <div class="list-group">
             <div class="list-group-item" *ngFor="let driver of drivers; let i = index; trackBy: trackByIdx">
               <input type="checkbox" class="checkbox" [(ngModel)]="selectedDrivers[i]" (ngModelChange)="selectDriver(i)">
               <span>{{ driver }}</span>
             </div>
           </div>
-        </div>
       </div>
-      <div class="row" *ngIf="driverForm.controls['drivers'].errors?.required">
-        <div class="col">
+      <div class="driver-wizard__validation" *ngIf="driverForm.controls['drivers'].errors?.required">
           <span class="is-invalid"></span>
           <span class="invalid-feedback">_#(em.data.databases.driver.driversRequired)</span>
-        </div>
       </div>
-    </div>
   </div>
-  <div *ngIf="step === 'plugin'" class="container-fluid" [formGroup]="pluginForm">
-    <div class="container">
-      <div class="row plugin-settings">
-        <div class="col">_#(em.data.databases.driver.pluginSettingsHelp)</div>
-      </div>
-      <div class="row form-row-float-label field-row plugin-settings">
-        <div class="col form-floating">
+  <div *ngIf="step === 'plugin'" class="driver-wizard driver-wizard--plugin" [formGroup]="pluginForm">
+      <div class="driver-wizard__section driver-wizard__plugin-copy">_#(em.data.databases.driver.pluginSettingsHelp)</div>
+      <div class="driver-wizard__field driver-wizard__field--plugin form-floating">
             <input class="form-control" type="text" formControlName="pluginId"
                    [class.is-invalid]="pluginForm.controls['pluginId'].invalid"
                    placeholder="_#(em.data.databases.driver.pluginId)">
@@ -109,20 +91,16 @@
             <span *ngIf="pluginForm.controls['pluginId']?.errors?.required" class="invalid-feedback">_#(em.data.databases.driver.pluginIdRequired)</span>
             <span *ngIf="pluginForm.controls['pluginId']?.errors?.pluginExists" class="invalid-feedback">_#(em.data.databases.driver.pluginIdExists)</span>
           <span class="plugin-settings-hint">_#(em.data.databases.driver.pluginIdHint)</span>
-        </div>
       </div>
-      <div class="row form-row-float-label field-row plugin-settings">
-        <div class="col form-floating">
+      <div class="driver-wizard__field driver-wizard__field--plugin form-floating">
             <input class="form-control" type="text" formControlName="pluginName"
                    [class.is-invalid]="pluginForm.controls['pluginName'].invalid"
                    placeholder="_#(em.data.databases.driver.pluginName)">
             <label>_#(em.data.databases.driver.pluginName)</label>
             <span *ngIf="pluginForm.controls['pluginName']?.errors?.required" class="invalid-feedback">_#(em.data.databases.driver.pluginNameRequired)</span>
           <span class="plugin-settings-hint">_#(em.data.databases.driver.pluginNameHint)</span>
-        </div>
       </div>
-      <div class="row form-row-float-label field-row plugin-settings">
-        <div class="col form-floating">
+      <div class="driver-wizard__field driver-wizard__field--plugin form-floating">
             <input class="form-control" type="text" formControlName="pluginVersion"
                    [class.is-invalid]="pluginForm.controls['pluginVersion'].invalid"
                    placeholder="_#(em.data.databases.driver.pluginVersion)">
@@ -130,9 +108,7 @@
             <span *ngIf="pluginForm.controls['pluginVersion']?.errors?.required" class="invalid-feedback">_#(em.data.databases.driver.pluginVersionRequired)</span>
             <span *ngIf="pluginForm.controls['pluginVersion']?.errors?.pattern" class="invalid-feedback">_#(em.data.databases.driver.pluginVersionInvalid)</span>
           <span class="plugin-settings-hint" [innerHTML]="'_#(em.data.databases.driver.pluginVersionHint)'"></span>
-        </div>
       </div>
-    </div>
   </div>
   <data-notifications #dataNotifications></data-notifications>
 </div>

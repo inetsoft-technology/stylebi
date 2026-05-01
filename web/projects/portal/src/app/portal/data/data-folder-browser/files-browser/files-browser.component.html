@@ -15,70 +15,65 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="card p-1">
-  <nav aria-label="breadcrumb" role="navigation"
+<div class="files-browser-shell">
+  <nav *ngIf="showBreadcrumb"
+     aria-label="breadcrumb" role="navigation"
      [ngbTooltip]="breadcrumbTooltip"
      triggers="mouseenter:mouseleave" placement="right">
-    <ol class="breadcrumb mb-0">
-      <ng-container *ngIf="showBreadcrumb">
-        <li *ngFor="let folder of browserView?.path; last as isLast"
-            class="breadcrumb-item"
-            [class.active]="isLast">
-          <span [class.action-style]="!isLast"
-                (click)="isLast || openFolder(folder.path, folder.type, folder.scope)">{{folder.name ? folder.name : folder.description}}
-          </span>
-        </li>
-      </ng-container>
-      <ng-container *ngIf="!showBreadcrumb">
-        <li class="breadcrumb-item active">{{browserView?.path[0].name}}</li>
-      </ng-container>
+    <ol class="breadcrumb files-browser__breadcrumb mb-0">
+      <li *ngFor="let folder of browserView?.path; last as isLast"
+          class="breadcrumb-item"
+          [class.active]="isLast">
+        <span [class.action-style]="!isLast"
+              (click)="isLast || openFolder(folder.path, folder.type, folder.scope)">{{folder.name ? folder.name : folder.description}}
+        </span>
+      </li>
     </ol>
   </nav>
-  <div class="list-group list-group-flush files-browser my-1" *ngIf="!!browserView">
-    <div *ngIf="!browserView.root"
-        class="list-group-item list-group-item-action px-1"
+  <div class="files-browser__list" *ngIf="!!browserView">
+    <div *ngIf="browserView.path?.length > 1"
+        class="files-browser__item files-browser__item--parent"
         (click)="openParentFolder()">
-      <span class="cursor-pointer text-nowrap">
-        <i class="upward-icon"></i>
-        {{currentFolderName()}}
-      </span>
+      <div class="files-browser__item-main">
+        <span class="files-browser__item-icon-shell">
+          <i class="upward-icon"></i>
+        </span>
+        <span class="files-browser__item-label">{{parentFolderName()}}</span>
+      </div>
     </div>
-    <div class="list-group-item list-group-item-action px-1" *ngFor="let folder of browserView.folders"
+    <div class="files-browser__item" *ngFor="let folder of browserView.folders"
             [class.active]="!multiSelect && isItemSelected(folder, true)"
+            (dblclick)="folderSelectable ? dblclickFolder(folder.path, folder.hasSubFolder, folder.type, folder.scope) : null"
             (click)="folderSelectable ? selectFolder(folder) : openFolder(folder.path, folder.type, folder.scope)">
-      <div class="truncate-parent justify-content-between">
-        <div class="truncate-text d-flex align-items-center">
-          <input type="checkbox" class="truncate-addon"
+      <div class="files-browser__item-main">
+        <input type="checkbox" class="files-browser__checkbox"
                  *ngIf="multiSelect && folderSelectable"
                  [checked]="isItemSelected(folder, true)"
                  (click)="selectFolder(folder); $event.stopPropagation()">
-          <span class="truncate-text ps-1">
-            <div class="d-flex align-items-center">
-              <i class="{{getFolderIcon(folder)}}"></i>
-              <span class="px-1"> {{folder.name ? folder.name : folder.description}} </span>
-            </div>
-          </span>
-        </div>
+        <span class="files-browser__item-icon-shell">
+          <i class="{{getFolderIcon(folder)}}"></i>
+        </span>
+        <span class="files-browser__item-label">{{folder.name ? folder.name : folder.description}}</span>
+      </div>
+      <span class="files-browser__item-trailing" *ngIf="folder.hasSubFolder">
         <i *ngIf="folder.hasSubFolder"
-           class="forward-icon cursor-pointer truncate-addon"
+           class="forward-icon cursor-pointer"
            (click)="openFolder(folder.path, folder.type, folder.scope); $event.stopPropagation()">
         </i>
-      </div>
+      </span>
     </div>
-    <div class="list-group-item list-group-item-action px-1" *ngFor="let file of browserView.files"
+    <div class="files-browser__item" *ngFor="let file of browserView.files"
             [class.active]="!multiSelect && isItemSelected(file, false)"
             (click)="selectFile(file)">
-      <div class="truncate-parent align-items-center">
-        <input type="checkbox" class="truncate-addon"
+      <div class="files-browser__item-main">
+        <input type="checkbox" class="files-browser__checkbox"
                *ngIf="multiSelect"
                [checked]="isItemSelected(file, false)"
                (click)="selectFile(file); $event.stopPropagation()">
-        <span class="truncate-text ps-1">
-          <div class="d-flex align-items-center">
-            <i class="{{getFileIcon(file)}}"></i>
-            <span class="px-1"> {{file.name}} </span>
-          </div>
+        <span class="files-browser__item-icon-shell">
+          <i class="{{getFileIcon(file)}}"></i>
         </span>
+        <span class="files-browser__item-label">{{file.name}}</span>
       </div>
     </div>
   </div>

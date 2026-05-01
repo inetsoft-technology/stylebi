@@ -27,7 +27,8 @@ import {DataType} from "../../../../common-components/join-thumbnail.service";
 
 @Component({
    selector: "edit-join-dialog",
-   templateUrl: "edit-join-dialog.component.html"
+   templateUrl: "edit-join-dialog.component.html",
+   styleUrls: ["edit-join-dialog.component.scss"]
 })
 export class EditJoinDialog {
    @Input() removeEnabled: boolean = true;

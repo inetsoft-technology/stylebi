@@ -17,16 +17,19 @@
  */
 .editor-tool-bar {
   width:100%;
-  height: 52px;
-  max-height: 52px;
+  height: var(--inet-control-height-xl);
+  max-height: var(--inet-control-height-xl);
+  display: flex;
+  align-items: stretch;
 
   .btn-toolbar-pull-right {
-    right: 120px;
+    right: auto;
+    margin-left: auto;
   }
 }
 
 .editor-breadcrumb-placement {
-   height: 52px;
+   height: var(--inet-control-height-xl);
 }
 
 .editor-breadcrumb {
@@ -68,7 +71,7 @@
 
     button {
       flex-grow: 1;
-      border-radius: 0px;
+      border-radius: var(--inet-radius-sm);
     }
   }
 
@@ -92,5 +95,6 @@
     padding: 0;
     flex-grow: 0;
     font-size: 24px;
+    margin-left: var(--inet-space-2);
   }
 }

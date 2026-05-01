@@ -25,12 +25,12 @@
          [ngClass]="{'col-11': selectionOn, 'col-12': !selectionOn }">
       <ng-container *ngFor="let item of columns">
         <div *ngIf="item.visible" class="table-cell-padding-sm" [style.width]="item.widthPercentage + '%'">
-          <div class="d-flex align-items-center font-weight-bold action-style" (click)="updateSortOptions(item.sortKey)">
+          <div class="d-flex align-items-center font-weight-bold action-style sort-header"
+               [class.is-active]="sortOptions.keys.includes(item.sortKey)"
+               [class.is-desc]="sortOptions.keys.includes(item.sortKey) && sortOptions.type === SortTypes.DESCENDING"
+               (click)="updateSortOptions(item.sortKey)">
             <span class="pe-1">{{ item.label }}</span>
-            <i class="action-color blank-icon" *ngIf="sortOptions.keys.includes(item.sortKey)"></i>
-            <i class="action-color icon-size-small" *ngIf="sortOptions.keys.includes(item.sortKey)"
-               [class.sort-descending-icon]="sortOptions.type === SortTypes.DESCENDING"
-               [class.sort-ascending-icon]="sortOptions.type === SortTypes.ASCENDING"></i>
+            <span class="sort-indicator" aria-hidden="true"></span>
           </div>
         </div>
       </ng-container>
@@ -72,10 +72,6 @@
                 <i *ngIf="isFirst" [ngClass]="iconFunction(asset)"></i>
                 <span class="content-ellipse px-1">{{column.value(asset)}}</span>
               </span>
-              <div *ngIf="isFirst" class="d-flex align-items-center action-style truncate-addon">
-                <i class="menu-vertical-icon action-color no-caret" title="_#(More Options)"
-                   (click)="onContextmenu.emit([asset, $event])"></i>
-              </div>
             </div>
           </div>
           <a *ngIf="!!column.routerLink && column.visible && !!column.routerLink(asset)"
@@ -92,6 +88,12 @@
             </div>
           </a>
         </ng-container>
+      </div>
+      <div class="table-cell-padding-sm asset-row-actions-cell">
+        <div class="d-flex align-items-center action-style asset-row-actions">
+          <i class="menu-vertical-icon action-color no-caret" title="_#(More Options)"
+             (click)="onContextmenu.emit([asset, $event])"></i>
+        </div>
       </div>
       <ng-container *ngIf="isToggled(asset)">
         <div *ngFor="let child of getChildren(asset); let i = index"
@@ -114,13 +116,15 @@
                     <i *ngIf="isFirst" [ngClass]="iconFunction(child)"></i>
                     <span class="content-ellipse px-1">{{column.value(child)}}</span>
                   </span>
-                  <div *ngIf="isFirst" class="d-flex align-items-center action-style truncate-addon" ngbDropdown>
-                    <i class="menu-vertical-icon action-color no-caret" title="_#(More Options)"
-                       ngbDropdownToggle (click)="onContextmenu.emit([child, $event])"></i>
-                  </div>
                 </div>
               </div>
             </ng-container>
+          </div>
+          <div class="table-cell-padding-sm asset-row-actions-cell">
+            <div class="d-flex align-items-center action-style asset-row-actions">
+              <i class="menu-vertical-icon action-color no-caret" title="_#(More Options)"
+                 (click)="onContextmenu.emit([child, $event])"></i>
+            </div>
           </div>
         </div>
       </ng-container>

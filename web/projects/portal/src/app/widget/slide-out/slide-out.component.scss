@@ -104,7 +104,7 @@
 }
 
 .slide-out-toggle-container:hover .count-label {
-  border: 1px solid gray;
+  border: 1px solid var(--inet-default-border-color);
 }
 
 .count-label {
@@ -123,7 +123,7 @@
 .spacer {
   width: 8px;
   height: 2em;
-  border-right: 1px dashed gray;
+  border-right: 1px dashed var(--inet-default-border-color);
 }
 
 .dropdown-pane {

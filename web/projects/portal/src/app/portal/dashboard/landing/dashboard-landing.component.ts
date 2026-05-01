@@ -32,6 +32,7 @@ export class DashboardLandingComponent implements OnInit, OnDestroy {
    model: DashboardTabModel;
    reportTabEnabled = false;
    private routeSubscription: Subscription;
+   private dashboardModelSubscription: Subscription;
 
    constructor(private dashboardService: DashboardService, private router: Router,
                private route: ActivatedRoute, portalTabsService: PortalTabsService)
@@ -47,28 +48,22 @@ export class DashboardLandingComponent implements OnInit, OnDestroy {
       )
       .subscribe(
          ([model, params]) => {
-            this.model = model;
-
-            if(params.get("notLoadDashboard") !== "true" &&
-               model && model.dashboards.length > 0)
-            {
-               const dashboard = model.dashboards[0];
-               const values = {};
-
-               for(let i = 0; i < params.keys.length; i++) {
-                  values[params.keys[i]] = params.get(params.keys[i]);
-               }
-
-               this.router.navigate([`/portal/tab/dashboard/vs/dashboard/${dashboard.name}`],
-                  {queryParams: values});
-            }
+            this.applyModel(model, params.get("notLoadDashboard") !== "true", params);
          }
+      );
+
+      this.dashboardModelSubscription = this.dashboardService.dashboardTabModelChanged.subscribe(
+         (model) => this.applyModel(model, true)
       );
    }
 
    ngOnDestroy(): void {
       if(this.routeSubscription) {
          this.routeSubscription.unsubscribe();
+      }
+
+      if(this.dashboardModelSubscription) {
+         this.dashboardModelSubscription.unsubscribe();
       }
    }
 
@@ -78,5 +73,26 @@ export class DashboardLandingComponent implements OnInit, OnDestroy {
 
    navigateToReportTab(): void {
       this.router.navigate(["/portal/tab/report"]);
+   }
+
+   private applyModel(model: DashboardTabModel,
+                      loadDashboard: boolean,
+                      params: any = null): void
+   {
+      this.model = model;
+
+      if(loadDashboard && model && model.dashboards.length > 0) {
+         const dashboard = model.dashboards[0];
+         const values = {};
+
+         if(params) {
+            for(let i = 0; i < params.keys.length; i++) {
+               values[params.keys[i]] = params.get(params.keys[i]);
+            }
+         }
+
+         this.router.navigate([`/portal/tab/dashboard/vs/dashboard/${dashboard.name}`],
+            {queryParams: values});
+      }
    }
 }

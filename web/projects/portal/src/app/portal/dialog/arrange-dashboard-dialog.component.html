@@ -44,13 +44,12 @@
         </tr>
         </thead>
         <tbody>
-        <tr *ngFor="let dashboard of model.dashboards; let i = index">
+        <tr *ngFor="let dashboard of model.dashboards; let i = index; trackBy: trackDashboard">
           <td class="align-middle">
             {{dashboard.label}}
           </td>
           <td class="align-middle">
-            <input type="checkbox" [(ngModel)]="dashboard.enabled"
-                   (change)="enabledChanged(i)"/>
+            <input type="checkbox" class="form-check-input" [(ngModel)]="dashboard.enabled"/>
           </td>
           <td>
             <button type="button" class="btn btn-light-no-bg icon-hover-bg" (click)="moveDashboard(i, i - 1)"

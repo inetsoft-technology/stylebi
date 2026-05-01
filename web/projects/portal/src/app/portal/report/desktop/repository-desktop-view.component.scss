@@ -49,16 +49,18 @@
     align-items: center;
     justify-content: center;
     position: absolute;
-    top: calc(50% - 50px);
-    height: 100px;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 96px;
     width: calc(#{$report-tab-gutter-margin} + #{$report-tab-gutter-width});
     right: calc((#{-$report-tab-gutter-margin} + #{-$report-tab-gutter-width}));
     z-index: 6;
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: var(--inet-radius-md);
   }
 
   .viewer-pane {
     overflow-y: hidden;
+    background-color: var(--inet-portal-main-panel-bg-color);
   }
 }
