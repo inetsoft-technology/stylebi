@@ -68,6 +68,13 @@ public class ComposerControllerErrorHandler {
 
    @ExceptionHandler({SecurityException.class, java.lang.SecurityException.class})
    public ResponseEntity<Map<String, String>> handleSecurityException(Exception e) {
+      if(logManager.isDebugEnabled(LOG.getName())) {
+         logManager.logException(LOG, LogLevel.WARN, "Unauthorized access", e);
+      }
+      else {
+         logManager.logException(LOG, LogLevel.WARN, "Unauthorized access: " + e.getMessage(), null);
+      }
+
       Map<String, String> payload = new HashMap<>();
       payload.put("error", "Forbidden");
       payload.put("message", Catalog.getCatalog().getString("http.error.unauthorized"));
