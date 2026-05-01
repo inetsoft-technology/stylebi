@@ -221,4 +221,19 @@ class ChartPlotOptionsPaneModelTest {
       assertFalse(plotDesc.isBarRoundAllCorners(),
          "barRoundAllCorners=false should be persisted for pareto charts");
    }
+
+   @Test
+   void updateModel_resetsBarRoundAllCornersFalseForLineChart() {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_LINE);
+      PlotDescriptor plotDesc = new PlotDescriptor();
+      // Stale descriptor value left from when the chart was a different type
+      plotDesc.setBarRoundAllCorners(true);
+
+      ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, plotDesc);
+      model.updateChartPlotOptionsPaneModel(info, plotDesc);
+
+      assertFalse(plotDesc.isBarRoundAllCorners(),
+         "barRoundAllCorners should be reset to false for chart types where rounding doesn't apply");
+   }
 }

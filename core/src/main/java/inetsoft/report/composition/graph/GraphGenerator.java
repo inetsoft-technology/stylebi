@@ -3611,7 +3611,8 @@ public abstract class GraphGenerator {
          sumBar.setHint("editable", "false");
          sumBar.setHint("_waterfall_", "true");
 
-         // Each segment floats on the prior segment's end (no zero baseline) — round all corners.
+         // Intermediate bars float on prior totals (no zero anchor) — always round all corners.
+         // sumBar mirrors the same treatment for visual consistency.
          double r = desc.getPlotDescriptor().getBarCornerRadius();
          bar.setCornerRadius(r);
          bar.setRoundAllCorners(true);
