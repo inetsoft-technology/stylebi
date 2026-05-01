@@ -828,6 +828,9 @@ public class ScheduleManager {
             getOrgTaskMap(orgID).remove(getTaskIdentifier(task.getTaskId(), orgID));
             dependencyHandler.updateTaskDependencies(task, false);
          }
+         else {
+            getOrgTaskMap(orgID).remove(getTaskIdentifier(taskName, orgID));
+         }
 
          scheduleClient.taskRemoved(taskName);
          ScheduleTaskMessage message = new ScheduleTaskMessage();

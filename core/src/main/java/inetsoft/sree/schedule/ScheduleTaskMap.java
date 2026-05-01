@@ -189,38 +189,38 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
    @Override
    public ScheduleTask remove(Object key) {
       ScheduleTask task = get(key);
+      String identifier = (String) key;
 
-      if(task != null) {
-         String identifier = (String) key;
+      try {
+         AssetFolder root = getRoot();
+         AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+         root.removeEntry(entry);
+         indexedStorage.putXMLSerializable(getRootIdentifier(orgID), root);
+         indexedStorage.remove(identifier);
+         cache.remove(identifier);
 
-         try {
-            AssetFolder root = getRoot();
-            AssetEntry entry = AssetEntry.createAssetEntry(identifier);
-            root.removeEntry(entry);
-            indexedStorage.putXMLSerializable(getRootIdentifier(orgID), root);
-            indexedStorage.remove(identifier);
-            cache.remove(identifier);
+         // should remove the task from folder when delete a task.
+         if(task != null && !StringUtils.isEmpty(task.getPath())) {
+            AssetEntry folderEntry = new AssetEntry( AssetRepository.GLOBAL_SCOPE,
+                                                     AssetEntry.Type.SCHEDULE_TASK_FOLDER, task.getPath(), null, orgID);
+            XMLSerializable folder = indexedStorage
+               .getXMLSerializable(folderEntry.toIdentifier(), null, orgID);
 
-            // should remove the task from folder when delete a task.
-            if(task != null && !StringUtils.isEmpty(task.getPath())) {
-               AssetEntry folderEntry = new AssetEntry( AssetRepository.GLOBAL_SCOPE,
-                                                        AssetEntry.Type.SCHEDULE_TASK_FOLDER, task.getPath(), null, orgID);
-               XMLSerializable folder = indexedStorage
-                  .getXMLSerializable(folderEntry.toIdentifier(), null, orgID);
-
-               if(folder instanceof AssetFolder) {
-                  ((AssetFolder) folder).removeEntry(entry);
-                  indexedStorage.putXMLSerializable(folderEntry.toIdentifier(), folder);
-               }
+            if(folder instanceof AssetFolder) {
+               ((AssetFolder) folder).removeEntry(entry);
+               indexedStorage.putXMLSerializable(folderEntry.toIdentifier(), folder);
             }
          }
-         catch(Exception e) {
-            throw new RuntimeException(
-               "Failed to delete schedule task: " + identifier, e);
+         else if(task == null) {
+            removeEntryFromFolders(entry, root);
          }
-         finally {
-            indexedStorage.close();
-         }
+      }
+      catch(Exception e) {
+         throw new RuntimeException(
+            "Failed to delete schedule task: " + identifier, e);
+      }
+      finally {
+         indexedStorage.close();
       }
 
       return task;
@@ -374,6 +374,31 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
       finally {
          indexedStorage.close();
       }
+   }
+
+   private boolean removeEntryFromFolders(AssetEntry entry, AssetFolder folder) throws Exception {
+      if(folder == null) {
+         return false;
+      }
+
+      for(AssetEntry child : folder.getEntries()) {
+         if(child.isScheduleTaskFolder()) {
+            AssetFolder subFolder = (AssetFolder)
+               indexedStorage.getXMLSerializable(child.toIdentifier(), null, orgID);
+
+            if(subFolder != null && subFolder.containsEntry(entry)) {
+               subFolder.removeEntry(entry);
+               indexedStorage.putXMLSerializable(child.toIdentifier(), subFolder);
+               return true;
+            }
+
+            if(removeEntryFromFolders(entry, subFolder)) {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    private List<AssetEntry> getAllChildren(AssetFolder root) {
