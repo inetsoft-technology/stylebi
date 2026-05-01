@@ -47,7 +47,6 @@ public class TableStyleAsset extends AbstractXAsset {
     */
    public TableStyleAsset() {
       super();
-      libManagerProvider = LibManagerProvider.getInstance();
    }
 
    /**
@@ -55,7 +54,6 @@ public class TableStyleAsset extends AbstractXAsset {
     * @param style the specified table style name.
     */
    public TableStyleAsset(String style) {
-      this();
       this.style = style;
    }
 
@@ -129,7 +127,7 @@ public class TableStyleAsset extends AbstractXAsset {
     * Get table style id by path
     */
    public String getStyleID() {
-      LibManager manager = libManagerProvider.getManager();
+      LibManager manager = LibManagerProvider.getInstance().getManager();
       XTableStyle tableStyle = manager.getTableStyle(style);
 
       if(tableStyle == null) {
@@ -140,7 +138,7 @@ public class TableStyleAsset extends AbstractXAsset {
    }
 
    public String getLabel() {
-      LibManager manager = libManagerProvider.getManager();
+      LibManager manager = LibManagerProvider.getInstance().getManager();
       XTableStyle tableStyle = manager.getTableStyle(style);
       return tableStyle.getName();
    }
@@ -172,7 +170,7 @@ public class TableStyleAsset extends AbstractXAsset {
          return;
       }
 
-      LibManager manager = libManagerProvider.getManager();
+      LibManager manager = LibManagerProvider.getInstance().getManager();
       String id = xstyle.getID();
       String name = xstyle.getName();
 
@@ -222,7 +220,7 @@ public class TableStyleAsset extends AbstractXAsset {
    public synchronized boolean writeContent(OutputStream output) throws Exception {
       String style0 = Tool.replaceAll(style, "/", "~");
       style0 = StyleTreeModel.getTableStyleID(style0);
-      LibManager manager = libManagerProvider.getManager();
+      LibManager manager = LibManagerProvider.getInstance().getManager();
       XTableStyle xstyle = manager.getTableStyle(style0);
 
       if(xstyle == null) {
@@ -242,7 +240,7 @@ public class TableStyleAsset extends AbstractXAsset {
    public XTableStyle getXTableStyle() {
       String id = Tool.replaceAll(style, "/", "~");
       id = StyleTreeModel.getTableStyleID(id);
-      return libManagerProvider.getManager().getTableStyle(id);
+      return LibManagerProvider.getInstance().getManager().getTableStyle(id);
    }
 
    @Override
@@ -267,5 +265,4 @@ public class TableStyleAsset extends AbstractXAsset {
 
    private String style;
    private String label;
-   private final LibManagerProvider libManagerProvider;
 }
