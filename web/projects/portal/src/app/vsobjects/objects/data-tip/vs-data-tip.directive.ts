@@ -166,8 +166,17 @@ export class VSDataTipDirective implements DoCheck {
                left += popInfo.left - containerInfo.left;
             }
 
-            this.renderer.setStyle(nativeElement, "left", left + "px");
-            this.renderer.setStyle(nativeElement, "top", top + "px");
+            // Only reposition focus-assembly elements. Component outer divs own their
+            // top/left via template bindings, so overriding them here breaks OnPush
+            // components (e.g. vs-crosstab) that don't re-evaluate bindings on scroll.
+            const isFocusAssembly = nativeElement.classList.contains("focus-assembly");
+
+            if(isFocusAssembly) {
+               this.renderer.setStyle(nativeElement, "left", left + "px");
+               this.renderer.setStyle(nativeElement, "top", top + "px");
+               this.renderer.setStyle(nativeElement, "position", "absolute");
+            }
+
             this.renderer.addClass(nativeElement, this.dataTipClass);
 
             if(!this.miniToolbar) {
@@ -181,8 +190,6 @@ export class VSDataTipDirective implements DoCheck {
                this.renderer.setStyle(this.elementRef.nativeElement, "display", "block");
                this.renderer.setStyle(nativeElement, "width", mainComponent.clientWidth + "px");
             }
-
-            this.renderer.setStyle(nativeElement, "position", "absolute");
             // background set on the server so alpha can be applied to all backgrounds
             //this.renderer.setStyle(nativeElement, "background", "rgba(245,245,245,1.0)");
             let showingComponent = this.popService.hasPopUpComponentShowing();
