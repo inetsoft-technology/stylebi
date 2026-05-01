@@ -949,6 +949,11 @@ public class QueryManagerService {
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          runtimeQueryService.getRuntimeQuery(model.getRuntimeId());
 
+      if(runtimeQuery == null) {
+         throw new MessageException(
+            "The query session has expired. Please close and reopen the query editor.");
+      }
+
       JDBCQuery query = createNewQuery(name, database);
       runtimeQuery.setQuery(query);
       TableAssembly assembly = (TableAssembly) rws.getWorksheet().getAssembly(model.getName());
@@ -1190,6 +1195,12 @@ public class QueryManagerService {
    private BasicSQLQueryModel processConvertToSimpleQuery(String runtimeQueryId) {
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          runtimeQueryService.getRuntimeQuery(runtimeQueryId);
+
+      if(runtimeQuery == null) {
+         throw new MessageException(
+            "The query session has expired. Please close and reopen the query editor.");
+      }
+
       JDBCQuery query = runtimeQuery.getQuery();
       BasicSQLQueryModel model = new BasicSQLQueryModel();
 
@@ -1502,6 +1513,11 @@ public class QueryManagerService {
    {
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          runtimeQueryService.getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         return null;
+      }
+
       JDBCQuery query = runtimeQuery.getQuery();
 
       if(!StringUtils.isEmpty(nSqlString)) {
@@ -1545,6 +1561,11 @@ public class QueryManagerService {
       throws Exception
    {
       RuntimeQueryService.RuntimeXQuery runtimeQuery = runtimeQueryService.getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         return;
+      }
+
       VariableTable vtable = runtimeQuery.getVariables();
       vtable.addAll(VariableAssemblyModelInfo.getVariableTable(variables));
       runtimeQueryService.saveRuntimeQuery(runtimeQuery);
@@ -1556,6 +1577,12 @@ public class QueryManagerService {
    {
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          runtimeQueryService.getRuntimeQuery(event.getRuntimeId());
+
+      if(runtimeQuery == null) {
+         throw new MessageException(
+            "The query session has expired. Please close and reopen the query editor.");
+      }
+
       String sqlString = event.getSqlString();
       JDBCQuery query = runtimeQuery.getQuery();
       JDBCQuery nquery = query.clone();
@@ -1614,6 +1641,11 @@ public class QueryManagerService {
    public void clearColumnInfo(String runtimeId) {
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          runtimeQueryService.getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         return;
+      }
+
       JDBCQuery query = runtimeQuery.getQuery();
       SQLDefinition sqlDefinition = query.getSQLDefinition();
       UniformSQL sql = (UniformSQL) sqlDefinition;
@@ -1636,6 +1668,12 @@ public class QueryManagerService {
    {
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          runtimeQueryService.getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         throw new MessageException(
+            "The query session has expired. Please close and reopen the query editor.");
+      }
+
       JDBCQuery query = runtimeQuery.getQuery();
       SQLDefinition sqlDefinition = query.getSQLDefinition();
       UniformSQL sql = (UniformSQL) sqlDefinition;
@@ -1797,6 +1835,12 @@ public class QueryManagerService {
    {
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          runtimeQueryService.getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         throw new MessageException(
+            "The query session has expired. Please close and reopen the query editor.");
+      }
+
       JDBCQuery query = runtimeQuery.getQuery();
 
       if(sqlString != null) {
