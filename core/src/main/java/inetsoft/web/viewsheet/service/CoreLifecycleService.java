@@ -67,6 +67,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.lang.Nullable;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Service;
 
@@ -94,7 +95,7 @@ public class CoreLifecycleService {
       VSLayoutService vsLayoutService, ParameterService parameterService,
       VSCompositionService vsCompositionService,
       DataRefModelFactoryService dataRefModelFactoryService,
-      RuntimeViewsheetRef runtimeViewsheetRef, ApplicationEventPublisher eventPublisher,
+      @Nullable RuntimeViewsheetRef runtimeViewsheetRef, ApplicationEventPublisher eventPublisher,
       LicenseManager licenseManager, SecurityEngine securityEngine, Cluster cluster,
       DataSourceRegistry dataSourceRegistry)
    {
@@ -3274,6 +3275,7 @@ public class CoreLifecycleService {
 
    private final VSCompositionService vsCompositionService;
    private final DataRefModelFactoryService dataRefModelFactoryService;
+   @Nullable
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final ApplicationEventPublisher eventPublisher;
    private final LicenseManager licenseManager;
