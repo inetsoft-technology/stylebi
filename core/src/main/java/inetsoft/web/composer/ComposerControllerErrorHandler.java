@@ -23,6 +23,7 @@ import inetsoft.report.composition.execution.BoundTableNotFoundException;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.asset.InvalidDependencyException;
 import inetsoft.uql.viewsheet.ColumnNotFoundException;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
 import inetsoft.util.log.LogManager;
@@ -63,6 +64,14 @@ public class ComposerControllerErrorHandler {
    @MessageExceptionHandler(ScriptException.class)
    public void handleScriptException(ScriptException e, CommandDispatcher commandDispatcher) {
       sendMessageCommand(e, commandDispatcher, MessageCommand.Type.ERROR);
+   }
+
+   @ExceptionHandler({SecurityException.class, java.lang.SecurityException.class})
+   public ResponseEntity<Map<String, String>> handleSecurityException(Exception e) {
+      Map<String, String> payload = new HashMap<>();
+      payload.put("error", "Forbidden");
+      payload.put("message", Catalog.getCatalog().getString("http.error.unauthorized"));
+      return new ResponseEntity<>(payload, null, HttpStatus.FORBIDDEN);
    }
 
    @ExceptionHandler(MessageException.class)
