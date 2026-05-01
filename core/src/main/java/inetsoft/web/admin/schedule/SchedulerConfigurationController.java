@@ -73,7 +73,7 @@ public class SchedulerConfigurationController implements MessageListener {
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/schedule/settings",
+         resource = "settings/schedule/status",
          actions = ResourceAction.ACCESS
       )
    )
@@ -85,7 +85,7 @@ public class SchedulerConfigurationController implements MessageListener {
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/schedule/settings",
+         resource = "settings/schedule/status",
          actions = ResourceAction.ACCESS
       )
    )
