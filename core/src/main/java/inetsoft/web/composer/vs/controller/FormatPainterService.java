@@ -231,7 +231,14 @@ public class FormatPainterService {
             return null;
          }
 
-         VSTableLens lens = box.get().getVSTableLens(oname, detail);
+         VSTableLens lens;
+
+         try {
+            lens = box.get().getVSTableLens(oname, detail);
+         }
+         catch(CancelledException ignored) {
+            return null;
+         }
 
          if(lens == null || !lens.moreRows(event.getRow()) ||
             event.getColumn() >= lens.getColCount())
