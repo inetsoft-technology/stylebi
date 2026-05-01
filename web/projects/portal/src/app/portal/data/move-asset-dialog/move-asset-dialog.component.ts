@@ -28,8 +28,10 @@ import { ComponentTool } from "../../../common/util/component-tool";
 import { AssetType } from "../../../../../../shared/data/asset-type";
 import { MoveAssetDialogDataConfig } from "../data-folder-browser/move-asset-dialog-data-config";
 import { PortalDataBrowserModel } from "../data-folder-browser/portal-data-browser-model";
+import { AssetEntryHelper } from "../../../common/data/asset-entry-helper";
 
 export const FAKE_ROOT_PATH: string = "_fake_root_";
+const DATA_WORKSHEET_ROOT_PATH: string = "_data_worksheet_root_";
 
 @Component({
    selector: "move-asset-dialog",
@@ -48,6 +50,7 @@ export class MoveAssetDialogComponent implements OnInit {
    folderPath: string;
    folderScope: number;
    AssetType = AssetType;
+   readonly fakeRootPath = FAKE_ROOT_PATH;
 
    private readonly fakeRootFolder: WorksheetBrowserInfo = {
       type: AssetType.FOLDER,
@@ -68,6 +71,26 @@ export class MoveAssetDialogComponent implements OnInit {
       canWorksheet: false
    };
 
+   private readonly dataWorksheetFolder: WorksheetBrowserInfo = {
+      type: AssetType.FOLDER,
+      path: DATA_WORKSHEET_ROOT_PATH,
+      name: "_#(Data Worksheet)",
+      scope: AssetEntryHelper.GLOBAL_SCOPE,
+      description: "",
+      createdBy: "",
+      createdDate: new Date().getDate(),
+      createdDateLabel: "",
+      modifiedDate: new Date().getDate(),
+      modifiedDateLabel: "",
+      dateFormat: "YYYY-MM-DD HH:mm:ss",
+      editable: false,
+      deletable: false,
+      materialized: false,
+      canMaterialize: false,
+      canWorksheet: false,
+      hasSubFolder: 1
+   };
+
    constructor(private httpClient: HttpClient,
                private modalService: NgbModal,
                public config: MoveAssetDialogDataConfig) {
@@ -82,6 +105,8 @@ export class MoveAssetDialogComponent implements OnInit {
       (value: string, assetType?: string, scope?: number) => {
          const folderConfig = this.config.openFolderRequestConfig;
          let params = new HttpParams();
+         const isWorksheetRoot = value === DATA_WORKSHEET_ROOT_PATH;
+         const requestPath = isWorksheetRoot ? "" : value;
 
          if(Tool.isNumber(scope)) {
             params = params.set("scope", "" + scope);
@@ -99,14 +124,37 @@ export class MoveAssetDialogComponent implements OnInit {
          params = params.set("moveFolders", moveFolders);
 
          return this.httpClient.get(folderConfig.folderBrowserURI
-            + Tool.encodeURIComponentExceptSlash(value), { params: params }).pipe(
+            + (requestPath ? Tool.encodeURIComponentExceptSlash(requestPath) : ""), { params: params }).pipe(
             map((model: PortalDataBrowserModel) => {
+               if(value === FAKE_ROOT_PATH) {
+                  return <DataFolderBrowserModel> {
+                     path: [this.fakeRootFolder],
+                     root: true,
+                     folders: [{...this.dataWorksheetFolder}],
+                     files: []
+                  };
+               }
+
+               if(isWorksheetRoot) {
+                  const folders = model.folders
+                     .filter((folder) => this.originalPaths.indexOf(folder.path) === -1
+                        || folder.scope !== this.parentScope);
+
+                  return <DataFolderBrowserModel> {
+                     path: [this.fakeRootFolder, {...this.dataWorksheetFolder}],
+                     root: false,
+                     folders: folders,
+                     files: []
+                  };
+               }
+
                // don't show folders that are being moved
                const folders = model.folders
                   .filter((folder) => this.originalPaths.indexOf(folder.path) === -1
                      || folder.scope !== this.parentScope);
                return <DataFolderBrowserModel> {
-                  path: [this.fakeRootFolder].concat(model.currentFolder),
+                  path: [this.fakeRootFolder, {...this.dataWorksheetFolder}]
+                     .concat(model.currentFolder),
                   root: model.root,
                   folders: folders,
                   files: [] //only show folders
@@ -124,7 +172,7 @@ export class MoveAssetDialogComponent implements OnInit {
          this.folderScope = null;
       }
       else {
-         this.folderPath = items[0].path;
+         this.folderPath = items[0].path === DATA_WORKSHEET_ROOT_PATH ? "/" : items[0].path;
          this.folderScope = items[0].scope;
       }
    }

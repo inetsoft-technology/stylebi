@@ -16,7 +16,8 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div class="data-model-folder-browser">
-  <nav aria-label="breadcrumb" role="navigation"
+  <nav *ngIf="showBreadcrumb"
+       aria-label="breadcrumb" role="navigation"
        [ngbTooltip]="breadcrumbTooltip"
        triggers="mouseenter:mouseleave" placement="right">
     <ol class="breadcrumb data-model-folder-browser__breadcrumb mb-0">
@@ -29,24 +30,35 @@
       </li>
     </ol>
   </nav>
-  <div class="list-group list-group-flush files-browser" *ngIf="!!browserView">
-    <div class="list-group-item list-group-item-action data-model-folder-browser__item" *ngFor="let folder of browserView.folders"
+
+  <div class="data-model-folder-browser__list" *ngIf="!!browserView">
+    <div *ngIf="browserView.path?.length > 1"
+         class="data-model-folder-browser__item data-model-folder-browser__item--parent"
+         (click)="openParentFolder()">
+      <div class="data-model-folder-browser__item-main">
+        <span class="data-model-folder-browser__item-icon-shell">
+          <i class="upward-icon"></i>
+        </span>
+        <span class="data-model-folder-browser__item-label">{{parentFolderName()}}</span>
+      </div>
+    </div>
+
+    <div class="data-model-folder-browser__item"
+         *ngFor="let folder of browserView.folders"
          [class.active]="isItemSelected(folder, true)"
          (click)="selectFolder(folder)">
-      <div class="truncate-parent justify-content-between">
-        <div class="truncate-text d-flex align-items-center">
-          <span class="truncate-text ps-1">
-            <div class="d-flex align-items-center">
-              <i class="{{getFolderIcon(folder)}}"></i>
-              <span class="px-1"> {{getFolderName(folder)}} </span>
-            </div>
-          </span>
-        </div>
-        <i *ngIf="folder?.path === '/'"
-           class="forward-icon cursor-pointer truncate-addon"
+      <div class="data-model-folder-browser__item-main">
+        <span class="data-model-folder-browser__item-icon-shell">
+          <i class="{{getFolderIcon(folder)}}"></i>
+        </span>
+        <span class="data-model-folder-browser__item-label">{{getFolderName(folder)}}</span>
+      </div>
+      <span *ngIf="canOpenFolder(folder)"
+            class="data-model-folder-browser__item-trailing">
+        <i class="forward-icon cursor-pointer"
            (click)="openFolder(folder.path, folder.type); $event.stopPropagation()">
         </i>
-      </div>
+      </span>
     </div>
   </div>
 </div>

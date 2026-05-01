@@ -20,7 +20,7 @@ import { Component, ElementRef, NgZone, OnDestroy, OnInit, ViewChild } from "@an
 import { ActivatedRoute, NavigationEnd, ParamMap, Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, of, Subscription } from "rxjs";
-import { switchMap, tap } from "rxjs/operators";
+import { map, switchMap, tap } from "rxjs/operators";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../../shared/data/asset-type";
 import { DatasourceDatabaseType } from "../../../../../../shared/util/model/datasource-database-type";
@@ -79,9 +79,15 @@ import { GettingStartedService } from "../../../widget/dialog/getting-started-di
 import { AppInfoService } from "../../../../../../shared/util/app-info.service";
 import { DataDetailsPaneService } from "../services/data-details-pane.service";
 import { SearchCommand } from "../commands/search-command";
+import { AssetItem } from "../model/datasources/database/asset-item";
+import { DatabaseDataModelBrowserModel } from "../model/datasources/database/database-data-model-browser-model";
 
 const DATA_FOLDERS_URI: string = "../api/data/folders/children/";
 const DATA_DATASOURCES_URI: string = "../api/data/datasources/nodes";
+const DATA_MODEL_BROWSER_URI: string = "../api/data/database/dataModel/browse";
+const DATA_MODEL_FOLDER_ASSET: string = "data_model_folder";
+const PHYSICAL_MODEL_ASSET: string = "physical_model";
+const LOGICAL_MODEL_ASSET: string = "logical_model";
 const CHECK_DATASOURCE_DUPLICATE_URI = "../api/data/datasources/move/checkDuplicate";
 const CHECK_FOLDER_DUPLICATE_URI: string = "../api/data/move/checkDuplicate";
 const PHYSICAL_MODEL_CHECK_DUPLICATE_URI: string = "../api/data/logicalModel/checkDuplicate";
@@ -102,6 +108,16 @@ interface SearchTreeBuilderNode {
 
 type DataTreeSection = "worksheets" | "datasources";
 
+interface TreeSectionState {
+   initPath: string;
+   initScope: string;
+   searchMode: boolean;
+   searchRootNode: TreeNodeModel;
+   searchString: string;
+   searchView: boolean;
+   selectedNodes: TreeNodeModel[];
+}
+
 @Component({
    selector: "p-data-sources-tree-view",
    templateUrl: "data-sources-tree-view.component.html",
@@ -113,23 +129,21 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
    @ViewChild("dataNotifications") dataNotifications: DataNotificationsComponent;
    @ViewChild("treeContainer") treeContainer: ElementRef;
    rootNode: TreeNodeModel;
-   searchRootNode: TreeNodeModel = null;
    private _oldRootNode: TreeNodeModel;
+   private pendingCollapsedNodePath: string = null;
    private currentFolderPath: string = "";
    private subscriptions = new Subscription();
-   selectedNodes: TreeNodeModel[];
-   private initPath: string;
-   private initScope: string;
-   private searchView = false;
-   searchMode = false;
    private composedDashboard = false;
    scrollY = 0;
    PortalDataType = PortalDataType;
    loading: boolean = false;
    oldSelectedNode: TreeNodeModel;
    private enterprise: boolean;
-   searchString: string = null;
    activeTreeSection: DataTreeSection = "datasources";
+   private readonly sectionStates: Record<DataTreeSection, TreeSectionState> = {
+      datasources: this.createSectionState(),
+      worksheets: this.createSectionState()
+   };
 
    datasetHome: TreeNodeModel = {
       label: "_#(js:Data)",
@@ -203,8 +217,80 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
                private gettingStartedService: GettingStartedService,
                private appInfoService: AppInfoService,
                private dataDetailsPaneService: DataDetailsPaneService)
-   {
-      super(clientService, zone, true);
+      {
+         super(clientService, zone, true);
+   }
+
+   private createSectionState(): TreeSectionState {
+      return {
+         initPath: null,
+         initScope: null,
+         searchMode: false,
+         searchRootNode: null,
+         searchString: null,
+         searchView: false,
+         selectedNodes: []
+      };
+   }
+
+   private get sectionState(): TreeSectionState {
+      return this.sectionStates[this.activeTreeSection];
+   }
+
+   get searchRootNode(): TreeNodeModel {
+      return this.sectionState.searchRootNode;
+   }
+
+   set searchRootNode(value: TreeNodeModel) {
+      this.sectionState.searchRootNode = value;
+   }
+
+   get selectedNodes(): TreeNodeModel[] {
+      return this.sectionState.selectedNodes;
+   }
+
+   set selectedNodes(value: TreeNodeModel[]) {
+      this.sectionState.selectedNodes = value || [];
+   }
+
+   private get initPath(): string {
+      return this.sectionState.initPath;
+   }
+
+   private set initPath(value: string) {
+      this.sectionState.initPath = value;
+   }
+
+   private get initScope(): string {
+      return this.sectionState.initScope;
+   }
+
+   private set initScope(value: string) {
+      this.sectionState.initScope = value;
+   }
+
+   get searchMode(): boolean {
+      return this.sectionState.searchMode;
+   }
+
+   set searchMode(value: boolean) {
+      this.sectionState.searchMode = value;
+   }
+
+   private get searchView(): boolean {
+      return this.sectionState.searchView;
+   }
+
+   private set searchView(value: boolean) {
+      this.sectionState.searchView = value;
+   }
+
+   get searchString(): string {
+      return this.sectionState.searchString;
+   }
+
+   set searchString(value: string) {
+      this.sectionState.searchString = value;
    }
 
    ngOnInit(): void {
@@ -296,7 +382,8 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
                }
             }
 
-            const preserveWorksheetSelection = params.has("temp") && this.hasWorksheetSelection();
+            const preserveWorksheetSelection = params.has("temp") &&
+               this.hasWorksheetSelectionForSection("worksheets");
 
             if(this.rootNode && this.initPath && this.initScope && !preserveWorksheetSelection) {
                this.initSeletedNodes(this.initPath, this.initScope, searchAllNodes);
@@ -472,8 +559,15 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
       this.loading = true;
       this.httpClient.get<TreeNodeModel>("../api/portal/data/tree")
          .subscribe(root => {
+            this.normalizeDataModelTreeNodes(root);
             this.rootNode = root;
             this.loading = false;
+
+            if(this.pendingCollapsedNodePath) {
+               this.collapseNodeByPath(this._oldRootNode, this.pendingCollapsedNodePath);
+               this.collapseNodeByPath(this.rootNode, this.pendingCollapsedNodePath);
+               this.pendingCollapsedNodePath = null;
+            }
 
             if(this.searchMode && !!this.searchString?.trim()) {
                this.refreshSearchTree();
@@ -491,7 +585,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
                }
                this.keepExpandedNodes(this.rootNode, paneRoot);
             }
-            else if(this.selectedNodes) {
+            else if(this.selectedNodes?.length > 0) {
                this.selectedNodes = this.updateSelectedNodes(this._oldRootNode, paneRoot);
                this.keepExpandedNodes(this._oldRootNode, this.rootNode);
             }
@@ -504,12 +598,29 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
                this.keepExpandedNodes(this.rootNode, paneRoot);
             }
 
+            this.closeEmptyDataModelBranches(this.rootNode);
+
             if(!onDataHome && this.selectedNodes && this.selectedNodes.length > 0 &&
                !this.isEditDataSource() && !this.searchView)
             {
                this.selectNode(this.selectedNodes);
             }
          });
+   }
+
+   private normalizeDataModelTreeNodes(node: TreeNodeModel): void {
+      if(!node) {
+         return;
+      }
+
+      if(node.type === PortalDataType.DATA_MODEL || node.type === PortalDataType.DATA_MODEL_FOLDER) {
+         node.children = [];
+         node.expanded = false;
+         node.leaf = false;
+      }
+      else if(!!node.children?.length) {
+         node.children.forEach((child) => this.normalizeDataModelTreeNodes(child));
+      }
    }
 
    private isDefaultDataLandingRoute(url: string = this.router.url): boolean {
@@ -544,8 +655,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
 
       for(let child of node.children) {
          const contains = this.tree.isSelectedNode(child);
-         let treeNode = GuiTool.findNode(root, (n) =>
-            !!n.data && n.data.identifier === child.data.identifier && n.label === child.label);
+         let treeNode = GuiTool.findNode(root, (n) => this.isSameTreeNode(child, n));
 
          if(contains && treeNode) {
             currentSelectedNodes.push(treeNode);
@@ -564,9 +674,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
 
       for(let child of node.children) {
          if(child.expanded) {
-            let treeNode = GuiTool.findNode(root, (n) =>
-               !!n.data && n.data.path === child.data.path && n.label === child.label &&
-               n.data.type === child.data.type && n.data.scope === child.data.scope);
+            let treeNode = GuiTool.findNode(root, (n) => this.isSameTreeNode(child, n));
 
             if(treeNode) {
                treeNode.expanded = true;
@@ -724,7 +832,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
                   return;
                }
 
-               this.router.navigate(["datasources/database", splitName.database,
+               this.router.navigate(["/portal/tab/data/datasources/database", splitName.database,
                   "physicalModel", Tool.byteEncode(physicalModel), "logicalModel", splitName.name],
                   {relativeTo: this.route});
             }
@@ -740,7 +848,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
                   return;
                }
 
-               this.router.navigate(["datasources/database", Tool.byteEncode(database),
+               this.router.navigate(["/portal/tab/data/datasources/database", Tool.byteEncode(database),
                   "physicalModel", Tool.byteEncode(physicalModel), "logicalModel",
                   Tool.byteEncode(name), { parent: Tool.byteEncode(parent) }],
                   {relativeTo: this.route});
@@ -787,13 +895,12 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
 
       return request.pipe(
          tap(data => {
+            data?.forEach((child) => this.normalizeDataModelTreeNodes(child));
             const selectedNode = this.tree.selectedNodes.length > 0 ? this.tree.selectedNodes[0] : null;
 
             node.children.forEach(oldChild => {
                if(oldChild.children.length > 0 || oldChild.expanded || oldChild === selectedNode) {
-                  const newChild: TreeNodeModel = data.find(child =>
-                     (<WorksheetBrowserInfo> child.data).name === (<WorksheetBrowserInfo> oldChild.data).name
-                  );
+                  const newChild: TreeNodeModel = data.find((child) => this.isSameTreeNode(oldChild, child));
 
                   if(!!newChild) {
                      newChild.expanded = oldChild.expanded;
@@ -808,6 +915,31 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
 
             node.children = data;
          }));
+   }
+
+   private isSameTreeNode(node1: TreeNodeModel, node2: TreeNodeModel): boolean {
+      if(!node1 || !node2 || !node1.data || !node2.data) {
+         return false;
+      }
+
+      const data1: any = node1.data;
+      const data2: any = node2.data;
+      const props1: any = data1.properties || {};
+      const props2: any = data2.properties || {};
+
+      return node1.label === node2.label &&
+         data1.path === data2.path &&
+         data1.type === data2.type &&
+         data1.scope === data2.scope &&
+         props1.databasePath === props2.databasePath &&
+         props1.folder === props2.folder &&
+         props1.parent === props2.parent &&
+         props1.name === props2.name &&
+         props1.physicalModel === props2.physicalModel;
+   }
+
+   onExpandNode(node: TreeNodeModel): void {
+      this.expandNode(node).subscribe();
    }
 
    onNodeDrag(event: any) {
@@ -1305,7 +1437,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
             this.tree.selectedNodes = [this.datasourceHome];
          }
 
-         this.expandNode(this.datasourceHome);
+         this.expandNode(this.datasourceHome).subscribe();
       }
    }
 
@@ -1338,7 +1470,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
                }
 
                if(child.expanded) {
-                  this.expandNode(child);
+                  this.expandNode(child).subscribe();
                }
             }
             else {
@@ -1378,14 +1510,133 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
     * @returns {any} an observable  with the children of the given datasources node
     */
    private openDatasourcesFolder(node: TreeNodeModel = this.datasourceHome): Observable<TreeNodeModel[]> {
-      const nodeData = <WorksheetBrowserInfo> node.data;
-
       if(node === this.datasourceHome) {
          return this.httpClient.get<TreeNodeModel[]>(DATA_DATASOURCES_URI);
       }
+      else if(node?.type === PortalDataType.DATA_MODEL || node?.type === PortalDataType.DATA_MODEL_FOLDER) {
+         return this.openDataModelTreeFolder(node);
+      }
       else {
+         return of(node?.children || []);
+      }
+   }
+
+   private openDataModelTreeFolder(node: TreeNodeModel): Observable<TreeNodeModel[]> {
+      const databasePath = node?.data?.properties?.databasePath;
+
+      if(!databasePath) {
          return of([]);
       }
+
+      let params = new HttpParams().set("database", databasePath);
+
+      if(node.type === PortalDataType.DATA_MODEL_FOLDER) {
+         const folder = node?.data?.properties?.folder;
+
+         if(folder) {
+            params = params.set("folder", folder);
+         }
+      }
+
+      return this.httpClient.get<DatabaseDataModelBrowserModel>(DATA_MODEL_BROWSER_URI, {params}).pipe(
+         map((model) => {
+            const items = <AssetItem[]> model?.listModel?.items || [];
+            return this.mapDataModelItemsToTreeNodes(databasePath, items);
+         })
+      );
+   }
+
+   private mapDataModelItemsToTreeNodes(databasePath: string, items: AssetItem[]): TreeNodeModel[] {
+      return (items || []).map((item) => this.createDataModelTreeNode(databasePath, item))
+         .filter((node) => !!node);
+   }
+
+   private createDataModelTreeNode(databasePath: string, item: AssetItem): TreeNodeModel {
+      if(!item) {
+         return null;
+      }
+
+      const type = this.getDataModelTreeNodeType(item);
+      const children = this.getDataModelTreeChildren(databasePath, item);
+      const folderName = type === PortalDataType.DATA_MODEL_FOLDER ? item.name : (<any> item).folderName;
+      const properties: any = {
+         [DatasourceTreeAction.CREATE_CHILDREN]:
+            (type === PortalDataType.DATA_MODEL_FOLDER || type === PortalDataType.PARTITION) && item.editable ?
+               "true" : "false",
+         [DatasourceTreeAction.EDIT]:
+            (type === PortalDataType.PARTITION || type === PortalDataType.LOGIC_MODEL) && item.editable ?
+               "true" : "false",
+         [DatasourceTreeAction.RENAME]: item.editable && item.deletable ? "true" : "false",
+         [DatasourceTreeAction.DELETE]: item.deletable ? "true" : "false",
+         databasePath: databasePath,
+         folder: folderName || ""
+      };
+
+      if(type === PortalDataType.LOGIC_MODEL || type === PortalDataType.EXTENDED_LOGIC_MODEL) {
+         properties.physicalModel = (<any> item).physicalModel;
+      }
+
+      if(type === PortalDataType.EXTENDED_PARTITION) {
+         properties.database = databasePath;
+         properties.parent = (<any> item).parentView;
+         properties.name = item.name;
+      }
+      else if(type === PortalDataType.EXTENDED_LOGIC_MODEL) {
+         properties.database = databasePath;
+         properties.parent = (<any> item).parentModel;
+         properties.name = item.name;
+      }
+
+      return {
+         label: item.name,
+         type: type,
+         expanded: false,
+         leaf: type !== PortalDataType.DATA_MODEL_FOLDER && children.length === 0,
+         children: children,
+         data: {
+            path: this.getDataModelTreeNodePath(databasePath, item, type),
+            scope: AssetEntryHelper.GLOBAL_SCOPE,
+            type: type,
+            properties: properties
+         }
+      } as TreeNodeModel;
+   }
+
+   private getDataModelTreeChildren(databasePath: string, item: AssetItem): TreeNodeModel[] {
+      const extendViews = (<any> item).extendViews as AssetItem[];
+      const extendModels = (<any> item).extendModels as AssetItem[];
+      const children = extendViews || extendModels || [];
+      return this.mapDataModelItemsToTreeNodes(databasePath, children);
+   }
+
+   private getDataModelTreeNodeType(item: AssetItem): string {
+      const type = item?.type;
+
+      if(type === AssetType.FOLDER || type === DATA_MODEL_FOLDER_ASSET) {
+         return PortalDataType.DATA_MODEL_FOLDER;
+      }
+      else if(type === AssetType.PARTITION || type === PHYSICAL_MODEL_ASSET) {
+         return (<any> item).parentView ? PortalDataType.EXTENDED_PARTITION : PortalDataType.PARTITION;
+      }
+      else if(type === AssetType.LOGIC_MODEL || type === LOGICAL_MODEL_ASSET) {
+         return (<any> item).parentModel ? PortalDataType.EXTENDED_LOGIC_MODEL : PortalDataType.LOGIC_MODEL;
+      }
+
+      return type;
+   }
+
+   private getDataModelTreeNodePath(databasePath: string, item: AssetItem, type: string): string {
+      if(type === PortalDataType.DATA_MODEL_FOLDER) {
+         return databasePath + "/" + item.name;
+      }
+      else if(type === PortalDataType.EXTENDED_PARTITION) {
+         return databasePath + "/" + (<any> item).parentView + "/" + item.name;
+      }
+      else if(type === PortalDataType.EXTENDED_LOGIC_MODEL) {
+         return databasePath + "/" + (<any> item).parentModel + "/" + item.name;
+      }
+
+      return databasePath + "/" + item.name;
    }
 
    /**
@@ -1562,7 +1813,10 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
          else if(node.type === PortalDataType.DATA_SOURCE_ROOT_FOLDER ||
             node.type === PortalDataType.DATA_SOURCE_FOLDER || node.type === PortalDataType.DATA_MODEL ||
             node.type === PortalDataType.DATA_MODEL_FOLDER || node.type === PortalDataType.DATA_SOURCE ||
-            node.type === PortalDataType.DATABASE || node.type == PortalDataType.XMLA_SOURCE)
+            node.type === PortalDataType.DATABASE || node.type == PortalDataType.XMLA_SOURCE ||
+            node.type === PortalDataType.PARTITION || node.type === PortalDataType.LOGIC_MODEL ||
+            node.type === PortalDataType.EXTENDED_PARTITION ||
+            node.type === PortalDataType.EXTENDED_LOGIC_MODEL)
          {
             root = this.getCurrentRootNode(PortalDataType.DATA_SOURCE_ROOT_FOLDER);
          }
@@ -1580,6 +1834,18 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
             if(node.type === PortalDataType.DATA_MODEL_FOLDER) {
                parentPath = this.getParentPath0(node.data.path) + "/Data Model";
             }
+            else if(node.type === PortalDataType.PARTITION ||
+               node.type === PortalDataType.LOGIC_MODEL)
+            {
+               const folder = node?.data?.properties?.["folder"];
+               parentPath = folder ? this.getParentPath0(node.data.path) :
+                  node?.data?.properties?.["databasePath"] + "/Data Model";
+            }
+            else if(node.type === PortalDataType.EXTENDED_PARTITION ||
+               node.type === PortalDataType.EXTENDED_LOGIC_MODEL)
+            {
+               parentPath = this.getParentPath0(node.data.path);
+            }
             else {
                parentPath = this.getParentPath0(node.data.path);
             }
@@ -1587,11 +1853,60 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
             let parentNode = GuiTool.findNode(root, (n) =>
                !!n.data && n.data.path === parentPath && n.data.scope === node.data.scope);
             selectedNode = !!parentNode ? parentNode : root;
+
+            if(selectedNode?.type === PortalDataType.DATA_MODEL ||
+               selectedNode?.type === PortalDataType.DATA_MODEL_FOLDER)
+            {
+               this.pendingCollapsedNodePath = selectedNode.data?.path;
+               this.collapseTreeNode(selectedNode);
+            }
+         }
+
+         if(!selectedNode) {
+            selectedNode = root;
          }
 
          this.selectNode([selectedNode]);
          this.datasourceService.refreshTree();
       };
+   }
+
+   private collapseTreeNode(node: TreeNodeModel): void {
+      if(!node) {
+         return;
+      }
+
+      node.expanded = false;
+
+      if(node.children?.length > 0) {
+         node.children.forEach((child) => this.collapseTreeNode(child));
+      }
+   }
+
+   private collapseNodeByPath(root: TreeNodeModel, path: string): void {
+      if(!root || !path) {
+         return;
+      }
+
+      const node = GuiTool.findNode(root, (candidate) => candidate?.data?.path === path);
+
+      if(node) {
+         this.collapseTreeNode(node);
+      }
+   }
+
+   private closeEmptyDataModelBranches(root: TreeNodeModel): void {
+      if(!root) {
+         return;
+      }
+
+      if((root.type === PortalDataType.DATA_MODEL || root.type === PortalDataType.DATA_MODEL_FOLDER) &&
+         (!root.children || root.children.length === 0))
+      {
+         root.expanded = false;
+      }
+
+      root.children?.forEach((child) => this.closeEmptyDataModelBranches(child));
    }
 
    getIconFunction(): (node: TreeNodeModel) => string {
@@ -2011,7 +2326,12 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
    }
 
    private hasWorksheetSelection(): boolean {
-      return !!this.selectedNodes?.length && this.isWorksheetNode(this.selectedNodes[0]);
+      return this.hasWorksheetSelectionForSection(this.activeTreeSection);
+   }
+
+   private hasWorksheetSelectionForSection(section: DataTreeSection): boolean {
+      const selectedNodes = this.sectionStates[section]?.selectedNodes;
+      return !!selectedNodes?.length && this.isWorksheetNode(selectedNodes[0]);
    }
 
    private exitSearchMode(): void {
@@ -2026,9 +2346,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
       }
 
       this.activeTreeSection = section;
-      this.exitSearchMode();
       this.dataDetailsPaneService.clear();
-      this.selectedNodes = [];
 
       if(section === "datasources") {
          this.router.navigate(["/portal/tab/data/datasources"], {
@@ -2051,7 +2369,6 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
 
       if(this.activeTreeSection !== nextSection) {
          this.activeTreeSection = nextSection;
-         this.exitSearchMode();
       }
    }
 
@@ -2067,6 +2384,10 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
          node.type == PortalDataType.EXTENDED_LOGIC_MODEL ||
          node.type == PortalDataType.VPM)
       {
+         if(node.data.properties[DatasourceTreeAction.EDIT] === "true") {
+            return true;
+         }
+
          return node.data.properties[DatasourceTreeAction.RENAME] === "true" ||
             node.data.properties[DatasourceTreeAction.DELETE] === "true" ||
             node.data.properties[DatasourceTreeAction.CREATE_CHILDREN] === "true";
@@ -2139,11 +2460,19 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
    }
 
    canMove(node: TreeNodeModel): boolean {
+      if(node?.type === PortalDataType.PARTITION || node?.type === PortalDataType.LOGIC_MODEL) {
+         return this.canEdit(node) && this.canDelete(node);
+      }
+
       if(this.isDataSourceLeafNode(node)) {
          return this.canEdit(node) && this.canDelete(node);
       }
 
       if(node?.type === PortalDataType.DATA_SOURCE_FOLDER) {
+         return this.canRename(node) && this.canDelete(node);
+      }
+
+      if(node?.type === PortalDataType.FOLDER) {
          return this.canRename(node) && this.canDelete(node);
       }
 
@@ -2178,6 +2507,49 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
       let split = this.splitModelName(node);
       this.dataModelBrowserService.deleteDataModelFolder(split.database, split.folder,
          this.actionCallback(node, true));
+   }
+
+   private renameDataModelNode(node: TreeNodeModel): void {
+      const split = this.splitModelName(node);
+      const folder = node?.data?.properties?.["folder"];
+
+      if(!split?.database || !split?.name) {
+         return;
+      }
+
+      if(node.type === PortalDataType.PARTITION) {
+         this.dataModelBrowserService.renamePhysicalView(split.name, split.database, "",
+            folder, this.actionCallback(node, true));
+      }
+      else if(node.type === PortalDataType.LOGIC_MODEL) {
+         this.dataModelBrowserService.renameLogicalModel(split.name, split.database, "",
+            folder, this.actionCallback(node, true));
+      }
+   }
+
+   private moveDataModelNode(node: TreeNodeModel): void {
+      const split = this.splitModelName(node);
+
+      if(!split?.database || !split?.name) {
+         return;
+      }
+
+      const model: DatabaseAsset = {
+         databaseName: split.database,
+         type: node.type === PortalDataType.PARTITION ? PHYSICAL_MODEL_ASSET : LOGICAL_MODEL_ASSET,
+         id: node.data?.path,
+         path: node.data?.path,
+         urlPath: node.data?.path,
+         name: split.name,
+         createdBy: "",
+         description: "",
+         createdDate: 0,
+         editable: this.canEdit(node),
+         deletable: this.canDelete(node),
+         createdDateLabel: ""
+      };
+
+      this.dataModelBrowserService.moveModels([model], this.actionCallback(node, true));
    }
 
    private canCreateQuery(node: TreeNodeModel): boolean {
@@ -2394,6 +2766,9 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
          this.dataSourcesTreeActionsService.renameWorksheet(node,
             this.actionCallback(node, true));
       }
+      else if(node.type === PortalDataType.PARTITION || node.type === PortalDataType.LOGIC_MODEL) {
+         this.renameDataModelNode(node);
+      }
       else if(node.type === PortalDataType.DATA_MODEL_FOLDER) {
          this.dataModelBrowserService.renameDataModelFolder(node.data.path, node.label,
             this.actionCallback(node, true), true, node);
@@ -2421,6 +2796,13 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
    moveNode(node: TreeNodeModel): void {
       if(this.isWorksheetNode(node)) {
          this.dataSourcesTreeActionsService.moveWorksheet(node,
+            this.actionCallback(node, true));
+      }
+      else if(node?.type === PortalDataType.PARTITION || node?.type === PortalDataType.LOGIC_MODEL) {
+         this.moveDataModelNode(node);
+      }
+      else if(node?.type === PortalDataType.FOLDER) {
+         this.dataSourcesTreeActionsService.moveWorksheetFolder(node,
             this.actionCallback(node, true));
       }
       else if(this.isDataSourceFolder(node) || this.isDataSourceLeafNode(node)) {
@@ -2474,16 +2856,23 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
 
    renameVisible(node: TreeNodeModel): boolean {
       return this.isWorksheetNode(node) ||
+         node.type === PortalDataType.PARTITION ||
+         node.type === PortalDataType.LOGIC_MODEL ||
          node.type === PortalDataType.DATA_MODEL_FOLDER ||
          node.type === PortalDataType.DATA_SOURCE_FOLDER || node.type === PortalDataType.FOLDER;
    }
 
    editVisible(node: TreeNodeModel): boolean {
-      return this.isWorksheetNode(node);
+      return this.isWorksheetNode(node) ||
+         node?.type === PortalDataType.PARTITION ||
+         node?.type === PortalDataType.LOGIC_MODEL;
    }
 
    moveVisible(node: TreeNodeModel): boolean {
       return this.isWorksheetNode(node) ||
+         node?.type === PortalDataType.PARTITION ||
+         node?.type === PortalDataType.LOGIC_MODEL ||
+         node?.type === PortalDataType.FOLDER ||
          node?.type === PortalDataType.DATA_SOURCE_FOLDER ||
          this.isDataSourceLeafNode(node);
    }

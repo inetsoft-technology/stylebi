@@ -32,6 +32,7 @@ import { DataSourceBrowserViewModel } from "../model/data-source-browser-view-mo
 import { PortalDataType } from "../data-navigation-tree/portal-data-type";
 
 export const FAKE_ROOT_PATH: string = "_fake_root_";
+const DATA_SOURCE_ROOT_PATH: string = "_data_source_root_";
 const ROOT_LABEL: string = "_#(js:Data Source)";
 const GET_DATA_SOURCE_URI: string = "../api/data/datasources/browser";
 const CHECK_MOVE_DUPLICATE_URI: string = "../api/data/datasources/move/checkDuplicate";
@@ -53,9 +54,10 @@ export class MoveDataSourceDialogComponent implements OnInit {
    folderPath: string;
    folderScope: number;
    AssetType = AssetType;
+   readonly fakeRootPath = FAKE_ROOT_PATH;
 
    private readonly fakeRootFolder: DataSourceInfo = {
-      name: "_#(js:data.datasets.home)",
+      name: ROOT_LABEL,
       path: FAKE_ROOT_PATH,
       type: {
          name: PortalDataType.DATA_SOURCE_FOLDER,
@@ -67,6 +69,22 @@ export class MoveDataSourceDialogComponent implements OnInit {
       dateFormat: "YYYY-MM-DD HH:mm:ss",
       editable: false,
       deletable: false,
+   };
+
+   private readonly dataSourceRootFolder: DataSourceInfo = {
+      name: "_#(js:Data Source)",
+      path: DATA_SOURCE_ROOT_PATH,
+      type: {
+         name: PortalDataType.DATA_SOURCE_FOLDER,
+         label: PortalDataType.DATA_SOURCE_FOLDER
+      },
+      createdBy: "",
+      createdDate: new Date().getDate(),
+      createdDateLabel: "",
+      dateFormat: "YYYY-MM-DD HH:mm:ss",
+      editable: false,
+      deletable: false,
+      hasSubFolder: true
    };
 
    constructor(private httpClient: HttpClient,
@@ -82,11 +100,12 @@ export class MoveDataSourceDialogComponent implements OnInit {
    public openFolderRequest: (path: string, assetType?: string, scope?: number) => Observable<DataSourceBrowserViewModel> =
       (value: string, assetType?: string, scope?: number) => {
          let params = new HttpParams();
+         const isDataSourceRoot = value === DATA_SOURCE_ROOT_PATH;
 
          if(value === FAKE_ROOT_PATH) {
             params = params.set("root", "true");
          }
-         else if(!!value && value != "/") {
+         else if(!!value && value != "/" && !isDataSourceRoot) {
             params = params.set("path", value);
          }
 
@@ -99,6 +118,15 @@ export class MoveDataSourceDialogComponent implements OnInit {
 
          return this.httpClient.get(GET_DATA_SOURCE_URI, { params: params }).pipe(
             map((model: DataSourceBrowserModel) => {
+               if(value === FAKE_ROOT_PATH) {
+                  return <DataSourceBrowserViewModel> {
+                     path: [this.fakeRootFolder],
+                     root: true,
+                     folders: [{...this.dataSourceRootFolder}],
+                     files: []
+                  };
+               }
+
                // don't show folders that are being moved and files
                const folders = model.dataSourceList.filter(
                   (folder) => {
@@ -106,7 +134,8 @@ export class MoveDataSourceDialogComponent implements OnInit {
                         folder.type.name === PortalDataType.DATA_SOURCE_FOLDER;
                   });
                return <DataSourceBrowserViewModel> {
-                  path: [this.fakeRootFolder].concat(model.currentFolder),
+                  path: [this.fakeRootFolder, {...this.dataSourceRootFolder}]
+                     .concat(isDataSourceRoot ? [] : model.currentFolder),
                   root: model.root,
                   folders: folders,
                   files: [] //only show folders
@@ -124,7 +153,7 @@ export class MoveDataSourceDialogComponent implements OnInit {
          this.folderScope = null;
       }
       else {
-         this.folderPath = items[0].path;
+         this.folderPath = items[0].path === DATA_SOURCE_ROOT_PATH ? "/" : items[0].path;
       }
    }
 
@@ -147,7 +176,7 @@ export class MoveDataSourceDialogComponent implements OnInit {
     */
    public ok(): void {
       let checkMoveDuplicateRequest: CheckMoveDuplicateRequest = {
-         items: this.items
+         items: this.getDuplicateCheckItems()
       };
 
       if(this.folderPath !== "/") {
@@ -164,6 +193,10 @@ export class MoveDataSourceDialogComponent implements OnInit {
                else {
                   this.onCommit.emit(this.folderPath);
                }
+            },
+            () => {
+               ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
+                  this.config.templateConfig.openFolderError);
             }
          );
    }
@@ -173,5 +206,33 @@ export class MoveDataSourceDialogComponent implements OnInit {
     */
    cancel(): void {
       this.onCancel.emit("cancel");
+   }
+
+   private getDuplicateCheckItems(): DataSourceInfo[] {
+      return (this.items || []).map((item) => ({
+         name: item?.name || this.getItemNameFromPath(item?.path),
+         path: item?.path,
+         type: {
+            name: item?.type?.name || PortalDataType.DATABASE,
+            label: item?.type?.label || item?.type?.name || PortalDataType.DATABASE
+         },
+         createdBy: item?.createdBy || "",
+         createdDate: item?.createdDate || 0,
+         createdDateLabel: item?.createdDateLabel || "",
+         dateFormat: item?.dateFormat || "YYYY-MM-DD HH:mm:ss",
+         editable: !!item?.editable,
+         deletable: !!item?.deletable,
+         queryCreatable: item?.queryCreatable,
+         hasSubFolder: item?.hasSubFolder
+      }));
+   }
+
+   private getItemNameFromPath(path: string): string {
+      if(!path) {
+         return "";
+      }
+
+      const lastSlash = path.lastIndexOf("/");
+      return lastSlash >= 0 ? path.substring(lastSlash + 1) : path;
    }
 }

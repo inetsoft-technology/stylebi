@@ -20,11 +20,12 @@
 <div class="modal-body move-datasource-dialog__body">
   <data-sources-browser class="move-datasource-dialog__browser"
                  [folderSelectable]="true"
+                 [showBreadcrumb]="false"
                  [rootLabel]="rootLabel"
                  [selectedFolders]="[{ path: parentPath, type: { name: 'DATA_SOURCE_FOLDER', label: 'DATA_SOURCE_FOLDER'} }]"
                  [openFolderRequest]="openFolderRequest"
                  [openFolderError]="config.templateConfig.openFolderError"
-                 [openFolderPath]="grandparentFolder"
+                 [openFolderPath]="fakeRootPath"
                  (selectionChange)="folderSelected($event)">
   </data-sources-browser>
   <div class="alert alert-danger move-datasource-dialog__error" *ngIf="!folderPath">

@@ -805,7 +805,7 @@ public class DatasourcesTreeService {
          entry.setProperty(DatasourceTreeAction.DELETE.name(), "true");
       }
 
-      if(editable && deletable) {
+      if(deletable) {
          entry.setProperty(DatasourceTreeAction.RENAME.name(), "true");
       }
 

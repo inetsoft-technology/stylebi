@@ -21,6 +21,8 @@
 <div class="modal-body move-datasource-dialog__body">
   <data-models-browser class="move-datasource-dialog__browser"
                        [rootLabel]="rootLabel"
+                       [showBreadcrumb]="false"
+                       [openFolderPath]="fakeRootPath"
                        [openFolderRequest]="openFolderRequest"
                        (selectionChange)="folderSelected($event)">
   </data-models-browser>

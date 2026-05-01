@@ -384,7 +384,7 @@ public class ScheduleController {
             .executingCount(status.getExecutingCount())
             .threadCount(status.getThreadCount())
             .statusLabel(getSchedulerStatusLabel(status, catalog))
-            .detailMessage(getSchedulerStatusMessage(status))
+            .detailMessage(getSchedulerStatusMessage(status, catalog))
             .build();
       }
       catch(Exception e) {
@@ -402,7 +402,8 @@ public class ScheduleController {
                .executingCount(0)
                .threadCount(0)
                .statusLabel(catalog.getString("Stopped"))
-               .detailMessage("Scheduler is stopped, so scheduled tasks will not run automatically.")
+               .detailMessage(catalog.getString(
+                  "Scheduler is stopped, so scheduled tasks will not run automatically."))
                .build();
          }
 
@@ -416,8 +417,8 @@ public class ScheduleController {
             .nextCheck(0L)
             .executingCount(0)
             .threadCount(0)
-            .statusLabel("Unavailable")
-            .detailMessage("Scheduler health could not be retrieved.")
+            .statusLabel(catalog.getString("Unavailable"))
+            .detailMessage(catalog.getString("Scheduler health could not be retrieved."))
             .build();
       }
    }
@@ -457,34 +458,38 @@ public class ScheduleController {
       }
 
       if(status.isStandby()) {
-         return "Standby";
+         return catalog.getString("Standby");
       }
 
       if(!status.isStarted()) {
-         return "Not started";
+         return catalog.getString("Not started");
       }
 
-      return "Degraded";
+      return catalog.getString("Degraded");
    }
 
-   private String getSchedulerStatusMessage(SchedulerStatus status) {
+   private String getSchedulerStatusMessage(SchedulerStatus status, Catalog catalog) {
       if(status.isHealthy()) {
          return null;
       }
 
       if(status.isShutdown()) {
-         return "Scheduler is shut down, so scheduled tasks will not run automatically.";
+         return catalog.getString(
+            "Scheduler is shut down, so scheduled tasks will not run automatically.");
       }
 
       if(status.isStandby()) {
-         return "Scheduler is in standby, so scheduled tasks will not run automatically.";
+         return catalog.getString(
+            "Scheduler is in standby, so scheduled tasks will not run automatically.");
       }
 
       if(!status.isStarted()) {
-         return "Scheduler has not started yet, so scheduled tasks cannot run automatically.";
+         return catalog.getString(
+            "Scheduler has not started yet, so scheduled tasks cannot run automatically.");
       }
 
-      return "Scheduler health checks are stale or worker capacity is exhausted, so scheduled task execution may be impacted.";
+      return catalog.getString(
+         "Scheduler health checks are stale or worker capacity is exhausted, so scheduled task execution may be impacted.");
    }
 
    /**

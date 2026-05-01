@@ -48,6 +48,7 @@ import { MVTreeModel } from "../model/mv-tree-model";
 import { RepositoryEntryType } from "../../../../../../shared/data/repository-entry-type.enum";
 import { AssetEntryHelper } from "../../../common/data/asset-entry-helper";
 import { DatasourceTreeAction } from "../model/datasources/database/datasource-tree-action";
+import { PortalDataType } from "./portal-data-type";
 
 const DATASOURCE_FOLDER_ADD = "../api/data/datasources/browser/folder/add";
 const DATASOURCE_FOLDER_CHECKDUPLICATE = "../api/data/datasources/browser/folder/checkDuplicate";
@@ -232,6 +233,10 @@ export class DataSourcesTreeActionsService {
       });
    }
 
+   moveWorksheetFolder(node: TreeNodeModel, callback?: Function): void {
+      this.handleWorksheetFolder(node, (data) => this.openMoveWorksheetFolderDialog(data, callback));
+   }
+
    moveDataSource(node: TreeNodeModel, callback?: Function): void {
       const onSuccess = () => this.handleResponse("success", "", callback);
 
@@ -273,13 +278,44 @@ export class DataSourcesTreeActionsService {
 
    handleDataSource(node: TreeNodeModel, executeActionFun: Function): void {
       const uri = DATASOURCE_URI + Tool.encodeURIComponentExceptSlash(node.data.path);
+      const fallbackData: DataSourceInfo = {
+         name: node?.label,
+         path: node?.data?.path,
+         type: {
+            name: node?.type || PortalDataType.DATA_SOURCE,
+            label: node?.type || PortalDataType.DATA_SOURCE
+         },
+         createdBy: "",
+         createdDate: 0,
+         createdDateLabel: "",
+         dateFormat: "YYYY-MM-DD HH:mm:ss",
+         editable: node?.data?.properties?.[DatasourceTreeAction.EDIT] === "true",
+         deletable: node?.data?.properties?.[DatasourceTreeAction.DELETE] === "true",
+         queryCreatable: node?.data?.properties?.queryCreatable !== "false",
+         hasSubFolder: false
+      };
 
-      this.httpClient.get(uri).subscribe((data: DataSourceInfo) => {
-         if(!!data && executeActionFun) {
-            data.path = node.data.path;
-            executeActionFun(data);
+      this.httpClient.get(uri).subscribe(
+         (data: DataSourceInfo) => {
+            if(executeActionFun) {
+               const mergedData: DataSourceInfo = {
+                  ...fallbackData,
+                  ...data,
+                  path: node?.data?.path,
+                  name: data?.name || fallbackData.name,
+                  type: data?.type || fallbackData.type,
+                  editable: data?.editable ?? fallbackData.editable,
+                  deletable: data?.deletable ?? fallbackData.deletable
+               };
+               executeActionFun(mergedData);
+            }
+         },
+         () => {
+            if(executeActionFun) {
+               executeActionFun(fallbackData);
+            }
          }
-      });
+      );
    }
 
    handleWorksheetFolder(node: TreeNodeModel, executeActionFun: Function): void {
@@ -342,7 +378,7 @@ export class DataSourcesTreeActionsService {
    }
 
    private openMoveWorksheetDialog(asset: WorksheetBrowserInfo, callback?: Function): void {
-      const parentPath = asset.parentPath || "/";
+      const parentPath = asset.parentPath || this.getParentPath(asset.path);
       const grandparentFolder = parentPath === "/" ? FAKE_ROOT_PATH :
          parentPath.indexOf("/") !== -1 ? parentPath.substring(0, parentPath.lastIndexOf("/")) : "/";
       const dialog = ComponentTool.showDialog(this.modalService, MoveAssetDialogComponent,
@@ -364,6 +400,39 @@ export class DataSourcesTreeActionsService {
                      next: () => this.handleResponse("success", "", callback),
                      error: () => ComponentTool.showMessageDialog(this.modalService,
                         "_#(js:Error)", "_#(js:data.datasets.moveDataSetError)")
+                  });
+            }
+         }, {size: "lg", backdrop: "static"});
+      dialog.originalPaths = [asset.path];
+      dialog.items = [asset];
+      dialog.parentPath = parentPath;
+      dialog.grandparentFolder = grandparentFolder;
+      dialog.parentScope = asset.scope;
+   }
+
+   private openMoveWorksheetFolderDialog(asset: WorksheetBrowserInfo, callback?: Function): void {
+      const parentPath = asset.parentPath || this.getParentPath(asset.path);
+      const grandparentFolder = parentPath === "/" ? FAKE_ROOT_PATH :
+         parentPath.indexOf("/") !== -1 ? parentPath.substring(0, parentPath.lastIndexOf("/")) : "/";
+      const dialog = ComponentTool.showDialog(this.modalService, MoveAssetDialogComponent,
+         (result: [string, number]) => {
+            const movePath = result[0];
+            const moveScope = result[1];
+
+            if((movePath !== asset.path && movePath !== parentPath) || moveScope !== asset.scope) {
+               const params = {
+                  params: new HttpParams()
+                     .set("assetScope", "" + asset.scope)
+                     .set("targetScope", "" + moveScope)
+               };
+
+               this.httpClient.post(FOLDER_URI + "/move",
+                  new MoveCommand(movePath, asset.path, asset.name, asset.id, asset.modifiedDate),
+                  params)
+                  .subscribe({
+                     next: () => this.handleResponse("success", "", callback),
+                     error: () => ComponentTool.showMessageDialog(this.modalService,
+                        "_#(js:Error)", "_#(js:data.datasets.moveFolderError)")
                   });
             }
          }, {size: "lg", backdrop: "static"});

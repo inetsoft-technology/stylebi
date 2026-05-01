@@ -22,10 +22,11 @@
 <div class="modal-body move-datasource-dialog__body">
   <files-browser class="move-datasource-dialog__browser"
                  [folderSelectable]="true"
+                 [showBreadcrumb]="false"
                  [selectedFolders]="[{ path: parentPath, scope: parentScope, type: AssetType.FOLDER }]"
                  [openFolderRequest]="openFolderRequest"
                  [openFolderError]="config.templateConfig.openFolderError"
-                 [openFolderPath]="grandparentFolder"
+                 [openFolderPath]="fakeRootPath"
                  [openFolderScope]="parentScope"
                  (selectionChange)="folderSelected($event)">
   </files-browser>
