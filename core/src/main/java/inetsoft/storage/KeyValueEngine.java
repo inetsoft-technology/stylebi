@@ -82,6 +82,15 @@ public interface KeyValueEngine extends AutoCloseable {
    <T> T remove(String id, String key);
 
    /**
+    * Gets the number of entries in a key-value store.
+    *
+    * @param id the unique identifier of the key-value store.
+    *
+    * @return the size.
+    */
+   long size(String id);
+
+   /**
     * Deletes the store with the specified storeID and all associated data
     *
     * @param id  the unique identifier of the key-value store.

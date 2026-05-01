@@ -16,6 +16,25 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewayErrorMessage, currentUser, onloadError) {
+   // Normalize requestedUrl to the current page's origin.  This handles the case where the
+   // server (behind a proxy that strips the subdomain) embeds a requestedUrl pointing to the
+   // host-org origin (e.g. localhost:8080) while the login page itself is served from
+   // org0.localhost:8080.  If left uncorrected the AJAX auth call and post-login redirect
+   // would both target the wrong origin, causing CORS failures and session loss.
+   try {
+      var _target = new URL(requestedUrl, window.location.href);
+
+      if(_target.origin !== window.location.origin) {
+         _target.protocol = window.location.protocol;
+         _target.hostname = window.location.hostname;
+         _target.port = window.location.port;
+         requestedUrl = _target.toString();
+      }
+   }
+   catch(e) {
+      // ignore — use requestedUrl as-is if URL parsing fails
+   }
+
    var $userNameField = $("#loginUserName");
    var $userNameError = $("#userNameError");
 

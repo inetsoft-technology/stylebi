@@ -1788,13 +1788,19 @@ public class VsToReportConverter {
             contentBounds = new Rectangle(bounds.x, bounds.y, bounds.width, bounds.height - labelH);
             break;
          case LabelInfo.RIGHT:
+            // Center the label vertically within the widget bounds, matching
+            // the Angular preview (CSS align-items: center). Bug #74544 applied
+            // the same fix in AbstractVSExporter.splitInputBounds.
             labelBounds = new Rectangle(bounds.x + bounds.width - labelW,
-                                        bounds.y, labelW, bounds.height);
+                                        bounds.y + Math.max(0, (bounds.height - labelH) / 2),
+                                        labelW, labelH);
             contentBounds = new Rectangle(bounds.x, bounds.y, bounds.width - labelW, bounds.height);
             break;
          case LabelInfo.LEFT:
          default:
-            labelBounds = new Rectangle(bounds.x, bounds.y, labelW, bounds.height);
+            labelBounds = new Rectangle(bounds.x,
+                                        bounds.y + Math.max(0, (bounds.height - labelH) / 2),
+                                        labelW, labelH);
             contentBounds = new Rectangle(bounds.x + labelW, bounds.y, bounds.width - labelW, bounds.height);
             break;
       }
@@ -1837,15 +1843,17 @@ public class VsToReportConverter {
       }
 
       if(contentBounds.width <= 0) {
+         int labelY = bounds.y + Math.max(0, (bounds.height - labelH) / 2);
+
          switch(position) {
             case LabelInfo.LEFT:
                // Places label to the left of the widget. If bounds.x is near 0 the label
                // will have a negative x-coordinate and be clipped; this is an inherent
                // limitation of a component sized too narrow to contain its own label.
-               labelBounds = new Rectangle(bounds.x - labelW, bounds.y, labelW, bounds.height);
+               labelBounds = new Rectangle(bounds.x - labelW, labelY, labelW, labelH);
                break;
             case LabelInfo.RIGHT:
-               labelBounds = new Rectangle(bounds.x + bounds.width, bounds.y, labelW, bounds.height);
+               labelBounds = new Rectangle(bounds.x + bounds.width, labelY, labelW, labelH);
                break;
             default:
                break;
