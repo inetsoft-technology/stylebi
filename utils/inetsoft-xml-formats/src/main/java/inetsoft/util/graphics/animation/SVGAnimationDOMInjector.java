@@ -250,25 +250,18 @@ public class SVGAnimationDOMInjector {
       // Fade text label groups after the last bar has finished animating.
       double lastBarDelay = AnimationConstants.staggerDelay(numCols - 1, numCols);
       double dotDelay     = lastBarDelay + AnimationConstants.DURATION + AnimationConstants.READY_BUFFER;
-      List<Element> valueLabelGroups = new ArrayList<>();
-      collectTextGroups(svgRoot, valueLabelGroups);
+      String labelAnimStyle = String.format(java.util.Locale.US,
+         "opacity:0;animation:inetsoft-bar-fade %.2fs %s %.2fs both",
+         AnimationConstants.DURATION, AnimationConstants.EASING, dotDelay);
 
-      for(Element labelG : valueLabelGroups) {
-         mergeStyle(labelG, String.format(java.util.Locale.US,
-            "opacity:0;animation:inetsoft-bar-fade %.2fs %s %.2fs both",
-            AnimationConstants.DURATION, AnimationConstants.EASING, dotDelay));
-      }
+      // A2 pattern: collect inetsoft-bar-label annotation groups directly and animate their
+      // inner children (text primitives), not the annotation group itself. Hover-dim CSS targets
+      // the annotation group, so animating that group's opacity directly would create a
+      // fill-mode:both conflict that !important cannot resolve.
+      List<Element> annotLabelGroups = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_LABEL);
 
-      // Annotate value labels with inetsoft-bar-label and matching data-row/data-col so the
-      // server-side hover CSS can pair each label with its bar. DOM order matches bar order.
-      for(int i = 0; i < Math.min(annotBars.size(), valueLabelGroups.size()); i++) {
-         Element label = valueLabelGroups.get(i);
-         Element bar   = annotBars.get(i);
-         label.setAttribute("class", SVGSupport.ANNOTATION_LABEL);
-         label.setAttribute("data-" + SVGSupport.ATTR_ROW,
-            bar.getAttribute("data-" + SVGSupport.ATTR_ROW));
-         label.setAttribute("data-" + SVGSupport.ATTR_COL,
-            bar.getAttribute("data-" + SVGSupport.ATTR_COL));
+      for(Element labelG : annotLabelGroups) {
+         applyAnimStyleToChildren(labelG, labelAnimStyle);
       }
 
    }

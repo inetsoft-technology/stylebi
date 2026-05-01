@@ -197,8 +197,11 @@ public class BarVO extends ElementVO {
          trans0 = (AffineTransform) getScreenTransform().clone();
          Rectangle2D box = path0.getBounds2D();
 
-         // reserve 1 pt between bars
-         if(paint && box.getWidth() > 3 && getOuterArc(path0) == null) {
+         IntervalElement ielem0 = (IntervalElement) ((ElementGeometry) getGeometry()).getElement();
+         boolean isFunnel = (ielem0.getCollisionModifier() & GraphElement.MOVE_MIDDLE) != 0;
+
+         // reserve 1 pt between bars (skip for funnel: seamless trapezoid edges must align)
+         if(paint && box.getWidth() > 3 && getOuterArc(path0) == null && !isFunnel) {
             AffineTransform trans = new AffineTransform();
             double cx = box.getX() + box.getWidth() / 2;
             double one = 1 * GTool.getScaleFactor(trans0, 0);
@@ -217,22 +220,21 @@ public class BarVO extends ElementVO {
          Rectangle2D preRounding = path0.getBounds2D();
          boolean roundingApplied = false;
 
-         IntervalElement ielem = (IntervalElement) ((ElementGeometry) getGeometry()).getElement();
-         double r = ielem.getCornerRadius();
+         double r = ielem0.getCornerRadius();
 
-         if(r > 0 && !(this instanceof Bar3DVO) && getOuterArc(path0) == null) {
+         if(r > 0 && !(this instanceof Bar3DVO) && getOuterArc(path0) == null && !isFunnel) {
             IntervalGeometry geom = (IntervalGeometry) getGeometry();
             boolean stdOrientation = GTool.isHorizontal(getScreenTransform());
             int openDir = stdOrientation ? (negative ? 0 : 1) : (negative ? 3 : 2);
             roundingApplied = true;
 
-            if(!ielem.isStack()) {
-               boolean roundAll = ielem.isRoundAllCorners();
+            if(!ielem0.isStack()) {
+               boolean roundAll = ielem0.isRoundAllCorners();
                path0 = buildRoundedBarShape(
                   path0.getBounds2D(), r, openDir, roundAll);
             }
             else {
-               path0 = applyStackRounding(path0, geom, ielem, r, openDir, stdOrientation);
+               path0 = applyStackRounding(path0, geom, ielem0, r, openDir, stdOrientation);
             }
          }
 
@@ -494,8 +496,34 @@ public class BarVO extends ElementVO {
          vgraph.addVisual(stackText);
       }
 
+      // Funnel charts go through 3 layoutText passes with different screen transforms.
+      // Only the final pass (with the rotated/shear transform) produces correct label positions.
+      // Skip the intermediate passes where the transform is still the normal scale.
+      IntervalElement ielem = (IntervalElement) ((ElementGeometry) getGeometry()).getElement();
+      if((ielem.getCollisionModifier() & GraphElement.MOVE_MIDDLE) != 0) {
+         AffineTransform st = getScreenTransform();
+         if(Math.abs(st.getShearX()) < 1e-10 && Math.abs(st.getShearY()) < 1e-10) {
+            return;
+         }
+      }
+
+      // Tag value labels with paint-time SVG annotation so the hover dim CSS can pair each
+      // label with its bar without any post-hoc DOM geometry matching. The row/col here is the
+      // bar's data key — the same key written on the inetsoft-bar group in paint().
+      Map<String, String> labelAnnotation = Map.of(
+         SVGSupport.ATTR_ROW, String.valueOf(getRowIndex()),
+         SVGSupport.ATTR_COL, String.valueOf(getColIndex())
+      );
+      if(vtext != null) {
+         vtext.setSvgAnnotation(SVGSupport.ANNOTATION_LABEL, labelAnnotation);
+      }
+      if(stackText != null) {
+         stackText.setSvgAnnotation(SVGSupport.ANNOTATION_LABEL, labelAnnotation);
+      }
+
       Shape shape = getPath();
       Arc2D arc = getOuterArc(shape);
+
       ElementGeometry gobj = (ElementGeometry) getGeometry();
 
       if(arc != null) {
@@ -644,6 +672,7 @@ public class BarVO extends ElementVO {
          if(elem.isAutoTextColor()) {
             vtext.setAutoBackground(gobj.getColor(0));
          }
+
          break;
       case GraphConstants.TOP:
       default:
@@ -749,15 +778,66 @@ public class BarVO extends ElementVO {
 
       // for funnel
       if((elem.getCollisionModifier() & GraphElement.MOVE_MIDDLE) != 0) {
-         for(List<ElementVO> stack : stacks) {
-            double totalh = stack.stream().mapToDouble(a -> a.getBounds().getHeight()).sum();
-            this.cachedShape.clear();
+         // All centering and reshaping is done in one pass by the first bar to call
+         // dodge(). Subsequent bars must return immediately — if they run the centering step below,
+         // their shape is already a trapezoid whose bounding-box
+         // height differs from the original rectangle height, causing a wrong extra shift.
+         if(elem.getHint("_funnel_shaped_") != null) {
+            return;
+         }
 
-            for(ElementVO elementVO : stack) {
-               BarVO bar = (BarVO) elementVO;
-               bar.shape = GTool.move(bar.shape, 0, (GHEIGHT - totalh) / 2);
-               bar.cachedShape.clear();
+         elem.setHint("_funnel_shaped_", Boolean.TRUE);
+
+         // Collect all funnel bars for this element from the full collision map.
+         List<BarVO> allBars = new ArrayList<>();
+
+         for(ElementVO key : comap.keySet()) {
+            if(!(key instanceof BarVO)) {
+               continue;
             }
+
+            GraphElement ke = ((ElementGeometry) key.getGeometry()).getElement();
+
+            if((ke.getCollisionModifier() & GraphElement.MOVE_MIDDLE) != 0 && ke == elem) {
+               allBars.add((BarVO) key);
+            }
+         }
+
+         // Center every bar vertically (heights are still original rectangles here).
+         for(BarVO bar : allBars) {
+            double h = bar.shape.getBounds2D().getHeight();
+            bar.shape = GTool.move(bar.shape, 0, (GHEIGHT - h) / 2);
+            bar.cachedShape.clear();
+         }
+
+         // Sort left to right by x position.
+         allBars.sort(Comparator.comparingDouble(b -> b.shape.getBounds2D().getX()));
+
+         double cy = GHEIGHT / 2.0;
+
+         // Reshape each bar into a parallelogram whose right edge height equals the
+         // left edge height of the next bar, so adjacent sections connect seamlessly.
+         for(int i = 0; i < allBars.size(); i++) {
+            BarVO bar = allBars.get(i);
+            Rectangle2D bounds = bar.shape.getBounds2D();
+            double x = bounds.getX();
+            double w = bounds.getWidth();
+            double leftH  = bounds.getHeight();
+            // Right edge = next bar's height; last bar is a flat rectangle end.
+            double rightH = (i + 1 < allBars.size())
+               ? allBars.get(i + 1).shape.getBounds2D().getHeight()
+               : leftH;
+
+            GeneralPath path = new GeneralPath();
+            path.moveTo((float) x,       (float)(cy + leftH  / 2)); // top-left
+            path.lineTo((float)(x + w),  (float)(cy + rightH / 2)); // top-right
+            path.lineTo((float)(x + w),  (float)(cy - rightH / 2)); // bottom-right
+            path.lineTo((float) x,       (float)(cy - leftH  / 2)); // bottom-left
+            path.closePath();
+
+            bar.shape = path;
+            bar.geomShape = path;
+            bar.cachedShape.clear();
          }
 
          return;
