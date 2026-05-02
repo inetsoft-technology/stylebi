@@ -22,15 +22,17 @@ import {
   InputNameDescDialog,
   NameDescResult
 } from "../../../input-name-desc-dialog/input-name-desc-dialog.component";
+import { DataSourceBrowserModel } from "../../data-source-browser-model";
 import { RenameModelEvent } from "../../../model/datasources/database/events/rename-model-event";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { ExpandStringDirective } from "../../../../../widget/expand-string/expand-string.directive";
 import { ComponentTool } from "../../../../../common/util/component-tool";
 import { StringWrapper } from "../../../model/datasources/database/string-wrapper";
+import { DatabaseDataModelBrowserModel } from "../../../model/datasources/database/database-data-model-browser-model";
 import { CheckDependenciesEvent } from "../../../model/datasources/database/events/check-dependencies-event";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ActivatedRoute, Router } from "@angular/router";
-import { Observable, of } from "rxjs";
+import { forkJoin, Observable, of } from "rxjs";
 import { InputNameDialog } from "../../../../../widget/dialog/input-name-dialog/input-name-dialog.component";
 import { FormValidators } from "../../../../../../../../shared/util/form-validators";
 import { ValidatorFn, Validators } from "@angular/forms";
@@ -45,6 +47,10 @@ import { DatabaseAsset } from "../../../model/datasources/database/database-asse
 import { AssetEntry } from "../../../../../../../../shared/data/asset-entry";
 import { AssetEntryHelper } from "../../../../../common/data/asset-entry-helper";
 import { TreeNodeModel } from "../../../../../widget/tree/tree-node-model";
+import {
+   NewDataModelChoice,
+   NewDataModelDialogComponent
+} from "./new-data-model-dialog.component";
 
 const PHYSICAL_MODEL_CHECK_DUPLICATE_URI: string = "../api/data/logicalModel/checkDuplicate";
 const LOGICAL_MODEL_CHECK_DUPLICATE_URI: string = "../api/data/logicalModel/checkDuplicate";
@@ -60,6 +66,8 @@ const DATA_MODEL_FOLDER_CHECK_DEPENDENCIES_URI: string = "../api/data/database/d
 const DATA_MODEL_FOLDER_CHECK_DUPLICATE_URI = "../api/portal/data/database/dataModelFolder/duplicateCheck";
 const MOVE_DATA_MODEL_URI = "../api/data/database/dataModel/move";
 const REMOVE_DATA_MODEL_URI = "../api/data/database/dataModel/remove";
+const DATABASE_DATA_MODEL_URI = "../api/data/database/dataModel/browse";
+const DATASOURCE_BROWSER_URI = "../api/data/datasources/browser";
 
 @Injectable()
 export class DataModelBrowserService {
@@ -418,6 +426,35 @@ export class DataModelBrowserService {
    }
 
    addPhysicalView(databaseName: string, folder?: string) {
+      const params = new HttpParams().set("database", databaseName);
+      const datasourceParams = new HttpParams().set("path", "/");
+
+      forkJoin({
+         dataModel: this.httpClient.get<DatabaseDataModelBrowserModel>(DATABASE_DATA_MODEL_URI, { params }),
+         datasourceBrowser: this.httpClient.get<DataSourceBrowserModel>(DATASOURCE_BROWSER_URI,
+            { params: datasourceParams })
+      }).subscribe(({ dataModel, datasourceBrowser }) => {
+         const dialog = ComponentTool.showDialog(this.modalService, NewDataModelDialogComponent,
+            (choice: NewDataModelChoice) => {
+               switch(choice) {
+               case "logical":
+                  this.addLogicalModel(databaseName, null, folder);
+                  break;
+               case "vpm":
+                  this.addVPM(databaseName);
+                  break;
+               default:
+                  this.openPhysicalViewNameDialog(databaseName, folder);
+                  break;
+               }
+            }, { backdrop: "static" });
+
+         dialog.canCreateLogicalModel = !!dataModel?.listModel?.dbPartitionCount;
+         dialog.vpmEnabled = !!datasourceBrowser?.newVpmEnabled;
+      });
+   }
+
+   private openPhysicalViewNameDialog(databaseName: string, folder?: string): void {
       const commit: (value: any) => any =
          this.getAddModelCommit(databaseName, PortalDataType.PARTITION, null, folder);
       const dialogProcess: (dilog: InputNameDescDialog) => void = dialog => {

@@ -22,50 +22,103 @@
   overflow: hidden;
 
   .hint-container {
-    width: 70%;
+    width: min(820px, 100%);
     height: 100%;
     display: flex;
-    margin-top: 5em;
     margin-left: auto;
     margin-right: auto;
-    align-items: flex-start;
+    justify-content: center;
+    align-items: center;
     align-self: center;
+    padding: var(--inet-space-8) var(--inet-space-6);
   }
 
-  .card-deck-extra {
+  .landing-shell {
+    width: 100%;
+    text-align: center;
+  }
+
+  .landing-eyebrow {
+    margin-bottom: .75rem;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--inet-primary-color);
+  }
+
+  .landing-title {
+    margin-bottom: .75rem;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--inet-text-color);
+  }
+
+  .landing-body {
+    max-width: 560px;
+    margin: 0 auto 2rem;
+    font-size: 13px;
+    line-height: 1.65;
+    color: var(--inet-text-muted-color);
+  }
+
+  .landing-cards {
+    display: grid;
+    grid-template-columns: minmax(320px, 420px);
+    justify-content: center;
     width: 100%;
   }
 
-  .card-image-placement {
-    margin-top: -3.5em;
-  }
-
-  .card-image-border {
-    padding: .25em .25em .25em;
-    border-radius: 1em;
-    cursor: pointer;
-  }
-
-  .card-header {
-    padding: .5em .75em 3.2em .75em;
-  }
-
-  .card-title {
-    font-size: 12pt;
-    font-weight: bold;
-  }
-
-  .card-deck {
+  .landing-card {
+    padding: 20px 18px 18px;
+    border: 1px solid var(--inet-default-border-color);
+    border-radius: var(--inet-radius-lg);
+    background: var(--inet-shell-surface-default);
+    box-shadow: var(--inet-shadow-small);
     display: flex;
-    flex-flow: row wrap;
-    margin-right: -15px;
-    margin-left: -15px;
+    flex-direction: column;
+    gap: 8px;
+    text-align: left;
+  }
 
-    .card {
-      flex: 1 0 0%;
-      margin-right: 15px;
-      margin-bottom: 0;
-      margin-left: 15px;
+  .landing-card--clickable {
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+    &:hover,
+    &:focus-visible {
+      border-color: var(--inet-primary-color);
+      box-shadow: var(--inet-focus-ring), var(--inet-shadow-medium);
+      outline: var(--inet-focus-ring-outline);
+
+      .landing-card__icon-wrap {
+        background: var(--inet-primary-soft-color);
+      }
     }
+  }
+
+  .landing-card__icon-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: var(--inet-primary-soft-color);
+    color: var(--inet-primary-color);
+    margin-bottom: 4px;
+    transition: background-color 0.15s ease;
+  }
+
+  .landing-card__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--inet-text-color);
+  }
+
+  .landing-card__copy {
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--inet-text-muted-color);
   }
 }

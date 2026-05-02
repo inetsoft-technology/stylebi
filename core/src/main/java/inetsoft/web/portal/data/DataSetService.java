@@ -21,7 +21,11 @@ import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.ConditionListWrapper;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.sync.DependencyTool;
+import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.RenameInfo;
@@ -31,6 +35,7 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.RecycleBin;
 import inetsoft.web.RecycleUtils;
+import inetsoft.web.binding.model.SourceInfo;
 import inetsoft.web.composer.AssetTreeController;
 import inetsoft.web.portal.controller.SearchComparator;
 import inetsoft.web.viewsheet.*;
@@ -48,6 +53,7 @@ import java.security.Principal;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -507,6 +513,322 @@ public class DataSetService {
          .hasSubFolder(hasSubDataSetFolder(entry, movingFolders, principal))
          .workSheetType(getWorksheetType(entry))
          .build();
+   }
+
+   public WorksheetRootBlocksSummary getWorksheetRootBlocks(String path, int scope,
+                                                            Principal principal)
+      throws Exception
+   {
+      IdentityID user = getUser(principal, scope);
+      AssetEntry entry = new AssetEntry(scope, AssetEntry.Type.WORKSHEET, path, user);
+      entry = assetRepository.getAssetEntry(entry);
+
+      if(entry == null) {
+         throw new FileNotFoundException("Worksheet not found: " + path);
+      }
+
+      if(!checkAssetPermission(principal, entry, ResourceAction.READ)) {
+         throw new SecurityException("Permission denied: " + path);
+      }
+
+      WorksheetRootBlocksMetadata metadata = getWorksheetRootBlocksMetadata(entry, principal);
+      List<WorksheetDependentAssetInfo> usedBy = getWorksheetDependents(entry, principal);
+
+      return WorksheetRootBlocksSummary.builder()
+         .id(entry.toIdentifier())
+         .path(entry.getPath())
+         .scope(entry.getScope())
+         .primaryBlock(metadata.primaryBlock())
+         .transformationSummary(metadata.transformationSummary())
+         .addAllUsedBy(usedBy)
+         .addAllRootBlocks(metadata.rootBlocks())
+         .build();
+   }
+
+   private WorksheetRootBlocksMetadata getWorksheetRootBlocksMetadata(AssetEntry entry,
+                                                                     Principal principal)
+      throws Exception
+   {
+      String cacheKey = entry.toIdentifier();
+      long modifiedTime = entry.getModifiedDate() == null ? 0L : entry.getModifiedDate().getTime();
+      WorksheetRootBlocksMetadata cachedMetadata = worksheetRootBlocksCache.get(cacheKey);
+
+      if(cachedMetadata != null && cachedMetadata.modifiedTime() == modifiedTime) {
+         return cachedMetadata;
+      }
+
+      Worksheet worksheet = (Worksheet) assetRepository.getSheet(entry, principal, false,
+         AssetContent.NO_DATA, false);
+      List<WorksheetRootBlockInfo> rootBlocks = getWorksheetRootBlocks(worksheet);
+      WorksheetRootBlockInfo primaryBlock = getWorksheetPrimaryBlock(worksheet);
+      String transformationSummary = getWorksheetTransformationSummary(worksheet, primaryBlock, rootBlocks);
+      WorksheetRootBlocksMetadata metadata = new WorksheetRootBlocksMetadata(
+         modifiedTime, Collections.unmodifiableList(rootBlocks), primaryBlock, transformationSummary);
+      worksheetRootBlocksCache.put(cacheKey, metadata);
+      return metadata;
+   }
+
+   private WorksheetRootBlockInfo getWorksheetPrimaryBlock(Worksheet worksheet) {
+      if(worksheet == null) {
+         return null;
+      }
+
+      Assembly primaryAssembly = worksheet.getPrimaryAssembly();
+
+      if(!(primaryAssembly instanceof TableAssembly)) {
+         return null;
+      }
+
+      TableAssembly tableAssembly = (TableAssembly) primaryAssembly;
+
+      return WorksheetRootBlockInfo.builder()
+         .name(tableAssembly.getName())
+         .kind("primary")
+         .addAllFields(getWorksheetRootBlockFields(tableAssembly))
+         .build();
+   }
+
+   private List<WorksheetRootBlockInfo> getWorksheetRootBlocks(Worksheet worksheet) {
+      if(worksheet == null) {
+         return Collections.emptyList();
+      }
+
+      Map<String, WorksheetRootBlockInfo> rootBlocks = new LinkedHashMap<>();
+      Set<String> visitedAssemblies = new HashSet<>();
+
+      for(Assembly assembly : worksheet.getAssemblies()) {
+         collectWorksheetRootBlocks(assembly, rootBlocks, visitedAssemblies);
+      }
+
+      return new ArrayList<>(rootBlocks.values());
+   }
+
+   private void collectWorksheetRootBlocks(Assembly assembly,
+                                           Map<String, WorksheetRootBlockInfo> rootBlocks,
+                                           Set<String> visitedAssemblies)
+   {
+      if(assembly == null || !visitedAssemblies.add(assembly.getAbsoluteName())) {
+         return;
+      }
+
+      if(assembly instanceof BoundTableAssembly) {
+         BoundTableAssembly boundTable = (BoundTableAssembly) assembly;
+         rootBlocks.putIfAbsent(boundTable.getName(), WorksheetRootBlockInfo.builder()
+            .name(boundTable.getName())
+            .kind("connected")
+            .sourceInfo(new SourceInfo(boundTable.getSourceInfo()))
+            .addAllFields(getWorksheetRootBlockFields(boundTable))
+            .build());
+         return;
+      }
+
+      if(assembly instanceof EmbeddedTableAssembly) {
+         EmbeddedTableAssembly embeddedTable = (EmbeddedTableAssembly) assembly;
+         rootBlocks.putIfAbsent(embeddedTable.getName(), WorksheetRootBlockInfo.builder()
+            .name(embeddedTable.getName())
+            .kind("embedded")
+            .addAllFields(getWorksheetRootBlockFields(embeddedTable))
+            .build());
+         return;
+      }
+
+      if(assembly instanceof MirrorAssembly) {
+         collectWorksheetRootBlocks(((MirrorAssembly) assembly).getAssembly(),
+            rootBlocks, visitedAssemblies);
+      }
+
+      if(assembly instanceof ComposedTableAssembly) {
+         for(TableAssembly tableAssembly : ((ComposedTableAssembly) assembly).getTableAssemblies(false)) {
+            collectWorksheetRootBlocks(tableAssembly, rootBlocks, visitedAssemblies);
+         }
+      }
+   }
+
+   private List<WorksheetRootBlockFieldInfo> getWorksheetRootBlockFields(TableAssembly tableAssembly) {
+      if(tableAssembly == null) {
+         return Collections.emptyList();
+      }
+
+      ColumnSelection columns = tableAssembly.getColumnSelection(true);
+
+      if(columns == null || columns.getAttributeCount() == 0) {
+         columns = tableAssembly.getColumnSelection(false);
+      }
+
+      if(columns == null || columns.getAttributeCount() == 0) {
+         return Collections.emptyList();
+      }
+
+      List<WorksheetRootBlockFieldInfo> fields = new ArrayList<>();
+
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         if(!(columns.getAttribute(i) instanceof ColumnRef)) {
+            continue;
+         }
+
+         ColumnRef column = (ColumnRef) columns.getAttribute(i);
+
+         if(column instanceof CalculateRef) {
+            continue;
+         }
+
+         String name = StringUtils.defaultIfBlank(column.getAlias(), column.getAttribute());
+
+         if(StringUtils.isBlank(name)) {
+            name = "Column [" + i + "]";
+         }
+
+         fields.add(WorksheetRootBlockFieldInfo.builder()
+            .name(name)
+            .type(StringUtils.defaultIfBlank(column.getDataType(), "unknown"))
+            .build());
+      }
+
+      return fields;
+   }
+
+   private String getWorksheetTransformationSummary(Worksheet worksheet,
+                                                    WorksheetRootBlockInfo primaryBlock,
+                                                    List<WorksheetRootBlockInfo> rootBlocks)
+   {
+      if(worksheet == null) {
+         return null;
+      }
+
+      Assembly primaryAssembly = worksheet.getPrimaryAssembly();
+
+      if(!(primaryAssembly instanceof TableAssembly)) {
+         return null;
+      }
+
+      TableAssembly primaryTable = (TableAssembly) primaryAssembly;
+      List<String> steps = new ArrayList<>();
+      int inputCount = rootBlocks == null ? 0 : rootBlocks.size();
+
+      if(primaryTable instanceof RelationalJoinTableAssembly ||
+         primaryTable instanceof MergeJoinTableAssembly)
+      {
+         int tableCount = getComposedTableCount(primaryTable);
+         steps.add(tableCount > 1 ? "joins " + tableCount + " source tables" : "joins source tables");
+      }
+      else if(primaryTable instanceof ConcatenatedTableAssembly) {
+         int tableCount = getComposedTableCount(primaryTable);
+         steps.add(tableCount > 1 ? "concatenates " + tableCount + " tables" : "concatenates tables");
+      }
+      else if(primaryTable instanceof UnpivotTableAssembly) {
+         steps.add("reshapes the data with an unpivot step");
+      }
+      else if(primaryTable instanceof RotatedTableAssembly) {
+         steps.add("reshapes the data with a rotation step");
+      }
+      else if(primaryTable instanceof MirrorTableAssembly) {
+         steps.add("mirrors an upstream worksheet table");
+      }
+
+      if(hasConditions(primaryTable.getPreConditionList()) || hasConditions(primaryTable.getPostConditionList())) {
+         steps.add("filters the rows");
+      }
+
+      if(primaryTable.isAggregate()) {
+         steps.add("groups or aggregates the data");
+      }
+
+      if(primaryTable.isDistinct()) {
+         steps.add("keeps distinct rows");
+      }
+
+      if(primaryTable.getSortInfo() != null && !primaryTable.getSortInfo().isEmpty()) {
+         steps.add("applies sorting");
+      }
+
+      if(primaryTable.getMaxRows() > 0 || primaryTable.getMaxDisplayRows() > 0) {
+         steps.add("limits the output rows");
+      }
+
+      int fieldCount = primaryBlock == null || primaryBlock.fields() == null ? 0 : primaryBlock.fields().size();
+      String inputDescription;
+
+      if(inputCount <= 0) {
+         inputDescription = "Builds the worksheet output";
+      }
+      else if(inputCount == 1) {
+         inputDescription = "Starts from 1 root data block";
+      }
+      else {
+         inputDescription = "Starts from " + inputCount + " root data blocks";
+      }
+
+      if(!steps.isEmpty()) {
+         inputDescription += ", " + String.join(", ", steps);
+      }
+
+      if(primaryBlock != null && StringUtils.isNotBlank(primaryBlock.name())) {
+         inputDescription += ", and outputs the primary block \"" + primaryBlock.name() + "\"";
+      }
+      else {
+         inputDescription += ", and outputs the worksheet's primary data block";
+      }
+
+      if(fieldCount > 0) {
+         inputDescription += " with " + fieldCount + " field" + (fieldCount == 1 ? "" : "s");
+      }
+
+      return inputDescription + ".";
+   }
+
+   private int getComposedTableCount(TableAssembly tableAssembly) {
+      if(tableAssembly instanceof ComposedTableAssembly) {
+         TableAssembly[] tables = ((ComposedTableAssembly) tableAssembly).getTableAssemblies(false);
+         return tables == null ? 0 : tables.length;
+      }
+
+      return 0;
+   }
+
+   private boolean hasConditions(ConditionListWrapper conditions) {
+      return conditions != null && !conditions.isEmpty();
+   }
+
+   private List<WorksheetDependentAssetInfo> getWorksheetDependents(AssetEntry entry, Principal principal) {
+      if(entry == null) {
+         return Collections.emptyList();
+      }
+
+      List<WorksheetDependentAssetInfo> dependents = new ArrayList<>();
+      Set<String> seen = new LinkedHashSet<>();
+
+      for(AssetObject assetObject : DependencyTool.getDependencies(entry.toIdentifier())) {
+         if(!(assetObject instanceof AssetEntry)) {
+            continue;
+         }
+
+         AssetEntry dependentEntry = (AssetEntry) assetObject;
+
+         if(!(dependentEntry.getType().isViewsheet() || dependentEntry.getType().isDashboard())) {
+            continue;
+         }
+
+         if(!checkAssetPermission(principal, dependentEntry, ResourceAction.READ)) {
+            continue;
+         }
+
+         String identifier = dependentEntry.toIdentifier();
+
+         if(!seen.add(identifier)) {
+            continue;
+         }
+
+         dependents.add(WorksheetDependentAssetInfo.builder()
+            .name(StringUtils.defaultIfBlank(dependentEntry.getAlias(),
+               StringUtils.defaultIfBlank(dependentEntry.getName(), dependentEntry.getPath())))
+            .path(dependentEntry.getPath())
+            .type(dependentEntry.getType().isDashboard() ? "dashboard" : "viewsheet")
+            .build());
+      }
+
+      dependents.sort(Comparator.comparing(WorksheetDependentAssetInfo::type)
+         .thenComparing(WorksheetDependentAssetInfo::name, String.CASE_INSENSITIVE_ORDER));
+      return dependents;
    }
 
    /**
@@ -1333,5 +1655,13 @@ public class DataSetService {
    private final SecurityEngine securityEngine;
    private final AssetRepository assetRepository;
    private final DataSetSearchService dataSetSearchService;
+   private final Map<String, WorksheetRootBlocksMetadata> worksheetRootBlocksCache =
+      new ConcurrentHashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(DataSetService.class);
+
+   private record WorksheetRootBlocksMetadata(long modifiedTime,
+                                              List<WorksheetRootBlockInfo> rootBlocks,
+                                              WorksheetRootBlockInfo primaryBlock,
+                                              String transformationSummary) {
+   }
 }

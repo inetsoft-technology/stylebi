@@ -19,45 +19,86 @@
   <iframe *ngIf="welcomePageUri; else hintWelcomePage" class="iframe-full-no-border"
           [src]="contentSource" seamless allowfullscreen></iframe>
   <ng-template #hintWelcomePage>
-    <div class="header-line" [wExpandString]="[licensedComponentMsg]">{{welcomeMsg}}</div>
-    <div class="cards card-deck">
-      <div class="cards-title">_#(viewer.welcomePage.accessDes)</div>
-      <div class="card mb-2 mx-2 text-center bg-white1">
-        <div class="card-header">
-          _#(viewer.welcomePage.rightClick)
+    <div class="landing-shell">
+      <div class="landing-eyebrow">_#(Repository)</div>
+      <div class="landing-title">_#(js:Welcome to your analytics portal)</div>
+      <div class="landing-body">
+        _#(js:Explore reports and dashboards shared with you, or use the navigation above to jump to any area.)
+      </div>
+
+      <div class="landing-cards">
+        <div class="landing-card landing-card--clickable"
+             role="button" tabindex="0" enterClick (click)="navigateToRepository()"
+             aria-label="_#(Repository)">
+          <div class="landing-card__icon-wrap">
+            <i class="field-tree-icon icon-size-large" aria-hidden="true"></i>
+          </div>
+          <div class="landing-card__title">_#(Repository)</div>
+          <div class="landing-card__copy">_#(js:Browse and open reports and dashboards published by your team.)</div>
         </div>
-        <div class="card-block">
-          <img class="wp-menu-right-click" src="assets/MenuRightClick.png" alt="_#(viewer.welcomePage.rightClickDes)"/>
+        <div class="landing-card landing-card--clickable"
+             role="button" tabindex="0" enterClick (click)="navigateToScheduleTab()"
+             aria-label="_#(Schedule)">
+          <div class="landing-card__icon-wrap">
+            <i class="datetime-field-icon icon-size-large" aria-hidden="true"></i>
+          </div>
+          <div class="landing-card__title">_#(Schedule)</div>
+          <div class="landing-card__copy">_#(js:View scheduled report deliveries and manage your subscriptions.)</div>
+          <button type="button" class="btn btn-default landing-card__action" (click)="navigateToScheduleTab(); $event.stopPropagation()">
+            _#(js:Open Schedule)
+          </button>
         </div>
-        <div class="card-footer">
-          _#(viewer.welcomePage.rightClickDes)
+        <div class="landing-card landing-card--clickable"
+             role="button" tabindex="0" enterClick (click)="navigateToPinboard()"
+             aria-label="_#(js:Pinboard)">
+          <div class="landing-card__icon-wrap">
+            <i class="viewsheet-book-icon icon-size-large" aria-hidden="true"></i>
+          </div>
+          <div class="landing-card__title">_#(js:Pinboard)</div>
+          <div class="landing-card__copy">_#(js:Save a personal set of dashboards so your regular views stay close at hand.)</div>
+          <button type="button" class="btn btn-default landing-card__action" (click)="navigateToPinboard(); $event.stopPropagation()">
+            _#(js:Open Pinboard)
+          </button>
         </div>
       </div>
 
-      <div class="card mb-2 mx-2 text-center bg-white1">
-        <div class="card-header">
-          _#(viewer.welcomePage.axis)
-        </div>
-        <div class="card-block">
-          <img class="wp-menu-corner" src="assets/MenuCorner.png" alt="_#(viewer.welcomePage.axisDes)"/>
-        </div>
-        <div class="card-footer">
-         _#(viewer.welcomePage.axisDes)
+      <div class="landing-designer">
+        <div class="landing-designer__eyebrow">_#(js:Design)</div>
+        <div class="landing-designer__label">_#(js:If you have design permission, use the Create menu to start a new data source, worksheet, or dashboard.)</div>
+        <div class="landing-cards landing-cards--designer">
+          <div class="landing-card landing-card--clickable"
+               role="button" tabindex="0" enterClick (click)="navigateToDataSources()">
+            <div class="landing-card__icon-wrap">
+              <i class="database-icon icon-size-large" aria-hidden="true"></i>
+            </div>
+            <div class="landing-card__title">_#(js:Data Sources)</div>
+            <div class="landing-card__copy">_#(js:Browse data sources and use the root folder menu to create databases, files, and API connections for analysis.)</div>
+            <button type="button" class="btn btn-default landing-card__action" (click)="navigateToDataSources(); $event.stopPropagation()">
+              _#(js:Open Data Sources)
+            </button>
+          </div>
+          <div class="landing-card landing-card--clickable"
+               role="button" tabindex="0" enterClick (click)="navigateToWorksheets()">
+            <div class="landing-card__icon-wrap">
+              <i class="worksheet-icon icon-size-large" aria-hidden="true"></i>
+            </div>
+            <div class="landing-card__title">_#(js:Worksheet)</div>
+            <div class="landing-card__copy">_#(js:Browse worksheets and use the root folder menu to create, transform, join, and filter data before it reaches a dashboard.)</div>
+            <button type="button" class="btn btn-default landing-card__action" (click)="navigateToWorksheets(); $event.stopPropagation()">
+              _#(js:Open Worksheets)
+            </button>
+          </div>
+          <div class="landing-card"
+               aria-label="_#(js:Dashboard)">
+            <div class="landing-card__icon-wrap">
+              <i class="viewsheet-icon icon-size-large" aria-hidden="true"></i>
+            </div>
+            <div class="landing-card__title">_#(js:Dashboard)</div>
+            <div class="landing-card__copy">_#(js:Create interactive charts, tables, and KPI views as portal dashboards.)</div>
+            <div class="landing-card__hint">_#(js:Use Create -> Dashboard when you are ready to launch the designer.)</div>
+          </div>
         </div>
       </div>
-
-      <div class="card mb-2 mx-2 text-center bg-white1">
-        <div class="card-header">
-          _#(viewer.welcomePage.dataPoints)
-        </div>
-        <div class="card-block">
-          <img class="wp-menu-toolbar" src="assets/MenuToolbar.png" alt="_#(viewer.welcomePage.dataPointsDes)"/>
-        </div>
-        <div class="card-footer">
-          _#(viewer.welcomePage.dataPointsDes)
-        </div>
-      </div>
-
     </div>
   </ng-template>
 </div>

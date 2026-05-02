@@ -15,12 +15,55 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+.logical-model-attribute-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--inet-space-5);
+}
+
+.logical-model-attribute-editor__first-field {
+  margin-top: var(--inet-space-2);
+}
+
+.logical-model-attribute-editor__reference-group-label,
+.logical-model-attribute-editor__reference-option {
+  padding: var(--inet-space-2) var(--inet-space-4);
+}
+
+.logical-model-attribute-editor__reference-group-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--inet-text-muted-color);
+}
+
+.logical-model-attribute-editor__reference-option {
+  cursor: default;
+}
+
+.logical-model-attribute-editor__reference-option--nested {
+  padding-left: var(--inet-space-5);
+}
+
+.logical-model-attribute-editor__checkbox-row {
+  display: flex;
+  align-items: center;
+}
+
+.logical-model-attribute-editor__checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--inet-space-2);
+  margin: 0;
+}
+
+.logical-model-attribute-editor__checkbox-label input {
+  margin: 0;
+}
+
 .caret-down-icon {
   position: absolute;
   right: 10px;
   top: calc(50% - 5px);
-}
-
-.select-option {
-  padding-left: 1px;
 }

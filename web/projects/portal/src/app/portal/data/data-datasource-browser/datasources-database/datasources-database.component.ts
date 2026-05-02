@@ -57,6 +57,7 @@ import { DriverInfo } from "../../../../../../../shared/util/model/driver-availa
 import { Tool } from "../../../../../../../shared/util/tool";
 import { AssetConstants } from "../../../../common/data/asset-constants";
 import { ComponentTool } from "../../../../common/util/component-tool";
+import { GuiTool } from "../../../../common/util/gui-tool";
 import { DeleteDatasourceInfo } from "../../commands/delete-datasource-info";
 import { DataNotificationsComponent } from "../../data-notifications.component";
 import { DatabaseDefinitionModel } from "../../../../../../../shared/util/model/database-definition-model";
@@ -70,11 +71,18 @@ import {
 } from "../../../../widget/dialog/getting-started-dialog/service/getting-started.service";
 import { PortalDataType } from "../../data-navigation-tree/portal-data-type";
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
+import { WSObjectType } from "../../../../composer/dialog/ws/new-worksheet-dialog.component";
+import { DataSourceConnectionStatusRequest } from "../../model/data-source-connection-status-request";
+import { DataSourceStatus } from "../../model/data-source-status";
+import { DatasourceBrowserService } from "../datasource-browser.service";
+import { DataModelBrowserService } from "./database-data-model-browser/data-model-browser.service";
+import { DataSourceInfo } from "../../model/data-source-info";
 
 const CHECK_DELETE_ADDITIONAL = "../api/portal/data/databases/additional/check/";
 const DATABASES_URI: string = "../api/data/databases";
 const PORTAL_DATABASE_URI = "../api/portal/data/databases/";
 const PORTAL_DATABASE_REFRESH = "../api/portal/data/datasource/refresh-metadata";
+const DATASOURCE_STATUSES_URI = "../api/data/datasources/statuses";
 const URL_PREFIX: string = "jdbc:ucanaccess://";
 
 export interface AdditionalInfo {
@@ -116,6 +124,11 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
    private routeParamSubscription: Subscription;
    enterprise: boolean;
    _createDB: boolean = false;
+   private attemptingConnectionStatus: string = "_#(js:data.datasources.attemptingToConnectToDataSource)";
+   private failedConnectionStatus: string = "_#(js:data.datasources.problemRetrievingDataSourceStatus)";
+   dataSourceConnected: boolean = null;
+   dataSourceStatusMessage: string = null;
+   loadingDataSourceStatus = false;
 
    searchFunc: (text: Observable<string>) => Observable<any[]> = (text: Observable<string>) =>
       text.pipe(
@@ -133,6 +146,8 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
                private httpClient: HttpClient,
                private modalService: NgbModal,
                private appInfoService: AppInfoService,
+               private datasourceBrowserService: DatasourceBrowserService,
+               private dataModelBrowserService: DataModelBrowserService,
                private gettingStartedService: GettingStartedService,
                stompClient: StompClientService)
    {
@@ -194,11 +209,13 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
                this.originalModel = Tool.clone(model);
                this.setModel(model.settings);
                this.updateAdditionalList();
+               this.loadDataSourceStatus();
                // this.updateProperties();
             });
       }
       else {
          this.refreshDefaultTestQuery();
+         this.loadDataSourceStatus();
       }
 
       this.initForm();
@@ -217,6 +234,81 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
 
    isCreateDB(): boolean {
       return this._createDB;
+   }
+
+   get canCreateQuery(): boolean {
+      return !!this.currentDataSourcePath && this.dataSourceConnected === true;
+   }
+
+   get queryStatusLabel(): string {
+      if(!this.currentDataSourcePath) {
+         return "Save first";
+      }
+
+      if(this.loadingDataSourceStatus) {
+         return "Checking";
+      }
+
+      if(this.dataSourceConnected === true) {
+         return "Healthy";
+      }
+
+      if(this.dataSourceConnected === false) {
+         return "Unavailable";
+      }
+
+      return "Unknown";
+   }
+
+   get queryStatusMessage(): string {
+      if(!this.currentDataSourcePath) {
+         return "Save this data source first, then create a new query from it.";
+      }
+
+      if(this.loadingDataSourceStatus) {
+         return "Checking connection health for this data source.";
+      }
+
+      if(this.dataSourceConnected === true) {
+         return "Connection is healthy. Create a new query from this data source.";
+      }
+
+      return this.dataSourceStatusMessage
+         || "This data source is not currently healthy. Fix the connection before creating a query.";
+   }
+
+   get queryStatusIconClass(): string {
+      if(!this.currentDataSourcePath || this.loadingDataSourceStatus) {
+         return "help-question-mark-icon";
+      }
+
+      return this.dataSourceConnected ? "submit-icon" : "alert-circle-icon";
+   }
+
+   private get currentDataSourcePath(): string {
+      return this.databasePath || null;
+   }
+
+    get currentDataSourceInfo(): DataSourceInfo {
+      if(!this.currentDataSourcePath) {
+         return null;
+      }
+
+      return {
+         name: this.database?.name,
+         path: this.currentDataSourcePath,
+         type: {
+            name: PortalDataType.DATABASE,
+            label: PortalDataType.DATABASE
+         },
+         createdBy: null,
+         createdDate: 0,
+         createdDateLabel: "",
+         dateFormat: "",
+         editable: true,
+         deletable: this.database?.deletable,
+         hasSubFolder: false
+      };
    }
 
    updateAdditionalList() {
@@ -255,6 +347,69 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
       }).then((value) => {
          return Promise.resolve(value === "Yes");
       });
+   }
+
+   createQuery(): void {
+      if(!this.canCreateQuery) {
+         return;
+      }
+
+      const baseDataSource = this.currentDataSourcePath;
+      const params = new HttpParams()
+         .set("wsWizard", "true")
+         .set("baseDataSource", baseDataSource)
+         .set("baseDataSourceType", `${WSObjectType.DATABASE_QUERY}`);
+      GuiTool.openBrowserTab("composer", params);
+   }
+
+   refreshDataSourceStatus(): void {
+      if(this.loadingDataSourceStatus || !this.currentDataSourcePath) {
+         return;
+      }
+
+      this.loadDataSourceStatus();
+   }
+
+   createPhysicalView(): void {
+      if(!this.currentDataSourcePath) {
+         return;
+      }
+
+      this.dataModelBrowserService.addPhysicalView(this.currentDataSourcePath);
+   }
+
+   moveDataSource(): void {
+      const datasource = this.currentDataSourceInfo;
+
+      if(!datasource || !(datasource.editable && datasource.deletable)) {
+         return;
+      }
+
+      this.datasourceBrowserService.moveDataSource(datasource, this.parentPath,
+         () => {
+            this.datasourceBrowserService.refreshTree();
+            this.close(true);
+         },
+         (error) => this.dataNotifications.notifications.danger(error.error.message));
+   }
+
+   deleteDataSource(): void {
+      const datasource = this.currentDataSourceInfo;
+
+      if(!datasource || !datasource.deletable) {
+         return;
+      }
+
+      this.datasourceBrowserService.deleteDataSourceByInfo(datasource,
+         (type: string, message: string) => {
+            if(type === "success") {
+               this.datasourceBrowserService.refreshTree();
+               this.close(true);
+            }
+            else if(type === "danger") {
+               this.dataNotifications.notifications.danger(message);
+            }
+         });
    }
 
    @HostListener("window:beforeunload", ["$event"])
@@ -333,6 +488,37 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
       }
 
       this.close(true);
+   }
+
+   private loadDataSourceStatus(): void {
+      if(!this.currentDataSourcePath) {
+         this.loadingDataSourceStatus = false;
+         this.dataSourceConnected = null;
+         this.dataSourceStatusMessage = null;
+         return;
+      }
+
+      this.loadingDataSourceStatus = true;
+      this.dataSourceStatusMessage = this.attemptingConnectionStatus;
+      const request = <DataSourceConnectionStatusRequest> {
+         paths: [this.currentDataSourcePath],
+         updateStatus: true,
+         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      };
+
+      this.httpClient.post<DataSourceStatus[]>(DATASOURCE_STATUSES_URI, request)
+         .subscribe(
+            (statuses) => {
+               const status = statuses?.[0];
+               this.dataSourceConnected = status?.connected ?? false;
+               this.dataSourceStatusMessage = status?.message || this.failedConnectionStatus;
+            },
+            () => {
+               this.dataSourceConnected = false;
+               this.dataSourceStatusMessage = this.failedConnectionStatus;
+            },
+            () => this.loadingDataSourceStatus = false
+         );
    }
 
    private getDatabasePath(): string {

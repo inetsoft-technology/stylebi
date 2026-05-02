@@ -15,3 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+.logical-model-entity-pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--inet-space-5);
+}
+
+.logical-model-entity-pane__first-field {
+  margin-top: var(--inet-space-2);
+}

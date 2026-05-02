@@ -22,6 +22,8 @@ import { ComponentTool } from "../../../../../../common/util/component-tool";
 import { AssetItem } from "../../../../model/datasources/database/asset-item";
 import { DataModelBrowserViewModel } from "../../../../model/data-model-browser-view-model";
 
+const FAKE_ROOT_PATH: string = "_fake_root_";
+
 @Component({
   selector: "data-models-browser",
   templateUrl: "./data-model-folder-browser.component.html",
@@ -31,6 +33,8 @@ export class DataModelFolderBrowserComponent implements OnInit {
   @Input() browserView: DataModelBrowserViewModel;
   @Input() selectedFolders: AssetItem[] = [];
   @Input() folderIcon: string = "folder-icon";
+  @Input() showBreadcrumb: boolean = true;
+  @Input() openFolderPath: string;
   @Input() openFolderRequest: (path: string, assetType?: string) => Observable<DataModelBrowserViewModel>;
   @Input() openFolderError: string = "_#(js:admin.status.error)";
   @Input() initView: boolean = true;
@@ -44,7 +48,7 @@ export class DataModelFolderBrowserComponent implements OnInit {
   ngOnInit(): void {
     if(this.initView) {
       // open root folder if should get view on init
-      this.openFolder("/", null, true);
+      this.openFolder(this.openFolderPath || "/", null, true);
     }
   }
 
@@ -60,9 +64,10 @@ export class DataModelFolderBrowserComponent implements OnInit {
        data => {
          this.browserView = data;
 
-         if(!onInit) {
-           // reset selected items when opening new folder
-           this.selectedFolders = [];
+         if(!onInit || !this.showBreadcrumb) {
+           const currentFolder = this.currentDestination;
+           this.selectedFolders = currentFolder && currentFolder.path !== FAKE_ROOT_PATH ?
+              [currentFolder] : [];
            this.notifySelectionChange();
          }
        },
@@ -79,6 +84,11 @@ export class DataModelFolderBrowserComponent implements OnInit {
   selectFolder(folder: AssetItem): void {
     this.selectedFolders = [folder];
     this.notifySelectionChange();
+  }
+
+  openParentFolder(): void {
+    const parent = this.browserView.path[this.browserView.path.length - 2];
+    this.openFolder(parent.path, parent.type);
   }
 
   /**
@@ -100,6 +110,18 @@ export class DataModelFolderBrowserComponent implements OnInit {
     return folder.name;
   }
 
+  get currentDestination(): AssetItem {
+    return this.browserView?.path?.length ? this.browserView.path[this.browserView.path.length - 1] : null;
+  }
+
+  parentFolderName(): string {
+    if(!!this.browserView?.path && this.browserView.path.length > 1) {
+      return this.getFolderName(this.browserView.path[this.browserView.path.length - 2]);
+    }
+
+    return "..";
+  }
+
   /**
    * Get the folder icon to use.
    * @param folder  the folder to get the icon for
@@ -107,6 +129,16 @@ export class DataModelFolderBrowserComponent implements OnInit {
    */
   getFolderIcon(folder: AssetItem): string {
     return this.folderIcon;
+  }
+
+  canOpenFolder(folder: AssetItem): boolean {
+    const hasSubFolder = (folder as any)?.hasSubFolder;
+
+    if(hasSubFolder === undefined || hasSubFolder === null) {
+      return true;
+    }
+
+    return hasSubFolder === true || hasSubFolder > 0;
   }
 
   /**

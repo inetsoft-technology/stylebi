@@ -15,28 +15,87 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.logical-toolbar {
-  display: flex;
+:host {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
-.logical-model-tabs {
-  position: absolute;
-  bottom: 0px;
-  width: 100%;
-  z-index: 5;
+.data-model-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex: 0 0 auto;
+  min-height: 64px;
+  padding: 10px 16px;
+  background: color-mix(in srgb, var(--inet-main-panel-bg-color) 80%, var(--inet-toolbar-bg-color));
+  border-bottom: 1px solid var(--inet-default-border-color);
+}
+
+.data-model-toolbar__main {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.data-model-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.data-model-title__text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.data-model-title__eyebrow {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--inet-text-muted-color);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.data-model-name {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--inet-text-strong-color);
+  white-space: nowrap;
+}
+
+.data-model-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.data-model-edit-pane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
 }
 
 .logical-model-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   width: 100%;
-}
-
-.schedule-navbar {
-  .navbar-nav {
-    flex-direction: row;
-
-    .nav-link {
-      padding-right: 0.5rem;
-      padding-left: 0.5rem;
-    }
-  }
+  background-color: var(--inet-main-panel-bg-color);
 }

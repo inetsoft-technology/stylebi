@@ -1,0 +1,124 @@
+/*!
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+.auto-join-dialog__intro {
+  margin-bottom: 16px;
+  color: var(--inet-text-muted-color);
+  line-height: 1.55;
+}
+
+.auto-join-dialog__panel {
+  width: 100%;
+}
+
+.auto-join-dialog__header {
+  padding: 0 0 12px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--inet-default-border-color);
+}
+
+.auto-join-dialog__title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--inet-text-strong-color);
+  line-height: 1.3;
+}
+
+.auto-join-dialog__choice-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 12px;
+}
+
+.auto-join-dialog__choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  min-height: 28px;
+  color: var(--inet-text-color);
+}
+
+.auto-join-dialog__choice-input {
+  margin: 0;
+  flex: 0 0 auto;
+  position: relative;
+  top: -1px;
+}
+
+.auto-join-dialog__choice input[disabled] + * {
+  color: var(--inet-text-muted-color);
+}
+
+.auto-join-dialog__choice-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 16px;
+  row-gap: 8px;
+  min-width: 0;
+}
+
+.auto-join-dialog__choice-toggle {
+  min-height: var(--inet-control-height-md);
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  color: var(--inet-text-color);
+}
+
+.auto-join-dialog__choice-toggle .form-check-input {
+  margin-top: 0;
+}
+
+.auto-join-dialog__columns-field {
+  margin-top: 8px;
+}
+
+.auto-join-dialog__section-label {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--inet-text-muted-color);
+}
+
+.auto-join-dialog__columns-list {
+  max-height: 280px;
+  overflow: auto;
+  padding: 6px 8px 4px;
+}
+
+.auto-join-dialog__column {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  margin: 0;
+  color: var(--inet-text-color);
+}
+
+.auto-join-dialog__column-input {
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.auto-join-dialog__column-label {
+  color: var(--inet-text-color);
+  line-height: 1.45;
+}

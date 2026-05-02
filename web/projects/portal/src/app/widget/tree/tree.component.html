@@ -30,8 +30,10 @@
         <i class="close-icon icon-size-medium" aria-hidden="true" (click)="clearSearchContent()"
            title="_#(Delete)"></i>
       </div>
-      <i *ngIf="showHelpLink" class="help-question-mark-icon cursor-pointer" (click)="openHelp()" tabindex="0"
-         aria-label="_#(Help Information)" role="link" title="_#(Help)"></i>
+      <div *ngIf="showHelpLink" class="p-1 search-icon-container">
+        <i class="help-question-mark-icon cursor-pointer" (click)="openHelp()" tabindex="0"
+           aria-label="_#(Help Information)" role="link" title="_#(Help)"></i>
+      </div>
     </ng-container>
     <ng-container *ngIf="recentEnabled && getRecentTreeFun">
       <div class="p-1 search-icon-container">

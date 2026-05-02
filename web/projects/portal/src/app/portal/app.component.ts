@@ -233,11 +233,10 @@ export class PortalAppComponent implements OnInit, OnDestroy {
 
    setTabOrder(): void {
       if(!!this.portalTabs) {
-         const dIndex = this.portalTabs.findIndex(t => t.name == PortalTabs.DASHBOARD);
-         const rIndex = this.portalTabs.findIndex(t => t.name == PortalTabs.REPORT);
          const dataIndex = this.portalTabs.findIndex(t => t.name == PortalTabs.DATA);
          const scheduleIndex = this.portalTabs.findIndex(t => t.name == PortalTabs.SCHEDULE);
-         this.reportTabFirst = rIndex <= dIndex;
+         const reportVisible = !!this.getTab(PortalTabs.REPORT) || !!this.getTab(PortalTabs.VIEWER);
+         this.reportTabFirst = reportVisible;
          this.dataTabFirst = scheduleIndex <= dataIndex;
       }
       else {
@@ -251,11 +250,11 @@ export class PortalAppComponent implements OnInit, OnDestroy {
          const dashboard = this.portalTabs.find(t => t.name == PortalTabs.DASHBOARD);
          const report = this.portalTabs.find(t => t.name == PortalTabs.REPORT);
 
-         if(this.model.hasDashboards && dashboard) {
-            this.router.navigate(["/portal/" + dashboard.uri]);
-         }
-         else if(report) {
+         if(report) {
             this.router.navigate(["/portal/" + report.uri]);
+         }
+         else if(this.model.hasDashboards && dashboard && this.canAccessDashboardTab()) {
+            this.router.navigate(["/portal/" + dashboard.uri]);
          }
       }
    }
@@ -302,12 +301,32 @@ export class PortalAppComponent implements OnInit, OnDestroy {
    }
 
    getDashboardTabTooltip(): string {
-      if(this.getTab(PortalTabs.DASHBOARD)) {
-         return "_#(js:Dashboard)";
+      if(this.getTab(PortalTabs.DASHBOARD) && !this.model?.securityEnabled) {
+         return "_#(js:Pinboard requires security to be enabled.)";
+      }
+      else if(this.getTab(PortalTabs.DASHBOARD)) {
+         return "_#(js:Pinboard)";
       }
       else {
          return "";
       }
+   }
+
+   canAccessDashboardTab(): boolean {
+      return !!this.getTab(PortalTabs.DASHBOARD) && !!this.model?.securityEnabled;
+   }
+
+   showDisabledDashboardTab(): boolean {
+      return !!this.getTab(PortalTabs.DASHBOARD) && !this.model?.securityEnabled;
+   }
+
+   openDashboardTab(event: MouseEvent): void {
+      if(this.canAccessDashboardTab()) {
+         return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
    }
 
    getDataTabTooltip(): string {
@@ -347,7 +366,37 @@ export class PortalAppComponent implements OnInit, OnDestroy {
       return false;
    }
 
+   shouldShowCreateButton(): boolean {
+      return !!this.model && (this.model.reportEnabled || this.hasEnabledCreateAction());
+   }
+
+   hasEnabledCreateAction(): boolean {
+      return this.canCreateDataSource() || this.canCreateWorksheet() ||
+         this.canCreateViewsheet() || this.canLaunchComposer();
+   }
+
+   canCreateDataSource(): boolean {
+      return !!this.model?.newDatasourceEnabled;
+   }
+
+   canCreateWorksheet(): boolean {
+      return this.openComposerEnabled && !!this.model?.newWorksheetEnabled;
+   }
+
+   canCreateViewsheet(): boolean {
+      return this.openComposerEnabled && !!this.model?.dashboardEnabled &&
+         !!this.model?.newViewsheetEnabled;
+   }
+
+   canLaunchComposer(): boolean {
+      return this.openComposerEnabled;
+   }
+
    openComposer(vs: boolean): void {
+      if(vs && !this.canCreateViewsheet() || !vs && !this.canCreateWorksheet()) {
+         return;
+      }
+
       this.openComposerService.composerOpen.subscribe(open => {
          if(!open) {
             this.http.get<WizardDialogStatusModel>(COMPOSER_WIZARD_STATUS_URI)
@@ -381,7 +430,7 @@ export class PortalAppComponent implements OnInit, OnDestroy {
    }
 
    launchComposer(): void {
-      if(!this.openComposerEnabled) {
+      if(!this.canLaunchComposer()) {
          return;
       }
 
@@ -397,6 +446,10 @@ export class PortalAppComponent implements OnInit, OnDestroy {
    }
 
    showListings(): void {
+      if(!this.canCreateDataSource()) {
+         return;
+      }
+
       let queryParams = {
          path: "/",
          scope: "0"

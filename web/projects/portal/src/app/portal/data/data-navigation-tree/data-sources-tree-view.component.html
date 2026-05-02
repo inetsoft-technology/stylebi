@@ -15,25 +15,60 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div #treeContainer class="flex-fixed-container h-100 tree-container"
-     [class.vscrollable-always]="scrollY > 0"
-     (scroll)="onScroll($event)">
-  <div class="flex-fixed-content content-overflow-all mt-2">
-    <tree #tree *ngIf="rootNode"
-          [root]="rootNode" [showRoot]="false"
+<div class="data-tree-shell">
+  <div class="data-tree-switch">
+    <button type="button"
+            class="data-tree-switch__button"
+            [class.data-tree-switch__button--active]="activeTreeSection === 'datasources'"
+            (click)="setActiveSection('datasources')">
+      _#(Data Sources)
+    </button>
+    <button type="button"
+            class="data-tree-switch__button"
+            [class.data-tree-switch__button--active]="activeTreeSection === 'worksheets'"
+            (click)="setActiveSection('worksheets')">
+      _#(Worksheets)
+    </button>
+  </div>
+  <div class="repository-tree-toolbar">
+    <div class="my-1 mx-1 search-container">
+      <input class="form-control form-control-sm" type="text" [(ngModel)]="searchString"
+             (ngModelChange)="searchStringChanged()"
+             placeholder="_#(Search)"
+             aria-label="_#(Search Data Tree)"
+             (keyup.enter)="search()">
+      <i *ngIf="searchString" class="close-icon icon-size-medium icon-color-default"
+         aria-hidden="true" (click)="resetSearchMode()"></i>
+    </div>
+    <ul class="nav nav-inline ms-auto">
+      <li class="nav-item">
+        <a class="nav-link nav-icon icon-size-medium p-2" (click)="search()" role="button"
+           title="_#(Search)" tabindex="0" aria-label="_#(Execute Search)" enterClick>
+          <i class="search-icon icon-size-medium icon-color-default" aria-hidden="true"></i>
+          <span class="visually-hidden">_#(Search)</span>
+        </a>
+      </li>
+    </ul>
+  </div>
+  <div #treeContainer class="flex-fixed-container h-100 tree-container"
+       [class.vscrollable-always]="scrollY > 0"
+       (scroll)="onScroll($event)">
+    <div class="flex-fixed-content content-overflow-all">
+    <tree #tree *ngIf="currentRootNode"
+          [root]="currentRootNode" [showRoot]="showCurrentRoot"
           [fillHeight]="true"
-          [initSelectedNodesExpanded]="true"
+          [initSelectedNodesExpanded]="false"
           [selectedNodes]="selectedNodes"
-          [isPortalDataSourcesTree]="true"
-          [draggable]="true"
+          [isRepositoryTree]="true"
+          [draggable]="!searchMode"
           [contextmenu]="true"
           [hasMenuFunction]="hasMenuFunction"
           [ellipsisOverflowText]="true"
           [showTooltip]="true"
           [selectOnClick]="true"
-          [multiSelect]="true"
+          [multiSelect]="!searchMode"
           (nodesSelected)="selectNode($event)"
-          (nodeExpanded)="expandNode($event)"
+          (nodeExpanded)="onExpandNode($event)"
           (nodeDrag)="onNodeDrag($event)"
           (nodeDrop)="onNodeDrop($event)"
           (onContextmenu)="contextMenu($event)"
@@ -43,5 +78,6 @@
       <i class="loading-icon--spin icon-size-xlarge loading-icon"></i>
     </div>
   </div>
+</div>
 </div>
 <data-notifications #dataNotifications></data-notifications>

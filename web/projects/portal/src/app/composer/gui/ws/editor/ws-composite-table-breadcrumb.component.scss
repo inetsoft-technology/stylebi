@@ -28,8 +28,8 @@
 //  background-color: transparent;
 
   &:focus {
-    box-shadow: none;
-    outline: none;
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
   }
 }
 

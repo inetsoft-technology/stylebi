@@ -27,7 +27,8 @@ import {
    styleUrls: ["./schedule-tab.component.scss"]
 })
 export class ScheduleTabComponent {
-   constructor(private aiAssistantService: AiAssistantService) {
+   constructor(private aiAssistantService: AiAssistantService)
+   {
       this.aiAssistantService.setContextTypeFieldValue(ContextType.SCHEDULE_TASK);
    }
 }

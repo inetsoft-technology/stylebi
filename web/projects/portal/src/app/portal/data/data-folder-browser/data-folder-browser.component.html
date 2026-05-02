@@ -16,129 +16,263 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div class="browser-container g-0 h-100 d-flex flex-row justify-content-start">
-  <div class="d-flex flex-column align-items-stretch p-0 h-100"
-       [class.col-12]="!selectedFile"
-       [ngClass]="{'col-6 col-sm-8 col-md-9' : !!selectedFile}">
-    <div class="btn-toolbar folder-action-toolbar bb-gray bg-white2 justify-content-end flex-grow-0 flex-shrink-0" role="toolbar">
-      <div class="d-flex align-items-center">
-        <div [hidden]="!searchVisible">
-          <input type="text" #searchInput
-                 [(ngModel)]="searchQuery"
-                 [placeholder]="'_#(data.datasets.searchWithinFolder)'"
-                 [ngbTypeahead]="searchFunc"
-                 [focusFirst]="false"
-                 (keyup.enter)="search()"
-                 (selectItem)="search($event.item)"/>
-        </div>
-        <div class="btn-group" role="group" ngbDropdown placement="bottom-right">
-          <i role="button" class="btn py-1 search-icon"
-             title="_#(data.datasets.searchWithinFolder)"
-             (click)="toggleSearch($event)">
-          </i>
-          <span class="d-none d-sm-inline-block">
-            <i role="button" class="btn py-1 new-worksheet-icon"
-               *ngIf="!selectionOn"
-               title="_#(New Worksheet)"
-               [class.disabled]="newWorksheetDisabled"
-               (click)="newWorksheet()">
-            </i>
-            <i role="button" class="btn py-1 folder-plus-icon"
-               *ngIf="!selectionOn"
-               title="_#(New Folder)"
-               [class.disabled]="!isFolderEditable"
-               (click)="addFolder()">
-            </i>
-            <i role="button" class="btn py-1 folder-move-icon"
-               *ngIf="selectionOn"
-               [class.disabled]="moveDisable"
-               (click)="moveSelected()"
-               title="_#(data.datasets.moveSelected)">
-            </i>
-            <i role="button" class="btn py-1 trash-icon"
-               *ngIf="selectionOn"
-               [class.disabled]="selectedItems.length === 0 || !isSelectionDeletable()"
-               (click)="deleteSelected()"
-               title="_#(data.datasets.deleteSelected)">
-            </i>
-            <i role="button" class="btn py-1"
-               [class.selected-icon]="selectionOn"
-               [class.select-empty-icon]="!selectionOn"
-               [title]="toggleSelectTooltip"
-               (click)="toggleSelectionState()">
-            </i>
-          </span>
-          <span class="d-sm-none">
-            <i role="button" class="btn py-1 menu-sandwich-icon no-caret"
-               title="_#(data.datasets.folderActions)"
-               ngbDropdownToggle>
-              <span class="visually-hidden">_#(data.datasets.folderActions)</span>
-            </i>
-            <div class="dropdown-menu" ngbDropdownMenu>
-              <button *ngIf="!selectionOn" class="dropdown-item"
-                      title="_#(New Worksheet)"
-                      [disabled]="newWorksheetDisabled"
-                      (click)="newWorksheet()">_#(New Worksheet)
-              </button>
-              <button *ngIf="!selectionOn" class="dropdown-item"
-                      title="_#(New Folder)"
-                      [disabled]="!isFolderEditable"
-                      (click)="addFolder()">_#(New Folder)
-              </button>
-              <button *ngIf="selectionOn" class="dropdown-item"
-                      title="_#(data.datasets.moveSelected)"
-                      (click)="moveSelected()">_#(Move)
-              </button>
-              <button *ngIf="selectionOn" class="dropdown-item"
-                      title="_#(data.datasets.deleteSelected)"
-                      (click)="deleteSelected()">_#(Delete)
-              </button>
-              <button class="dropdown-item"
-                      [title]="selectionOn ? '_#(data.datasets.selectOff)' : '_#(data.datasets.selectOn)'"
-                      [disabled]="!isFolderEditable"
-                      (click)="toggleSelectionState()">
-                      {{selectionOn ? '_#(data.datasets.selectOff)' : '_#(data.datasets.selectOn)'}}
-              </button>
+  <div class="folder-browser-shell d-flex align-items-stretch h-100 col-12" [class.p-0]="!!selectedFile">
+    <div class="folder-browser-main d-flex flex-column align-items-stretch p-0 h-100">
+      <ng-container *ngIf="!selectedFile; else worksheetDetails">
+        <div class="worksheet-workspace-header">
+          <div class="worksheet-workspace-heading">
+            <div class="worksheet-workspace-eyebrow">_#(Data Worksheets Folder)</div>
+            <div class="worksheet-workspace-title">
+              {{currentFolderPathString || '_#(Data Worksheets)'}}
             </div>
-          </span>
+            <div class="worksheet-workspace-subtitle">
+              <span *ngIf="searchView; else worksheetFolderContextLabel">
+                _#(data.datasets.searchResults): {{currentSearchQuery}}
+              </span>
+              <ng-template #worksheetFolderContextLabel>
+                _#(Browse and manage worksheets in the selected folder.)
+              </ng-template>
+            </div>
+          </div>
+          <div class="btn-toolbar worksheet-workspace-actions toolbar-ghost-actions" role="toolbar">
+            <div class="btn-group worksheet-workspace-btn-group" role="group" ngbDropdown placement="bottom-right">
+              <span class="d-none d-sm-inline-block">
+                <i role="button" class="btn py-1 new-worksheet-icon"
+                   title="_#(New Worksheet)"
+                   [class.disabled]="newWorksheetDisabled"
+                   (click)="newWorksheet()">
+                </i>
+                <i role="button" class="btn py-1 folder-plus-icon"
+                   title="_#(New Folder)"
+                   [class.disabled]="!isFolderEditable"
+                   (click)="addFolder()">
+                </i>
+              </span>
+              <span class="d-sm-none">
+                <i role="button" class="btn py-1 menu-sandwich-icon no-caret"
+                   title="_#(data.datasets.folderActions)"
+                   ngbDropdownToggle>
+                  <span class="visually-hidden">_#(data.datasets.folderActions)</span>
+                </i>
+                <div class="dropdown-menu" ngbDropdownMenu>
+                  <button class="dropdown-item"
+                          title="_#(New Worksheet)"
+                          [disabled]="newWorksheetDisabled"
+                          (click)="newWorksheet()">_#(New Worksheet)
+                  </button>
+                  <button class="dropdown-item"
+                          title="_#(New Folder)"
+                          [disabled]="!isFolderEditable"
+                          (click)="addFolder()">_#(New Folder)
+                  </button>
+                  <button *ngIf="currentFolderActionsVisible" class="dropdown-item"
+                          title="_#(Rename)"
+                          [disabled]="currentFolderRenameDisabled"
+                          (click)="renameCurrentFolder()">_#(Rename)
+                  </button>
+                  <button *ngIf="currentFolderActionsVisible" class="dropdown-item"
+                          title="_#(Delete)"
+                          [disabled]="currentFolderDeleteDisabled"
+                          (click)="deleteCurrentFolder()">_#(Delete)
+                  </button>
+                </div>
+              </span>
+            </div>
+            <div class="btn-group worksheet-workspace-btn-group" role="group" *ngIf="currentFolderActionsVisible">
+              <i role="button" class="btn py-1 view-detail-meta-icon"
+                 title="_#(Rename)"
+                 [class.disabled]="currentFolderRenameDisabled"
+                 (click)="renameCurrentFolder()">
+              </i>
+              <i role="button" class="btn py-1 trash-icon"
+                 title="_#(Delete)"
+                 [class.disabled]="currentFolderDeleteDisabled"
+                 (click)="deleteCurrentFolder()">
+              </i>
+            </div>
+          </div>
         </div>
-      </div>
+        <div class="d-flex flex-column align-items-stretch flex-grow-1 flex-shrink-1 overflow-hidden">
+          <div class="worksheet-search-banner" *ngIf="searchView">
+            <i class="close-circle-icon icon-size-small action-style me-1" (click)="clearSearch()"></i>
+            <span>
+              <b>_#(data.datasets.searchResults):</b> {{currentSearchQuery}} <b>_#(data.datasets.searchIn)</b> {{searchDestination || '/'}}
+            </span>
+          </div>
+          <data-folder-list-view [assets]="viewAssets"
+                                 [searchView]="searchView"
+                                 [selectedItems]="selectedItems"
+                                 [selectionOn]="selectionOn"
+                                 [selectAllChecked]="selectAllChecked"
+                                 [sortOptions]="searchView ? searchSortOptions : sortOptions"
+                                 [selectedFile]="selectedFile"
+                                 [folderPathLength]="currentFolderPath.length"
+                                 [foldersInView]="folders.length"
+                                 (sortChanged)="sortView()"
+                                 (openAsset)="openFolder($event)"
+                                 (renameAsset)="renameAsset($event)"
+                                 (moveAsset)="moveAsset($event)"
+                                 (deleteAsset)="deleteAsset($event)"
+                                 (editWorksheet)="editWorksheet($event)"
+                                 (showDetails)="selectFile($event)"
+                                 (materializeAsset)="materializeAsset($event)"
+                                 (selectAllChanged)="selectAllChanged($event)"
+                                 (selectChanged)="selectChanged($event)"
+                                 (dragAssets)="dragAssets($event)"
+                                 (assetsDroped)="assetsDroped($event)">
+          </data-folder-list-view>
+        </div>
+      </ng-container>
+      <ng-template #worksheetDetails>
+        <div class="description-scroll-container worksheet-detail-shell">
+          <div class="worksheet-detail-layout">
+            <section class="worksheet-detail-hero">
+              <div class="btn-toolbar worksheet-detail-actions toolbar-ghost-actions" role="toolbar">
+                <div class="btn-group worksheet-detail-actions__group" role="group">
+                  <i role="button" class="btn py-1 edit-icon"
+                     title="_#(Edit)"
+                     [class.disabled]="!canEditSelectedWorksheet"
+                     (click)="editSelectedWorksheet()">
+                  </i>
+                  <i role="button" class="btn py-1 view-detail-meta-icon"
+                     title="_#(Rename)"
+                     [class.disabled]="!canRenameSelectedWorksheet"
+                     (click)="renameSelectedWorksheet()">
+                  </i>
+                  <i role="button" class="btn py-1 folder-move-icon"
+                     title="_#(Move)"
+                     [class.disabled]="!canMoveSelectedWorksheet"
+                     (click)="moveSelectedWorksheet()">
+                  </i>
+                  <i role="button" class="btn py-1 trash-icon"
+                     title="_#(Delete)"
+                     [class.disabled]="!canDeleteSelectedWorksheet"
+                     (click)="deleteSelectedWorksheet()">
+                  </i>
+                </div>
+              </div>
+              <div class="worksheet-detail-hero__copy">
+                <div class="worksheet-detail-hero__eyebrow">_#(Worksheet)</div>
+                <h1 class="worksheet-detail-hero__title">{{selectedFile.name}}</h1>
+                <div *ngIf="selectedFile.description" class="worksheet-detail-hero__description">
+                  {{selectedFile.description}}
+                </div>
+              </div>
+            </section>
+
+            <section class="worksheet-detail-section">
+              <div class="worksheet-detail-section__title">_#(Overview)</div>
+              <div class="worksheet-detail-overview-grid">
+                <div class="worksheet-detail-overview-item">
+                  <div class="worksheet-detail-overview-item__label">_#(data.datasources.creationDate)</div>
+                  <div class="worksheet-detail-overview-item__value">
+                    <ng-container *ngIf="selectedFile.createdDateLabel; else noCreationDate">
+                      {{selectedFile.createdDateLabel}}
+                    </ng-container>
+                    <ng-template #noCreationDate>_#(None)</ng-template>
+                  </div>
+                </div>
+                <div class="worksheet-detail-overview-item">
+                  <div class="worksheet-detail-overview-item__label">_#(Creation By)</div>
+                  <div class="worksheet-detail-overview-item__value">
+                    <ng-container *ngIf="selectedFile.createdBy; else noCreator">
+                      {{selectedFile.createdBy}}
+                    </ng-container>
+                    <ng-template #noCreator>_#(None)</ng-template>
+                  </div>
+                </div>
+                <div class="worksheet-detail-overview-item">
+                  <div class="worksheet-detail-overview-item__label">_#(Last Modified)</div>
+                  <div class="worksheet-detail-overview-item__value">
+                    <ng-container *ngIf="selectedFile.modifiedDateLabel; else noModifiedDate">
+                      {{selectedFile.modifiedDateLabel}}
+                    </ng-container>
+                    <ng-template #noModifiedDate>_#(None)</ng-template>
+                  </div>
+                </div>
+                <div class="worksheet-detail-overview-item">
+                  <div class="worksheet-detail-overview-item__label">_#(Primary Fields)</div>
+                  <div class="worksheet-detail-overview-item__value">{{primaryBlock?.fields?.length || 0}}</div>
+                </div>
+                <div class="worksheet-detail-overview-item">
+                  <div class="worksheet-detail-overview-item__label">_#(Root Inputs)</div>
+                  <div class="worksheet-detail-overview-item__value">{{rootBlocks.length}}</div>
+                </div>
+                <div class="worksheet-detail-overview-item">
+                  <div class="worksheet-detail-overview-item__label">_#(Used By)</div>
+                  <div class="worksheet-detail-overview-item__value">{{usedBy.length}}</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="worksheet-detail-section">
+              <div class="worksheet-detail-section__title">_#(Transformation Summary)</div>
+              <div *ngIf="loadingWorksheetDetails" class="worksheet-detail-empty">_#(Loading)</div>
+              <div *ngIf="!loadingWorksheetDetails && !transformationSummary" class="worksheet-detail-empty">_#(None)</div>
+              <div *ngIf="transformationSummary" class="worksheet-detail-summary">
+                {{transformationSummary}}
+              </div>
+            </section>
+
+            <div class="worksheet-detail-grid">
+              <section class="worksheet-detail-section worksheet-detail-card">
+                <div class="worksheet-detail-section__title">_#(Primary Data Block)</div>
+                <div *ngIf="loadingWorksheetDetails" class="worksheet-detail-empty">_#(Loading)</div>
+                <div *ngIf="!loadingWorksheetDetails && !primaryBlock" class="worksheet-detail-empty">_#(None)</div>
+                <div *ngIf="primaryBlock" class="worksheet-block-card worksheet-block-card--primary worksheet-block-card--flush">
+                  <div class="worksheet-block-card__header">
+                    <div class="worksheet-block-card__title">{{primaryBlock.name}}</div>
+                    <div class="worksheet-block-card__badge">{{primaryBlock.fields?.length || 0}} Fields</div>
+                  </div>
+                  <div *ngIf="primaryBlock.fields?.length" class="worksheet-field-chip-list">
+                    <div *ngFor="let field of primaryBlock.fields" class="worksheet-field-chip">
+                      <span class="worksheet-field-chip__name">{{field.name}}</span>
+                      <span class="worksheet-field-chip__type">{{getRootBlockFieldType(field)}}</span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="worksheet-detail-section worksheet-detail-card">
+                <div class="worksheet-detail-section__title">_#(Used By)</div>
+                <div *ngIf="loadingWorksheetDetails" class="worksheet-detail-empty">_#(Loading)</div>
+                <div *ngIf="!loadingWorksheetDetails && usedBy.length === 0" class="worksheet-detail-empty">_#(None)</div>
+                <div *ngFor="let asset of usedBy" class="worksheet-dependent-asset-item">
+                  <div class="worksheet-dependent-asset-item__header">
+                    <div class="worksheet-dependent-asset-name">{{asset.name}}</div>
+                    <div class="worksheet-dependent-asset-meta">{{getDependentAssetTypeLabel(asset)}}</div>
+                  </div>
+                  <div class="worksheet-dependent-asset-path">{{asset.path}}</div>
+                </div>
+              </section>
+            </div>
+
+            <section class="worksheet-detail-section">
+              <div class="worksheet-detail-section__title">_#(Root Data Blocks)</div>
+              <div *ngIf="loadingWorksheetDetails" class="worksheet-detail-empty">_#(Loading)</div>
+              <div *ngIf="!loadingWorksheetDetails && rootBlocks.length === 0" class="worksheet-detail-empty">_#(None)</div>
+              <div *ngIf="rootBlocks.length > 0" class="worksheet-root-block-grid">
+                <div *ngFor="let block of rootBlocks" class="worksheet-block-card">
+                  <div class="worksheet-block-card__header">
+                    <div>
+                      <div class="worksheet-block-card__title">{{block.name}}</div>
+                      <div class="worksheet-block-card__subtitle">{{getRootBlockLabel(block)}}</div>
+                    </div>
+                    <div class="worksheet-block-card__pill">{{getRootBlockMeta(block)}}</div>
+                  </div>
+                  <div *ngIf="block.fields?.length" class="worksheet-field-chip-list">
+                    <div *ngFor="let field of block.fields" class="worksheet-field-chip">
+                      <span class="worksheet-field-chip__name">{{field.name}}</span>
+                      <span class="worksheet-field-chip__type">{{getRootBlockFieldType(field)}}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </ng-template>
     </div>
-    <div class="d-flex flex-column align-items-stretch flex-grow-1 flex-shrink-1 overflow-hidden">
-      <div class="d-flex align-items-center ps-1 py-1" *ngIf="searchView">
-        <i class="close-circle-icon icon-size-small action-style me-1" (click)="clearSearch()"></i>
-        <span>
-          <b>_#(data.datasets.searchResults):</b> {{currentSearchQuery}} <b>_#(data.datasets.searchIn)</b> {{searchDestination || '/'}}
-        </span>
-      </div>
-      <data-folder-list-view [assets]="viewAssets"
-                             [searchView]="searchView"
-                             [selectedItems]="selectedItems"
-                             [selectionOn]="selectionOn"
-                             [selectAllChecked]="selectAllChecked"
-                             [sortOptions]="searchView ? searchSortOptions : sortOptions"
-                             [selectedFile]="selectedFile"
-                             [folderPathLength]="currentFolderPath.length"
-                             [foldersInView]="folders.length"
-                             (sortChanged)="sortView()"
-                             (openAsset)="openFolder($event)"
-                             (renameAsset)="renameAsset($event)"
-                             (moveAsset)="moveAsset($event)"
-                             (deleteAsset)="deleteAsset($event)"
-                             (editWorksheet)="editWorksheet($event)"
-                             (showDetails)="selectFile($event)"
-                             (materializeAsset)="materializeAsset($event)"
-                             (selectAllChanged)="selectAllChanged($event)"
-                             (selectChanged)="selectChanged($event)"
-                             (dragAssets)="dragAssets($event)"
-                             (assetsDroped)="assetsDroped($event)">
-      </data-folder-list-view>
-    </div>
-  </div>
-  <div class="flex h-100 col-6 col-sm-4 col-md-3 p-0" *ngIf="!!selectedFile">
-    <asset-description [selectedFile]="selectedFile"
-                       [isWorksheet]="true"
-                       (onClose)="selectFile(null)">
-    </asset-description>
   </div>
 </div>
 <data-notifications #dataNotifications></data-notifications>

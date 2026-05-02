@@ -261,6 +261,21 @@ public class DataSetController {
       return dataSetService.getFolder(name, scope.orElse(AssetRepository.GLOBAL_SCOPE), principal);
    }
 
+   @GetMapping("api/portal/data/worksheet/root-blocks")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
+   public WorksheetRootBlocksSummary getWorksheetRootBlocks(@RequestParam("path") String path,
+                                                            @RequestParam(value = "scope") Optional<Integer> scope,
+                                                            Principal principal)
+      throws Exception
+   {
+      return dataSetService.getWorksheetRootBlocks(path,
+         scope.orElse(AssetRepository.GLOBAL_SCOPE), principal);
+   }
+
    /**
     * Moves a folder to a different parent folder.
     *

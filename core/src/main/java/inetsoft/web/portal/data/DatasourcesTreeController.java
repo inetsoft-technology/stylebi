@@ -24,8 +24,8 @@ import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
 import java.security.Principal;
 
 @RestController
@@ -43,6 +43,19 @@ public class DatasourcesTreeController {
    ))
    public TreeNodeModel getDataNavigationTree(Principal principal) throws Exception {
       return datasourcesTreeService.getRoot(principal);
+   }
+
+   @GetMapping("api/portal/data/tree/search")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
+   public TreeNodeModel searchDataNavigationTree(@RequestParam("searchString") String searchString,
+                                                 Principal principal)
+      throws Exception
+   {
+      return datasourcesTreeService.search(searchString, principal);
    }
 
    private final DatasourcesTreeService datasourcesTreeService;

@@ -15,7 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<w-standard-dialog [title]="isNew ? '_#(New Pin)' : '_#(Edit Dashboard)'"
+<w-standard-dialog [title]="isNew ? '_#(New Pin)' : '_#(Edit Pinboard)'"
                    (onClose)="closeDialog()"
                    [cshid]="'DeployingDashboard'"
                    [submitOnEnter]="isValid"
@@ -26,10 +26,10 @@
         <div class="form-group form-row one-col-form-flex" *ngIf="nameControl">
           <div class="form-floating col">
             <input class="form-control dashboard_name_id" type="text" trim [(ngModel)]="name" [formControl]="nameControl"
-                   placeholder="_#(Dashboard Name)"
+                   placeholder="_#(Pin Name)"
                    defaultFocus [autoSelect]="false" aria-required="true"
                    [class.is-invalid]="!nameControl.valid && nameControl.dirty">
-            <label>_#(Dashboard Name)</label>
+            <label>_#(Pin Name)</label>
             <span class="invalid-feedback" *ngIf="nameControl.getError('required')">
               _#(enter.name)
             </span>

@@ -20,24 +20,24 @@
   <div class="col-1"></div>
   <div class="col ps-0">{{fieldListLabel}}</div>
   <div class="col-auto pe-0 query-toolbar-btn" title="_#(Move Up)">
-    <i class="icon-size-medium shape-arrow-up-bold-icon txt-secondary"
+    <i class="icon-size-medium shape-arrow-up-bold-icon action-color"
        [class.icon-disabled]="isUpDisabled()" (click)="moveUp()">
     </i>
   </div>
   <div class="col-auto ps-2 pe-0 query-toolbar-btn" title="_#(Move Down)">
-    <i class="icon-size-medium shape-arrow-down-bold-icon txt-secondary"
+    <i class="icon-size-medium shape-arrow-down-bold-icon action-color"
        [class.icon-disabled]="isDownDisabled()" (click)="moveDown()">
     </i>
   </div>
   <ng-container *ngIf="!grouping">
     <div class="col-auto ps-2 pe-0 query-toolbar-btn" title="_#(Browse Data)">
-      <i class="icon-size-medium value-list-icon txt-secondary"
+      <i class="icon-size-medium value-list-icon action-color"
          [class.icon-disabled]="!selectedField || selectedFieldIndexes?.length > 1"
          (click)="browseColumnData()">
       </i>
     </div>
     <div class="col-auto ps-2 query-toolbar-btn" title="_#(Order)">
-      <i class="icon-size-medium sort-icon txt-secondary"
+      <i class="icon-size-medium sort-icon action-color"
          [class.icon-disabled]="!selectedField" (click)="changeOrder()">
       </i>
     </div>
@@ -78,7 +78,7 @@
              (mousedown)="selectField($event, i)"
              (dblclick)="removeField(i)"
              [class.selected]="isSelectedField(i)">
-          <i *ngIf="!grouping" class="icon-size-medium txt-secondary" [ngClass]="getOrderIcon(i)"></i>
+          <i *ngIf="!grouping" class="icon-size-medium action-color" [ngClass]="getOrderIcon(i)"></i>
           {{ field }}
         </div>
       </ng-container>

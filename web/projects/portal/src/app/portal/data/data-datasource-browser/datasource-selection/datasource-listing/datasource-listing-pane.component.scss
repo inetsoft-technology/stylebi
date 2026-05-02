@@ -18,3 +18,38 @@
 :host {
   display: block;
 }
+
+.datasource-listing-pane__header {
+  margin-bottom: var(--inet-space-4);
+}
+
+.datasource-listing-pane__eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--inet-text-muted-color);
+}
+
+.datasource-listing-pane__title {
+  margin-top: var(--inet-space-1);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--inet-text-color);
+}
+
+.datasource-listing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(164px, 1fr));
+  gap: var(--inet-space-4);
+}
+
+.datasource-listing-grid__item {
+  min-width: 0;
+}
+
+.datasource-listing-grid__empty {
+  margin: 0;
+  color: var(--inet-text-muted-color);
+}

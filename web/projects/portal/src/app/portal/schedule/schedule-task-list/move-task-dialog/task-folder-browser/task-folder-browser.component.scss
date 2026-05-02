@@ -15,11 +15,64 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.list-group.files-browser {
+.task-folder-browser {
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-md);
+  background-color: var(--inet-main-panel-bg-color);
+  overflow: hidden;
+}
+
+.task-folder-browser__breadcrumb {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--inet-default-border-color);
+  background-color: var(--inet-toolbar-bg-color);
+
+  .breadcrumb {
+    color: var(--inet-text-color);
+    font-size: 12px;
+  }
+
+  .breadcrumb-item + .breadcrumb-item::before {
+    color: var(--inet-text-secondary-color, var(--inet-text-color));
+  }
+
+  .breadcrumb-item.active {
+    color: var(--inet-text-color);
+    font-weight: 400;
+  }
+}
+
+.files-browser {
   overflow-y: auto;
-  // Note: same height as used in previous agile
   height: 28vh;
   display: block;
   cursor: default;
+  padding: 6px;
+  background-color: var(--inet-main-panel-bg-color);
+}
+
+.files-browser__item {
+  display: block;
+  padding: 8px 10px;
+  border-radius: var(--inet-radius-sm);
+  color: var(--inet-text-color);
+  transition: background-color 120ms ease;
+
+  &:hover {
+    background-color: var(--inet-hover-primary-bg-color);
+  }
+}
+
+.files-browser__item--parent {
+  margin-bottom: 4px;
+}
+
+.files-browser__item--selected {
+  background-color: var(--inet-hover-primary-bg-color);
+  color: var(--inet-text-color);
+}
+
+.files-browser__row {
+  gap: 12px;
 }
 

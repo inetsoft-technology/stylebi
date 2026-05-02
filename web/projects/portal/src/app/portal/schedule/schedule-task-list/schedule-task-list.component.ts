@@ -18,6 +18,7 @@
 import { HttpClient, HttpParams } from "@angular/common/http";
 import {
    AfterContentChecked,
+   AfterViewInit,
    Component,
    ElementRef,
    OnDestroy,
@@ -64,6 +65,7 @@ import { EditTaskFolderDialogModel } from "../../../../../../em/src/app/settings
 import { GuiTool } from "../../../common/util/gui-tool";
 import { DragService } from "../../../widget/services/drag.service";
 import { TreeComponent } from "../../../widget/tree/tree.component";
+import { SplitPane } from "../../../widget/split-pane/split-pane.component";
 import { NewTaskFolderEvent } from "../model/new-task-folder-event";
 import { CheckTaskDuplicateRequest } from "../../data/commands/check-task-duplicate-request";
 import { CheckDuplicateResponse } from "../../data/commands/check-duplicate-response";
@@ -90,8 +92,23 @@ const GET_TASK_FOLDER_EDIT_MODEL_URI = "../api/portal/schedule/folder/editModel"
 const CHECK_MOVE_DUPLICATE_URI: string = "../api/portal/schedule/move/checkDuplicate";
 const CHECK_ADD_DUPLICATE_URI: string = "../api/portal/schedule/add/checkDuplicate";
 const CHECK_ROOT_PERMISSION_URI = "../api/portal/schedule/folder/checkRootPermission";
+const SCHEDULER_HEALTH_URI = "../api/portal/schedule/health";
 const SYSTEM_USER = "INETSOFT_SYSTEM";
 declare const window: any;
+
+interface PortalSchedulerHealthModel {
+   available: boolean;
+   healthy: boolean;
+   started: boolean;
+   shutdown: boolean;
+   standby: boolean;
+   lastCheck: number;
+   nextCheck: number;
+   executingCount: number;
+   threadCount: number;
+   statusLabel: string;
+   detailMessage?: string;
+}
 
 @Component({
    selector: "p-schedule-task-list",
@@ -99,8 +116,9 @@ declare const window: any;
    styleUrls: ["./schedule-task-list.component.scss"],
    providers: [ScheduleChangeService]
 })
-export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterContentChecked {
+export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterContentChecked, AfterViewInit {
    @ViewChild("tree") tree: TreeComponent;
+   @ViewChild(SplitPane) splitPane: SplitPane;
    tasks: ScheduleTaskModel[] = [];
    originalOrder: string[] = [];
    sortType: any;
@@ -114,13 +132,17 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
    _selectAllChecked: boolean = false;
    selectedItems: string[] = [];
    loading = false;
+   schedulerHealthLoading = false;
    noRootPermission: boolean = false;
    dateFormat: string = "YYYY-MM-DD HH:mm:ss";
    securityEnabled: boolean;
+   schedulerHealth: PortalSchedulerHealthModel;
 
    private subscriptions: Subscription;
 
    INIT_TREE_PANE_SIZE = 0;
+   treePaneSize: number = 20;
+   private inited = false;
 
    constructor(private http: HttpClient, private router: Router,
                private route: ActivatedRoute,
@@ -156,9 +178,13 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
 
       this.http.get(CHANGE_SHOW_TYPE_URI).subscribe((showTasksAsList) => {
          this.showTasksAsList = <boolean> showTasksAsList;
+         this.INIT_TREE_PANE_SIZE = this.showTasksAsList ? 0 : this.treePaneSize;
+
+         if(this.inited) {
+            this.updateTaskTreePane();
+         }
 
          if(!this.showTasksAsList) {
-            this.INIT_TREE_PANE_SIZE = 20;
             this.loadTaskFolderTree();
          }
          else {
@@ -169,6 +195,56 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
       this.http.get(CHECK_ROOT_PERMISSION_URI).subscribe((rootPermission: boolean) => {
          this.noRootPermission = !rootPermission;
       });
+
+      this.refreshSchedulerHealth();
+   }
+
+   get showSchedulerHealth(): boolean {
+      return !!this.schedulerHealth;
+   }
+
+   get schedulerHealthPillClass(): string {
+      if(!this.schedulerHealth?.available || this.schedulerHealth?.shutdown) {
+         return "is-unavailable";
+      }
+
+      if(!this.schedulerHealth?.healthy) {
+         return "is-warning";
+      }
+
+      return "is-ready";
+   }
+
+   refreshSchedulerHealth(): void {
+      this.schedulerHealthLoading = true;
+      this.http.get<PortalSchedulerHealthModel>(SCHEDULER_HEALTH_URI)
+         .subscribe(
+            (health) => {
+               this.schedulerHealth = health;
+               this.schedulerHealthLoading = false;
+            },
+            () => {
+               this.schedulerHealth = {
+                  available: false,
+                  healthy: false,
+                  started: false,
+                  shutdown: false,
+                  standby: false,
+                  lastCheck: 0,
+                  nextCheck: 0,
+                  executingCount: 0,
+                  threadCount: 0,
+                  statusLabel: "Unavailable",
+                  detailMessage: "Scheduler health could not be retrieved."
+               };
+               this.schedulerHealthLoading = false;
+            }
+         );
+   }
+
+   ngAfterViewInit(): void {
+      this.inited = true;
+      this.updateTaskTreePane();
    }
 
    ngOnDestroy(): void {
@@ -181,6 +257,10 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
    get currentFolder(): AssetEntry {
       if(!this.showTasksAsList && this.selectedNodes.length > 0) {
          return this.selectedNodes[0].data;
+      }
+
+      if(!this.showTasksAsList && !!this.rootNode) {
+         return this.rootNode.data;
       }
 
       return null;
@@ -250,11 +330,42 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
 
    changeShowType(value: boolean): void {
       this.showTasksAsList = value;
-      this.INIT_TREE_PANE_SIZE = this.showTasksAsList ? 0 : 20;
+      this.INIT_TREE_PANE_SIZE = this.showTasksAsList ? 0 : this.treePaneSize;
+      this.updateTaskTreePane();
       let params = new HttpParams().set("showTasksAsList", this.showTasksAsList + "");
       this.http.put(CHANGE_SHOW_TYPE_URI, null, {params}).subscribe(() => {
          this.loadTasks();
       });
+   }
+
+   updateTaskTreePane(): void {
+      if(!this.splitPane) {
+         return;
+      }
+
+      if(this.showTasksAsList) {
+         this.splitPane.collapse(0);
+      }
+      else {
+         this.splitPane.setSizes([this.treePaneSize, 100 - this.treePaneSize]);
+      }
+   }
+
+   splitPaneDragEnd(): void {
+      this.treePaneSize = this.splitPane.getSizes()[0];
+
+      if(this.treePaneSize > 1) {
+         if(this.showTasksAsList) {
+            this.changeShowType(false);
+         }
+      }
+      else {
+         if(!this.showTasksAsList) {
+            this.changeShowType(true);
+         }
+
+         this.treePaneSize = 20;
+      }
    }
 
    initTaskList(list: ScheduleTaskList) {
@@ -556,7 +667,6 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
    @HostListener("window:resize", ["$event"])
    onResize(event) {
       this.tableHeight = this.element.nativeElement.offsetHeight - 140;
-      this.treeHeight = this.element.nativeElement.offsetHeight - 80;
    }
 
    public loadTaskFolderTree(selectedPaths?: string[]): void {
@@ -568,11 +678,10 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
              this.selectFolderByPath(selectedPaths);
 
              if(this.selectedNodes == null || this.selectedNodes.length == 0) {
-                this.selectedNodes = [this.rootNode];
                 this.navigateToPath();
-             }
-             else if(selectedPaths && selectedPaths.length > 0 && this.selectedNodes
-                && this.selectedNodes.length > 0)
+              }
+              else if(selectedPaths && selectedPaths.length > 0 && this.selectedNodes
+                 && this.selectedNodes.length > 0)
              {
                 this.loadTasks();
              }
@@ -756,38 +865,41 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
    }
 
    public navigateToPath(): void {
-      if(this.selectedNodes != null && this.selectedNodes.length > 0 && this.path != null) {
-         if(this.path == "/") {
-            this.selectNode([this.rootNode]);
-         }
-         else {
-            let pathNodes = this.path.split("/");
-            let currentNode = this.rootNode;
+      if(!this.rootNode || this.path == null) {
+         return;
+      }
 
-            for(let nodeName of pathNodes) {
-               let children = currentNode.children;
-               let found = false;
+      if(this.path == "/") {
+         this.selectedNodes = [];
+         this.loadTasks();
+         return;
+      }
 
-               for(let child of children) {
-                  let childName = child.data.path.substr(child.data.path.lastIndexOf("/") + 1);
+      let pathNodes = this.path.split("/");
+      let currentNode = this.rootNode;
 
-                  if(childName == nodeName) {
-                     currentNode = child;
-                     children = currentNode.children;
-                     found = true;
-                     break;
-                  }
-               }
+      for(let nodeName of pathNodes) {
+         let children = currentNode.children;
+         let found = false;
 
-               if(!found) {
-                  currentNode = this.rootNode;
-                  break;
-               }
+         for(let child of children) {
+            let childName = child.data.path.substr(child.data.path.lastIndexOf("/") + 1);
+
+            if(childName == nodeName) {
+               currentNode = child;
+               children = currentNode.children;
+               found = true;
+               break;
             }
+         }
 
-            this.selectNode([currentNode]);
+         if(!found) {
+            currentNode = this.rootNode;
+            break;
          }
       }
+
+      this.selectNode(currentNode === this.rootNode ? [] : [currentNode]);
    }
 
    private getTaskModel(task: ScheduleTaskModel): ScheduleTaskModel {

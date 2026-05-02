@@ -20,8 +20,9 @@
   white-space: pre-line;
 }
 
-.text-info {
+.message-dialog__text {
   max-height: 50vh;
   overflow: auto;
   word-break: break-word;
+  color: var(--inet-text-color);
 }

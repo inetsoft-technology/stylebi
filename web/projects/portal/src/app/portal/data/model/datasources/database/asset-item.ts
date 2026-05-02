@@ -19,6 +19,7 @@ export interface AssetItem {
    type: string;
    id: string;
    path: string;
+   scope?: number;
    urlPath: string;
    name: string;
    createdBy: string;
