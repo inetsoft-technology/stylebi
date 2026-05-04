@@ -44,6 +44,10 @@ export class AssistantWebSocketService {
       this.assistantApiService.getWsToken().subscribe({
          next: ({ token }) => {
             const base = this.aiAssistantService.chatAppServerUrl.replace(/\/$/, "");
+            // The WS handshake does not support custom headers, so the one-time token
+            // must be passed as a URL query parameter. The token is short-lived and
+            // single-use, which limits exposure. WS endpoint access logs should be
+            // treated with the same care as auth logs.
             const wsUrl = base.replace(/^http/, "ws") +
                `/ws?clientId=${this.assistantApiService.clientId}&token=${token}`;
             this.ws = new WebSocket(wsUrl);

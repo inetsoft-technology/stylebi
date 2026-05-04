@@ -129,26 +129,9 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
       }
 
       // If AiAssistantService.userId is not yet populated (loadCurrentUser() may not
-      // have been called before the panel opened), extract identity from the JWT payload.
-      // The token was just verified server-side so decoding the payload is safe.
-      if(!this.aiAssistantService.userId) {
-         try {
-            // JWTs use Base64URL encoding — normalize to standard Base64 before atob().
-            const base64url = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-            const payload = JSON.parse(atob(base64url));
-
-            if(payload.sub) {
-               this.aiAssistantService.userId = payload.sub;
-            }
-
-            if(payload.email && !this.aiAssistantService.email) {
-               this.aiAssistantService.email = payload.email;
-            }
-         }
-         catch {
-            // ignore malformed token — userId stays empty, backend will reject if needed
-         }
-      }
+      // have been called before the panel opened), fall back to extracting identity
+      // from the JWT payload. The token was just verified server-side so decoding is safe.
+      this.aiAssistantService.setIdentityFromToken(token);
 
       // Subscribe to context changes while the panel is open.
       this.aiAssistantService.contextChange$
@@ -263,6 +246,8 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
 
          if(conv) {
             conv.sessionName = event.name;
+            // New array reference so the pure SessionNamePipe and OnPush sidebar re-evaluate.
+            this.conversations = [...this.conversations];
             this.cdRef.markForCheck();
          }
       }
@@ -393,7 +378,9 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
       }
       catch(err: any) {
          if(err?.name !== "AbortError") {
-            // Remove the optimistically added message on failure.
+            // If createMessage() threw (before tempId was replaced), this removes the
+            // optimistic user bubble. If the stream itself failed, the message was already
+            // persisted so the filter is a no-op — the user bubble is intentionally kept.
             this.messages = this.messages.filter(m => m._id !== tempId);
             this.isStreaming = false;
             this.streamingText = "";
@@ -475,7 +462,7 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
 
       this.messages = this.messages.filter((_, i) => i !== lastAssistantIdx && i !== lastUserIdx);
 
-      await this.sendMessage(lastUserMessage.message as string);
+      await this.sendMessage(lastUserMessage.message);
    }
 
    openDisapproveDialog(message: Message): void {

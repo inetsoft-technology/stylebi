@@ -130,6 +130,33 @@ export class AiAssistantService {
       this._contextChange$.next();
    }
 
+   /**
+    * Fallback identity population for contexts where loadCurrentUser() hasn't run yet.
+    * Decodes the JWT payload and sets userId/email only if they are not already set.
+    * JWTs use Base64URL encoding — replace - and _ before atob().
+    */
+   setIdentityFromToken(token: string): void {
+      if(this.userId) {
+         return;
+      }
+
+      try {
+         const base64url = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+         const payload = JSON.parse(atob(base64url));
+
+         if(payload.sub) {
+            this.userId = payload.sub;
+         }
+
+         if(payload.email && !this.email) {
+            this.email = payload.email;
+         }
+      }
+      catch {
+         // ignore malformed token — userId stays empty, backend will reject if needed
+      }
+   }
+
    loadCurrentUser(em: boolean = false): void {
       const user$ = em
          ? this.currentUserService.getEmCurrentUser()

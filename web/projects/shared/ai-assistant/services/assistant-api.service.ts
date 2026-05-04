@@ -174,11 +174,10 @@ export class AssistantApiService {
    uploadFiles(files: File[]): Observable<{ urls: { url: string; name: string }[] }> {
       const formData = new FormData();
       files.forEach(f => formData.append("files", f));
-      // Omit Content-Type — browser sets it with the multipart boundary.
-      const h = new HttpHeaders({ "x-client-id": this.clientId });
-      const withAuth = this.authToken ? h.set("Authorization", `Bearer ${this.authToken}`) : h;
+      // Pass the standard auth headers. Content-Type is intentionally omitted so the
+      // browser can set it with the correct multipart boundary.
       return this.http.post<{ urls: { url: string; name: string }[] }>(
-         this.apiUrl("/upload/files"), formData, { headers: withAuth });
+         this.apiUrl("/upload/files"), formData, { headers: this.headers() });
    }
 
    /**

@@ -81,6 +81,12 @@ export class AssistantInputAreaComponent {
       }
 
       this.inputText = "";
+      const el = this.textareaRef?.nativeElement;
+
+      if(el) {
+         el.style.height = "auto";
+      }
+
       this.send.emit(text);
    }
 
