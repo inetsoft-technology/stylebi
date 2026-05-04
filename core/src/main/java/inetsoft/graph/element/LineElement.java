@@ -41,7 +41,7 @@ import java.util.*;
 @TernClass(url = "#cshid=LineElement")
 public class LineElement extends StackableElement {
    public enum Type {
-      STRAIGHT, STEP, JUMP
+      STRAIGHT, STEP, JUMP, CURVED
    }
 
    /**

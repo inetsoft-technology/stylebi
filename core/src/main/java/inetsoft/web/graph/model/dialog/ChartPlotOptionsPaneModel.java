@@ -112,6 +112,7 @@ public class ChartPlotOptionsPaneModel {
       this.applyAestheticsToSourceVisible = GraphTypes.isRelation(info.getChartType());
       this.wordCloud = GraphTypeUtil.isWordCloud(info);
       this.fillGapWithDashVisible = isFillGapWithDashVisible(info, plotDesc);
+      this.smoothLinesVisible = isSmoothLinesVisible(info);
       this.pieRatio = plotDesc.getPieRatio() > 0 ? plotDesc.getPieRatio() : null;
       this.barCornerRadius = plotDesc.getBarCornerRadius() > 0
          ? plotDesc.getBarCornerRadius() : null;
@@ -142,6 +143,14 @@ public class ChartPlotOptionsPaneModel {
    public static boolean isFillGapWithDashVisible(ChartInfo info, PlotDescriptor plot) {
       return GraphTypeUtil.isChartType(info, true, a -> GraphTypes.isLine(a) || GraphTypes.isRadar(a))
          || GraphTypeUtil.isChartType(info, true, GraphTypes::isPoint) && plot.isPointLine();
+   }
+
+   public static boolean isSmoothLinesVisible(ChartInfo info) {
+      return GraphTypeUtil.isChartType(info, true, ctype ->
+         (GraphTypes.isLine(ctype) || GraphTypes.isArea(ctype)) &&
+         ctype != GraphTypes.CHART_STEP && ctype != GraphTypes.CHART_STEP_STACK &&
+         ctype != GraphTypes.CHART_JUMP &&
+         ctype != GraphTypes.CHART_STEP_AREA && ctype != GraphTypes.CHART_STEP_AREA_STACK);
    }
 
    public static boolean isBorderColorVisible(ChartInfo info) {
@@ -179,6 +188,7 @@ public class ChartPlotOptionsPaneModel {
       plotDesc.setFillTimeGap(fillTimeGap);
       plotDesc.setFillZero(fillZero);
       plotDesc.setFillGapWithDash(fillGapWithDash);
+      plotDesc.setSmoothLines(smoothLines);
       color = Tool.getColorFromHexString(backgroundColor);
       plotDesc.setBackground(color, false);
       color = Tool.getColorFromHexString(mapEmptyColor);
@@ -281,6 +291,7 @@ public class ChartPlotOptionsPaneModel {
       fillTimeGap = plotDesc.isFillTimeGap();
       fillZero = plotDesc.isFillZero();
       fillGapWithDash = plotDesc.isFillGapWithDash();
+      smoothLines = plotDesc.isSmoothLines();
       oneLine = plotDesc.isOneLine();
    }
 
@@ -693,6 +704,22 @@ public class ChartPlotOptionsPaneModel {
       this.fillGapWithDashVisible = fillGapWithDashVisible;
    }
 
+   public boolean isSmoothLines() {
+      return smoothLines;
+   }
+
+   public void setSmoothLines(boolean smoothLines) {
+      this.smoothLines = smoothLines;
+   }
+
+   public boolean isSmoothLinesVisible() {
+      return smoothLinesVisible;
+   }
+
+   public void setSmoothLinesVisible(boolean smoothLinesVisible) {
+      this.smoothLinesVisible = smoothLinesVisible;
+   }
+
    public boolean isPolygonColor() {
       return polygonColor;
    }
@@ -984,6 +1011,8 @@ public class ChartPlotOptionsPaneModel {
    private boolean fillZero;
    private boolean fillGapWithDash;
    private boolean fillGapWithDashVisible;
+   private boolean smoothLines;
+   private boolean smoothLinesVisible;
    private boolean polygonColor;
    private boolean polygonColorVisible;
    private boolean hasXDimension;

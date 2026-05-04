@@ -322,11 +322,11 @@ public class LineVO extends ElementVO {
                double angle = GTool.getAngle(pts[i], pts[i - 1]);
                x = x + size / 2 * FastMath.cos(angle);
                y = y + size / 2 * FastMath.sin(angle);
-               lineTo(lineInfo.getType(), path, lastPt, x, y, horizontal);
+               lineTo(lineInfo.getType(), path, pts, i, lastPt, x, y, horizontal);
                g2.fill(getPointShape(pts[i], Math.max(3, size)));
             }
             else {
-               lineTo(lineInfo.getType(), path, lastPt, x, y, horizontal);
+               lineTo(lineInfo.getType(), path, pts, i, lastPt, x, y, horizontal);
             }
          }
 
@@ -382,6 +382,26 @@ public class LineVO extends ElementVO {
       default:
          path.lineTo(x, y);
          break;
+      }
+   }
+
+   /**
+    * Curve-aware lineTo: when type is CURVED, draw a Catmull-Rom segment from lastPt to (x, y)
+    * using neighbors pts[i-2] and pts[i+1]. Falls through to the simple lineTo for other types.
+    */
+   private static void lineTo(Type type, Path2D path, Point2D[] pts, int i, Point2D lastPt,
+                              double x, double y, boolean hor)
+   {
+      if(type == Type.CURVED) {
+         Point2D p2 = new Point2D.Double(x, y);
+         Point2D p0 = (i >= 2 && !isNaN(pts[i - 2])) ? pts[i - 2] : lastPt;
+         Point2D p3 = (i + 1 < pts.length && !isNaN(pts[i + 1])) ? pts[i + 1] : p2;
+         Point2D[] ctrl = GTool.computeCatmullRomBezier(p0, lastPt, p2, p3);
+         path.curveTo(ctrl[0].getX(), ctrl[0].getY(),
+                      ctrl[1].getX(), ctrl[1].getY(), x, y);
+      }
+      else {
+         lineTo(type, path, lastPt, x, y, hor);
       }
    }
 

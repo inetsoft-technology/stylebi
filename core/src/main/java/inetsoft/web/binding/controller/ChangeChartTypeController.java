@@ -205,6 +205,14 @@ public class ChangeChartTypeController {
          plotDesc.setValuesVisible(false);
       }
 
+      // Default smoothLines on first transition into a (non-step) Area type so newly-created
+      // area charts use smooth curves; user can still explicitly turn it off via Plot Options.
+      boolean newIsArea = newType == GraphTypes.CHART_AREA || newType == GraphTypes.CHART_AREA_STACK;
+      boolean oldIsArea = oldType == GraphTypes.CHART_AREA || oldType == GraphTypes.CHART_AREA_STACK;
+      if(newIsArea && !oldIsArea) {
+         plotDesc.setSmoothLines(true);
+      }
+
       if(!DateComparisonUtil.isDateComparisonChartTypeChanged(ninfo, oinfo)) {
          Catalog catalog = Catalog.getCatalog();
          String msg = catalog.getString("date.comparison.changeChartType.warning");
