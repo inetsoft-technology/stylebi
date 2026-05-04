@@ -1,0 +1,193 @@
+<!--
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2025  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+<div class="chat-root">
+
+  <!-- Initializing -->
+  <div class="status-screen" *ngIf="initializing">
+    <div class="loading-spinner"></div>
+  </div>
+
+  <!-- Auth error -->
+  <div class="status-screen" *ngIf="!initializing && authError">
+    <mat-icon class="status-icon error-icon" fontSet="ineticons" fontIcon="alert-circle-icon" aria-hidden="true"></mat-icon>
+    <span>_#(chat.ai.authError)</span>
+  </div>
+
+  <!-- Main layout -->
+  <div class="chat-layout" *ngIf="!initializing && !authError">
+
+    <!-- Sidebar -->
+    <div class="sidebar-wrapper" [class.sidebar-closed]="!sidebarOpen">
+      <assistant-sidebar
+        [conversations]="conversations"
+        [currentSessionId]="currentSessionId"
+        [title]="aiAssistantService.chatAppTitle"
+        [vendorName]="aiAssistantService.chatAppVendorName"
+        [logoUrl]="aiAssistantService.chatAppLogoUrl"
+        [generatingSessionId]="generatingSessionId"
+        (sessionSelected)="selectSession($event)"
+        (newChat)="startNewChat()"
+        (deleteSession)="deleteSession($event)"
+        (pinSession)="pinSession($event)"
+        (renameSession)="renameSession($event)"
+        (deleteAll)="deleteAllSessions()">
+      </assistant-sidebar>
+    </div>
+
+    <!-- Chat area -->
+    <div class="chat-area">
+
+      <!-- Chat header -->
+      <div class="chat-header">
+        <button class="toggle-sidebar-btn" (click)="sidebarOpen = !sidebarOpen" title="_#(Toggle Sidebar)">
+          <mat-icon fontSet="ineticons" fontIcon="menu-sandwich-icon" aria-hidden="true"></mat-icon>
+        </button>
+        <span class="session-title">
+          {{ currentSessionId
+              ? (conversations | sessionName:currentSessionId)
+              : '_#(New Chat)' }}
+        </span>
+
+        <!-- Reply inbox button -->
+        <div class="reply-inbox-container" (click)="$event.stopPropagation()">
+          <button class="reply-inbox-btn" (click)="toggleReplies()" title="_#(Reply Inbox)">
+            <mat-icon fontSet="ineticons" fontIcon="email-icon" aria-hidden="true"></mat-icon>
+            <span class="reply-badge" *ngIf="unreadReplyCount > 0">{{ unreadReplyCount }}</span>
+            <mat-icon class="chevron-icon" [class.rotated]="showReplies" fontSet="ineticons" fontIcon="bare-arrow-down-icon" aria-hidden="true"></mat-icon>
+          </button>
+
+          <!-- Reply dropdown -->
+          <div class="reply-dropdown" *ngIf="showReplies">
+            <div class="reply-dropdown-header">_#(Reply Inbox)</div>
+
+            <ng-container *ngIf="replies.length === 0">
+              <div class="reply-empty">_#(No replies yet)</div>
+            </ng-container>
+
+            <ng-container *ngFor="let reply of replies">
+              <div class="reply-item" [class.unread]="!reply.viewed" (click)="handleReplySelect(reply._id)">
+                <span class="unread-dot" *ngIf="!reply.viewed">•</span>
+                <div class="reply-content">
+                  <div class="reply-conv-name">{{ conversationMap[reply.conversationId] || '_#(Untitled)' }}</div>
+                  <div class="reply-text">{{ reply.summary?.messageContent }}</div>
+                </div>
+                <button class="reply-delete-btn" *ngIf="reply.viewed"
+                        (click)="$event.stopPropagation(); handleReplyDelete(reply._id)"
+                        title="_#(Delete)">
+                  <mat-icon fontSet="ineticons" fontIcon="trash-icon" aria-hidden="true"></mat-icon>
+                </button>
+              </div>
+            </ng-container>
+          </div>
+        </div>
+      </div>
+
+      <!-- Message area -->
+      <div class="message-area" #messageContainer>
+
+        <div class="loading-overlay" *ngIf="loadingMessages">
+          <span>_#(Loading)</span>
+        </div>
+
+        <div class="empty-chat" *ngIf="!loadingMessages && messages.length === 0 && !isStreaming">
+          <mat-icon class="empty-chat-icon" fontSet="ineticons" fontIcon="ai-assistant-icon" aria-hidden="true"></mat-icon>
+          <span>_#(chat.ai.askToStart)</span>
+        </div>
+
+        <ng-container *ngIf="!loadingMessages">
+          <assistant-message-item
+            *ngFor="let msg of messages; trackBy: trackMessage"
+            [message]="msg"
+            [hasPendingReply]="hasPendingReply(msg)"
+            (regenerate)="regenerateLastMessage()"
+            (approve)="approveMessage(msg)"
+            (disapprove)="openDisapproveDialog(msg)"
+            (reportIssue)="openReportIssue(msg)">
+          </assistant-message-item>
+
+          <!-- Streaming placeholder -->
+          <assistant-message-item
+            *ngIf="isStreaming"
+            [message]="{ sender: 'ASSISTANT', message: '', steps: streamingSteps }"
+            [isStreaming]="true"
+            [streamText]="streamingText">
+          </assistant-message-item>
+        </ng-container>
+
+        <div class="error-msg" *ngIf="loadError">{{ loadError }}</div>
+      </div>
+
+      <!-- Input -->
+      <assistant-input-area
+        [isGenerating]="isGenerating"
+        [thinkMode]="thinkMode"
+        [retrievals]="retrievals"
+        (send)="sendMessage($event)"
+        (cancel)="cancelGeneration()"
+        (thinkModeChange)="thinkMode = $event"
+        (retrievalsChange)="retrievals = $event">
+      </assistant-input-area>
+    </div>
+  </div>
+
+  <!-- Report issue dialog -->
+  <report-problem-dialog
+    *ngIf="reportIssueMessage"
+    [message]="reportIssueMessage"
+    [sessionId]="currentSessionId!"
+    [userId]="userId"
+    [userEmail]="userEmail"
+    (closed)="closeReportIssue()">
+  </report-problem-dialog>
+
+  <!-- Disapprove / feedback dialog -->
+  <div class="feedback-backdrop" *ngIf="disapproveDialogMessage" (click)="closeDisapproveDialog()">
+    <div class="feedback-panel" (click)="$event.stopPropagation()">
+      <div class="feedback-header">
+        <span>_#(User Feedback)</span>
+        <button class="feedback-close-btn" (click)="closeDisapproveDialog()">
+          <mat-icon fontSet="ineticons" fontIcon="close-icon" aria-hidden="true"></mat-icon>
+        </button>
+      </div>
+      <div class="feedback-body">
+        <div class="feedback-chips">
+          <span class="feedback-chip"
+                *ngFor="let cat of ['Wrong', 'Useless', 'Other']"
+                [class.selected]="disapproveCategories.has(cat)"
+                (click)="toggleDisapproveCategory(cat)">{{ cat }}</span>
+        </div>
+        <textarea class="feedback-textarea"
+                  [(ngModel)]="disapproveFreeText"
+                  rows="5"
+                  placeholder="_#(chat.ai.replyDisapprove)">
+        </textarea>
+      </div>
+      <div class="feedback-footer">
+        <button class="feedback-cancel" (click)="closeDisapproveDialog()">_#(Cancel)</button>
+        <button class="feedback-submit"
+                [disabled]="disapproveSubmitting"
+                (click)="submitDisapprove()">
+          {{ disapproveSubmitting ? '_#(Submitting)' : '_#(Submit)' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Click-outside overlay to close reply dropdown -->
+  <div class="reply-backdrop" *ngIf="showReplies" (click)="closeReplies()"></div>
+</div>

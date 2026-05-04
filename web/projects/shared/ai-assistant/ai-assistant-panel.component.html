@@ -32,15 +32,9 @@
     <div class="panel-actions">
       <button class="panel-action-btn"
               (click)="toggleMode()"
-              [title]="mode === 'side' ? '_#(Move to bottom)' : '_#(Move to side)'">
-        <svg *ngIf="mode === 'side'" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-          <rect x="1" y="1" width="14" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
-          <rect x="1" y="11" width="14" height="4" rx="1"/>
-        </svg>
-        <svg *ngIf="mode === 'bottom'" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-          <rect x="1" y="1" width="9" height="14" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
-          <rect x="11" y="1" width="4" height="14" rx="1"/>
-        </svg>
+              [title]="mode === 'side' ? '_#(Move to Bottom)' : '_#(Move to Side)'">
+        <mat-icon *ngIf="mode === 'side'" fontSet="ineticons" fontIcon="divider-horizontal-icon" aria-hidden="true"></mat-icon>
+        <mat-icon *ngIf="mode === 'bottom'" fontSet="ineticons" fontIcon="divider-vertical-icon" aria-hidden="true"></mat-icon>
       </button>
       <!-- Collapse / expand toggle.
            Side mode:   header is at top, body hangs below  → collapse folds body UP   (↑ to collapse, ↓ to expand)
@@ -49,32 +43,21 @@
               (click)="toggleCollapsed()"
               [attr.aria-label]="collapsed ? '_#(Expand)' : '_#(Collapse)'"
               [title]="collapsed ? '_#(Expand)' : '_#(Collapse)'">
-        <!-- up chevron -->
-        <svg *ngIf="(mode === 'side' && !collapsed) || (mode === 'bottom' && collapsed)"
-             aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="3,10 8,5 13,10"/>
-        </svg>
-        <!-- down chevron -->
-        <svg *ngIf="(mode === 'side' && collapsed) || (mode === 'bottom' && !collapsed)"
-             aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="3,6 8,11 13,6"/>
-        </svg>
+        <mat-icon *ngIf="(mode === 'side' && !collapsed) || (mode === 'bottom' && collapsed)" fontSet="ineticons" fontIcon="collapse-icon" aria-hidden="true"></mat-icon>
+        <mat-icon *ngIf="(mode === 'side' && collapsed) || (mode === 'bottom' && !collapsed)" fontSet="ineticons" fontIcon="expand-icon" aria-hidden="true"></mat-icon>
       </button>
       <button class="panel-action-btn panel-close-btn" (click)="close()" aria-label="_#(Close)" title="_#(Close)">
-        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-          <line x1="2" y1="2" x2="14" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <line x1="14" y1="2" x2="2" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
+        <mat-icon fontSet="ineticons" fontIcon="close-icon" aria-hidden="true"></mat-icon>
       </button>
     </div>
   </div>
   <div class="panel-body" [class.panel-body-hidden]="collapsed">
     <ng-container [ngSwitch]="serverState">
       <div *ngSwitchCase="'checking'" class="assistant-server-status">
-        <span>_#(Connecting to AI assistant...)</span>
+        <span>_#(chat.ai.connecting)</span>
       </div>
       <div *ngSwitchCase="'offline'" class="assistant-server-status assistant-server-offline">
-        <span>_#(The AI assistant server is currently unavailable. Please contact your administrator.)</span>
+        <span>_#(chat.ai.serverUnavailable)</span>
       </div>
       <ai-assistant-dialog *ngSwitchCase="'online'"></ai-assistant-dialog>
     </ng-container>

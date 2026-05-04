@@ -1,0 +1,83 @@
+<!--
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2025  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+<div class="dialog-backdrop" (click)="closed.emit()">
+  <div class="dialog-panel" (click)="$event.stopPropagation()">
+    <div class="dialog-header">
+      <span>_#(Report a Problem)</span>
+      <button class="close-btn" (click)="closed.emit()">
+        <mat-icon fontSet="ineticons" fontIcon="close-icon" aria-hidden="true"></mat-icon>
+      </button>
+    </div>
+
+    <div class="dialog-body" *ngIf="!submitted">
+      <div class="field">
+        <label>_#(Subject) <span class="required">*</span></label>
+        <input type="text" [(ngModel)]="subject" placeholder="_#(chat.ai.reportBriefSummary)" maxlength="200"/>
+      </div>
+
+      <div class="field">
+        <label>_#(Email) <span class="required">*</span></label>
+        <input type="email" [(ngModel)]="email" placeholder="your@email.com"/>
+      </div>
+
+      <div class="field">
+        <label>_#(Description) <span class="required">*</span></label>
+        <textarea [(ngModel)]="description" rows="5" placeholder="_#(chat.ai.reportDescribeProblem)"></textarea>
+      </div>
+
+      <!-- File attachment -->
+      <div class="field">
+        <label>_#(Attachments)</label>
+        <div class="upload-row">
+          <label class="upload-btn">
+            <input type="file" multiple (change)="handleFileSelect($event)" style="display:none"/>
+            <mat-icon fontSet="ineticons" fontIcon="upload-icon" aria-hidden="true"></mat-icon>
+            _#(Upload File)
+          </label>
+          <span class="upload-hint">_#(chat.ai.reportFileSizeHint) {{ totalSizeMB }} MB)</span>
+        </div>
+
+        <div class="file-error" *ngIf="fileError">{{ fileError }}</div>
+
+        <ul class="attachment-list" *ngIf="attachments.length > 0">
+          <li *ngFor="let f of attachments; let i = index">
+            <span class="file-name">{{ f.name }}</span>
+            <span class="file-size">({{ (f.size / 1024).toFixed(0) }} KB)</span>
+            <button type="button" class="remove-file-btn" (click)="removeAttachment(i)" title="_#(Remove)">×</button>
+          </li>
+        </ul>
+      </div>
+
+      <div class="error-msg" *ngIf="error">{{ error }}</div>
+    </div>
+
+    <div class="dialog-body success" *ngIf="submitted">
+      <mat-icon class="success-icon" fontSet="ineticons" fontIcon="shape-check-icon" aria-hidden="true"></mat-icon>
+      <span>_#(chat.ai.reportSubmitSuccess)</span>
+    </div>
+
+    <div class="dialog-footer" *ngIf="!submitted">
+      <button class="cancel-btn" (click)="closed.emit()">_#(Cancel)</button>
+      <button class="submit-btn"
+              [disabled]="!canSubmit"
+              (click)="submit()">
+        {{ submitting ? '_#(Submitting)' : '_#(Submit)' }}
+      </button>
+    </div>
+  </div>
+</div>

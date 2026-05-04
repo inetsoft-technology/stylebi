@@ -55,7 +55,6 @@ export enum ContextType {
 })
 export class AiAssistantService {
    chatAppServerUrl: string = "";
-   styleBIUrl: string = "";
    chatAppTitle: string | null = null;
    chatAppVendorName: string | null = null;
    chatAppLogoUrl: string | null = null;
@@ -75,33 +74,20 @@ export class AiAssistantService {
    aiAssistantVisible: boolean = false;
    userId: string = "";
    email: string = "";
-   private webComponentScriptPromise: Promise<void> | null = null;
    calcTableCellBindings: { [key: string]: CellBindingInfo } = {};
    calcTableAggregates: string[] = [];
    private contextMap: Record<string, string> = {};
    private _lastBindingObject: string = "";
    private _newChatFromBinding: boolean = false;
 
-   // Caches the server-URL fetch so loadWebComponentScript() can await it even when
-   // the Angular app has not yet processed the HTTP response before the component
-   // tree is ready.
-   private readonly _serverUrlLoaded: Promise<void>;
-
    constructor(private http: HttpClient, private currentUserService: CurrentUserService) {
       // TODO: replace .toPromise() with firstValueFrom() when upgrading to RxJS 7+
-      this._serverUrlLoaded = this.http.get<string>("../api/assistant/get-chat-app-server-url").pipe(
+      this.http.get<string>("../api/assistant/get-chat-app-server-url").pipe(
          catchError(() => of("")),
          take(1)
       ).toPromise().then((url: string) => {
          this.chatAppServerUrl = url || "";
       });
-
-      this.http.get("../api/assistant/get-stylebi-url").pipe(
-         catchError(() => of(""))
-      ).subscribe((url: string) => {
-         this.styleBIUrl = url || "";
-      });
-
    }
 
    refreshBranding(): Promise<void> {
@@ -111,82 +97,11 @@ export class AiAssistantService {
          catchError(() => of(null)),
          take(1)
       ).toPromise().then(branding => {
-         if(branding) {
-            this.chatAppTitle = branding.title || null;
-            this.chatAppVendorName = branding.vendorName || null;
-            this.chatAppLogoUrl = branding.logoUrl || null;
-         }
+         // Apply custom branding if provided, otherwise keep defaults.
+         this.chatAppTitle = branding?.title || "StyleBI Assistant";
+         this.chatAppVendorName = branding?.vendorName || "InetSoft";
+         this.chatAppLogoUrl = branding?.logoUrl || null;
       });
-   }
-
-   /**
-    * Reads the key StyleBI CSS custom properties from the document root and returns
-    * them as a JSON string suitable for passing to the ai-assistant web component's
-    * theme attribute so the component can apply them inside its shadow DOM.
-    */
-   getThemeConfig(): string | null {
-      const style = getComputedStyle(document.documentElement);
-      const vars = [
-         "--inet-primary-color",
-         "--inet-text-color",
-         "--inet-navbar-bg-color",
-         "--inet-navbar-text-color",
-         "--inet-main-panel-bg-color",
-      ];
-      const theme: Record<string, string> = {};
-
-      for(const v of vars) {
-         const val = style.getPropertyValue(v).trim();
-
-         if(val) {
-            theme[v] = val;
-         }
-      }
-
-      return Object.keys(theme).length > 0 ? JSON.stringify(theme) : null;
-   }
-
-   /**
-    * Dynamically loads the AI assistant web component script. Safe to call multiple times —
-    * concurrent calls share the same in-flight promise. Returns a promise that resolves when
-    * the script loads or rejects on error. The cached promise is cleared on error to allow
-    * a retry on the next panel open.
-    */
-   loadWebComponentScript(): Promise<void> {
-      // If the element was already registered (e.g. by the @inetsoft-technology/ai-assistant
-      // npm package imported elsewhere in the app), skip loading the external UMD bundle to
-      // avoid a double-registration NotSupportedError.
-      if(customElements.get("ai-assistant")) {
-         return Promise.resolve();
-      }
-
-      if(this.webComponentScriptPromise) {
-         return this.webComponentScriptPromise;
-      }
-
-      this.webComponentScriptPromise = this._serverUrlLoaded.then(() => {
-         const base = this.chatAppServerUrl ? this.chatAppServerUrl.replace(/\/$/, "") : "";
-
-         if(!base) {
-            return Promise.reject(new Error("AI assistant URL not configured"));
-         }
-
-         return new Promise<void>((resolve, reject) => {
-            const script = document.createElement("script");
-            script.src = base + "/web-component/ai-assistant.umd.js";
-            script.onload = () => resolve();
-            script.onerror = () => {
-               document.head.removeChild(script); // remove so a retry appends a fresh element
-               reject(new Error("Failed to load AI assistant web component"));
-            };
-            document.head.appendChild(script);
-         });
-      }).catch(err => {
-         this.webComponentScriptPromise = null;
-         return Promise.reject(err);
-      });
-
-      return this.webComponentScriptPromise;
    }
 
    checkHealth(): Observable<boolean> {
@@ -220,7 +135,7 @@ export class AiAssistantService {
          ? this.currentUserService.getEmCurrentUser()
          : this.currentUserService.getPortalCurrentUser();
 
-      user$.subscribe(model => {
+      user$.pipe(take(1)).subscribe(model => {
          this.userId = convertToKey(model.name);
          this.email = model.email?.length > 0 ? model.email[0] : null;
       });

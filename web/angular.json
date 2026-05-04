@@ -52,8 +52,7 @@
               "node_modules/tern/lib/tern.js",
               "node_modules/tern/lib/def.js",
               "node_modules/tern/lib/comment.js",
-              "node_modules/tern/lib/infer.js",
-              "node_modules/@inetsoft-technology/ai-assistant/dist/web-component/ai-assistant.umd.js"
+              "node_modules/tern/lib/infer.js"
             ]
           },
           "configurations": {
@@ -168,8 +167,7 @@
               "node_modules/tern/lib/tern.js",
               "node_modules/tern/lib/def.js",
               "node_modules/tern/lib/comment.js",
-              "node_modules/tern/lib/infer.js",
-              "node_modules/@inetsoft-technology/ai-assistant/dist/web-component/ai-assistant.umd.js"
+              "node_modules/tern/lib/infer.js"
             ]
           },
           "configurations": {
@@ -282,8 +280,7 @@
               "node_modules/tern/lib/tern.js",
               "node_modules/tern/lib/def.js",
               "node_modules/tern/lib/comment.js",
-              "node_modules/tern/lib/infer.js",
-              "node_modules/@inetsoft-technology/ai-assistant/dist/web-component/ai-assistant.umd.js"
+              "node_modules/tern/lib/infer.js"
             ]
           },
           "configurations": {
@@ -375,8 +372,7 @@
               "node_modules/tern/lib/tern.js",
               "node_modules/tern/lib/def.js",
               "node_modules/tern/lib/comment.js",
-              "node_modules/tern/lib/infer.js",
-              "node_modules/@inetsoft-technology/ai-assistant/dist/web-component/ai-assistant.umd.js"
+              "node_modules/tern/lib/infer.js"
             ]
           },
           "configurations": {

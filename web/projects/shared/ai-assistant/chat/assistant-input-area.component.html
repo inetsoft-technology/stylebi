@@ -1,0 +1,98 @@
+<!--
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2025  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+<div class="input-area" (click)="closeMenus()">
+  <div class="input-toolbar">
+    <!-- Think mode selector -->
+    <div class="toolbar-dropdown" (click)="$event.stopPropagation()">
+      <button class="toolbar-btn"
+              [class.active]="thinkMode !== null"
+              (click)="showThinkMenu = !showThinkMenu; showRetrievalMenu = false"
+              title="_#(Think mode)">
+        <mat-icon fontSet="ineticons" fontIcon="add-icon" aria-hidden="true"></mat-icon>
+        <span>{{ currentThinkLabel }}</span>
+      </button>
+      <div class="ai-dropdown-menu" *ngIf="showThinkMenu">
+        <button *ngFor="let mode of thinkModes"
+                [class.selected]="thinkMode === mode.value"
+                (click)="setThinkMode(mode.value)">
+          {{ mode.label }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Retrieval options selector -->
+    <div class="toolbar-dropdown" (click)="$event.stopPropagation()">
+      <button class="toolbar-btn"
+              [class.active]="retrievals.agentic || retrievals.hyde || retrievals.stepback || retrievals.rewrite_expansion || retrievals.rewrite_decomposition_expansion"
+              (click)="showRetrievalMenu = !showRetrievalMenu; showThinkMenu = false"
+              title="_#(Retrieval options)">
+        <mat-icon fontSet="ineticons" fontIcon="drill-filter-icon" aria-hidden="true"></mat-icon>
+        <span>_#(Retrieval)</span>
+      </button>
+      <div class="ai-dropdown-menu ai-retrieval-menu" *ngIf="showRetrievalMenu">
+        <label class="retrieval-option">
+          <input type="checkbox" [checked]="retrievals.agentic" (change)="toggleRetrieval('agentic')"/>
+          <span>_#(Agentic RAG)</span>
+        </label>
+        <label class="retrieval-option">
+          <input type="checkbox" [checked]="retrievals.hyde" (change)="toggleRetrieval('hyde')"/>
+          <span>_#(HyDE)</span>
+        </label>
+        <label class="retrieval-option">
+          <input type="checkbox" [checked]="retrievals.stepback" (change)="toggleRetrieval('stepback')"/>
+          <span>_#(Step-Back)</span>
+        </label>
+        <label class="retrieval-option">
+          <input type="checkbox" [checked]="retrievals.rewrite_expansion" (change)="toggleRetrieval('rewrite_expansion')"/>
+          <span>_#(Rewrite + Expansion)</span>
+        </label>
+        <label class="retrieval-option">
+          <input type="checkbox" [checked]="retrievals.rewrite_decomposition_expansion" (change)="toggleRetrieval('rewrite_decomposition_expansion')"/>
+          <span>_#(Rewrite + Decomposition)</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-row">
+    <textarea #textarea
+              class="chat-input"
+              [(ngModel)]="inputText"
+              (keydown)="onKeydown($event)"
+              [disabled]="isGenerating"
+              placeholder="_#(Ask a question...)"
+              rows="1"></textarea>
+
+    <button class="send-btn cancel-btn"
+            *ngIf="isGenerating"
+            (click)="cancel.emit()"
+            title="_#(Cancel)">
+      <mat-icon fontSet="ineticons" fontIcon="stop-icon" aria-hidden="true"></mat-icon>
+    </button>
+
+    <button class="send-btn"
+            *ngIf="!isGenerating"
+            [disabled]="!inputText.trim()"
+            (click)="onSend()"
+            title="_#(Send)">
+      <mat-icon fontSet="ineticons" fontIcon="bare-arrow-up-icon" aria-hidden="true"></mat-icon>
+    </button>
+  </div>
+
+  <div class="input-hint">_#(chat.ai.enterToSend)</div>
+</div>

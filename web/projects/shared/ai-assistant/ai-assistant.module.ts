@@ -17,15 +17,45 @@
  */
 
 import { CommonModule } from "@angular/common";
-import { CUSTOM_ELEMENTS_SCHEMA, NgModule } from "@angular/core";
+import { HTTP_INTERCEPTORS } from "@angular/common/http";
+import { NgModule } from "@angular/core";
+import { FormsModule } from "@angular/forms";
+import { MatIconModule } from "@angular/material/icon";
 import { AiAssistantDialogComponent } from "./ai-assistant-dialog.component";
 import { AiAssistantPanelComponent } from "./ai-assistant-panel.component";
+import { AssistantChatComponent } from "./chat/assistant-chat.component";
+import { AssistantInputAreaComponent } from "./chat/assistant-input-area.component";
+import { AssistantMarkdownPipe } from "./chat/assistant-markdown.pipe";
+import { AssistantMessageItemComponent } from "./chat/assistant-message-item.component";
+import { AssistantSidebarComponent } from "./chat/assistant-sidebar.component";
+import { ReportProblemDialogComponent } from "./chat/report-problem-dialog.component";
+import { SessionNamePipe } from "./chat/session-name.pipe";
+import { AssistantAuthInterceptor } from "./services/assistant-auth.interceptor";
 
 @NgModule({
-   imports: [ CommonModule ],
-   exports: [ AiAssistantDialogComponent, AiAssistantPanelComponent ],
-   declarations: [ AiAssistantDialogComponent, AiAssistantPanelComponent ],
-   schemas: [CUSTOM_ELEMENTS_SCHEMA]
+   imports: [
+      CommonModule,
+      FormsModule,
+      MatIconModule
+   ],
+   providers: [
+      { provide: HTTP_INTERCEPTORS, useClass: AssistantAuthInterceptor, multi: true }
+   ],
+   declarations: [
+      AiAssistantDialogComponent,
+      AiAssistantPanelComponent,
+      AssistantChatComponent,
+      AssistantInputAreaComponent,
+      AssistantMarkdownPipe,
+      AssistantMessageItemComponent,
+      AssistantSidebarComponent,
+      ReportProblemDialogComponent,
+      SessionNamePipe
+   ],
+   exports: [
+      AiAssistantDialogComponent,
+      AiAssistantPanelComponent
+   ]
 })
 export class AiAssistantModule {
 }

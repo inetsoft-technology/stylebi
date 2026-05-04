@@ -1,0 +1,114 @@
+<!--
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2025  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+<div class="message-item" [class.user-message]="isUser" [class.assistant-message]="!isUser">
+
+  <!-- Step indicators (assistant only) -->
+  <ng-container *ngIf="hasSteps">
+
+    <!-- During streaming: show only the current active step -->
+    <div class="steps-live" *ngIf="isStreaming && activeStep">
+      <div class="step-live-item">
+        <span class="step-live-dots">
+          <span></span><span></span><span></span>
+        </span>
+        <span class="step-live-text">{{ activeStep!.content }}</span>
+      </div>
+    </div>
+
+    <!-- After completion: collapsible accordion -->
+    <div class="steps-section" *ngIf="!isStreaming">
+      <button class="steps-toggle" (click)="stepsExpanded = !stepsExpanded">
+        <span class="steps-label">
+          <span>✓</span>
+          _#(Reasoning steps)
+        </span>
+        <mat-icon [class.rotated]="stepsExpanded" fontSet="ineticons" fontIcon="bare-arrow-down-icon" aria-hidden="true"></mat-icon>
+      </button>
+      <div class="steps-list" *ngIf="stepsExpanded">
+        <div class="step-item" *ngFor="let step of message.steps">
+          <span class="step-icon">✓</span>
+          <span class="step-content">{{ step.content }}</span>
+        </div>
+      </div>
+    </div>
+
+  </ng-container>
+
+  <!-- Message bubble -->
+  <div class="message-bubble">
+    <!-- User message: plain text -->
+    <ng-container *ngIf="isUser">
+      <div class="message-text user-text">{{ message.message }}</div>
+    </ng-container>
+
+    <!-- Assistant message: markdown -->
+    <ng-container *ngIf="!isUser">
+      <div *ngIf="isStreaming && !streamText && !hasSteps" class="typing-indicator">
+        <span></span><span></span><span></span>
+      </div>
+      <div class="message-text markdown-body"
+           *ngIf="displayContent"
+           [innerHTML]="displayContent | assistantMarkdown"></div>
+    </ng-container>
+
+    <!-- Report issue inline link (admin-flagged messages) -->
+    <div class="report-issue-inline" *ngIf="message.reportIssue && !isUser">
+      <button class="report-issue-link" (click)="reportIssue.emit()">_#(Report Issue)</button>
+    </div>
+
+    <!-- Pending manual reply notice -->
+    <div class="pending-reply-notice" *ngIf="hasPendingReply && !isUser">
+      _#(chat.ai.manualReplyPending)
+    </div>
+  </div>
+
+  <!-- Timestamp -->
+  <div class="message-time" *ngIf="!isStreaming && message.createdAt">
+    {{ message.createdAt | date:'short' }}
+  </div>
+
+  <!-- Action buttons (assistant only, not streaming) -->
+  <div class="message-actions" *ngIf="!isUser && !isStreaming && message.message">
+    <button class="action-btn" (click)="copyContent()" [title]="copied ? '_#(Copied)' : '_#(Copy)'">
+      <mat-icon *ngIf="!copied" fontSet="ineticons" fontIcon="copy-icon" aria-hidden="true"></mat-icon>
+      <mat-icon *ngIf="copied" fontSet="ineticons" fontIcon="shape-check-icon" aria-hidden="true"></mat-icon>
+    </button>
+
+    <button class="action-btn" (click)="regenerate.emit()" title="_#(Regenerate)">
+      <mat-icon fontSet="ineticons" fontIcon="refresh-icon" aria-hidden="true"></mat-icon>
+    </button>
+
+    <button class="action-btn approve-btn"
+            [class.active]="isApproved"
+            (click)="approve.emit()"
+            title="_#(Approve)">
+      <mat-icon fontSet="ineticons" fontIcon="upward-icon" aria-hidden="true"></mat-icon>
+    </button>
+
+    <button class="action-btn feedback-btn"
+            [class.active]="message.feedbacks?.length"
+            (click)="disapprove.emit()"
+            title="_#(Not helpful)">
+      <mat-icon fontSet="ineticons" fontIcon="downward-icon" aria-hidden="true"></mat-icon>
+    </button>
+
+    <button class="action-btn report-btn" (click)="reportIssue.emit()" title="_#(Report Issue)">
+      <mat-icon fontSet="ineticons" fontIcon="info-icon" aria-hidden="true"></mat-icon>
+    </button>
+  </div>
+</div>

@@ -67,20 +67,7 @@ export class AiAssistantPanelComponent implements OnInit, OnDestroy {
             this.serverState = "checking";
             this.healthSub?.unsubscribe();
             this.healthSub = this.aiAssistantService.checkHealth().subscribe(online => {
-               if(online) {
-                  const timeout = new Promise<never>((_, reject) =>
-                     setTimeout(() => reject(new Error("timeout")), 10000));
-                  this.aiAssistantService.loadWebComponentScript()
-                     .then(() => Promise.all([
-                        Promise.race([customElements.whenDefined("ai-assistant"), timeout]),
-                        Promise.race([this.aiAssistantService.refreshBranding(), timeout])
-                     ]))
-                     .then(() => this.zone.run(() => this.serverState = "online"))
-                     .catch(() => this.zone.run(() => this.serverState = "offline"));
-               }
-               else {
-                  this.serverState = "offline";
-               }
+               this.zone.run(() => this.serverState = online ? "online" : "offline");
             });
          }
       });

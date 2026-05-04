@@ -21,7 +21,11 @@
   // Must match TOP_OFFSET in ai-assistant-panel.component.ts.
   // Override --ai-panel-top-offset in an app's global stylesheet if that ever changes.
   --ai-panel-top-offset: 52px;
-  --ai-panel-background: white;
+  // Track Angular Material's dark/light theme via MDC CSS variables.
+  // --mdc-theme-background and --mdc-theme-surface are set at :root by
+  // mat.all-component-themes() and flip automatically when theme-dark.css is loaded.
+  --ai-panel-background: var(--mdc-theme-background, white);
+  --ai-surface-color: var(--mdc-theme-surface, white);
 }
 
 .ai-assistant-panel {
@@ -137,6 +141,13 @@
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
 }
 
 .panel-action-btn {

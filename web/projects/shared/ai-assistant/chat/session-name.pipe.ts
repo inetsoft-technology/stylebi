@@ -16,18 +16,16 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { Component } from "@angular/core";
+import { Pipe, PipeTransform } from "@angular/core";
+import { Conversation } from "../assistant-models";
 
-/**
- * Thin shell rendered by AiAssistantPanelComponent when the server is online.
- * The *ngIf on the panel intentionally destroys and recreates this component on
- * every panel open so AssistantChatComponent always initialises with fresh context
- * from AiAssistantService.
- */
-@Component({
-   selector: "ai-assistant-dialog",
-   templateUrl: "./ai-assistant-dialog.component.html",
-   styleUrls: ["./ai-assistant-dialog.component.scss"]
-})
-export class AiAssistantDialogComponent {
+@Pipe({ name: "sessionName" })
+export class SessionNamePipe implements PipeTransform {
+   transform(conversations: Conversation[], sessionId: string | null): string {
+      if(!sessionId) {
+         return "";
+      }
+
+      return conversations.find(c => c._id === sessionId)?.sessionName ?? "";
+   }
 }
