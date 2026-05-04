@@ -30,8 +30,8 @@
   z-index: 5;
 
   &:focus-visible {
-    box-shadow: var(--inet-focus-ring);
-    outline: var(--inet-focus-ring-outline);
+    box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
+    outline: none;
   }
 }
 
@@ -68,8 +68,8 @@
   }
 
   &:focus-visible {
-    box-shadow: var(--inet-focus-ring);
-    outline: var(--inet-focus-ring-outline);
+    box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
+    outline: none;
   }
 
   &:hover:not([disabled]),
@@ -101,7 +101,7 @@
   border-radius: 0 var(--inet-radius-md) 0 0;
   padding: var(--inet-space-2);
   background-color: var(--inet-dropdown-bg-color);
-  box-shadow: var(--inet-shadow-small);
+  box-shadow: var(--inet-shadow-low);
 }
 
 .search-result-count {

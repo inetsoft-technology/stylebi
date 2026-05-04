@@ -17,19 +17,20 @@
  */
 .editor-tool-bar {
   width:100%;
-  height: var(--inet-control-height-xl);
-  max-height: var(--inet-control-height-xl);
+  height: 52px;
+  max-height: 52px;
   display: flex;
   align-items: stretch;
 
-  .btn-toolbar-pull-right {
-    right: auto;
+  toolbar-group.btn-toolbar-pull-right {
+    display: flex;
     margin-left: auto;
+    align-items: center;
   }
 }
 
 .editor-breadcrumb-placement {
-   height: var(--inet-control-height-xl);
+   height: 52px;
 }
 
 .editor-breadcrumb {
@@ -51,7 +52,10 @@
 
 .title-bar {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
+  align-items: center;
+  width: 100%;
+  flex: 1 1 auto;
   border-radius: 0px;
   margin: 0px;
   padding: 0px !important;
@@ -59,11 +63,17 @@
   .title {
     display: inline-flex;
     align-items: center;
+    min-width: 0;
 
     h4, h5 {
       margin: 0;
       padding-left: 5px;
     }
+  }
+
+  > div:last-child {
+    display: flex;
+    align-items: center;
   }
 
   .btn-group {
