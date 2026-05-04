@@ -84,6 +84,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    public identityEditable = new Subject<boolean>;
    currOrg: string;
    loading: boolean = false;
+   private selfRefreshing = false;
    newUserIdentity: IdentityId | null = null;
 
    get hasIncompleteNewUser(): boolean {
@@ -102,6 +103,10 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
                private orgBusy: SecurityBusyService)
    {
       orgDropdownService.onRefresh.subscribe(res => {
+         if(this.selfRefreshing) {
+            return;
+         }
+
          this.selectedProvider = res.provider;
          this.refreshProvider(this.selectedProvider, res.providerChanged)
       });
@@ -538,7 +543,9 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
 
    private refreshTree(id?: IdentityId, type?: number, providerChanged?: boolean, selectProvider: boolean = false) {
       if(!!selectProvider) {
+         this.selfRefreshing = true;
          this.orgDropdownService.refresh(this.selectedProvider, providerChanged);
+         this.selfRefreshing = false;
       }
 
       let provider = Tool.byteEncodeURLComponent(this.selectedProvider);
