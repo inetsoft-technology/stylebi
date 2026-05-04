@@ -760,8 +760,8 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
       }, 0);
    }
 
-   trackMessage(_: number, msg: Message): string {
-      return msg._id ?? msg.createdAt?.toString() ?? Math.random().toString();
+   trackMessage(index: number, msg: Message): string {
+      return msg._id ?? msg.createdAt?.toString() ?? String(index);
    }
 
    hasPendingReply(msg: Message): boolean {
