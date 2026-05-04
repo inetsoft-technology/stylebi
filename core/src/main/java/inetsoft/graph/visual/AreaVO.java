@@ -400,6 +400,9 @@ public class AreaVO extends LineVO {
                Point2D baseP3 = neighbor(basepts, j + 1, basepts[j]);
                Point2D[] ctrl = GTool.computeCatmullRomBezier(
                   baseP0, basepts[j - 1], basepts[j], baseP3);
+               // Drawing j → j-1 (reverse direction): swap control points so the cubic
+               // [p1, c1, c2, p2] runs as [p2, c2, c1, p1] and traces the same curve as the
+               // matching forward segment in the band below — preserves the stacked seam.
                combined.curveTo(ctrl[1].getX(), ctrl[1].getY(),
                                 ctrl[0].getX(), ctrl[0].getY(),
                                 basepts[j - 1].getX(), basepts[j - 1].getY());
