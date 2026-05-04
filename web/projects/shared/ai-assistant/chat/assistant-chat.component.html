@@ -167,9 +167,9 @@
       <div class="feedback-body">
         <div class="feedback-chips">
           <span class="feedback-chip"
-                *ngFor="let cat of ['Wrong', 'Useless', 'Other']"
-                [class.selected]="disapproveCategories.has(cat)"
-                (click)="toggleDisapproveCategory(cat)">{{ cat }}</span>
+                *ngFor="let opt of disapproveOptions"
+                [class.selected]="disapproveCategories.has(opt.value)"
+                (click)="toggleDisapproveCategory(opt.value)">{{ opt.label }}</span>
         </div>
         <textarea class="feedback-textarea"
                   [(ngModel)]="disapproveFreeText"

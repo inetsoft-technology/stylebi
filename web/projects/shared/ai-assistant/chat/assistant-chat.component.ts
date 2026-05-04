@@ -70,6 +70,11 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
    disapproveCategories: Set<string> = new Set<string>();
    disapproveFreeText: string = "";
    disapproveSubmitting: boolean = false;
+   readonly disapproveOptions: { label: string; value: string }[] = [
+      { label: "_#(Wrong)", value: "Wrong" },
+      { label: "_#(Useless)", value: "Useless" },
+      { label: "_#(Other)", value: "Other" }
+   ];
 
    // Admin reply inbox
    replies: any[] = [];
@@ -123,7 +128,9 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
       // The token was just verified server-side so decoding the payload is safe.
       if(!this.aiAssistantService.userId) {
          try {
-            const payload = JSON.parse(atob(token.split(".")[1]));
+            // JWTs use Base64URL encoding — normalize to standard Base64 before atob().
+            const base64url = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+            const payload = JSON.parse(atob(base64url));
 
             if(payload.sub) {
                this.aiAssistantService.userId = payload.sub;
@@ -192,8 +199,12 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
          this.cdRef.markForCheck();
       }
       catch {
-         this.loadError = "_#(chat.ai.loadError)";
-         this.cdRef.markForCheck();
+         // Non-fatal — user can still start a new chat.
+         // Only show an error on the initial load, not on background refreshes after generation.
+         if(this.initializing) {
+            this.loadError = "_#(chat.ai.loadError)";
+            this.cdRef.markForCheck();
+         }
       }
    }
 
@@ -399,11 +410,15 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
       this.abortController?.abort();
 
       if(this.currentSessionId) {
-         this.apiService.cancelChat(this.currentSessionId).subscribe();
+         this.apiService.cancelChat(this.currentSessionId).subscribe({ error: () => {} });
       }
    }
 
    async regenerateLastMessage(): Promise<void> {
+      if(this.isGenerating) {
+         return;
+      }
+
       const userMessages = this.messages.filter(m => m.sender === Role.USER);
 
       if(userMessages.length === 0) {
