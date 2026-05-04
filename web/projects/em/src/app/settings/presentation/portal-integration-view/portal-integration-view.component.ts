@@ -53,24 +53,12 @@ export class PortalIntegrationViewComponent {
    }
 
    moveUpDisabled(index: number): boolean {
-      return index == 0 || this.model.tabs[index].editable && !this.model.tabs[index - 1].editable ||
-         (this.model.tabs[index-1].name == "Report" &&
-         this.model.tabs[index].name != "Report" &&
-         this.model.tabs[index].name != "Dashboard") ||
-         (this.model.tabs[index-1].name == "Dashboard" &&
-         this.model.tabs[index].name != "Dashboard" &&
-         this.model.tabs[index].name != "Report");
+      return index == 0 || this.model.tabs[index].editable && !this.model.tabs[index - 1].editable;
    }
 
    moveDownDisabled(index: number): boolean {
       return index == this.model.tabs.length - 1 ||
-         !this.model.tabs[index].editable && this.model.tabs[index + 1].editable ||
-         (this.model.tabs[index].name == "Report" &&
-         this.model.tabs[index+1].name != "Report" &&
-         this.model.tabs[index+1].name != "Dashboard") ||
-         (this.model.tabs[index].name == "Dashboard" &&
-         this.model.tabs[index+1].name != "Dashboard" &&
-         this.model.tabs[index+1].name != "Report");
+         !this.model.tabs[index].editable && this.model.tabs[index + 1].editable;
    }
 
    moveUp(index: number) {

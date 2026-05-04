@@ -186,13 +186,13 @@ public class PortalIntegrationViewSettingsService {
                int index = 0;
 
                switch(tab.getName()) {
-               case "Dashboard":
+               case "Report":
                   index = 0;
                   break;
-               case "Report":
+               case "Schedule":
                   index = 1;
                   break;
-               case "Schedule":
+               case "Dashboard":
                   index = 2;
                   break;
                case "Data":
