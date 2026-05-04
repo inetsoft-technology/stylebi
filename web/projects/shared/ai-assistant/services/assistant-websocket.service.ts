@@ -16,13 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { Injectable, NgZone, OnDestroy } from "@angular/core";
+import { Injectable, NgZone } from "@angular/core";
 import { Observable, Subject } from "rxjs";
 import { AiAssistantService } from "../ai-assistant.service";
 import { AssistantApiService } from "./assistant-api.service";
 
 @Injectable({ providedIn: "root" })
-export class AssistantWebSocketService implements OnDestroy {
+export class AssistantWebSocketService {
    private ws: WebSocket | null = null;
    private readonly messages$ = new Subject<any>();
 
@@ -77,8 +77,4 @@ export class AssistantWebSocketService implements OnDestroy {
       }
    }
 
-   ngOnDestroy(): void {
-      this.disconnect();
-      this.messages$.complete();
-   }
 }

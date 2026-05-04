@@ -45,7 +45,7 @@ export interface Message {
    _id?: string;
    sessionId?: string;
    sender: Role;
-   message: any;
+   message: string;
    messageType?: MessageType;
    createdAt?: Date;
    reviewId?: string;

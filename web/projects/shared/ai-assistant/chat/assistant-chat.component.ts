@@ -118,6 +118,7 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
       const token = await this.apiService.loadToken();
 
       if(!token) {
+         this.initializing = false;
          this.authError = true;
          this.cdRef.markForCheck();
          return;
@@ -177,8 +178,12 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
          this.aiAssistantService.resetNewChat();
          this.startNewChat();
       }
-      else if(this.conversations.length > 0) {
-         await this.selectSession(this.conversations[0]._id!);
+      else {
+         const firstId = this.conversations[0]?._id;
+
+         if(firstId) {
+            await this.selectSession(firstId);
+         }
       }
 
       this.cdRef.markForCheck();
@@ -246,37 +251,58 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
    }
 
    async renameSession(event: { id: string; name: string }): Promise<void> {
-      await this.apiService.updateConversation(event.id, { sessionName: event.name }).toPromise();
-      const conv = this.conversations.find(c => c._id === event.id);
+      try {
+         await this.apiService.updateConversation(event.id, { sessionName: event.name }).toPromise();
+         const conv = this.conversations.find(c => c._id === event.id);
 
-      if(conv) {
-         conv.sessionName = event.name;
+         if(conv) {
+            conv.sessionName = event.name;
+            this.cdRef.markForCheck();
+         }
+      }
+      catch {
+         this.loadError = "_#(chat.ai.generalError)";
          this.cdRef.markForCheck();
       }
    }
 
    async pinSession(event: { id: string; pinned: boolean }): Promise<void> {
-      await this.apiService.updateConversation(event.id, { pinned: event.pinned }).toPromise();
-      const conv = this.conversations.find(c => c._id === event.id);
+      try {
+         await this.apiService.updateConversation(event.id, { pinned: event.pinned }).toPromise();
+         const conv = this.conversations.find(c => c._id === event.id);
 
-      if(conv) {
-         conv.pinned = event.pinned;
-         this.conversations = [...this.conversations];
+         if(conv) {
+            conv.pinned = event.pinned;
+            this.conversations = [...this.conversations];
+            this.cdRef.markForCheck();
+         }
+      }
+      catch {
+         this.loadError = "_#(chat.ai.generalError)";
          this.cdRef.markForCheck();
       }
    }
 
    async deleteSession(sessionId: string): Promise<void> {
-      await this.apiService.deleteConversation(sessionId).toPromise();
+      try {
+         await this.apiService.deleteConversation(sessionId).toPromise();
+      }
+      catch {
+         this.loadError = "_#(chat.ai.generalError)";
+         this.cdRef.markForCheck();
+         return;
+      }
+
       this.conversations = this.conversations.filter(c => c._id !== sessionId);
       this.replies = this.replies.filter(r => r.conversationId !== sessionId);
       this.pendingReplyConversationIds.delete(sessionId);
 
       if(this.currentSessionId === sessionId) {
          this.startNewChat();
+         const next = this.conversations[0]?._id;
 
-         if(this.conversations.length > 0) {
-            await this.selectSession(this.conversations[0]._id!);
+         if(next) {
+            await this.selectSession(next);
          }
       }
 
@@ -284,7 +310,15 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
    }
 
    async deleteAllSessions(): Promise<void> {
-      await this.apiService.deleteAllConversations(this.userId).toPromise();
+      try {
+         await this.apiService.deleteAllConversations(this.userId).toPromise();
+      }
+      catch {
+         this.loadError = "_#(chat.ai.generalError)";
+         this.cdRef.markForCheck();
+         return;
+      }
+
       this.conversations = [];
       this.replies = [];
       this.pendingReplyConversationIds.clear();
