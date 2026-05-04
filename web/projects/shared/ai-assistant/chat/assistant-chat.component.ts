@@ -192,7 +192,8 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
          this.cdRef.markForCheck();
       }
       catch {
-         // Non-fatal — user can still start a new chat.
+         this.loadError = "_#(chat.ai.loadError)";
+         this.cdRef.markForCheck();
       }
    }
 
@@ -258,6 +259,7 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
       await this.apiService.deleteConversation(sessionId).toPromise();
       this.conversations = this.conversations.filter(c => c._id !== sessionId);
       this.replies = this.replies.filter(r => r.conversationId !== sessionId);
+      this.pendingReplyConversationIds.delete(sessionId);
 
       if(this.currentSessionId === sessionId) {
          this.startNewChat();
@@ -274,6 +276,7 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
       await this.apiService.deleteAllConversations(this.userId).toPromise();
       this.conversations = [];
       this.replies = [];
+      this.pendingReplyConversationIds.clear();
       this.startNewChat();
       this.cdRef.markForCheck();
    }

@@ -63,13 +63,31 @@ export class AssistantStreamService {
          headers["Authorization"] = `Bearer ${token}`;
       }
 
-      const response = await fetch(url, {
+      let response = await fetch(url, {
          method: "POST",
          headers,
          credentials: "include",
          body: JSON.stringify({ conversationId: sessionId, question: message, context, userId, retrievals, thinkMode }),
          signal
       });
+
+      // If the token expired, refresh it and retry once — mirrors AssistantAuthInterceptor
+      // behaviour for HttpClient calls, since fetch() bypasses Angular's interceptor chain.
+      if(response.status === 401) {
+         this.assistantApiService.clearToken();
+         const newToken = await this.assistantApiService.loadToken();
+
+         if(newToken) {
+            headers["Authorization"] = `Bearer ${newToken}`;
+            response = await fetch(url, {
+               method: "POST",
+               headers,
+               credentials: "include",
+               body: JSON.stringify({ conversationId: sessionId, question: message, context, userId, retrievals, thinkMode }),
+               signal
+            });
+         }
+      }
 
       if(!response.ok || !response.body) {
          const errorData = await response.json().catch(() => ({}));

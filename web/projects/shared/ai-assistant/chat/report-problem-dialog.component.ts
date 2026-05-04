@@ -62,7 +62,11 @@ export class ReportProblemDialogComponent implements OnInit {
    }
 
    get canSubmit(): boolean {
-      return !!this.subject.trim() && !!this.email.trim() && !!this.description.trim() && !this.submitting;
+      return !!this.subject.trim() && this.isValidEmail(this.email) && !!this.description.trim() && !this.submitting;
+   }
+
+   private isValidEmail(email: string): boolean {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
    }
 
    constructor(

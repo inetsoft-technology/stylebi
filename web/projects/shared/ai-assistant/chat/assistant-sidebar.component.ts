@@ -17,7 +17,7 @@
  */
 
 import {
-   ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, Output
+   ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, Output, SimpleChanges
 } from "@angular/core";
 import { Conversation } from "../assistant-models";
 
@@ -54,8 +54,10 @@ export class AssistantSidebarComponent implements OnChanges {
    deleteConfirmId: string | null = null;
    showDeleteAllConfirm: boolean = false;
 
-   ngOnChanges(): void {
-      this.buildGroups();
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes["conversations"]) {
+         this.buildGroups();
+      }
    }
 
    private buildGroups(): void {
