@@ -17,7 +17,7 @@
  */
 
 import {
-   ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, Input, Output
+   ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, Input, OnDestroy, Output
 } from "@angular/core";
 import { Message, Role, Step, StepStatus } from "../assistant-models";
 
@@ -27,7 +27,7 @@ import { Message, Role, Step, StepStatus } from "../assistant-models";
    styleUrls: ["./assistant-message-item.component.scss"],
    changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class AssistantMessageItemComponent {
+export class AssistantMessageItemComponent implements OnDestroy {
    @Input() message!: Message;
    /** When true, this item displays the live streaming text rather than message.message */
    @Input() isStreaming: boolean = false;
@@ -38,7 +38,6 @@ export class AssistantMessageItemComponent {
    @Output() approve = new EventEmitter<void>();
    @Output() disapprove = new EventEmitter<void>();
    @Output() reportIssue = new EventEmitter<void>();
-   @Output() copyText = new EventEmitter<void>();
 
    constructor(private cdRef: ChangeDetectorRef) {}
 
@@ -47,6 +46,7 @@ export class AssistantMessageItemComponent {
 
    stepsExpanded: boolean = false;
    copied: boolean = false;
+   private copyTimer: ReturnType<typeof setTimeout> | null = null;
 
    get isApproved(): boolean {
       return !!this.message.approved;
@@ -64,10 +64,6 @@ export class AssistantMessageItemComponent {
       return !!(this.message.steps && this.message.steps.length > 0);
    }
 
-   get stepsInProgress(): boolean {
-      return !!(this.message.steps?.some(s => s.status === StepStatus.IN_PROGRESS));
-   }
-
    /** During streaming: the single currently-active step to display. */
    get activeStep(): Step | null {
       if(!this.message.steps?.length) return null;
@@ -77,21 +73,24 @@ export class AssistantMessageItemComponent {
    }
 
    async copyContent(): Promise<void> {
-      const text = this.message.message;
-
       try {
-         await navigator.clipboard.writeText(
-            typeof text === "string" ? text : JSON.stringify(text)
-         );
+         await navigator.clipboard.writeText(this.message.message);
          this.copied = true;
          this.cdRef.markForCheck();
-         setTimeout(() => {
+         this.copyTimer = setTimeout(() => {
+            this.copyTimer = null;
             this.copied = false;
             this.cdRef.markForCheck();
          }, 2000);
       }
       catch {
          // clipboard not available
+      }
+   }
+
+   ngOnDestroy(): void {
+      if(this.copyTimer !== null) {
+         clearTimeout(this.copyTimer);
       }
    }
 }

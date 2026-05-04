@@ -60,7 +60,9 @@ export class AssistantWebSocketService {
             };
 
             // Step updates are non-critical; log but do not surface errors to the user.
-            this.ws.onerror = () => {};
+            this.ws.onerror = (event: Event) => {
+               console.debug("AssistantWebSocket error (non-critical):", event);
+            };
          },
          error: () => {
             // No WS token available — steps will not be shown, which is acceptable.

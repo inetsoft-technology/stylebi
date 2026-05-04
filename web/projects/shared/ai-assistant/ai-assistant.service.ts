@@ -98,8 +98,8 @@ export class AiAssistantService {
          take(1)
       ).toPromise().then(branding => {
          // Apply custom branding if provided, otherwise keep defaults.
-         this.chatAppTitle = branding?.title || "StyleBI Assistant";
-         this.chatAppVendorName = branding?.vendorName || "InetSoft";
+         this.chatAppTitle = branding?.title || "_#(StyleBI Assistant)";
+         this.chatAppVendorName = branding?.vendorName || "_#(InetSoft)";
          this.chatAppLogoUrl = branding?.logoUrl || null;
       });
    }
@@ -137,7 +137,7 @@ export class AiAssistantService {
 
       user$.pipe(take(1)).subscribe(model => {
          this.userId = convertToKey(model.name);
-         this.email = model.email?.length > 0 ? model.email[0] : null;
+         this.email = model.email?.[0] ?? "";
       });
    }
 

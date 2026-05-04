@@ -20,10 +20,10 @@ import {
    ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef,
    OnDestroy, OnInit, ViewChild
 } from "@angular/core";
-import { Subject, Subscription } from "rxjs";
+import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { AiAssistantService } from "../ai-assistant.service";
-import { Conversation, Message, Retrievals, Role, SseEvent, Step } from "../assistant-models";
+import { Conversation, Message, Retrievals, Review, Role, SseEvent, Step } from "../assistant-models";
 import { AssistantApiService } from "../services/assistant-api.service";
 import { AssistantStreamService } from "../services/assistant-stream.service";
 import { AssistantWebSocketService } from "../services/assistant-websocket.service";
@@ -77,7 +77,7 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
    ];
 
    // Admin reply inbox
-   replies: any[] = [];
+   replies: Review[] = [];
    conversationMap: Record<string, string> = {};
    showReplies: boolean = false;
 
@@ -86,7 +86,7 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
 
    private abortController: AbortController | null = null;
    private readonly destroy$ = new Subject<void>();
-   private wsSub: Subscription | null = null;
+   private scrollPending: boolean = false;
 
    get userId(): string {
       return this.aiAssistantService.userId;
@@ -102,6 +102,10 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
 
    get unreadReplyCount(): number {
       return this.replies.filter(r => !r.viewed).length;
+   }
+
+   get streamingMessage(): Message {
+      return { sender: Role.ASSISTANT, message: "", steps: this.streamingSteps };
    }
 
    constructor(
@@ -152,7 +156,7 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
          .subscribe(() => this.cdRef.markForCheck());
 
       // Connect WebSocket for step-indicator updates (non-critical).
-      this.wsSub = this.wsService.connect()
+      this.wsService.connect()
          .pipe(takeUntil(this.destroy$))
          .subscribe(msg => this.handleWsMessage(msg));
 
@@ -167,7 +171,9 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
       // that were missed due to the parallel load (loadUserReviews runs before
       // loadConversations may have populated this.conversations).
       if(this.replies.length > 0) {
-         const ids = [...new Set(this.replies.map((r: any) => r.conversationId).filter(Boolean))] as string[];
+         const ids = [...new Set(
+            this.replies.map(r => r.conversationId).filter((id): id is string => !!id)
+         )];
          this.updateConversationMap(ids);
       }
 
@@ -460,12 +466,14 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
       }
 
       const lastUserMessage = userMessages[userMessages.length - 1];
-      // Remove the last assistant response before regenerating.
-      const lastAssistant = [...this.messages].reverse().find(m => m.sender === Role.ASSISTANT);
+      // Remove both the last assistant response and the last user message before
+      // regenerating — sendMessage will re-add the user bubble optimistically.
+      const lastAssistantIdx = [...this.messages].map((m, i) => ({ m, i }))
+         .reverse().find(({ m }) => m.sender === Role.ASSISTANT)?.i ?? -1;
+      const lastUserIdx = [...this.messages].map((m, i) => ({ m, i }))
+         .reverse().find(({ m }) => m.sender === Role.USER)?.i ?? -1;
 
-      if(lastAssistant) {
-         this.messages = this.messages.filter(m => m !== lastAssistant);
-      }
+      this.messages = this.messages.filter((_, i) => i !== lastAssistantIdx && i !== lastUserIdx);
 
       await this.sendMessage(lastUserMessage.message as string);
    }
@@ -541,7 +549,7 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
                   messageId: message._id
                },
                question
-            }).toPromise() as any;
+            }).toPromise();
             newReviewId = res?._id;
          }
 
@@ -631,20 +639,22 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
       }
 
       try {
-         const reviews = await this.apiService.getUserReviews(this.userId).toPromise() as any[];
+         const reviews = (await this.apiService.getUserReviews(this.userId).toPromise()) ?? [];
 
          // Only show reviews with status PENDING_REVIEW that have an ANSWER record.
-         this.replies = (reviews ?? []).filter(r =>
+         this.replies = reviews.filter(r =>
             r.reviewStatus === "PENDING_REVIEW" &&
-            r.records?.some((rec: any) => rec.recordType === "ANSWER") &&
+            r.records?.some(rec => rec.recordType === "ANSWER") &&
             !r.isConversationDeleted && !r.deletedByUser
          );
 
          // Build conversation name map for the reply list.
-         const ids = [...new Set(this.replies.map((r: any) => r.conversationId).filter(Boolean))];
+         const ids = [...new Set(
+            this.replies.map(r => r.conversationId).filter((id): id is string => !!id)
+         )];
 
          if(ids.length > 0) {
-            this.updateConversationMap(ids as string[]);
+            this.updateConversationMap(ids);
          }
 
          this.cdRef.markForCheck();
@@ -731,7 +741,7 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
       try {
          const reviews = await this.apiService
             .checkPendingReply(this.currentSessionId)
-            .toPromise() as any[];
+            .toPromise();
 
          if(reviews?.length) {
             this.pendingReplyConversationIds.add(this.currentSessionId);
@@ -749,11 +759,11 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
 
       // Review inbox events (independent of streaming state).
       if(msg.type === "review_created" || msg.type === "review_updated") {
-         const review = msg.review;
+         const review = msg.review as Review;
 
          if(!review) return;
 
-         const hasAnswer = review.records?.some((r: any) => r.recordType === "ANSWER");
+         const hasAnswer = review.records?.some(r => r.recordType === "ANSWER");
 
          if(hasAnswer &&
             review.reviewStatus === "PENDING_REVIEW" &&
@@ -803,13 +813,19 @@ export class AssistantChatComponent implements OnInit, OnDestroy {
    }
 
    private scrollToBottom(): void {
-      setTimeout(() => {
+      if(this.scrollPending) {
+         return;
+      }
+
+      this.scrollPending = true;
+      requestAnimationFrame(() => {
+         this.scrollPending = false;
          const el = this.messageContainerRef?.nativeElement;
 
          if(el) {
             el.scrollTop = el.scrollHeight;
          }
-      }, 0);
+      });
    }
 
    trackMessage(index: number, msg: Message): string {

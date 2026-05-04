@@ -17,7 +17,7 @@
  */
 
 import {
-   ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, Input, OnInit, Output
+   ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, Input, OnDestroy, OnInit, Output
 } from "@angular/core";
 import { Message } from "../assistant-models";
 import { AssistantApiService } from "../services/assistant-api.service";
@@ -40,7 +40,7 @@ const MAX_TOTAL_MB = 10;
    styleUrls: ["./report-problem-dialog.component.scss"],
    changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class ReportProblemDialogComponent implements OnInit {
+export class ReportProblemDialogComponent implements OnInit, OnDestroy {
    @Input() message!: Message;
    @Input() sessionId!: string;
    @Input() userId: string = "";
@@ -56,6 +56,7 @@ export class ReportProblemDialogComponent implements OnInit {
    submitting: boolean = false;
    submitted: boolean = false;
    error: string = "";
+   private closeTimer: ReturnType<typeof setTimeout> | null = null;
 
    get totalSizeMB(): string {
       return (this.attachments.reduce((s, f) => s + f.size, 0) / 1024 / 1024).toFixed(1);
@@ -76,6 +77,12 @@ export class ReportProblemDialogComponent implements OnInit {
 
    ngOnInit(): void {
       this.email = this.userEmail || "";
+   }
+
+   ngOnDestroy(): void {
+      if(this.closeTimer !== null) {
+         clearTimeout(this.closeTimer);
+      }
    }
 
    handleFileSelect(event: Event): void {
@@ -179,6 +186,6 @@ export class ReportProblemDialogComponent implements OnInit {
       this.submitted = true;
       this.submitting = false;
       this.cdRef.markForCheck();
-      setTimeout(() => this.closed.emit(), 1500);
+      this.closeTimer = setTimeout(() => this.closed.emit(), 1500);
    }
 }

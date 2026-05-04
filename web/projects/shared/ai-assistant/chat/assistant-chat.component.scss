@@ -22,7 +22,7 @@
   flex: 1;
   gap: 16px;
   padding: 32px;
-  color: #d32f2f;
+  color: var(--inet-danger-color, #c62828);
   font-size: 13px;
   text-align: center;
 }
@@ -31,7 +31,7 @@
   width: 32px;
   height: 32px;
   border: 3px solid rgba(0, 0, 0, 0.12);
-  border-top-color: var(--primary-color, #e55300);
+  border-top-color: var(--inet-primary-color, #1976d2);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -151,7 +151,7 @@ mat-icon {
   background: rgba(211, 47, 47, 0.08);
   border: 1px solid rgba(211, 47, 47, 0.2);
   border-radius: 6px;
-  color: #c62828;
+  color: var(--inet-danger-color, #c62828);
   font-size: 13px;
 }
 
@@ -176,7 +176,7 @@ mat-icon {
 
   &:hover { background: rgba(0, 0, 0, 0.07); color: rgba(0, 0, 0, 0.75); }
 
-  svg.rotated { transform: rotate(180deg); }
+  mat-icon.rotated { transform: rotate(180deg); }
 }
 
 .reply-badge {

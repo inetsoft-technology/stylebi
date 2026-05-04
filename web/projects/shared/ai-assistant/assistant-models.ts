@@ -76,6 +76,24 @@ export interface Retrievals {
    rewrite_decomposition_expansion: boolean;
 }
 
+export interface ReviewRecord {
+   recordType: "QUESTION" | "ANSWER";
+   messageContent?: string;
+}
+
+export interface Review {
+   _id?: string;
+   userId?: string;
+   conversationId?: string;
+   messageId?: string;
+   reviewStatus?: string;
+   records?: ReviewRecord[];
+   summary?: { messageContent?: string };
+   viewed?: boolean;
+   isConversationDeleted?: boolean;
+   deletedByUser?: boolean;
+}
+
 export type SseEvent =
    | { type: "token"; content: string }
    | { type: "reset" }

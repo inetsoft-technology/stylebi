@@ -45,7 +45,7 @@
         <label>_#(Attachments)</label>
         <div class="upload-row">
           <label class="upload-btn">
-            <input type="file" multiple (change)="handleFileSelect($event)" style="display:none"/>
+            <input type="file" multiple accept="image/*,.pdf,.txt,.csv,.log" (change)="handleFileSelect($event)" style="display:none"/>
             <mat-icon fontSet="ineticons" fontIcon="upload-icon" aria-hidden="true"></mat-icon>
             _#(Upload File)
           </label>

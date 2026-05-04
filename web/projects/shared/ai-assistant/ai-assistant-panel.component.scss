@@ -198,13 +198,3 @@ mat-icon {
   color: var(--inet-danger-color);
 }
 
-// ::ng-deep is required here because #assistant-root lives inside the <ai-assistant>
-// custom element (web component), which uses its own shadow-like encapsulation that
-// Angular's view encapsulation cannot pierce with normal scoped selectors.
-::ng-deep #assistant-root {
-  border-radius: 0 !important;
-
-  .branding-title {
-    font-size: var(--ai-branding-title-font-size, 13px) !important;
-  }
-}

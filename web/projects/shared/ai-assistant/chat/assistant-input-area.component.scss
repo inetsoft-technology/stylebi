@@ -1,7 +1,7 @@
 :host {
   display: block;
   border-top: 1px solid rgba(0, 0, 0, 0.1);
-  background: white;
+  background: var(--ai-panel-background, white);
   flex-shrink: 0;
 }
 
@@ -48,7 +48,7 @@
   bottom: calc(100% + 4px);
   left: 0;
   z-index: 200;
-  background: white;
+  background: var(--ai-surface-color, white);
   border: 1px solid rgba(0, 0, 0, 0.15);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);

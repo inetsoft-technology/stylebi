@@ -74,6 +74,7 @@
               class="chat-input"
               [(ngModel)]="inputText"
               (keydown)="onKeydown($event)"
+              (input)="onTextareaInput()"
               [disabled]="isGenerating"
               placeholder="_#(Ask a question...)"
               rows="1"></textarea>

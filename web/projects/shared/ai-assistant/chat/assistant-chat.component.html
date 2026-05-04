@@ -80,7 +80,10 @@
             </ng-container>
 
             <ng-container *ngFor="let reply of replies">
-              <div class="reply-item" [class.unread]="!reply.viewed" (click)="handleReplySelect(reply._id)">
+              <div class="reply-item" [class.unread]="!reply.viewed" role="button" tabindex="0"
+                   (click)="handleReplySelect(reply._id)"
+                   (keydown.enter)="handleReplySelect(reply._id)"
+                   (keydown.space)="$event.preventDefault(); handleReplySelect(reply._id)">
                 <span class="unread-dot" *ngIf="!reply.viewed">•</span>
                 <div class="reply-content">
                   <div class="reply-conv-name">{{ conversationMap[reply.conversationId] || '_#(Untitled)' }}</div>
@@ -98,7 +101,7 @@
       </div>
 
       <!-- Message area -->
-      <div class="message-area" #messageContainer>
+      <div class="message-area" #messageContainer aria-live="polite" aria-atomic="false">
 
         <div class="loading-overlay" *ngIf="loadingMessages">
           <span>_#(Loading)</span>
@@ -123,7 +126,7 @@
           <!-- Streaming placeholder -->
           <assistant-message-item
             *ngIf="isStreaming"
-            [message]="{ sender: 'ASSISTANT', message: '', steps: streamingSteps }"
+            [message]="streamingMessage"
             [isStreaming]="true"
             [streamText]="streamingText">
           </assistant-message-item>
@@ -166,10 +169,10 @@
       </div>
       <div class="feedback-body">
         <div class="feedback-chips">
-          <span class="feedback-chip"
-                *ngFor="let opt of disapproveOptions"
-                [class.selected]="disapproveCategories.has(opt.value)"
-                (click)="toggleDisapproveCategory(opt.value)">{{ opt.label }}</span>
+          <button type="button" class="feedback-chip"
+                  *ngFor="let opt of disapproveOptions"
+                  [class.selected]="disapproveCategories.has(opt.value)"
+                  (click)="toggleDisapproveCategory(opt.value)">{{ opt.label }}</button>
         </div>
         <textarea class="feedback-textarea"
                   [(ngModel)]="disapproveFreeText"

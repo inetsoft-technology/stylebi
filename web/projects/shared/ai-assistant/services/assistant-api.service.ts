@@ -21,7 +21,7 @@ import { Injectable } from "@angular/core";
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
 import { AiAssistantService } from "../ai-assistant.service";
-import { Conversation, Message, MessageType, Role } from "../assistant-models";
+import { Conversation, Message, MessageType, Review, Role } from "../assistant-models";
 
 @Injectable({ providedIn: "root" })
 export class AssistantApiService {
@@ -106,7 +106,7 @@ export class AssistantApiService {
    }
 
    deleteAllConversations(userId: string): Observable<void> {
-      return this.http.delete<void>(this.apiUrl(`/conversations/deleteAll/${userId}`), { headers: this.headers() });
+      return this.http.delete<void>(this.apiUrl(`/conversations/deleteAll/${encodeURIComponent(userId)}`), { headers: this.headers() });
    }
 
    getMessages(sessionId: string): Observable<{ messages: Message[]; generating: boolean }> {
@@ -158,12 +158,12 @@ export class AssistantApiService {
       return this.http.get<{ token: string }>(this.apiUrl("/auth/ws-token"), { headers: this.headers() });
    }
 
-   createReview(review: object): Observable<any> {
-      return this.http.post<any>(this.apiUrl("/reviews/createReview"), review, { headers: this.headers() });
+   createReview(review: object): Observable<Review> {
+      return this.http.post<Review>(this.apiUrl("/reviews/createReview"), review, { headers: this.headers() });
    }
 
-   checkPendingReply(conversationId: string): Observable<any[]> {
-      return this.http.get<any[]>(
+   checkPendingReply(conversationId: string): Observable<Review[]> {
+      return this.http.get<Review[]>(
          this.apiUrl(`/reviews/checkPendingReply/${conversationId}`), { headers: this.headers() });
    }
 
@@ -194,8 +194,8 @@ export class AssistantApiService {
          this.apiUrl(`/messages/approved/${messageId}`), { approved }, { headers: this.headers() });
    }
 
-   getUserReviews(userId: string): Observable<any[]> {
-      return this.http.get<any[]>(
+   getUserReviews(userId: string): Observable<Review[]> {
+      return this.http.get<Review[]>(
          this.apiUrl(`/reviews/getUserReviews/${encodeURIComponent(userId)}`), { headers: this.headers() });
    }
 

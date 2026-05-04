@@ -22,9 +22,9 @@ import {
 import { Retrievals } from "../assistant-models";
 
 const THINK_MODES = [
-   { value: null, label: "Normal" },
-   { value: "think", label: "Think" },
-   { value: "deepthink", label: "Deep Think" }
+   { value: null, label: "_#(Normal)" },
+   { value: "think", label: "_#(Think)" },
+   { value: "deepthink", label: "_#(chat.ai.thinkModeDeepThink)" }
 ];
 
 @Component({
@@ -55,6 +55,15 @@ export class AssistantInputAreaComponent {
 
    get currentThinkLabel(): string {
       return THINK_MODES.find(m => m.value === this.thinkMode)?.label ?? "Normal";
+   }
+
+   onTextareaInput(): void {
+      const el = this.textareaRef?.nativeElement;
+
+      if(el) {
+         el.style.height = "auto";
+         el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+      }
    }
 
    onKeydown(event: KeyboardEvent): void {
