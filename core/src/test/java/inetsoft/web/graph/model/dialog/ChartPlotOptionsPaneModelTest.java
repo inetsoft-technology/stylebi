@@ -55,6 +55,16 @@ class ChartPlotOptionsPaneModelTest {
       assertFalse(modelFor(GraphTypes.CHART_LINE).isBarCornerRadiusVisible());
    }
 
+   @Test
+   void barCornerRadiusVisible_paretoChart() {
+      assertTrue(modelFor(GraphTypes.CHART_PARETO).isBarCornerRadiusVisible());
+   }
+
+   @Test
+   void barCornerRadiusVisible_waterfallChart() {
+      assertTrue(modelFor(GraphTypes.CHART_WATERFALL).isBarCornerRadiusVisible());
+   }
+
    // --- barRoundAllCornersVisible ---
 
    @Test
@@ -72,6 +82,18 @@ class ChartPlotOptionsPaneModelTest {
    @Test
    void barRoundAllCornersVisible_stackedBarChart() {
       assertTrue(modelFor(GraphTypes.CHART_BAR_STACK).isBarRoundAllCornersVisible());
+   }
+
+   @Test
+   void barRoundAllCornersVisible_paretoChart() {
+      assertTrue(modelFor(GraphTypes.CHART_PARETO).isBarRoundAllCornersVisible());
+   }
+
+   @Test
+   void barRoundAllCornersVisible_waterfallChart() {
+      // Waterfall always rounds all corners (each segment floats with no zero baseline);
+      // the checkbox is hidden, same pattern as interval.
+      assertFalse(modelFor(GraphTypes.CHART_WATERFALL).isBarRoundAllCornersVisible());
    }
 
    // --- updateChartPlotOptionsPaneModel: barRoundAllCorners save guard ---
@@ -154,17 +176,64 @@ class ChartPlotOptionsPaneModelTest {
    }
 
    @Test
-   void updateModel_resetsBarRoundAllCornersForWaterfallChart() {
+   void updateModel_setsBarRoundAllCornersTrueForWaterfallChart() {
       VSChartInfo info = new VSChartInfo();
       info.setChartType(GraphTypes.CHART_WATERFALL);
       PlotDescriptor plotDesc = new PlotDescriptor();
-      // Simulate a stale descriptor value that could exist before the barRoundAllCornersVisible guard was introduced
+      // Stale descriptor value of false (e.g. created before waterfall rounding was added)
+      plotDesc.setBarRoundAllCorners(false);
+
+      ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, plotDesc);
+      // Frontend sends barRoundAllCorners=false because the checkbox is hidden
+      model.setBarRoundAllCorners(false);
+      model.updateChartPlotOptionsPaneModel(info, plotDesc);
+
+      assertTrue(plotDesc.isBarRoundAllCorners(),
+         "barRoundAllCorners should be forced true for waterfall charts to match GraphGenerator");
+   }
+
+   @Test
+   void updateModel_savesBarRoundAllCornersForParetoChart() {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_PARETO);
+      PlotDescriptor plotDesc = new PlotDescriptor();
+      plotDesc.setBarRoundAllCorners(false);
+
+      ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, plotDesc);
+      model.setBarRoundAllCorners(true);
+      model.updateChartPlotOptionsPaneModel(info, plotDesc);
+
+      assertTrue(plotDesc.isBarRoundAllCorners(),
+         "barRoundAllCorners should be persisted for pareto charts");
+   }
+
+   @Test
+   void updateModel_savesBarRoundAllCornersFalseForParetoChart() {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_PARETO);
+      PlotDescriptor plotDesc = new PlotDescriptor();
+      plotDesc.setBarRoundAllCorners(true);
+
+      ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, plotDesc);
+      model.setBarRoundAllCorners(false);
+      model.updateChartPlotOptionsPaneModel(info, plotDesc);
+
+      assertFalse(plotDesc.isBarRoundAllCorners(),
+         "barRoundAllCorners=false should be persisted for pareto charts");
+   }
+
+   @Test
+   void updateModel_resetsBarRoundAllCornersFalseForLineChart() {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_LINE);
+      PlotDescriptor plotDesc = new PlotDescriptor();
+      // Stale descriptor value left from when the chart was a different type
       plotDesc.setBarRoundAllCorners(true);
 
       ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, plotDesc);
       model.updateChartPlotOptionsPaneModel(info, plotDesc);
 
       assertFalse(plotDesc.isBarRoundAllCorners(),
-         "barRoundAllCorners should be reset to false for chart types where it is not applicable");
+         "barRoundAllCorners should be reset to false for chart types where rounding doesn't apply");
    }
 }

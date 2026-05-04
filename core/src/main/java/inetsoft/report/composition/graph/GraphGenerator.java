@@ -3578,6 +3578,8 @@ public abstract class GraphGenerator {
          line.setStackGroup(false);
          bar.setCollisionModifier(GraphElement.STACK_SYMMETRIC);
          bar.setStackGroup(true);
+         bar.setCornerRadius(desc.getPlotDescriptor().getBarCornerRadius());
+         bar.setRoundAllCorners(desc.getPlotDescriptor().isBarRoundAllCorners());
 
          elements.add(bar);
          elements.add(line);
@@ -3608,6 +3610,15 @@ public abstract class GraphGenerator {
          bar.setVisualStacked(stacked);
          sumBar.setHint("editable", "false");
          sumBar.setHint("_waterfall_", "true");
+
+         // Intermediate bars float on prior totals (no zero anchor) — always round all corners.
+         // sumBar mirrors the same treatment for visual consistency.
+         double r = desc.getPlotDescriptor().getBarCornerRadius();
+         bar.setCornerRadius(r);
+         bar.setRoundAllCorners(true);
+         sumBar.setCornerRadius(r);
+         sumBar.setRoundAllCorners(true);
+
          elements.add(bar);
          elements.add(sumBar);
       }

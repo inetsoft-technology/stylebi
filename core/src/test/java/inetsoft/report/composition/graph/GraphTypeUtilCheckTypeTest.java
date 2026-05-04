@@ -180,9 +180,9 @@ class GraphTypeUtilCheckTypeTest {
       assertTrue(GraphTypeUtil.checkType(info, GraphTypes::isBar),
          "DC-created bars on a LINE chart should pass isBar check");
       assertTrue(GraphTypeUtil.checkType(info, ctype ->
-               (GraphTypes.isBar(ctype) || GraphTypes.isInterval(ctype)) &&
-               !GraphTypes.is3DBar(ctype) && !GraphTypes.isPareto(ctype) &&
-               !GraphTypes.isWaterfall(ctype) && !GraphTypes.isFunnel(ctype)),
+               (GraphTypes.isBar(ctype) || GraphTypes.isInterval(ctype) ||
+                GraphTypes.isPareto(ctype) || GraphTypes.isWaterfall(ctype)) &&
+               !GraphTypes.is3DBar(ctype) && !GraphTypes.isFunnel(ctype)),
          "barCornerRadiusVisible predicate should be true for DC bar on LINE chart");
    }
 
