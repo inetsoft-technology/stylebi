@@ -177,11 +177,9 @@ public class TabVSAssembly extends AbstractContainerVSAssembly {
          writer.println("</state_selected>");
       }
 
-      // Persist bottomTabs only when true (non-default). On restore, absence of the
-      // element leaves bottomTabs at its design-time default (false) without setting rValue.
-      if(getTabInfo().isBottomTabs()) {
-         writer.println("<state_bottomTabs>true</state_bottomTabs>");
-      }
+      // Always write bottomTabs so parseStateContent can distinguish an explicit script-set
+      // false from an absent element (old bookmarks without the element → backward-compat).
+      writer.println("<state_bottomTabs>" + getTabInfo().isBottomTabs() + "</state_bottomTabs>");
    }
 
    /**
@@ -197,10 +195,13 @@ public class TabVSAssembly extends AbstractContainerVSAssembly {
       String selected = Tool.getChildValueByTagName(elem, "state_selected");
       setSelectedValue(selected);
 
-      // Restore bottomTabs when the element is present (only written when true).
-      // Positions are already restored by the super call, so no repositioning is needed.
-      if(Tool.getChildValueByTagName(elem, "state_bottomTabs") != null) {
-         getTabInfo().setBottomTabs(true);
+      // Restore bottomTabs rValue when the element is present (written for both true/false).
+      // Absent element means an old bookmark created before this fix — leave rValue untouched
+      // so the value set by onInit (if any) is preserved (backward-compat).
+      String bottomTabsVal = Tool.getChildValueByTagName(elem, "state_bottomTabs");
+
+      if(bottomTabsVal != null) {
+         getTabInfo().setBottomTabs("true".equals(bottomTabsVal));
       }
    }
 

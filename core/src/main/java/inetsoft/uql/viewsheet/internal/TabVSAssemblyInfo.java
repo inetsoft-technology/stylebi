@@ -537,7 +537,10 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
 
       labelsValue.setRValue(null);
       selectedValue.setRValue(null);
-      bottomTabs.setRValue(null);
+      // bottomTabs rValue is intentionally NOT cleared here. It is set by onInit scripts
+      // and must survive refreshViewsheet() calls. The processOnInit "run-once" guard
+      // means it won't be re-applied on subsequent refreshes, so clearing it here would
+      // leave bottomTabs=false after bookmark navigation.
    }
 
    /**
