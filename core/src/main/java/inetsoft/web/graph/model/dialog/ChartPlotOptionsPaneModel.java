@@ -125,6 +125,9 @@ public class ChartPlotOptionsPaneModel {
          (GraphTypes.isBar(ctype) || GraphTypes.isPareto(ctype)) &&
          !GraphTypes.is3DBar(ctype) && !GraphTypes.isFunnel(ctype));
       this.barRoundAllCorners = plotDesc.isBarRoundAllCorners();
+      this.nodeCornerRadius = plotDesc.getNodeCornerRadius() > 0
+         ? plotDesc.getNodeCornerRadius() : null;
+      this.nodeCornerRadiusVisible = info.getChartType() == GraphTypes.CHART_TREE;
 
       try {
          if(MapInfo.MAPBOX.equals(SreeEnv.getProperty("webmap.service"))) {
@@ -223,6 +226,7 @@ public class ChartPlotOptionsPaneModel {
       else {
          plotDesc.setBarRoundAllCorners(false);
       }
+      plotDesc.setNodeCornerRadius(nodeCornerRadius != null ? nodeCornerRadius : 0);
       plotDesc.setOneLine(oneLine);
    }
 
@@ -968,6 +972,22 @@ public class ChartPlotOptionsPaneModel {
       this.barRoundAllCornersVisible = barRoundAllCornersVisible;
    }
 
+   public Double getNodeCornerRadius() {
+      return nodeCornerRadius;
+   }
+
+   public void setNodeCornerRadius(Double nodeCornerRadius) {
+      this.nodeCornerRadius = nodeCornerRadius;
+   }
+
+   public boolean isNodeCornerRadiusVisible() {
+      return nodeCornerRadiusVisible;
+   }
+
+   public void setNodeCornerRadiusVisible(boolean nodeCornerRadiusVisible) {
+      this.nodeCornerRadiusVisible = nodeCornerRadiusVisible;
+   }
+
    public boolean isOneLine() {
       return oneLine;
    }
@@ -1044,6 +1064,8 @@ public class ChartPlotOptionsPaneModel {
    private boolean barCornerRadiusVisible;
    private boolean barRoundAllCornersVisible;
    private boolean barRoundAllCorners;
+   private Double nodeCornerRadius;
+   private boolean nodeCornerRadiusVisible;
    private boolean oneLine;
    private final static Logger LOG = LoggerFactory.getLogger(ChartPlotOptionsPaneModel.class);
 }
