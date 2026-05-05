@@ -327,4 +327,28 @@ class ChartPlotOptionsPaneModelTest {
       assertTrue(plotDesc.isSmoothLines(),
          "smoothLines should round-trip through the model for circular charts");
    }
+
+   // --- treeLayoutVisible ---
+
+   @Test
+   void treeLayoutVisible_treeChart() {
+      assertTrue(modelFor(GraphTypes.CHART_TREE).isTreeLayoutVisible());
+   }
+
+   @Test
+   void treeLayoutVisible_networkChartHidden() {
+      // Network charts use ORGANIC layout; orientation is not a meaningful concept.
+      assertFalse(modelFor(GraphTypes.CHART_NETWORK).isTreeLayoutVisible());
+   }
+
+   @Test
+   void treeLayoutVisible_circularChartHidden() {
+      // Circular charts use CIRCLE layout; orientation is not a meaningful concept.
+      assertFalse(modelFor(GraphTypes.CHART_CIRCULAR).isTreeLayoutVisible());
+   }
+
+   @Test
+   void treeLayoutVisible_barChartHidden() {
+      assertFalse(modelFor(GraphTypes.CHART_BAR).isTreeLayoutVisible());
+   }
 }

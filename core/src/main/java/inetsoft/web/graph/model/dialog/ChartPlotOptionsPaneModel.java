@@ -113,6 +113,7 @@ public class ChartPlotOptionsPaneModel {
       this.wordCloud = GraphTypeUtil.isWordCloud(info);
       this.fillGapWithDashVisible = isFillGapWithDashVisible(info, plotDesc);
       this.smoothLinesVisible = isSmoothLinesVisible(info);
+      this.treeLayoutVisible = info.getChartType() == GraphTypes.CHART_TREE;
       this.pieRatio = plotDesc.getPieRatio() > 0 ? plotDesc.getPieRatio() : null;
       this.barCornerRadius = plotDesc.getBarCornerRadius() > 0
          ? plotDesc.getBarCornerRadius() : null;
@@ -194,6 +195,7 @@ public class ChartPlotOptionsPaneModel {
       plotDesc.setFillZero(fillZero);
       plotDesc.setFillGapWithDash(fillGapWithDash);
       plotDesc.setSmoothLines(smoothLines);
+      plotDesc.setTreeLayout(treeLayout);
       color = Tool.getColorFromHexString(backgroundColor);
       plotDesc.setBackground(color, false);
       color = Tool.getColorFromHexString(mapEmptyColor);
@@ -298,6 +300,7 @@ public class ChartPlotOptionsPaneModel {
       fillZero = plotDesc.isFillZero();
       fillGapWithDash = plotDesc.isFillGapWithDash();
       smoothLines = plotDesc.isSmoothLines();
+      treeLayout = plotDesc.getTreeLayout();
       oneLine = plotDesc.isOneLine();
    }
 
@@ -726,6 +729,22 @@ public class ChartPlotOptionsPaneModel {
       this.smoothLinesVisible = smoothLinesVisible;
    }
 
+   public String getTreeLayout() {
+      return treeLayout;
+   }
+
+   public void setTreeLayout(String treeLayout) {
+      this.treeLayout = treeLayout;
+   }
+
+   public boolean isTreeLayoutVisible() {
+      return treeLayoutVisible;
+   }
+
+   public void setTreeLayoutVisible(boolean treeLayoutVisible) {
+      this.treeLayoutVisible = treeLayoutVisible;
+   }
+
    public boolean isPolygonColor() {
       return polygonColor;
    }
@@ -1035,6 +1054,8 @@ public class ChartPlotOptionsPaneModel {
    private boolean fillGapWithDashVisible;
    private boolean smoothLines;
    private boolean smoothLinesVisible;
+   private String treeLayout;
+   private boolean treeLayoutVisible;
    private boolean polygonColor;
    private boolean polygonColorVisible;
    private boolean hasXDimension;
