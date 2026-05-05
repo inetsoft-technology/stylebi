@@ -1267,6 +1267,14 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       this.barRoundAllCorners = barRoundAllCorners;
    }
 
+   public double getNodeCornerRadius() {
+      return nodeCornerRadius;
+   }
+
+   public void setNodeCornerRadius(double nodeCornerRadius) {
+      this.nodeCornerRadius = Math.max(0, Math.min(0.5, nodeCornerRadius));
+   }
+
    /**
     * Get the circle packing container formats.
     * @level the nesting level, with the top circle having a level of 0.
@@ -1487,6 +1495,9 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       setBarCornerRadius(val != null ? Double.parseDouble(val) : 0.0);
       barRoundAllCorners = "true".equals(Tool.getAttribute(node, "barRoundAllCorners"));
 
+      val = Tool.getAttribute(node, "nodeCornerRadius");
+      setNodeCornerRadius(val != null ? Double.parseDouble(val) : 0.0);
+
       String lonMin = Tool.getAttribute(node, "lonMin");
       String lonMax = Tool.getAttribute(node, "lonMax");
       String latMin = Tool.getAttribute(node, "latMin");
@@ -1631,6 +1642,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       writer.print(" pieRatio=\"" + pieRatio + "\" ");
       writer.print(" barCornerRadius=\"" + barCornerRadius + "\" ");
       writer.print(" barRoundAllCorners=\"" + barRoundAllCorners + "\" ");
+      writer.print(" nodeCornerRadius=\"" + nodeCornerRadius + "\" ");
       writer.print(" oneLine=\"" + oneLine + "\" ");
 
       if(lonlat != null) {
@@ -1782,6 +1794,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
          pieRatio == desc.pieRatio &&
          barCornerRadius == desc.barCornerRadius &&
          barRoundAllCorners == desc.barRoundAllCorners &&
+         nodeCornerRadius == desc.nodeCornerRadius &&
          circleFormats.equals(desc.circleFormats) &&
          Tool.equals(errorFormat, desc.errorFormat) &&
          includeParentLabels == desc.includeParentLabels &&
@@ -1878,6 +1891,9 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    private static final double DEFAULT_BAR_CORNER_RADIUS = 0.3;
    private double barCornerRadius = DEFAULT_BAR_CORNER_RADIUS;
    private boolean barRoundAllCorners = false;
+   // New tree charts default to rounded nodes; parseXML overrides to 0 for saved charts.
+   private static final double DEFAULT_NODE_CORNER_RADIUS = 0.3;
+   private double nodeCornerRadius = DEFAULT_NODE_CORNER_RADIUS;
    private boolean oneLine = false;
 
    private static final Logger LOG = LoggerFactory.getLogger(PlotDescriptor.class);

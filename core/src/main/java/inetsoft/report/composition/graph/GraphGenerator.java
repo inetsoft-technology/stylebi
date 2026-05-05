@@ -1332,6 +1332,10 @@ public abstract class GraphGenerator {
          (info.getColorField() == null || info.getColorField().getRTDataRef() == null);
       elem.setApplyAestheticsToSource(applyAestheticsToSource);
 
+      if(info.getChartType() == CHART_TREE) {
+         elem.setNodeCornerRadius(plotdesc.getNodeCornerRadius());
+      }
+
       // set target format
       String tdim = elem.getTargetDim();
       ChartRef targetRef = info.getFieldByName(tdim, false);
