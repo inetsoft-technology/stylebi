@@ -3705,6 +3705,8 @@ public abstract class GraphGenerator {
          case CHART_CIRCULAR:
             elem.setAlgorithm(RelationElement.Algorithm.CIRCLE);
 
+            // PlotDescriptor.smoothLines is reused here as the chord-curve toggle for
+            // CIRCULAR; the element-side flag is smoothEdges (bends edges, not lines).
             if(desc.getPlotDescriptor().isSmoothLines()) {
                elem.setSmoothEdges(true);
             }

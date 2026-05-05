@@ -373,18 +373,24 @@ public class RelationElement extends GraphElement {
       edges.stream()
          .forEach(v -> v.getEdge().getGeometry().translate(-minX, -minY));
 
-      // Cache centroid of node centres for smooth-edge rendering. Computed in the same
-      // post-flip / post-translate space the edge geometry produces.
-      double sumCx = 0, sumCy = 0;
+      // Cache centroid of node centres for smooth-edge rendering. Only CIRCLE consumes it;
+      // skip the O(n) pass for other algorithms. Computed in the same post-flip /
+      // post-translate space the edge geometry produces.
+      if(algorithm == Algorithm.CIRCLE) {
+         double sumCx = 0, sumCy = 0;
 
-      for(RelationGeometry n : nodes.values()) {
-         mxGeometry g = n.getMxCell().getGeometry();
-         sumCx += g.getX() + g.getWidth() / 2.0;
-         sumCy += g.getY() + g.getHeight() / 2.0;
+         for(RelationGeometry n : nodes.values()) {
+            mxGeometry g = n.getMxCell().getGeometry();
+            sumCx += g.getX() + g.getWidth() / 2.0;
+            sumCy += g.getY() + g.getHeight() / 2.0;
+         }
+
+         int n = nodes.size();
+         layoutCenter = n > 0 ? new Point2D.Double(sumCx / n, sumCy / n) : null;
       }
-
-      int n = nodes.size();
-      layoutCenter = n > 0 ? new Point2D.Double(sumCx / n, sumCy / n) : null;
+      else {
+         layoutCenter = null;
+      }
    }
 
    // flip the Y so root is on top.

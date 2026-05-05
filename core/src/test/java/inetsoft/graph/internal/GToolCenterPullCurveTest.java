@@ -82,6 +82,24 @@ class GToolCenterPullCurveTest {
    }
 
    @Test
+   void negativeSmoothing_extrapolatesAwayFromCenter() {
+      // Documented contract: the formula extrapolates linearly through the chord midpoint
+      // when smoothing < 0 (control point pushed away from center). Not used in production
+      // (callers pass 0 ≤ k ≤ 1) but pinning the math prevents a future change from
+      // silently flipping the sign.
+      Point2D src = new Point2D.Double(0, 0);
+      Point2D dst = new Point2D.Double(100, 0);
+      Point2D center = new Point2D.Double(50, 50);
+
+      QuadCurve2D q = GTool.computeCenterPullCurve(src, dst, center, -0.5);
+
+      // midpoint y is 0; centre y is 50; pulling by -0.5 moves the control point 25 units
+      // to the opposite side of the midpoint from the centre.
+      assertEquals(50.0, q.getCtrlX(), 1e-9, "x stays on the chord midpoint when src/dst x are symmetric about it");
+      assertEquals(-25.0, q.getCtrlY(), 1e-9, "k=-0.5 pushes control y away from centre");
+   }
+
+   @Test
    void coincidentEndpoints_produceDegenerateCurveWithoutCrash() {
       Point2D pt = new Point2D.Double(5, 5);
       Point2D center = new Point2D.Double(50, 50);
