@@ -28,7 +28,6 @@ export interface PortalModel {
    reportEnabled: boolean;
    composerEnabled: boolean;
    dashboardEnabled: boolean;
-   securityEnabled: boolean;
    newDatasourceEnabled: boolean;
    newWorksheetEnabled: boolean;
    newViewsheetEnabled: boolean;

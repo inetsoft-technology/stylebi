@@ -199,8 +199,7 @@ public class LoginController {
 
    private boolean isEnterpriseManagerRequest(String requestedUrl) {
       return requestedUrl != null &&
-         (requestedUrl.startsWith("/em") || requestedUrl.contains("/em/") ||
-            requestedUrl.endsWith("/em"));
+         (requestedUrl.equals("/em") || requestedUrl.startsWith("/em/"));
    }
 
    private static final String ORG_COOKIE = "X-INETSOFT-ORGID";

@@ -17,6 +17,8 @@
  */
 package inetsoft.web.portal.data;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
@@ -51,9 +53,9 @@ import java.io.FileNotFoundException;
 import java.lang.SecurityException;
 import java.security.Principal;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -515,8 +517,9 @@ public class DataSetService {
          .build();
    }
 
-   public WorksheetRootBlocksSummary getWorksheetRootBlocks(String path, int scope,
-                                                            Principal principal)
+   public WorksheetTableAssembliesSummary getWorksheetRootTableAssemblies(String path,
+                                                                          int scope,
+                                                                          Principal principal)
       throws Exception
    {
       IdentityID user = getUser(principal, scope);
@@ -531,27 +534,28 @@ public class DataSetService {
          throw new SecurityException("Permission denied: " + path);
       }
 
-      WorksheetRootBlocksMetadata metadata = getWorksheetRootBlocksMetadata(entry, principal);
+      WorksheetRootTableAssembliesMetadata metadata =
+         getWorksheetRootTableAssembliesMetadata(entry, principal);
       List<WorksheetDependentAssetInfo> usedBy = getWorksheetDependents(entry, principal);
 
-      return WorksheetRootBlocksSummary.builder()
-         .id(entry.toIdentifier())
-         .path(entry.getPath())
-         .scope(entry.getScope())
-         .primaryBlock(metadata.primaryBlock())
-         .transformationSummary(metadata.transformationSummary())
-         .addAllUsedBy(usedBy)
-         .addAllRootBlocks(metadata.rootBlocks())
-         .build();
+      return new WorksheetTableAssembliesSummary(
+         entry.toIdentifier(),
+         entry.getPath(),
+         entry.getScope(),
+         metadata.primaryTableAssembly(),
+         metadata.transformationSummary(),
+         usedBy,
+         metadata.rootTableAssemblies());
    }
 
-   private WorksheetRootBlocksMetadata getWorksheetRootBlocksMetadata(AssetEntry entry,
-                                                                     Principal principal)
+   private WorksheetRootTableAssembliesMetadata getWorksheetRootTableAssembliesMetadata(
+      AssetEntry entry, Principal principal)
       throws Exception
    {
       String cacheKey = entry.toIdentifier();
       long modifiedTime = entry.getModifiedDate() == null ? 0L : entry.getModifiedDate().getTime();
-      WorksheetRootBlocksMetadata cachedMetadata = worksheetRootBlocksCache.get(cacheKey);
+      WorksheetRootTableAssembliesMetadata cachedMetadata =
+         worksheetRootTableAssembliesCache.getIfPresent(cacheKey);
 
       if(cachedMetadata != null && cachedMetadata.modifiedTime() == modifiedTime) {
          return cachedMetadata;
@@ -559,16 +563,21 @@ public class DataSetService {
 
       Worksheet worksheet = (Worksheet) assetRepository.getSheet(entry, principal, false,
          AssetContent.NO_DATA, false);
-      List<WorksheetRootBlockInfo> rootBlocks = getWorksheetRootBlocks(worksheet);
-      WorksheetRootBlockInfo primaryBlock = getWorksheetPrimaryBlock(worksheet);
-      String transformationSummary = getWorksheetTransformationSummary(worksheet, primaryBlock, rootBlocks);
-      WorksheetRootBlocksMetadata metadata = new WorksheetRootBlocksMetadata(
-         modifiedTime, Collections.unmodifiableList(rootBlocks), primaryBlock, transformationSummary);
-      worksheetRootBlocksCache.put(cacheKey, metadata);
+      Catalog catalog = Catalog.getCatalog(principal);
+      List<WorksheetTableAssemblyInfo> rootTableAssemblies =
+         getWorksheetRootTableAssemblies(worksheet);
+      WorksheetTableAssemblyInfo primaryTableAssembly =
+         getWorksheetPrimaryTableAssembly(worksheet);
+      String transformationSummary = getWorksheetTransformationSummary(
+         worksheet, primaryTableAssembly, rootTableAssemblies, catalog);
+      WorksheetRootTableAssembliesMetadata metadata = new WorksheetRootTableAssembliesMetadata(
+         modifiedTime, Collections.unmodifiableList(rootTableAssemblies), primaryTableAssembly,
+         transformationSummary);
+      worksheetRootTableAssembliesCache.put(cacheKey, metadata);
       return metadata;
    }
 
-   private WorksheetRootBlockInfo getWorksheetPrimaryBlock(Worksheet worksheet) {
+   private WorksheetTableAssemblyInfo getWorksheetPrimaryTableAssembly(Worksheet worksheet) {
       if(worksheet == null) {
          return null;
       }
@@ -581,31 +590,34 @@ public class DataSetService {
 
       TableAssembly tableAssembly = (TableAssembly) primaryAssembly;
 
-      return WorksheetRootBlockInfo.builder()
-         .name(tableAssembly.getName())
-         .kind("primary")
-         .addAllFields(getWorksheetRootBlockFields(tableAssembly))
-         .build();
+      return new WorksheetTableAssemblyInfo(
+         tableAssembly.getName(),
+         "primary",
+         null,
+         getWorksheetRootTableAssemblyFields(tableAssembly));
    }
 
-   private List<WorksheetRootBlockInfo> getWorksheetRootBlocks(Worksheet worksheet) {
+   private List<WorksheetTableAssemblyInfo> getWorksheetRootTableAssemblies(
+      Worksheet worksheet)
+   {
       if(worksheet == null) {
          return Collections.emptyList();
       }
 
-      Map<String, WorksheetRootBlockInfo> rootBlocks = new LinkedHashMap<>();
+      Map<String, WorksheetTableAssemblyInfo> rootTableAssemblies = new LinkedHashMap<>();
       Set<String> visitedAssemblies = new HashSet<>();
 
       for(Assembly assembly : worksheet.getAssemblies()) {
-         collectWorksheetRootBlocks(assembly, rootBlocks, visitedAssemblies);
+         collectWorksheetRootTableAssemblies(assembly, rootTableAssemblies, visitedAssemblies);
       }
 
-      return new ArrayList<>(rootBlocks.values());
+      return new ArrayList<>(rootTableAssemblies.values());
    }
 
-   private void collectWorksheetRootBlocks(Assembly assembly,
-                                           Map<String, WorksheetRootBlockInfo> rootBlocks,
-                                           Set<String> visitedAssemblies)
+   private void collectWorksheetRootTableAssemblies(
+      Assembly assembly,
+      Map<String, WorksheetTableAssemblyInfo> rootTableAssemblies,
+      Set<String> visitedAssemblies)
    {
       if(assembly == null || !visitedAssemblies.add(assembly.getAbsoluteName())) {
          return;
@@ -613,38 +625,42 @@ public class DataSetService {
 
       if(assembly instanceof BoundTableAssembly) {
          BoundTableAssembly boundTable = (BoundTableAssembly) assembly;
-         rootBlocks.putIfAbsent(boundTable.getName(), WorksheetRootBlockInfo.builder()
-            .name(boundTable.getName())
-            .kind("connected")
-            .sourceInfo(new SourceInfo(boundTable.getSourceInfo()))
-            .addAllFields(getWorksheetRootBlockFields(boundTable))
-            .build());
+         rootTableAssemblies.putIfAbsent(boundTable.getName(),
+            new WorksheetTableAssemblyInfo(
+               boundTable.getName(),
+               "connected",
+               new SourceInfo(boundTable.getSourceInfo()),
+               getWorksheetRootTableAssemblyFields(boundTable)));
          return;
       }
 
       if(assembly instanceof EmbeddedTableAssembly) {
          EmbeddedTableAssembly embeddedTable = (EmbeddedTableAssembly) assembly;
-         rootBlocks.putIfAbsent(embeddedTable.getName(), WorksheetRootBlockInfo.builder()
-            .name(embeddedTable.getName())
-            .kind("embedded")
-            .addAllFields(getWorksheetRootBlockFields(embeddedTable))
-            .build());
+         rootTableAssemblies.putIfAbsent(embeddedTable.getName(),
+            new WorksheetTableAssemblyInfo(
+               embeddedTable.getName(),
+               "embedded",
+               null,
+               getWorksheetRootTableAssemblyFields(embeddedTable)));
          return;
       }
 
       if(assembly instanceof MirrorAssembly) {
-         collectWorksheetRootBlocks(((MirrorAssembly) assembly).getAssembly(),
-            rootBlocks, visitedAssemblies);
+         collectWorksheetRootTableAssemblies(((MirrorAssembly) assembly).getAssembly(),
+            rootTableAssemblies, visitedAssemblies);
       }
 
       if(assembly instanceof ComposedTableAssembly) {
          for(TableAssembly tableAssembly : ((ComposedTableAssembly) assembly).getTableAssemblies(false)) {
-            collectWorksheetRootBlocks(tableAssembly, rootBlocks, visitedAssemblies);
+            collectWorksheetRootTableAssemblies(tableAssembly, rootTableAssemblies,
+               visitedAssemblies);
          }
       }
    }
 
-   private List<WorksheetRootBlockFieldInfo> getWorksheetRootBlockFields(TableAssembly tableAssembly) {
+   private List<WorksheetTableAssemblyFieldInfo> getWorksheetRootTableAssemblyFields(
+      TableAssembly tableAssembly)
+   {
       if(tableAssembly == null) {
          return Collections.emptyList();
       }
@@ -659,7 +675,7 @@ public class DataSetService {
          return Collections.emptyList();
       }
 
-      List<WorksheetRootBlockFieldInfo> fields = new ArrayList<>();
+      List<WorksheetTableAssemblyFieldInfo> fields = new ArrayList<>();
 
       for(int i = 0; i < columns.getAttributeCount(); i++) {
          if(!(columns.getAttribute(i) instanceof ColumnRef)) {
@@ -678,18 +694,17 @@ public class DataSetService {
             name = "Column [" + i + "]";
          }
 
-         fields.add(WorksheetRootBlockFieldInfo.builder()
-            .name(name)
-            .type(StringUtils.defaultIfBlank(column.getDataType(), "unknown"))
-            .build());
+         fields.add(new WorksheetTableAssemblyFieldInfo(
+            name, StringUtils.defaultIfBlank(column.getDataType(), "unknown")));
       }
 
       return fields;
    }
 
    private String getWorksheetTransformationSummary(Worksheet worksheet,
-                                                    WorksheetRootBlockInfo primaryBlock,
-                                                    List<WorksheetRootBlockInfo> rootBlocks)
+                                                    WorksheetTableAssemblyInfo primaryTableAssembly,
+                                                    List<WorksheetTableAssemblyInfo> rootTableAssemblies,
+                                                    Catalog catalog)
    {
       if(worksheet == null) {
          return null;
@@ -703,74 +718,85 @@ public class DataSetService {
 
       TableAssembly primaryTable = (TableAssembly) primaryAssembly;
       List<String> steps = new ArrayList<>();
-      int inputCount = rootBlocks == null ? 0 : rootBlocks.size();
+      int inputCount = rootTableAssemblies == null ? 0 : rootTableAssemblies.size();
 
       if(primaryTable instanceof RelationalJoinTableAssembly ||
          primaryTable instanceof MergeJoinTableAssembly)
       {
          int tableCount = getComposedTableCount(primaryTable);
-         steps.add(tableCount > 1 ? "joins " + tableCount + " source tables" : "joins source tables");
+         steps.add(tableCount > 1 ?
+            catalog.getString("worksheet.transformation.joins.source.tables.count", tableCount) :
+            catalog.getString("worksheet.transformation.joins.source.tables"));
       }
       else if(primaryTable instanceof ConcatenatedTableAssembly) {
          int tableCount = getComposedTableCount(primaryTable);
-         steps.add(tableCount > 1 ? "concatenates " + tableCount + " tables" : "concatenates tables");
+         steps.add(tableCount > 1 ?
+            catalog.getString("worksheet.transformation.concatenates.tables.count", tableCount) :
+            catalog.getString("worksheet.transformation.concatenates.tables"));
       }
       else if(primaryTable instanceof UnpivotTableAssembly) {
-         steps.add("reshapes the data with an unpivot step");
+         steps.add(catalog.getString("worksheet.transformation.unpivot"));
       }
       else if(primaryTable instanceof RotatedTableAssembly) {
-         steps.add("reshapes the data with a rotation step");
+         steps.add(catalog.getString("worksheet.transformation.rotation"));
       }
       else if(primaryTable instanceof MirrorTableAssembly) {
-         steps.add("mirrors an upstream worksheet table");
+         steps.add(catalog.getString("worksheet.transformation.mirror"));
       }
 
       if(hasConditions(primaryTable.getPreConditionList()) || hasConditions(primaryTable.getPostConditionList())) {
-         steps.add("filters the rows");
+         steps.add(catalog.getString("worksheet.transformation.filters.rows"));
       }
 
       if(primaryTable.isAggregate()) {
-         steps.add("groups or aggregates the data");
+         steps.add(catalog.getString("worksheet.transformation.groups.aggregates"));
       }
 
       if(primaryTable.isDistinct()) {
-         steps.add("keeps distinct rows");
+         steps.add(catalog.getString("worksheet.transformation.distinct.rows"));
       }
 
       if(primaryTable.getSortInfo() != null && !primaryTable.getSortInfo().isEmpty()) {
-         steps.add("applies sorting");
+         steps.add(catalog.getString("worksheet.transformation.applies.sorting"));
       }
 
       if(primaryTable.getMaxRows() > 0 || primaryTable.getMaxDisplayRows() > 0) {
-         steps.add("limits the output rows");
+         steps.add(catalog.getString("worksheet.transformation.limits.output.rows"));
       }
 
-      int fieldCount = primaryBlock == null || primaryBlock.fields() == null ? 0 : primaryBlock.fields().size();
+      int fieldCount = primaryTableAssembly == null || primaryTableAssembly.fields() == null ?
+         0 : primaryTableAssembly.fields().size();
       String inputDescription;
 
       if(inputCount <= 0) {
-         inputDescription = "Builds the worksheet output";
+         inputDescription = catalog.getString("worksheet.transformation.builds.output");
       }
       else if(inputCount == 1) {
-         inputDescription = "Starts from 1 root data block";
+         inputDescription = catalog.getString("worksheet.transformation.starts.from.one.root.table.assembly");
       }
       else {
-         inputDescription = "Starts from " + inputCount + " root data blocks";
+         inputDescription = catalog.getString(
+            "worksheet.transformation.starts.from.root.table.assemblies.count", inputCount);
       }
 
       if(!steps.isEmpty()) {
          inputDescription += ", " + String.join(", ", steps);
       }
 
-      if(primaryBlock != null && StringUtils.isNotBlank(primaryBlock.name())) {
-         inputDescription += ", and outputs the primary block \"" + primaryBlock.name() + "\"";
+      if(primaryTableAssembly != null && StringUtils.isNotBlank(primaryTableAssembly.name())) {
+         inputDescription += ", " + catalog.getString(
+            "worksheet.transformation.outputs.primary.table.assembly.named",
+            primaryTableAssembly.name());
       }
       else {
-         inputDescription += ", and outputs the worksheet's primary data block";
+         inputDescription += ", " +
+            catalog.getString("worksheet.transformation.outputs.primary.table.assembly");
       }
 
       if(fieldCount > 0) {
-         inputDescription += " with " + fieldCount + " field" + (fieldCount == 1 ? "" : "s");
+         inputDescription += " " + (fieldCount == 1 ?
+            catalog.getString("worksheet.transformation.with.field.count", fieldCount) :
+            catalog.getString("worksheet.transformation.with.fields.count", fieldCount));
       }
 
       return inputDescription + ".";
@@ -818,12 +844,11 @@ public class DataSetService {
             continue;
          }
 
-         dependents.add(WorksheetDependentAssetInfo.builder()
-            .name(StringUtils.defaultIfBlank(dependentEntry.getAlias(),
-               StringUtils.defaultIfBlank(dependentEntry.getName(), dependentEntry.getPath())))
-            .path(dependentEntry.getPath())
-            .type(dependentEntry.getType().isDashboard() ? "dashboard" : "viewsheet")
-            .build());
+         dependents.add(new WorksheetDependentAssetInfo(
+            StringUtils.defaultIfBlank(dependentEntry.getAlias(),
+               StringUtils.defaultIfBlank(dependentEntry.getName(), dependentEntry.getPath())),
+            dependentEntry.getPath(),
+            dependentEntry.getType().isDashboard() ? "dashboard" : "viewsheet"));
       }
 
       dependents.sort(Comparator.comparing(WorksheetDependentAssetInfo::type)
@@ -909,6 +934,7 @@ public class DataSetService {
       else if(!Tool.isEmptyString(oldEntry.getAlias())) {
          oldEntry.setAlias(newName);
          assetRepository.changeSheet(oldEntry, oldEntry, principal, true);
+         invalidateWorksheetMetadata(oldEntry);
          return;
       }
 
@@ -939,6 +965,8 @@ public class DataSetService {
       assetRepository.changeSheet(oldEntry, newEntry, principal, true);
       securityProvider.setPermission(ResourceType.ASSET, newPath, oldPermission);
       securityProvider.removePermission(ResourceType.ASSET, info.path());
+      invalidateWorksheetMetadata(oldEntry);
+      invalidateWorksheetMetadata(newEntry);
    }
 
    public void renameFolder(String auditPath, WorksheetBrowserInfo info, String newName,
@@ -972,6 +1000,7 @@ public class DataSetService {
 
          securityProvider.setPermission(ResourceType.ASSET, newPath, oldPermission);
          securityProvider.removePermission(ResourceType.ASSET, oldPath);
+         worksheetRootTableAssembliesCache.invalidateAll();
       }
       catch (Exception ex) {
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
@@ -1270,6 +1299,7 @@ public class DataSetService {
       RecycleBin recycleBin = RecycleBin.getRecycleBin();
       recycleBin.renameFolder(oldPath, newEntry.getPath());
       securityEngine.setPermission(ResourceType.ASSET, oldPath, oldPermission);
+      worksheetRootTableAssembliesCache.invalidateAll();
    }
 
    /**
@@ -1333,6 +1363,7 @@ public class DataSetService {
          assetRepository.removeFolder(entry, principal, true);
          securityProvider.removePermission(ResourceType.ASSET, path);
          recycleBin.removeEntry(path);
+         worksheetRootTableAssembliesCache.invalidateAll();
       }
       else {
          AssetEntry binEntry = new AssetEntry(scope, AssetEntry.Type.FOLDER,
@@ -1364,6 +1395,7 @@ public class DataSetService {
 
          recycleBin.addEntry(newEntry.getPath(), entry.getPath(), entry.getName(),
                              oldPermission, RepositoryEntry.WORKSHEET_FOLDER, entry.getScope(), entry.getUser());
+         worksheetRootTableAssembliesCache.invalidateAll();
       }
    }
 
@@ -1388,13 +1420,16 @@ public class DataSetService {
 
          RecycleBin recycleBin = RecycleBin.getRecycleBin();
          recycleBin.removeEntry(entry.getPath());
+         invalidateWorksheetMetadata(entry);
       }
       else if(force) {
          assetRepository.removeSheet(entry, principal, true);
          securityProvider.removePermission(ResourceType.ASSET, path);
+         invalidateWorksheetMetadata(entry);
       }
       else {
          moveSheetToBin(entry, scope, principal);
+         invalidateWorksheetMetadata(entry);
       }
    }
 
@@ -1553,6 +1588,8 @@ public class DataSetService {
       RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
       DependencyHandler.getInstance().renameDependencies(oldEntry, newEntry);
       securityEngine.setPermission(ResourceType.ASSET, newPath, oldPermission);
+      invalidateWorksheetMetadata(oldEntry);
+      invalidateWorksheetMetadata(newEntry);
    }
 
    /**
@@ -1651,17 +1688,28 @@ public class DataSetService {
          IdentityID.getIdentityIDFromKey(principal.getName()) : null;
    }
 
+   private void invalidateWorksheetMetadata(AssetEntry entry) {
+      if(entry != null) {
+         worksheetRootTableAssembliesCache.invalidate(entry.toIdentifier());
+      }
+   }
+
    private final SecurityProvider securityProvider;
    private final SecurityEngine securityEngine;
    private final AssetRepository assetRepository;
    private final DataSetSearchService dataSetSearchService;
-   private final Map<String, WorksheetRootBlocksMetadata> worksheetRootBlocksCache =
-      new ConcurrentHashMap<>();
+   private final Cache<String, WorksheetRootTableAssembliesMetadata> worksheetRootTableAssembliesCache =
+      Caffeine.newBuilder()
+         .maximumSize(1_000)
+         .expireAfterAccess(Duration.ofHours(1))
+         .build();
    private static final Logger LOG = LoggerFactory.getLogger(DataSetService.class);
 
-   private record WorksheetRootBlocksMetadata(long modifiedTime,
-                                              List<WorksheetRootBlockInfo> rootBlocks,
-                                              WorksheetRootBlockInfo primaryBlock,
-                                              String transformationSummary) {
+   private record WorksheetRootTableAssembliesMetadata(
+      long modifiedTime,
+      List<WorksheetTableAssemblyInfo> rootTableAssemblies,
+      WorksheetTableAssemblyInfo primaryTableAssembly,
+      String transformationSummary)
+   {
    }
 }

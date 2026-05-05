@@ -17,30 +17,15 @@
  */
 package inetsoft.web.portal.data;
 
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.web.binding.model.SourceInfo;
-import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
 import java.util.List;
 
-@Value.Immutable
-@JsonSerialize(as = ImmutableWorksheetRootBlockInfo.class)
-@JsonDeserialize(as = ImmutableWorksheetRootBlockInfo.class)
-public interface WorksheetRootBlockInfo {
-   String name();
-   String kind();
-
-   @Nullable
-   SourceInfo sourceInfo();
-
-   List<WorksheetRootBlockFieldInfo> fields();
-
-   static Builder builder() {
-      return new Builder();
-   }
-
-   final class Builder extends ImmutableWorksheetRootBlockInfo.Builder {
-   }
+public record WorksheetTableAssemblyInfo(
+   String name,
+   String kind,
+   @Nullable SourceInfo sourceInfo,
+   List<WorksheetTableAssemblyFieldInfo> fields)
+{
 }

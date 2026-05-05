@@ -20,10 +20,10 @@ import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from
 import { AssetItem } from "../../model/datasources/database/asset-item";
 import { LogicalModelBrowserInfo } from "../../model/datasources/database/physical-model/logical-model/logical-model-browser-info";
 
-interface WorksheetRootBlockInfo {
+interface WorksheetRootTableAssemblyInfo {
   name: string;
   kind: string;
-  fields?: WorksheetRootBlockFieldInfo[];
+  fields?: WorksheetRootTableAssemblyFieldInfo[];
   sourceInfo?: {
     source?: string;
     prefix?: string;
@@ -31,19 +31,19 @@ interface WorksheetRootBlockInfo {
   };
 }
 
-interface WorksheetRootBlockFieldInfo {
+interface WorksheetRootTableAssemblyFieldInfo {
   name: string;
   type: string;
 }
 
-interface WorksheetRootBlocksSummary {
+interface WorksheetRootTableAssembliesSummary {
   id: string;
   path: string;
   scope: number;
-  primaryBlock?: WorksheetRootBlockInfo;
+  primaryTableAssembly?: WorksheetRootTableAssemblyInfo;
   transformationSummary?: string;
   usedBy: WorksheetDependentAssetInfo[];
-  rootBlocks: WorksheetRootBlockInfo[];
+  rootTableAssemblies: WorksheetRootTableAssemblyInfo[];
 }
 
 interface WorksheetDependentAssetInfo {
@@ -61,18 +61,18 @@ export class AssetDescriptionComponent implements OnChanges {
   @Input() selectedFile: AssetItem;
   @Input() isWorksheet: boolean = false;
   @Output() onClose: EventEmitter<void> = new EventEmitter();
-  primaryBlock: WorksheetRootBlockInfo | null = null;
+  primaryTableAssembly: WorksheetRootTableAssemblyInfo | null = null;
   transformationSummary = "";
   usedBy: WorksheetDependentAssetInfo[] = [];
-  rootBlocks: WorksheetRootBlockInfo[] = [];
-  loadingRootBlocks = false;
+  rootTableAssemblies: WorksheetRootTableAssemblyInfo[] = [];
+  loadingRootTableAssemblies = false;
 
   constructor(private httpClient: HttpClient) {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
     if(changes["selectedFile"] || changes["isWorksheet"]) {
-      this.loadRootBlocks();
+      this.loadRootTableAssemblies();
     }
   }
 
@@ -88,10 +88,10 @@ export class AssetDescriptionComponent implements OnChanges {
     this.onClose.emit();
   }
 
-  getRootBlockLabel(block: WorksheetRootBlockInfo): string {
-    if(block.kind === "connected") {
-      const prefix = block.sourceInfo?.prefix;
-      const source = block.sourceInfo?.source;
+  getRootTableAssemblyLabel(tableAssembly: WorksheetRootTableAssemblyInfo): string {
+    if(tableAssembly.kind === "connected") {
+      const prefix = tableAssembly.sourceInfo?.prefix;
+      const source = tableAssembly.sourceInfo?.source;
 
       if(prefix && source) {
         return `${source} (${prefix})`;
@@ -104,18 +104,18 @@ export class AssetDescriptionComponent implements OnChanges {
       }
     }
 
-    return block.name;
+    return tableAssembly.name;
   }
 
-  getRootBlockMeta(block: WorksheetRootBlockInfo): string {
-    if(block.kind === "embedded") {
+  getRootTableAssemblyMeta(tableAssembly: WorksheetRootTableAssemblyInfo): string {
+    if(tableAssembly.kind === "embedded") {
       return "_#(Embedded Data)";
     }
 
-    return block.sourceInfo?.dataSourceType || "_#(Connected Data Source)";
+    return tableAssembly.sourceInfo?.dataSourceType || "_#(Connected Data Source)";
   }
 
-  getRootBlockFieldType(field: WorksheetRootBlockFieldInfo): string {
+  getRootTableAssemblyFieldType(field: WorksheetRootTableAssemblyFieldInfo): string {
     return field?.type || "unknown";
   }
 
@@ -123,32 +123,33 @@ export class AssetDescriptionComponent implements OnChanges {
     return asset?.type === "dashboard" ? "_#(Dashboard)" : "_#(Viewsheet)";
   }
 
-  private loadRootBlocks(): void {
-    this.primaryBlock = null;
+  private loadRootTableAssemblies(): void {
+    this.primaryTableAssembly = null;
     this.transformationSummary = "";
     this.usedBy = [];
-    this.rootBlocks = [];
+    this.rootTableAssemblies = [];
 
     if(!this.isWorksheet || !this.selectedFile?.path || this.selectedFile?.scope == null) {
       return;
     }
 
-    this.loadingRootBlocks = true;
+    this.loadingRootTableAssemblies = true;
     const params = new HttpParams()
       .set("path", this.selectedFile.path)
       .set("scope", `${this.selectedFile.scope}`);
 
-    this.httpClient.get<WorksheetRootBlocksSummary>("../api/portal/data/worksheet/root-blocks", {params})
+    this.httpClient.get<WorksheetRootTableAssembliesSummary>(
+      "../api/portal/data/worksheet/root-table-assemblies", {params})
       .subscribe({
         next: (summary) => {
-          this.primaryBlock = summary?.primaryBlock || null;
+          this.primaryTableAssembly = summary?.primaryTableAssembly || null;
           this.transformationSummary = summary?.transformationSummary || "";
           this.usedBy = summary?.usedBy || [];
-          this.rootBlocks = summary?.rootBlocks || [];
-          this.loadingRootBlocks = false;
+          this.rootTableAssemblies = summary?.rootTableAssemblies || [];
+          this.loadingRootTableAssemblies = false;
         },
         error: () => {
-          this.loadingRootBlocks = false;
+          this.loadingRootTableAssemblies = false;
         }
       });
   }

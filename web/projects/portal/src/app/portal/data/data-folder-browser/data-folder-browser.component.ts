@@ -115,10 +115,10 @@ export interface DeleteDataSetResponse {
    corrupt: boolean;
 }
 
-interface WorksheetRootBlockInfo {
+interface WorksheetRootTableAssemblyInfo {
    name: string;
    kind: string;
-   fields?: WorksheetRootBlockFieldInfo[];
+   fields?: WorksheetRootTableAssemblyFieldInfo[];
    sourceInfo?: {
       source?: string;
       prefix?: string;
@@ -126,19 +126,19 @@ interface WorksheetRootBlockInfo {
    };
 }
 
-interface WorksheetRootBlockFieldInfo {
+interface WorksheetRootTableAssemblyFieldInfo {
    name: string;
    type: string;
 }
 
-interface WorksheetRootBlocksSummary {
+interface WorksheetRootTableAssembliesSummary {
    id: string;
    path: string;
    scope: number;
-   primaryBlock?: WorksheetRootBlockInfo;
+   primaryTableAssembly?: WorksheetRootTableAssemblyInfo;
    transformationSummary?: string;
    usedBy: WorksheetDependentAssetInfo[];
-   rootBlocks: WorksheetRootBlockInfo[];
+   rootTableAssemblies: WorksheetRootTableAssemblyInfo[];
 }
 
 interface WorksheetDependentAssetInfo {
@@ -163,10 +163,10 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
    currentFolderPathScope: string = "";
    selectedFile: AssetItem = null;
    private pendingWorksheetSelection: WorksheetSelectionRequest = null;
-   primaryBlock: WorksheetRootBlockInfo = null;
+   primaryTableAssembly: WorksheetRootTableAssemblyInfo = null;
    transformationSummary = "";
    usedBy: WorksheetDependentAssetInfo[] = [];
-   rootBlocks: WorksheetRootBlockInfo[] = [];
+   rootTableAssemblies: WorksheetRootTableAssemblyInfo[] = [];
    loadingWorksheetDetails = false;
    selectedItems: WorksheetBrowserInfo[] = [];
    sortOptions: SortOptions = new SortOptions(["name"], SortTypes.ASCENDING);
@@ -1421,10 +1421,10 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
       this.dataDetailsPaneService.clearWorksheetSelectionRequest();
    }
 
-   getRootBlockLabel(block: WorksheetRootBlockInfo): string {
-      if(block.kind === "connected") {
-         const prefix = block.sourceInfo?.prefix;
-         const source = block.sourceInfo?.source;
+   getRootTableAssemblyLabel(tableAssembly: WorksheetRootTableAssemblyInfo): string {
+      if(tableAssembly.kind === "connected") {
+         const prefix = tableAssembly.sourceInfo?.prefix;
+         const source = tableAssembly.sourceInfo?.source;
 
          if(prefix && source) {
             return `${source} (${prefix})`;
@@ -1437,18 +1437,18 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
          }
       }
 
-      return block.name;
+      return tableAssembly.name;
    }
 
-   getRootBlockMeta(block: WorksheetRootBlockInfo): string {
-      if(block.kind === "embedded") {
+   getRootTableAssemblyMeta(tableAssembly: WorksheetRootTableAssemblyInfo): string {
+      if(tableAssembly.kind === "embedded") {
          return "_#(Embedded Data)";
       }
 
-      return block.sourceInfo?.dataSourceType || "_#(Connected Data Source)";
+      return tableAssembly.sourceInfo?.dataSourceType || "_#(Connected Data Source)";
    }
 
-   getRootBlockFieldType(field: WorksheetRootBlockFieldInfo): string {
+   getRootTableAssemblyFieldType(field: WorksheetRootTableAssemblyFieldInfo): string {
       return field?.type || "unknown";
    }
 
@@ -1457,10 +1457,10 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
    }
 
    private loadWorksheetDetails(): void {
-      this.primaryBlock = null;
+      this.primaryTableAssembly = null;
       this.transformationSummary = "";
       this.usedBy = [];
-      this.rootBlocks = [];
+      this.rootTableAssemblies = [];
 
       if(!this.selectedFile?.path || this.selectedFile?.scope == null) {
          this.loadingWorksheetDetails = false;
@@ -1472,13 +1472,14 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
          .set("path", this.selectedFile.path)
          .set("scope", `${this.selectedFile.scope}`);
 
-      this.httpClient.get<WorksheetRootBlocksSummary>("../api/portal/data/worksheet/root-blocks", {params})
+      this.httpClient.get<WorksheetRootTableAssembliesSummary>(
+         "../api/portal/data/worksheet/root-table-assemblies", {params})
          .subscribe({
             next: (summary) => {
-               this.primaryBlock = summary?.primaryBlock || null;
+               this.primaryTableAssembly = summary?.primaryTableAssembly || null;
                this.transformationSummary = summary?.transformationSummary || "";
                this.usedBy = summary?.usedBy || [];
-               this.rootBlocks = summary?.rootBlocks || [];
+               this.rootTableAssemblies = summary?.rootTableAssemblies || [];
                this.loadingWorksheetDetails = false;
             },
             error: () => this.loadingWorksheetDetails = false

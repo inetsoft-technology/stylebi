@@ -25,7 +25,7 @@
   width: 100%;
   overflow: hidden;
 
-    .portal-schedule-task-list {
+  .portal-schedule-task-list {
     flex-grow: 1;
     min-height: 0;
     display: flex;
@@ -39,7 +39,7 @@
       align-items: center;
       justify-content: space-between;
       gap: 16px;
-      min-height: var(--inet-control-height-xl);
+      min-height: var(--inet-control-height-lg);
       padding: var(--inet-space-3) var(--inet-space-5);
       border-bottom: 1px solid var(--inet-default-border-color);
     }
@@ -53,15 +53,15 @@
       flex: 1 1 auto;
     }
 
-      .schedule-task-list-header__status-label {
+    .schedule-task-list-header__status-label {
       font-size: 11px;
       font-weight: 600;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       color: var(--inet-text-muted-color);
-      }
+    }
 
-      .schedule-task-list-header__status-pill {
+    .schedule-task-list-header__status-pill {
       display: inline-flex;
       align-items: center;
       padding: 6px 10px;
@@ -165,7 +165,7 @@
               overflow-y: auto;
               position: relative;
 
-                .table {
+              .table {
                 width: 100%;
                 text-align: center;
                 display: flex;
@@ -308,7 +308,7 @@
                 }
               }
 
-                .loading-indicator {
+              .loading-indicator {
                 display: flex;
                 position: absolute;
                 top: 0;
@@ -327,7 +327,7 @@
         }
       }
 
-    }
+  }
   }
 
   .task-row {

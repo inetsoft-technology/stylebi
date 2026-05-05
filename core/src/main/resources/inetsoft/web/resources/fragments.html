@@ -23,11 +23,13 @@
 <div class="d-flex align-items-center bg-navbar-top"
      data-th-fragment="navbar(logoSrc, homeHref)"
      data-th-switch="${customLogo}">
-  <a class="auth-brand-link" href="./" data-th-href="${homeHref}" aria-label="StyleBI home">
+  <a class="auth-brand-link" href="./" data-th-href="${homeHref}"
+     data-th-attr="aria-label=#{index.stylebi.home}" aria-label="StyleBI home">
     <img class="custom-logo" src="portal/logo" data-th-src="${logoSrc}" data-th-case="${true}">
   </a>
   <th-block data-th-case="*">
-    <a class="auth-brand-link" href="./" data-th-href="${homeHref}" aria-label="StyleBI home">
+    <a class="auth-brand-link" href="./" data-th-href="${homeHref}"
+       data-th-attr="aria-label=#{index.stylebi.home}" aria-label="StyleBI home">
       <span class="auth-brand-text">StyleBI</span>
     </a>
   </th-block>

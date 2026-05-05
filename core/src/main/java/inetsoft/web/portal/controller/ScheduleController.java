@@ -51,13 +51,11 @@ public class ScheduleController {
     *
     * @param analyticRepository the analytic repository.
     * @param scheduleManager    the schedule manager.
-    * @param scheduleClient     the schedule client.
     * @param scheduleService    the schedule service.
     */
    @Autowired
    public ScheduleController(AnalyticRepository analyticRepository,
                              ScheduleManager scheduleManager,
-                             ScheduleClient scheduleClient,
                              ScheduleService scheduleService,
                              SecurityProvider securityProvider)
    {
@@ -339,88 +337,36 @@ public class ScheduleController {
 
       try {
          if(!client.isReady()) {
-            return PortalSchedulerHealthModel.builder()
-               .available(true)
-               .healthy(false)
-               .started(false)
-               .shutdown(true)
-               .standby(false)
-               .lastCheck(0L)
-               .nextCheck(0L)
-               .executingCount(0)
-               .threadCount(0)
-               .statusLabel(catalog.getString("Stopped"))
-               .detailMessage(catalog.getString(
-                  "Scheduler is stopped, so scheduled tasks will not run automatically."))
-               .build();
+            return new PortalSchedulerHealthModel(
+               catalog.getString("Stopped"),
+               catalog.getString("Scheduler is stopped, so scheduled tasks will not run automatically."));
          }
 
          Optional<HealthStatus> healthStatus = client.getHealthStatus();
 
          if(healthStatus.isEmpty() || healthStatus.get().getSchedulerStatus() == null) {
-            return PortalSchedulerHealthModel.builder()
-               .available(false)
-               .healthy(false)
-               .started(false)
-               .shutdown(false)
-               .standby(false)
-               .lastCheck(0L)
-               .nextCheck(0L)
-               .executingCount(0)
-               .threadCount(0)
-               .statusLabel("Unavailable")
-               .detailMessage("Scheduler health is currently unavailable.")
-               .build();
+            return new PortalSchedulerHealthModel(
+               catalog.getString("Unavailable"),
+               catalog.getString("Scheduler health is currently unavailable."));
          }
 
          SchedulerStatus status = healthStatus.get().getSchedulerStatus();
-         return PortalSchedulerHealthModel.builder()
-            .available(true)
-            .healthy(status.isHealthy())
-            .started(status.isStarted())
-            .shutdown(status.isShutdown())
-            .standby(status.isStandby())
-            .lastCheck(status.getLastCheck())
-            .nextCheck(status.getNextCheck())
-            .executingCount(status.getExecutingCount())
-            .threadCount(status.getThreadCount())
-            .statusLabel(getSchedulerStatusLabel(status, catalog))
-            .detailMessage(getSchedulerStatusMessage(status, catalog))
-            .build();
+         return new PortalSchedulerHealthModel(
+            getSchedulerStatusLabel(status, catalog),
+            getSchedulerStatusMessage(status, catalog));
       }
       catch(Exception e) {
          LOG.warn("Failed to get scheduler health for portal", e);
 
          if(!client.isReady()) {
-            return PortalSchedulerHealthModel.builder()
-               .available(true)
-               .healthy(false)
-               .started(false)
-               .shutdown(true)
-               .standby(false)
-               .lastCheck(0L)
-               .nextCheck(0L)
-               .executingCount(0)
-               .threadCount(0)
-               .statusLabel(catalog.getString("Stopped"))
-               .detailMessage(catalog.getString(
-                  "Scheduler is stopped, so scheduled tasks will not run automatically."))
-               .build();
+            return new PortalSchedulerHealthModel(
+               catalog.getString("Stopped"),
+               catalog.getString("Scheduler is stopped, so scheduled tasks will not run automatically."));
          }
 
-         return PortalSchedulerHealthModel.builder()
-            .available(false)
-            .healthy(false)
-            .started(false)
-            .shutdown(false)
-            .standby(false)
-            .lastCheck(0L)
-            .nextCheck(0L)
-            .executingCount(0)
-            .threadCount(0)
-            .statusLabel(catalog.getString("Unavailable"))
-            .detailMessage(catalog.getString("Scheduler health could not be retrieved."))
-            .build();
+         return new PortalSchedulerHealthModel(
+            catalog.getString("Unavailable"),
+            catalog.getString("Scheduler health could not be retrieved."));
       }
    }
 

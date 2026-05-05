@@ -17,21 +17,5 @@
  */
 package inetsoft.web.portal.data;
 
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import org.immutables.value.Value;
-
-@Value.Immutable
-@JsonSerialize(as = ImmutableWorksheetRootBlockFieldInfo.class)
-@JsonDeserialize(as = ImmutableWorksheetRootBlockFieldInfo.class)
-public interface WorksheetRootBlockFieldInfo {
-   String name();
-   String type();
-
-   static Builder builder() {
-      return new Builder();
-   }
-
-   final class Builder extends ImmutableWorksheetRootBlockFieldInfo.Builder {
-   }
+public record WorksheetTableAssemblyFieldInfo(String name, String type) {
 }

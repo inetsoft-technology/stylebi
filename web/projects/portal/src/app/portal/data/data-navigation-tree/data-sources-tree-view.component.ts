@@ -2864,6 +2864,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
 
    editVisible(node: TreeNodeModel): boolean {
       return this.isWorksheetNode(node) ||
+         this.isDataSourceLeafNode(node) ||
          node?.type === PortalDataType.PARTITION ||
          node?.type === PortalDataType.LOGIC_MODEL;
    }

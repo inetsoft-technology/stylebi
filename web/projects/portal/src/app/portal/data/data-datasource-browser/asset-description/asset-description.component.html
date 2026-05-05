@@ -69,11 +69,11 @@
         </div>
         <div *ngIf="isWorksheet" class="overview-item">
           <div class="overview-item__label">_#(Primary Fields)</div>
-          <div class="overview-item__value">{{primaryBlock?.fields?.length || 0}}</div>
+          <div class="overview-item__value">{{primaryTableAssembly?.fields?.length || 0}}</div>
         </div>
         <div *ngIf="isWorksheet" class="overview-item">
           <div class="overview-item__label">_#(Root Inputs)</div>
-          <div class="overview-item__value">{{rootBlocks.length}}</div>
+          <div class="overview-item__value">{{rootTableAssemblies.length}}</div>
         </div>
         <div *ngIf="isWorksheet" class="overview-item">
           <div class="overview-item__label">_#(Used By)</div>
@@ -84,8 +84,8 @@
 
     <section class="info-section" *ngIf="isWorksheet">
       <div class="info-section__title">_#(Transformation Summary)</div>
-      <div *ngIf="loadingRootBlocks" class="section-empty">_#(Loading)</div>
-      <div *ngIf="!loadingRootBlocks && !transformationSummary" class="section-empty">_#(None)</div>
+      <div *ngIf="loadingRootTableAssemblies" class="section-empty">_#(Loading)</div>
+      <div *ngIf="!loadingRootTableAssemblies && !transformationSummary" class="section-empty">_#(None)</div>
       <div *ngIf="transformationSummary" class="summary-callout">
         {{transformationSummary}}
       </div>
@@ -93,18 +93,18 @@
 
     <div class="detail-grid" *ngIf="isWorksheet">
       <section class="info-section detail-card">
-        <div class="info-section__title">_#(Primary Data Block)</div>
-        <div *ngIf="loadingRootBlocks" class="section-empty">_#(Loading)</div>
-        <div *ngIf="!loadingRootBlocks && !primaryBlock" class="section-empty">_#(None)</div>
-        <div *ngIf="primaryBlock" class="block-card block-card--primary">
+        <div class="info-section__title">_#(Primary Table Assembly)</div>
+        <div *ngIf="loadingRootTableAssemblies" class="section-empty">_#(Loading)</div>
+        <div *ngIf="!loadingRootTableAssemblies && !primaryTableAssembly" class="section-empty">_#(None)</div>
+        <div *ngIf="primaryTableAssembly" class="block-card block-card--primary">
           <div class="block-card__header">
-            <div class="block-card__title">{{primaryBlock.name}}</div>
-            <div class="block-card__badge">{{primaryBlock.fields?.length || 0}} Fields</div>
+            <div class="block-card__title">{{primaryTableAssembly.name}}</div>
+            <div class="block-card__badge">{{primaryTableAssembly.fields?.length || 0}} _#(Fields)</div>
           </div>
-          <div *ngIf="primaryBlock.fields?.length" class="field-chip-list">
-            <div *ngFor="let field of primaryBlock.fields" class="field-chip">
+          <div *ngIf="primaryTableAssembly.fields?.length" class="field-chip-list">
+            <div *ngFor="let field of primaryTableAssembly.fields" class="field-chip">
               <span class="field-chip__name">{{field.name}}</span>
-              <span class="field-chip__type">{{getRootBlockFieldType(field)}}</span>
+              <span class="field-chip__type">{{getRootTableAssemblyFieldType(field)}}</span>
             </div>
           </div>
         </div>
@@ -112,8 +112,8 @@
 
       <section class="info-section detail-card">
         <div class="info-section__title">_#(Used By)</div>
-        <div *ngIf="loadingRootBlocks" class="section-empty">_#(Loading)</div>
-        <div *ngIf="!loadingRootBlocks && usedBy.length === 0" class="section-empty">_#(None)</div>
+        <div *ngIf="loadingRootTableAssemblies" class="section-empty">_#(Loading)</div>
+        <div *ngIf="!loadingRootTableAssemblies && usedBy.length === 0" class="section-empty">_#(None)</div>
         <div *ngFor="let asset of usedBy" class="dependent-asset-item">
           <div class="dependent-asset-item__header">
             <div class="dependent-asset-name">{{asset.name}}</div>
@@ -125,22 +125,22 @@
     </div>
 
     <section class="info-section" *ngIf="isWorksheet">
-      <div class="info-section__title">_#(Root Data Blocks)</div>
-      <div *ngIf="loadingRootBlocks" class="section-empty">_#(Loading)</div>
-      <div *ngIf="!loadingRootBlocks && rootBlocks.length === 0" class="section-empty">_#(None)</div>
-      <div *ngIf="rootBlocks.length > 0" class="root-block-grid">
-        <div *ngFor="let block of rootBlocks" class="block-card">
+      <div class="info-section__title">_#(Root Table Assemblies)</div>
+      <div *ngIf="loadingRootTableAssemblies" class="section-empty">_#(Loading)</div>
+      <div *ngIf="!loadingRootTableAssemblies && rootTableAssemblies.length === 0" class="section-empty">_#(None)</div>
+      <div *ngIf="rootTableAssemblies.length > 0" class="root-block-grid">
+        <div *ngFor="let tableAssembly of rootTableAssemblies" class="block-card">
           <div class="block-card__header">
             <div>
-              <div class="block-card__title">{{block.name}}</div>
-              <div class="block-card__subtitle">{{getRootBlockLabel(block)}}</div>
+              <div class="block-card__title">{{tableAssembly.name}}</div>
+              <div class="block-card__subtitle">{{getRootTableAssemblyLabel(tableAssembly)}}</div>
             </div>
-            <div class="block-card__pill">{{getRootBlockMeta(block)}}</div>
+            <div class="block-card__pill">{{getRootTableAssemblyMeta(tableAssembly)}}</div>
           </div>
-          <div *ngIf="block.fields?.length" class="field-chip-list">
-            <div *ngFor="let field of block.fields" class="field-chip">
+          <div *ngIf="tableAssembly.fields?.length" class="field-chip-list">
+            <div *ngFor="let field of tableAssembly.fields" class="field-chip">
               <span class="field-chip__name">{{field.name}}</span>
-              <span class="field-chip__type">{{getRootBlockFieldType(field)}}</span>
+              <span class="field-chip__type">{{getRootTableAssemblyFieldType(field)}}</span>
             </div>
           </div>
         </div>

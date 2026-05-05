@@ -27,18 +27,26 @@ physical-model-table-tree-node:first-of-type > .physical-model-table-tree-node {
 }
 
 .physical-model-table-tree-node__shell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   width: 100%;
 }
 
 .physical-model-table-tree-node__row {
   display: flex;
   align-items: center;
+  flex: 1 1 auto;
   gap: 6px;
+  min-width: 0;
   min-height: 28px;
 }
 
 .physical-model-table-tree-node__toggle,
 .physical-model-table-tree-node__menu {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
 }
 
@@ -49,6 +57,8 @@ physical-model-table-tree-node:first-of-type > .physical-model-table-tree-node {
 
 .physical-model-table-tree-node__label {
   flex: 1 1 auto;
+  line-height: 1.4;
+  min-width: 0;
 }
 
 .physical-model-table-tree-node__row--leaf {

@@ -192,11 +192,11 @@
                 </div>
                 <div class="worksheet-detail-overview-item">
                   <div class="worksheet-detail-overview-item__label">_#(Primary Fields)</div>
-                  <div class="worksheet-detail-overview-item__value">{{primaryBlock?.fields?.length || 0}}</div>
+                  <div class="worksheet-detail-overview-item__value">{{primaryTableAssembly?.fields?.length || 0}}</div>
                 </div>
                 <div class="worksheet-detail-overview-item">
                   <div class="worksheet-detail-overview-item__label">_#(Root Inputs)</div>
-                  <div class="worksheet-detail-overview-item__value">{{rootBlocks.length}}</div>
+                  <div class="worksheet-detail-overview-item__value">{{rootTableAssemblies.length}}</div>
                 </div>
                 <div class="worksheet-detail-overview-item">
                   <div class="worksheet-detail-overview-item__label">_#(Used By)</div>
@@ -216,18 +216,18 @@
 
             <div class="worksheet-detail-grid">
               <section class="worksheet-detail-section worksheet-detail-card">
-                <div class="worksheet-detail-section__title">_#(Primary Data Block)</div>
+                <div class="worksheet-detail-section__title">_#(Primary Table Assembly)</div>
                 <div *ngIf="loadingWorksheetDetails" class="worksheet-detail-empty">_#(Loading)</div>
-                <div *ngIf="!loadingWorksheetDetails && !primaryBlock" class="worksheet-detail-empty">_#(None)</div>
-                <div *ngIf="primaryBlock" class="worksheet-block-card worksheet-block-card--primary worksheet-block-card--flush">
+                <div *ngIf="!loadingWorksheetDetails && !primaryTableAssembly" class="worksheet-detail-empty">_#(None)</div>
+                <div *ngIf="primaryTableAssembly" class="worksheet-block-card worksheet-block-card--primary worksheet-block-card--flush">
                   <div class="worksheet-block-card__header">
-                    <div class="worksheet-block-card__title">{{primaryBlock.name}}</div>
-                    <div class="worksheet-block-card__badge">{{primaryBlock.fields?.length || 0}} Fields</div>
+                    <div class="worksheet-block-card__title">{{primaryTableAssembly.name}}</div>
+                    <div class="worksheet-block-card__badge">{{primaryTableAssembly.fields?.length || 0}} _#(Fields)</div>
                   </div>
-                  <div *ngIf="primaryBlock.fields?.length" class="worksheet-field-chip-list">
-                    <div *ngFor="let field of primaryBlock.fields" class="worksheet-field-chip">
+                  <div *ngIf="primaryTableAssembly.fields?.length" class="worksheet-field-chip-list">
+                    <div *ngFor="let field of primaryTableAssembly.fields" class="worksheet-field-chip">
                       <span class="worksheet-field-chip__name">{{field.name}}</span>
-                      <span class="worksheet-field-chip__type">{{getRootBlockFieldType(field)}}</span>
+                      <span class="worksheet-field-chip__type">{{getRootTableAssemblyFieldType(field)}}</span>
                     </div>
                   </div>
                 </div>
@@ -248,22 +248,22 @@
             </div>
 
             <section class="worksheet-detail-section">
-              <div class="worksheet-detail-section__title">_#(Root Data Blocks)</div>
+              <div class="worksheet-detail-section__title">_#(Root Table Assemblies)</div>
               <div *ngIf="loadingWorksheetDetails" class="worksheet-detail-empty">_#(Loading)</div>
-              <div *ngIf="!loadingWorksheetDetails && rootBlocks.length === 0" class="worksheet-detail-empty">_#(None)</div>
-              <div *ngIf="rootBlocks.length > 0" class="worksheet-root-block-grid">
-                <div *ngFor="let block of rootBlocks" class="worksheet-block-card">
+              <div *ngIf="!loadingWorksheetDetails && rootTableAssemblies.length === 0" class="worksheet-detail-empty">_#(None)</div>
+              <div *ngIf="rootTableAssemblies.length > 0" class="worksheet-root-block-grid">
+                <div *ngFor="let tableAssembly of rootTableAssemblies" class="worksheet-block-card">
                   <div class="worksheet-block-card__header">
                     <div>
-                      <div class="worksheet-block-card__title">{{block.name}}</div>
-                      <div class="worksheet-block-card__subtitle">{{getRootBlockLabel(block)}}</div>
+                      <div class="worksheet-block-card__title">{{tableAssembly.name}}</div>
+                      <div class="worksheet-block-card__subtitle">{{getRootTableAssemblyLabel(tableAssembly)}}</div>
                     </div>
-                    <div class="worksheet-block-card__pill">{{getRootBlockMeta(block)}}</div>
+                    <div class="worksheet-block-card__pill">{{getRootTableAssemblyMeta(tableAssembly)}}</div>
                   </div>
-                  <div *ngIf="block.fields?.length" class="worksheet-field-chip-list">
-                    <div *ngFor="let field of block.fields" class="worksheet-field-chip">
+                  <div *ngIf="tableAssembly.fields?.length" class="worksheet-field-chip-list">
+                    <div *ngFor="let field of tableAssembly.fields" class="worksheet-field-chip">
                       <span class="worksheet-field-chip__name">{{field.name}}</span>
-                      <span class="worksheet-field-chip__type">{{getRootBlockFieldType(field)}}</span>
+                      <span class="worksheet-field-chip__type">{{getRootTableAssemblyFieldType(field)}}</span>
                     </div>
                   </div>
                 </div>

@@ -67,6 +67,7 @@ import { DragService } from "../../../widget/services/drag.service";
 import { TreeComponent } from "../../../widget/tree/tree.component";
 import { SplitPane } from "../../../widget/split-pane/split-pane.component";
 import { NewTaskFolderEvent } from "../model/new-task-folder-event";
+import { PortalSchedulerHealthModel } from "../model/portal-scheduler-health-model";
 import { CheckTaskDuplicateRequest } from "../../data/commands/check-task-duplicate-request";
 import { CheckDuplicateResponse } from "../../data/commands/check-duplicate-response";
 import { DomService } from "../../../widget/dom-service/dom.service";
@@ -95,20 +96,6 @@ const CHECK_ROOT_PERMISSION_URI = "../api/portal/schedule/folder/checkRootPermis
 const SCHEDULER_HEALTH_URI = "../api/portal/schedule/health";
 const SYSTEM_USER = "INETSOFT_SYSTEM";
 declare const window: any;
-
-interface PortalSchedulerHealthModel {
-   available: boolean;
-   healthy: boolean;
-   started: boolean;
-   shutdown: boolean;
-   standby: boolean;
-   lastCheck: number;
-   nextCheck: number;
-   executingCount: number;
-   threadCount: number;
-   statusLabel: string;
-   detailMessage?: string;
-}
 
 @Component({
    selector: "p-schedule-task-list",
@@ -204,15 +191,7 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
    }
 
    get schedulerHealthPillClass(): string {
-      if(!this.schedulerHealth?.available || this.schedulerHealth?.shutdown) {
-         return "is-unavailable";
-      }
-
-      if(!this.schedulerHealth?.healthy) {
-         return "is-warning";
-      }
-
-      return "is-ready";
+      return this.schedulerHealth?.detailMessage ? "is-unavailable" : "is-ready";
    }
 
    refreshSchedulerHealth(): void {
@@ -225,17 +204,8 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
             },
             () => {
                this.schedulerHealth = {
-                  available: false,
-                  healthy: false,
-                  started: false,
-                  shutdown: false,
-                  standby: false,
-                  lastCheck: 0,
-                  nextCheck: 0,
-                  executingCount: 0,
-                  threadCount: 0,
-                  statusLabel: "Unavailable",
-                  detailMessage: "Scheduler health could not be retrieved."
+                  statusLabel: "_#(Unavailable)",
+                  detailMessage: "_#(Scheduler health could not be retrieved.)"
                };
                this.schedulerHealthLoading = false;
             }

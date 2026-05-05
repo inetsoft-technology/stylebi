@@ -18,7 +18,6 @@
 package inetsoft.web.portal.data;
 
 import inetsoft.report.internal.license.LicenseManager;
-import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
 import inetsoft.uql.DataSourceFolder;
@@ -40,7 +39,6 @@ import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.portal.model.database.DatasourceTreeAction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -50,18 +48,14 @@ import java.util.stream.Collectors;
 
 @Service
 public class DatasourcesTreeService {
-   @Autowired
    public DatasourcesTreeService(SecurityEngine securityEngine,
                                  ContentRepositoryTreeService contentRepositoryTreeService,
-                                 AssetRepository assetRepository)
+                                 AssetRepository assetRepository,
+                                 DataSetSearchService dataSetSearchService)
    {
       this.securityEngine = securityEngine;
       this.contentRepositoryTreeService = contentRepositoryTreeService;
       this.assetRepository = assetRepository;
-   }
-
-   @Autowired
-   public void setDataSetSearchService(DataSetSearchService dataSetSearchService) {
       this.dataSetSearchService = dataSetSearchService;
    }
 
@@ -678,7 +672,9 @@ public class DatasourcesTreeService {
             dataEntry.setProperty(DatasourceTreeAction.DELETE.name(), "true");
          }
 
-         if(checkDataModelFolderPermission(dataEntry.getPath(), ResourceAction.WRITE, principal)) {
+         if(checkDataModelFolderPermission(dataEntry.getPath(), ResourceAction.WRITE, principal) &&
+            checkDataModelFolderPermission(dataEntry.getPath(), ResourceAction.DELETE, principal))
+         {
             dataEntry.setProperty(DatasourceTreeAction.RENAME.name(), "true");
          }
 
@@ -699,7 +695,9 @@ public class DatasourcesTreeService {
             dataEntry.setProperty(DatasourceTreeAction.DELETE.name(), "true");
          }
 
-         if(checkPermission(dataSource, ResourceAction.WRITE, principal)) {
+         if(checkPermission(dataSource, ResourceAction.WRITE, principal) &&
+            checkPermission(dataSource, ResourceAction.DELETE, principal))
+         {
             dataEntry.setProperty(DatasourceTreeAction.RENAME.name(), "true");
          }
 
@@ -720,7 +718,9 @@ public class DatasourcesTreeService {
             }
 
             if(securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE_FOLDER,
-                  entry.getPath(), ResourceAction.WRITE))
+                  entry.getPath(), ResourceAction.WRITE) &&
+               securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE_FOLDER,
+                  entry.getPath(), ResourceAction.DELETE))
             {
                entry.setProperty(DatasourceTreeAction.RENAME.name(), "true");
             }
@@ -753,9 +753,11 @@ public class DatasourcesTreeService {
             entry.setProperty(DatasourceTreeAction.DELETE.name(), null);
          }
 
-          if(checkPermission(entry, ResourceAction.WRITE, principal)) {
-             entry.setProperty(DatasourceTreeAction.RENAME.name(), "true");
-          }
+         if(checkPermission(entry, ResourceAction.WRITE, principal) &&
+            checkPermission(entry, ResourceAction.DELETE, principal))
+         {
+            entry.setProperty(DatasourceTreeAction.RENAME.name(), "true");
+         }
          else if(entry.getProperty(DatasourceTreeAction.RENAME.name()) != null) {
             entry.setProperty(DatasourceTreeAction.RENAME.name(), null);
          }
@@ -903,7 +905,7 @@ public class DatasourcesTreeService {
    private final SecurityEngine securityEngine;
    private final ContentRepositoryTreeService contentRepositoryTreeService;
    private final AssetRepository assetRepository;
-   private DataSetSearchService dataSetSearchService;
+   private final DataSetSearchService dataSetSearchService;
    private static final Logger LOG = LoggerFactory.getLogger(DatasourcesTreeService.class);
 
    private static final class SearchTreeNode {

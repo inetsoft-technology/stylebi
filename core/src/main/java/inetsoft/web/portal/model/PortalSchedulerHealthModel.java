@@ -17,33 +17,7 @@
  */
 package inetsoft.web.portal.model;
 
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import org.immutables.value.Value;
-
 import javax.annotation.Nullable;
 
-@Value.Immutable
-@JsonSerialize(as = ImmutablePortalSchedulerHealthModel.class)
-@JsonDeserialize(as = ImmutablePortalSchedulerHealthModel.class)
-public abstract class PortalSchedulerHealthModel {
-   public abstract boolean available();
-   public abstract boolean healthy();
-   public abstract boolean started();
-   public abstract boolean shutdown();
-   public abstract boolean standby();
-   public abstract long lastCheck();
-   public abstract long nextCheck();
-   public abstract int executingCount();
-   public abstract int threadCount();
-   public abstract String statusLabel();
-   @Nullable
-   public abstract String detailMessage();
-
-   public static Builder builder() {
-      return new Builder();
-   }
-
-   public static final class Builder extends ImmutablePortalSchedulerHealthModel.Builder {
-   }
+public record PortalSchedulerHealthModel(String statusLabel, @Nullable String detailMessage) {
 }

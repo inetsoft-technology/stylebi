@@ -33,6 +33,7 @@ import { LicenseInfoService } from "../common/services/license-info.service";
 import { OpenComposerService } from "../common/services/open-composer.service";
 import { ComponentTool } from "../common/util/component-tool";
 import { GuiTool } from "../common/util/gui-tool";
+import { SecurityEnabledEvent } from "../../../../em/src/app/settings/security/security-settings-page/security-enabled-event";
 import { PortalCreationPermissions } from "./custom/portal-creation-permissions";
 import { PreferencesDialog } from "./dialog/preferences-dialog.component";
 import { PortalModel } from "./portal-model";
@@ -49,6 +50,7 @@ const REFRESH_CREATION_PERMISSION_URI = "../api/portal/refresh-creation-permissi
 const COMPOSER_WIZARD_STATUS_URI: string = "../api/composer/wizard/status";
 const PORTAL_PROFILING_URI: string = "../api/portal/set-profiling/";
 const PORTAL_CHECK_SHOW_GETTING_STARTED_URI: string = "../api/portal/getting-started";
+const SECURITY_ENABLED_URI = "../api/em/security/get-enable-security";
 declare const window: any;
 
 @Component({
@@ -67,6 +69,7 @@ export class PortalAppComponent implements OnInit, OnDestroy {
    mobile: boolean;
    currentUrl: string;
    tabBodyHeight: number;
+   securityEnabled = false;
    private routeSubscription: Subscription;
    private licenseInfo: LicenseInfo;
    private readonly ACCESSIBILITY_CLASS: string = "accessible";
@@ -155,6 +158,12 @@ export class PortalAppComponent implements OnInit, OnDestroy {
             const entry: AssetEntry = createAssetEntry(title);
             this.bodyTitle.setTitle(entry ? entry.path : title);
             this.logoutService.setLogoutUrl(model.logoutUrl);
+         });
+
+      this.http.get<SecurityEnabledEvent>(SECURITY_ENABLED_URI)
+         .subscribe((event) => {
+            this.securityEnabled = !!event?.enable;
+            this.checkDefaultTab();
          });
 
       this.portalTabsService.getPortalTabs().subscribe((portalTabs) => {
@@ -298,7 +307,7 @@ export class PortalAppComponent implements OnInit, OnDestroy {
    }
 
    getDashboardTabTooltip(): string {
-      if(this.getTab(PortalTabs.DASHBOARD) && !this.model?.securityEnabled) {
+      if(this.getTab(PortalTabs.DASHBOARD) && !this.securityEnabled) {
          return "_#(js:Pinboard requires security to be enabled.)";
       }
       else if(this.getTab(PortalTabs.DASHBOARD)) {
@@ -310,11 +319,11 @@ export class PortalAppComponent implements OnInit, OnDestroy {
    }
 
    canAccessDashboardTab(): boolean {
-      return !!this.getTab(PortalTabs.DASHBOARD) && !!this.model?.securityEnabled;
+      return !!this.getTab(PortalTabs.DASHBOARD) && this.securityEnabled;
    }
 
    showDisabledDashboardTab(): boolean {
-      return !!this.getTab(PortalTabs.DASHBOARD) && !this.model?.securityEnabled;
+      return !!this.getTab(PortalTabs.DASHBOARD) && !this.securityEnabled;
    }
 
    openDashboardTab(event: MouseEvent): void {

@@ -38,12 +38,14 @@
   <main class="shell-main">
     <section class="entry-layout">
       <div class="entry-heading">
-        <span class="eyebrow">Workspace</span>
-        <h2 class="entry-title">Choose a workspace</h2>
+        <span class="eyebrow" data-th-text="#{index.workspace}">Workspace</span>
+        <h2 class="entry-title" data-th-text="#{index.choose.workspace}">Choose a workspace</h2>
       </div>
 
       <div class="module-grid">
-        <a href="app/portal" class="module-link" aria-label="Open Dashboard Portal">
+        <a href="app/portal" class="module-link"
+           data-th-attr="aria-label=#{index.open.dashboard.portal}"
+           aria-label="Open Dashboard Portal">
           <article class="module-tile">
             <div class="tile-header">
               <div class="tile-icon" aria-hidden="true">
@@ -65,13 +67,17 @@
             </ul>
 
             <div class="tile-footer">
-              <span class="tile-meta">Build, browse, and share analytics content.</span>
-              <span class="tile-action">Open Portal</span>
+              <span class="tile-meta" data-th-text="#{index.build.browse.share.analytics.content}">
+                Build, browse, and share analytics content.
+              </span>
+              <span class="tile-action" data-th-text="#{index.open.portal}">Open Portal</span>
             </div>
           </article>
         </a>
 
-        <a href="em" class="module-link" aria-label="Open Enterprise Manager">
+        <a href="em" class="module-link"
+           data-th-attr="aria-label=#{index.open.enterprise.manager}"
+           aria-label="Open Enterprise Manager">
           <article class="module-tile">
             <div class="tile-header">
               <div class="tile-icon" aria-hidden="true">
@@ -89,12 +95,14 @@
               <li data-th-text="#{index.scheduling}">Scheduling</li>
               <li data-th-text="#{index.contents.presentation}">Contents and Presentation</li>
               <li data-th-text="#{index.monitoring.auditing}">Monitoring and Auditing</li>
-              <li>System setup and maintenance</li>
+              <li data-th-text="#{index.system.setup.maintenance}">System setup and maintenance</li>
             </ul>
 
             <div class="tile-footer">
-              <span class="tile-meta">Administer access, operations, and platform settings.</span>
-              <span class="tile-action">Open Manager</span>
+              <span class="tile-meta" data-th-text="#{index.administer.access.operations.platform.settings}">
+                Administer access, operations, and platform settings.
+              </span>
+              <span class="tile-action" data-th-text="#{index.open.manager}">Open Manager</span>
             </div>
           </article>
         </a>
