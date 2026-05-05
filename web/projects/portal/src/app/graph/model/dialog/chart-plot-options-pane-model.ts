@@ -56,6 +56,8 @@ export interface ChartPlotOptionsPaneModel {
    fillGapWithDashVisible?: boolean;
    smoothLines?: boolean;
    smoothLinesVisible?: boolean;
+   treeLayout?: string;
+   treeLayoutVisible?: boolean;
    polygonColor: boolean;
    polygonColorVisible: boolean;
    hasXDimension: boolean;
