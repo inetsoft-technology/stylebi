@@ -731,7 +731,7 @@ public class RelationElement extends GraphElement {
     * @param nodeCornerRadius fraction in [0, 0.5]; 0 disables rounding.
     */
    public void setNodeCornerRadius(double nodeCornerRadius) {
-      this.nodeCornerRadius = nodeCornerRadius;
+      this.nodeCornerRadius = Math.max(0, Math.min(0.5, nodeCornerRadius));
    }
 
    @Override
