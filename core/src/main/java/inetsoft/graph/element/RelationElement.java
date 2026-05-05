@@ -26,6 +26,7 @@ import inetsoft.graph.internal.GTool;
 import inetsoft.graph.mxgraph.layout.hierarchical.mxHierarchicalLayout;
 import inetsoft.graph.mxgraph.layout.*;
 import inetsoft.graph.mxgraph.model.mxCell;
+import inetsoft.graph.mxgraph.model.mxGeometry;
 import inetsoft.graph.mxgraph.view.mxGraph;
 import inetsoft.graph.visual.ElementVO;
 import inetsoft.graph.visual.VOText;
@@ -34,6 +35,7 @@ import inetsoft.util.CoreTool;
 
 import java.awt.*;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.text.Format;
 import java.util.List;
@@ -370,6 +372,26 @@ public class RelationElement extends GraphElement {
          .forEach(v -> v.getMxCell().getGeometry().translate(-minX, -minY));
       edges.stream()
          .forEach(v -> v.getEdge().getGeometry().translate(-minX, -minY));
+
+      // Cache centroid of node centres for smooth-edge rendering. Only CIRCLE consumes it;
+      // skip the O(n) pass for other algorithms. Computed in the same post-flip /
+      // post-translate space the edge geometry produces.
+      if(algorithm == Algorithm.CIRCLE) {
+         double sumCx = 0, sumCy = 0;
+
+         for(RelationGeometry n : nodes.values()) {
+            mxGeometry g = n.getMxCell().getGeometry();
+            sumCx += g.getX() + g.getWidth() / 2.0;
+            sumCy += g.getY() + g.getHeight() / 2.0;
+         }
+
+         int nodeCount = nodes.size();
+         layoutCenter = nodeCount > 0
+            ? new Point2D.Double(sumCx / nodeCount, sumCy / nodeCount) : null;
+      }
+      else {
+         layoutCenter = null;
+      }
    }
 
    // flip the Y so root is on top.
@@ -560,6 +582,26 @@ public class RelationElement extends GraphElement {
    }
 
    /**
+    * Whether edges should be drawn as smooth curves (currently only honored for Algorithm.CIRCLE).
+    */
+   public boolean isSmoothEdges() {
+      return smoothEdges;
+   }
+
+   public void setSmoothEdges(boolean smoothEdges) {
+      this.smoothEdges = smoothEdges;
+   }
+
+   /**
+    * Centroid of all node positions after layout, in graph coordinates. Populated by mxLayout()
+    * and consumed by RelationEdgeGeometry to bend curves toward the ring centre. Null until
+    * layout runs.
+    */
+   public Point2D getLayoutCenter() {
+      return layoutCenter;
+   }
+
+   /**
     * Set the color frame for getting the color aesthetic for nodes.
     */
    public void setNodeColorFrame(ColorFrame colors) {
@@ -731,6 +773,7 @@ public class RelationElement extends GraphElement {
             this.algorithm == elem.algorithm && widthRatio == elem.widthRatio &&
             heightRatio == elem.heightRatio &&
             applyAestheticsToSource == elem.applyAestheticsToSource &&
+            smoothEdges == elem.smoothEdges &&
             Objects.equals(nodeColors, elem.nodeColors) &&
             Objects.equals(nodeSizes, elem.nodeSizes) &&
             Objects.equals(layoutSize, elem.layoutSize) &&
@@ -761,6 +804,9 @@ public class RelationElement extends GraphElement {
    private Dimension layoutSize = new Dimension(200, 200);
    private Color fillColor;
    private boolean applyAestheticsToSource = false;
+   private boolean smoothEdges = false;
+   // derived; populated by mxLayout, not part of element identity
+   private transient Point2D layoutCenter;
 
    private static final long serialVersionUID = 1L;
 }

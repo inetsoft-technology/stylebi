@@ -294,4 +294,37 @@ class ChartPlotOptionsPaneModelTest {
    void smoothLinesVisible_pieChartHidden() {
       assertFalse(modelFor(GraphTypes.CHART_PIE).isSmoothLinesVisible());
    }
+
+   @Test
+   void smoothLinesVisible_circularNetworkChart() {
+      // Circular network reuses the smoothLines flag to bend chord edges toward the ring centre.
+      assertTrue(modelFor(GraphTypes.CHART_CIRCULAR).isSmoothLinesVisible());
+   }
+
+   @Test
+   void smoothLinesVisible_networkChartHidden() {
+      // Organic Network has no fixed centroid the curves can pull toward, so the toggle stays
+      // hidden until/unless a separate edge-curving algorithm is added for it.
+      assertFalse(modelFor(GraphTypes.CHART_NETWORK).isSmoothLinesVisible());
+   }
+
+   @Test
+   void smoothLinesVisible_treeChartHidden() {
+      assertFalse(modelFor(GraphTypes.CHART_TREE).isSmoothLinesVisible());
+   }
+
+   @Test
+   void updateModel_smoothLinesRoundTripsForCircularChart() {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_CIRCULAR);
+      PlotDescriptor plotDesc = new PlotDescriptor();
+      plotDesc.setSmoothLines(false);
+
+      ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, plotDesc);
+      model.setSmoothLines(true);
+      model.updateChartPlotOptionsPaneModel(info, plotDesc);
+
+      assertTrue(plotDesc.isSmoothLines(),
+         "smoothLines should round-trip through the model for circular charts");
+   }
 }
