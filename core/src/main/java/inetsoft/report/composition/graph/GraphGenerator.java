@@ -3704,6 +3704,11 @@ public abstract class GraphGenerator {
            break;
          case CHART_CIRCULAR:
             elem.setAlgorithm(RelationElement.Algorithm.CIRCLE);
+
+            if(desc.getPlotDescriptor().isSmoothLines()) {
+               elem.setSmoothEdges(true);
+            }
+
             break;
          }
 

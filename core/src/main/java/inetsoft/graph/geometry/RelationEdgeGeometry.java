@@ -22,6 +22,7 @@ import inetsoft.graph.aesthetic.VisualModel;
 import inetsoft.graph.coord.Coordinate;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.element.GraphElement;
+import inetsoft.graph.element.RelationElement;
 import inetsoft.graph.internal.GTool;
 import inetsoft.graph.mxgraph.model.mxCell;
 import inetsoft.graph.mxgraph.util.mxPoint;
@@ -88,14 +89,33 @@ public class RelationEdgeGeometry extends ElementGeometry {
       List<Shape> edges = new ArrayList<>();
       mxCell e = getEdge();
       List<mxPoint> pts = e.getGeometry().getPoints();
+      RelationElement elem = (RelationElement) getElement();
+      boolean smooth = elem.isSmoothEdges()
+         && elem.getAlgorithm() == RelationElement.Algorithm.CIRCLE
+         && elem.getLayoutCenter() != null;
 
       // in case lines are not created by layout, draw a straight line from the target to source.
       if(pts == null || pts.isEmpty()) {
          Line2D line = e.getSource().getGeometry().getConnector(e.getTarget().getGeometry());
 
          if(line != null) {
-            edges.add(line);
+            edges.add(smooth
+               ? GTool.computeCenterPullCurve(line.getP1(), line.getP2(),
+                                              elem.getLayoutCenter(),
+                                              GTool.CIRCULAR_EDGE_SMOOTHING)
+               : line);
          }
+      }
+      else if(smooth && pts.size() == 2) {
+         // mxCircleLayout typically leaves pts empty (handled above via getConnector); this
+         // branch covers any layout that emits an explicit 2-point edge so it still gets curved.
+         Point2D p1 = pts.get(0).getPoint();
+         Point2D p2 = pts.get(1).getPoint();
+         // preserve existing y-swap (java vs graph coord) so curve sits in same visual space
+         Point2D s = new Point2D.Double(p1.getX(), p2.getY());
+         Point2D t = new Point2D.Double(p2.getX(), p1.getY());
+         edges.add(GTool.computeCenterPullCurve(s, t, elem.getLayoutCenter(),
+                                                GTool.CIRCULAR_EDGE_SMOOTHING));
       }
       else {
          for(int i = 1; i < pts.size(); i++) {

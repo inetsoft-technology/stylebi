@@ -212,8 +212,10 @@ public class ChangeChartTypeController {
       boolean newIsArea = newType == GraphTypes.CHART_AREA || newType == GraphTypes.CHART_AREA_STACK;
       boolean oldIsArea = oldType == GraphTypes.CHART_AREA || oldType == GraphTypes.CHART_AREA_STACK;
       boolean newIsLine = newType == GraphTypes.CHART_LINE || newType == GraphTypes.CHART_LINE_STACK;
+      boolean newIsCircular = newType == GraphTypes.CHART_CIRCULAR;
+      boolean oldIsCircular = oldType == GraphTypes.CHART_CIRCULAR;
 
-      if(newIsArea && !oldIsArea) {
+      if(newIsArea && !oldIsArea || newIsCircular && !oldIsCircular) {
          plotDesc.setSmoothLines(true);
       }
       else if(newIsLine && oldIsArea) {

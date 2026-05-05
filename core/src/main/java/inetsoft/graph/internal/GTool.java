@@ -1400,6 +1400,25 @@ public final class GTool {
    // Catmull-Rom (curve passes through every point). 0.0 = straight lines. >1.0 = looser/bouncier.
    private static final double CATMULL_ROM_SMOOTHING = 1.0;
 
+   /**
+    * Build a quadratic Bezier from src to dst whose control point is the midpoint pulled
+    * toward center by the given smoothing factor (0 = straight line; 1 = curve through center).
+    * Used by circular relation charts to bend chord lines toward the ring's centroid.
+    */
+   public static QuadCurve2D computeCenterPullCurve(Point2D src, Point2D dst,
+                                                    Point2D center, double smoothing)
+   {
+      double mx = (src.getX() + dst.getX()) / 2.0;
+      double my = (src.getY() + dst.getY()) / 2.0;
+      double cx = mx + (center.getX() - mx) * smoothing;
+      double cy = my + (center.getY() - my) * smoothing;
+      return new QuadCurve2D.Double(src.getX(), src.getY(), cx, cy, dst.getX(), dst.getY());
+   }
+
+   // Pull strength of the control point toward the ring centre for circular network edges.
+   // 0.0 = straight chord. 1.0 = curve passes through the centre. 0.5 matches goal mockup.
+   public static final double CIRCULAR_EDGE_SMOOTHING = 0.5;
+
    private static GImpl impl;
    private static boolean jdk16 = false;
    // @by stephenwebster, For bug1416439678841
