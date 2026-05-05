@@ -324,7 +324,7 @@ public class ChangeChartTypeController {
       boolean newIsCircular = newType == GraphTypes.CHART_CIRCULAR;
       boolean oldIsCircular = oldType == GraphTypes.CHART_CIRCULAR;
 
-      if(newIsArea && !oldIsArea || newIsCircular && !oldIsCircular) {
+      if((newIsArea && !oldIsArea) || (newIsCircular && !oldIsCircular)) {
          plotDesc.setSmoothLines(true);
       }
       else if(newIsLine && (oldIsArea || oldIsCircular)) {

@@ -106,17 +106,6 @@ public class RelationEdgeGeometry extends ElementGeometry {
                : line);
          }
       }
-      else if(smooth && pts.size() == 2) {
-         // mxCircleLayout typically leaves pts empty (handled above via getConnector); this
-         // branch covers any layout that emits an explicit 2-point edge so it still gets curved.
-         Point2D p1 = pts.get(0).getPoint();
-         Point2D p2 = pts.get(1).getPoint();
-         // preserve existing y-swap (java vs graph coord) so curve sits in same visual space
-         Point2D s = new Point2D.Double(p1.getX(), p2.getY());
-         Point2D t = new Point2D.Double(p2.getX(), p1.getY());
-         edges.add(GTool.computeCenterPullCurve(s, t, elem.getLayoutCenter(),
-                                                GTool.CIRCULAR_EDGE_SMOOTHING));
-      }
       else {
          for(int i = 1; i < pts.size(); i++) {
             Point2D p1 = pts.get(i - 1).getPoint();

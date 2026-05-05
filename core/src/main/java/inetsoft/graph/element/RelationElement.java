@@ -385,8 +385,9 @@ public class RelationElement extends GraphElement {
             sumCy += g.getY() + g.getHeight() / 2.0;
          }
 
-         int n = nodes.size();
-         layoutCenter = n > 0 ? new Point2D.Double(sumCx / n, sumCy / n) : null;
+         int nodeCount = nodes.size();
+         layoutCenter = nodeCount > 0
+            ? new Point2D.Double(sumCx / nodeCount, sumCy / nodeCount) : null;
       }
       else {
          layoutCenter = null;
