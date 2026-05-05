@@ -248,8 +248,12 @@ public class ChartProcessor extends ScriptableObject {
                              "setBarCornerRadius", double.class, PlotDescriptor.class, plot);
       scriptable.addProperty("barRoundAllCorners", "isBarRoundAllCorners",
                              "setBarRoundAllCorners", boolean.class, PlotDescriptor.class, plot);
-      scriptable.addProperty("nodeCornerRadius", "getNodeCornerRadius",
-                             "setNodeCornerRadius", double.class, PlotDescriptor.class, plot);
+
+      if(info != null && info.getChartType() == GraphTypes.CHART_TREE) {
+         scriptable.addProperty("nodeCornerRadius", "getNodeCornerRadius",
+                                "setNodeCornerRadius", double.class, PlotDescriptor.class, plot);
+      }
+
       scriptable.addProperty("oneLine", "isOneLine",
                              "setOneLine", boolean.class, PlotDescriptor.class, plot);
 
