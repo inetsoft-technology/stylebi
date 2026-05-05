@@ -1,4 +1,4 @@
-/*!
+﻿/*!
  * This file is part of StyleBI.
  * Copyright (C) 2024  InetSoft Technology
  *
@@ -121,7 +121,7 @@ div.CodeMirror {
   .btn-toolbar .btn {
     min-width: 58px;
     max-width: 92px;
-    height: 52px;
+    height: var(--inet-control-height-lg);
   }
 
   .btn-toolbar .btn > i {
@@ -195,8 +195,8 @@ div.CodeMirror {
 
 .btn-secondary, .btn-default, .btn-primary {
   &:focus {
-    box-shadow: none;
-    outline: none;
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
   }
 }
 
@@ -221,7 +221,7 @@ div.CodeMirror {
 
 .toolbar-btn {
   font-size: 13px;
-  border-radius: 0;
+  border-radius: var(--inet-radius-sm);
   flex-direction: column;
   justify-content: flex-start;
   align-items: center;
@@ -236,7 +236,7 @@ div.CodeMirror {
   align-content: center;
 
   active {
-    background: #ccc !important;
+    background: var(--inet-input-disabled-bg-color) !important;
   }
 }
 
@@ -295,7 +295,7 @@ table.table-layout-fixed {
 
 //background not themeable
 .loading-container {
-  background: rgba(#000, 0.3);
+  background: var(--inet-overlay-scrim-bg-color);
   width: 100%;
   height: 100%;
   display: flex;
@@ -440,3 +440,4 @@ li.active, a.active {
   font-size: 1.2em;
   color: var(--inet-primary-color);
 }
+

@@ -25,6 +25,8 @@ import { Tool } from "../../../../../../../shared/util/tool";
 import { ComponentTool } from "../../../../common/util/component-tool";
 import { WorksheetBrowserInfo } from "../../model/worksheet-browser-info";
 
+const FAKE_ROOT_PATH: string = "_fake_root_";
+
 @Component({
    selector: "files-browser",
    templateUrl: "files-browser.component.html",
@@ -69,32 +71,41 @@ export class FilesBrowserComponent implements OnInit {
       this.openFolderRequest(path, assetType, scope).subscribe(
          data => {
             this.browserView = data;
+            this.selectedFiles = [];
+            this.selectedFolders = [];
 
-            if(this.browserView.folders == null || this.browserView.folders.length == 0) {
-               this.selectedFiles = [];
-               this.selectedFolders = [];
-               this.selectionChange.emit([]);
+            if(this.folderSelectable && !this.showBreadcrumb) {
+               const currentFolder = this.currentDestination;
+
+               if(currentFolder && currentFolder.path !== FAKE_ROOT_PATH) {
+                  this.selectedFolders = [currentFolder];
+               }
             }
-
-            if(!onInit) {
-               // reset selected items when opening new folder
-               this.selectedFiles = [];
-               this.selectedFolders = [];
-
+            else if(!onInit) {
                let files = this.browserView.files.filter((file) => !!file && !!file.createdDate);
                files = Tool.sortObjects(files, new SortOptions(["createdDate"], SortTypes.DESCENDING));
 
                if(files.length > 0) {
                   this.selectedFiles = [files[0]];
                }
-
-               this.notifySelectionChange();
             }
+
+            this.notifySelectionChange();
          },
          () => {
             ComponentTool.showMessageDialog(this.modalService, "_#(js:admin.status.error)", this.openFolderError);
          }
       );
+   }
+
+   dblclickFolder(path: string, hasSubFolder: boolean, assetType?: string,
+                  scope?: number, onInit: boolean = false): void
+   {
+      if(!hasSubFolder) {
+         return;
+      }
+
+      this.openFolder(path, assetType, scope, onInit);
    }
 
    /**
@@ -172,6 +183,18 @@ export class FilesBrowserComponent implements OnInit {
       }
    }
 
+   get rootDestination(): WorksheetBrowserInfo {
+      return this.browserView?.path?.length ? this.browserView.path[0] : null;
+   }
+
+   get currentDestination(): WorksheetBrowserInfo {
+      return this.browserView?.path?.length ? this.browserView.path[this.browserView.path.length - 1] : null;
+   }
+
+   getFolderLabel(folder: WorksheetBrowserInfo): string {
+      return folder?.name ? folder.name : folder?.description;
+   }
+
    /**
     * Get the folder icon to use.
     * @param folder  the folder to get the icon for
@@ -206,6 +229,17 @@ export class FilesBrowserComponent implements OnInit {
       if(!!this.browserView.path && this.browserView.path.length > 0) {
          let parentNode = this.browserView.path[this.browserView.path.length - 1];
          name = !!parentNode ? parentNode.name ? parentNode.name : parentNode.description : name;
+      }
+
+      return name;
+   }
+
+   parentFolderName(): string {
+      let name: string = "..";
+
+      if(!!this.browserView.path && this.browserView.path.length > 1) {
+         const parentNode = this.browserView.path[this.browserView.path.length - 2];
+         name = parentNode?.path === FAKE_ROOT_PATH ? "_#(Data Worksheet)" : this.getFolderLabel(parentNode);
       }
 
       return name;

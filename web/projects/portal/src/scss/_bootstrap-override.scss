@@ -1,4 +1,4 @@
-/*!
+﻿/*!
  * This file is part of StyleBI.
  * Copyright (C) 2024  InetSoft Technology
  *
@@ -28,7 +28,8 @@
   color: var(--inet-danger-color);
   background-size: 55% 55%;
   z-index: 6;
-  font-weight: 700;
+  font-weight: 400;
+  font-size: 11px;
 }
 
 @mixin invalid-feedback-bg {
@@ -48,7 +49,7 @@
 
 /* this is ubiquitous to add space between the vertical height of some form fields */
 .form-group {
-  margin-bottom: 1rem;
+  margin-bottom: var(--inet-space-5);
 }
 
 /*
@@ -69,13 +70,13 @@ form-inline is no longer a thing in bootstrap 5
 .form-row {
   display: flex;
   flex-wrap: wrap;
-  margin-right: -5px;
-  margin-left: -5px;
+  margin-right: calc(-1 * var(--inet-space-2));
+  margin-left: calc(-1 * var(--inet-space-2));
 }
 
 .form-row > .col {
-  padding-left: 5px;
-  padding-right: 5px;
+  padding-left: var(--inet-space-2);
+  padding-right: var(--inet-space-2);
 }
 
 
@@ -126,6 +127,8 @@ label {
 
   .form-control.is-invalid {
     border-color: var(--inet-danger-color);
+    background-image: none;
+    padding-right: var(--inet-space-4);
   }
 
   > span.invalid-feedback {
@@ -209,8 +212,10 @@ label {
 
 /* comparable to when invalid feedback is not using an input-group */
 .input-group ~ span.invalid-feedback {
-   display: block;
-   color: var(--inet-danger-color);
+  display: block;
+  color: var(--inet-danger-color);
+  font-weight: 400;
+  font-size: 11px;
 }
 
 /* override boostrap input-group */
@@ -240,7 +245,7 @@ fieldset legend {
 }
 
 fieldset.float-title {
-  border-radius: 3px;
+  border-radius: var(--inet-radius-md);
   padding-bottom: 0.5em;
 
   legend {
@@ -266,7 +271,7 @@ fieldset.float-title {
   margin-top: 0;
   margin-left: 0;
   margin-right: 0.5rem;
-  --bs-form-check-bg: white; // needs to match $form-check-input-checked-color
+  --bs-form-check-bg: var(--inet-shell-surface-default); // needs to match shell input/default surface
   --bs-border-color: var(--inet-input-text-color);
 
   &:checked {
@@ -276,8 +281,12 @@ fieldset.float-title {
 
   &:focus {
     border-color: var(--inet-primary-color);
-    box-shadow: none;
+    box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
   }
+}
+
+input[type="checkbox"], input[type="radio"] {
+  accent-color: var(--inet-primary-color);
 }
 
 .form-check {
@@ -331,7 +340,7 @@ fieldset.float-title {
   /* ~half size of bootstraps btn-sm*/
   padding: 0 0.25rem !important;
   font-size: 0.875rem;
-  border-radius: 0.2rem;
+  border-radius: var(--inet-radius-sm);
 }
 
 .btn-close {
@@ -347,9 +356,10 @@ fieldset.float-title {
 .modal-header {
   .btn-close {
     padding: 0.05rem;
-    margin-left: 0.4rem;
-    margin-right: 0.1rem;
-    --bs-btn-close-opacity: 0.85;
+    margin: 0;
+    color: var(--inet-text-muted-color);
+    opacity: 1;
+    --bs-btn-close-opacity: 1;
   }
 }
 
@@ -375,7 +385,7 @@ fieldset.float-title {
 }
 
 .dropdown-toggle.white-toggle::after {
-  border-top:0.5em solid white;
+  border-top:0.5em solid var(--inet-light-color);
   border-right: 0.4em solid transparent;
   border-left: 0.4em solid transparent;
 }
@@ -386,8 +396,8 @@ fieldset.float-title {
 
 // override ngb-tp-meridian color
 .ngb-tp-meridian button {
-  color: $secondary;
-  border-color: $secondary;
+  color: var(--inet-button-secondary-text-color);
+  border-color: var(--inet-button-secondary-border-color);
 }
 
 // override and fix ngb-datepicker layout issue on month/year dropdown
@@ -424,7 +434,7 @@ ngb-datepicker {
 }
 
 .input-group select.form-control:not([size]):not([multiple]) {
-  height: unset;
+  height: var(--inet-control-height-md);
 }
 
 //bootstrap related
@@ -466,12 +476,37 @@ a:not([href]) {
   --inet-float-label-bg-color: var(--inet-dialog-bg-color);
 }
 
+.modal-content {
+  border-radius: var(--inet-radius-xl);
+  box-shadow: var(--inet-shadow-overlay);
+}
+
+.modal-header {
+  padding: 14px 16px 12px;
+
+  .modal-title {
+    font-size: var(--inet-dialog-title-font-size);
+    font-weight: 600;
+  }
+}
+
+.modal-body {
+  padding: 14px 16px;
+}
+
+.modal-footer {
+  padding: 10px 16px;
+}
+
 .form-control, .form-control[readonly], .form-control.input-group-btn-addon,
 .input-group > .input-group-btn-addon
 {
   color: var(--inet-input-text-color);
   background-color: var(--inet-input-bg-color);
   border-color: var(--inet-input-border-color);
+  min-height: var(--inet-control-height-md);
+  border-radius: var(--inet-radius-md);
+  padding-inline: var(--inet-space-4);
   --bs-btn-disabled-border-color: var(--inet-input-border-color);
   --bs-btn-disabled-bg: var(--inet-input-disabled-bg-color);
   --bs-btn-disabled-opacity: var(--inet-input-disabled-opacity);
@@ -488,14 +523,14 @@ a:not([href]) {
   &:focus {
     color: var(--inet-input-focus-text-color);
     background-color: var(--inet-input-focus-bg-color, var(--inet-input-bg-color));
-    border-color: var(--inet-primary-color-light);
-    box-shadow: 0 0 0 1px var(--inet-primary-color);
+    border-color: var(--inet-primary-color);
+    box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
   }
 }
 
 .input-group-text {
   color: var(--inet-input-text-color);
-  background-color: var(--inet-input-disabled-bg-color);
+  background-color: var(--inet-toolbar-bg-color);
   border-color: var(--inet-input-border-color);
 }
 
@@ -569,7 +604,7 @@ a:not([href]) {
 
   .thead-light th {
     color: var(--inet-table-heading-text-color);
-    background-color: var(--inet-table-heading-bg-color, #e9ecef);
+    background-color: var(--inet-table-heading-bg-color, var(--inet-toolbar-bg-color));
     border-color: var(--inet-table-border-color);
   }
 
@@ -595,7 +630,19 @@ a:not([href]) {
 }
 
 .table-sm>:not(caption)>*>* {
-  padding: 0.3rem;
+  padding: 0.375rem;
+}
+
+.btn.btn-primary, .btn.btn-secondary, .btn.btn-default {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--inet-control-height-md);
+  padding: 0 var(--inet-space-5);
+  border-radius: var(--inet-radius-md);
+  font-size: var(--inet-font-size-base);
+  font-weight: 500;
+  line-height: 1;
 }
 
 .btn.btn-primary {
@@ -696,7 +743,7 @@ a:not([href]) {
 .btn.btn-danger {
   color: var(--inet-danger-color-dark);
   background-color: var(--inet-danger-color-light);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--inet-default-border-color);
 
   &:hover:not(:disabled), &:active:not(:disabled),
   &:not(:disabled):not(.disabled):not(.condition-field-combo-toggle.disabled):active,
@@ -713,7 +760,7 @@ a:not([href]) {
 {
   // on click
   &:not(:disabled):not(.disabled):not(.condition-field-combo-toggle.disabled):active:focus {
-    box-shadow: 0 0 0 1px rgb(0 0 0 / 20%);
+    box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
     filter: brightness(0.9);
   }
 }
@@ -724,21 +771,21 @@ a:not([href]) {
 
 .list-group-item {
   &.active {
-    color: var(--inet-selected-item-text-color);
-    background-color: var(--inet-selected-item-bg-color);
-    border-color: var(--inet-selected-item-bg-color);
+    color: var(--inet-text-color);
+    background-color: var(--inet-shell-selected-bg-color);
+    border-color: var(--inet-default-border-color);
 
     i {
-      color: var(--inet-selected-item-text-color);
+      color: var(--inet-text-color);
     }
   }
 
   &:hover:not(.not-selectable) {
-    color: var(--inet-hover-text-color);
-    background-color: var(--inet-hover-primary-bg-color);
+    color: var(--inet-text-color);
+    background-color: var(--inet-ui-neutral-hover-bg-color);
 
     i {
-      color: var(--inet-hover-text-color);
+      color: var(--inet-text-color);
     }
   }
 }
@@ -749,7 +796,7 @@ a:not([href]) {
 
 .table-hover tbody tr:hover {
   color: var(--inet-text-color);
-  background-color: var(--inet-hover-primary-bg-color);
+  background-color: var(--inet-ui-neutral-hover-bg-color);
 }
 
 .breadcrumb {
@@ -776,18 +823,44 @@ a:not([href]) {
 }
 
 .nav-link {
-  --bs-nav-link-color: var(--inet-link-color);
-  --bs-nav-link-hover-color: var(--inet-link-hover-color);
+  --bs-nav-link-color: var(--inet-nav-tabs-text-color);
+  --bs-nav-link-hover-color: var(--inet-text-color);
+}
+
+.nav-tabs .nav-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--inet-tab-height);
+  font-size: var(--inet-font-size-base);
+  font-weight: 500;
+  line-height: 1;
+}
+
+.tabs-bottom .nav-link {
+  min-height: unset;
+  line-height: inherit;
 }
 
 .nav-tabs .nav-item.show .nav-link, .nav-tabs .nav-link.active {
-  color: var(--inet-selected-item-text-color);
-  background-color: var(--inet-dialog-bg-color);
-  border-color: var(--inet-default-border-color) var(--inet-default-border-color) var(--inet-dialog-bg-color);
+  color: var(--inet-text-color);
+  background-color: var(--inet-shell-surface-default);
+  border-color: var(--inet-default-border-color) var(--inet-default-border-color) var(--inet-shell-surface-default);
 }
 
 .nav-tabs .nav-link:hover {
+  background-color: var(--inet-ui-neutral-hover-bg-color);
   border-color: var(--inet-default-border-color) var(--inet-default-border-color) var(--inet-default-border-color);
+}
+
+.nav-pills .nav-link.selected {
+  background-color: var(--inet-shell-selected-bg-color);
+  color: var(--inet-text-color);
+}
+
+.nav-pills .nav-link:not(.selected):hover {
+  background-color: var(--inet-ui-neutral-hover-bg-color);
+  color: var(--inet-text-color);
 }
 
 a, .btn-link {
@@ -801,10 +874,6 @@ a, .btn-link {
 // backgrounds
 .bg-primary {
   background-color: var(--inet-primary-color) !important;
-}
-
-.bg-secondary {
-  background-color: var(--inet-secondary-color) !important;
 }
 
 .bg-success {
@@ -825,7 +894,7 @@ a, .btn-link {
 
 // alerts
 %alert-style {
-  border-color: rgba(0, 0, 0, 0.05);
+  border-color: var(--inet-default-border-color);
 }
 
 .alert-primary {
@@ -836,8 +905,8 @@ a, .btn-link {
 
 .alert-secondary {
   @extend %alert-style;
-  color: var(--inet-secondary-color-dark);
-  background-color: var(--inet-secondary-color-light);
+  color: var(--inet-secondary-text-color);
+  background-color: var(--inet-secondary-soft-color);
 }
 
 .alert-success {
@@ -865,12 +934,28 @@ a, .btn-link {
 }
 
 // borders
-.border-primary {
-  border-color: var(--inet-primary-color) !important;
+.border {
+  border-color: var(--inet-default-border-color) !important;
 }
 
-.border-secondary {
-  border-color: var(--inet-secondary-color) !important;
+.border-top {
+  border-top-color: var(--inet-default-border-color) !important;
+}
+
+.border-bottom {
+  border-bottom-color: var(--inet-default-border-color) !important;
+}
+
+.border-start {
+  border-left-color: var(--inet-default-border-color) !important;
+}
+
+.border-end {
+  border-right-color: var(--inet-default-border-color) !important;
+}
+
+.border-primary {
+  border-color: var(--inet-primary-color) !important;
 }
 
 .border-success {
@@ -915,8 +1000,10 @@ a, .btn-link {
   border-color: var(--inet-input-border-color);
 
   &:focus {
-    border-color: var(--inet-primary-color-light);
-    box-shadow: 0 0 0 1px var(--inet-primary-color);
+    color: var(--inet-input-focus-text-color);
+    background-color: var(--inet-input-focus-bg-color, var(--inet-input-bg-color));
+    border-color: var(--inet-primary-color);
+    box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
   }
 }
 
@@ -928,12 +1015,37 @@ a, .btn-link {
   color: var(--inet-secondary-color) !important;;
 }
 
+.text-success {
+  color: var(--inet-success-color) !important;
+}
+
 .text-info {
   color: var(--inet-info-color) !important;
 }
 
 .text-danger {
   color: var(--inet-danger-color) !important;
+}
+
+.text-warning {
+  color: var(--inet-warning-color) !important;
+}
+
+.text-muted {
+  color: var(--inet-text-muted-color) !important;
+}
+
+.text-bg-light {
+  color: var(--inet-button-light-text-color) !important;
+  background-color: var(--inet-button-light-bg-color) !important;
+}
+
+.badge {
+  padding: var(--inet-space-1) var(--inet-space-3);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  border-radius: var(--inet-radius-pill);
 }
 
 .layout-divider {
@@ -944,16 +1056,43 @@ a, .btn-link {
   // bootstrap
   // from bootstrap 4 for backwards compatibility, navbar nav-link items had horizontal padding
   --bs-navbar-nav-link-padding-x: 0.5rem;
-  --bs-dropdown-item-padding-y: 0.25rem;
-  --bs-dropdown-item-padding-x: 1.5rem;
+  --bs-secondary-color: var(--inet-text-muted-color);
+  --bs-dropdown-item-padding-y: var(--inet-space-2);
+  --bs-dropdown-item-padding-x: var(--inet-space-5);
+  --bs-dropdown-bg: var(--inet-dropdown-bg-color);
+  --bs-dropdown-border-color: var(--inet-default-border-color);
+  --bs-dropdown-link-hover-bg: var(--inet-hover-primary-bg-color);
   --bs-body-font-family: var(--inet-font-family);
   --bs-body-font-size: var(--inet-font-size-base);
   --bs-body-color: var(--inet-text-color);
   --bs-body-bg: var(--inet-main-panel-bg-color);
-  --bs-border-radius: .25rem;
+  --bs-border-radius: var(--inet-radius-md);
   --bs-border-color: var(--inet-default-border-color);
+  --bs-card-bg: var(--inet-card-bg-color);
+  --bs-card-border-color: var(--inet-default-border-color);
+  --bs-modal-bg: var(--inet-dialog-bg-color);
+  --bs-modal-border-color: var(--inet-default-border-color);
+  --bs-badge-font-size: 10px;
+  --bs-badge-font-weight: 600;
+  --bs-badge-padding-y: var(--inet-space-1);
+  --bs-badge-padding-x: var(--inet-space-3);
   --bs-list-group-border-width: 1px;
+  --bs-list-group-bg: var(--inet-dropdown-bg-color);
+  --bs-list-group-color: var(--inet-text-color);
   --bs-list-group-border-color: var(--inet-default-border-color);
-  --bs-list-group-item-padding-y: .75rem;
-  --bs-list-group-item-padding-x: 1.25rem;
+  --bs-list-group-item-padding-y: var(--inet-space-3);
+  --bs-list-group-item-padding-x: var(--inet-space-5);
+  --bs-list-group-action-hover-bg: var(--inet-ui-neutral-hover-bg-color);
+  --bs-list-group-active-bg: var(--inet-shell-selected-bg-color);
+  --bs-list-group-active-color: var(--inet-text-color);
+  --bs-list-group-active-border-color: var(--inet-default-border-color);
 }
+
+// Suppress programmatic-focus highlight on portal dropdowns (defaultFocus directive calls
+// .focus() on open, which is not keyboard-initiated so :focus-visible is false).
+// :not(:hover) lets hover still work when the element happens to also have focus.
+.portal-dropdown .dropdown-item:focus:not(:focus-visible):not(:hover) {
+  background-color: transparent;
+  color: inherit;
+}
+

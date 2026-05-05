@@ -82,6 +82,10 @@ export class ArrangeDashboardDialog implements OnInit {
          this.model.dashboards[index - 1].enabled;
    }
 
+   trackDashboard(index: number, dashboard: any): string {
+      return dashboard.name || String(index);
+   }
+
    enabledChanged(index: number): void {
       const dashboard = this.model.dashboards[index];
       this.model.dashboards.splice(index, 1);

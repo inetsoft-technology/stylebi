@@ -15,6 +15,121 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+.data-model-edit-pane {
+   display: flex;
+   flex-direction: column;
+   height: 100%;
+   min-height: 0;
+}
+
+.data-model-toolbar {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   gap: 16px;
+   flex: 0 0 auto;
+   min-height: 64px;
+   padding: 10px 16px;
+   background: color-mix(in srgb, var(--inet-main-panel-bg-color) 80%, var(--inet-toolbar-bg-color));
+   border-bottom: 1px solid var(--inet-default-border-color);
+}
+
+.data-model-toolbar__main {
+   display: flex;
+   align-items: center;
+   gap: 20px;
+   min-width: 0;
+   flex: 1 1 auto;
+}
+
+.data-model-title {
+   display: flex;
+   align-items: center;
+   gap: 12px;
+   min-width: 0;
+   flex: 0 0 auto;
+}
+
+.data-model-title__text {
+   display: flex;
+   flex-direction: column;
+   justify-content: center;
+   gap: 3px;
+   min-width: 0;
+}
+
+.data-model-title__eyebrow {
+   display: block;
+   font-size: 12px;
+   font-weight: 700;
+   letter-spacing: 0.08em;
+   text-transform: uppercase;
+   color: var(--inet-text-muted-color);
+   line-height: 1.1;
+   white-space: nowrap;
+}
+
+.data-model-name {
+   display: block;
+   font-size: 16px;
+   font-weight: 600;
+   line-height: 1.25;
+   color: var(--inet-text-strong-color);
+   white-space: nowrap;
+}
+
+.data-model-title__subtitle {
+   flex: 1 1 auto;
+   color: var(--inet-text-muted-color);
+   line-height: 1.4;
+   min-width: 0;
+   max-width: 860px;
+   white-space: normal;
+}
+
+.data-model-toolbar__actions {
+   display: flex;
+   align-items: center;
+   gap: 8px;
+   margin-left: auto;
+}
+
+.data-model-edit-container {
+   flex: 1 1 auto;
+   min-height: 0;
+}
+
+@media (max-width: 960px) {
+   .data-model-toolbar {
+      align-items: flex-start;
+      flex-direction: column;
+   }
+
+   .data-model-toolbar__main {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+   }
+
+   .data-model-title {
+      width: 100%;
+   }
+
+   .data-model-title__text {
+      width: 100%;
+   }
+
+   .data-model-name,
+   .data-model-title__subtitle {
+      white-space: normal;
+   }
+
+   .data-model-toolbar__actions {
+      margin-left: 0;
+   }
+}
+
 .join-pane-toolbar {
    height: 33px !important;
    line-height: 33px;
@@ -36,15 +151,32 @@
 }
 
 .join-tree-toolbar {
-   flex: 1;
-   overflow: hidden;
+   flex: 0 0 auto;
+   display: flex;
+   align-items: center;
+   gap: 4px;
+   justify-content: flex-end;
+   overflow: visible;
+
+   .btn {
+      border-radius: 8px;
+      transition: background-color 120ms ease, color 120ms ease;
+   }
+
+   .btn:not([disabled]):not(.disabled):hover {
+      background-color: var(--inet-ui-neutral-hover-bg-color);
+      color: var(--inet-hover-text-color);
+   }
 }
 
 .table-search-input {
    display: flex;
    flex-wrap: nowrap;
-   width: calc(100% - 15px);
+   width: calc(100% - 12px);
    position: relative;
+   margin-top: 8px;
+   margin-bottom: 6px;
+   margin-left: 6px;
 
    .search-input::-ms-clear {
       display: none;
@@ -58,32 +190,45 @@
 }
 
 .outgoing-header-pane {
-   height: 33px !important;
-   padding-bottom: 0px;
+   height: 40px !important;
+   display: flex;
+   align-items: center;
+   padding: 0 12px;
    margin-bottom: 0px;
    margin-right: 0px;
-  justify-content: space-between;
+   justify-content: space-between;
+   background: var(--inet-toolbar-bg-color) !important;
+   border-top: 1px solid var(--inet-default-border-color);
+   border-bottom: 1px solid var(--inet-default-border-color);
 
    .pane-title {
-      padding-left: 20px;
-      line-height: 33px;
-      font-weight: bold;
+      padding-left: 0;
+      line-height: 1.2;
+      font-weight: 700;
    }
 }
 
 .outgoing-toggle-btn {
-   padding-right: 5px;
-   text-align: right;
-   height: 33px;
-   width: 33px;
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   margin-left: auto;
+   height: 28px;
+   width: 28px;
+   border-radius: 999px;
 }
 
 .outgoing-toggle-icon {
-   line-height: 30px;
+   line-height: 1;
    flex: 1;
 }
 
 .physical-left-top-pane {
-   height: calc(100% - 40px - 33px - 33px);
+   height: calc(100% - 40px - 40px - 40px);
    padding-left: 5px;
+   background: color-mix(in srgb, var(--inet-main-panel-bg-color) 80%, var(--inet-toolbar-bg-color));
+}
+
+.data-model-left-top-pane .data-model-right-pane {
+   background: color-mix(in srgb, var(--inet-main-panel-bg-color) 80%, var(--inet-toolbar-bg-color));
 }

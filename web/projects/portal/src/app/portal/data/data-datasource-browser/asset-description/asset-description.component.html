@@ -15,32 +15,136 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="description-scroll-container container-fluid light-gray-bg h-100 asset-description-container bl-gray" *ngIf="!!selectedFile">
-  <div class="row justify-content-end g-0 py-1">
-    <button type="button" class="btn-close cursor-pointer" (click)="close()" aria-label="close">
-    </button>
-  </div>
-  <div class="form-group">
-    <h2>{{selectedFile.name}}</h2>
-  </div>
-  <div class="form-group" *ngIf="!!getBasedView()">
-    <div class="font-weight-bold">_#(data.datasources.basedView)</div>
-    <div>{{getBasedView()}}</div>
-  </div>
-  <div class="form-group">
-    <div class="font-weight-bold">_#(data.datasources.creationDate)</div>
-    <div>{{selectedFile.createdDateLabel}}</div>
-  </div>
-  <div class="form-group">
-    <div class="font-weight-bold">_#(Creation By)</div>
-    <div>{{selectedFile.createdBy}}</div>
-  </div>
-  <div *ngIf="isWorksheet" class="form-group">
-    <div class="font-weight-bold">_#(Last Modified)</div>
-    <div>{{selectedFile.modifiedDateLabel}}</div>
-  </div>
-  <div class="form-group">
-    <div class="font-weight-bold">_#(Description)</div>
-    <div>{{selectedFile.description}}</div>
+<div class="description-scroll-container asset-description-shell" *ngIf="!!selectedFile">
+  <div class="asset-description-layout">
+    <section class="asset-hero">
+      <div class="asset-hero__copy">
+        <div class="asset-hero__eyebrow">
+          <ng-container *ngIf="isWorksheet; else genericDetailsLabel">_#(Worksheet)</ng-container>
+          <ng-template #genericDetailsLabel>_#(Details)</ng-template>
+        </div>
+        <h1 class="asset-hero__title">{{selectedFile.name}}</h1>
+        <div *ngIf="selectedFile.description" class="asset-hero__description">
+          {{selectedFile.description}}
+        </div>
+      </div>
+      <button type="button" class="btn-close cursor-pointer asset-hero__close"
+              (click)="close()" aria-label="close">
+      </button>
+    </section>
+
+    <section class="info-section">
+      <div class="info-section__title">_#(Overview)</div>
+      <div class="overview-grid">
+        <div class="overview-item" *ngIf="!!getBasedView()">
+          <div class="overview-item__label">_#(data.datasources.basedView)</div>
+          <div class="overview-item__value">{{getBasedView()}}</div>
+        </div>
+        <div class="overview-item">
+          <div class="overview-item__label">_#(data.datasources.creationDate)</div>
+          <div class="overview-item__value">
+            <ng-container *ngIf="selectedFile.createdDateLabel; else noCreationDate">
+              {{selectedFile.createdDateLabel}}
+            </ng-container>
+            <ng-template #noCreationDate>_#(None)</ng-template>
+          </div>
+        </div>
+        <div class="overview-item">
+          <div class="overview-item__label">_#(Creation By)</div>
+          <div class="overview-item__value">
+            <ng-container *ngIf="selectedFile.createdBy; else noCreator">
+              {{selectedFile.createdBy}}
+            </ng-container>
+            <ng-template #noCreator>_#(None)</ng-template>
+          </div>
+        </div>
+        <div *ngIf="isWorksheet" class="overview-item">
+          <div class="overview-item__label">_#(Last Modified)</div>
+          <div class="overview-item__value">
+            <ng-container *ngIf="selectedFile.modifiedDateLabel; else noModifiedDate">
+              {{selectedFile.modifiedDateLabel}}
+            </ng-container>
+            <ng-template #noModifiedDate>_#(None)</ng-template>
+          </div>
+        </div>
+        <div *ngIf="isWorksheet" class="overview-item">
+          <div class="overview-item__label">_#(Primary Fields)</div>
+          <div class="overview-item__value">{{primaryTableAssembly?.fields?.length || 0}}</div>
+        </div>
+        <div *ngIf="isWorksheet" class="overview-item">
+          <div class="overview-item__label">_#(Root Inputs)</div>
+          <div class="overview-item__value">{{rootTableAssemblies.length}}</div>
+        </div>
+        <div *ngIf="isWorksheet" class="overview-item">
+          <div class="overview-item__label">_#(Used By)</div>
+          <div class="overview-item__value">{{usedBy.length}}</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="info-section" *ngIf="isWorksheet">
+      <div class="info-section__title">_#(Transformation Summary)</div>
+      <div *ngIf="loadingRootTableAssemblies" class="section-empty">_#(Loading)</div>
+      <div *ngIf="!loadingRootTableAssemblies && !transformationSummary" class="section-empty">_#(None)</div>
+      <div *ngIf="transformationSummary" class="summary-callout">
+        {{transformationSummary}}
+      </div>
+    </section>
+
+    <div class="detail-grid" *ngIf="isWorksheet">
+      <section class="info-section detail-card">
+        <div class="info-section__title">_#(Primary Table Assembly)</div>
+        <div *ngIf="loadingRootTableAssemblies" class="section-empty">_#(Loading)</div>
+        <div *ngIf="!loadingRootTableAssemblies && !primaryTableAssembly" class="section-empty">_#(None)</div>
+        <div *ngIf="primaryTableAssembly" class="block-card block-card--primary">
+          <div class="block-card__header">
+            <div class="block-card__title">{{primaryTableAssembly.name}}</div>
+            <div class="block-card__badge">{{primaryTableAssembly.fields?.length || 0}} _#(Fields)</div>
+          </div>
+          <div *ngIf="primaryTableAssembly.fields?.length" class="field-chip-list">
+            <div *ngFor="let field of primaryTableAssembly.fields" class="field-chip">
+              <span class="field-chip__name">{{field.name}}</span>
+              <span class="field-chip__type">{{getRootTableAssemblyFieldType(field)}}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="info-section detail-card">
+        <div class="info-section__title">_#(Used By)</div>
+        <div *ngIf="loadingRootTableAssemblies" class="section-empty">_#(Loading)</div>
+        <div *ngIf="!loadingRootTableAssemblies && usedBy.length === 0" class="section-empty">_#(None)</div>
+        <div *ngFor="let asset of usedBy" class="dependent-asset-item">
+          <div class="dependent-asset-item__header">
+            <div class="dependent-asset-name">{{asset.name}}</div>
+            <div class="dependent-asset-meta">{{getDependentAssetTypeLabel(asset)}}</div>
+          </div>
+          <div class="dependent-asset-path">{{asset.path}}</div>
+        </div>
+      </section>
+    </div>
+
+    <section class="info-section" *ngIf="isWorksheet">
+      <div class="info-section__title">_#(Root Table Assemblies)</div>
+      <div *ngIf="loadingRootTableAssemblies" class="section-empty">_#(Loading)</div>
+      <div *ngIf="!loadingRootTableAssemblies && rootTableAssemblies.length === 0" class="section-empty">_#(None)</div>
+      <div *ngIf="rootTableAssemblies.length > 0" class="root-block-grid">
+        <div *ngFor="let tableAssembly of rootTableAssemblies" class="block-card">
+          <div class="block-card__header">
+            <div>
+              <div class="block-card__title">{{tableAssembly.name}}</div>
+              <div class="block-card__subtitle">{{getRootTableAssemblyLabel(tableAssembly)}}</div>
+            </div>
+            <div class="block-card__pill">{{getRootTableAssemblyMeta(tableAssembly)}}</div>
+          </div>
+          <div *ngIf="tableAssembly.fields?.length" class="field-chip-list">
+            <div *ngFor="let field of tableAssembly.fields" class="field-chip">
+              <span class="field-chip__name">{{field.name}}</span>
+              <span class="field-chip__type">{{getRootTableAssemblyFieldType(field)}}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </div>

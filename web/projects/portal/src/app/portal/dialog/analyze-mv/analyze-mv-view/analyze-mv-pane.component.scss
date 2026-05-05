@@ -33,6 +33,11 @@
 
 .mv-table {
    margin-bottom: 0;
+
+   th .form-check-input {
+      vertical-align: middle;
+      margin-top: 0;
+   }
 }
 
 .mv-empty-warning {

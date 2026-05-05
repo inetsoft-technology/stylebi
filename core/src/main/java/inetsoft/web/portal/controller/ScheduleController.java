@@ -23,9 +23,12 @@ import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.util.health.HealthStatus;
+import inetsoft.util.health.SchedulerStatus;
 import inetsoft.util.*;
 import inetsoft.web.admin.schedule.ScheduleService;
 import inetsoft.web.admin.schedule.model.*;
+import inetsoft.web.portal.model.PortalSchedulerHealthModel;
 import inetsoft.web.security.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,19 +51,16 @@ public class ScheduleController {
     *
     * @param analyticRepository the analytic repository.
     * @param scheduleManager    the schedule manager.
-    * @param scheduleClient     the schedule client.
     * @param scheduleService    the schedule service.
     */
    @Autowired
    public ScheduleController(AnalyticRepository analyticRepository,
                              ScheduleManager scheduleManager,
-                             ScheduleClient scheduleClient,
                              ScheduleService scheduleService,
                              SecurityProvider securityProvider)
    {
       this.analyticRepository = analyticRepository;
       this.scheduleManager = scheduleManager;
-      this.scheduleClient = scheduleClient;
       this.scheduleService = scheduleService;
       this.securityProvider = securityProvider;
    }
@@ -322,6 +322,54 @@ public class ScheduleController {
       return principal instanceof SRPrincipal && ((SRPrincipal) principal).isSelfOrganization();
    }
 
+   @Secured({
+      @RequiredPermission(resourceType = ResourceType.PORTAL_TAB, resource = "Schedule"),
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
+   @GetMapping("/api/portal/schedule/health")
+   public PortalSchedulerHealthModel getSchedulerHealth(Principal principal) {
+      Catalog catalog = Catalog.getCatalog(principal);
+      ScheduleClient client = ScheduleClient.getScheduleClient();
+
+      try {
+         if(!client.isReady()) {
+            return new PortalSchedulerHealthModel(
+               catalog.getString("Stopped"),
+               catalog.getString("Scheduler is stopped, so scheduled tasks will not run automatically."));
+         }
+
+         Optional<HealthStatus> healthStatus = client.getHealthStatus();
+
+         if(healthStatus.isEmpty() || healthStatus.get().getSchedulerStatus() == null) {
+            return new PortalSchedulerHealthModel(
+               catalog.getString("Unavailable"),
+               catalog.getString("Scheduler health is currently unavailable."));
+         }
+
+         SchedulerStatus status = healthStatus.get().getSchedulerStatus();
+         return new PortalSchedulerHealthModel(
+            getSchedulerStatusLabel(status, catalog),
+            getSchedulerStatusMessage(status, catalog));
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to get scheduler health for portal", e);
+
+         if(!client.isReady()) {
+            return new PortalSchedulerHealthModel(
+               catalog.getString("Stopped"),
+               catalog.getString("Scheduler is stopped, so scheduled tasks will not run automatically."));
+         }
+
+         return new PortalSchedulerHealthModel(
+            catalog.getString("Unavailable"),
+            catalog.getString("Scheduler health could not be retrieved."));
+      }
+   }
+
    /**
     * Get status description.
     */
@@ -347,10 +395,54 @@ public class ScheduleController {
       return String.format("%d:%02d:%02d", t, minutes, seconds);
    }
 
+   private String getSchedulerStatusLabel(SchedulerStatus status, Catalog catalog) {
+      if(status.isHealthy()) {
+         return catalog.getString("Running");
+      }
+
+      if(status.isShutdown()) {
+         return catalog.getString("Stopped");
+      }
+
+      if(status.isStandby()) {
+         return catalog.getString("Standby");
+      }
+
+      if(!status.isStarted()) {
+         return catalog.getString("Not started");
+      }
+
+      return catalog.getString("Degraded");
+   }
+
+   private String getSchedulerStatusMessage(SchedulerStatus status, Catalog catalog) {
+      if(status.isHealthy()) {
+         return null;
+      }
+
+      if(status.isShutdown()) {
+         return catalog.getString(
+            "Scheduler is shut down, so scheduled tasks will not run automatically.");
+      }
+
+      if(status.isStandby()) {
+         return catalog.getString(
+            "Scheduler is in standby, so scheduled tasks will not run automatically.");
+      }
+
+      if(!status.isStarted()) {
+         return catalog.getString(
+            "Scheduler has not started yet, so scheduled tasks cannot run automatically.");
+      }
+
+      return catalog.getString(
+         "Scheduler health checks are stale or worker capacity is exhausted, so scheduled task execution may be impacted.");
+   }
+
    /**
     * @param taskModel the task model to check
     *
-    * @return true if the task should be visible in the portal, false otherwise
+     * @return true if the task should be visible in the portal, false otherwise
     */
    private boolean isVisibleInPortal(ScheduleTaskModel taskModel) {
       String taskName = taskModel.name();
@@ -381,7 +473,6 @@ public class ScheduleController {
 
    private final AnalyticRepository analyticRepository;
    private final ScheduleManager scheduleManager;
-   private final ScheduleClient scheduleClient;
    private final ScheduleService scheduleService;
    private final SecurityProvider securityProvider;
    private static final Logger LOG =

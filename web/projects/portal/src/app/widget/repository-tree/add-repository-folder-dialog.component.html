@@ -25,7 +25,7 @@
         <div class="form-row-float-label form-row">
           <div class="form-floating col">
             <input class="form-control" type="text" [(ngModel)]="name" [formControl]="nameControl"
-                   placeholder="_#(Folder Name)"
+                   placeholder="_#(Folder Name)" defaultFocus
                    [class.is-invalid]="!nameControl.valid && nameControl.dirty"/>
             <label>_#(Folder Name)</label>
             <span class="invalid-feedback"

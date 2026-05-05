@@ -16,10 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { EventEmitter, Injectable } from "@angular/core";
+import { DashboardTabModel } from "./dashboard-tab-model";
 
 @Injectable()
 export class DashboardService {
    newDashboard = new EventEmitter<any>();
+   dashboardTabModelChanged = new EventEmitter<DashboardTabModel>();
 
    constructor() {
    }

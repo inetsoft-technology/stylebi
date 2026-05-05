@@ -65,17 +65,20 @@
 }
 
 .composer-toolbar-container {
+  display: flex;
+  align-items: stretch;
+  gap: var(--inet-space-2);
+
   .btn-toolbar-pull-right {
-    position: absolute;
-    right: 10px;
+    margin-left: auto;
+    position: static;
   }
 
   button.btn.ai-assistant-icon {
-    position: absolute;
-    right: 70px;
     background-color: transparent;
     padding: 0;
     flex-grow: 0;
     font-size: 24px;
+    margin-left: var(--inet-space-2);
   }
 }

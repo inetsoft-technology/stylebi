@@ -15,7 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<button [ngSwitch]="expressionType" type="button" class="btn btn-outline-info btn-sm"
+<button [ngSwitch]="expressionType" type="button" class="btn btn-secondary btn-sm"
         title="_#(Expression Type)" [style.align-self]="'center'"
         *ngIf="expressionTypes.length > 1"
         (click)="changeExpressionType()" [disabled]="isVSContext && !isHighlight">

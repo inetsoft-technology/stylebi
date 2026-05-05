@@ -33,6 +33,7 @@ import { LicenseInfoService } from "../common/services/license-info.service";
 import { OpenComposerService } from "../common/services/open-composer.service";
 import { ComponentTool } from "../common/util/component-tool";
 import { GuiTool } from "../common/util/gui-tool";
+import { SecurityEnabledEvent } from "../../../../em/src/app/settings/security/security-settings-page/security-enabled-event";
 import { PortalCreationPermissions } from "./custom/portal-creation-permissions";
 import { PreferencesDialog } from "./dialog/preferences-dialog.component";
 import { PortalModel } from "./portal-model";
@@ -49,6 +50,7 @@ const REFRESH_CREATION_PERMISSION_URI = "../api/portal/refresh-creation-permissi
 const COMPOSER_WIZARD_STATUS_URI: string = "../api/composer/wizard/status";
 const PORTAL_PROFILING_URI: string = "../api/portal/set-profiling/";
 const PORTAL_CHECK_SHOW_GETTING_STARTED_URI: string = "../api/portal/getting-started";
+const SECURITY_ENABLED_URI = "../api/em/security/get-enable-security";
 declare const window: any;
 
 @Component({
@@ -62,12 +64,12 @@ export class PortalAppComponent implements OnInit, OnDestroy {
    portalTabs: PortalTab[];
    customPortalTabs: PortalTab[];
    reportTabFirst: boolean = true;
-   dataTabFirst: boolean = true;
    hideNav: boolean;
    logoSrc: string = "../portal/logo";
    mobile: boolean;
    currentUrl: string;
    tabBodyHeight: number;
+   securityEnabled = false;
    private routeSubscription: Subscription;
    private licenseInfo: LicenseInfo;
    private readonly ACCESSIBILITY_CLASS: string = "accessible";
@@ -158,6 +160,12 @@ export class PortalAppComponent implements OnInit, OnDestroy {
             this.logoutService.setLogoutUrl(model.logoutUrl);
          });
 
+      this.http.get<SecurityEnabledEvent>(SECURITY_ENABLED_URI)
+         .subscribe((event) => {
+            this.securityEnabled = !!event?.enable;
+            this.checkDefaultTab();
+         });
+
       this.portalTabsService.getPortalTabs().subscribe((portalTabs) => {
          this.portalTabs = portalTabs;
          this.setTabOrder();
@@ -233,16 +241,13 @@ export class PortalAppComponent implements OnInit, OnDestroy {
 
    setTabOrder(): void {
       if(!!this.portalTabs) {
-         const dIndex = this.portalTabs.findIndex(t => t.name == PortalTabs.DASHBOARD);
-         const rIndex = this.portalTabs.findIndex(t => t.name == PortalTabs.REPORT);
-         const dataIndex = this.portalTabs.findIndex(t => t.name == PortalTabs.DATA);
-         const scheduleIndex = this.portalTabs.findIndex(t => t.name == PortalTabs.SCHEDULE);
-         this.reportTabFirst = rIndex <= dIndex;
-         this.dataTabFirst = scheduleIndex <= dataIndex;
+         const reportIndex = this.portalTabs.findIndex(t =>
+            t.name == PortalTabs.REPORT || t.name == PortalTabs.VIEWER);
+         const dashboardIndex = this.portalTabs.findIndex(t => t.name == PortalTabs.DASHBOARD);
+         this.reportTabFirst = dashboardIndex < 0 || reportIndex >= 0 && reportIndex <= dashboardIndex;
       }
       else {
          this.reportTabFirst = true;
-         this.dataTabFirst = true;
       }
    }
 
@@ -251,11 +256,11 @@ export class PortalAppComponent implements OnInit, OnDestroy {
          const dashboard = this.portalTabs.find(t => t.name == PortalTabs.DASHBOARD);
          const report = this.portalTabs.find(t => t.name == PortalTabs.REPORT);
 
-         if(this.model.hasDashboards && dashboard) {
-            this.router.navigate(["/portal/" + dashboard.uri]);
-         }
-         else if(report) {
+         if(report) {
             this.router.navigate(["/portal/" + report.uri]);
+         }
+         else if(this.model.hasDashboards && dashboard && this.canAccessDashboardTab()) {
+            this.router.navigate(["/portal/" + dashboard.uri]);
          }
       }
    }
@@ -302,12 +307,32 @@ export class PortalAppComponent implements OnInit, OnDestroy {
    }
 
    getDashboardTabTooltip(): string {
-      if(this.getTab(PortalTabs.DASHBOARD)) {
-         return "_#(js:Dashboard)";
+      if(this.getTab(PortalTabs.DASHBOARD) && !this.securityEnabled) {
+         return "_#(js:Pinboard requires security to be enabled.)";
+      }
+      else if(this.getTab(PortalTabs.DASHBOARD)) {
+         return "_#(js:Pinboard)";
       }
       else {
          return "";
       }
+   }
+
+   canAccessDashboardTab(): boolean {
+      return !!this.getTab(PortalTabs.DASHBOARD) && this.securityEnabled;
+   }
+
+   showDisabledDashboardTab(): boolean {
+      return !!this.getTab(PortalTabs.DASHBOARD) && !this.securityEnabled;
+   }
+
+   openDashboardTab(event: MouseEvent): void {
+      if(this.canAccessDashboardTab()) {
+         return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
    }
 
    getDataTabTooltip(): string {
@@ -347,7 +372,37 @@ export class PortalAppComponent implements OnInit, OnDestroy {
       return false;
    }
 
+   shouldShowCreateButton(): boolean {
+      return !!this.model && (this.model.reportEnabled || this.hasEnabledCreateAction());
+   }
+
+   hasEnabledCreateAction(): boolean {
+      return this.canCreateDataSource() || this.canCreateWorksheet() ||
+         this.canCreateViewsheet() || this.canLaunchComposer();
+   }
+
+   canCreateDataSource(): boolean {
+      return !!this.model?.newDatasourceEnabled;
+   }
+
+   canCreateWorksheet(): boolean {
+      return this.openComposerEnabled && !!this.model?.newWorksheetEnabled;
+   }
+
+   canCreateViewsheet(): boolean {
+      return this.openComposerEnabled && !!this.model?.dashboardEnabled &&
+         !!this.model?.newViewsheetEnabled;
+   }
+
+   canLaunchComposer(): boolean {
+      return this.openComposerEnabled;
+   }
+
    openComposer(vs: boolean): void {
+      if(vs && !this.canCreateViewsheet() || !vs && !this.canCreateWorksheet()) {
+         return;
+      }
+
       this.openComposerService.composerOpen.subscribe(open => {
          if(!open) {
             this.http.get<WizardDialogStatusModel>(COMPOSER_WIZARD_STATUS_URI)
@@ -381,7 +436,7 @@ export class PortalAppComponent implements OnInit, OnDestroy {
    }
 
    launchComposer(): void {
-      if(!this.openComposerEnabled) {
+      if(!this.canLaunchComposer()) {
          return;
       }
 
@@ -397,6 +452,10 @@ export class PortalAppComponent implements OnInit, OnDestroy {
    }
 
    showListings(): void {
+      if(!this.canCreateDataSource()) {
+         return;
+      }
+
       let queryParams = {
          path: "/",
          scope: "0"

@@ -126,11 +126,7 @@
 
 .composer-tab-content-body {
   height: 100%;
-  overflow: hidden;
-
-  &:hover {
-    overflow: auto;
-  }
+  overflow: auto;
 }
 
 .tabs-bottom-split > li {

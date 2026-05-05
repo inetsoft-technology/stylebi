@@ -15,14 +15,196 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.vpm-browser-container {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-}
-.flex-fixed-content{
-  height: 95%;
+:host {
+  .vpm-browser-container {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow: hidden;
+    padding: 0 16px;
+    background: var(--inet-main-panel-bg-color, #fff);
+  }
+
+  .vpm-browser-container > .d-flex {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    overflow: hidden;
+  }
+
+  .vpm-workspace-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 20px 16px;
+    border-bottom: 1px solid var(--inet-border-color, #d9d4c8);
+    background: var(--inet-cell-bg-color, #fffdfa);
+  }
+
+  .vpm-workspace-heading {
+    min-width: 0;
+  }
+
+  .vpm-workspace-eyebrow,
+  .vpm-detail-pane__section-title,
+  .vpm-detail-pane__meta-label,
+  .vpm-detail-pane__eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--inet-secondary-text-color, #6e6759);
+  }
+
+  .vpm-workspace-title {
+    margin-top: 4px;
+    font-size: 30px;
+    line-height: 1.1;
+    color: var(--inet-text-color, #2f2c25);
+  }
+
+  .vpm-workspace-subtitle {
+    margin-top: 8px;
+    color: var(--inet-secondary-text-color, #6e6759);
+    line-height: 1.5;
+  }
+
+  .vpm-search-banner {
+    display: flex;
+    align-items: center;
+    padding: 8px 20px;
+    border-bottom: 1px solid var(--inet-border-color, #d9d4c8);
+    background: var(--inet-panel-bg-color, #f8f5ef);
+    color: var(--inet-secondary-text-color, #6e6759);
+  }
+
+  .flex-fixed-content {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .vpm-detail-pane {
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    padding: 18px 20px 24px;
+    background: var(--inet-cell-bg-color, #fffdfa);
+    border-left: 1px solid var(--inet-border-color, #d9d4c8);
+  }
+
+  .vpm-detail-pane__header {
+    margin-bottom: 16px;
+  }
+
+  .vpm-detail-pane__title-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .vpm-detail-pane__title {
+    margin: 6px 0 0;
+    font-size: 24px;
+    line-height: 1.2;
+    color: var(--inet-text-color, #2f2c25);
+  }
+
+  .vpm-detail-pane__close {
+    flex-shrink: 0;
+    color: var(--inet-secondary-text-color, #6e6759);
+  }
+
+  .vpm-detail-pane__subtitle {
+    margin-top: 10px;
+    color: var(--inet-secondary-text-color, #6e6759);
+    line-height: 1.5;
+  }
+
+  .vpm-detail-pane__actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 18px;
+    padding: 12px 0 16px;
+    border-top: 1px solid var(--inet-default-border-color);
+    border-bottom: 1px solid var(--inet-default-border-color);
+  }
+
+  .vpm-detail-pane__action-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .vpm-detail-pane__section {
+    margin-bottom: 18px;
+  }
+
+  .vpm-detail-pane__meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-top: 10px;
+  }
+
+  .vpm-detail-pane__meta-card,
+  .vpm-detail-pane__description {
+    padding: 12px 0;
+    background: transparent;
+    border: 0;
+    border-top: 1px solid var(--inet-default-border-color);
+    border-radius: 0;
+  }
+
+  .vpm-detail-pane__meta-value {
+    margin-top: 6px;
+    color: var(--inet-text-color, #2f2c25);
+    line-height: 1.45;
+    word-break: break-word;
+  }
+
+  .vpm-detail-pane__description {
+    margin-top: 10px;
+    color: var(--inet-secondary-text-color, #6e6759);
+    line-height: 1.6;
+  }
+
+  @media (max-width: 900px) {
+    .vpm-browser-container {
+      padding: 0 12px;
+    }
+
+    .vpm-workspace-header {
+      flex-direction: column;
+      align-items: stretch;
+      padding: 16px;
+    }
+
+    .vpm-workspace-title {
+      font-size: 26px;
+    }
+
+    .vpm-search-banner {
+      padding: 8px 16px;
+    }
+
+    .vpm-detail-pane {
+      padding: 16px;
+    }
+
+    .vpm-detail-pane__action-row {
+      align-items: stretch;
+    }
+
+    .vpm-detail-pane__action-row .btn-toolbar {
+      justify-content: flex-start;
+    }
+  }
 }

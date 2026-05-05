@@ -15,6 +15,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+.parameter-dialog {
+  padding: var(--inet-space-5);
+}
+
+.parameter-dialog__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--inet-space-4);
+}
+
 input.form-control.input-transparent {
   position: absolute;
   width: 90%;
@@ -29,7 +39,18 @@ input.form-control.input-transparent {
   background: white;
 }
 
+.parameter-dialog__source-row {
+  display: flex;
+  align-items: center;
+  gap: var(--inet-space-4);
+  flex-wrap: wrap;
+}
+
 .value-for-parameter-label {
   margin-right: 10px;
-  font-weight: bold;
+  font-weight: 600;
+}
+
+.parameter-dialog__inline-alert {
+  margin-bottom: 0;
 }

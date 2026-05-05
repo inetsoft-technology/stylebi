@@ -15,591 +15,467 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-
-/* ============================================================
-   Design tokens — derived directly from --inet-* theme vars.
-   Fallbacks match the default InetSoft palette so the page
-   renders correctly even before global.css / theme-variables.css
-   have been parsed.
-
-   Left panel  → uses the app's surface colours  (light)
-   Right panel → uses --inet-navbar-bg-color      (dark neutral)
-   Accent      → uses --inet-primary-color        (orange)
-   ============================================================ */
 :root {
-  /* Surfaces */
-  --ln-bg:          var(--inet-navbar-bg-color,            #424242); /* right panel + body overflow */
-  --ln-left:        var(--inet-main-panel-bg-color,        #ffffff); /* left/form panel */
-  --ln-surface:     var(--inet-main-panel-bg-color,        #ffffff); /* input default bg */
-  --ln-surface-hi:  var(--inet-portal-side-panel-bg-color, #f9f9f9); /* input hover bg */
-
-  /* Text */
-  --ln-text:        var(--inet-text-color,  #212529);
-  --ln-text-soft:   var(--inet-icon-color,  #6d6d6d);
-  --ln-text-dim:    #aaaaaa;
-
-  /* Borders */
-  --ln-border:       var(--inet-default-border-color, #e0e0e0);
-  --ln-border-focus: var(--inet-primary-color,        #ed711c);
-  /* Glow derives from the theme primary so custom themes propagate.
-     color-mix() is baseline-supported in all evergreen browsers. */
-  --ln-glow: color-mix(in srgb, var(--inet-primary-color, #ed711c) 20%, transparent);
-
-  /* Accent — follows the app's primary button colour chain */
-  --ln-accent: var(--inet-button-primary-bg-color, #ed711c);
-  --ln-danger: var(--inet-danger-color,            #fe688b);
-  --ln-font:   var(--inet-font-family,             "Roboto", "Helvetica Neue", Arial, sans-serif);
-
-  /* M3 state-layer opacities */
-  --m3-hover:  0.08;
-  --m3-focus:  0.12;
-  --m3-press:  0.12;
-
-  /* M3 shape tokens (only the values actively used are kept) */
-  --m3-shape-xs:   4px;   /* inputs, alerts, banners */
-  --m3-shape-xl:   28px;  /* modal dialog */
-  --m3-shape-full: 50px;  /* pill buttons */
-
-  /* Layout */
-  --ln-nav-h:   54px;
-  --ln-left-w:  30%;
+  --ln-font: var(--inet-font-family, Roboto, -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif);
+  --ln-font-size: var(--inet-font-size-base, 13px);
+  --ln-text: var(--inet-text-color, #35342F);
+  --ln-text-strong: var(--inet-text-strong-color, #1F1F1B);
+  --ln-text-muted: var(--inet-text-muted-color, #6A685F);
+  --ln-text-subtle: var(--inet-text-subtle-color, #99958C);
+  --ln-primary: var(--inet-primary-color, #ED711C);
+  --ln-primary-dark: var(--inet-primary-color-dark, #D25F11);
+  --ln-primary-soft: var(--inet-primary-soft-color, #F6E2C8);
+  --ln-bg: var(--inet-main-panel-bg-color, #FFFFFF);
+  --ln-bg-alt: var(--inet-portal-side-panel-bg-color, #F8F7F4);
+  --ln-toolbar: var(--inet-toolbar-bg-color, #F1EFEA);
+  --ln-card: var(--inet-card-bg-color, #FFFFFF);
+  --ln-border: var(--inet-default-border-color, #D9D5CC);
+  --ln-border-strong: color-mix(in srgb, var(--ln-border) 70%, var(--ln-text-subtle));
+  --ln-hover: var(--inet-ui-neutral-hover-bg-color, #ECE9E2);
+  --ln-danger: var(--inet-danger-color, #FE688B);
+  --ln-danger-light: var(--inet-danger-color-light, #FFF3F5);
+  --ln-danger-dark: var(--inet-danger-color-dark, #85646C);
+  --ln-warning: var(--inet-warning-color, #F2F3AE);
+  --ln-warning-light: var(--inet-warning-color-light, #FCFDEF);
+  --ln-warning-dark: var(--inet-warning-color-dark, #7E7E5A);
+  --ln-input-bg: var(--inet-input-bg-color, #FFFFFF);
+  --ln-input-disabled-bg: var(--inet-input-disabled-bg-color, #F1EFEA);
+  --ln-dialog-bg: var(--inet-dialog-bg-color, #FFFFFF);
+  --ln-button-primary-text: var(--inet-button-primary-text-color, #FFFFFF);
+  --ln-button-default-bg: var(--inet-button-default-bg-color, transparent);
+  --ln-button-default-text: var(--inet-button-default-text-color, var(--ln-text-muted));
+  --ln-button-default-border: var(--inet-button-default-border-color, var(--ln-border));
+  --ln-button-default-hover-bg: var(--inet-button-default-hover-bg-color, var(--ln-hover));
+  --ln-button-default-hover-text: var(--inet-button-default-hover-text-color, var(--ln-text));
+  --ln-radius-sm: var(--inet-radius-lg, 4px);
+  --ln-radius-md: var(--inet-radius-xl, 6px);
+  --ln-shadow-low: var(--inet-shadow-low, 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04));
+  --ln-shadow-medium: var(--inet-shadow-medium, 0 2px 4px rgba(0, 0, 0, 0.08), 0 1px 6px rgba(0, 0, 0, 0.05));
+  --ln-focus: var(--inet-focus-ring-color, rgba(229, 138, 42, 0.28));
+  --ln-nav-h: 56px;
 }
 
-/* ============================================================
-   Base
-   ============================================================ */
-html, body {
-  height: 100%;
+html,
+body {
+  min-height: 100%;
   margin: 0;
   padding: 0;
   background: var(--ln-bg);
   color: var(--ln-text);
   font-family: var(--ln-font);
+  font-size: var(--ln-font-size);
 }
 
 body {
   overflow: auto;
 }
 
-/* ============================================================
-   Navbar  (background + logo colour provided by global.css)
-   ============================================================ */
 .bg-navbar-top {
-  height: var(--ln-nav-h);
-  padding: 0 28px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  min-height: var(--ln-nav-h);
+  padding: 0 24px;
   display: flex;
   align-items: center;
   gap: 10px;
-  position: relative;
-  z-index: 20;
-  flex-shrink: 0;
+  background: var(--ln-toolbar);
+  border-bottom: 1px solid var(--ln-border);
+  color: var(--ln-text-strong);
 }
 
 .custom-logo {
-  height: 50px; /* restored to original; 32px was a regression */
-  vertical-align: middle;
+  height: 40px;
+  width: auto;
 }
 
-/* ============================================================
-   Full-viewport background — centres the floating card
-   ============================================================ */
+.auth-brand-link {
+  display: inline-flex;
+  align-items: center;
+  color: inherit;
+  text-decoration: none;
+}
+
+.auth-brand-link:hover,
+.auth-brand-link:focus,
+.auth-brand-link:focus-visible {
+  color: inherit;
+  text-decoration: none;
+}
+
+.auth-brand-text {
+  color: var(--ln-text-strong);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
 .login-root {
+  position: relative;
+  min-height: calc(100vh - var(--ln-nav-h));
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: calc(100vh - var(--ln-nav-h));
-  position: relative;
-  overflow: hidden;
   padding: 48px 24px;
+  overflow: hidden;
   background:
-    linear-gradient(rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.25)),
-    radial-gradient(
-      ellipse 75% 55% at 100% 100%,
-      color-mix(in srgb, var(--inet-primary-color, #ed711c) 11%, transparent) 0%,
-      transparent 68%
-    ),
-    var(--ln-bg);
+    radial-gradient(circle at top right, color-mix(in srgb, var(--ln-primary) 8%, transparent) 0%, transparent 28%),
+    linear-gradient(180deg, var(--ln-bg) 0%, var(--ln-bg-alt) 100%);
 }
 
-/* ============================================================
-   Floating card — elevated surface centered over the background
-   ============================================================ */
+.login-right {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.dot-grid {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(31, 31, 27, 0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
+  opacity: 0.35;
+}
+
 .login-left {
   position: relative;
-  z-index: 2;
+  z-index: 1;
   width: 100%;
-  max-width: 440px;
-  background: var(--ln-left);
-  border-radius: var(--m3-shape-xl);
-  display: flex;
-  flex-direction: column;
-  padding: 48px 52px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  box-shadow:
-    0 8px 40px rgba(0, 0, 0, 0.40),
-    0 2px 8px  rgba(0, 0, 0, 0.20);
-  animation: loginPanelIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  max-width: 420px;
 }
 
-@keyframes loginPanelIn {
-  from { opacity: 0; transform: scale(0.96) translateY(16px); }
-  to   { opacity: 1; transform: scale(1)    translateY(0); }
-}
-
-.login-left::-webkit-scrollbar { width: 4px; }
-.login-left::-webkit-scrollbar-track { background: transparent; }
-.login-left::-webkit-scrollbar-thumb {
-  background: var(--ln-border);
-  border-radius: 2px;
-}
-
-/* ============================================================
-   Card — transparent container on the light panel.
-   Scoped selectors give sufficient specificity to override
-   Bootstrap without needing !important on every property.
-   ============================================================ */
 .login-left .card {
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-  margin: 0;
   width: 100%;
-  max-width: 100%;
+  margin: 0;
+  background: var(--ln-card);
   color: var(--ln-text);
+  border: 1px solid var(--ln-border);
+  border-radius: var(--ln-radius-md);
+  box-shadow: var(--ln-shadow-medium);
+  overflow: hidden;
 }
 
-/* M3 Expressive headline — dark on light */
 .login-left .card-header {
+  padding: 24px 24px 8px;
   background: transparent;
   border: none;
-  padding: 0 0 36px 0;
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--inet-dark-color, #202020);
-  letter-spacing: -0.03em;
-  line-height: 1.15;
-  animation: loginItemIn 0.5s 0.10s cubic-bezier(0.22, 1, 0.36, 1) both;
+  color: var(--ln-text-strong);
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 600;
 }
 
 .login-left .card-body {
-  padding: 0;
+  padding: 0 24px 24px;
 }
 
 .login-left .card-footer {
+  padding: 0 24px 24px;
   background: transparent;
   border: none;
-  padding: 28px 0 0 0;
-}
-
-/* ============================================================
-   Form elements — M3 Outlined Text Field on light surface.
-   Selector specificity (0,2,0) overrides Bootstrap (0,1,0)
-   without requiring !important on individual properties.
-   ============================================================ */
-
-/* Stagger form groups */
-.login-left .card-body .form-group:nth-child(1) { animation: loginItemIn 0.5s 0.18s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.login-left .card-body .form-group:nth-child(2) { animation: loginItemIn 0.5s 0.24s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.login-left .card-body .form-group:nth-child(3) { animation: loginItemIn 0.5s 0.30s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.login-left .card-body .form-group:nth-child(4) { animation: loginItemIn 0.5s 0.36s cubic-bezier(0.22, 1, 0.36, 1) both; }
-
-@keyframes loginItemIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
 }
 
 .login-left .form-group {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
-/* M3 Label Medium */
 .login-left .form-group label {
   display: block;
-  margin-bottom: 7px;
-  font-size: 0.75rem;
+  margin-bottom: 6px;
+  color: var(--ln-text-muted);
+  font-size: 12px;
   font-weight: 500;
-  color: var(--ln-text-soft);
-  letter-spacing: 0.04em;
+  line-height: 1.4;
 }
 
 .required-field::after {
   content: " *";
-  color: var(--ln-accent);
+  color: var(--ln-primary);
 }
 
-/* M3 Outlined Text Field — shape.corner.extra-small = 4dp */
 .login-left .form-control {
-  background: var(--ln-surface);
-  border: 1px solid var(--ln-border);
-  border-radius: var(--m3-shape-xs);
-  color: var(--ln-text);
-  padding: 12px 14px;
-  font-size: 0.93rem;
-  font-family: var(--ln-font);
   width: 100%;
-  transition:
-    border-color 0.15s ease,
-    background   0.15s ease,
-    box-shadow   0.15s ease;
-  -webkit-appearance: none;
+  min-height: 36px;
+  padding: 7px 10px;
+  background: var(--ln-input-bg);
+  border: 1px solid var(--ln-border);
+  border-radius: var(--ln-radius-sm);
+  color: var(--ln-text);
+  font-size: 13px;
+  line-height: 1.4;
+  box-shadow: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
   appearance: none;
 }
 
 .login-left .form-control:hover {
-  border-color: var(--inet-gray2, #bdbdbd);
-  background: var(--ln-surface-hi);
+  background: color-mix(in srgb, var(--ln-bg-alt) 55%, white);
 }
 
-/* M3 focus: 2px primary border + subtle themed glow */
 .login-left .form-control:focus {
+  border-color: var(--ln-primary);
+  box-shadow: 0 0 0 3px var(--ln-focus);
   outline: none;
-  background: var(--ln-surface);
-  border: 2px solid var(--ln-border-focus);
-  padding: 11px 13px; /* compensate for extra border pixel */
-  color: var(--ln-text);
-  box-shadow: 0 0 0 3px var(--ln-glow);
 }
 
 .login-left .form-control::placeholder {
-  color: var(--ln-text-dim);
+  color: var(--ln-text-subtle);
 }
 
-/* Override browser autofill highlight (Chrome/Edge/Safari use a blue/yellow tint).
-   background-color is ignored on autofilled inputs; a large inset box-shadow
-   paints over the UA-supplied colour instead. The transition delay prevents a
-   flash when the autofill is first applied.
-   Focus state combines the inset background with the M3 glow ring so both
-   are visible simultaneously — box-shadow is a single property and a plain
-   inset would suppress the outer glow if listed alone. */
 .login-left input.form-control:-webkit-autofill,
-.login-left input.form-control:-webkit-autofill:hover {
-  -webkit-box-shadow: 0 0 0 1000px var(--ln-surface) inset;
-  box-shadow: 0 0 0 1000px var(--ln-surface) inset;
-  -webkit-text-fill-color: var(--ln-text);
-  transition: background-color 9999s ease-in-out 0s;
-  caret-color: var(--ln-text);
-}
-
+.login-left input.form-control:-webkit-autofill:hover,
 .login-left input.form-control:-webkit-autofill:focus {
-  -webkit-box-shadow: 0 0 0 1000px var(--ln-surface) inset, 0 0 0 3px var(--ln-glow);
-  box-shadow: 0 0 0 1000px var(--ln-surface) inset, 0 0 0 3px var(--ln-glow);
   -webkit-text-fill-color: var(--ln-text);
-  caret-color: var(--ln-text);
-}
-
-/* The browser's native select arrow is hidden; the .select-wrapper
-   pseudo-element renders a themed arrow instead. transition:none
-   prevents a flash during option-list open on some browsers. */
-.login-left select.form-control {
-  cursor: pointer;
-  background-image: none;
-  padding-right: 34px;
-  transition: none;
+  -webkit-box-shadow: 0 0 0 1000px var(--ln-input-bg) inset;
+  box-shadow: 0 0 0 1000px var(--ln-input-bg) inset;
+  transition: background-color 9999s ease-in-out 0s;
 }
 
 .select-wrapper {
   position: relative;
 }
 
-/* Custom dropdown arrow for light background */
+.login-left select.form-control {
+  padding-right: 30px;
+  background-image: none;
+  cursor: pointer;
+}
+
 .select-wrapper::after {
-  content: '';
+  content: "";
   position: absolute;
-  right: 13px;
+  right: 10px;
   top: 50%;
+  width: 10px;
+  height: 6px;
   transform: translateY(-50%);
-  width: 12px;
-  height: 8px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%236d6d6d' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%236A685F' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-size: contain;
   pointer-events: none;
 }
 
-.login-left select.form-control option {
-  background: var(--ln-surface);
-  color: var(--ln-text);
-}
-
 .login-left .invalid-feedback {
-  color: var(--ln-danger);
-  font-size: 0.8rem;
   margin-top: 4px;
+  color: var(--ln-danger);
+  font-size: 12px;
 }
 
 .signup-text {
-  text-align: end;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+  text-align: right;
 }
 
 .signup-text a {
-  color: var(--ln-accent);
-  font-size: 0.85rem;
+  color: var(--ln-primary);
   text-decoration: none;
-  transition: opacity 0.15s;
 }
 
-.signup-text a:hover { opacity: 0.75; }
+.signup-text a:hover {
+  color: var(--ln-primary-dark);
+  text-decoration: underline;
+}
 
-/* ============================================================
-   Sign-in button — M3 Filled Button, pill shape.
-   ID selector on #loginButton gives (1,1,0) specificity which
-   beats Bootstrap's (0,1,0) without needing !important.
-   ============================================================ */
 #loginButton.btn-primary,
-.login-left .btn-primary {
-  position: relative;
-  overflow: hidden;
-  background: var(--ln-accent);
-  border: none;
-  border-radius: var(--m3-shape-full);
-  color: var(--inet-button-primary-text-color, #fff);
-  font-family: var(--ln-font);
-  font-size: 0.9rem;
-  font-weight: 500;           /* M3 Label Large */
-  letter-spacing: 0.01em;
-  text-transform: none;       /* M3 dropped ALL-CAPS */
-  padding: 14px 24px;
-  width: 100%;
-  cursor: pointer;
-  transition: box-shadow 0.15s ease;
+.login-left .btn-primary,
+.restricted-action-btn--primary,
+#activeSession .modal-footer .btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--ln-primary);
+  border-radius: var(--ln-radius-sm);
+  background: var(--ln-primary);
+  color: var(--ln-button-primary-text);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
   box-shadow: none;
-  animation: loginItemIn 0.5s 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
 }
-
-/* M3 state layer: translucent white overlay */
-#loginButton.btn-primary::after,
-.login-left .btn-primary::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: white;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  border-radius: inherit;
-  pointer-events: none;
-}
-
-#loginButton.btn-primary:hover::after,
-.login-left .btn-primary:hover::after  { opacity: var(--m3-hover); }
-#loginButton.btn-primary:focus::after,
-.login-left .btn-primary:focus::after  { opacity: var(--m3-focus); }
-#loginButton.btn-primary:active::after,
-.login-left .btn-primary:active::after { opacity: var(--m3-press); }
 
 #loginButton.btn-primary:hover,
-.login-left .btn-primary:hover {
-  box-shadow: 0px 1px 2px rgba(0,0,0,0.3), 0px 2px 6px 2px rgba(0,0,0,0.15);
+.login-left .btn-primary:hover,
+.restricted-action-btn--primary:hover,
+#activeSession .modal-footer .btn-primary:hover {
+  background: var(--ln-primary-dark);
+  border-color: var(--ln-primary-dark);
+  box-shadow: var(--ln-shadow-low);
 }
 
-/* ============================================================
-   Social / Google login
-   ============================================================ */
-.social-login-div {
-  display: flex;
+#loginButton.btn-primary:focus-visible,
+.login-left .btn-primary:focus-visible,
+.restricted-action-btn--primary:focus-visible,
+#activeSession .modal-footer .btn-primary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ln-focus);
+}
+
+.btn-default,
+.restricted-action-btn:not(.restricted-action-btn--primary) {
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--ln-button-default-border);
+  border-radius: var(--ln-radius-sm);
+  background: var(--ln-button-default-bg);
+  color: var(--ln-button-default-text);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.btn-default:hover,
+.restricted-action-btn:not(.restricted-action-btn--primary):hover {
+  background: var(--ln-button-default-hover-bg);
+  color: var(--ln-button-default-hover-text);
+  text-decoration: none;
+}
+
+.btn-default:focus-visible,
+.restricted-action-btn:not(.restricted-action-btn--primary):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ln-focus);
+}
+
+.social-login-div {
+  margin-top: 16px;
+  display: flex;
   flex-direction: column;
-  width: 100%;
-  margin: 20px 0 0 0;
+  align-items: center;
 }
 
 .separator-div {
+  width: 100%;
   display: flex;
   align-items: center;
-  margin-bottom: 16px;
-  width: 100%;
+  margin-bottom: 14px;
 }
 
 .separator-line {
-  flex-grow: 1;
-  height: 1px;
-  background: var(--ln-border);
-  border: none;
-  display: block;
+  flex: 1;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--ln-border);
 }
 
 .separator-text {
-  color: var(--ln-text-soft);
-  padding: 0 14px;
-  font-size: 0.72rem;
+  padding: 0 10px;
+  color: var(--ln-text-subtle);
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.04em;
 }
 
-/* ============================================================
-   Login banner — M3 outlined card on light surface
-   ============================================================ */
 .loginBanner:empty {
   display: none;
 }
 
-.login-left .loginBanner {
-  border: 1px solid var(--ln-border);
-  background: var(--inet-portal-side-panel-bg-color, #f9f9f9);
-  color: var(--ln-text);
-  border-radius: var(--m3-shape-xs);
-  padding: 14px 16px;
-  margin: 14px 0 0 0;
-  font-size: 0.875rem;
-  width: 100%;
-  max-width: 100%;
-  box-shadow: none;
-}
-
+.login-left .loginBanner,
 pre.loginBanner {
+  margin: 12px 0 0;
+  padding: 12px;
+  background: var(--ln-bg-alt);
+  border: 1px solid var(--ln-border);
+  border-radius: var(--ln-radius-sm);
+  box-shadow: none;
+  color: var(--ln-text);
+  font-family: var(--ln-font);
+  font-size: 13px;
   white-space: pre-wrap;
   word-break: break-word;
-  font-family: var(--ln-font);
 }
 
-/* ============================================================
-   Alerts — theme light-mode colour variants
-   ============================================================ */
 .login-left div.alert {
-  margin: 10px 0 0 0;
-  width: 100%;
-  max-width: 100%;
-  border-radius: var(--m3-shape-xs);
-  font-size: 0.875rem;
+  margin: 12px 0 0;
+  border-radius: var(--ln-radius-sm);
+  font-size: 13px;
 }
 
 .login-left .alert-danger {
-  background: var(--inet-danger-color-light,  #fff3f5);
-  color:      var(--inet-danger-color-dark,   #85646c);
-  border: 1px solid var(--inet-danger-color,  #fe688b);
+  background: var(--ln-danger-light);
+  color: var(--ln-danger-dark);
+  border: 1px solid var(--ln-danger);
 }
 
 .login-left .alert-warning {
-  background: var(--inet-warning-color-light, #fcfdef);
-  color:      var(--inet-warning-color-dark,  #7e7e5a);
-  border: 1px solid var(--inet-warning-color, #f2f3ae);
+  background: var(--ln-warning-light);
+  color: var(--ln-warning-dark);
+  border: 1px solid var(--ln-warning);
 }
 
-/* ============================================================
-   Modal — scoped to #activeSession for specificity over
-   Bootstrap's (0,1,0) without needing !important.
-   M3 Dialog: shape.corner.extra-large = 28dp
-   ============================================================ */
 #activeSession .modal-content {
-  background: var(--inet-dialog-bg-color, #ffffff);
-  border: 1px solid var(--ln-border);
-  border-radius: var(--m3-shape-xl);
+  background: var(--ln-dialog-bg);
   color: var(--ln-text);
+  border: 1px solid var(--ln-border);
+  border-radius: var(--ln-radius-md);
+}
+
+#activeSession .modal-header,
+#activeSession .modal-footer {
+  background: transparent;
+  border-color: var(--ln-border);
+  padding-left: 20px;
+  padding-right: 20px;
 }
 
 #activeSession .modal-header {
-  border-bottom: 1px solid var(--ln-border);
-  padding: 20px 28px;
-  background: transparent;
-  border-radius: var(--m3-shape-xl) var(--m3-shape-xl) 0 0;
-}
-
-#activeSession .modal-title {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--ln-text);
+  padding-top: 16px;
+  padding-bottom: 16px;
 }
 
 #activeSession .modal-body {
-  padding: 24px 28px;
-  font-size: 0.9rem;
+  padding: 20px;
+}
+
+#activeSession .modal-title {
+  color: var(--ln-text-strong);
+  font-size: 14px;
+  font-weight: 600;
 }
 
 #activeSession .modal-footer {
-  border-top: 1px solid var(--ln-border);
-  padding: 16px 28px;
-  background: transparent;
-  border-radius: 0 0 var(--m3-shape-xl) var(--m3-shape-xl);
   display: flex;
-  gap: 10px;
+  gap: 8px;
 }
 
 .modal-header .close {
   margin-left: auto;
 }
 
-/* Light modal — default close icon is already dark, no filter needed */
-.btn-close {
-  filter: none;
-}
-
-/* M3 Outlined Button using the theme's default button colour vars */
-.btn-default {
-  position: relative;
-  overflow: hidden;
-  background: var(--inet-button-default-bg-color,     transparent);
-  border: 1px solid var(--inet-button-default-border-color, #105e5a);
-  color: var(--inet-button-default-text-color,        #105e5a);
-  border-radius: var(--m3-shape-full);
-  padding: 9px 20px;
-  font-family: var(--ln-font);
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-.btn-default:hover {
-  background: var(--inet-button-default-hover-bg-color,   #105e5a);
-  color:      var(--inet-button-default-hover-text-color, #cdf7f6);
-}
-
-#activeSession .modal-footer .btn-primary {
-  border-radius: var(--m3-shape-full);
-  padding: 9px 20px;
-}
-
 .text-info {
-  color: var(--ln-text-soft) !important; /* Bootstrap utility — !important intentional */
+  color: var(--ln-text-muted) !important;
 }
 
-/* ============================================================
-   Loading indicator + page-exit transition
-   (Always dark — hardcoded so it works on any theme.)
-   ============================================================ */
 div.loading-indicator {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(30, 30, 30, 0.90);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   z-index: 9999;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  background: rgba(255, 255, 255, 0.74);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
 }
 
 div.loading-indicator.loading {
   display: flex;
-  animation: overlayIn 0.25s ease both;
 }
 
-@keyframes overlayIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
-/* Content wrapper — spring entrance */
 .ln-loading-content {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  animation: spinnerIn 0.45s cubic-bezier(0.34, 1.38, 0.64, 1) both;
+  justify-content: center;
 }
 
-@keyframes spinnerIn {
-  from { opacity: 0; transform: scale(0.6); }
-  to   { opacity: 1; transform: scale(1);   }
-}
-
-/* ── M3 Indeterminate Circular Progress ──────────────────── */
 .ln-spinner {
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   animation: spinnerRotate 1.5s linear infinite;
 }
 
@@ -608,195 +484,74 @@ div.loading-indicator.loading {
 }
 
 .ln-spinner__track {
-  stroke: rgba(255, 255, 255, 0.12);
+  stroke: rgba(31, 31, 27, 0.12);
   stroke-width: 4;
 }
 
-/* Arc grows and shrinks; circumference for r=22: 2π×22 ≈ 138.2 */
 .ln-spinner__arc {
-  stroke: var(--ln-accent);
+  stroke: var(--ln-primary);
   stroke-width: 4;
   stroke-linecap: round;
   animation: spinnerDash 1.5s ease-in-out infinite;
 }
 
 @keyframes spinnerDash {
-  0%   { stroke-dasharray: 1,   138.2; stroke-dashoffset: 0;      }
-  50%  { stroke-dasharray: 104, 138.2; stroke-dashoffset: -35;    }
+  0% { stroke-dasharray: 1, 138.2; stroke-dashoffset: 0; }
+  50% { stroke-dasharray: 104, 138.2; stroke-dashoffset: -35; }
   100% { stroke-dasharray: 104, 138.2; stroke-dashoffset: -138.2; }
 }
 
-/* ============================================================
-   Background decoration layer — full-bleed behind the card
-   ============================================================ */
-.login-right {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-/* Merged: positioning + pulse animation in one rule */
-.login-right svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  animation: arcPulse 6s 1.5s ease-in-out infinite;
-}
-
-.dot-grid {
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px);
-  background-size: 28px 28px;
-}
-
-.radar-arc {
-  stroke: var(--ln-accent);
-  fill: none;
-  stroke-linecap: round;
-}
-
-.radar-arc:nth-child(1) { animation: arcIn 0.7s 0.10s ease both; }
-.radar-arc:nth-child(2) { animation: arcIn 0.7s 0.20s ease both; }
-.radar-arc:nth-child(3) { animation: arcIn 0.7s 0.30s ease both; }
-.radar-arc:nth-child(4) { animation: arcIn 0.7s 0.40s ease both; }
-.radar-arc:nth-child(5) { animation: arcIn 0.7s 0.50s ease both; }
-.radar-arc:nth-child(6) { animation: arcIn 0.7s 0.60s ease both; }
-
-@keyframes arcIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
-@keyframes arcPulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.6; }
-}
-
-/* ============================================================
-   Responsive
-   ============================================================ */
-@media (max-width: 600px) {
-  .login-root {
-    align-items: flex-start;
-    padding: 24px 16px;
-  }
-
-  .login-left {
-    max-width: none;
-    border-radius: var(--m3-shape-xs);
-    padding: 36px 28px;
-    animation: none;
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/* ============================================================
-   Reduced-motion: disable all entrance and ambient animations
-   for users who prefer reduced motion (accessibility).
-   Note: :nth-child(n) selectors below match the specificity
-   (0,4,0) of the stagger rules above, ensuring they are
-   correctly suppressed.
-   ============================================================ */
-@media (prefers-reduced-motion: reduce) {
-  .login-left,
-  .login-left .card-header,
-  .login-left .card-body .form-group,
-  .login-left .card-body .form-group:nth-child(n),
-  .login-left .card-footer,
-  #loginButton.btn-primary,
-  .login-left .btn-primary,
-  .radar-arc,
-  .radar-arc:nth-child(n),
-  .ln-loading-content,
-  .ln-spinner,
-  .ln-spinner__arc {
-    animation: none;
-    transition: none;
-  }
-
-  .login-right svg {
-    animation: none;
-  }
-
-  div.loading-indicator.loading {
-    animation: none;
-  }
-}
-
-/* ============================================================
-   Restricted access page  (restricted.html shares login.css)
-   ============================================================ */
 .restricted-note {
-  font-size: 0.925rem;
-  color: var(--ln-text-soft);
+  margin: 0 0 24px;
+  color: var(--ln-text-muted);
+  font-size: 14px;
   line-height: 1.6;
-  margin: 0 0 32px 0;
 }
 
 .restricted-actions {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
-/* Primary action — M3 Filled Button */
-.restricted-action-btn--primary {
-  display: block;
-  text-align: center;
-  text-decoration: none;
-  background: var(--ln-accent);
-  color: var(--inet-button-primary-text-color, #fff);
-  border-radius: var(--m3-shape-full);
-  padding: 13px 24px;
-  font-family: var(--ln-font);
-  font-size: 0.9rem;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  box-shadow: none;
-  transition: box-shadow 0.15s ease;
+.restricted-action-btn {
+  width: 100%;
 }
 
-.restricted-action-btn--primary:hover {
-  color: var(--inet-button-primary-text-color, #fff);
-  text-decoration: none;
-  box-shadow: 0px 1px 2px rgba(0,0,0,0.3), 0px 2px 6px 2px rgba(0,0,0,0.15);
+@media (max-width: 600px) {
+  .bg-navbar-top,
+  .login-root {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .login-root {
+    align-items: flex-start;
+    padding-top: 24px;
+    padding-bottom: 24px;
+  }
+
+  .login-left .card-header,
+  .login-left .card-body,
+  .login-left .card-footer {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .login-left .card-header {
+    font-size: 22px;
+  }
 }
 
-.restricted-action-btn--primary:focus-visible {
-  outline: 2px solid var(--ln-border-focus);
-  outline-offset: 3px;
-  box-shadow: 0 0 0 4px var(--ln-glow);
-}
-
-/* Secondary action — M3 Outlined Button using theme secondary colour */
-.restricted-action-btn:not(.restricted-action-btn--primary) {
-  display: block;
-  text-align: center;
-  text-decoration: none;
-  background: var(--inet-button-default-bg-color,     transparent);
-  color:      var(--inet-button-default-text-color,   #105e5a);
-  border: 1px solid var(--inet-button-default-border-color, #105e5a);
-  border-radius: var(--m3-shape-full);
-  padding: 12px 24px;
-  font-family: var(--ln-font);
-  font-size: 0.9rem;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  transition: background 0.15s, color 0.15s;
-}
-
-.restricted-action-btn:not(.restricted-action-btn--primary):hover {
-  background: var(--inet-button-default-hover-bg-color,   #105e5a);
-  color:      var(--inet-button-default-hover-text-color, #cdf7f6);
-  text-decoration: none;
-}
-
-.restricted-action-btn:not(.restricted-action-btn--primary):focus-visible {
-  outline: 2px solid var(--ln-border-focus);
-  outline-offset: 3px;
-  box-shadow: 0 0 0 4px var(--ln-glow);
+@media (prefers-reduced-motion: reduce) {
+  .login-left .form-control,
+  #loginButton.btn-primary,
+  .login-left .btn-primary,
+  .btn-default,
+  .restricted-action-btn,
+  .ln-spinner,
+  .ln-spinner__arc {
+    transition: none;
+    animation: none;
+  }
 }

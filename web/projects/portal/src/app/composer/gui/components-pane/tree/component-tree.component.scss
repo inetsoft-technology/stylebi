@@ -41,8 +41,8 @@ span, label, .context-menu-tree {
 }
 
 .tree-view .active {
-  color: #fff;
-  background-color: #428bca;
+  color: var(--inet-text-color);
+  background-color: var(--inet-shell-selected-bg-color);
 }
 
 .context-menu-tree button {

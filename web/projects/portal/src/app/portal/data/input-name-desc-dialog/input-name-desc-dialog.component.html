@@ -21,6 +21,14 @@
 </modal-header>
 <div class="modal-body" enterSubmit [enterSubmit]="formValid" (onEsc)="cancel()" (onEnter)="ok()">
   <form class="container-fluid">
+    <div class="row" *ngIf="introTitle || introMessage">
+      <div class="col">
+        <div class="input-dialog-intro">
+          <div class="input-dialog-intro__title" *ngIf="introTitle">{{introTitle}}</div>
+          <div class="input-dialog-intro__message" *ngIf="introMessage">{{introMessage}}</div>
+        </div>
+      </div>
+    </div>
     <div class="row">
       <div class="col form-floating">
           <input defaultFocus id="inputNameField" type="text" class="form-control" [formControl]="control"

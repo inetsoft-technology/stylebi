@@ -15,12 +15,94 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.list-group.files-browser {
+.data-sources-browser-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: var(--inet-space-3);
+  background: var(--inet-shell-surface-default);
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-lg);
+}
+
+.data-sources-browser__breadcrumb {
+  padding-bottom: var(--inet-space-3);
+  margin-bottom: var(--inet-space-3) !important;
+  border-bottom: 1px solid var(--inet-default-border-color);
+}
+
+.data-sources-browser__list {
   overflow-y: auto;
-  // Note: same height as used in previous agile
-  height: 28vh;
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: var(--inet-space-2);
   cursor: default;
+}
+
+.data-sources-browser__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--inet-space-3);
+  min-height: 46px;
+  padding: var(--inet-space-2) var(--inet-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--inet-radius-md);
+  color: var(--inet-text-color);
+  transition: background-color 120ms ease, border-color 120ms ease;
+  cursor: pointer;
+}
+
+.data-sources-browser__item:hover {
+  background: var(--inet-shell-surface-subtle);
+  border-color: var(--inet-default-border-color);
+}
+
+.data-sources-browser__item.active {
+  background: var(--inet-selected-item-bg-color, var(--inet-shell-surface-subtle));
+  border-color: var(--inet-primary-color);
+}
+
+.data-sources-browser__item--parent {
+  color: var(--inet-text-muted-color);
+}
+
+.breadcrumb-item.active {
+  font-weight: 400;
+}
+
+.data-sources-browser__item-main {
+  display: flex;
+  align-items: center;
+  gap: var(--inet-space-3);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.data-sources-browser__checkbox {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.data-sources-browser__item-icon-shell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  color: var(--inet-text-muted-color);
+  flex: 0 0 auto;
+}
+
+.data-sources-browser__item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-sources-browser__item-trailing {
+  flex: 0 0 auto;
+  color: var(--inet-text-muted-color);
 }
 
 ol {

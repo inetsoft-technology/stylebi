@@ -39,7 +39,6 @@ import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.portal.model.database.DatasourceTreeAction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -49,14 +48,15 @@ import java.util.stream.Collectors;
 
 @Service
 public class DatasourcesTreeService {
-   @Autowired
    public DatasourcesTreeService(SecurityEngine securityEngine,
                                  ContentRepositoryTreeService contentRepositoryTreeService,
-                                 AssetRepository assetRepository)
+                                 AssetRepository assetRepository,
+                                 DataSetSearchService dataSetSearchService)
    {
       this.securityEngine = securityEngine;
       this.contentRepositoryTreeService = contentRepositoryTreeService;
       this.assetRepository = assetRepository;
+      this.dataSetSearchService = dataSetSearchService;
    }
 
    public TreeNodeModel getRoot(Principal principal) throws Exception {
@@ -67,6 +67,45 @@ public class DatasourcesTreeService {
       root.addChildren(dataSourceNode);
 
       return root.build();
+   }
+
+   public TreeNodeModel search(String query, Principal principal) throws Exception {
+      TreeNodeModel.Builder root = TreeNodeModel.builder();
+      List<TreeNodeModel> children = new ArrayList<>();
+
+      String trimmedQuery = query == null ? "" : query.trim();
+
+      if(trimmedQuery.isEmpty()) {
+         return root.build();
+      }
+
+      IdentityID user = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
+      AssetEntry globalRoot = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.FOLDER, "/", user);
+      AssetEntry privateRoot = new AssetEntry(
+         AssetRepository.USER_SCOPE, AssetEntry.Type.FOLDER, "/", user);
+
+      List<AssetEntry> globalMatches =
+         dataSetSearchService.findAssets(globalRoot, trimmedQuery, principal);
+      List<AssetEntry> privateMatches =
+         dataSetSearchService.findAssets(privateRoot, trimmedQuery, principal);
+
+      TreeNodeModel globalNode = getSearchWorksheetRoot(
+         Catalog.getCatalog(principal).getString("Global Worksheet"),
+         AssetRepository.GLOBAL_SCOPE, globalMatches, principal, PortalDataType.SHARED_WORKSHEETS_FOLDER.name(), user);
+      TreeNodeModel privateNode = getSearchWorksheetRoot(
+         Catalog.getCatalog(principal).getString("User Worksheet"),
+         AssetRepository.USER_SCOPE, privateMatches, principal, PortalDataType.PRIVATE_WORKSHEETS_FOLDER.name(), user);
+
+      if(globalNode != null) {
+         children.add(globalNode);
+      }
+
+      if(privateNode != null) {
+         children.add(privateNode);
+      }
+
+      return root.addAllChildren(children).build();
    }
 
    private TreeNodeModel getGlobalDataSets(Principal principal) throws Exception {
@@ -98,22 +137,148 @@ public class DatasourcesTreeService {
    {
       return entries.getOrDefault(parentEntry, Collections.emptyList())
          .stream()
-         .filter(entry -> checkPermission(entry, principal) && entry.getType().isFolder())
+         .filter(entry -> checkPermission(entry, principal) &&
+            (entry.getType().isFolder() || entry.getType().isWorksheet()))
          .sorted()
          .map(entry ->  {
-            setWorksheetFolderActions(entry, principal);
-            List<TreeNodeModel> children = getGlobalDataSetChildren(entry, entries, principal);
+            List<TreeNodeModel> children = Collections.emptyList();
+
+            if(entry.getType().isFolder()) {
+               setWorksheetFolderActions(entry, principal);
+               children = getGlobalDataSetChildren(entry, entries, principal);
+            }
+            else if(entry.getType().isWorksheet()) {
+               setWorksheetActions(entry, principal);
+            }
+
             return TreeNodeModel.builder()
                .label(entry.getName())
                .data(entry)
                .dragName("AssetEntry")
                .type(entry.getType().name())
-               .leaf(children == null || children.size() == 0)
+               .leaf(!entry.getType().isFolder() || children == null || children.size() == 0)
                .children(children)
                .materialized(AssetTreeController.getMaterialized(entry, principal))
                .build();
          })
          .collect(Collectors.toList());
+   }
+
+   private TreeNodeModel getSearchWorksheetRoot(String label, int scope, List<AssetEntry> matches,
+                                                Principal principal, String type, IdentityID user)
+   {
+      if(matches == null || matches.isEmpty()) {
+         return null;
+      }
+
+      AssetEntry rootEntry = new AssetEntry(scope, AssetEntry.Type.FOLDER, "/", user);
+      setWorksheetFolderActions(rootEntry, principal);
+      SearchTreeNode searchRoot = new SearchTreeNode("/", rootEntry, label);
+
+      matches.stream()
+         .filter(Objects::nonNull)
+         .filter(entry -> entry.getType().isFolder() || entry.getType().isWorksheet())
+         .forEach(entry -> addSearchEntry(searchRoot, entry, principal));
+
+      List<TreeNodeModel> children = searchRoot.children.values().stream()
+         .map(node -> toTreeNode(node, principal))
+         .sorted()
+         .collect(Collectors.toList());
+
+      if(children.isEmpty()) {
+         return null;
+      }
+
+      return TreeNodeModel.builder()
+         .label(label)
+         .data(rootEntry)
+         .type(type)
+         .expanded(true)
+         .leaf(false)
+         .children(children)
+         .build();
+   }
+
+   private void addSearchEntry(SearchTreeNode root, AssetEntry entry, Principal principal) {
+      if(entry.getType().isFolder()) {
+         ensureSearchFolder(root, entry.getPath(), entry, principal);
+      }
+      else if(entry.getType().isWorksheet()) {
+         SearchTreeNode parentNode =
+            ensureSearchFolder(root, normalizeFolderPath(entry.getParentPath()), entry, principal);
+         AssetEntry worksheetEntry = (AssetEntry) entry.clone();
+         setWorksheetActions(worksheetEntry, principal);
+         parentNode.children.putIfAbsent(worksheetEntry.getPath(),
+            new SearchTreeNode(worksheetEntry.getPath(), worksheetEntry, worksheetEntry.getName()));
+      }
+   }
+
+   private SearchTreeNode ensureSearchFolder(SearchTreeNode root, String folderPath, AssetEntry sourceEntry,
+                                             Principal principal)
+   {
+      if(folderPath == null || "/".equals(folderPath) || folderPath.isEmpty()) {
+         return root;
+      }
+
+      SearchTreeNode current = root;
+      StringBuilder currentPath = new StringBuilder();
+
+      for(String part : folderPath.split("/")) {
+         if(part == null || part.isEmpty()) {
+            continue;
+         }
+
+         if(currentPath.length() > 0) {
+            currentPath.append("/");
+         }
+
+         currentPath.append(part);
+         String fullPath = currentPath.toString();
+
+         SearchTreeNode next = current.children.get(fullPath);
+
+         if(next == null) {
+            AssetEntry folderEntry = new AssetEntry(sourceEntry.getScope(), AssetEntry.Type.FOLDER,
+               fullPath, sourceEntry.getUser());
+            setWorksheetFolderActions(folderEntry, principal);
+            next = new SearchTreeNode(fullPath, folderEntry, part);
+            current.children.put(fullPath, next);
+         }
+
+         current = next;
+      }
+
+      return current;
+   }
+
+   private TreeNodeModel toTreeNode(SearchTreeNode node, Principal principal) {
+      List<TreeNodeModel> children = node.children.values().stream()
+         .map(child -> toTreeNode(child, principal))
+         .sorted()
+         .collect(Collectors.toList());
+      AssetEntry entry = node.entry;
+
+      if(entry.getType().isWorksheet()) {
+         setWorksheetActions(entry, principal);
+      }
+      else if(entry.getType().isFolder()) {
+         setWorksheetFolderActions(entry, principal);
+      }
+
+      return TreeNodeModel.builder()
+         .label(node.label)
+         .data(entry)
+         .dragName("AssetEntry")
+         .type(entry.getType().name())
+         .leaf(entry.getType().isWorksheet() || children.isEmpty())
+         .children(children)
+         .materialized(entry.getType().isWorksheet() && AssetTreeController.getMaterialized(entry, principal))
+         .expanded(true)
+         .build();
+   }
+
+   private String normalizeFolderPath(String path) {
+      return path == null || path.isEmpty() ? "/" : path;
    }
 
    private boolean checkDataModelFolderPermission(String folderPath, ResourceAction action,
@@ -219,20 +384,29 @@ public class DatasourcesTreeService {
       final List<TreeNodeModel> nodes = new ArrayList<>();
 
       for(AssetEntry entry : entries) {
-         if(RecycleUtils.isInRecycleBin(entry.getPath()) || !entry.getType().isFolder()) {
+         if(RecycleUtils.isInRecycleBin(entry.getPath()) ||
+            (!entry.getType().isFolder() && !entry.getType().isWorksheet()))
+         {
             continue;
          }
 
-         setWorksheetFolderActions(entry, principal);
+         List<TreeNodeModel> children = Collections.emptyList();
 
-         final List<TreeNodeModel> children = getPrivateDataSetChildren(entry, principal);
+         if(entry.getType().isFolder()) {
+            setWorksheetFolderActions(entry, principal);
+            children = getPrivateDataSetChildren(entry, principal);
+         }
+         else if(entry.getType().isWorksheet()) {
+            setWorksheetActions(entry, principal);
+         }
+
          TreeNodeModel node =
             TreeNodeModel.builder()
                .label(entry.getName())
                .data(entry)
                .dragName("AssetEntry")
                .type(entry.getType().name())
-               .leaf(children == null || children.size() == 0)
+               .leaf(!entry.getType().isFolder() || children == null || children.size() == 0)
                .children(children)
                .materialized(AssetTreeController.getMaterialized(entry, principal))
                .build();
@@ -544,9 +718,9 @@ public class DatasourcesTreeService {
             }
 
             if(securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE_FOLDER,
-                  entry.getPath(), ResourceAction.DELETE) &&
+                  entry.getPath(), ResourceAction.WRITE) &&
                securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE_FOLDER,
-                  entry.getPath(), ResourceAction.WRITE))
+                  entry.getPath(), ResourceAction.DELETE))
             {
                entry.setProperty(DatasourceTreeAction.RENAME.name(), "true");
             }
@@ -610,6 +784,24 @@ public class DatasourcesTreeService {
       catch(Exception e) {
          LOG.error("Failed to check permission for: " + entry.getPath(), e);
       }
+   }
+
+   private void setWorksheetActions(AssetEntry entry, Principal principal) {
+      boolean editable = checkPermission(entry, ResourceAction.WRITE, principal);
+      boolean deletable = entry.isEditable() && checkPermission(entry, ResourceAction.DELETE, principal);
+
+      if(editable) {
+         entry.setProperty(DatasourceTreeAction.EDIT.name(), "true");
+      }
+
+      if(deletable) {
+         entry.setProperty(DatasourceTreeAction.DELETE.name(), "true");
+      }
+
+      if(editable && deletable) {
+         entry.setProperty(DatasourceTreeAction.RENAME.name(), "true");
+      }
+
    }
 
    /**
@@ -713,5 +905,19 @@ public class DatasourcesTreeService {
    private final SecurityEngine securityEngine;
    private final ContentRepositoryTreeService contentRepositoryTreeService;
    private final AssetRepository assetRepository;
+   private final DataSetSearchService dataSetSearchService;
    private static final Logger LOG = LoggerFactory.getLogger(DatasourcesTreeService.class);
+
+   private static final class SearchTreeNode {
+      private SearchTreeNode(String path, AssetEntry entry, String label) {
+         this.path = path;
+         this.entry = entry;
+         this.label = label;
+      }
+
+      private final String path;
+      private final AssetEntry entry;
+      private final String label;
+      private final Map<String, SearchTreeNode> children = new LinkedHashMap<>();
+   }
 }

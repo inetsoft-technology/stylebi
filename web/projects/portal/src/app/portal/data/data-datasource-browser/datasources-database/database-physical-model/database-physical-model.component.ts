@@ -125,6 +125,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
    loadingTree: boolean = false;
    private graphViewModel: GraphViewModel;
    selectedGraphModels: GraphModel[] = [];
+   private bypassLeaveConfirm: boolean = false;
 
    actions: ToolbarAction[] =
       [
@@ -192,6 +193,22 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
 
    get displayTitle(): string {
       return !this.physicalModel ? "" : this.physicalModel.name + (this.isModified ? "*" : "");
+   }
+
+   get headerTitle(): string {
+      if(!this.editing && !this.physicalModel?.name) {
+         return "_#(js:New Data Model)";
+      }
+
+      return this.displayTitle;
+   }
+
+   get headerSubtitle(): string {
+      if(!this.physicalModel?.tables?.length) {
+         return "_#(Select tables from the list to start building this physical view. Then define joins and shape the structure for logical models and VPMs.)";
+      }
+
+      return "_#(Use this physical view to shape source tables and joins before creating logical models or VPMs.)";
    }
 
    constructor(private dataModelNameChangeService: DataModelNameChangeService,
@@ -1179,18 +1196,57 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
     * Check if any changes were made and unsaved, then confirm user navigation away without saving.
     */
    canDeactivate(): Observable<boolean> | Promise<boolean> | boolean {
-      if(!this.isModified) {
+      if(this.bypassLeaveConfirm) {
+         this.bypassLeaveConfirm = false;
          return true;
       }
-      else {
-         let msg: string = !!this.parent ? "_#(js:data.extended.physicalmodel.confirmLeaving)"
-            : "_#(js:data.physicalmodel.confirmLeaving)";
-         return ComponentTool.showConfirmDialog(this.modalService, "_#(js:dialog.changedTitle)", msg)
-            .then(
-               (buttonClicked) => buttonClicked === "ok",
-               () => false
-            );
+
+      return this.confirmLeaveEditor();
+   }
+
+   cancel(): void {
+      this.confirmLeaveEditor().then((confirmed) => {
+         if(confirmed) {
+            this.navigateToDataModelBrowser();
+         }
+      });
+   }
+
+   close(): void {
+      this.confirmLeaveEditor().then((confirmed) => {
+         if(confirmed) {
+            this.navigateToDataModelBrowser();
+         }
+      });
+   }
+
+   private confirmLeaveEditor(): Promise<boolean> {
+      if(!this.isModified) {
+         return Promise.resolve(true);
       }
+
+      let msg: string = !!this.parent ? "_#(js:data.extended.physicalmodel.confirmLeaving)"
+         : "_#(js:data.physicalmodel.confirmLeaving)";
+      return ComponentTool.showConfirmDialog(this.modalService, "_#(js:dialog.changedTitle)", msg)
+         .then(
+            (buttonClicked) => buttonClicked === "ok",
+            () => false
+         );
+   }
+
+   private navigateToDataModelBrowser(): void {
+      this.bypassLeaveConfirm = true;
+
+      const queryParams: any = {
+         databaseName: this.databaseName,
+         temp: new Date().getTime()
+      };
+
+      if(this.physicalModel?.folder) {
+         queryParams.folderName = this.physicalModel.folder;
+      }
+
+      this.router.navigate(["/portal/tab/data/datasources/databaseModels"], { queryParams });
    }
 
    /**
@@ -1226,6 +1282,19 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
          this.expandAll(this.databaseRoot);
          this.searchMode = true;
       }
+   }
+
+   onSearchInputChange(): void {
+      if(this.joinEditing) {
+         return;
+      }
+
+      if(!this.filterTablesString) {
+         this.resetSearchMode();
+         return;
+      }
+
+      this.search();
    }
 
    resetSearchMode(): void {

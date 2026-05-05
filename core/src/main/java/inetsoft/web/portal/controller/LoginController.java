@@ -60,6 +60,7 @@ public class LoginController {
    {
       ModelAndView model = new ModelAndView("login");
       model.addObject("requestedUrl", requestedUrl);
+      model.addObject("enterpriseManagerLogin", isEnterpriseManagerRequest(requestedUrl));
 
       PortalThemesManager manager = PortalThemesManager.getManager();
       CustomThemesManager themes = CustomThemesManager.getManager();
@@ -194,6 +195,11 @@ public class LoginController {
 
    private String getGoogleScopes() {
       return SreeEnv.getProperty("styleBI.google.openid.scopes", "openid email profile");
+   }
+
+   private boolean isEnterpriseManagerRequest(String requestedUrl) {
+      return requestedUrl != null &&
+         (requestedUrl.equals("/em") || requestedUrl.startsWith("/em/"));
    }
 
    private static final String ORG_COOKIE = "X-INETSOFT-ORGID";

@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 :host {
+  display: flex;
   flex-grow: 1;
   flex-direction: column;
   align-items: stretch;
@@ -25,28 +26,132 @@
   overflow: hidden;
 
   .portal-schedule-task-list {
-    height: 100%;
+    flex-grow: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
+    background-color: var(--inet-portal-main-panel-bg-color);
 
-    .portal-task-tool-bar {
+    .schedule-task-list-header {
       flex-grow: 0;
       flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: var(--inet-control-height-lg);
+      padding: var(--inet-space-3) var(--inet-space-5);
       border-bottom: 1px solid var(--inet-default-border-color);
+    }
+
+    .schedule-task-list-header__status {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      flex-wrap: wrap;
+      flex: 1 1 auto;
+    }
+
+    .schedule-task-list-header__status-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--inet-text-muted-color);
+    }
+
+    .schedule-task-list-header__status-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--inet-ui-neutral-hover-bg-color);
+      color: var(--inet-text-color);
+      font-weight: 600;
+
+      &.is-ready {
+        background: var(--inet-success-color-light);
+        color: var(--inet-success-color-dark);
+      }
+
+      &.is-warning {
+        background: var(--inet-warning-color-light);
+        color: var(--inet-warning-color-dark);
+      }
+
+      &.is-unavailable {
+        background: var(--inet-danger-color-light);
+        color: var(--inet-danger-color-dark);
+      }
+    }
+
+    .schedule-task-list-header__status-message {
+      min-width: 0;
+      color: var(--inet-text-muted-color);
+      line-height: 1.45;
+    }
+
+    .schedule-task-list-header__status-action {
+      min-height: 30px;
+      padding: 4px 10px;
+      font-size: 12px;
+      line-height: 1.2;
+    }
+
+    .schedule-task-list-header__actions {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      margin-left: auto;
+
+      .btn {
+        min-height: 30px;
+        padding: 4px 10px;
+        font-size: 12px;
+        line-height: 1.2;
+      }
+    }
+
+    @media (max-width: 1100px) {
+      .schedule-task-list-header {
+        align-items: flex-start;
+      }
+
+      .schedule-task-list-header__status {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+
+      .schedule-task-list-header__actions {
+        flex-shrink: 0;
+      }
     }
 
     .portal-task-list-container {
       flex-grow: 1;
       flex-shrink: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      background-color: var(--inet-main-panel-background, #f6f4ed);
+      background-color: var(--inet-portal-main-panel-bg-color);
 
       .portal-task-list-items {
-        height: 100%;
         flex-grow: 1;
         flex-shrink: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
 
         .split-pane {
           display: flex;
-          height: 100%;
+          flex-direction: column;
+          flex-grow: 1;
+          min-height: 0;
           width: 100%;
 
           .schedule-task-list-content {
@@ -65,8 +170,8 @@
                 text-align: center;
                 display: flex;
                 flex-direction: column;
-                word-break: break-all;
-                max-height: calc(100% - 16px);
+                flex: 1 1 auto;
+                min-height: 0;
                 border-top: 0;
                 margin: 0;
 
@@ -74,21 +179,107 @@
                   display: table;
                   width: 100%;
                   border-top: 0;
+                  table-layout: fixed;
+                }
+
+                > thead th {
+                  padding: 10px 12px;
+                  background-color: var(--inet-toolbar-bg-color);
+                  color: var(--inet-text-color);
+                  font-weight: 500;
                 }
 
                 > tbody {
                   display: flex;
                   flex-direction: column;
                   overflow-y: auto;
+                  flex: 1 1 auto;
+                  min-height: 0;
                 }
 
                 > tbody tr {
                   display: table;
                   width: 100%;
+                  table-layout: fixed;
+                  transition: background-color 120ms ease, color 120ms ease;
+                }
+
+                > tbody tr:hover > td {
+                  background-color: var(--inet-ui-neutral-hover-bg-color);
+                }
+
+                > tbody tr.selected {
+                  background-color: var(--inet-selected-item-bg-color);
+                  color: var(--inet-selected-item-text-color);
+                }
+
+                > tbody tr.selected > td {
+                  background-color: var(--inet-selected-item-bg-color);
+                  color: var(--inet-selected-item-text-color);
+                }
+
+                > thead th,
+                > tbody td {
+                  white-space: nowrap;
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                  vertical-align: middle;
+                }
+
+                > tbody td {
+                  padding: 9px 12px;
+                }
+
+                > thead th[sortColumn] {
+                  cursor: pointer;
+                  user-select: none;
+                }
+
+                > thead th[sortColumn] .sort-column-sort-icon {
+                  display: inline-flex !important;
+                  position: relative;
+                  width: 10px;
+                  height: 12px;
+                  margin-left: 4px;
+                  vertical-align: middle;
+                  color: var(--inet-text-muted-color);
+                  font-size: 0;
+                }
+
+                > thead th[sortColumn] .sort-column-sort-icon::before,
+                > thead th[sortColumn] .sort-column-sort-icon::after {
+                  position: absolute;
+                  left: 0;
+                  font-size: 9px;
+                  line-height: 1;
+                }
+
+                > thead th[sortColumn] .sort-column-sort-icon::before {
+                  content: "\2303";
+                  top: -1px;
+                }
+
+                > thead th[sortColumn] .sort-column-sort-icon::after {
+                  content: "\2304";
+                  bottom: -1px;
+                }
+
+                > thead th[sortColumn] .sort-column-sort-icon.sort-ascending-icon::before,
+                > thead th[sortColumn] .sort-column-sort-icon.sort-descending-icon::after {
+                  opacity: 1;
+                }
+
+                > thead th[sortColumn] .sort-column-sort-icon.sort-ascending-icon::after,
+                > thead th[sortColumn] .sort-column-sort-icon.sort-descending-icon::before {
+                  opacity: 0.22;
                 }
 
                 .schedule-container {
                   width: 25% !important;
+                }
+
+                .select-container {
+                  width: 48px !important;
                 }
 
                 .disabled-task {
@@ -97,6 +288,7 @@
 
                 .actiones-container {
                   width: 15% !important;
+                  text-align: right;
                 }
 
                 .status-container {
@@ -108,7 +300,6 @@
                 }
 
                 .description-container {
-                  word-break: break-all;
                   width: 20% !important;
                 }
 
@@ -124,7 +315,7 @@
                 left: 0;
                 width: 100%;
                 height: 100%;
-                background: rgba(0, 0, 0, 0.33);
+                background: var(--inet-overlay-scrim-bg-color);
                 z-index: 9999;
 
                 .loading-content {
@@ -136,11 +327,7 @@
         }
       }
 
-      .schedule-task-list-actions {
-        flex-grow: 0;
-        flex-shrink: 0;
-      }
-    }
+  }
   }
 
   .task-row {
@@ -164,10 +351,54 @@
     overflow: auto;
   }
 
+  .collapse-pane-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 96px;
+    width: 22px;
+    right: -22px;
+    z-index: 6;
+    cursor: pointer;
+    border-radius: var(--inet-radius-md);
+  }
+
   .data-tree-pane {
     overflow: visible;
-    width: 200px;
+    display: flex;
+    flex-direction: column;
     flex-shrink: 0;
+    background-color: var(--inet-portal-side-panel-bg-color);
+    --inet-float-label-bg-color: var(--inet-portal-side-panel-bg-color);
+    padding-top: 0;
+
+    .schedule-view-toggle {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--inet-default-border-color);
+      background-color: var(--inet-portal-side-panel-bg-color);
+    }
+
+    .schedule-view-toggle__button {
+      min-width: 96px;
+      border-color: var(--inet-default-border-color);
+      background-color: transparent;
+      color: var(--inet-text-color);
+      box-shadow: none;
+      font-weight: 400;
+    }
+
+    > tree {
+      display: block;
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100%;
+    }
 
     > p-data-sources-tree-view {
       width: 100%;
@@ -177,9 +408,15 @@
   .data-pane {
     overflow-y: hidden;
     display: block;
+    padding: 12px;
+    background-color: var(--inet-shell-surface-default);
   }
 
   .btn.schedule-button {
     color: var(--inet-icon-color);
+
+    & + .schedule-button {
+      margin-left: 6px;
+    }
   }
 }
