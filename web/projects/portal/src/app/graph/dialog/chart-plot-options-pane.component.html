@@ -222,6 +222,17 @@
                </label>
             </div>
          </div>
+         <div class="col-auto form-floating" *ngIf="model.treeLayoutVisible">
+            <select class="form-control" id="treeLayout"
+                    [(ngModel)]="model.treeLayout"
+                    [ngModelOptions]="{standalone: true}">
+               <option value="TOP_BOTTOM">_#(Top to Bottom)</option>
+               <option value="BOTTOM_TOP">_#(Bottom to Top)</option>
+               <option value="LEFT_RIGHT">_#(Left to Right)</option>
+               <option value="RIGHT_LEFT">_#(Right to Left)</option>
+            </select>
+            <label><span>_#(Layout Direction)</span></label>
+         </div>
          <div class="col-auto form-floating" *ngIf="model.wordCloud">
            <input class="form-control number-input font-multiplier"
                   type="number" min="1" max="5" step="0.1"

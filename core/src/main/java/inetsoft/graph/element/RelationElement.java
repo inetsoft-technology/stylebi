@@ -26,6 +26,8 @@ import inetsoft.graph.internal.GTool;
 import inetsoft.graph.mxgraph.layout.hierarchical.mxHierarchicalLayout;
 import inetsoft.graph.mxgraph.layout.*;
 import inetsoft.graph.mxgraph.model.mxCell;
+import inetsoft.graph.mxgraph.model.mxGeometry;
+import inetsoft.graph.mxgraph.util.mxPoint;
 import inetsoft.graph.mxgraph.view.mxGraph;
 import inetsoft.graph.visual.ElementVO;
 import inetsoft.graph.visual.VOText;
@@ -288,7 +290,7 @@ public class RelationElement extends GraphElement {
          break;
       }
       case COMPACT_TREE: {
-         mxCompactTreeLayout layout = new mxCompactTreeLayout(mxgraph, false);
+         mxCompactTreeLayout layout = new mxCompactTreeLayout(mxgraph, horizontal);
          layout.setPrefVertEdgeOff(0);
          layout.setEdgeSpacing(0);
          layout.setNodeDistance(12);
@@ -370,6 +372,62 @@ public class RelationElement extends GraphElement {
          .forEach(v -> v.getMxCell().getGeometry().translate(-minX, -minY));
       edges.stream()
          .forEach(v -> v.getEdge().getGeometry().translate(-minX, -minY));
+
+      if(flipped && algorithm == Algorithm.COMPACT_TREE) {
+         flipMajorAxis(nodes, edges, horizontal);
+      }
+   }
+
+   // 180° flip on the major axis (X if horizontal, otherwise Y).
+   // Used to convert the default top-down/left-right layout into bottom-up/right-left.
+   private void flipMajorAxis(Map<Object, RelationGeometry> nodes,
+                              List<RelationEdgeGeometry> edges,
+                              boolean horizontal)
+   {
+      double bound = horizontal
+         ? nodes.values().stream()
+            .mapToDouble(v -> v.getMxCell().getGeometry().getX()
+                            + v.getMxCell().getGeometry().getWidth())
+            .max().orElse(0)
+         : nodes.values().stream()
+            .mapToDouble(v -> v.getMxCell().getGeometry().getY()
+                            + v.getMxCell().getGeometry().getHeight())
+            .max().orElse(0);
+
+      for(RelationGeometry node : nodes.values()) {
+         mxGeometry geo = node.getMxCell().getGeometry();
+
+         if(horizontal) {
+            geo.setX(bound - geo.getX() - geo.getWidth());
+         }
+         else {
+            geo.setY(bound - geo.getY() - geo.getHeight());
+         }
+      }
+
+      for(RelationEdgeGeometry edge : edges) {
+         mxGeometry geo = edge.getEdge().getGeometry();
+
+         if(horizontal) {
+            geo.setX(bound - geo.getX());
+         }
+         else {
+            geo.setY(bound - geo.getY());
+         }
+
+         List<mxPoint> points = geo.getPoints();
+
+         if(points != null) {
+            for(mxPoint p : points) {
+               if(horizontal) {
+                  p.setX(bound - p.getX());
+               }
+               else {
+                  p.setY(bound - p.getY());
+               }
+            }
+         }
+      }
    }
 
    // flip the Y so root is on top.
@@ -719,6 +777,35 @@ public class RelationElement extends GraphElement {
       this.applyAestheticsToSource = applyAestheticsToSource;
    }
 
+   /**
+    * Check if the tree layout is horizontal (root on left, children to the right).
+    */
+   public boolean isHorizontal() {
+      return horizontal;
+   }
+
+   /**
+    * Set if the tree layout is horizontal. Only honored by the COMPACT_TREE algorithm.
+    */
+   public void setHorizontal(boolean horizontal) {
+      this.horizontal = horizontal;
+   }
+
+   /**
+    * Check if the layout is flipped 180° on the major axis after layout
+    * (bottom-to-top when vertical, right-to-left when horizontal).
+    */
+   public boolean isFlipped() {
+      return flipped;
+   }
+
+   /**
+    * Set if the layout should be flipped 180° on the major axis after layout.
+    */
+   public void setFlipped(boolean flipped) {
+      this.flipped = flipped;
+   }
+
    @Override
    public boolean equalsContent(Object obj) {
       if(!super.equalsContent(obj)) {
@@ -731,6 +818,8 @@ public class RelationElement extends GraphElement {
             this.algorithm == elem.algorithm && widthRatio == elem.widthRatio &&
             heightRatio == elem.heightRatio &&
             applyAestheticsToSource == elem.applyAestheticsToSource &&
+            horizontal == elem.horizontal &&
+            flipped == elem.flipped &&
             Objects.equals(nodeColors, elem.nodeColors) &&
             Objects.equals(nodeSizes, elem.nodeSizes) &&
             Objects.equals(layoutSize, elem.layoutSize) &&
@@ -761,6 +850,8 @@ public class RelationElement extends GraphElement {
    private Dimension layoutSize = new Dimension(200, 200);
    private Color fillColor;
    private boolean applyAestheticsToSource = false;
+   private boolean horizontal = false;
+   private boolean flipped = false;
 
    private static final long serialVersionUID = 1L;
 }
