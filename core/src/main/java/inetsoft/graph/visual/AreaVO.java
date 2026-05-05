@@ -28,6 +28,7 @@ import inetsoft.util.CoreTool;
 import inetsoft.util.graphics.SVGSupport;
 
 import java.awt.*;
+import java.util.HashMap;
 import java.util.Map;
 import java.awt.geom.*;
 
@@ -92,10 +93,16 @@ public class AreaVO extends LineVO {
          elem.getLineFrame() instanceof StaticLineFrame ? elem.getBorderColor() : null;
 
       if(svg != null) {
-         svg.beginAnnotationGroup(g2, SVGSupport.ANNOTATION_AREA, Map.of(
-            SVGSupport.ATTR_SERIES, String.valueOf(getColIndex()),
-            SVGSupport.ATTR_COLOR, svgC0.getRed() + "," + svgC0.getGreen() + "," + svgC0.getBlue()
-         ));
+         Map<String, String> areaAttrs = new HashMap<>();
+         areaAttrs.put(SVGSupport.ATTR_SERIES, String.valueOf(getColIndex()));
+         areaAttrs.put(SVGSupport.ATTR_COLOR,
+                       svgC0.getRed() + "," + svgC0.getGreen() + "," + svgC0.getBlue());
+
+         if(elem.getType() == LineElement.Type.CURVED) {
+            areaAttrs.put(SVGSupport.ATTR_SMOOTH, "true");
+         }
+
+         svg.beginAnnotationGroup(g2, SVGSupport.ANNOTATION_AREA, areaAttrs);
       }
 
       try {
@@ -143,48 +150,61 @@ public class AreaVO extends LineVO {
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
          }
 
-         Area shapeArea = new Area();
          boolean horizontal = GTool.isHorizontal(getScreenTransform());
 
-         for(int i = 0; i < pts.length; i++) {
-            int next = i + 1;
+         // CURVED + singleShape bypasses Area.add() (which flattens cubic curves to line
+         // segments) by building one combined Path2D and filling it directly.
+         if(elem.getType() == LineElement.Type.CURVED && singleShape && pts.length > 0) {
+            Shape combined = buildCombinedCurvedAreaShape(pts, basepts);
 
-            if(next == pts.length) {
-               if(!isClosed()) {
-                  break;
-               }
-
-               next = 0;
-            }
-
-            if(LineVO.isNaN(pts[i]) || LineVO.isNaN(pts[next]) ||
-               LineVO.isNaN(basepts[i]) || LineVO.isNaN(basepts[next]))
-            {
-               continue;
-            }
-
-            Shape shape = getAreaShape(pts[i], pts[next], basepts[i], basepts[next], horizontal);
-
-            if(shape == null) {
-               // ignore
-            }
-            else if(singleShape) {
-               shapeArea.add(new Area(shape));
-            }
-            else {
-               Color startColor = colors[i];
-               Color endColor = colors[next];
-               GTexture startTexture = textures[i];
-               GTexture endTexture = textures[next];
-
-               fillArea(g2, pts[i], pts[next], shape, startColor, endColor,
-                        startTexture, endTexture, lines[i], borderColor);
+            if(combined != null) {
+               fillArea(g2, getLowestXPoint(pts), getHighestXPoint(pts), combined,
+                        colors[0], colors[0], textures[0], textures[0], lines[0], borderColor);
             }
          }
+         else {
+            Area shapeArea = new Area();
 
-         if(singleShape && pts.length > 0) {
-            fillArea(g2, getLowestXPoint(pts), getHighestXPoint(pts), shapeArea,
-                     colors[0], colors[0], textures[0], textures[0], lines[0], borderColor);
+            for(int i = 0; i < pts.length; i++) {
+               int next = i + 1;
+
+               if(next == pts.length) {
+                  if(!isClosed()) {
+                     break;
+                  }
+
+                  next = 0;
+               }
+
+               if(LineVO.isNaN(pts[i]) || LineVO.isNaN(pts[next]) ||
+                  LineVO.isNaN(basepts[i]) || LineVO.isNaN(basepts[next]))
+               {
+                  continue;
+               }
+
+               Shape shape = getAreaShape(pts, basepts, i, next, horizontal);
+
+               if(shape == null) {
+                  // ignore
+               }
+               else if(singleShape) {
+                  shapeArea.add(new Area(shape));
+               }
+               else {
+                  Color startColor = colors[i];
+                  Color endColor = colors[next];
+                  GTexture startTexture = textures[i];
+                  GTexture endTexture = textures[next];
+
+                  fillArea(g2, pts[i], pts[next], shape, startColor, endColor,
+                           startTexture, endTexture, lines[i], borderColor);
+               }
+            }
+
+            if(singleShape && pts.length > 0) {
+               fillArea(g2, getLowestXPoint(pts), getHighestXPoint(pts), shapeArea,
+                        colors[0], colors[0], textures[0], textures[0], lines[0], borderColor);
+            }
          }
       }
       finally {
@@ -259,11 +279,14 @@ public class AreaVO extends LineVO {
    }
 
    /**
-    * Get the shape of the area through the four points.
+    * Get the shape of the area for the segment between point index i and next.
     */
-   private Shape getAreaShape(Point2D pt1, Point2D pt2, Point2D basept1, Point2D basept2,
-                              boolean hor)
-   {
+   private Shape getAreaShape(Point2D[] pts, Point2D[] basepts, int i, int next, boolean hor) {
+      Point2D pt1 = pts[i];
+      Point2D pt2 = pts[next];
+      Point2D basept1 = basepts[i];
+      Point2D basept2 = basepts[next];
+
       ElementGeometry gobj = (ElementGeometry) getGeometry();
       AreaElement elem = (AreaElement) gobj.getElement();
 
@@ -285,6 +308,31 @@ public class AreaVO extends LineVO {
 
       GeneralPath path = new GeneralPath();
 
+      // For CURVED, build a curved quad. The next == i+1 clause excludes the closed-loop
+      // wraparound segment (where next wraps to 0 at the last index); wraparound falls
+      // through to a straight closing edge — curving it would need a different neighbor
+      // policy and is uncommon for areas.
+      if(elem.getType() == LineElement.Type.CURVED && next == i + 1) {
+         Point2D topP0 = neighbor(pts, i - 1, pt1);
+         Point2D topP3 = neighbor(pts, i + 2, pt2);
+         Point2D baseP0 = neighbor(basepts, i - 1, basept1);
+         Point2D baseP3 = neighbor(basepts, i + 2, basept2);
+         Point2D[] topCtrl = GTool.computeCatmullRomBezier(topP0, pt1, pt2, topP3);
+         Point2D[] baseCtrl = GTool.computeCatmullRomBezier(baseP0, basept1, basept2, baseP3);
+
+         path.moveTo((float) pt1.getX(), (float) pt1.getY());
+         path.curveTo((float) topCtrl[0].getX(), (float) topCtrl[0].getY(),
+                      (float) topCtrl[1].getX(), (float) topCtrl[1].getY(),
+                      (float) pt2.getX(), (float) pt2.getY());
+         path.lineTo((float) basept2.getX(), (float) basept2.getY());
+         path.curveTo((float) baseCtrl[1].getX(), (float) baseCtrl[1].getY(),
+                      (float) baseCtrl[0].getX(), (float) baseCtrl[0].getY(),
+                      (float) basept1.getX(), (float) basept1.getY());
+         path.closePath();
+
+         return path;
+      }
+
       path.moveTo((float) pt1.getX(), (float) pt1.getY());
       path.lineTo((float) basept1.getX(), (float) basept1.getY());
       path.lineTo((float) basept2.getX(), (float) basept2.getY());
@@ -292,6 +340,82 @@ public class AreaVO extends LineVO {
       path.closePath();
 
       return path;
+   }
+
+   /**
+    * Resolve a neighbor at index idx, falling back to fallback when out-of-range or NaN.
+    * Used at run boundaries so Catmull-Rom degenerates to a tangent of zero.
+    */
+   private static Point2D neighbor(Point2D[] arr, int idx, Point2D fallback) {
+      if(idx < 0 || idx >= arr.length || LineVO.isNaN(arr[idx])) {
+         return fallback;
+      }
+
+      return arr[idx];
+   }
+
+   /**
+    * Build a single Path2D containing one closed curved subpath per contiguous non-NaN run.
+    * Used in place of the per-segment Area.add() loop for CURVED+singleShape, because
+    * java.awt.geom.Area boolean operations flatten cubic curves to line segments.
+    * Returns null when no valid run of length >= 2 exists.
+    * Package-private for unit testing.
+    */
+   static Shape buildCombinedCurvedAreaShape(Point2D[] pts, Point2D[] basepts) {
+      Path2D combined = new Path2D.Double();
+      boolean any = false;
+      int i = 0;
+
+      while(i < pts.length) {
+         while(i < pts.length && (LineVO.isNaN(pts[i]) || LineVO.isNaN(basepts[i]))) {
+            i++;
+         }
+
+         int start = i;
+
+         while(i + 1 < pts.length &&
+               !LineVO.isNaN(pts[i + 1]) && !LineVO.isNaN(basepts[i + 1]))
+         {
+            i++;
+         }
+
+         int end = i;
+
+         if(end > start) {
+            combined.moveTo(pts[start].getX(), pts[start].getY());
+
+            for(int j = start; j < end; j++) {
+               Point2D topP0 = neighbor(pts, j - 1, pts[j]);
+               Point2D topP3 = neighbor(pts, j + 2, pts[j + 1]);
+               Point2D[] ctrl = GTool.computeCatmullRomBezier(topP0, pts[j], pts[j + 1], topP3);
+               combined.curveTo(ctrl[0].getX(), ctrl[0].getY(),
+                                ctrl[1].getX(), ctrl[1].getY(),
+                                pts[j + 1].getX(), pts[j + 1].getY());
+            }
+
+            combined.lineTo(basepts[end].getX(), basepts[end].getY());
+
+            for(int j = end; j > start; j--) {
+               Point2D baseP0 = neighbor(basepts, j - 2, basepts[j - 1]);
+               Point2D baseP3 = neighbor(basepts, j + 1, basepts[j]);
+               Point2D[] ctrl = GTool.computeCatmullRomBezier(
+                  baseP0, basepts[j - 1], basepts[j], baseP3);
+               // Drawing j → j-1 (reverse direction): swap control points so the cubic
+               // [p1, c1, c2, p2] runs as [p2, c2, c1, p1] and traces the same curve as the
+               // matching forward segment in the band below — preserves the stacked seam.
+               combined.curveTo(ctrl[1].getX(), ctrl[1].getY(),
+                                ctrl[0].getX(), ctrl[0].getY(),
+                                basepts[j - 1].getX(), basepts[j - 1].getY());
+            }
+
+            combined.closePath();
+            any = true;
+         }
+
+         i++;
+      }
+
+      return any ? combined : null;
    }
 
    /**

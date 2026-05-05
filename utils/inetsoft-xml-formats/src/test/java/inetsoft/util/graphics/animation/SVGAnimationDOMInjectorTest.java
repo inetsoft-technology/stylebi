@@ -820,6 +820,46 @@ class SVGAnimationDOMInjectorTest {
    }
 
    /**
+    * AreaVO emits cubic-curve fill geometry (with {@code data-smooth="true"}) for stacked area
+    * charts when the smooth-lines option is on.  The polygon is already a non-overlapping band,
+    * so {@code buildBandPolygon} must NOT rewrite it — that helper only emits {@code M}/{@code L}
+    * commands and would re-flatten the curves.  The smooth-skip guard in
+    * {@code injectLineAnimationFromAnnotations} guarantees the curved {@code d} attribute
+    * survives even when adjacent stacked series have overlapping x-ranges (the condition that
+    * would otherwise trigger the rewrite).
+    */
+   @Test
+   void stackedArea_smooth_fillPathPreservedWhenOverlapping() throws Exception {
+      Document doc = newDocument();
+      Element svg = doc.getDocumentElement();
+
+      // Both series share x-range 0–100 (the overlapping condition that would normally
+      // trigger buildBandPolygon).  data-smooth="true" must short-circuit that rewrite.
+      String fillTop = "M0,80 C25,90 75,90 100,80 L100,40 C75,30 25,30 0,40 Z";
+      String lineTop = "M0,80 C25,90 75,90 100,80";
+      Element areaTop = addLineAreaPair(doc, svg, "34,211,238", fillTop, lineTop);
+      areaTop.setAttribute("data-" + SVGSupport.ATTR_SMOOTH, "true");
+
+      String fillBot = "M0,40 C25,30 75,30 100,40 L100,0 L0,0 Z";
+      String lineBot = "M0,40 C25,30 75,30 100,40";
+      Element areaBot = addLineAreaPair(doc, svg, "167,139,250", fillBot, lineBot);
+      areaBot.setAttribute("data-" + SVGSupport.ATTR_SMOOTH, "true");
+
+      SVGAnimationDOMInjector.injectAnimation(svg, SVGSupport.ANIMATION_LINE);
+
+      Element pathTop = firstDescendantPathOf(areaTop);
+      Element pathBot = firstDescendantPathOf(areaBot);
+
+      assertNotNull(pathTop, "area top must have a descendant path");
+      assertNotNull(pathBot, "area bot must have a descendant path");
+
+      assertEquals(fillTop, pathTop.getAttribute("d"),
+         "smooth area fill must keep its curved d attribute (rewrite must be skipped)");
+      assertEquals(fillBot, pathBot.getAttribute("d"),
+         "smooth area fill must keep its curved d attribute (rewrite must be skipped)");
+   }
+
+   /**
     * The inner Batik style {@code <g text-rendering="geometricPrecision">} that wraps the fill
     * path inside an {@code inetsoft-area} annotation group must NOT receive a fade animation.
     * Before the fix, {@code collectTextGroups} incorrectly identified it as a value-label group

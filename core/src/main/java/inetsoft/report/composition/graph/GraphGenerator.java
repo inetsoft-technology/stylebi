@@ -3485,6 +3485,9 @@ public abstract class GraphGenerator {
          if(chartType == CHART_STEP_AREA || chartType == CHART_STEP_AREA_STACK) {
             area.setType(LineElement.Type.STEP);
          }
+         else if(desc.getPlotDescriptor().isSmoothLines()) {
+            area.setType(LineElement.Type.CURVED);
+         }
 
          elements.add(area);
       }
@@ -3497,6 +3500,9 @@ public abstract class GraphGenerator {
          }
          else if(chartType == CHART_JUMP) {
             line.setType(LineElement.Type.JUMP);
+         }
+         else if(desc.getPlotDescriptor().isSmoothLines()) {
+            line.setType(LineElement.Type.CURVED);
          }
 
          line.setFillLineStyle(desc.getPlotDescriptor().isFillGapWithDash()

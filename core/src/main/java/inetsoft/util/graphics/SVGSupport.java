@@ -134,6 +134,10 @@ public interface SVGSupport {
    String ATTR_DASHED = "dashed";
    /** {@code data-step} — {@code "true"} when the line uses axis-aligned STEP or JUMP segments. */
    String ATTR_STEP   = "step";
+   /** {@code data-smooth} — {@code "true"} when an area fill was emitted with smooth Bezier
+    *  curves and already represents a non-overlapping band; the animation injector must not
+    *  reshape it via {@code buildBandPolygon}, which would re-flatten the curves to line segments. */
+   String ATTR_SMOOTH = "smooth";
    /** {@code data-face} — {@code "top"} or {@code "depth"} for 3D pie faces. */
    String ATTR_FACE   = "face";
    /** {@code data-orient} — {@code "v"} (vertical) or {@code "h"} (horizontal) for bars. */

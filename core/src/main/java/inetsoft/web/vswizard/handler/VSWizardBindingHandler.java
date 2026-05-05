@@ -858,6 +858,16 @@ public class VSWizardBindingHandler {
          VSUtil.setDefaultGeoColumns(chartInfo, rvs, source.getSource());
       }
 
+      // Default smoothLines on for wizard-recommended (non-step) Area charts, matching the
+      // default applied when a user picks Area via the chart-type chooser.
+      if(chartInfo != null) {
+         int ctype = chartInfo.getChartType();
+
+         if(ctype == GraphTypes.CHART_AREA || ctype == GraphTypes.CHART_AREA_STACK) {
+            chartDescriptor.getPlotDescriptor().setSmoothLines(true);
+         }
+      }
+
       if(ChartRecommenderUtil.isHistogram(chartInfo)) {
          String group = ((VSDimensionRef) info.getVSChartInfo().getXField(0)).getGroupColumnValue();
 

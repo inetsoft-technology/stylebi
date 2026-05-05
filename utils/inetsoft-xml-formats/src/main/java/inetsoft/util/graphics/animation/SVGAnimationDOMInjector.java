@@ -913,7 +913,8 @@ public class SVGAnimationDOMInjector {
             }
          }
 
-         areaBandEntries.add(new AreaBandEntry(path, localLinePath));
+         boolean smooth = "true".equals(g.getAttribute("data-" + SVGSupport.ATTR_SMOOTH));
+         areaBandEntries.add(new AreaBandEntry(path, localLinePath, smooth));
 
          // The path may carry a chart-boundary clip-path attribute. CSS clip-path set on the
          // same element (by the wipe animation's fill-mode) would evict it. Preserve the
@@ -956,6 +957,13 @@ public class SVGAnimationDOMInjector {
             for(int i = 0; i < panel.size() - 1; i++) {
                AreaBandEntry top  = panel.get(i);
                AreaBandEntry bot  = panel.get(i + 1);
+
+               // Smooth (curved) area fills emitted by AreaVO are already non-overlapping band
+               // geometry with cubic curves; rewriting via buildBandPolygon would re-flatten
+               // them into M/L line segments.
+               if(top.smooth) {
+                  continue;
+               }
 
                if(!top.linePath.isEmpty() && !bot.linePath.isEmpty()
                   && SVGAnimationInjector.xRangesOverlap(top.linePath, bot.linePath))
@@ -2896,10 +2904,12 @@ public class SVGAnimationDOMInjector {
    private static final class AreaBandEntry {
       final Element fillPath;
       final String linePath;
+      final boolean smooth;
 
-      AreaBandEntry(Element fillPath, String linePath) {
+      AreaBandEntry(Element fillPath, String linePath, boolean smooth) {
          this.fillPath = fillPath;
          this.linePath = linePath;
+         this.smooth = smooth;
       }
    }
 

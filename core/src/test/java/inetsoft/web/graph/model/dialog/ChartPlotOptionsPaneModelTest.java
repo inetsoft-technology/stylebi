@@ -236,4 +236,62 @@ class ChartPlotOptionsPaneModelTest {
       assertFalse(plotDesc.isBarRoundAllCorners(),
          "barRoundAllCorners should be reset to false for chart types where rounding doesn't apply");
    }
+
+   // --- smoothLinesVisible ---
+
+   @Test
+   void smoothLinesVisible_areaChart() {
+      assertTrue(modelFor(GraphTypes.CHART_AREA).isSmoothLinesVisible());
+   }
+
+   @Test
+   void smoothLinesVisible_stackedAreaChart() {
+      assertTrue(modelFor(GraphTypes.CHART_AREA_STACK).isSmoothLinesVisible());
+   }
+
+   @Test
+   void smoothLinesVisible_lineChart() {
+      assertTrue(modelFor(GraphTypes.CHART_LINE).isSmoothLinesVisible());
+   }
+
+   @Test
+   void smoothLinesVisible_stackedLineChart() {
+      assertTrue(modelFor(GraphTypes.CHART_LINE_STACK).isSmoothLinesVisible());
+   }
+
+   @Test
+   void smoothLinesVisible_stepAreaChartHidden() {
+      // Step variants render as discrete rectangles; smooth would conflict with step semantics.
+      assertFalse(modelFor(GraphTypes.CHART_STEP_AREA).isSmoothLinesVisible());
+   }
+
+   @Test
+   void smoothLinesVisible_stepStackedAreaChartHidden() {
+      assertFalse(modelFor(GraphTypes.CHART_STEP_AREA_STACK).isSmoothLinesVisible());
+   }
+
+   @Test
+   void smoothLinesVisible_stepLineChartHidden() {
+      assertFalse(modelFor(GraphTypes.CHART_STEP).isSmoothLinesVisible());
+   }
+
+   @Test
+   void smoothLinesVisible_stepStackedLineChartHidden() {
+      assertFalse(modelFor(GraphTypes.CHART_STEP_STACK).isSmoothLinesVisible());
+   }
+
+   @Test
+   void smoothLinesVisible_jumpLineChartHidden() {
+      assertFalse(modelFor(GraphTypes.CHART_JUMP).isSmoothLinesVisible());
+   }
+
+   @Test
+   void smoothLinesVisible_barChartHidden() {
+      assertFalse(modelFor(GraphTypes.CHART_BAR).isSmoothLinesVisible());
+   }
+
+   @Test
+   void smoothLinesVisible_pieChartHidden() {
+      assertFalse(modelFor(GraphTypes.CHART_PIE).isSmoothLinesVisible());
+   }
 }

@@ -618,6 +618,20 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    }
 
    /**
+    * Check if line segments connecting points should be drawn as smooth curves.
+    */
+   public boolean isSmoothLines() {
+      return smoothLines;
+   }
+
+   /**
+    * Set if line segments connecting points should be drawn as smooth curves.
+    */
+   public void setSmoothLines(boolean smoothLines) {
+      this.smoothLines = smoothLines;
+   }
+
+   /**
     * Check if gaps in lines should be drawn as dashed line instead of empty space.
     */
    public double getWordCloudFontScale() {
@@ -1430,6 +1444,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       fillGap = "true".equals(Tool.getAttribute(node, "fillGap"));
       fillZero = "true".equals(Tool.getAttribute(node, "fillZero"));
       fillGapWithDash = "true".equals(Tool.getAttribute(node, "fillGapWithDash"));
+      smoothLines = "true".equals(Tool.getAttribute(node, "smoothLines"));
       oneLine = "true".equals(Tool.getAttribute(node, "oneLine"));
 
       if((val = Tool.getAttribute(node, "zoom")) != null) {
@@ -1599,6 +1614,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       writer.print(" fillGap=\"" + fillGap + "\" ");
       writer.print(" fillZero=\"" + fillZero + "\" ");
       writer.print(" fillGapWithDash=\"" + fillGapWithDash + "\" ");
+      writer.print(" smoothLines=\"" + smoothLines + "\" ");
       writer.print(" xBandSize=\"" + xBandSize + "\" ");
       writer.print(" yBandSize=\"" + yBandSize + "\" ");
       writer.print(" zoom=\"" + zoom + "\" ");
@@ -1740,6 +1756,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
          fillGap == desc.fillGap &&
          fillZero == desc.fillZero &&
          fillGapWithDash == desc.fillGapWithDash &&
+         smoothLines == desc.smoothLines &&
          Tool.equals(alpha, desc.alpha) &&
          rLineVisible == desc.rLineVisible &&
          valuesVisible == desc.valuesVisible &&
@@ -1852,6 +1869,9 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    private boolean applyAestheticsToSource = false;
    private Map<Integer, CompositeTextFormat> circleFormats = new HashMap<>();
    private boolean fillGapWithDash = true;
+   // Default false so saved viewsheets without the smoothLines XML attribute keep their original
+   // straight-line look. New area charts get smooth=true via the chart-type chooser/wizard hook.
+   private boolean smoothLines = false;
    private CompositeTextFormat errorFormat;
    private double pieRatio = 0;
    // By design, new bar charts default to rounded corners; parseXML overrides to 0 for saved charts.

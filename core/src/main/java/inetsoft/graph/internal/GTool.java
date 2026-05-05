@@ -1381,6 +1381,25 @@ public final class GTool {
       return new Color(clr.getRed(), clr.getGreen(), clr.getBlue(), (int) (alpha * 255));
    }
 
+   /**
+    * Compute cubic Bezier control points for a Catmull-Rom curve segment from p1 to p2.
+    * The two returned points (c1, c2) are used with Path2D.curveTo(c1.x, c1.y, c2.x, c2.y,
+    * p2.x, p2.y) so the resulting curve passes through every input point.
+    * At run boundaries (start, end, or NaN gap), pass p0=p1 or p3=p2.
+    */
+   public static Point2D[] computeCatmullRomBezier(Point2D p0, Point2D p1, Point2D p2, Point2D p3) {
+      double c1x = p1.getX() + (p2.getX() - p0.getX()) / 6.0 * CATMULL_ROM_SMOOTHING;
+      double c1y = p1.getY() + (p2.getY() - p0.getY()) / 6.0 * CATMULL_ROM_SMOOTHING;
+      double c2x = p2.getX() - (p3.getX() - p1.getX()) / 6.0 * CATMULL_ROM_SMOOTHING;
+      double c2y = p2.getY() - (p3.getY() - p1.getY()) / 6.0 * CATMULL_ROM_SMOOTHING;
+
+      return new Point2D[] { new Point2D.Double(c1x, c1y), new Point2D.Double(c2x, c2y) };
+   }
+
+   // Multiplier on the standard 1/6 Catmull-Rom-to-Bezier coefficient. 1.0 = standard
+   // Catmull-Rom (curve passes through every point). 0.0 = straight lines. >1.0 = looser/bouncier.
+   private static final double CATMULL_ROM_SMOOTHING = 1.0;
+
    private static GImpl impl;
    private static boolean jdk16 = false;
    // @by stephenwebster, For bug1416439678841
