@@ -158,6 +158,6 @@ class AuthenticationProviderControllerTest {
       when(authenticationProviderService.testConnection(model))
          .thenThrow(new RuntimeException("connection refused"));
 
-      assertThrows(Exception.class, () -> controller.getConnectionStatus(model));
+      assertThrows(RuntimeException.class, () -> controller.getConnectionStatus(model));
    }
 }

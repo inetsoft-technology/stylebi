@@ -28,7 +28,7 @@ package inetsoft.web.admin.security;
  *   - verifyOldPassword(): resolves authentication provider, delegates to
  *     authc.authenticate().
  *
- * Coverage scope (4 cases in 2 groups):
+ * Coverage scope (5 cases in 2 groups):
  *
  * --- changePassword() ---
  *
@@ -36,6 +36,7 @@ package inetsoft.web.admin.security;
  *                              → controller propagates the exception unchanged
  *  [non-editable provider]     no editable provider found in chain
  *                              → IllegalStateException propagated
+ *  [non-FSUser]                editable provider returns non-FSUser → IllegalStateException
  *  [FSUser success]            editable provider returns FSUser → SUtil.setPassword() called;
  *                              Audit.auditAction() called
  *
@@ -114,6 +115,18 @@ class ChangePasswordControllerTest {
 
       assertThrows(IllegalArgumentException.class,
          () -> controller.changePassword(request, principal));
+   }
+
+   // [non-FSUser] editable provider returns non-FSUser → else branch throws IllegalStateException
+   @Test
+   void changePassword_nonFsUser_throwsIllegalState() {
+      when(securityProvider.getAuthenticationProvider()).thenReturn(authenticationChain);
+      when(authenticationChain.stream()).thenReturn(Stream.of(editableProvider));
+      IdentityID pId = IdentityID.getIdentityIDFromKey("alice~;~host-org");
+      when(editableProvider.getUser(pId)).thenReturn(mock(User.class));
+
+      ChangePasswordRequest request = ChangePasswordRequest.builder().password("Admin1234!").build();
+      assertThrows(IllegalStateException.class, () -> controller.changePassword(request, principal));
    }
 
    // [non-editable provider] no editable provider found → IllegalStateException

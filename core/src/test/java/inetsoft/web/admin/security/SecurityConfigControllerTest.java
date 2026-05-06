@@ -23,12 +23,13 @@ package inetsoft.web.admin.security;
  * Class type: behavioral-orchestration controller — SecurityConfigController has real
  * in-controller logic in setEnableSecurity(), setEnableMultiTenancy(), and getEnableSecurity().
  *
- * Coverage scope (9 cases in 3 groups):
+ * Coverage scope (10 cases in 3 groups):
  *
  * --- setEnableSecurity() ---
  *
  *  [enable: success]           enable=true, AdminCredentialUtil succeeds
- *                              → enableSecurity() called; SecurityEngine.touch() called
+ *                              → enableSecurity() called; SecurityEngine.touch() called;
+ *                                returned event has enable==true
  *  [enable: no admin password] enable=true, AdminCredentialUtil throws IllegalStateException
  *                              → enableSecurity() NOT called; returned event has warning
  *  [disable]                   enable=false
@@ -41,10 +42,11 @@ package inetsoft.web.admin.security;
  *
  * --- setEnableMultiTenancy() ---
  *
- *  [enable: no named-user keys]   SUtil.setMultiTenant(true) called; warning is null/empty
- *  [enable: has named-user keys]  SUtil.setMultiTenant(true) called; warning is non-null/empty
- *  [disable: has added orgs]      SUtil.setMultiTenant() NOT called; warning is non-null/empty
- *  [disable: clean state]         SUtil.setMultiTenant(false) called; no warning
+ *  [enable: no named-user keys]      SUtil.setMultiTenant(true) called; warning is null/empty
+ *  [enable: has named-user keys]     SUtil.setMultiTenant(true) called; warning is non-null/empty
+ *  [disable: has added orgs]         SUtil.setMultiTenant() NOT called; warning is non-null/empty
+ *  [disable: self-org has users]     SUtil.setMultiTenant() NOT called; warning is non-null/empty
+ *  [disable: clean state]            SUtil.setMultiTenant(false) called; no warning
  *
  * Static singletons (AdminCredentialUtil, SecurityEngine.touch, OrganizationManager,
  * SUtil, Organization, SreeEnv, InetsoftConfig, Catalog) are intercepted with
@@ -140,18 +142,21 @@ class SecurityConfigControllerTest {
    // setEnableSecurity()
    // -------------------------------------------------------------------------
 
-   // [enable: success] AdminCredentialUtil succeeds → enableSecurity() and touch() called
+   // [enable: success] AdminCredentialUtil succeeds → enableSecurity() and touch() called;
+   // returned event reflects the enabled state
    @Test
    void setEnableSecurity_enable_callsEnableSecurity() throws Exception {
       adminCredentialUtilStatic.when(AdminCredentialUtil::getRequiredAdminPassword)
          .thenReturn("Admin1234!");
+      when(securityEngine.isSecurityEnabled()).thenReturn(true);
 
       SecurityEnabledEvent event = SecurityEnabledEvent.builder().enable(true).build();
-      controller.setEnableSecurity(event, principal);
+      SecurityEnabledEvent result = controller.setEnableSecurity(event, principal);
 
       verify(securityEngine).enableSecurity();
       securityEngineStatic.verify(SecurityEngine::touch);
       verify(securityEngine, never()).disableSecurity();
+      assertTrue(result.enable());
    }
 
    // [enable: no admin password] AdminCredentialUtil throws → enableSecurity() not called;
@@ -248,6 +253,22 @@ class SecurityConfigControllerTest {
 
       sUtilStatic.verify(() -> SUtil.setMultiTenant(false));
       assertTrue(result.warning() == null || result.warning().isEmpty());
+   }
+
+   // [disable: self-org has users] hasAddedOrganizations() false but selfOrganizationHasUsers()
+   // true → SUtil.setMultiTenant() NOT called; warning is present
+   @Test
+   void setEnableMultiTenancy_disable_selfOrgHasUsers_doesNotDisable() {
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[]{"host-org"});
+      IdentityID selfOrgUser = new IdentityID("bob", "self-org");
+      when(securityProvider.getUsers()).thenReturn(new IdentityID[]{ selfOrgUser });
+
+      SecurityEnabledEvent event = SecurityEnabledEvent.builder().enable(false).build();
+      SecurityEnabledEvent result = controller.setEnableMultiTenancy(event, principal);
+
+      sUtilStatic.verify(() -> SUtil.setMultiTenant(anyBoolean()), never());
+      assertNotNull(result.warning());
+      assertFalse(result.warning().isEmpty());
    }
 
    // [disable: has added orgs] SUtil.setMultiTenant() NOT called; warning is present

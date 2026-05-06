@@ -127,8 +127,8 @@ class UserControllerTest {
    @Test
    void editUser_validOrg_delegatesToService() throws Exception {
       when(securityProvider.getOrganization("host-org")).thenReturn(mock(Organization.class));
-      lenient().when(userModel.oldName()).thenReturn("alice");
-      lenient().when(identityService.getTimeOutWarning(any(), anyString())).thenReturn(null);
+      when(userModel.oldName()).thenReturn("alice");
+      when(identityService.getTimeOutWarning(any(), anyString())).thenReturn(null);
 
       controller.editUser(httpRequest, userModel, "myProvider", principal);
 

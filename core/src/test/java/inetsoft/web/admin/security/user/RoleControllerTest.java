@@ -82,8 +82,9 @@ class RoleControllerTest {
    @Mock private HttpServletRequest httpRequest;
    @Mock private EditRolePaneModel roleModel;
 
+   @Mock private OrganizationManager orgManager;
+
    private RoleController controller;
-   private OrganizationManager orgManager;
 
    private MockedStatic<OrganizationManager> orgManagerStatic;
    private MockedStatic<Organization> organizationStatic;
@@ -95,7 +96,6 @@ class RoleControllerTest {
       controller = new RoleController(securityProvider, identityService, userTreeService,
                                       securityTreeServer, systemAdminService, themeService);
 
-      orgManager = mock(OrganizationManager.class);
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
       organizationStatic = mockStatic(Organization.class, withSettings().lenient());
       catalogStatic = mockStatic(Catalog.class, withSettings().lenient());

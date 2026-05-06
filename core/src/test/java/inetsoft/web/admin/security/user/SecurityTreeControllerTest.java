@@ -63,8 +63,9 @@ class SecurityTreeControllerTest {
    @Mock private Catalog catalog;
    @Mock private Principal principal;
 
+   @Mock private OrganizationManager orgManager;
+
    private SecurityTreeController controller;
-   private OrganizationManager orgManager;
 
    private MockedStatic<OrganizationManager> orgManagerStatic;
    private MockedStatic<Catalog> catalogStatic;
@@ -73,7 +74,6 @@ class SecurityTreeControllerTest {
    void setUp() {
       controller = new SecurityTreeController(service, themeService, securityEngine);
 
-      orgManager = mock(OrganizationManager.class);
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
       catalogStatic = mockStatic(Catalog.class, withSettings().lenient());
 
