@@ -1662,7 +1662,7 @@ public class VGraphPair {
       final VGraph vgraph = getExpandedVGraph();
       final GraphBounds gbounds = new GraphBounds(vgraph, getRealSizeVGraph(), cinfo);
       return getFlipYSubimage(vgraph, gbounds.getPlotBounds(), row, col, true,
-         getEVGraphContext(true));
+         getEVGraphContext(true, true));
    }
 
    /**
@@ -2014,7 +2014,7 @@ public class VGraphPair {
    public Graphics2D getPlotGraphic(int row, int col) {
       final VGraph vgraph = getExpandedVGraph();
       final GraphBounds gbounds = new GraphBounds(vgraph, getRealSizeVGraph(), cinfo);
-      return getFlipYSubGraphic(vgraph, gbounds.getPlotBounds(), row, col, true, getEVGraphContext(true), true);
+      return getFlipYSubGraphic(vgraph, gbounds.getPlotBounds(), row, col, true, getEVGraphContext(true, true), true);
    }
 
    /**
@@ -2714,15 +2714,28 @@ public class VGraphPair {
    }
 
    private GraphPaintContext getEVGraphContext(boolean axes) {
+      return getEVGraphContext(axes, false);
+   }
+
+   private GraphPaintContext getEVGraphContext(boolean axes, boolean paintVOVisuals) {
       if(evgraph != null) {
          return new GraphPaintContextImpl.Builder()
             .paintLegends(false)
             .paintTitles(false)
             .paintAxes(axes)
+            .paintVOVisuals(paintVOVisuals)
+            .paintBackground(paintVOVisuals)
             .build();
       }
       else {
-         return getVGraphContext();
+         // Non-scrollable chart: vgraph has everything. Suppress ElementVOs in axis
+         // tiles to prevent data elements at the plot boundary from bleeding in, but
+         // preserve backgrounds and titles so facet chart headers render correctly.
+         return new GraphPaintContextImpl.Builder()
+            .paintLegends(false)
+            .paintAxes(axes)
+            .paintVOVisuals(paintVOVisuals)
+            .build();
       }
    }
 

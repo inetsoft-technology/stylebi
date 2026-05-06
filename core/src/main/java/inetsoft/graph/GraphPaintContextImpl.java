@@ -17,7 +17,6 @@
  */
 package inetsoft.graph;
 
-import inetsoft.graph.guide.VMeasureTitle;
 import inetsoft.graph.guide.axis.Axis;
 import inetsoft.graph.guide.axis.GridLine;
 import inetsoft.graph.visual.*;
@@ -26,12 +25,22 @@ public class GraphPaintContextImpl implements GraphPaintContext {
    public GraphPaintContextImpl(boolean paintLegends,
                                 boolean paintTitles,
                                 boolean paintAxes,
-                                boolean paintVOVisuals)
+                                boolean paintVOVisuals,
+                                boolean paintBackground)
    {
       this.paintLegends = paintLegends;
       this.paintTitles = paintTitles;
       this.paintAxes = paintAxes;
       this.paintVOVisuals = paintVOVisuals;
+      this.paintBackground = paintBackground;
+   }
+
+   /**
+    * @inheritDoc
+    */
+   @Override
+   public boolean paintBackground() {
+      return paintBackground;
    }
 
    /**
@@ -61,10 +70,9 @@ public class GraphPaintContextImpl implements GraphPaintContext {
       else if(visual instanceof Axis) {
          return paintAxes;
       }
-      else if(!paintVOVisuals && !(visual instanceof FormVO && !((FormVO) visual).isInPlot()) &&
-              (visual instanceof VisualObject || visual instanceof VOText ||
-               visual instanceof VMeasureTitle))
-      {
+      // GraphVO is a facet sub-graph container, not a data element — allow it to render
+      // so that axis tiles can show the sub-graph's axis labels and backgrounds.
+      else if(!paintVOVisuals && visual instanceof ElementVO && !(visual instanceof GraphVO)) {
          return false;
       }
 
@@ -92,19 +100,26 @@ public class GraphPaintContextImpl implements GraphPaintContext {
          return this;
       }
 
+      public Builder paintBackground(boolean paintBackground) {
+         this.paintBackground = paintBackground;
+         return this;
+      }
+
       public GraphPaintContextImpl build() {
          return new GraphPaintContextImpl(paintLegends, paintTitles, paintAxes,
-                                          paintVOVisuals);
+                                          paintVOVisuals, paintBackground);
       }
 
       private boolean paintLegends = true;
       private boolean paintTitles = true;
       private boolean paintAxes = true;
       private boolean paintVOVisuals = true;
+      private boolean paintBackground = true;
    }
 
    private final boolean paintLegends;
    private final boolean paintTitles;
    private final boolean paintAxes;
    private final boolean paintVOVisuals;
+   private final boolean paintBackground;
 }
