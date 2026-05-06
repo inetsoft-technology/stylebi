@@ -142,7 +142,7 @@ public class MekkoVO extends ElementVO {
             // The visual top boundary maps to SVG y = -SVG_TILE_TRANSLATE (just outside the
             // viewport). Insetting by hs alone leaves ~half the stroke clipped; add the extra
             // SVG_TILE_TRANSLATE so the stroke's inner edge lands exactly at SVG y = 0.
-            if(Math.abs(sb.getMaxY() - pb.getMaxY()) < eps)  { bh -= hs + GDefaults.SVG_TILE_TRANSLATE; }
+            if(Math.abs(sb.getMaxY() - pb.getMaxY()) < eps)  { bh -= hs + (svg != null ? GDefaults.SVG_TILE_TRANSLATE : 0); }
          }
 
          if(bw <= 0 || bh <= 0) {
