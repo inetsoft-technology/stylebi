@@ -26,4 +26,6 @@ export interface LegendFormatGeneralPaneModel {
    notShowNullVisible: boolean;
    symbolSize: number;
    roundCorners: boolean;
+   symbolRoundCorners: boolean;
+   symbolRoundCornersVisible: boolean;
 }

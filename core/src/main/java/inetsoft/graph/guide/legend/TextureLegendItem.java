@@ -20,7 +20,7 @@ package inetsoft.graph.guide.legend;
 import inetsoft.graph.aesthetic.*;
 
 import java.awt.*;
-import java.awt.geom.Rectangle2D;
+import java.awt.geom.RectangularShape;
 
 /**
  * This class renders a texture legend item.
@@ -51,11 +51,15 @@ public class TextureLegendItem extends LegendItem {
 			  RenderingHints.VALUE_STROKE_PURE);
 
       int size = getSymbolSize();
-      Rectangle2D rect= new Rectangle2D.Double(x, y, size, size);
+      RectangularShape rect = createSymbolRect(x, y, size, size);
       TextureFrame frame = (TextureFrame) getVisualFrame();
       GTexture gt = frame.getTexture(getValue());
 
       g2.setColor(getSymbolColor());
+
+      if(frame.getLegendSpec().isSymbolRoundCorners()) {
+         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+      }
 
       if(gt != null) {
          gt.paint(g2, rect);
