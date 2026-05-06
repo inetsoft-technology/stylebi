@@ -2719,6 +2719,9 @@ public class VGraphPair {
 
    private GraphPaintContext getEVGraphContext(boolean axes, boolean paintVOVisuals) {
       if(evgraph != null) {
+         // paintBackground mirrors paintVOVisuals: plot tiles need both; axis tiles
+         // need neither (suppressing the background prevents plot fill from bleeding
+         // into the axis tile image).
          return new GraphPaintContextImpl.Builder()
             .paintLegends(false)
             .paintTitles(false)
@@ -2728,9 +2731,9 @@ public class VGraphPair {
             .build();
       }
       else {
-         // Non-scrollable chart: vgraph has everything. Suppress ElementVOs in axis
-         // tiles to prevent data elements at the plot boundary from bleeding in, but
-         // preserve backgrounds and titles so facet chart headers render correctly.
+         // Non-scrollable chart: vgraph has everything. Suppress data visuals in axis
+         // tiles to prevent boundary bleed, but keep paintBackground=true (default) so
+         // facet chart header backgrounds and labels still render.
          return new GraphPaintContextImpl.Builder()
             .paintLegends(false)
             .paintAxes(axes)
