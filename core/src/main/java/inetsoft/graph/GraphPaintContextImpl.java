@@ -20,6 +20,7 @@ package inetsoft.graph;
 import inetsoft.graph.guide.VMeasureTitle;
 import inetsoft.graph.guide.axis.Axis;
 import inetsoft.graph.guide.axis.GridLine;
+import inetsoft.graph.internal.GDefaults;
 import inetsoft.graph.visual.*;
 
 public class GraphPaintContextImpl implements GraphPaintContext {
@@ -66,7 +67,13 @@ public class GraphPaintContextImpl implements GraphPaintContext {
    @Override
    public boolean paintVisual(Visualizable visual) {
       if(visual instanceof GridLine) {
-         return paintAxes || ((GridLine) visual).getAxis() == null;
+         // Boundary gridlines (z=GRIDLINE_TOP_Z_INDEX) render on top of element VOs and
+         // belong in axis tiles. Suppress them from the plot image (paintVOVisuals=true)
+         // to prevent them from covering element borders (e.g. Mekko chart borders).
+         if(paintVOVisuals && visual.getZIndex() >= GDefaults.GRIDLINE_TOP_Z_INDEX) {
+            return false;
+         }
+         return true;
       }
       else if(visual instanceof Axis) {
          return paintAxes;

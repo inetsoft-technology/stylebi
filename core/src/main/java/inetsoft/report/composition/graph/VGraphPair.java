@@ -1662,7 +1662,7 @@ public class VGraphPair {
       final VGraph vgraph = getExpandedVGraph();
       final GraphBounds gbounds = new GraphBounds(vgraph, getRealSizeVGraph(), cinfo);
       return getFlipYSubimage(vgraph, gbounds.getPlotBounds(), row, col, true,
-         getEVGraphContext(true, true));
+         getEVGraphContext(false, true));
    }
 
    /**
@@ -2014,7 +2014,7 @@ public class VGraphPair {
    public Graphics2D getPlotGraphic(int row, int col) {
       final VGraph vgraph = getExpandedVGraph();
       final GraphBounds gbounds = new GraphBounds(vgraph, getRealSizeVGraph(), cinfo);
-      return getFlipYSubGraphic(vgraph, gbounds.getPlotBounds(), row, col, true, getEVGraphContext(true, true), true);
+      return getFlipYSubGraphic(vgraph, gbounds.getPlotBounds(), row, col, true, getEVGraphContext(false, true), true);
    }
 
    /**
@@ -2075,7 +2075,7 @@ public class VGraphPair {
          return null;
       }
 
-      return getFlipYSubGraphic(evgraph, ebounds, row, col, true, getEVGraphContext(true));
+      return getBottomXSubGraphic(evgraph, ebounds, row, col, getEVGraphContext(true));
    }
 
    /**
@@ -2337,6 +2337,18 @@ public class VGraphPair {
       return getSubGraphic(graph, getFlipYBounds(graph, bounds), row, col, restrict, ctx, animate);
    }
 
+   private Graphics2D getBottomXSubGraphic(VGraph graph, Rectangle2D bounds,
+                                           int row, int col, GraphPaintContext ctx)
+   {
+      // The bottom axis line is on the maxY edge of the graph-space axis bounds.
+      // VGraph.paintGraph() flips with height - 1, so the normal SVG tile transform
+      // places that one-pixel stroke at y=-0.5. Move the first tile row down so the
+      // line is painted inside the bottom-axis SVG instead of relying on the plot tile.
+      double translateY = row == 0 ? 1D : 0D;
+      return getSubGraphic(graph, getFlipYBounds(graph, bounds), row, col, true, ctx, false,
+         translateY);
+   }
+
    /**
     * Get sub image of a graph.
     * @param bounds the sub image bounds.
@@ -2344,6 +2356,13 @@ public class VGraphPair {
    private Graphics2D getSubGraphic(VGraph graph, Rectangle2D bounds,
                                     int row, int col, boolean restrict, GraphPaintContext ctx,
                                     boolean animate)
+   {
+      return getSubGraphic(graph, bounds, row, col, restrict, ctx, animate, 0D);
+   }
+
+   private Graphics2D getSubGraphic(VGraph graph, Rectangle2D bounds,
+                                    int row, int col, boolean restrict, GraphPaintContext ctx,
+                                    boolean animate, double translateY)
    {
       Rectangle subox = getSubBounds(graph, bounds, row, col, restrict);
 
@@ -2361,7 +2380,7 @@ public class VGraphPair {
       svgSupport.setCanvasSize(g, new Dimension(w, h));
       g.clipRect(0, 0, w, h);
       // shift by 0.5 to avoid clipping half of line. see above.
-      g.translate(-subox.getX() + 0.5, -subox.getY() + 0.5);
+      g.translate(-subox.getX() + 0.5, -subox.getY() + 0.5 + translateY);
       graph.paintGraph(g, ctx);
 
       if(animate) {

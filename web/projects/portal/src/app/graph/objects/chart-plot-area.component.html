@@ -55,8 +55,8 @@
       <div class="chart-plot-area__tile" [class.panning]="hideTile"
            [style.top.px]="tile.bounds.y + panY"
            [style.left.px]="tile.bounds.x + panX"
-           [style.width.px]="tile.bounds.width"
-           [style.height.px]="tile.bounds.height">
+           [style.width.px]="tile.bounds.width + 1"
+           [style.height.px]="tile.bounds.height + 1">
         <!-- <div class="loading-hint" *ngIf="!tile.loaded"></div> -->
         <img *ngIf="!inlineSvg"
              [chartImage]="getSrc(tile, container)"
@@ -75,8 +75,8 @@
       <div class="chart-plot-area__tile" *ngIf="panning || panX != 0 || panY != 0"
            [style.top.px]="tile.bounds.y + panY"
            [style.left.px]="tile.bounds.x + panX"
-           [style.width.px]="tile.bounds.width"
-           [style.height.px]="tile.bounds.height">
+           [style.width.px]="tile.bounds.width + 1"
+           [style.height.px]="tile.bounds.height + 1">
         <img *ngIf="!inlineSvg"
              (onLoaded)="panImgLoaded()"
              [chartImage]="panSnapshot">
