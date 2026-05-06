@@ -643,7 +643,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
     * {@link #TREE_LAYOUT_RIGHT_LEFT}. Only meaningful for CHART_TREE.
     */
    public String getTreeLayout() {
-      return treeLayout != null ? treeLayout : TREE_LAYOUT_TOP_BOTTOM;
+      return treeLayout;
    }
 
    /**
