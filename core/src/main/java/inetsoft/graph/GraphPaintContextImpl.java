@@ -20,19 +20,20 @@ package inetsoft.graph;
 import inetsoft.graph.guide.VMeasureTitle;
 import inetsoft.graph.guide.axis.Axis;
 import inetsoft.graph.guide.axis.GridLine;
-import inetsoft.graph.internal.GDefaults;
 import inetsoft.graph.visual.*;
 
 public class GraphPaintContextImpl implements GraphPaintContext {
    public GraphPaintContextImpl(boolean paintLegends,
                                 boolean paintTitles,
                                 boolean paintAxes,
+                                boolean paintGridLines,
                                 boolean paintVOVisuals,
                                 boolean paintBackground)
    {
       this.paintLegends = paintLegends;
       this.paintTitles = paintTitles;
       this.paintAxes = paintAxes;
+      this.paintGridLines = paintGridLines;
       this.paintVOVisuals = paintVOVisuals;
       this.paintBackground = paintBackground;
    }
@@ -67,13 +68,7 @@ public class GraphPaintContextImpl implements GraphPaintContext {
    @Override
    public boolean paintVisual(Visualizable visual) {
       if(visual instanceof GridLine) {
-         // Boundary gridlines (z=GRIDLINE_TOP_Z_INDEX) render on top of element VOs and
-         // belong in axis tiles. Suppress them from the plot image (paintVOVisuals=true)
-         // to prevent them from covering element borders (e.g. Mekko chart borders).
-         if(paintVOVisuals && visual.getZIndex() >= GDefaults.GRIDLINE_TOP_Z_INDEX) {
-            return false;
-         }
-         return true;
+         return paintGridLines || ((GridLine) visual).getAxis() == null;
       }
       else if(visual instanceof Axis) {
          return paintAxes;
@@ -120,6 +115,11 @@ public class GraphPaintContextImpl implements GraphPaintContext {
          return this;
       }
 
+      public Builder paintGridLines(boolean paintGridLines) {
+         this.paintGridLines = paintGridLines;
+         return this;
+      }
+
       public Builder paintBackground(boolean paintBackground) {
          this.paintBackground = paintBackground;
          return this;
@@ -127,12 +127,13 @@ public class GraphPaintContextImpl implements GraphPaintContext {
 
       public GraphPaintContextImpl build() {
          return new GraphPaintContextImpl(paintLegends, paintTitles, paintAxes,
-                                          paintVOVisuals, paintBackground);
+                                          paintGridLines, paintVOVisuals, paintBackground);
       }
 
       private boolean paintLegends = true;
       private boolean paintTitles = true;
       private boolean paintAxes = true;
+      private boolean paintGridLines = true;
       private boolean paintVOVisuals = true;
       private boolean paintBackground = true;
    }
@@ -140,6 +141,7 @@ public class GraphPaintContextImpl implements GraphPaintContext {
    private final boolean paintLegends;
    private final boolean paintTitles;
    private final boolean paintAxes;
+   private final boolean paintGridLines;
    private final boolean paintVOVisuals;
    private final boolean paintBackground;
 }

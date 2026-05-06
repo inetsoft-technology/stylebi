@@ -78,6 +78,12 @@ public class GDefaults {
     */
    public static final int GRIDLINE_TOP_Z_INDEX = 80;
    /**
+    * Half-pixel translate applied to every SVG tile in getSubGraphic so strokes at the tile
+    * origin are not clipped. Visual objects that need to compensate for this offset (e.g. by
+    * insetting a boundary stroke) should reference this constant rather than hard-coding 0.5.
+    */
+   public static final double SVG_TILE_TRANSLATE = 0.5;
+   /**
     * Default z index for form objects.
     */
    public static final int FORM_Z_INDEX = 90;

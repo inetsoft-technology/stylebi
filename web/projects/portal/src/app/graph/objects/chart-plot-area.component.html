@@ -52,6 +52,8 @@
        [scrollLeft]="scrollLeft"
        (scroll)="onScroll($event)">
     <ng-container *ngFor="let tile of chartObject.tiles; trackBy: trackByFn">
+      <!-- +1 matches the extra pixel the backend adds to tile dimensions in getSubGraphic
+           so the SVG/image content fills the div without sub-pixel gaps at tile edges. -->
       <div class="chart-plot-area__tile" [class.panning]="hideTile"
            [style.top.px]="tile.bounds.y + panY"
            [style.left.px]="tile.bounds.x + panX"

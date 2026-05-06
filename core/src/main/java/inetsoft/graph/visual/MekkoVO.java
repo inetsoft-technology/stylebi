@@ -26,6 +26,7 @@ import inetsoft.graph.element.MekkoElement;
 import inetsoft.graph.geometry.*;
 import inetsoft.graph.guide.VLabel;
 import inetsoft.graph.internal.DimensionD;
+import inetsoft.graph.internal.GDefaults;
 import inetsoft.util.graphics.SVGSupport;
 
 import java.awt.*;
@@ -136,11 +137,17 @@ public class MekkoVO extends ElementVO {
             if(Math.abs(sb.getX() - pb.getX()) < eps)        { bx += hs; bw -= hs; }
             if(Math.abs(sb.getMaxX() - pb.getMaxX()) < eps)  { bw -= hs; }
             if(Math.abs(sb.getY() - pb.getY()) < eps)        { by += hs; bh -= hs; }
-            // SVG group transform is translate(0.5, T) flipY where T = plotBounds.maxY - 0.5,
-            // so the visual top boundary maps to SVG y = -0.5 (just outside the viewport).
-            // Insetting by hs alone leaves ~half the stroke clipped; add the extra 0.5 so the
-            // stroke's inner edge lands exactly at SVG y = 0.
-            if(Math.abs(sb.getMaxY() - pb.getMaxY()) < eps)  { bh -= hs + 0.5; }
+            // SVG group transform is translate(SVG_TILE_TRANSLATE, T) flipY where
+            // T = plotBounds.maxY - SVG_TILE_TRANSLATE (see VGraphPair.getSubGraphic).
+            // The visual top boundary maps to SVG y = -SVG_TILE_TRANSLATE (just outside the
+            // viewport). Insetting by hs alone leaves ~half the stroke clipped; add the extra
+            // SVG_TILE_TRANSLATE so the stroke's inner edge lands exactly at SVG y = 0.
+            if(Math.abs(sb.getMaxY() - pb.getMaxY()) < eps)  { bh -= hs + GDefaults.SVG_TILE_TRANSLATE; }
+         }
+
+         if(bw <= 0 || bh <= 0) {
+            g2.dispose();
+            return;
          }
 
          g2.draw(new Rectangle2D.Double(bx, by, bw, bh));
