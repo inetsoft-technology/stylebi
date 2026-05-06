@@ -1152,7 +1152,13 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
       for(CompletableFuture<T> future : futures) {
          try {
-            results.add(future.get());
+            results.add(future.get(5L, TimeUnit.MINUTES));
+         }
+         catch(RuntimeException ex) {
+            throw ex;
+         }
+         catch(ExecutionException ex) {
+            throw new RuntimeException(ex);
          }
          catch(Exception e) {
             throw new RuntimeException(e);

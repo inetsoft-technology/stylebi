@@ -3163,7 +3163,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    {
       // @davidd, Method moved from RuntimeViewsheet in v11.4b r39236.
       String filterId = vs.getViewsheetInfo().getFilterID(fassembly.getName());
+      return processSharedFilters(fassembly, filterId, clist, processChange);
+   }
 
+   public boolean processSharedFilters(VSAssembly fassembly,
+                                       String filterId,
+                                       ChangedAssemblyList clist,
+                                       boolean processChange)
+      throws Exception
+   {
       // Check whether this filter has already been processed
       if(filterId != null && clist != null && clist.isShareFilterProcessed(filterId)) {
          return false;
@@ -3180,7 +3188,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       boolean result = false;
 
       for(ViewsheetSandbox box : boxes) {
-         result |= box.applySharedFilters(fassembly, clist, processChange);
+         result |= box.applySharedFilters(fassembly, filterId, clist, processChange);
       }
 
       return result;
@@ -3198,6 +3206,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * @return <tt>true</tt> if assemblies are changed
     */
    private boolean applySharedFilters(VSAssembly fassembly,
+                                      String filterId,
                                       ChangedAssemblyList clist,
                                       boolean processChange)
       throws Exception
@@ -3205,7 +3214,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       boolean result = false;
 
       List<VSAssembly> tassemblies =
-         VSUtil.getSharedVSAssemblies(getViewsheet(), fassembly);
+         VSUtil.getSharedVSAssemblies(getViewsheet(), fassembly, filterId);
 
       for(VSAssembly tassembly : tassemblies) {
          int hint = VSAssembly.NONE_CHANGED;

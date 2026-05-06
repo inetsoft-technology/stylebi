@@ -890,12 +890,20 @@ public final class VSUtil {
       ViewsheetInfo fvinfo = fvs != null ? fvs.getViewsheetInfo() : tvs.getViewsheetInfo();
       String fname = fassembly.getName();
       String fid = fvinfo.getFilterID(fname);
+      return getSharedVSAssemblies(tvs, fassembly, fid);
+   }
+
+   public static List<VSAssembly> getSharedVSAssemblies(Viewsheet tvs, VSAssembly fassembly,
+                                                         String fid)
+   {
       List<VSAssembly> list = new ArrayList<>();
 
       if(fid == null) {
          return list;
       }
 
+      Viewsheet fvs = fassembly.getViewsheet();
+      String fname = fassembly.getName();
       ViewsheetInfo tvinfo = tvs.getViewsheetInfo();
       List<String> tnames = tvinfo.getFilterColumns(fid);
 
@@ -903,7 +911,6 @@ public final class VSUtil {
          Assembly tassembly = tvs.getAssembly(tname);
 
          // ignore self
-
          if(tvs == fvs && tname.equals(fname)) {
             continue;
          }

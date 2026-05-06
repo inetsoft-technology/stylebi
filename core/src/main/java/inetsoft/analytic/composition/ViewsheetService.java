@@ -185,6 +185,11 @@ public interface ViewsheetService extends WorksheetService {
     */
    RuntimeViewsheet[] getRuntimeViewsheets(Principal user);
 
+   /**
+    * Get the total number of runtime viewsheets open for the given user across all cluster nodes.
+    */
+   int getRuntimeViewsheetCount(Principal user);
+
    <T extends Serializable> List<T> invokeOnAll(Task<T> task);
 
    /**

@@ -448,6 +448,12 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
    }
 
    @Override
+   public int getRuntimeViewsheetCount(Principal user) {
+      // amap iterates the distributed Ignite cache, so this reflects the count across all nodes.
+      return amap.getAllIds(user, CompressedSheetState.SheetType.VIEWSHEET).size();
+   }
+
+   @Override
    public <T extends Serializable> List<T> invokeOnAll(Task<T> task) {
       return cluster.affinityCallAll(CACHE_NAME, new InvokeAllTask<>(task));
    }

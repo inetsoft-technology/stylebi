@@ -600,12 +600,20 @@ public class RuntimeSheetCache
    }
 
    public List<String> getAllIds(Principal user) {
+      return getAllIds(user, null);
+   }
+
+   public List<String> getAllIds(Principal user, CompressedSheetState.SheetType type) {
       Set<String> ids = new HashSet<>();
       Iterator<Cache.Entry<AffinityKey<String>, CompressedSheetState>> iter = cache.iterator();
 
       try {
          while(iter.hasNext()) {
             Cache.Entry<AffinityKey<String>, CompressedSheetState> e = iter.next();
+
+            if(type != null && e.getValue().getType() != type) {
+               continue;
+            }
 
             if(user == null) {
                ids.add(e.getKey().key());

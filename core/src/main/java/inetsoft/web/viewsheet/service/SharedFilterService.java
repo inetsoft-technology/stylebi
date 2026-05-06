@@ -29,20 +29,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.io.Serializable;
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 public class SharedFilterService {
    @Autowired
-   public SharedFilterService(SimpMessagingTemplate messagingTemplate,
-                              ViewsheetService viewsheetService)
+   public SharedFilterService(CommandDispatcherService commandDispatcherService,
+                               ViewsheetService viewsheetService)
    {
-      this.messagingTemplate = messagingTemplate;
+      this.commandDispatcherService = commandDispatcherService;
       this.viewsheetService = viewsheetService;
    }
 
@@ -59,39 +59,64 @@ public class SharedFilterService {
          return false;
       }
 
+      // Resolve filterId on the source node while we still have access to the viewsheet,
+      // since VSAssemblyInfo.vs is transient and will be null on remote cluster nodes.
+      final String filterId = vs.getViewsheet().getViewsheetInfo().getFilterID(assembly.getName());
+
+      // skip cluster broadcast if this assembly has no shared filter ID configured
+      if(filterId == null) {
+         return false;
+      }
+
+      // skip cluster broadcast if the user has fewer than 2 viewsheets open across
+      // all cluster nodes — there's nothing to synchronize
+      if(viewsheetService.getRuntimeViewsheetCount(principal) < 2) {
+         return false;
+      }
+
       // for shared selection, refresh vsobject command should specified
       // process, add "SHARED_HINT" to make the RefreshVSObjectCommand not
       // equals the original RefreshVSObjectCommand, see bug1247647231402
-      dispatcher.setSharedHint(assembly.getAbsoluteName());
+      final String sharedHint = assembly.getAbsoluteName();
+      final String userName = dispatcher.getUserName();
+      dispatcher.setSharedHint(sharedHint);
 
-      List<ChangedViewsheet> changed = viewsheetService.invokeOnAll(new ApplyFiltersTask(vs.getID(), assembly, principal))
-         .stream()
-         .flatMap(Collection::stream)
-         .toList();
+      CompletableFuture.runAsync(() -> {
+         List<ChangedViewsheet> changed = viewsheetService.invokeOnAll(
+               new ApplyFiltersTask(vs.getID(), assembly, filterId, principal))
+            .stream()
+            .flatMap(Collection::stream)
+            .toList();
 
-      for(ChangedViewsheet rvs : changed) {
-         SimpMessageHeaderAccessor headerAccessor = SimpMessageHeaderAccessor.create();
-         headerAccessor.setSessionId(rvs.getSocketSessionId());
-         headerAccessor.setLeaveMutable(true);
-         headerAccessor.setNativeHeader(
-            CommandDispatcher.COMMAND_TYPE_HEADER, "UpdateSharedFiltersCommand");
-         headerAccessor.setNativeHeader(CommandDispatcher.RUNTIME_ID_ATTR, rvs.getId());
-         String user = rvs.getSocketUserName();
+         for(ChangedViewsheet rvs : changed) {
+            try {
+               SimpMessageHeaderAccessor headerAccessor = SimpMessageHeaderAccessor.create();
+               headerAccessor.setSessionId(rvs.getSocketSessionId());
+               headerAccessor.setLeaveMutable(true);
+               headerAccessor.setNativeHeader(
+                  CommandDispatcher.COMMAND_TYPE_HEADER, "UpdateSharedFiltersCommand");
+               headerAccessor.setNativeHeader(CommandDispatcher.RUNTIME_ID_ATTR, rvs.getId());
+               String user = rvs.getSocketUserName();
 
-         if(user == null) {
-            user = dispatcher.getUserName();
+               if(user == null) {
+                  user = userName;
+               }
+
+               commandDispatcherService.convertAndSendToUser(
+                  user, CommandDispatcher.COMMANDS_TOPIC,
+                  new UpdateSharedFiltersCommand(), headerAccessor.getMessageHeaders());
+            }
+            catch(Exception ex) {
+               LOG.warn("Failed to send shared filter notification for viewsheet {}", rvs.getId(), ex);
+            }
          }
-
-         messagingTemplate.convertAndSendToUser(
-            user, CommandDispatcher.COMMANDS_TOPIC,
-            new UpdateSharedFiltersCommand(), headerAccessor.getMessageHeaders());
-      }
+      });
 
       dispatcher.setSharedHint(null);
       return false;
    }
 
-   private final SimpMessagingTemplate messagingTemplate;
+   private final CommandDispatcherService commandDispatcherService;
    private final ViewsheetService viewsheetService;
    private static final Logger LOG = LoggerFactory.getLogger(SharedFilterService.class);
 
@@ -123,10 +148,15 @@ public class SharedFilterService {
       private final String socketUserName;
    }
 
-   private static final class ApplyFiltersTask implements ViewsheetService.Task<ArrayList<ChangedViewsheet>> {
-      public ApplyFiltersTask(String rid, VSAssembly assembly, Principal principal) {
+   private static final class ApplyFiltersTask
+      implements ViewsheetService.Task<ArrayList<ChangedViewsheet>>
+   {
+      public ApplyFiltersTask(String rid, VSAssembly assembly, String filterId,
+                              Principal principal)
+      {
          this.rid = rid;
          this.assembly = assembly;
+         this.filterId = filterId;
          this.principal = principal;
       }
 
@@ -146,7 +176,7 @@ public class SharedFilterService {
                boolean changed = false;
 
                if(box.isPresent()) {
-                  changed = box.get().processSharedFilters(assembly, null, true);
+                  changed = box.get().processSharedFilters(assembly, filterId, null, true);
                }
 
                if(changed) {
@@ -169,6 +199,7 @@ public class SharedFilterService {
 
       private final String rid;
       private final VSAssembly assembly;
+      private final String filterId;
       private final Principal principal;
    }
 }
