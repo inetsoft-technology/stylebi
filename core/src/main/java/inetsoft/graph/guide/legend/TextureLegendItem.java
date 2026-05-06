@@ -57,6 +57,10 @@ public class TextureLegendItem extends LegendItem {
 
       g2.setColor(getSymbolColor());
 
+      if(frame.getLegendSpec().isSymbolRoundCorners()) {
+         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+      }
+
       if(gt != null) {
          gt.paint(g2, rect);
       }

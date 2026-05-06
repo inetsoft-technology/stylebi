@@ -268,7 +268,7 @@ public abstract class LegendItem extends BoundedContainer {
                                                boolean allowRound)
    {
       if(allowRound && frame.getLegendSpec().isSymbolRoundCorners()) {
-         double arc = symbolSize * SYMBOL_CORNER_RADIUS_RATIO * 2;
+         double arc = Math.min(w, h) * SYMBOL_CORNER_RADIUS_RATIO * 2;
          return new RoundRectangle2D.Double(x, y, w, h, arc, arc);
       }
 
@@ -297,7 +297,7 @@ public abstract class LegendItem extends BoundedContainer {
 
    public static final int DEFAULT_SYMBOL_SIZE = 12;
    /** Corner-radius of legend symbols, as a fraction of symbol size. */
-   public static final double SYMBOL_CORNER_RADIUS_RATIO = 0.3;
+   static final double SYMBOL_CORNER_RADIUS_RATIO = 0.3;
    protected static final int LINESYMBOL_WIDTH = 30;
    protected static final Color SYMBOL_BORDER = new Color(0xa3, 0xa3, 0xa3);
    protected static final Color SYMBOL_COLOR = new Color(0x759595);

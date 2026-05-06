@@ -130,4 +130,34 @@ describe("LegendFormatGeneralPane Unit Tests", () => {
          done();
       });
    });
+
+   it("should show Round Symbol Corner checkbox when symbolRoundCornersVisible is true", (done) => {
+      let fixture: ComponentFixture<LegendFormatGeneralPane> = TestBed.createComponent(LegendFormatGeneralPane);
+      let model: LegendFormatGeneralPaneModel = createModel();
+      model.symbolRoundCornersVisible = true;
+      fixture.componentInstance.model = model;
+      fixture.componentInstance.form = new FormGroup({});
+      fixture.detectChanges();
+
+      fixture.whenStable().then(() => {
+         let label: any = fixture.nativeElement.querySelector("label[for='symbolRoundCorners']");
+         expect(label).toBeTruthy();
+         done();
+      });
+   });
+
+   it("should hide Round Symbol Corner checkbox when symbolRoundCornersVisible is false", (done) => {
+      let fixture: ComponentFixture<LegendFormatGeneralPane> = TestBed.createComponent(LegendFormatGeneralPane);
+      let model: LegendFormatGeneralPaneModel = createModel();
+      model.symbolRoundCornersVisible = false;
+      fixture.componentInstance.model = model;
+      fixture.componentInstance.form = new FormGroup({});
+      fixture.detectChanges();
+
+      fixture.whenStable().then(() => {
+         let label: any = fixture.nativeElement.querySelector("label[for='symbolRoundCorners']");
+         expect(label).toBeFalsy();
+         done();
+      });
+   });
 });

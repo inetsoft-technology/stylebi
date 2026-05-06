@@ -55,6 +55,11 @@ public class ColorLegendItem extends LegendItem {
       Color color = frame.getColor(getValue());
       color = GTool.getColor(color, getAlpha());
       g2.setColor(color);
+
+      if(frame.getLegendSpec().isSymbolRoundCorners()) {
+         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+      }
+
       g2.fill(rect);
 
       // best aesthetics, only draw border for 'white' color

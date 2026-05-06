@@ -66,7 +66,7 @@ public class SizeLegendItem extends LegendItem {
       g2.fill(createSymbolRect(x0, y, r, symbolSz, r >= minRoundWidth));
       g2.setColor(SYMBOL_BORDER);
 
-      if(!GTool.isVectorGraphics(g2)) {
+      if(!GTool.isVectorGraphics(g2) && !frame.getLegendSpec().isSymbolRoundCorners()) {
          g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
       }
 
