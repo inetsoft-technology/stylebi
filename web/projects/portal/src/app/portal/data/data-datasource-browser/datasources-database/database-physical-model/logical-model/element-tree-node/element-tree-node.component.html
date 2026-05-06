@@ -15,7 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="tree-node hover-bg-primary truncate-parent"
+<div class="logical-model-tree-node tree-node hover-bg-primary truncate-parent"
      [class.txt-danger]="node.errorMessage"
      [class.bg-selected]="isNodeSelected()"
      (click)="select($event)"
@@ -25,30 +25,32 @@
      (mouseleave)="focusin = false"
      [style.padding-left.px]="indentLevel * INDENT_SIZE">
   <span *ngIf="!node.leaf"
-        class="{{getToggleIcon()}} tree-node-toggle truncate-addon cursor-pointer"
+        class="{{getToggleIcon()}} logical-model-tree-node__toggle tree-node-toggle truncate-addon cursor-pointer"
         (click)="toggleNode()"></span>
-  <span class="tree-node-icon" [ngClass]="getIcon()"></span>
-  <label class="tree-node-label truncate-text" [class.disable-actions-fade]="node.baseElement">
+  <span class="logical-model-tree-node__icon tree-node-icon" [ngClass]="getIcon()"></span>
+  <label class="logical-model-tree-node__label tree-node-label truncate-text"
+         [class.disable-actions-fade]="node.baseElement">
     <span [attr.title]="node.errorMessage || node.name"
           placement="bottom">{{ node.name }}</span>
   </label>
-  <div class="logical-toolbar" [style.visibility]="focusin && moveEnabled ? 'visible' : 'hidden'">
+  <div class="logical-model-tree-node__actions logical-toolbar"
+       [style.visibility]="focusin && moveEnabled ? 'visible' : 'hidden'">
     <button type="button"
-            class="btn btn-sm btn-light-no-bg"
+            class="logical-model-tree-node__action btn btn-sm btn-light-no-bg"
             [disabled]="firstNode"
             title="_#(Move Up)"
             (click)="moveNodeUp()">
       <i class="chevron-circle-arrow-up-icon"></i>
     </button>
     <button type="button"
-            class="btn btn-sm btn-light-no-bg"
+            class="logical-model-tree-node__action btn btn-sm btn-light-no-bg"
             [disabled]="lastNode"
             title="_#(Move Down)"
             (click)="moveNodeDown()">
       <i class="chevron-circle-arrow-down-icon"></i>
     </button>
     <button type="button" *ngIf="deleteEnable(entityIndex, attrIndex)"
-            class="btn btn-sm btn-light-no-bg"
+            class="logical-model-tree-node__action btn btn-sm btn-light-no-bg"
             title="_#(Delete)"
             (click)="onDeleteEntity.emit()">
       <i class="trash-icon"></i>

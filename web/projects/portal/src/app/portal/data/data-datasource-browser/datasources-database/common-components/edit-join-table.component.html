@@ -15,9 +15,8 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="physical-graph-table-title font-weight-bold jsplumb-draggable-handle bb-gray txt-dark"
-     [class.ws-header-secondary-bg-color]="!dragging"
-     [class.ws-header-primary-bg-color]="dragging">
+<div class="physical-graph-table-title jsplumb-draggable-handle bb-gray txt-dark"
+     [class.physical-graph-table-title--dragging]="dragging">
   {{table.name}}
 </div>
 

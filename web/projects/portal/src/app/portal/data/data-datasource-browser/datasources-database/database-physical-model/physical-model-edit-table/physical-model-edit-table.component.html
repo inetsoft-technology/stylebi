@@ -15,9 +15,9 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="flex-fixed-container h-100">
-  <div class="flex-fixed-content d-flex">
-    <physical-table-joins class="w-100" *ngIf="editJoins"
+<div class="physical-model-edit-table">
+  <div class="physical-model-edit-table__content">
+    <physical-table-joins class="physical-model-edit-table__joins" *ngIf="editJoins"
                           [table]="table"
                           [disabled]="disabled"
                           [physicalModel]="physicalModel"

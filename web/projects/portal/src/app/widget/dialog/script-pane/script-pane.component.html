@@ -15,11 +15,12 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div [class.flex-col-container]="fullContainer">
-  <div class="container-fluid" [class.flex-col-container]="fullContainer">
-    <div class="row form-row-float-label">
-      <div class="col ps-0 pe-1" *ngIf="columnTreeRoot && columnTreeEnabled"
-           [class.col-6]="columnTreeRoot && columnTreeEnabled && functionOperatorTreeRoot">
+<div class="script-pane" [class.flex-col-container]="fullContainer">
+  <div class="script-pane__layout" [class.flex-col-container]="fullContainer">
+    <div class="script-pane__trees form-row-float-label">
+      <div class="script-pane__tree-pane script-pane__tree-pane--column"
+           *ngIf="columnTreeRoot && columnTreeEnabled"
+           [class.script-pane__tree-pane--split]="columnTreeRoot && columnTreeEnabled && functionOperatorTreeRoot">
         <div class="bordered-box bd-gray column-tree"
              [class.grayed-out-field]="!columnTreeEnabled"
              [class.disable-actions]="!columnTreeEnabled">
@@ -36,8 +37,9 @@
           </virtual-scroll-tree>
         </div>
       </div>
-      <div class="col ps-1 pe-0" *ngIf="functionOperatorTreeRoot"
-           [class.col-6]="columnTreeRoot && columnTreeEnabled && functionOperatorTreeRoot">
+      <div class="script-pane__tree-pane script-pane__tree-pane--function"
+           *ngIf="functionOperatorTreeRoot"
+           [class.script-pane__tree-pane--split]="columnTreeRoot && columnTreeEnabled && functionOperatorTreeRoot">
         <div class="bordered-box bd-gray function-tree"
              [class.grayed-out-field]="!functionTreeEnabled"
              [class.disable-actions]="!functionTreeEnabled">
@@ -51,9 +53,9 @@
         </div>
       </div>
     </div>
-    <div *ngIf="!sql" class="row instantTooltip row-cols-auto">
-      <div class="g-0" #scriptHelp [innerHTML]="'_#(composer.vs.scriptHelp)'"></div>
-      <span class="g-0">
+    <div *ngIf="!sql" class="script-pane__hint script-pane__hint--inline instantTooltip">
+      <div #scriptHelp [innerHTML]="'_#(composer.vs.scriptHelp)'"></div>
+      <span>
         &nbsp;(<a class="cursor-pointer" [ngbTooltip]="shortcutTooltip"
             triggers="click:blur" placement="bottom">_#(More)...</a>)
       </span>
@@ -64,20 +66,20 @@
         </div>
       </ng-template>
     </div>
-    <div *ngIf="sql" class="row">
-      <div class="g-0">
+    <div *ngIf="sql" class="script-pane__hint">
+      <div>
         <b>_#(composer.vs.scriptShortcut1)</b> _#(composer.vs.scriptShortcutHelp1)&nbsp;
         <b>_#(composer.vs.scriptShortcut2)</b> _#(composer.vs.scriptShortcutHelp2)
       </div>
     </div>
-    <div class="row" [class.stretch-empty]="fullContainer" outOfZone
+    <div class="script-pane__editor-shell" [class.stretch-empty]="fullContainer" outOfZone
          (onKeydown)="blockKeys($event)" (contextmenu)="rightClick($event)">
-      <div #scriptEditorContainer class="col-12 ps-0 pe-0 bd-gray" [class.full-container]="fullContainer">
+      <div #scriptEditorContainer class="script-pane__editor bd-gray" [class.full-container]="fullContainer">
         <textarea #scriptEditor></textarea>
       </div>
     </div>
-    <div class="row">
-      <div class="g-0" #scriptHelp2 [innerHTML]="'_#(composer.vs.scriptHelp2)'"></div>
+    <div class="script-pane__hint">
+      <div #scriptHelp2 [innerHTML]="'_#(composer.vs.scriptHelp2)'"></div>
     </div>
   </div>
   <div *ngIf="expressionMissing" class="alert alert-danger"

@@ -61,11 +61,7 @@
   .repository-tree {
     height: 100%;
     display: block;
-    overflow: hidden;
-
-    &:hover {
-      overflow: auto;
-    }
+    overflow: auto;
 
     &.mobile-tree {
       overflow: auto;
@@ -83,11 +79,21 @@
     flex-wrap: nowrap;
     flex-direction: row;
     width: 100%;
+    align-items: center;
+
+    .form-control {
+      height: var(--inet-control-height-md);
+      min-height: var(--inet-control-height-md);
+      padding-block: 0;
+      padding-inline: var(--inet-space-4);
+      font-size: var(--inet-font-size-base);
+    }
 
     .close-icon {
       position: absolute;
-      top: 3px;
-      right: 3px;
+      top: 50%;
+      transform: translateY(-50%);
+      right: 6px;
       opacity: 0.4;
       cursor: pointer;
 

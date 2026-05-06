@@ -15,57 +15,77 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+.select-worksheet-dialog {
+  padding: var(--inet-space-5);
+}
+
+.select-worksheet-dialog__section {
+  margin: 0;
+}
+
 .tree-container {
-   height: 25em;
+  height: 25em;
+}
+
+.select-worksheet-dialog__tree-shell {
+  padding: var(--inet-space-3);
 }
 
 .select-worksheet-legend {
-   display: flex;
-   align-items: center;
+  display: flex;
+  align-items: center;
 }
 
 .parameter-container {
-   margin-top: 15px;
-   margin-bottom: 15px;
+  margin-top: var(--inet-space-5);
+  margin-bottom: 0;
 }
 
 .field-combo {
-   display: inline-flex;
-   align-items: flex-start;
-   width: 100%;
+  display: inline-flex;
+  align-items: flex-start;
+  width: 100%;
 
-   .field-combo-toggle {
-      padding-right: 3px;
-      padding-left: 3px;
-      width: 160px;
-      border-radius: 0.25rem;
+  .field-combo-toggle {
+    padding-right: 3px;
+    padding-left: 3px;
+    width: 160px;
+    border-radius: 0.25rem;
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+
+    span {
       flex-grow: 1;
-      display: flex;
-      align-items: center;
-
-      span {
-         flex-grow: 1;
-      }
-   }
+    }
+  }
 }
 
 .field-combo-text {
-   width: calc(100% - 20px);
-   display: inline-flex;
-   overflow: hidden;
-   text-overflow: clip;
-   white-space: nowrap;
-   cursor: default;
+  width: calc(100% - 20px);
+  display: inline-flex;
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.select-worksheet-dialog__field-text {
+  padding-left: var(--inet-space-1);
 }
 
 .field-combo-dropdown {
-   min-width: 165px;
-   max-width: 50vw;
-   max-height: 300px;
-   overflow-y: auto;
+  min-width: 165px;
+  max-width: 50vw;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 .parameter-content {
   max-height: 15em;
   overflow-y: auto;
+}
+
+.select-worksheet-dialog__parameter-content {
+  padding-top: var(--inet-space-2);
 }

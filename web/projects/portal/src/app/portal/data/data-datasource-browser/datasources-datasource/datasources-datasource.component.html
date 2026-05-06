@@ -16,58 +16,92 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div class="editor-container">
-  <div class="h-100 container-fluid flex-fixed-container">
-    <div class="row flex-fixed-content">
-      <div class="col-10 col-sm-8">
-        <datasources-datasource-editor
-          [datasource]="datasource"
-          (datasourceChanged)="datasourceChanged($event)"
-          (datasourceValid)="updateDatasourceValid($event)"
-          (onWarning)="dataNotifications.notifications.danger($event)"
-          (onSuccess)="dataNotifications.notifications.success($event)"
-          ></datasources-datasource-editor>
-        <ng-container *ngIf="datasource.tabularView && enterprise">
-          <div class="row">
-            <div class="col">
-              <label class="addition-label">_#(Additional Connections) :</label>
-            </div>
-          </div>
-          <div class="row">
-            <div class="col-10 additional-datasource">
-              <div class="bordered-box bd-gray h-100">
-                <div *ngFor="let additional of additionalList; let i = index;"
-                     class="unhighlightable" [class.selected]="additionalSelected(i)"
-                     [title]="additional.tooltip"
-                     (click)="selectAdditional($event, i)">
-                  <div>{{additional?.name}}</div>
-                </div>
-              </div>
-            </div>
-            <div class="col-2 btn-container-vertical">
-              <button type="button" class="btn btn-default" (click)="newAdditional()">_#(New)</button>
-              <button type="button" class="btn btn-default"
-                      [disabled]="selectedAdditionalIndex.length == 0"
-                      (click)="deleteAdditional()">_#(Delete)</button>
-              <button type="button" class="btn btn-default"
-                      [disabled]="selectedAdditionalIndex.length != 1"
-                      (click)="editAdditional()">_#(Edit)</button>
-              <button type="button" class="btn btn-default"
-                      [disabled]="selectedAdditionalIndex.length != 1"
-                      (click)="renameAdditional()">_#(Rename)</button>
-            </div>
-          </div>
-        </ng-container>
-        <div class="form-group text-right bottom-button-container">
-          <button type="button" class="btn btn-primary me-2"
-                  [disabled]="!datasourceValid"
-                  (click)="ok()">
-            _#(OK)
-          </button>
-          <button type="button" class="btn btn-secondary" (click)="close()">
-            _#(Cancel)
-          </button>
+  <div class="editor-content">
+    <div class="editor-query-strip">
+      <div class="editor-query-strip__status">
+        <div class="editor-query-strip__label">_#(Status)</div>
+        <div class="editor-query-strip__badge"
+             [class.is-ready]="dataSourceConnected === true"
+             [class.is-unavailable]="dataSourceConnected === false">
+          <i class="editor-query-strip__status-icon" [ngClass]="queryStatusIconClass"></i>
+          {{queryStatusLabel}}
         </div>
       </div>
+      <div class="editor-query-strip__content">
+        <div class="editor-query-strip__message">{{queryStatusMessage}}</div>
+        <div class="editor-query-strip__actions">
+          <button type="button" class="btn btn-primary"
+                  [disabled]="!canCreateQuery"
+                  (click)="createQuery()">
+            _#(New Query)
+          </button>
+          <button type="button" class="btn btn-secondary"
+                  [disabled]="loadingDataSourceStatus || !datasourcePath"
+                  (click)="refreshDataSourceStatus()">
+            _#(Refresh Status)
+          </button>
+          <div class="btn-toolbar toolbar-ghost-actions editor-query-strip__toolbar" role="toolbar">
+            <div class="btn-group" role="group">
+              <i role="button" class="btn py-1 folder-move-icon"
+                 title="_#(Move)"
+                 [class.disabled]="!currentDataSourceInfo?.deletable"
+                 (click)="moveDataSource()">
+              </i>
+              <i role="button" class="btn py-1 trash-icon"
+                 title="_#(Delete)"
+                 [class.disabled]="!currentDataSourceInfo?.deletable"
+                 (click)="deleteDataSource()">
+              </i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <datasources-datasource-editor
+      [datasource]="datasource"
+      (datasourceChanged)="datasourceChanged($event)"
+      (datasourceValid)="updateDatasourceValid($event)"
+      (onWarning)="dataNotifications.notifications.danger($event)"
+      (onSuccess)="dataNotifications.notifications.success($event)"
+      ></datasources-datasource-editor>
+    <ng-container *ngIf="datasource.tabularView && enterprise">
+      <div class="additional-connections">
+        <label class="addition-label">_#(Additional Connections) :</label>
+        <div class="additional-connections__layout">
+          <div class="additional-datasource">
+            <div class="additional-datasource-list h-100">
+              <div *ngFor="let additional of additionalList; let i = index;"
+                   class="unhighlightable" [class.selected]="additionalSelected(i)"
+                   [title]="additional.tooltip"
+                   (click)="selectAdditional($event, i)">
+                <div>{{additional?.name}}</div>
+              </div>
+            </div>
+          </div>
+          <div class="btn-container-vertical">
+            <button type="button" class="btn btn-default" (click)="newAdditional()">_#(New)</button>
+            <button type="button" class="btn btn-default"
+                    [disabled]="selectedAdditionalIndex.length == 0"
+                    (click)="deleteAdditional()">_#(Delete)</button>
+            <button type="button" class="btn btn-default"
+                    [disabled]="selectedAdditionalIndex.length != 1"
+                    (click)="editAdditional()">_#(Edit)</button>
+            <button type="button" class="btn btn-default"
+                    [disabled]="selectedAdditionalIndex.length != 1"
+                    (click)="renameAdditional()">_#(Rename)</button>
+          </div>
+        </div>
+      </div>
+    </ng-container>
+    <div class="bottom-button-container">
+      <button type="button" class="btn btn-primary me-2"
+              [disabled]="!datasourceValid"
+              (click)="ok()">
+        _#(OK)
+      </button>
+      <button type="button" class="btn btn-secondary" (click)="close()">
+        _#(Cancel)
+      </button>
     </div>
   </div>
   <data-notifications #dataNotifications></data-notifications>

@@ -15,9 +15,9 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="container-fluid" [class.full-height-container]="fullContainer">
-  <div class="row" [class.full-height-content]="fullContainer">
-    <div #scriptEditorContainer class="col-12 px-0" [class.full-container]="fullContainer">
+<div class="data-model-script-pane" [class.full-height-container]="fullContainer">
+  <div class="data-model-script-pane__content" [class.full-height-content]="fullContainer">
+    <div #scriptEditorContainer class="data-model-script-pane__editor" [class.full-container]="fullContainer">
       <textarea #scriptEditor></textarea>
     </div>
   </div>

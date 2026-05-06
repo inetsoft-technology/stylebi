@@ -15,8 +15,35 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+.logical-model-expression-dialog {
+  padding: var(--inet-space-5);
+}
+
+.logical-model-expression-dialog__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--inet-space-5);
+}
+
+.logical-model-expression-dialog__top-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--inet-space-3);
+  align-items: start;
+}
+
+.logical-model-expression-dialog__field {
+  min-width: 0;
+}
+
 .script-container {
   display: flex;
   flex-direction: column;
   width: 100%;
+}
+
+@media (max-width: 768px) {
+  .logical-model-expression-dialog__top-row {
+    grid-template-columns: 1fr;
+  }
 }

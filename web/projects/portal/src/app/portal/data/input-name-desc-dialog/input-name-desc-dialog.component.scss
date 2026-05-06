@@ -15,6 +15,28 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+.input-dialog-intro {
+   margin-bottom: 16px;
+   padding: 12px 14px;
+   background: var(--inet-panel-bg-color);
+   border: 1px solid var(--inet-default-border-color);
+   border-radius: var(--inet-radius-lg);
+}
+
+.input-dialog-intro__title {
+   margin-bottom: 6px;
+   font-size: 12px;
+   font-weight: 700;
+   letter-spacing: 0.08em;
+   text-transform: uppercase;
+   color: var(--inet-text-muted-color);
+}
+
+.input-dialog-intro__message {
+   color: var(--inet-text-color);
+   line-height: 1.55;
+}
+
 .input-desc-row {
    margin-top: 20px;
 }

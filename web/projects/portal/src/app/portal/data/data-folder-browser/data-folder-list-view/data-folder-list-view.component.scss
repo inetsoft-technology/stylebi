@@ -32,6 +32,62 @@
     text-overflow: ellipsis;
   }
 
+  .sort-header {
+    align-items: center;
+    gap: 4px;
+
+    .sort-indicator {
+      position: relative;
+      width: 10px;
+      height: 12px;
+      flex: 0 0 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 120ms ease, color 120ms ease;
+      color: var(--inet-secondary-text-color, #6e6759);
+    }
+
+    .sort-indicator::before,
+    .sort-indicator::after {
+      position: absolute;
+      left: 0;
+      font-size: 9px;
+      line-height: 1;
+    }
+
+    .sort-indicator::before {
+      content: "\2303";
+      top: -1px;
+    }
+
+    .sort-indicator::after {
+      content: "\2304";
+      bottom: -1px;
+    }
+
+    &:hover .sort-indicator {
+      opacity: 0.45;
+    }
+
+    &.is-active {
+      color: var(--inet-text-color, #2f2c25);
+
+      .sort-indicator {
+        opacity: 1;
+      }
+    }
+
+    &.is-active:not(.is-desc) .sort-indicator::after {
+      opacity: 0.22;
+    }
+
+    &.is-active.is-desc .sort-indicator::before {
+      opacity: 0.22;
+    }
+  }
+
   .hover-bg-primary.folder-list-item {
     cursor: default !important;
     padding-top: 3px;
@@ -40,5 +96,18 @@
 
   .list-label {
     cursor: pointer;
+  }
+
+  .folder-row-actions {
+    flex: 0 0 auto;
+    width: 24px;
+    justify-content: flex-end;
+  }
+
+  .folder-row-actions-cell {
+    flex: 0 0 32px;
+    display: flex;
+    justify-content: flex-end;
+    margin-left: auto;
   }
 }

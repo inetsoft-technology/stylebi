@@ -35,7 +35,7 @@
   <link rel="shortcut icon" data-th-href="@{/portal/favicon}" href="portal/favicon">
 </head>
 <body>
-<div data-th-replace="~{fragments :: navbar(${linkUri + 'portal/logo'})}"></div>
+<div data-th-replace="~{fragments :: navbar(${linkUri + 'portal/logo'}, ${linkUri})}"></div>
 <div class="container-fluid login-root">
 
   <!-- ── Background decoration ── -->

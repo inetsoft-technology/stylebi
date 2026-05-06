@@ -21,8 +21,8 @@
     <table class="table table-bordered table-sm w-100 mv-table">
       <thead class="thead-light">
         <tr>
-          <th class="table-header">
-            <input type="checkbox"
+          <th class="table-header text-center align-middle">
+            <input type="checkbox" class="form-check-input"
                    [ngModel]="isModelAllSelected()" (ngModelChange)="selectionAll($event)">
           </th>
           <th class="table-header" *ngFor="let header of tableHeaders" sortColumn
@@ -33,7 +33,7 @@
       </thead>
       <tbody>
         <tr *ngFor="let model of models; let i = index">
-          <td><input type="checkbox" [ngModel]="isModelSelected(model)" (ngModelChange)="selectionChanged($event, model)"></td>
+          <td class="text-center align-middle"><input type="checkbox" class="form-check-input" [ngModel]="isModelSelected(model)" (ngModelChange)="selectionChanged($event, model)"></td>
           <td *ngFor="let header of tableHeaders">{{model[header.name]}}</td>
         </tr>
         <tr *ngIf="!models || models.length == 0">

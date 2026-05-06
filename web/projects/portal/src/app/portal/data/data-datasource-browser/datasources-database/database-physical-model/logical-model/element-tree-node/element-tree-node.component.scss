@@ -15,26 +15,42 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.tree-node {
+.logical-model-tree-node {
   white-space: nowrap;
   display: flex;
   align-items: center;
-  align-content: center;
+  gap: var(--inet-space-1);
   user-select: none;
   margin-left: 5px;
+  min-height: 32px;
+  padding-right: var(--inet-space-2);
+  border-radius: var(--inet-border-radius-sm, 4px);
 }
 
-tree-node:first-of-type > .tree-node {
+tree-node:first-of-type > .logical-model-tree-node {
   padding-top: 4px;
 }
 
-.tree-node label.tree-node-label {
+.logical-model-tree-node__toggle,
+.logical-model-tree-node__icon {
+  flex: 0 0 auto;
+}
+
+.logical-model-tree-node__label {
   font-weight: 400;
   line-height: normal;
-  padding-left: 4px;
   margin-bottom: 0;
-  flex-grow: 1;
-  flex-shrink: 1;
-  flex-basis: auto;
+  flex: 1 1 auto;
   justify-content: flex-start;
+}
+
+.logical-model-tree-node__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: var(--inet-space-1);
+}
+
+.logical-model-tree-node__action {
+  flex: 0 0 auto;
 }

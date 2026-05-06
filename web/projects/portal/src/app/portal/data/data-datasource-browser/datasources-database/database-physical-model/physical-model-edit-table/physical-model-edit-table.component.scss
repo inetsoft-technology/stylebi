@@ -15,24 +15,23 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.flex-fixed-container {
+.physical-model-edit-table {
   display: flex;
   flex-direction: column;
-  flex-wrap: nowrap;
+  height: 100%;
+  min-height: 0;
+}
+
+.physical-model-edit-table__content {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
+}
 
-  .flex-fixed-content {
-    flex-grow: 1;
-    overflow-x: hidden;
-    overflow-y: auto;
-
-    &.content-overflow-all {
-      overflow: auto;
-    }
-
-    &.d-inline-flex > tree {
-      flex-grow: 1;
-    }
-  }
+.physical-model-edit-table__joins {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
 }
 

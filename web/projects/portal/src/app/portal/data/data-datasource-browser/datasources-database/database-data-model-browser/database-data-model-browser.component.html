@@ -19,18 +19,29 @@
   <div class="d-flex flex-column align-items-stretch p-0 h-100"
        [class.col-12]="!showDetailsItem"
        [ngClass]="{'col-6 col-sm-8 col-md-9' : !!showDetailsItem}">
-    <database-data-model-toolbar [database]="databaseName" [model]="listModel"
-                                 [searchQuery]="searchQuery" [searchVisible]="searchVisible"
-                                 [isvpm]="false" [isRoot]="isRoot()"
-                                 [moveDisable]="moveDisable" [selectedItems]="selectedItems"
-                                 (onAddFolder)="addDataModelFolder()"
-                                 (onAddLM)="addLogicalModel()"
-                                 (onAddPhysicalView)="addPhysicalView()"
-                                 (onDeleteSelected)="deleteSelected()"
-                                 (onMoveSelected)="moveSelected()"
-                                 (onToggleSelection)="toggleSelectionState()" (onSearch)="search($event)">
-    </database-data-model-toolbar>
-    <div class="d-flex align-items-center ps-1 py-1" *ngIf="searchView">
+    <div class="data-model-workspace-header">
+      <div class="data-model-workspace-heading">
+        <div class="data-model-workspace-eyebrow">_#(Data Model)</div>
+        <div class="data-model-workspace-title">
+          {{currentFolderPathString || rootLabel}}
+        </div>
+        <div class="data-model-workspace-subtitle">
+          _#(Browse and manage physical views and logical models for this data source.)
+        </div>
+      </div>
+      <database-data-model-toolbar [database]="databaseName" [model]="listModel"
+                                   [searchQuery]="searchQuery" [searchVisible]="searchVisible"
+                                   [isvpm]="false" [isRoot]="isRoot()"
+                                   [moveDisable]="moveDisable" [selectedItems]="selectedItems"
+                                   (onAddFolder)="addDataModelFolder()"
+                                   (onAddLM)="addLogicalModel()"
+                                   (onAddPhysicalView)="addPhysicalView()"
+                                   (onDeleteSelected)="deleteSelected()"
+                                   (onMoveSelected)="moveSelected()"
+                                   (onToggleSelection)="toggleSelectionState()" (onSearch)="search($event)">
+      </database-data-model-toolbar>
+    </div>
+    <div class="data-model-search-banner" *ngIf="searchView">
       <i class="close-circle-icon icon-size-small action-style me-1" (click)="clearSearch()"></i>
       <span>
           <b>_#(data.datasets.searchResults):</b> {{currentSearchQuery}} <b>_#(data.datasets.searchIn)</b> {{currentFolderPathString || rootLabel}}
@@ -51,9 +62,88 @@
     </asset-item-list-view>
   </div>
   <div class="flex h-100 col-6 col-sm-4 col-md-3 p-0" *ngIf="!!showDetailsItem">
-    <asset-description [selectedFile]="showDetailsItem"
-                       (onClose)="setShowDetailsItem(null)">
-    </asset-description>
+    <div class="data-model-detail-pane">
+      <div class="data-model-detail-pane__header">
+        <div class="data-model-detail-pane__eyebrow">{{getDetailEyebrow(showDetailsItem)}}</div>
+        <div class="data-model-detail-pane__title-row">
+          <h2 class="data-model-detail-pane__title">{{showDetailsItem.name}}</h2>
+          <i role="button" class="close-icon data-model-detail-pane__close"
+             title="_#(Close)"
+             (click)="setShowDetailsItem(null)"></i>
+        </div>
+        <div class="data-model-detail-pane__subtitle">{{getDetailSubtitle(showDetailsItem)}}</div>
+      </div>
+
+      <div class="data-model-detail-pane__actions">
+        <div class="data-model-detail-pane__action-row">
+          <button type="button" class="btn btn-primary"
+                  [disabled]="!showDetailsItem?.editable"
+                  (click)="editModel(showDetailsItem)">
+            _#(Edit)
+          </button>
+          <div class="btn-toolbar toolbar-ghost-actions" role="toolbar">
+            <div class="btn-group" role="group">
+              <i role="button" class="btn py-1 folder-move-icon"
+                 title="_#(Move)"
+                 [class.disabled]="!canMoveDetailItem(showDetailsItem)"
+                 (click)="moveDetailItem()"></i>
+              <i role="button" class="btn py-1 view-detail-meta-icon"
+                 title="_#(Rename)"
+                 [class.disabled]="!canRenameDetailItem(showDetailsItem)"
+                 (click)="renameModel(showDetailsItem)"></i>
+              <i role="button" class="btn py-1 trash-icon"
+                 title="_#(Delete)"
+                 [class.disabled]="!canDeleteDetailItem(showDetailsItem)"
+                 (click)="deleteDetailItem()"></i>
+            </div>
+          </div>
+        </div>
+        <div class="data-model-detail-pane__action-row data-model-detail-pane__action-row--secondary"
+             *ngIf="canAddLogicalModel(showDetailsItem) || canAddExtendedModel(showDetailsItem)">
+          <button type="button" class="btn btn-secondary"
+                  *ngIf="canAddLogicalModel(showDetailsItem)"
+                  (click)="addLogicalModel0(showDetailsItem)">
+            _#(New Logical Model)
+          </button>
+          <button type="button" class="btn btn-secondary"
+                  *ngIf="canAddExtendedModel(showDetailsItem)"
+                  (click)="addExtendModel(showDetailsItem)">
+            {{isPhysicalView(showDetailsItem) ? '_#(Add Extended View)' : '_#(Add Extended Model)'}}
+          </button>
+        </div>
+      </div>
+
+      <div class="data-model-detail-pane__section">
+        <div class="data-model-detail-pane__section-title">_#(Overview)</div>
+        <div class="data-model-detail-pane__meta-grid">
+          <div class="data-model-detail-pane__meta-card">
+            <div class="data-model-detail-pane__meta-label">_#(Type)</div>
+            <div class="data-model-detail-pane__meta-value">{{getTypeLabel(showDetailsItem)}}</div>
+          </div>
+          <div class="data-model-detail-pane__meta-card">
+            <div class="data-model-detail-pane__meta-label">_#(Created By)</div>
+            <div class="data-model-detail-pane__meta-value">{{showDetailsItem.createdBy || '-'}}</div>
+          </div>
+          <div class="data-model-detail-pane__meta-card">
+            <div class="data-model-detail-pane__meta-label">_#(Creation Date)</div>
+            <div class="data-model-detail-pane__meta-value">{{showDetailsItem.createdDateLabel || '-'}}</div>
+          </div>
+          <div class="data-model-detail-pane__meta-card" *ngIf="getBasedView(showDetailsItem)">
+            <div class="data-model-detail-pane__meta-label">_#(data.datasources.basedView)</div>
+            <div class="data-model-detail-pane__meta-value">{{getBasedView(showDetailsItem)}}</div>
+          </div>
+          <div class="data-model-detail-pane__meta-card" *ngIf="isLogicalModel(showDetailsItem) && getConnectionLabel(showDetailsItem)">
+            <div class="data-model-detail-pane__meta-label">_#(Connection)</div>
+            <div class="data-model-detail-pane__meta-value">{{getConnectionLabel(showDetailsItem)}}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="data-model-detail-pane__section" *ngIf="showDetailsItem.description">
+        <div class="data-model-detail-pane__section-title">_#(Description)</div>
+        <div class="data-model-detail-pane__description">{{showDetailsItem.description}}</div>
+      </div>
+    </div>
   </div>
 </div>
 <notifications #notifications class="notifications-portal-data" [timeout]="5000"></notifications>

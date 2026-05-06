@@ -18,6 +18,7 @@
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
 import { AbstractControl, UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
 import { HttpClient } from "@angular/common/http";
+import { HelpUrlService } from "../../../../../../../widget/help-link/help-url.service";
 import { EntityModel } from "../../../../../model/datasources/database/physical-model/logical-model/entity-model";
 import { AttributeModel } from "../../../../../model/datasources/database/physical-model/logical-model/attribute-model";
 import { NotificationsComponent } from "../../../../../../../widget/notifications/notifications.component";
@@ -45,18 +46,20 @@ export class LogicalModelExpressionDialog implements OnInit {
    @ViewChild("notifications") notifications: NotificationsComponent;
    name: string = "";
    expression: string = "";
+   scriptHelpUrl: string = "";
    form: UntypedFormGroup;
    columnTreeRoot: TreeNodeModel;
    operatorTreeRoot: TreeNodeModel;
    functionTreeRoot: TreeNodeModel;
    cursor: {line: number, ch: number};
 
-   constructor(private http: HttpClient) {
+   constructor(private http: HttpClient, private helpUrlService: HelpUrlService) {
    }
 
    ngOnInit() {
       this.initFormControl();
       this.loadFields();
+      this.helpUrlService.getScriptHelpUrl().subscribe(url => this.scriptHelpUrl = url);
 
       this.functionTreeRoot = {
          label: "_#(js:Functions)",

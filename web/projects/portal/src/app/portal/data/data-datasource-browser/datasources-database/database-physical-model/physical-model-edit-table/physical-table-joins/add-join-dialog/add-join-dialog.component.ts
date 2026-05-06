@@ -39,7 +39,8 @@ const CHECK_JOIN_EXIST_URI: string = "../api/data/physicalmodel/join/exist";
 
 @Component({
    selector: "add-join-dialog",
-   templateUrl: "add-join-dialog.component.html"
+   templateUrl: "add-join-dialog.component.html",
+   styleUrls: ["add-join-dialog.component.scss"]
 })
 export class AddJoinDialog implements OnInit, AfterViewInit {
    @Input() database: string;

@@ -27,10 +27,10 @@
     <div class="input-group col-auto">
       <input type="text" class="form-control" placeholder="_#(Link)" aria-label="_#(Link)"
              readonly [ngModel]="link"/>
-      <button class="btn btn-primary" type="button" title="_#(Copy)" ngxClipboard
+      <button class="btn btn-default" type="button" title="_#(Copy)" ngxClipboard
               (click)="showNotification()"
               [cbContent]="link" (cbOnSuccess)="copied = true">
-        <i class="share-link-copy-icon align-middle text-white"></i>
+        <i class="share-link-copy-icon align-middle"></i>
         <span class="visually-hidden">_#(Copy)</span>
       </button>
     </div>
@@ -42,10 +42,10 @@
     <div class="input-group col-auto">
       <input type="text" class="form-control" placeholder="_#(Link)"
              aria-label="_#(Link)" readonly [ngModel]="iframe"/>
-      <button class="btn btn-primary" type="button" title="_#(Copy)"
+      <button class="btn btn-default" type="button" title="_#(Copy)"
               (click)="showNotification()"
               ngxClipboard [cbContent]="iframe" (cbOnSuccess)="copied = true">
-        <i class="share-link-copy-icon  align-middle text-white"></i>
+        <i class="share-link-copy-icon align-middle"></i>
         <span class="visually-hidden">_#(Copy)</span>
       </button>
     </div>

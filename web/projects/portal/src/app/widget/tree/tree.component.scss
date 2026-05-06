@@ -31,7 +31,7 @@
       position: sticky;
       top: 0;
       z-index: 1;
-      background: var(--inet-dialog-bg-color);
+      background: var(--inet-float-label-bg-color, var(--inet-portal-side-panel-bg-color));
     }
 
     .search-input-container {
@@ -78,6 +78,7 @@
   overflow: hidden;
 
   &:hover {
-    overflow: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 }

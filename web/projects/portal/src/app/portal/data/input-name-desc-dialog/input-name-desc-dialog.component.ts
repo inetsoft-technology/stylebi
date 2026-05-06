@@ -60,6 +60,8 @@ export class InputNameDescDialog implements OnChanges, OnInit {
    @Input() value: string;
    @Input() descLabel: string = "_#(js:Description)";
    @Input() description: string = "";
+   @Input() introTitle: string = "";
+   @Input() introMessage: string = "";
    @Input() hasDuplicateCheck: (string) => Observable<boolean>;
    @Input() duplicateMessage: string = "_#(js:Duplicate Name)";
    @Input() helpLinkKey: string;

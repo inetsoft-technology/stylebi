@@ -28,7 +28,7 @@
             <input class="form-control d-none" id="dashboard" formControlName="dashboard" readonly
                    placeholder="_#(Select a Dashboard)" aria-label="select a Dashboard"
                    [ngModel]="getSheetPath(generalActionModel.sheet)" [class.is-invalid]="selectSheetError"/>
-            <button type="button" class="btn btn-default" (click)="showSelectDashboardDialog()">
+            <button type="button" class="btn btn-secondary" (click)="showSelectDashboardDialog()">
               _#(Select)
             </button>
             <button type="button" class="btn btn-default"

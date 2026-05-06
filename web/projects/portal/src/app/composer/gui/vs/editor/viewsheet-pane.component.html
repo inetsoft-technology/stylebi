@@ -149,7 +149,7 @@
             <option *ngFor="let layout of vs.layouts">{{layout}}</option>
           </select>
         </form>
-        <button type="button" class="btn btn-outline-light p-0 ms-auto" (click)="changeSearchMode()" title="_#(Search)">
+        <button type="button" class="btn btn-default p-0 ms-auto" (click)="changeSearchMode()" title="_#(Search)">
           <i class="search-icon icon-size-medium icon-color-default d-flex" aria-hidden="true"></i>
           <span class="visually-hidden">_#(Search)</span>
         </button>
@@ -162,19 +162,19 @@
         </div>
         <div class="p-1 d-flex">
           <button (click)="previousFocus()"
-                  class="btn btn-outline-light p-0"
+                  class="btn btn-default p-0"
                   title="_#(Previous)"
                   [disabled]="searchResultCount == 0">
             <i class="upward-icon icon-color-default cursor-pointer hover-bg-primary d-flex" aria-hidden="true"></i>
           </button>
           <button (click)="nextFocus()"
                   title="_#(Next)"
-                  class="btn btn-outline-light p-0"
+                  class="btn btn-default p-0"
                   [disabled]="searchResultCount == 0">
             <i class="downward-icon icon-color-default cursor-pointer hover-bg-primary d-flex" aria-hidden="true"></i>
           </button>
           <button (click)="changeSearchMode()"
-                  class="btn btn-outline-light p-0"
+                  class="btn btn-default p-0"
                   title="_#(Clear)">
             <i class="close-circle-icon icon-color-default cursor-pointer hover-bg-primary d-flex" aria-hidden="true"></i>
           </button>

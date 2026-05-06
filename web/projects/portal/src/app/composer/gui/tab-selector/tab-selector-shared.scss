@@ -39,11 +39,6 @@
   flex-grow: 1;
 }
 
-.tabs-bottom.nav-tabs > li > a:hover,
-.tabs-bottom.nav-tabs > li > a:focus {
-  border-color: transparent;
-}
-
 .nav-tabs .nav-item {
-  margin-bottom: 1px;
+  margin-bottom: 0;
 }

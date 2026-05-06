@@ -20,6 +20,7 @@ export enum DatasourceTreeAction {
    RENAME = "RENAME",
    EDIT = "EDIT",
    DELETE = "DELETE",
+   MATERIALIZE = "MATERIALIZE",
    NEW_DATASOURCE = "NEW_DATASOURCE",
    NEW_WORKSHEET = "NEW_WORKSHEET"
 }

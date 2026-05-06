@@ -16,22 +16,29 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div class="data-model-edit-pane">
-  <div class="d-flex data-model-toolbar">
-    <div class="data-model-title">
-      <i class="logical-model-icon"></i>
-      <span class="data-model-name" [attr.title]="displayTitle">
-          {{displayTitle}}
-        </span>
+  <div class="data-model-toolbar">
+    <div class="data-model-toolbar__main">
+      <div class="data-model-title">
+        <div class="data-model-title__text">
+          <div class="data-model-title__eyebrow">_#(Logical Model)</div>
+          <span class="data-model-name" [attr.title]="displayTitle">{{displayTitle}}</span>
+        </div>
+      </div>
     </div>
-    <div class="btn-group btn-group-sm px-2 py-1">
-      <button type="button" class="btn btn-light-no-bg" [attr.title]="'_#(Save)'"
-              [disabled]="!isModified || form.invalid" (click)="save()">
-        <i class="save-icon"></i>
+    <div class="data-model-toolbar__actions">
+      <button type="button" class="btn btn-primary"
+              [disabled]="!isModified || form.invalid"
+              (click)="save()">
+        _#(Save)
+      </button>
+      <button type="button" class="btn btn-secondary"
+              (click)="close()">
+        _#(Close)
       </button>
     </div>
   </div>
 
-  <div class="logical-model-content" [style.height]="lmContentHeight">
+  <div class="logical-model-content">
     <ng-container>
       <logical-model-property-pane
          [logicalModel]="logicalModel"

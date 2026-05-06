@@ -17,7 +17,7 @@
   -->
 <div class="container-fluid h-100 w-100 g-0">
   <div class="query-main-container">
-    <ul ngbNav #nav="ngbNav" class="nav-tabs" [activeId]="activeTab" (navChange)="updateQueryTab($event)">
+    <ul ngbNav #nav="ngbNav" class="nav-tabs query-tabs" [activeId]="activeTab" (navChange)="updateQueryTab($event)">
       <ng-container ngbNavItem="links">
         <a ngbNavLink>_#(Links)</a>
         <ng-template ngbNavContent>
@@ -98,6 +98,6 @@
         </ng-template>
       </ng-container>
     </ul>
-    <div [ngbNavOutlet]="nav"></div>
+    <div class="query-nav-outlet" [ngbNavOutlet]="nav"></div>
   </div>
 </div>

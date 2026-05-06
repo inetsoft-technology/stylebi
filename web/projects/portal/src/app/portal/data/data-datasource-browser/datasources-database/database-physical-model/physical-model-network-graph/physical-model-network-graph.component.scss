@@ -32,3 +32,27 @@
    width: 100%;
    height: 100%;
 }
+
+:host ::ng-deep .physical-graph-type-overlay-container {
+   pointer-events: auto;
+}
+
+:host ::ng-deep .join-overlay-label {
+   display: inline-flex;
+   flex-direction: column;
+   align-items: center;
+   gap: 2px;
+}
+
+:host ::ng-deep .join-cardinality-label {
+   padding: 1px 5px;
+   border-radius: 999px;
+   background: var(--inet-main-panel-bg-color);
+   border: 1px solid var(--inet-default-border-color);
+   color: var(--inet-text-muted-color);
+   font-size: 10px;
+   font-weight: 700;
+   letter-spacing: 0.04em;
+   line-height: 1.2;
+   white-space: nowrap;
+}

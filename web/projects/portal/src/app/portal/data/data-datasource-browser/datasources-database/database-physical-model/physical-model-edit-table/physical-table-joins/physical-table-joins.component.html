@@ -16,9 +16,17 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div class="physical-table-joins-pane flex-fixed-container h-100">
-  <div class="physical-model-panel-heading physical-model-panel-heading-border py-1 px-2
-                          light-gray-bg justify-content-between align-items-center">
-    <div class="outjoin-toolbar">
+  <div class="physical-table-joins-pane__header">
+    <div class="physical-table-joins-pane__heading">
+      <div class="physical-table-joins-pane__eyebrow">_#(Joins)</div>
+      <div class="physical-table-joins-pane__title" [attr.title]="table?.qualifiedName">
+        {{table?.qualifiedName}}
+      </div>
+      <div class="physical-table-joins-pane__subtitle">
+        _#(Manage relationships from this table to other tables in the physical view.)
+      </div>
+    </div>
+    <div class="outjoin-toolbar toolbar-ghost-actions" role="toolbar" aria-label="_#(Joins)">
       <button role="button" class="btn btn-sm btn-light-no-bg" [disabled]="disabled"
               [attr.title]="'_#(data.physicalmodel.addJoinTooltip)'"
               (click)="addJoin()">
@@ -39,7 +47,11 @@
     </div>
   </div>
   <div class="outgoing-tree-pane flex-fixed-content content-overflow-all d-inline-flex p-1">
-    <tree #joinsTree class="outgoing-tree"
+    <div class="physical-table-joins-pane__empty" *ngIf="!foreignTableRoot.children?.length">
+      _#(No joins yet. Add a join to connect this table to another table in the physical view.)
+    </div>
+    <tree *ngIf="foreignTableRoot.children?.length"
+          #joinsTree class="outgoing-tree"
           [root]="foreignTableRoot"
           [showRoot]="false"
           [showIcon]="false"

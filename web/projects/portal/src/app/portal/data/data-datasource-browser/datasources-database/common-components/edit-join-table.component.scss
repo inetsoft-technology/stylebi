@@ -19,8 +19,15 @@
    overflow: hidden;
    text-overflow: ellipsis;
    white-space: nowrap;
-   padding: 5px 2px;
+   padding: 7px 8px;
    cursor: pointer;
+   font-weight: 600;
+   background: var(--inet-main-panel-bg-color);
+   color: var(--inet-text-strong-color);
+}
+
+.physical-graph-table-title--dragging {
+   background: var(--inet-ui-neutral-hover-bg-color);
 }
 
 edit-join-table-column {

@@ -17,6 +17,7 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild, ElementRef, AfterViewInit } from "@angular/core";
+import { NgbDropdown } from "@ng-bootstrap/ng-bootstrap";
 import { AbstractControl, UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
 import { PhysicalTableTreeComponent } from "./physical-table-tree/physical-table-tree.component";
 import { EntityModel } from "../../../../../model/datasources/database/physical-model/logical-model/entity-model";
@@ -111,6 +112,16 @@ export class LogicalModelAttributeDialog implements OnInit, AfterViewInit {
             this.tree.selectAndExpandToNode(node);
          });
       }
+   }
+
+   get selectedEntityName(): string {
+      return this.parent >= 0 && this.entities[this.parent] ? this.entities[this.parent].name : "";
+   }
+
+   selectEntity(index: number, dropdown: NgbDropdown): void {
+      this.parentControl.setValue(index);
+      this.entityChange(index);
+      dropdown.close();
    }
 
    /**

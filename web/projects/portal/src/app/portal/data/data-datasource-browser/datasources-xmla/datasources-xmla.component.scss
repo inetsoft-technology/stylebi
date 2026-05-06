@@ -18,50 +18,159 @@
 .editor-container {
   position: absolute;
   display: flex;
-  align-items: center;
   flex-direction: column;
+  align-items: stretch;
   width: 100%;
   height: 100%;
   overflow: auto;
-  padding: 1rem;
+  padding: var(--inet-space-5);
+  background: var(--inet-portal-main-panel-bg-color);
 
   input:not([type="checkbox"]) {
     height: 100%;
   }
-
-  .flex-fixed-container {
-    display: flex;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    overflow: hidden;
-
-    .flex-fixed-content {
-      flex-grow: 1;
-      overflow-x: hidden;
-      overflow-y: auto;
-
-      .catalog-input {
-        padding-right: 0;
-      }
-
-      .catalog-browser-btn {
-        padding-left: 0;
-      }
-    }
-  }
 }
 
-.region-label {
-  font-size: 85%;
-  font-weight: 700;
+.xmla-editor-shell {
+  width: min(100%, 1140px);
+  margin: 0 auto;
 }
 
-.region-pane {
-  margin-top: 8px;
+.xmla-editor-hero {
+  margin-bottom: var(--inet-space-5);
+}
+
+.xmla-editor-hero__eyebrow,
+.xmla-card__eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--inet-text-muted-color);
+}
+
+.xmla-editor-hero__title {
+  margin: 6px 0 0;
+  font-size: 30px;
+  line-height: 1.1;
+  color: var(--inet-text-color);
+}
+
+.xmla-editor-hero__subtitle {
+  margin-top: var(--inet-space-3);
+  max-width: 760px;
+  color: var(--inet-text-muted-color);
+  line-height: 1.6;
+}
+
+.xmla-card {
+  margin-bottom: var(--inet-space-5);
+  padding: var(--inet-space-5);
+  background: var(--inet-shell-surface-default);
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-lg);
+}
+
+.xmla-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--inet-space-4);
+  margin-bottom: var(--inet-space-5);
+}
+
+.xmla-card__header--split {
+  align-items: center;
+}
+
+.xmla-card__title {
+  margin-top: var(--inet-space-1);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--inet-text-color);
+}
+
+.xmla-card__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--inet-space-4);
+  flex-wrap: wrap;
+}
+
+.xmla-form-grid,
+.xmla-auth-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--inet-space-4);
+}
+
+.xmla-form-grid__span-2 {
+  grid-column: 1 / -1;
+}
+
+.xmla-checkbox-group {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--inet-space-5);
+  flex-wrap: wrap;
+  padding: var(--inet-space-2) 0;
+}
+
+.xmla-inline-check {
+  display: flex;
+  align-items: center;
+  gap: var(--inet-space-2);
+  margin: 0;
+}
+
+.xmla-inline-check .form-check-input {
+  margin-top: 0;
+}
+
+.xmla-inline-action {
+  flex: 0 0 auto;
+}
+
+.xmla-format-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--inet-space-5);
+}
+
+.xmla-format-grid > .xmla-card {
+  margin-bottom: 0;
+}
+
+.xmla-format-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--inet-space-4);
+}
+
+.xmla-inline-form-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--inet-space-3);
+}
+
+.xmla-inline-form-row__field {
+  flex: 1 1 auto;
+}
+
+.xmla-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--inet-space-2);
 }
 
 .cube-tree {
   min-height: 400px;
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-md);
+  background: var(--inet-shell-surface-subtle);
+  overflow: hidden;
 }
 
 .locale-list {
@@ -71,7 +180,7 @@
 
 .locales-list-btn {
   height: 100%;
-  margin-right: calc(var(--bs-gutter-x)*0.5);
+  margin-right: calc(var(--bs-gutter-x) * 0.5);
   margin-top: .375rem;
   margin-bottom: .375rem;
   position: absolute;
@@ -83,4 +192,31 @@
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+textarea.form-control {
+  min-height: 120px;
+}
+
+@media (max-width: 900px) {
+  .editor-container {
+    padding: var(--inet-space-4);
+  }
+
+  .xmla-card__header,
+  .xmla-card__header--split {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .xmla-form-grid,
+  .xmla-auth-grid,
+  .xmla-format-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .xmla-inline-form-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }

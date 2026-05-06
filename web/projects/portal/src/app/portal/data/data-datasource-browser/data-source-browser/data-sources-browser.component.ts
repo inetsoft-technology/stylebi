@@ -25,6 +25,8 @@ import { Tool } from "../../../../../../../shared/util/tool";
 import { ComponentTool } from "../../../../common/util/component-tool";
 import { DataSourceInfo } from "../../model/data-source-info";
 
+const FAKE_ROOT_PATH: string = "_fake_root_";
+
 @Component({
    selector: "data-sources-browser",
    templateUrl: "data-sources-browser.component.html",
@@ -87,21 +89,26 @@ export class DataSourcesBrowser implements OnInit {
       this.openFolderRequest(path, assetType).subscribe(
          data => {
             this.browserView = data;
+            this.selectedFiles = [];
+            this.selectedFolders = [];
 
-            if(!onInit) {
-               // reset selected items when opening new folder
-               this.selectedFiles = [];
-               this.selectedFolders = [];
+            if(this.folderSelectable && !this.showBreadcrumb) {
+               const currentFolder = this.currentDestination;
 
+               if(currentFolder && currentFolder.path !== FAKE_ROOT_PATH) {
+                  this.selectedFolders = [currentFolder];
+               }
+            }
+            else if(!onInit) {
                let files = this.browserView.files.filter((file) => !!file && !!file.createdDate);
                files = Tool.sortObjects(files, new SortOptions(["createdDate"], SortTypes.DESCENDING));
 
                if(files.length > 0) {
                   this.selectedFiles = [files[0]];
                }
-
-               this.notifySelectionChange();
             }
+
+            this.notifySelectionChange();
          },
          () => {
             ComponentTool.showMessageDialog(this.modalService, "_#(js:admin.status.error)", this.openFolderError);
@@ -192,6 +199,14 @@ export class DataSourcesBrowser implements OnInit {
       return folder.name;
    }
 
+   get rootDestination(): DataSourceInfo {
+      return this.browserView?.path?.length ? this.browserView.path[0] : null;
+   }
+
+   get currentDestination(): DataSourceInfo {
+      return this.browserView?.path?.length ? this.browserView.path[this.browserView.path.length - 1] : null;
+   }
+
    /**
     * Get the folder icon to use.
     * @param folder  the folder to get the icon for
@@ -232,6 +247,17 @@ export class DataSourcesBrowser implements OnInit {
          else if(!!parentNode && parentNode.path == "/") {
             name = this.rootLabel;
          }
+      }
+
+      return name;
+   }
+
+   parentFolderName(): string {
+      let name: string = "..";
+
+      if(!!this.browserView.path && this.browserView.path.length > 1) {
+         const parentNode = this.browserView.path[this.browserView.path.length - 2];
+         name = this.getFolderName(parentNode);
       }
 
       return name;
