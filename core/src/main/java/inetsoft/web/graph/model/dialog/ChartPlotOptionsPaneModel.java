@@ -127,7 +127,8 @@ public class ChartPlotOptionsPaneModel {
       this.barRoundAllCorners = plotDesc.isBarRoundAllCorners();
       this.nodeCornerRadius = plotDesc.getNodeCornerRadius() > 0
          ? plotDesc.getNodeCornerRadius() : null;
-      this.nodeCornerRadiusVisible = info.getChartType() == GraphTypes.CHART_TREE;
+      this.nodeCornerRadiusVisible = GraphTypeUtil.checkType(info,
+         ctype -> ctype == GraphTypes.CHART_TREE);
 
       try {
          if(MapInfo.MAPBOX.equals(SreeEnv.getProperty("webmap.service"))) {

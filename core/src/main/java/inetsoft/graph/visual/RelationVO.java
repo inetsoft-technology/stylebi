@@ -119,7 +119,8 @@ public class RelationVO extends ElementVO {
          if(r > 0) {
             Rectangle2D b = shape.getBounds2D();
             double shortDim = Math.min(b.getWidth(), b.getHeight());
-            double arc = Math.min(r * shortDim, shortDim / 2) * 2;
+            // r is in [0, 0.5]; arc is the corner ellipse diameter
+            double arc = r * shortDim * 2;
             shape = new RoundRectangle2D.Double(b.getX(), b.getY(),
                                                 b.getWidth(), b.getHeight(), arc, arc);
          }
