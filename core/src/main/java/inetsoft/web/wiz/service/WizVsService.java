@@ -208,18 +208,18 @@ public class WizVsService {
    private String buildAndExecuteFresh(CreateVisualizationModel model, Principal user)
       throws Exception
    {
+      SourceContext ctx = resolveSourceContext(model, user);
       Viewsheet.WizInfo wizInfo = new Viewsheet.WizInfo(true, null, null);
-      String runtimeId = viewsheetService.openTemporaryViewsheet(null, null, user, wizInfo);
+      String runtimeId = viewsheetService.openTemporaryViewsheet(null, ctx.sourceWs, user, wizInfo);
 
       try {
          RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
          // WizInfo is set explicitly above via openTemporaryViewsheet; getValidatedViewsheet will always pass.
          Viewsheet vs = getValidatedViewsheet(rvs);
-         SourceContext ctx = resolveSourceContext(model, user);
 
          Viewsheet targetVs = new Viewsheet(ctx.sourceWs());
          targetVs.syncWizData(vs);
-
+         validateBindingFields(ctx);
          VSAssembly assembly = createAssembly(targetVs, model.getVisualizationType(), ctx.title(),
                                               ctx.config(), ctx.primaryAssemblyName());
 
@@ -314,7 +314,7 @@ public class WizVsService {
          throw new IllegalStateException("Worksheet has no primary assembly");
       }
 
-      return new SourceContext(config, sourceWs, primaryAssembly.getName(), title);
+      return new SourceContext(config, sourceWs, worksheet, primaryAssembly.getName(), title);
    }
 
    /**
@@ -346,7 +346,7 @@ public class WizVsService {
       }
    }
 
-   private record SourceContext(VisualizationConfig config, AssetEntry sourceWs,
+   private record SourceContext(VisualizationConfig config, AssetEntry sourceWs, Worksheet worksheet,
                                 String primaryAssemblyName, String title)
    {
    }
@@ -1507,6 +1507,115 @@ public class WizVsService {
       }
 
       return DateRangeRef.getDateRangeOption(mappedLevel);
+   }
+
+   private void validateBindingFields(SourceContext ctx) {
+      VisualizationConfig config = ctx.config();
+
+      if(config == null || config.getBindingInfo() == null) {
+         return;
+      }
+
+      if(!(ctx.worksheet().getAssembly(ctx.primaryAssemblyName()) instanceof TableAssembly tableAssembly)) {
+         return;
+      }
+
+      ColumnSelection columns = tableAssembly.getColumnSelection(true);
+      Set<String> available = new HashSet<>();
+
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         DataRef ref = columns.getAttribute(i);
+
+         if(ref != null) {
+            available.add(ref.getName());
+            String attr = ref.getAttribute();
+
+            if(attr != null && !attr.isEmpty()) {
+               available.add(attr);
+            }
+         }
+      }
+
+      List<String> missing = collectBindingFieldNames(config).stream()
+         .filter(f -> f != null && !f.isEmpty() && !available.contains(f))
+         .distinct()
+         .toList();
+
+      if(!missing.isEmpty()) {
+         throw new IllegalArgumentException(
+            "The following fields are not found in the source worksheet: " +
+            String.join(", ", missing));
+      }
+   }
+
+   private List<String> collectBindingFieldNames(VisualizationConfig config) {
+      List<String> fields = new ArrayList<>();
+
+      if(config.getBindingInfo() instanceof ChartBinding chart) {
+         addFieldNames(fields, chart.getX());
+         addFieldNames(fields, chart.getY());
+         addFieldNames(fields, chart.getGroup());
+         addFieldNames(fields, chart.getT());
+         addFieldName(fields, chart.getColor());
+         addFieldName(fields, chart.getShape());
+         addFieldName(fields, chart.getSize());
+         addFieldName(fields, chart.getText());
+         addFieldName(fields, chart.getPath());
+         addFieldName(fields, chart.getHigh());
+         addFieldName(fields, chart.getLow());
+         addFieldName(fields, chart.getClose());
+         addFieldName(fields, chart.getOpen());
+         addFieldName(fields, chart.getStart());
+         addFieldName(fields, chart.getEnd());
+         addFieldName(fields, chart.getMilestone());
+         addFieldName(fields, chart.getSource());
+         addFieldName(fields, chart.getTarget());
+         addFieldNames(fields, chart.getLongitude());
+         addFieldNames(fields, chart.getLatitude());
+         addFieldNames(fields, chart.getGeo());
+
+         if(chart.getNode() != null) {
+            ChartBinding.NodeBinding node = chart.getNode();
+            addFieldName(fields, node.getColor());
+            addFieldName(fields, node.getSize());
+            addFieldName(fields, node.getText());
+         }
+      }
+      else if(config.getBindingInfo() instanceof TableBinding table) {
+         addFieldNames(fields, table.getDetails());
+      }
+      else if(config.getBindingInfo() instanceof CrosstabBinding crosstab) {
+         addFieldNames(fields, crosstab.getRows());
+         addFieldNames(fields, crosstab.getCols());
+         addFieldNames(fields, crosstab.getAggregates());
+      }
+      else if(config.getBindingInfo() instanceof OutputBinding output) {
+         addFieldName(fields, output.getField());
+      }
+
+      if(config.getLayers() != null) {
+         for(Layer layer : config.getLayers()) {
+            if(layer.getField() != null && !layer.getField().isEmpty()) {
+               fields.add(layer.getField());
+            }
+         }
+      }
+
+      return fields;
+   }
+
+   private void addFieldName(List<String> fields, FieldInfo field) {
+      if(field != null && field.getField() != null && !field.getField().isEmpty()) {
+         fields.add(field.getField());
+      }
+   }
+
+   private void addFieldNames(List<String> fields, List<? extends FieldInfo> fieldList) {
+      if(fieldList != null) {
+         for(FieldInfo f : fieldList) {
+            addFieldName(fields, f);
+         }
+      }
    }
 
    /**

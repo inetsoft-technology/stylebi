@@ -463,10 +463,12 @@ public class GenerateWsService {
 
          for(int i = 0; i < baseColumnSelection.getAttributeCount(); i++) {
             DataRef attribute = baseColumnSelection.getAttribute(i);
-            AttributeRef attributeRef = new AttributeRef(tableAssembly.getName(), attribute.getAttribute());
+            String alias = attribute instanceof ColumnRef colRef ? colRef.getAlias() : null;
+            String colName = alias != null ? alias : attribute.getAttribute();
+            AttributeRef attributeRef = new AttributeRef(tableAssembly.getName(), colName);
             attributeRef.setDataType(attribute.getDataType());
             ColumnRef col = new ColumnRef(attributeRef);
-            col.setVisible(needAddColumn(compositeTableAssembly, columnSelection, tableAssembly.getName(), attribute.getAttribute()));
+            col.setVisible(needAddColumn(compositeTableAssembly, columnSelection, tableAssembly.getName(), colName));
             columnSelection.addAttribute(col);
          }
       }
