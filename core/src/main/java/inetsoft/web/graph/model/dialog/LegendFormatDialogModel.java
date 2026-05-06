@@ -50,6 +50,13 @@ public class LegendFormatDialogModel {
       generalPaneModel.setNotShowNullVisible(dimension && field != null);
       generalPaneModel.setSymbolSize(legendDesc.getSymbolSize());
       generalPaneModel.setRoundCorners(legendsDesc.isRoundCorners());
+      generalPaneModel.setSymbolRoundCorners(legendsDesc.isSymbolRoundCorners());
+      // only rect-based legends (Color/Size/Texture) actually render the rounded swatch;
+      // Shape and Line legends draw glyphs/lines so the toggle is hidden there
+      generalPaneModel.setSymbolRoundCornersVisible(
+         "Color".equals(aestheticType) ||
+         "Size".equals(aestheticType) ||
+         "Texture".equals(aestheticType));
 
       if(legendsDesc.getBorderColor() != null) {
          generalPaneModel.setFillColor(
@@ -117,6 +124,7 @@ public class LegendFormatDialogModel {
       legendDesc.setNotShowNull(generalPaneModel.isNotShowNull());
       legendDesc.setSymbolSize(generalPaneModel.getSymbolSize());
       legendsDesc.setRoundCorners(generalPaneModel.isRoundCorners());
+      legendsDesc.setSymbolRoundCorners(generalPaneModel.isSymbolRoundCorners());
 
       legendDesc.setReversed(scalePaneModel.isReverse());
       legendDesc.setLogarithmicScale(scalePaneModel.isLogarithmic());

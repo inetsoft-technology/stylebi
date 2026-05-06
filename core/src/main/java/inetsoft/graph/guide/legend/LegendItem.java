@@ -27,6 +27,9 @@ import inetsoft.util.Tool;
 
 import java.awt.*;
 import java.awt.geom.Point2D;
+import java.awt.geom.Rectangle2D;
+import java.awt.geom.RectangularShape;
+import java.awt.geom.RoundRectangle2D;
 
 /**
  * Legend item.
@@ -251,6 +254,28 @@ public abstract class LegendItem extends BoundedContainer {
    protected abstract void paintSymbol(Graphics2D g, double x, double y);
 
    /**
+    * Build the swatch rect honoring LegendSpec.isSymbolRoundCorners().
+    */
+   protected RectangularShape createSymbolRect(double x, double y, double w, double h) {
+      return createSymbolRect(x, y, w, h, true);
+   }
+
+   /**
+    * Build the swatch rect; allowRound=false forces a sharp rect even when the
+    * spec asks for rounded corners (used for narrow size-legend bars).
+    */
+   protected RectangularShape createSymbolRect(double x, double y, double w, double h,
+                                               boolean allowRound)
+   {
+      if(allowRound && frame.getLegendSpec().isSymbolRoundCorners()) {
+         double arc = symbolSize * SYMBOL_CORNER_RADIUS_RATIO * 2;
+         return new RoundRectangle2D.Double(x, y, w, h, arc, arc);
+      }
+
+      return new Rectangle2D.Double(x, y, w, h);
+   }
+
+   /**
     * Set the color alpha of symbol.
     * @param alpha the color alpha.
     */
@@ -271,6 +296,8 @@ public abstract class LegendItem extends BoundedContainer {
    }
 
    public static final int DEFAULT_SYMBOL_SIZE = 12;
+   /** Corner-radius of legend symbols, as a fraction of symbol size. */
+   public static final double SYMBOL_CORNER_RADIUS_RATIO = 0.3;
    protected static final int LINESYMBOL_WIDTH = 30;
    protected static final Color SYMBOL_BORDER = new Color(0xa3, 0xa3, 0xa3);
    protected static final Color SYMBOL_COLOR = new Color(0x759595);

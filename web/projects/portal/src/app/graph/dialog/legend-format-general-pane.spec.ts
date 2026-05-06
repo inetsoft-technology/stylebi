@@ -56,7 +56,9 @@ let createModel: () => LegendFormatGeneralPaneModel = () => {
       notShowNull: false,
       notShowNullVisible: false,
       symbolSize: 0,
-      roundCorners: false
+      roundCorners: false,
+      symbolRoundCorners: false,
+      symbolRoundCornersVisible: true
    };
 };
 

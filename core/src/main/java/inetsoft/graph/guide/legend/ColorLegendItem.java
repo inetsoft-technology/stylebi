@@ -22,7 +22,7 @@ import inetsoft.graph.aesthetic.VisualFrame;
 import inetsoft.graph.internal.GTool;
 
 import java.awt.*;
-import java.awt.geom.Rectangle2D;
+import java.awt.geom.RectangularShape;
 
 /**
  * This class renders a single color legend item.
@@ -50,7 +50,7 @@ public class ColorLegendItem extends LegendItem {
    protected void paintSymbol(Graphics2D g, double x, double y) {
       Graphics2D g2 = (Graphics2D) g.create();
       int size = getSymbolSize();
-      Rectangle2D rect = new Rectangle2D.Double(x, y, size, size);
+      RectangularShape rect = createSymbolRect(x, y, size, size);
       ColorFrame frame = (ColorFrame) getVisualFrame();
       Color color = frame.getColor(getValue());
       color = GTool.getColor(color, getAlpha());
