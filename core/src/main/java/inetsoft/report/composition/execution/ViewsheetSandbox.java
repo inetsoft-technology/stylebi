@@ -4989,13 +4989,30 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    private void applyShareFilter(VSAssembly assembly) throws Exception {
-      ViewsheetEngine.getViewsheetEngine().invokeOnAll(new ApplyShareFilterTask(
-         assembly, System.identityHashCode(getViewsheet()), getUser()));
+      // Resolve filterId on the source node while getViewsheet() is available.
+      // VSAssemblyInfo.vs is transient and returns null on remote cluster nodes.
+      final String filterId = getViewsheet().getViewsheetInfo().getFilterID(assembly.getName());
+
+      if(filterId == null) {
+         return;
+      }
+
+      ViewsheetService engine = ViewsheetEngine.getViewsheetEngine();
+
+      if(!engine.hasAtLeastRuntimeViewsheets(getUser(), 2)) {
+         return;
+      }
+
+      engine.invokeOnAll(new ApplyShareFilterTask(
+         assembly, filterId, System.identityHashCode(getViewsheet()), getUser()));
    }
 
    private static final class ApplyShareFilterTask implements ViewsheetService.Task<String> {
-      public ApplyShareFilterTask(VSAssembly assembly, int viewsheetIdentity, Principal user) {
+      public ApplyShareFilterTask(VSAssembly assembly, String filterId,
+                                  int viewsheetIdentity, Principal user)
+      {
          this.assembly = assembly;
+         this.filterId = filterId;
          this.viewsheetIdentity = viewsheetIdentity;
          this.user = user;
       }
@@ -5013,7 +5030,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
             if(box.isPresent()) {
-               box.get().processSharedFilters(assembly, null, true);
+               box.get().processSharedFilters(assembly, filterId, null, true);
             }
          }
 
@@ -5021,6 +5038,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       private final VSAssembly assembly;
+      private final String filterId;
       private final int viewsheetIdentity;
       private final Principal user;
    }

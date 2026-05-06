@@ -1152,22 +1152,27 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          }
       }
 
+      // Wait for all remote futures under a single shared timeout so that N failed
+      // nodes cost at most 5 minutes total rather than N × 5 minutes.
+      try {
+         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+            .get(5L, TimeUnit.MINUTES);
+      }
+      catch(RuntimeException ex) {
+         futureIds.forEach(affinityFutures::remove);
+         throw ex;
+      }
+      catch(ExecutionException ex) {
+         futureIds.forEach(affinityFutures::remove);
+         throw new RuntimeException(ex);
+      }
+      catch(Exception e) {
+         futureIds.forEach(affinityFutures::remove);
+         throw new RuntimeException(e);
+      }
+
       for(CompletableFuture<T> future : futures) {
-         try {
-            results.add(future.get(5L, TimeUnit.MINUTES));
-         }
-         catch(RuntimeException ex) {
-            futureIds.forEach(affinityFutures::remove);
-            throw ex;
-         }
-         catch(ExecutionException ex) {
-            futureIds.forEach(affinityFutures::remove);
-            throw new RuntimeException(ex);
-         }
-         catch(Exception e) {
-            futureIds.forEach(affinityFutures::remove);
-            throw new RuntimeException(e);
-         }
+         results.add(future.getNow(null));
       }
 
       return results;
